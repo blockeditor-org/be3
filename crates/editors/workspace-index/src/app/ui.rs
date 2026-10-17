@@ -1,6 +1,5 @@
 use uuid::Uuid;
 
-use block_editor_beui::be_block::FolderContent;
 use block_editor_beui::beui::icons::{ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_FOLDER};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -8,7 +7,7 @@ use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, TextAlign, Vec2};
 use block_editor_beui::{Editor, Toolbar};
 
-use super::entries::{Entry, Folder, FolderSort};
+use super::entries::{Entry, Folder, FolderSort, Listing};
 
 const PADDING: f32 = 12.0;
 const TILE_SPACING: f32 = 10.0;
@@ -79,7 +78,7 @@ impl Cells {
 
 #[component]
 pub fn FolderEditor(editor: Editor) -> NodeId {
-    let index = editor.block_content::<FolderContent>();
+    let index = Listing::of(editor);
     let (mode, set_mode) = create_signal(FolderView::default());
     let (sort, set_sort) = create_signal(FolderSort::default());
     let (descending, set_descending) = create_signal(false);
@@ -198,29 +197,27 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                             />
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
-                            <Dynamic value={mode}>
-                                {move |shown: FolderView| {
-                                    match shown {
-                                        FolderView::List => view! {
-                                            <EntryRows cells={cells} />
-                                        },
-                                        FolderView::LargeGrid => view! {
-                                            <EntryTiles
-                                                cells={cells}
-                                                tile=LARGE_TILE
-                                                icon_size=LARGE_ICON
-                                            />
-                                        },
-                                        FolderView::SmallGrid => view! {
-                                            <EntryTiles
-                                                cells={cells}
-                                                tile=SMALL_TILE
-                                                icon_size=SMALL_ICON
-                                            />
-                                        },
-                                    }
-                                }}
-                            </Dynamic>
+                            <Dynamic value={mode}>|shown: FolderView| {
+                                match shown {
+                                    FolderView::List => view! {
+                                        <EntryRows cells={cells} />
+                                    },
+                                    FolderView::LargeGrid => view! {
+                                        <EntryTiles
+                                            cells={cells}
+                                            tile=LARGE_TILE
+                                            icon_size=LARGE_ICON
+                                        />
+                                    },
+                                    FolderView::SmallGrid => view! {
+                                        <EntryTiles
+                                            cells={cells}
+                                            tile=SMALL_TILE
+                                            icon_size=SMALL_ICON
+                                        />
+                                    },
+                                }
+                            }</Dynamic>
                         </Scroll>
                     </List>
                 </Frame>
@@ -236,32 +233,30 @@ fn EntryRows(cells: Cells) -> NodeId {
     let chosen = create_selector(move || selected.get());
     view! {
         <List spacing=2.0>
-            <ForEach keys={keys}>
-                {move |key: Uuid| {
-                    let entry = cells.entry(key);
-                    let open = cells.open(entry);
-                    let set_selected = cells.set_selected;
-                    let here = chosen.memo(Some(key));
-                    view! {
-                        <ListRow
-                            selected={here}
-                            @test_id={entry_test_id(key)}
-                            on_click={move || set_selected.set(Some(key))}
-                            on_activate={open}
-                        >
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <EntryGlyph entry={entry} size=ROW_ICON />
-                                <Text
-                                    @sizing=ItemSize::Percent(100.0)
-                                    string={name_of(entry)}
-                                    color={name_color(entry)}
-                                />
-                                <Text style=TextStyle::CAPTION string={type_of(entry)} />
-                            </List>
-                        </ListRow>
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|key: Uuid| {
+                let entry = cells.entry(key);
+                let open = cells.open(entry);
+                let set_selected = cells.set_selected;
+                let here = chosen.memo(Some(key));
+                view! {
+                    <ListRow
+                        selected={here}
+                        @test_id={entry_test_id(key)}
+                        on_click={move || set_selected.set(Some(key))}
+                        on_activate={open}
+                    >
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <EntryGlyph entry={entry} size=ROW_ICON />
+                            <Text
+                                @sizing=ItemSize::Percent(100.0)
+                                string={name_of(entry)}
+                                color={name_color(entry)}
+                            />
+                            <Text style=TextStyle::CAPTION string={type_of(entry)} />
+                        </List>
+                    </ListRow>
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -273,39 +268,37 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
     let chosen = create_selector(move || selected.get());
     view! {
         <List direction=Direction::Horizontal wrap=true align=Align::Start spacing=TILE_SPACING>
-            <ForEach keys={keys}>
-                {move |key: Uuid| {
-                    let entry = cells.entry(key);
-                    let open = cells.open(entry);
-                    let set_selected = cells.set_selected;
-                    let here = chosen.memo(Some(key));
-                    view! {
-                        <ListRow
-                            @sizing=ItemSize::Fixed(tile.x)
-                            selected={here}
-                            @test_id={entry_test_id(key)}
-                            on_click={move || set_selected.set(Some(key))}
-                            on_activate={open}
-                        >
-                            <Frame height={tile.y}>
-                                <List align=Align::Center justify=Justify::Center spacing=4.0>
-                                    <EntryGlyph entry={entry} size={icon_size} />
-                                    <Text
-                                        string={name_of(entry)}
-                                        color={name_color(entry)}
-                                        align=TextAlign::Center
-                                    />
-                                    <Text
-                                        style=TextStyle::CAPTION
-                                        string={type_of(entry)}
-                                        align=TextAlign::Center
-                                    />
-                                </List>
-                            </Frame>
-                        </ListRow>
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|key: Uuid| {
+                let entry = cells.entry(key);
+                let open = cells.open(entry);
+                let set_selected = cells.set_selected;
+                let here = chosen.memo(Some(key));
+                view! {
+                    <ListRow
+                        @sizing=ItemSize::Fixed(tile.x)
+                        selected={here}
+                        @test_id={entry_test_id(key)}
+                        on_click={move || set_selected.set(Some(key))}
+                        on_activate={open}
+                    >
+                        <Frame height={tile.y}>
+                            <List align=Align::Center justify=Justify::Center spacing=4.0>
+                                <EntryGlyph entry={entry} size={icon_size} />
+                                <Text
+                                    string={name_of(entry)}
+                                    color={name_color(entry)}
+                                    align=TextAlign::Center
+                                />
+                                <Text
+                                    style=TextStyle::CAPTION
+                                    string={type_of(entry)}
+                                    align=TextAlign::Center
+                                />
+                            </List>
+                        </Frame>
+                    </ListRow>
+                }
+            }</ForEach>
         </List>
     }
 }

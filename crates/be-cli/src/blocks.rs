@@ -75,10 +75,70 @@ impl Index {
             .iter()
             .filter(|entry| match parent {
                 Some(parent) => entry.parent == BlockParent::Block(parent),
-                None => entry.parent == BlockParent::Root,
+                None => self.at_top(entry),
             })
             .filter(|entry| entry.access.can_view())
             .collect()
+    }
+
+    fn at_top(&self, entry: &Entry) -> bool {
+        match entry.parent {
+            BlockParent::Root => !is_settings(entry.block_type),
+            BlockParent::Block(parent) => self.is_hidden(parent),
+            BlockParent::Detached => false,
+        }
+    }
+
+    pub fn is_hidden(&self, block: Uuid) -> bool {
+        self.get(block)
+            .is_none_or(|parent| !parent.access.can_view())
+    }
+
+    pub fn workspaces(&self) -> Vec<&Entry> {
+        self.entries
+            .iter()
+            .filter(|entry| {
+                entry.block_type == be_block::WorkspaceContent::CONTENT_TYPE
+                    && entry.parent == BlockParent::Root
+                    && entry.access.can_view()
+            })
+            .collect()
+    }
+
+    pub fn default_parent(&self) -> Result<&Entry, String> {
+        let workspaces: Vec<&Entry> = self
+            .workspaces()
+            .into_iter()
+            .filter(|entry| entry.access.can_edit())
+            .collect();
+        let candidates = match workspaces.is_empty() {
+            false => workspaces,
+            true => self
+                .entries
+                .iter()
+                .filter(|entry| {
+                    entry.block_type == be_block::FolderContent::CONTENT_TYPE
+                        && entry.access.can_edit()
+                        && self.at_top(entry)
+                })
+                .collect(),
+        };
+        match candidates.as_slice() {
+            [one] => Ok(one),
+            [] => Err(
+                "this account cannot write in any workspace; ask someone to share one with it"
+                    .to_owned(),
+            ),
+            several => Err(format!(
+                "this account can write in {} workspaces; name one with --in: {}",
+                several.len(),
+                several
+                    .iter()
+                    .map(|entry| format!("{} ({})", entry.label(), entry.short))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            )),
+        }
     }
 
     pub fn find(&self, text: &str, accept: impl Fn(&Entry) -> bool) -> Result<&Entry, String> {
@@ -141,13 +201,19 @@ impl Index {
     }
 }
 
+fn is_settings(block_type: Uuid) -> bool {
+    block_type == be_block::SettingsContent::CONTENT_TYPE
+        || block_type == be_block::SettingsProfileContent::CONTENT_TYPE
+}
+
 pub fn type_name(block_type: Uuid) -> &'static str {
-    let known: [(Uuid, &str); 13] = [
+    let known: [(Uuid, &str); 14] = [
         (DatabaseContent::CONTENT_TYPE, "database"),
         (DatabaseSchemaContent::CONTENT_TYPE, "schema"),
         (DatabaseViewContent::CONTENT_TYPE, "database view"),
         (TextContent::CONTENT_TYPE, "text"),
         (be_block::FolderContent::CONTENT_TYPE, "folder"),
+        (be_block::WorkspaceContent::CONTENT_TYPE, "workspace"),
         (be_block::CanvasContent::CONTENT_TYPE, "canvas"),
         (be_block::ChecklistContent::CONTENT_TYPE, "checklist"),
         (be_block::CalendarContent::CONTENT_TYPE, "calendar"),

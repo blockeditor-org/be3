@@ -24,8 +24,7 @@ fn clicking_the_scrollbar_track_pages_the_scroll_towards_the_click() {
     harness.frame(Vec::new());
 
     let scroll = scroll.get();
-    let outer = harness.document().children(scroll)[1];
-    let bar = harness.rect(harness.document().children(outer)[0]);
+    let bar = harness.rect(harness.document().children(scrollbar_of(&harness, scroll))[0]);
 
     harness.click(pos2(bar.center().x, bar.bottom() - EDGE));
     harness.frame(Vec::new());

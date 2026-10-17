@@ -10,21 +10,63 @@ thread_local! {
     static CURRENT_COMPONENT: RefCell<Option<Rc<ComponentContext>>> = const { RefCell::new(None) };
 }
 
+#[derive(Debug)]
+pub struct ComponentInfo {
+    pub name: &'static str,
+    pub module: &'static str,
+}
+
+impl ComponentInfo {
+    pub fn label(&self) -> String {
+        let (prefix, rest) = self.module.split_once("::").unwrap_or((self.module, ""));
+        match prefix {
+            "beui_components_styled" => format!("styled::{}", self.name),
+            "beui_components_unstyled" => format!("unstyled::{}", self.name),
+            "beui_view" => format!("primitives::{}", self.name),
+            _ if rest.is_empty() => format!("{prefix}::{}", self.name),
+            _ => format!("{}::{}", self.module, self.name),
+        }
+    }
+
+    pub fn internal_by_default(&self) -> bool {
+        self.module
+            .split("::")
+            .next()
+            .is_some_and(|name| name.starts_with("beui_"))
+    }
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct ComponentRecord {
+    pub info: &'static ComponentInfo,
+    pub id: u64,
+    pub owner: Option<u64>,
+}
+
 pub struct ComponentContext {
-    name: &'static str,
+    record: ComponentRecord,
     extensions: RefCell<Vec<(TypeId, Rc<dyn Any>)>>,
 }
 
 impl ComponentContext {
-    fn new(name: &'static str) -> Self {
+    fn new(info: &'static ComponentInfo) -> Self {
+        static NEXT: std::sync::atomic::AtomicU64 = std::sync::atomic::AtomicU64::new(1);
         Self {
-            name,
+            record: ComponentRecord {
+                info,
+                id: NEXT.fetch_add(1, std::sync::atomic::Ordering::Relaxed),
+                owner: try_current_component().map(|owner| owner.record.id),
+            },
             extensions: RefCell::new(Vec::new()),
         }
     }
 
     pub fn name(&self) -> &'static str {
-        self.name
+        self.record.info.name
+    }
+
+    pub fn record(&self) -> ComponentRecord {
+        self.record
     }
 
     pub fn extension<T: Default + 'static>(&self) -> Rc<T> {
@@ -80,8 +122,8 @@ pub trait ChildValue {
     }
 }
 
-pub fn component<T: ChildValue>(name: &'static str, f: impl FnOnce() -> T) -> T {
-    let context = Rc::new(ComponentContext::new(name));
+pub fn component<T: ChildValue>(info: &'static ComponentInfo, f: impl FnOnce() -> T) -> T {
+    let context = Rc::new(ComponentContext::new(info));
     let (mut value, scope) = child_scope(|| in_component(Some(context.clone()), f));
     value.finish_component(&context, &scope);
     value
@@ -183,9 +225,17 @@ impl<H, C> IntoRenderFn<H, C> for RenderFn<H, C> {
 }
 
 #[diagnostic::on_unimplemented(
-    message = "this component hands a value to the children it builds",
-    label = "write these children as a single closure taking that value"
+    message = "this component hands nothing to its children, so there is no value to name",
+    label = "write these children without `|value|`"
 )]
-pub trait UnitHandle<H> {}
+pub trait HandsAValue {
+    fn bind<T>(self) -> T;
+}
 
-impl<F> UnitHandle<()> for F {}
+#[diagnostic::on_unimplemented(
+    message = "this component takes its children already built, so they cannot be a block that builds them",
+    label = "write these children as tags or as `{{expr}}`, without `|| {{...}}`"
+)]
+pub trait BuildsItsChildren {
+    fn build<T>(self) -> T;
+}

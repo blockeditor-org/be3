@@ -9,8 +9,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use beui::{
-    Event, Launch, Modifiers, Platform, PointerButton, Pos2, ScrollDelta, Setup, TouchId,
-    TouchPhase, Waker, vec2,
+    Event, Launch, Modifiers, Pen, PenPhase, Platform, PointerButton, Pos2, ScrollDelta, Setup,
+    TouchId, TouchPhase, Waker, vec2,
 };
 use beui_core::app::SafeArea;
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
@@ -18,11 +18,15 @@ use beui_core::renderer::Loaded;
 use beui_core::runner::{Keystroke, Runner, panic_message};
 use beui_core::window::WindowState;
 use smithay::backend::allocator::gbm::GbmDevice;
-use smithay::backend::drm::{DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime};
+use smithay::backend::drm::{
+    DrmDevice, DrmDeviceFd, DrmEvent, DrmEventMetadata, DrmEventTime, DrmNode, NodeType,
+};
 use smithay::backend::input::Event as _;
 use smithay::backend::input::{
     AbsolutePositionEvent, Axis, ButtonState, InputEvent, KeyState, KeyboardKeyEvent,
-    PointerAxisEvent, PointerButtonEvent, PointerMotionEvent, TouchEvent,
+    PointerAxisEvent, PointerButtonEvent, PointerMotionEvent, ProximityState,
+    TabletToolButtonEvent, TabletToolEvent, TabletToolProximityEvent, TabletToolTipEvent,
+    TabletToolTipState, TabletToolType, TouchEvent,
 };
 use smithay::backend::libinput::{LibinputInputBackend, LibinputSessionInterface};
 use smithay::backend::session::libseat::LibSeatSession;
@@ -37,26 +41,31 @@ use smithay::reexports::calloop::{
 use smithay::reexports::drm;
 use smithay::reexports::drm::control::Device as ControlDevice;
 use smithay::reexports::drm::control::{connector, crtc};
-use smithay::reexports::input::{Device as InputDevice, Libinput};
+use smithay::reexports::input::{Device as InputDevice, DeviceCapability, Libinput};
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::utils::{Clock, DeviceFd, Monotonic};
 
-use be_dmabuf::{adapter_for, open_device};
+use be_dmabuf::{Vulkan, adapter_for, open_device};
 
 use crate::display::{DisplayConfig, DisplayControl};
 use crate::displays::{DisplayRenderer, Displays};
+use crate::epaper::{Epaper, Panel};
+use crate::escape::{Escape, FINGERS as ESCAPE_FINGERS, HOLD as ESCAPE_HOLD};
 use crate::flips::{Flip, Flips};
 use crate::gpu::{Gpu, SoftwareCursor};
-use crate::input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
+use crate::input::{
+    DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice, RawInput, SharedFilter,
+};
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, bounds, clamp, moved};
-use crate::output::{Output, connected, wait_for};
+use crate::output::{Buffers, Output, connected, wait_for};
 use crate::pacing::{Lane, Pacer, Wait};
 use crate::problems::Problems;
 use crate::recovery::{Card, Recovery};
 use crate::screen::FORMAT;
 use crate::wake::{Held, Input, WakeGate};
 
+const KEY_A: u32 = 30;
 const LONGEST_WAIT: Duration = Duration::from_secs(3600);
 const BLANKED_FRAME: Duration = Duration::from_secs(1);
 const DARKEN_RETRY: Duration = Duration::from_secs(1);
@@ -68,7 +77,10 @@ struct Session {
     handle: LoopHandle<'static, Session>,
     signal: LoopSignal,
     drm: DrmDevice,
-    gbm: GbmDevice<DrmDeviceFd>,
+    buffers: Buffers,
+    epaper: Option<(Panel, Epaper)>,
+    escape: Escape,
+    escape_timer: Option<RegistrationToken>,
     node: u64,
     libinput: Libinput,
     devices: Vec<InputDevice>,
@@ -87,6 +99,7 @@ struct Session {
     flips: Flips,
     keyboard: Keyboard,
     repeat: Option<(u32, RegistrationToken)>,
+    filter_timer: Option<(Duration, RegistrationToken)>,
     wakeup: Option<(Duration, RegistrationToken)>,
     darken_retry: Option<RegistrationToken>,
     lost: Arc<AtomicBool>,
@@ -131,7 +144,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let fd = DrmDeviceFd::new(DeviceFd::from(fd));
     let (drm, drm_events) = DrmDevice::new(fd.clone(), true)?;
     let node = drm.device_id();
-    let gbm = GbmDevice::new(fd)?;
+    let panel = Panel::find(&fd);
     handle.insert_source(drm_events, |event, metadata, session| match event {
         DrmEvent::VBlank(crtc) => session.flipped(crtc, metadata.as_ref()),
         DrmEvent::Error(error) => session
@@ -157,17 +170,24 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     let lost = Arc::new(AtomicBool::new(false));
     let (device, queue) = open_gpu(node, &lost)?;
     let gpu = Rc::new(Gpu::new(device, queue, FORMAT));
+    let buffers = buffers(fd, node, &gpu)?;
     let displays = Rc::new(RefCell::new(Displays::new(
         gpu,
         SoftwareCursor::default(),
         scale(),
     )));
     let mut runner = Runner::new(launch);
-    let mut setup = Setup::new(waker);
+    let mut setup = Setup::new(waker.clone());
     setup.provide(control.clone());
     setup.provide(display_control.clone());
     let problems = Problems::default();
     setup.provide(problems.clone());
+    let epaper = panel.map(|panel| {
+        panel.take_over();
+        let control = Epaper::new(waker.clone());
+        setup.provide(control.clone());
+        (panel, control)
+    });
     let flips = displays.borrow().flips.clone();
     setup.provide(flips.clone());
     runner.start(
@@ -192,7 +212,10 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         handle: handle.clone(),
         signal: event_loop.get_signal(),
         drm,
-        gbm,
+        buffers,
+        epaper,
+        escape: Escape::default(),
+        escape_timer: None,
         node,
         libinput,
         devices: Vec::new(),
@@ -211,6 +234,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         clock: Clock::new(),
         flips,
         repeat: None,
+        filter_timer: None,
         wakeup: None,
         darken_retry: None,
         lost,
@@ -295,6 +319,37 @@ impl drm::Device for Probe<'_> {}
 
 impl ControlDevice for Probe<'_> {}
 
+fn buffers(display: DrmDeviceFd, node: u64, gpu: &Gpu) -> Result<Buffers, Box<dyn Error>> {
+    let render = gpu.vulkan().and_then(Vulkan::render_node);
+    let own = DrmNode::from_dev_id(node)
+        .ok()
+        .and_then(|node| node.node_with_type(NodeType::Render))
+        .and_then(Result::ok)
+        .map(|node| node.dev_id());
+    let Some(render) = render.filter(|render| own != Some(*render)) else {
+        return Ok(Buffers {
+            gbm: GbmDevice::new(display)?,
+            imported: false,
+        });
+    };
+    let path = DrmNode::from_dev_id(render)?
+        .dev_path()
+        .ok_or("the GPU's render node has no path")?;
+    let file = std::fs::OpenOptions::new()
+        .read(true)
+        .write(true)
+        .open(&path)
+        .map_err(|error| format!("{} could not be opened: {error}", path.display()))?;
+    eprintln!(
+        "beui: the display device cannot draw, so {} draws for it",
+        path.display()
+    );
+    Ok(Buffers {
+        gbm: GbmDevice::new(DrmDeviceFd::new(DeviceFd::from(OwnedFd::from(file))))?,
+        imported: true,
+    })
+}
+
 fn scale() -> f32 {
     std::env::var("BEUI_SCALE")
         .ok()
@@ -331,7 +386,8 @@ impl Session {
             displays,
             devices,
             libinput,
-            gbm,
+            buffers,
+            epaper,
             drm,
             ..
         } = self;
@@ -341,7 +397,8 @@ impl Session {
         drop(devices);
         libinput.suspend();
         drop(libinput);
-        drop(gbm);
+        drop(buffers);
+        drop(epaper);
         drop(drm);
         finished
     }
@@ -353,12 +410,20 @@ impl Session {
         if let Some(config) = self.control.take() {
             self.configure(config);
         }
+        self.drain_filter();
         if let Some(config) = self.display_control.take() {
             self.display_config = config;
             self.modes_pending = true;
         }
+        let refresh = self
+            .epaper
+            .as_ref()
+            .is_some_and(|(_, control)| control.take_refresh());
         if !self.recovery.active() {
             return;
+        }
+        if refresh && let Some((panel, _)) = &self.epaper {
+            panel.refresh();
         }
         if self.modes_pending {
             self.apply_modes();
@@ -635,7 +700,7 @@ impl Session {
             self.built += 1;
             match Output::new(
                 &mut self.drm,
-                &self.gbm,
+                &self.buffers,
                 &gpu,
                 handle,
                 &info,
@@ -743,16 +808,21 @@ impl Session {
                     let position = self.absolute_position(event);
                     self.place_pointer(position);
                 }
+                InputEvent::TabletToolAxis { event } => {
+                    let position = self.absolute_position(event);
+                    self.place_pointer(position);
+                }
+                InputEvent::TabletToolProximity { event } => {
+                    let position = self.absolute_position(event);
+                    self.place_pointer(position);
+                }
                 _ => {}
             }
         }
         pass.deliver
     }
 
-    fn absolute_position(
-        &self,
-        event: &<LibinputInputBackend as smithay::backend::input::InputBackend>::PointerMotionAbsoluteEvent,
-    ) -> Pos2 {
+    fn absolute_position<E: AbsolutePositionEvent<LibinputInputBackend>>(&self, event: &E) -> Pos2 {
         let area = bounds(&self.rects());
         let position =
             event.position_transformed((area.width() as i32, area.height() as i32).into());
@@ -806,6 +876,11 @@ impl Session {
         }
         pointers.sort_by(|left, right| left.id.cmp(&right.id));
         self.control.set_devices(pointers);
+        let typing = self.devices.iter().any(|device| {
+            device.has_capability(DeviceCapability::Keyboard)
+                && device.keyboard_has_key(KEY_A) == Ok(true)
+        });
+        self.runner.reports().keyboard_attached(typing);
     }
 
     fn input(&mut self, event: InputEvent<LibinputInputBackend>) {
@@ -824,7 +899,10 @@ impl Session {
             }
             InputEvent::Keyboard { event } => {
                 let code = event.key_code().raw().saturating_sub(8);
-                self.key(code, event.state() == KeyState::Pressed);
+                self.filtered(RawInput::Key {
+                    code,
+                    pressed: event.state() == KeyState::Pressed,
+                });
             }
             InputEvent::PointerMotion { event } => {
                 let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
@@ -840,29 +918,30 @@ impl Session {
                 self.point(position);
             }
             InputEvent::PointerButton { event } => {
-                let Some(button) = pointer_button(event.button_code()) else {
-                    return;
-                };
-                let pos = self.physical(self.pointer());
-                self.runner
-                    .pointer_button(pos, button, event.state() == ButtonState::Pressed);
-                self.pacer.ask();
+                self.filtered(RawInput::Button {
+                    code: event.button_code(),
+                    pressed: event.state() == ButtonState::Pressed,
+                });
             }
             InputEvent::PointerAxis { event } => {
-                let notches = |axis| event.amount_v120(axis).map(|v120| -v120 as f32 / 120.0);
-                let delta = match (notches(Axis::Horizontal), notches(Axis::Vertical)) {
-                    (None, None) => {
-                        let amount = |axis| -event.amount(axis).unwrap_or(0.0) as f32;
-                        let scale = self.displays.borrow().scale;
-                        ScrollDelta::Pixels(
-                            vec2(amount(Axis::Horizontal), amount(Axis::Vertical)) * scale,
-                        )
-                    }
-                    (x, y) => ScrollDelta::Lines(vec2(x.unwrap_or(0.0), y.unwrap_or(0.0))),
-                };
+                let notch = |axis| event.amount_v120(axis).map(|v120| v120.round() as i32);
+                let (x, y) = (notch(Axis::Horizontal), notch(Axis::Vertical));
+                if x.is_some() || y.is_some() {
+                    self.filtered(RawInput::Wheel {
+                        x: x.unwrap_or(0),
+                        y: y.unwrap_or(0),
+                    });
+                    return;
+                }
+                let amount = |axis| -event.amount(axis).unwrap_or(0.0) as f32;
+                let scale = self.displays.borrow().scale;
+                let delta = ScrollDelta::Pixels(
+                    vec2(amount(Axis::Horizontal), amount(Axis::Vertical)) * scale,
+                );
                 self.push(delta);
             }
             InputEvent::TouchDown { event } => {
+                self.escape_touch(event.slot(), true);
                 let position = self.touch_position(&event);
                 self.touch(event.slot(), TouchPhase::Start, position);
             }
@@ -871,13 +950,77 @@ impl Session {
                 self.touch(event.slot(), TouchPhase::Move, position);
             }
             InputEvent::TouchUp { event } => {
+                self.escape_touch(event.slot(), false);
                 self.touch(event.slot(), TouchPhase::End, self.pointer());
             }
             InputEvent::TouchCancel { event } => {
+                self.escape_touch(event.slot(), false);
                 self.touch(event.slot(), TouchPhase::Cancel, self.pointer());
+            }
+            InputEvent::TabletToolProximity { event } => {
+                let phase = match event.state() {
+                    ProximityState::In => PenPhase::Move,
+                    ProximityState::Out => PenPhase::Gone,
+                };
+                self.pen(phase, &event);
+            }
+            InputEvent::TabletToolAxis { event } => self.pen(PenPhase::Move, &event),
+            InputEvent::TabletToolTip { event } => {
+                let phase = match TabletToolTipEvent::tip_state(&event) {
+                    TabletToolTipState::Down => PenPhase::Down(PointerButton::Primary),
+                    TabletToolTipState::Up => PenPhase::Up(PointerButton::Primary),
+                };
+                self.pen(phase, &event);
+            }
+            InputEvent::TabletToolButton { event } => {
+                let button = stylus_button(TabletToolButtonEvent::button(&event));
+                let phase = match TabletToolButtonEvent::button_state(&event) {
+                    ButtonState::Pressed => PenPhase::Down(button),
+                    ButtonState::Released => PenPhase::Up(button),
+                };
+                self.pen(phase, &event);
             }
             _ => {}
         }
+    }
+
+    fn escape_touch(&mut self, slot: smithay::backend::input::TouchSlot, down: bool) {
+        match self.escape.touch(slot.into(), down) {
+            Some(true) => {
+                self.escape_timer = self
+                    .handle
+                    .insert_source(Timer::from_duration(ESCAPE_HOLD), |_, _, session| {
+                        eprintln!(
+                            "beui: {ESCAPE_FINGERS} fingers were held on the screen, so the session ends"
+                        );
+                        session.escape_timer = None;
+                        session.signal.stop();
+                        TimeoutAction::Drop
+                    })
+                    .ok();
+            }
+            Some(false) => {
+                if let Some(token) = self.escape_timer.take() {
+                    self.handle.remove(token);
+                }
+            }
+            None => {}
+        }
+    }
+
+    fn pen<E: TabletToolEvent<LibinputInputBackend>>(&mut self, phase: PenPhase, event: &E) {
+        let position = self.absolute_position(event);
+        self.place_pointer(position);
+        let tool = event.tool();
+        self.push(Event::Pen {
+            phase,
+            pos: self.physical(position),
+            pressure: event.pressure() as f32,
+            pen: Pen {
+                tilt: vec2(event.tilt_x() as f32, event.tilt_y() as f32),
+                eraser: tool.tool_type == TabletToolType::Eraser,
+            },
+        });
     }
 
     fn touch_position<E: AbsolutePositionEvent<LibinputInputBackend>>(&self, event: &E) -> Pos2 {
@@ -904,6 +1047,85 @@ impl Session {
             pos,
             force: None,
         });
+    }
+
+    fn filtered(&mut self, input: RawInput) {
+        let Some(filter) = self.control.filter() else {
+            self.deliver(input);
+            return;
+        };
+        let outputs = filter.borrow_mut().input(input, self.now());
+        for output in outputs {
+            self.deliver(output);
+        }
+        self.schedule_filter(&filter);
+    }
+
+    fn drain_filter(&mut self) {
+        for input in self.control.take_injected() {
+            self.deliver(input);
+        }
+        match self.control.filter() {
+            Some(filter) => self.schedule_filter(&filter),
+            None => self.stop_filter_timer(),
+        }
+    }
+
+    fn fire_filter(&mut self) {
+        self.filter_timer = None;
+        let Some(filter) = self.control.filter() else {
+            return;
+        };
+        let outputs = filter.borrow_mut().timer(self.now());
+        for output in outputs {
+            self.deliver(output);
+        }
+        self.schedule_filter(&filter);
+    }
+
+    fn schedule_filter(&mut self, filter: &SharedFilter) {
+        let deadline = filter.borrow().deadline();
+        if self.filter_timer.as_ref().map(|(at, _)| *at) == deadline {
+            return;
+        }
+        self.stop_filter_timer();
+        let Some(at) = deadline else {
+            return;
+        };
+        let wait = at.saturating_sub(self.now());
+        let token = self
+            .handle
+            .insert_source(Timer::from_duration(wait), |_, _, session| {
+                session.fire_filter();
+                TimeoutAction::Drop
+            });
+        if let Ok(token) = token {
+            self.filter_timer = Some((at, token));
+        }
+    }
+
+    fn stop_filter_timer(&mut self) {
+        if let Some((_, token)) = self.filter_timer.take() {
+            self.handle.remove(token);
+        }
+    }
+
+    fn deliver(&mut self, input: RawInput) {
+        match input {
+            RawInput::Key { code, pressed } => self.key(code, pressed),
+            RawInput::Button { code, pressed } => {
+                let Some(button) = pointer_button(code) else {
+                    return;
+                };
+                let pos = self.physical(self.pointer());
+                self.runner.pointer_button(pos, button, pressed);
+                self.pacer.ask();
+            }
+            RawInput::Wheel { x, y } => {
+                let notches = |v120: i32| -v120 as f32 / 120.0;
+                self.push(ScrollDelta::Lines(vec2(notches(x), notches(y))));
+            }
+        }
     }
 
     fn key(&mut self, code: u32, pressed: bool) {
@@ -961,6 +1183,14 @@ impl Card for Session {
         self.libinput.suspend();
         self.drm.pause();
         self.stop_repeat();
+        self.stop_filter_timer();
+        self.escape = Escape::default();
+        if let Some(token) = self.escape_timer.take() {
+            self.handle.remove(token);
+        }
+        if let Some(filter) = self.control.filter() {
+            filter.borrow_mut().forget_held();
+        }
     }
 
     fn release(&mut self, output: Option<connector::Handle>) {
@@ -979,6 +1209,9 @@ impl Card for Session {
             self.problems.report(format!(
                 "The display device could not be taken back: {error}"
             ));
+        }
+        if let Some((panel, _)) = &self.epaper {
+            panel.take_over();
         }
         if let Some(keyboard) = Keyboard::new(&self.input) {
             if self.keyboard.modifiers() != Modifiers::NONE {
@@ -1044,6 +1277,22 @@ fn gate_input(event: &InputEvent<LibinputInputBackend>) -> Option<(Input, u64)> 
         InputEvent::TouchCancel { event } => {
             (Input::Release(touch_held(event.slot())), event.time())
         }
+        InputEvent::TabletToolTip { event } => (
+            pressed(
+                Held::Button(BTN_TOUCH),
+                TabletToolTipEvent::tip_state(event) == TabletToolTipState::Down,
+            ),
+            event.time(),
+        ),
+        InputEvent::TabletToolButton { event } => (
+            pressed(
+                Held::Button(TabletToolButtonEvent::button(event)),
+                TabletToolButtonEvent::button_state(event) == ButtonState::Pressed,
+            ),
+            event.time(),
+        ),
+        InputEvent::TabletToolAxis { event } => (Input::Other, event.time()),
+        InputEvent::TabletToolProximity { event } => (Input::Other, event.time()),
         _ => return None,
     })
 }
@@ -1088,13 +1337,23 @@ fn configure_device(device: &mut InputDevice, config: &InputConfig) {
     }
 }
 
+const BTN_TOUCH: u32 = 0x14a;
+
+fn stylus_button(code: u32) -> PointerButton {
+    match code {
+        0x14b => PointerButton::Secondary,
+        0x14c => PointerButton::Middle,
+        code => pointer_button(code).unwrap_or(PointerButton::Other(0)),
+    }
+}
+
 fn pointer_button(code: u32) -> Option<PointerButton> {
     match code {
         0x110 => Some(PointerButton::Primary),
         0x111 => Some(PointerButton::Secondary),
         0x112 => Some(PointerButton::Middle),
-        0x113 | 0x116 => Some(PointerButton::Back),
-        0x114 | 0x115 => Some(PointerButton::Forward),
-        _ => None,
+        0x113 => Some(PointerButton::Back),
+        0x114 => Some(PointerButton::Forward),
+        code => u16::try_from(code).ok().map(PointerButton::Other),
     }
 }

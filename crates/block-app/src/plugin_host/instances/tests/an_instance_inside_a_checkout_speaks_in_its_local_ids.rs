@@ -10,11 +10,13 @@ fn info(block: Uuid, parent: Uuid, references: Vec<Uuid>) -> BlockInfo {
     BlockInfo {
         block_id: block.into_bytes(),
         block_type: TextContent::CONTENT_TYPE.into_bytes(),
-        author: [0; 16],
-        parent: BlockLocation::Block(parent.into_bytes()),
+        author: Some([0; 16]),
+        parent: Some(BlockLocation::Block(parent.into_bytes())),
         references: references.into_iter().map(Uuid::into_bytes).collect(),
         access: block_plugin_api::AccessLevel::Edit,
         metadata: block_plugin_api::BlockMetadata::default(),
+        locked: false,
+        deleted: false,
     }
 }
 

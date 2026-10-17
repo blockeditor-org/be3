@@ -91,6 +91,7 @@ pub struct State {
     revision: Cell<u64>,
     reset_performance: Cell<bool>,
     closed: Cell<bool>,
+    keyboard_toggled: Cell<bool>,
     compact: Cell<bool>,
     app_shown: Cell<bool>,
 }
@@ -124,6 +125,7 @@ impl State {
             revision: Cell::new(0),
             reset_performance: Cell::new(false),
             closed: Cell::new(false),
+            keyboard_toggled: Cell::new(false),
             compact: Cell::new(false),
             app_shown: Cell::new(false),
         }
@@ -163,6 +165,11 @@ impl State {
 
     fn close(&self) {
         self.closed.set(true);
+        self.touch();
+    }
+
+    fn toggle_keyboard(&self) {
+        self.keyboard_toggled.set(true);
         self.touch();
     }
 
@@ -270,7 +277,7 @@ impl State {
 
     fn select_row(&self, key: Key) {
         self.select(key.node());
-        if let Key::Component(..) = key {
+        if matches!(key, Key::Component(..) | Key::Internals(..) | Key::Text(..)) {
             self.selected_component.set(Some(key));
         }
     }
@@ -652,6 +659,9 @@ impl Inspector {
         if self.state().reset_performance.take() {
             target.reset_performance();
             ctx.request_repaint();
+        }
+        if self.state().keyboard_toggled.take() {
+            ctx.toggle_keyboard();
         }
         ctx.set_touch_emulation(self.state().touch_emulation.get());
         crate::mouse_simulation::simulate(ctx, self.state().mouse_simulation.get());
@@ -1044,12 +1054,7 @@ impl Inspector {
         match self.state().tab.get() {
             InspectorTab::Beui => tree::path(target, id),
             InspectorTab::Components => {
-                let mut path = tree::component_path(target, id);
-                let chosen = self.state().selected_component.get();
-                if let Some(end) = path.iter().position(|key| Some(*key) == chosen) {
-                    path.truncate(end + 1);
-                }
-                path
+                tree::component_path(target, id, self.state().selected_component.get())
             }
             InspectorTab::AccessKit => tree::accesskit_path(target, id),
             InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),
@@ -1304,7 +1309,14 @@ impl Tools for InspectorTools {
                 };
                 input.only(|event| !inspector.is_some_and(|inspector| inspector.claims(event)))
             };
-            ctx.with_input(given, || document.show_screen(ctx, layout.content));
+            ctx.with_input(given, || {
+                beui_core::software_keyboard::show_with_keyboard(
+                    document,
+                    ctx,
+                    layout.content,
+                    |document, content| document.show_screen(ctx, content),
+                )
+            });
         } else {
             document.hide();
         }

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn a_request_goes_to_the_nearest_editor_around_it_that_takes_it() {
-    let (desktop, workspace, files, checklist) = (
+    let (desktop, organization, files, checklist) = (
         Uuid::new_v4(),
         Uuid::new_v4(),
         Uuid::new_v4(),
@@ -11,22 +11,22 @@ fn a_request_goes_to_the_nearest_editor_around_it_that_takes_it() {
     let nesting = Nesting {
         shell: desktop,
         parents: HashMap::from([
-            (workspace, desktop),
-            (files, workspace),
-            (checklist, workspace),
+            (organization, desktop),
+            (files, organization),
+            (checklist, organization),
         ]),
-        accepting: vec![desktop, workspace],
+        accepting: vec![desktop, organization],
     };
 
     assert_eq!(
         nesting.route(Some(files)),
-        workspace,
-        "the files inside a workspace open blocks in that workspace"
+        organization,
+        "the files inside an organization open blocks in that organization"
     );
-    assert_eq!(nesting.route(Some(checklist)), workspace);
+    assert_eq!(nesting.route(Some(checklist)), organization);
     assert_eq!(
-        nesting.route(Some(workspace)),
-        workspace,
+        nesting.route(Some(organization)),
+        organization,
         "an editor that takes a request handles its own"
     );
 }

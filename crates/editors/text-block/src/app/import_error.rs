@@ -15,9 +15,7 @@ pub(crate) fn ImportError(state: State) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                {move || view! {
-                    <ImportErrorRow state={state} />
-                }}
+                <ImportErrorRow state={state} />
             </Show>
         </List>
     }

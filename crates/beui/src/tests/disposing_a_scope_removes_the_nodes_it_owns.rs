@@ -13,22 +13,20 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
         move || {
             view! {
                 <List spacing=0.0>
-                    <Show condition={shown}>
-                        {move || {
-                            component("Outer", move || {
-                                on_cleanup(move || set_cleaned.update(|cleaned| cleaned.push("outer")));
-                                let inner = component("Inner", move || {
-                                    on_cleanup(move || set_cleaned.update(|cleaned| cleaned.push("inner")));
-                                    view! {
-                                        <Text @node_ref=&text string={label} />
-                                    }
-                                });
+                    <Show condition={shown}>|| {
+                        component(&ComponentInfo { name: "Outer", module: module_path!() }, move || {
+                            on_cleanup(move || set_cleaned.update(|cleaned| cleaned.push("outer")));
+                            let inner = component(&ComponentInfo { name: "Inner", module: module_path!() }, move || {
+                                on_cleanup(move || set_cleaned.update(|cleaned| cleaned.push("inner")));
                                 view! {
-                                    <Frame>{inner}</Frame>
+                                    <Text @node_ref=&text string={label} />
                                 }
-                            })
-                        }}
-                    </Show>
+                            });
+                            view! {
+                                <Frame>{inner}</Frame>
+                            }
+                        })
+                    }</Show>
                 </List>
             }
         }

@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::{collections::HashMap, hash::BuildHasherDefault};
 
 use be_block::{ARTIFACT, BlockMetadata, LOCAL_ID};
 use be_protocol::BlockSummary;
@@ -146,34 +146,90 @@ impl<'a> Reader<'a> {
 }
 
 pub fn swap_ids(bytes: &[u8], ids: &HashMap<Uuid, Uuid>) -> Vec<u8> {
-    let mut forms: HashMap<Vec<u8>, Vec<u8>> = HashMap::new();
-    for (old, new) in ids {
-        forms.insert(old.as_bytes().to_vec(), new.as_bytes().to_vec());
-        forms.insert(
-            old.hyphenated().to_string().into_bytes(),
-            new.hyphenated().to_string().into_bytes(),
-        );
-        forms.insert(
-            old.simple().to_string().into_bytes(),
-            new.simple().to_string().into_bytes(),
-        );
-    }
-    let mut out = Vec::with_capacity(bytes.len());
-    let mut at = 0;
-    'scan: while at < bytes.len() {
-        for length in [36, 32, 16] {
-            if let Some(window) = bytes.get(at..at + length)
-                && let Some(new) = forms.get(window)
-            {
-                out.extend(new);
-                at += length;
-                continue 'scan;
+    IdSwap::new(ids).apply(bytes)
+}
+
+type Forms = HashMap<u64, Vec<(Vec<u8>, Vec<u8>)>, BuildHasherDefault<Spread>>;
+
+pub struct IdSwap {
+    forms: Forms,
+}
+
+impl IdSwap {
+    pub fn new(ids: &HashMap<Uuid, Uuid>) -> Self {
+        let mut forms = Forms::default();
+        for (old, new) in ids {
+            for (old, new) in [
+                (
+                    old.hyphenated().to_string().into_bytes(),
+                    new.hyphenated().to_string().into_bytes(),
+                ),
+                (
+                    old.simple().to_string().into_bytes(),
+                    new.simple().to_string().into_bytes(),
+                ),
+                (old.as_bytes().to_vec(), new.as_bytes().to_vec()),
+            ] {
+                forms.entry(key(&old, 0)).or_default().push((old, new));
             }
         }
-        out.push(bytes[at]);
-        at += 1;
+        Self { forms }
     }
-    out
+
+    pub fn apply(&self, bytes: &[u8]) -> Vec<u8> {
+        let forms = &self.forms;
+        let mut out = Vec::with_capacity(bytes.len());
+        let mut at = 0;
+        let mut copied = 0;
+        while at + KEY_END <= bytes.len() {
+            let found = forms.get(&key(bytes, at)).and_then(|candidates| {
+                candidates
+                    .iter()
+                    .find(|(old, _)| bytes[at..].starts_with(old))
+            });
+            match found {
+                Some((old, new)) => {
+                    out.extend_from_slice(&bytes[copied..at]);
+                    out.extend_from_slice(new);
+                    at += old.len();
+                    copied = at;
+                }
+                None => at += 1,
+            }
+        }
+        out.extend_from_slice(&bytes[copied..]);
+        out
+    }
+}
+
+const KEY_START: usize = 8;
+const KEY_END: usize = 16;
+
+fn key(bytes: &[u8], at: usize) -> u64 {
+    u64::from_le_bytes(
+        bytes[at + KEY_START..at + KEY_END]
+            .try_into()
+            .expect("a key is eight bytes"),
+    )
+}
+
+#[derive(Default)]
+struct Spread(u64);
+
+impl std::hash::Hasher for Spread {
+    fn finish(&self) -> u64 {
+        self.0
+    }
+
+    fn write(&mut self, bytes: &[u8]) {
+        for byte in bytes {
+            self.write_u64(u64::from(*byte));
+        }
+    }
+
+    fn write_u64(&mut self, value: u64) {
+        self.0 = (self.0 ^ value).wrapping_mul(0x9e37_79b9_7f4a_7c15);
+    }
 }
 
 pub fn file_name(name: &str) -> String {
@@ -196,6 +252,7 @@ pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
         .iter()
         .map(|block| (block.id, Uuid::now_v7()))
         .collect();
+    let swap = IdSwap::new(&ids);
     blocks
         .into_iter()
         .map(|block| {
@@ -212,7 +269,7 @@ pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
                     .iter()
                     .map(|reference| ids.get(reference).copied().unwrap_or(*reference))
                     .collect(),
-                content: block.content.map(|bytes| swap_ids(&bytes, &ids)),
+                content: block.content.map(|bytes| swap.apply(&bytes)),
             }
         })
         .collect()
@@ -227,8 +284,7 @@ impl<S: ObjectStore> Peer<S> {
             return Ok(None);
         };
         let commit = self.load_commit(head).await?;
-        self.fetch(&commit.manifest.chunk_hashes()).await?;
-        Ok(Some(self.commits().vault().read(&commit.manifest)?))
+        Ok(Some(self.read_manifest(&commit.manifest).await?))
     }
 
     pub async fn download_block(
@@ -242,7 +298,7 @@ impl<S: ObjectStore> Peer<S> {
             id: block,
             block_type,
             parent,
-            metadata: self.metadata(&summary)?,
+            metadata: self.metadata_of_summary(&summary).await?,
             content: self.head_content(&summary).await?,
             references: summary.references,
         })
@@ -252,7 +308,9 @@ impl<S: ObjectStore> Peer<S> {
         let Some(content) = &block.content else {
             return Ok(None);
         };
-        let manifest = self.commits().vault().write(block.block_type, content)?;
+        let manifest = self
+            .write_content(block.id, block.block_type, content)
+            .await?;
         self.publish_manifest(
             block.id,
             manifest,

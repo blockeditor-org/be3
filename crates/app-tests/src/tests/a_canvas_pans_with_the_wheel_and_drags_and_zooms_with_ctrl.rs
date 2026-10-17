@@ -5,7 +5,7 @@ const SHAPE: &str = "GenericContainer #infinite-canvas.entity.";
 #[test]
 fn a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl() {
     let mut app = AppTest::start();
-    add_root_block(&mut app, "Canvas");
+    add_to_my_files(&mut app, "Canvas");
     app.wait("#infinite-canvas.canvas");
     let stage = app.place("#infinite-canvas.canvas");
     let at = |x: f32, y: f32| format!("{:.0},{:.0}", stage.0 + stage.2 * x, stage.1 + stage.3 * y);

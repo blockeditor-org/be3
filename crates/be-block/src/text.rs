@@ -16,6 +16,7 @@ pub enum TextLanguage {
     PlainText,
     Rust,
     Zig,
+    Toml,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -120,11 +121,13 @@ impl TextBlock {
             .into()
     }
 
-    pub fn linked_blocks(&self, workspace: Option<Uuid>) -> Vec<Uuid> {
+    pub fn linked_blocks(&self, organization: Option<Uuid>) -> Vec<Uuid> {
         let mut seen = std::collections::HashSet::new();
         crate::block_url::parse_block_urls(&self.body)
             .into_iter()
-            .filter(|url| workspace.is_none_or(|workspace| url.workspace_id == workspace))
+            .filter(|url| {
+                organization.is_none_or(|organization| url.organization_id == organization)
+            })
             .map(|url| url.block)
             .filter(|id| seen.insert(*id))
             .collect()
@@ -152,7 +155,7 @@ impl Root for TextBlock {
         self.linked_blocks(None)
     }
 
-    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> {
-        self.linked_blocks(Some(workspace))
+    fn references_in(&self, organization: Uuid) -> Vec<Uuid> {
+        self.linked_blocks(Some(organization))
     }
 }

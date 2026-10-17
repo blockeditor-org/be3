@@ -7,7 +7,7 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{ChoiceOption, Scroll};
+use beui::unstyled::ChoiceOption;
 use block_editor_beui::BlockParent;
 use block_editor_beui::{BlockFilter, block_ui::BlockLabel};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
@@ -31,14 +31,10 @@ pub(crate) fn EditorMenu(state: State) -> NodeId {
         <Dialog open={settings} title="Text settings" on_dismiss={move || set_settings.set(false)}>
             <List spacing=SETTINGS_SPACING>
                 <Show condition={text_view}>
-                    {move || view! {
-                        <TextSettings state={state} />
-                    }}
+                    <TextSettings state={state} />
                 </Show>
                 <Show condition={hex_view}>
-                    {move || view! {
-                        <HexSettings state={state} />
-                    }}
+                    <HexSettings state={state} />
                 </Show>
             </List>
         </Dialog>
@@ -235,15 +231,13 @@ fn MarkdownControls(formats: Vec<Action>) -> NodeId {
     let count = formats.len();
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
-            <ForEach keys={(0..count).collect::<Vec<usize>>()}>
-                {move |index: usize| {
-                    let action = formats[index].clone();
-                    let id = action.id().to_owned();
-                    view! {
-                        <IconButton @test_id={id} action />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
+                let action = formats[index].clone();
+                let id = action.id().to_owned();
+                view! {
+                    <IconButton @test_id={id} action />
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -304,12 +298,10 @@ fn TextSettings(state: State) -> NodeId {
                         selected={language_index}
                         @test_id={"text.language"}
                         options={view! {
-                            <ForEach keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}>
-                                {move |index: usize| view! {
-                                    <ChoiceOption
-                                        label={TextLanguage::ALL[index].label().to_owned()}
-                                    />
-                                }}
+                            <ForEach
+                                keys={(0..TextLanguage::ALL.len()).collect::<Vec<usize>>()}
+                            >|index: usize|
+                                <ChoiceOption label={TextLanguage::ALL[index].label().to_owned()} />
                             </ForEach>
                         }}
                         on_change={move |index: Option<usize>| {
@@ -343,30 +335,24 @@ fn TextSettings(state: State) -> NodeId {
                 </Frame>
             </List>
             <Show condition={spaces}>
-                {move || view! {
-                    <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        spacing=SETTINGS_SPACING
-                    >
-                        <Text @sizing=ItemSize::Percent(100.0) string="Indentation width" />
-                        <Frame width=NUMBER_WIDTH>
-                            <NumberInput
-                                label="Indentation width"
-                                value={width}
-                                min=1.0
-                                max=8.0
-                                @test_id={"text.indentation-width"}
-                                on_change={move |value: f64| {
-                                    let width = value.round().clamp(1.0, 8.0) as u8;
-                                    state.text.execute(EditorCommand::SetIndentation(
-                                        TextIndentation::Spaces { width },
-                                    ));
-                                }}
-                            />
-                        </Frame>
-                    </List>
-                }}
+                <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
+                    <Text @sizing=ItemSize::Percent(100.0) string="Indentation width" />
+                    <Frame width=NUMBER_WIDTH>
+                        <NumberInput
+                            label="Indentation width"
+                            value={width}
+                            min=1.0
+                            max=8.0
+                            @test_id={"text.indentation-width"}
+                            on_change={move |value: f64| {
+                                let width = value.round().clamp(1.0, 8.0) as u8;
+                                state.text.execute(EditorCommand::SetIndentation(
+                                    TextIndentation::Spaces { width },
+                                ));
+                            }}
+                        />
+                    </Frame>
+                </List>
             </Show>
         </List>
     }

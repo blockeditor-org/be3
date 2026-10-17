@@ -147,9 +147,9 @@ impl Overlay {
                 }
                 Tool::Select | Tool::Pen => {}
             },
-            Some(Gesture::Pen { points }) => {
+            Some(Gesture::Pen { points, pressures }) => {
                 let points: Vec<Pos2> = points.iter().map(|point| self.camera.at(*point)).collect();
-                stroke(painter, &points, 2.0, color);
+                stroke(painter, &points, 2.0, pressures, color);
             }
             Some(Gesture::SelectBox {
                 start,

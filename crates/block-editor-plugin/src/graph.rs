@@ -46,6 +46,7 @@ pub enum BlockQuery {
     All,
     Roots,
     Detached,
+    Shared,
     Children(Uuid),
     References(Uuid),
     Backrefs(Uuid),
@@ -60,6 +61,7 @@ impl BlockQuery {
             Self::All => Wire::All,
             Self::Roots => Wire::Roots,
             Self::Detached => Wire::Detached,
+            Self::Shared => Wire::Shared,
             Self::Children(id) => Wire::Children(id.into_bytes()),
             Self::References(id) => Wire::References(id.into_bytes()),
             Self::Backrefs(id) => Wire::Backrefs(id.into_bytes()),
@@ -74,6 +76,7 @@ impl BlockQuery {
             Wire::All => Self::All,
             Wire::Roots => Self::Roots,
             Wire::Detached => Self::Detached,
+            Wire::Shared => Self::Shared,
             Wire::Children(id) => Self::Children(Uuid::from_bytes(id)),
             Wire::References(id) => Self::References(Uuid::from_bytes(id)),
             Wire::Backrefs(id) => Self::Backrefs(Uuid::from_bytes(id)),
@@ -87,11 +90,13 @@ impl BlockQuery {
 pub struct BlockInfo {
     pub id: Uuid,
     pub block_type: Uuid,
-    pub author: Uuid,
-    pub parent: BlockParent,
+    pub author: Option<Uuid>,
+    pub parent: Option<BlockParent>,
     pub references: Vec<Uuid>,
     pub access: AccessLevel,
     pub metadata: BlockMetadata,
+    pub locked: bool,
+    pub deleted: bool,
 }
 
 impl BlockInfo {
@@ -99,16 +104,30 @@ impl BlockInfo {
         Self {
             id,
             block_type,
-            author: Uuid::nil(),
-            parent,
+            author: Some(Uuid::nil()),
+            parent: Some(parent),
             references: Vec::new(),
             access: AccessLevel::Edit,
             metadata: BlockMetadata::default(),
+            locked: false,
+            deleted: false,
         }
     }
 
     pub fn name(&self) -> Option<String> {
         self.metadata.name()
+    }
+
+    pub fn no_access(&self) -> bool {
+        !self.access.can_view()
+    }
+
+    pub fn reach(&self) -> block_ui::Reach {
+        match (self.no_access(), self.locked) {
+            (true, _) => block_ui::Reach::NoAccess,
+            (false, true) => block_ui::Reach::Locked,
+            (false, false) => block_ui::Reach::Open,
+        }
     }
 
     pub fn set_name(&mut self, name: impl Into<String>) {
@@ -147,20 +166,24 @@ impl BlockInfo {
             self.name().as_deref(),
             self.named_by_hand(),
         )
+        .reached(self.reach())
+        .deleted(self.deleted)
     }
 
     pub fn encode(&self) -> block_plugin_api::BlockInfo {
         block_plugin_api::BlockInfo {
             block_id: self.id.into_bytes(),
             block_type: self.block_type.into_bytes(),
-            author: self.author.into_bytes(),
-            parent: self.parent.encode(),
+            author: self.author.map(Uuid::into_bytes),
+            parent: self.parent.map(BlockParent::encode),
             references: self.references.iter().map(|id| id.into_bytes()).collect(),
             access: self.access,
             metadata: block_plugin_api::BlockMetadata {
                 defined: wire_entries(&self.metadata.defined),
                 derived: wire_entries(&self.metadata.derived),
             },
+            locked: self.locked,
+            deleted: self.deleted,
         }
     }
 
@@ -168,14 +191,16 @@ impl BlockInfo {
         Self {
             id: Uuid::from_bytes(info.block_id),
             block_type: Uuid::from_bytes(info.block_type),
-            author: Uuid::from_bytes(info.author),
-            parent: BlockParent::decode(info.parent),
+            author: info.author.map(Uuid::from_bytes),
+            parent: info.parent.map(BlockParent::decode),
             references: info.references.into_iter().map(Uuid::from_bytes).collect(),
             access: info.access,
             metadata: BlockMetadata {
                 defined: entries_of(info.metadata.defined),
                 derived: entries_of(info.metadata.derived),
             },
+            locked: info.locked,
+            deleted: info.deleted,
         }
     }
 }

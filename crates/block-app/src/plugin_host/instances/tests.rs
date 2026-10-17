@@ -70,6 +70,7 @@ fn moved(pos: Pos2) -> beui::Forwarded {
             modifiers: beui::Modifiers::NONE,
             clicks: 0,
             force: None,
+            pen: None,
             source: 0,
         },
         over: None,

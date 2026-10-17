@@ -31,21 +31,20 @@ pub fn ActionRow(
             action
             disabled
             on_click={on_click}
-            content={move |handle: unstyled::ButtonHandle| {
-                let unstyled::ButtonHandle {
-                    hovered,
-                    active,
-                    focused,
-                    disabled,
-                    label,
-                    glyph,
-                    ..
-                } = handle;
-                view! {
-                    <ActionRowFace hovered active focused label glyph detail disabled danger />
-                }
-            }}
-        />
+        >|handle: unstyled::ButtonHandle| {
+            let unstyled::ButtonHandle {
+                hovered,
+                active,
+                focused,
+                disabled,
+                label,
+                glyph,
+                ..
+            } = handle;
+            view! {
+                <ActionRowFace hovered active focused label glyph detail disabled danger />
+            }
+        }</unstyled::Button>
     }
 }
 

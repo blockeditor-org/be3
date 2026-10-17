@@ -180,53 +180,49 @@ fn color(color: Rgb) -> Color32 {
 #[component]
 pub(crate) fn TerminalPane(pane: Pane) -> NodeId {
     view! {
-        <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
-                create_effect(move || {
-                    let size = size.get();
-                    let Some(cell) = layout_text("M", FontId::monospace(FONT_SIZE), TextLayout::DEFAULT)
-                        .map(|galley| galley.size())
-                    else {
-                        return;
-                    };
-                    if cell.x <= 0.0 || cell.y <= 0.0 {
-                        return;
-                    }
-                    let cols = ((size.x - 2.0 * PADDING) / cell.x).floor().max(1.0) as u16;
-                    let rows = ((size.y - 2.0 * PADDING) / cell.y).floor().max(1.0) as u16;
-                    untrack(|| pane.resize(cols, rows, cell.x as u32, cell.y as u32));
-                });
-                let rows = pane.rows;
-                let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
-                let background = pane.background;
-                view! {
-                    <Interactive
-                        focusable=true
-                        on_text={move |text: String| pane.type_text(&text)}
-                        on_key={move |press: KeyPress| pane.press(press)}
-                        on_scroll={move |gesture: ScrollGesture| {
-                            let rows = (gesture.delta.y / (FONT_SIZE * LINE_SPACING)).round() as isize;
-                            if rows != 0 {
-                                pane.scroll(-rows);
-                            }
-                        }}
-                    >
-                        <Frame fill={ColorRole::custom(background)} padding=PADDING>
-                            <List spacing=0.0>
-                                <ForEach keys>
-                                    {move |index: usize| {
-                                        let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()).unwrap_or_default());
-                                        view! {
-                                            <TerminalLine row />
-                                        }
-                                    }}
-                                </ForEach>
-                            </List>
-                        </Frame>
-                    </Interactive>
+        <LayoutBuilder>|size: ReadSignal<Vec2>| {
+            create_effect(move || {
+                let size = size.get();
+                let Some(cell) = layout_text("M", FontId::monospace(FONT_SIZE), TextLayout::DEFAULT)
+                    .map(|galley| galley.size())
+                else {
+                    return;
+                };
+                if cell.x <= 0.0 || cell.y <= 0.0 {
+                    return;
                 }
-            }}
-        </LayoutBuilder>
+                let cols = ((size.x - 2.0 * PADDING) / cell.x).floor().max(1.0) as u16;
+                let rows = ((size.y - 2.0 * PADDING) / cell.y).floor().max(1.0) as u16;
+                untrack(|| pane.resize(cols, rows, cell.x as u32, cell.y as u32));
+            });
+            let rows = pane.rows;
+            let keys = create_memo(move || (0..rows.with(Vec::len)).collect::<Vec<_>>());
+            let background = pane.background;
+            view! {
+                <Interactive
+                    focusable=true
+                    on_text={move |text: String| pane.type_text(&text)}
+                    on_key={move |press: KeyPress| pane.press(press)}
+                    on_scroll={move |gesture: ScrollGesture| {
+                        let rows = (gesture.delta.y / (FONT_SIZE * LINE_SPACING)).round() as isize;
+                        if rows != 0 {
+                            pane.scroll(-rows);
+                        }
+                    }}
+                >
+                    <Frame fill={ColorRole::custom(background)} padding=PADDING>
+                        <List spacing=0.0>
+                            <ForEach keys>|index: usize| {
+                                let row = create_memo(move || rows.with(|rows| rows.get(index).cloned()).unwrap_or_default());
+                                view! {
+                                    <TerminalLine row />
+                                }
+                            }</ForEach>
+                        </List>
+                    </Frame>
+                </Interactive>
+            }
+        }</LayoutBuilder>
     }
 }
 
@@ -235,14 +231,12 @@ fn TerminalLine(row: Memo<Row>) -> NodeId {
     let keys = create_memo(move || (0..row.with(Vec::len)).collect::<Vec<_>>());
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <ForEach keys>
-                {move |index: usize| {
-                    let span = create_memo(move || row.with(|row| row.get(index).cloned()));
-                    view! {
-                        <TerminalSpan span />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys>|index: usize| {
+                let span = create_memo(move || row.with(|row| row.get(index).cloned()));
+                view! {
+                    <TerminalSpan span />
+                }
+            }</ForEach>
         </List>
     }
 }

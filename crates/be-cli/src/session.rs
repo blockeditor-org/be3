@@ -2,7 +2,7 @@ use std::path::PathBuf;
 
 use be_client::{ClientError, Connection, Credentials, Peer, PeerConfig, authorize, http_url};
 use be_protocol::{ClientMessage, ServerMessage};
-use be_store::{ContentKey, FileStore};
+use be_store::FileStore;
 use uuid::Uuid;
 
 pub const DEFAULT_SERVER: &str = "https://blocks.pfg.pw";
@@ -10,7 +10,7 @@ pub const DEFAULT_SERVER: &str = "https://blocks.pfg.pw";
 #[derive(Clone, Debug)]
 pub struct Settings {
     pub server: String,
-    pub workspace: Option<Uuid>,
+    pub organization: Option<Uuid>,
     pub token: String,
     pub phrase: String,
     pub authorization: Option<String>,
@@ -25,10 +25,10 @@ impl Settings {
                 .map(|value| value.trim().to_owned())
                 .filter(|value| !value.is_empty())
         };
-        let workspace = match read("BE3_WORKSPACE") {
+        let organization = match read("BE3_ORGANIZATION") {
             Some(text) => Some(
                 Uuid::parse_str(&text)
-                    .map_err(|_| format!("BE3_WORKSPACE is not a workspace id: {text}"))?,
+                    .map_err(|_| format!("BE3_ORGANIZATION is not an organization id: {text}"))?,
             ),
             None => None,
         };
@@ -39,7 +39,7 @@ impl Settings {
         )?;
         Ok(Self {
             server: read("BE3_SERVER").unwrap_or_else(|| DEFAULT_SERVER.to_owned()),
-            workspace,
+            organization,
             token,
             phrase,
             authorization: read("BE3_AUTHORIZATION"),
@@ -94,74 +94,71 @@ pub async fn connect(settings: &Settings) -> Result<Peer<FileStore>, String> {
     let ServerMessage::Authenticated { account, token, .. } = signed_in else {
         return Err("the server did not sign this connection in".to_owned());
     };
-    let workspace = match settings.workspace {
-        Some(workspace) => workspace,
-        None => only_workspace(&connection).await?,
+    let organization = match settings.organization {
+        Some(organization) => organization,
+        None => only_organization(&connection).await?,
     };
-    let key = workspace_key(&connection, workspace, &settings.phrase).await?;
+    let identity = identity(&connection, &settings.phrase).await?;
     Peer::signed_in(
         connection,
         account,
         token,
-        PeerConfig::new(url, ContentKey::from_bytes(key), settings.credentials())
-            .workspace(Some(workspace)),
-        FileStore::open(settings.cache.join(workspace.simple().to_string())).map_err(|error| {
-            format!(
-                "cannot keep objects in {}: {error}",
-                settings.cache.display()
-            )
-        })?,
+        PeerConfig::new(url, identity, settings.credentials()).organization(Some(organization)),
+        FileStore::open(settings.cache.join(organization.simple().to_string())).map_err(
+            |error| {
+                format!(
+                    "cannot keep objects in {}: {error}",
+                    settings.cache.display()
+                )
+            },
+        )?,
     )
     .await
     .map_err(explain)
 }
 
-async fn only_workspace(connection: &Connection) -> Result<Uuid, String> {
-    let ServerMessage::Workspaces { workspaces, .. } = connection
-        .request(|request| ClientMessage::ListWorkspaces { request })
+async fn only_organization(connection: &Connection) -> Result<Uuid, String> {
+    let ServerMessage::Organizations { organizations, .. } = connection
+        .request(|request| ClientMessage::ListOrganizations { request })
         .await
         .map_err(explain)?
     else {
-        return Err("the server did not list workspaces".to_owned());
+        return Err("the server did not list organizations".to_owned());
     };
-    match workspaces.as_slice() {
+    match organizations.as_slice() {
         [only] => Ok(only.id),
-        [] => Err("this account is not a member of any workspace".to_owned()),
+        [] => Err("this account is not a member of any organization".to_owned()),
         several => Err(format!(
-            "this account is in {} workspaces; set BE3_WORKSPACE to one of: {}",
+            "this account is in {} organizations; set BE3_ORGANIZATION to one of: {}",
             several.len(),
             several
                 .iter()
-                .map(|workspace| format!("{} ({})", workspace.id, workspace.name))
+                .map(|organization| format!("{} ({})", organization.id, organization.name))
                 .collect::<Vec<_>>()
                 .join(", ")
         )),
     }
 }
 
-async fn workspace_key(
+async fn identity(
     connection: &Connection,
-    workspace: Uuid,
     phrase: &str,
-) -> Result<[u8; 32], String> {
-    let ServerMessage::Keys { sealed, .. } = connection
-        .request(|request| ClientMessage::GetKeys { request })
+) -> Result<be_keys::RecoverySecret, String> {
+    let secret = be_keys::RecoveryPhrase::parse(phrase)
+        .map_err(|error| format!("BE3_RECOVERY_PHRASE: {error}"))?
+        .secret();
+    let ServerMessage::RecoveryKey { public, .. } = connection
+        .request(|request| ClientMessage::GetRecoveryKey { request })
         .await
         .map_err(explain)?
     else {
-        return Err("the server did not send the keys".to_owned());
+        return Err("the server did not send the account's recovery key".to_owned());
     };
-    let sealed = sealed
-        .into_iter()
-        .find(|key| key.workspace == workspace)
-        .ok_or("no workspace key has been sealed for this account yet; open the workspace in the app once so it can seal one")?;
-    let phrase = be_keys::RecoveryPhrase::parse(phrase).map_err(|error| error.to_string())?;
-    let key = phrase
-        .secret()
-        .open(&sealed.sealed)
-        .map_err(|error| error.to_string())?;
-    key.try_into()
-        .map_err(|_| "the workspace key is not 32 bytes".to_owned())
+    match public {
+        Some(public) if public == secret.public().0 => Ok(secret),
+        Some(_) => Err("BE3_RECOVERY_PHRASE is not this account's recovery phrase".to_owned()),
+        None => Err("this account has no recovery phrase yet".to_owned()),
+    }
 }
 
 pub fn explain(error: ClientError) -> String {

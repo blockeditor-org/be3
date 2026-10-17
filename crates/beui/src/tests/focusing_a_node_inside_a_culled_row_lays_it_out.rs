@@ -17,18 +17,16 @@ fn focusing_a_node_inside_a_culled_row_lays_it_out() {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0)>
                         <List spacing=0.0>
-                            <ForEach keys={indices(ROWS)}>
-                                {move |index: usize| {
-                                    let row = rows[index];
-                                    view! {
-                                        <Frame @node_ref=&row>
-                                            <Frame width=200.0 height=ROW_HEIGHT>
-                                                <LabelledButton label={format!("Row {index}")} />
-                                            </Frame>
+                            <ForEach keys={indices(ROWS)}>|index: usize| {
+                                let row = rows[index];
+                                view! {
+                                    <Frame @node_ref=&row>
+                                        <Frame width=200.0 height=ROW_HEIGHT>
+                                            <LabelledButton label={format!("Row {index}")} />
                                         </Frame>
-                                    }
-                                }}
-                            </ForEach>
+                                    </Frame>
+                                }
+                            }</ForEach>
                         </List>
                     </Offset>
                 </List>

@@ -1,4 +1,5 @@
 use std::{
+    collections::BTreeSet,
     error::Error,
     fmt, io,
     net::SocketAddr,
@@ -8,8 +9,8 @@ use std::{
 };
 
 use be_protocol::{
-    ClientMessage, ErrorCode, MAX_FRAME_BYTES, ServerMessage, WorkspaceRole, decode, encode, hello,
-    read_hello,
+    ClientMessage, ErrorCode, MAX_FRAME_BYTES, OrganizationRole, ServerMessage, decode, encode,
+    hello, read_hello,
 };
 use be_session::Claim;
 use futures_util::{
@@ -33,7 +34,9 @@ use uuid::Uuid;
 
 pub mod backup;
 pub mod blocks;
+pub mod contacts;
 mod http;
+pub mod keys;
 pub mod schema;
 pub mod sessions;
 pub mod store;
@@ -446,7 +449,7 @@ impl Connection {
         self.identity.ok_or_else(|| {
             ServerError::Refused(
                 ErrorCode::NotAuthenticated,
-                "open a workspace before using it".into(),
+                "open an organization before using it".into(),
             )
         })
     }
@@ -461,6 +464,9 @@ impl Connection {
     }
 
     async fn dispatch(&mut self, message: ClientMessage) -> Result<ServerMessage, ServerError> {
+        if self.identity.is_some() {
+            self.identity = self.hub.identity(self.client).await;
+        }
         match message {
             ClientMessage::Register {
                 request,
@@ -518,13 +524,24 @@ impl Connection {
             ClientMessage::Invite {
                 request,
                 invitation,
-                workspace,
+                organization,
                 email,
                 role,
                 sealed,
+                code,
+                escrow,
             } => {
                 self.store
-                    .invite(self.account()?, invitation, workspace, &email, role, sealed)
+                    .invite(
+                        self.account()?,
+                        invitation,
+                        organization,
+                        &email,
+                        role,
+                        sealed,
+                        code,
+                        escrow,
+                    )
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }
@@ -538,54 +555,160 @@ impl Connection {
             ClientMessage::AcceptInvitation {
                 request,
                 invitation,
+                card,
+                contact,
+                escrow,
+            } => {
+                let account = self.account()?;
+                let inviter = self
+                    .store
+                    .accept_invitation(account, invitation, card, contact, escrow)
+                    .await?;
+                self.contacts_changed(&[account, inviter]).await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::CreateContactLink {
+                request,
+                link,
+                card,
+                code,
+                grant,
             } => {
                 self.store
-                    .accept_invitation(self.account()?, invitation)
+                    .create_contact_link(self.account()?, link, card, code, grant)
                     .await?;
                 Ok(ServerMessage::Ok { request })
             }
-            ClientMessage::ListWorkspaces { request } => Ok(ServerMessage::Workspaces {
+            ClientMessage::GetContactLink { request, link } => Ok(ServerMessage::ContactLink {
                 request,
-                workspaces: self.store.list_workspaces(self.account()?).await?,
+                link: self.store.contact_link(self.account()?, link).await?,
             }),
-            ClientMessage::CreateWorkspace { request, name } => {
-                let workspace = self.store.create_workspace(self.account()?, &name).await?;
-                Ok(ServerMessage::Workspaces {
+            ClientMessage::AcceptContactLink {
+                request,
+                link,
+                card,
+                contact,
+                key,
+            } => {
+                let account = self.account()?;
+                let accepted = self
+                    .store
+                    .accept_contact_link(account, link, card, contact, key)
+                    .await?;
+                if let Some(granted) = accepted.granted {
+                    self.reannounce_in(
+                        granted.organization,
+                        vec![granted.block],
+                        true,
+                        granted.before,
+                    )
+                    .await;
+                }
+                self.contacts_changed(&[account, accepted.owner]).await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ListContactLinks { request } => Ok(ServerMessage::ContactLinks {
+                request,
+                links: self.store.contact_links(self.account()?).await?,
+            }),
+            ClientMessage::DeleteContactLink { request, link } => {
+                self.store
+                    .delete_contact_link(self.account()?, link)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::PutContact {
+                request,
+                contact,
+                sealed,
+            } => {
+                let account = self.account()?;
+                self.store.put_contact(account, contact, sealed).await?;
+                self.contacts_changed(&[account]).await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ListContacts { request } => Ok(ServerMessage::Contacts {
+                request,
+                contacts: self.store.list_contacts(self.account()?).await?,
+            }),
+            ClientMessage::RemoveContact { request, account } => {
+                let caller = self.account()?;
+                let revoked = self.store.remove_contact(caller, account).await?;
+                self.revoked(&revoked, &[caller, account]).await;
+                self.contacts_changed(&[caller, account]).await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ListOrganizations { request } => Ok(ServerMessage::Organizations {
+                request,
+                organizations: self.store.list_organizations(self.account()?).await?,
+            }),
+            ClientMessage::CreateOrganization { request, name } => {
+                let organization = self
+                    .store
+                    .create_organization(self.account()?, &name)
+                    .await?;
+                Ok(ServerMessage::Organizations {
                     request,
-                    workspaces: vec![workspace],
+                    organizations: vec![organization],
                 })
             }
-            ClientMessage::OpenWorkspace { request, workspace } => {
+            ClientMessage::OpenOrganization {
+                request,
+                organization,
+            } => {
                 let account = self.account()?;
-                let role = self.store.membership(account, workspace).await?;
+                let role = self.store.membership(account, organization).await?;
                 self.identity = Some(Identity {
                     account,
-                    workspace,
+                    organization,
                     role,
                 });
                 self.hub
-                    .join_workspace(
+                    .join_organization(
                         self.client,
                         Identity {
                             account,
-                            workspace,
+                            organization,
                             role,
                         },
                     )
                     .await;
-                Ok(ServerMessage::WorkspaceOpened {
+                let (kind, escrows, pinned) = self.store.opened(account, organization).await?;
+                Ok(ServerMessage::OrganizationOpened {
                     request,
-                    workspace,
+                    organization,
                     role,
+                    kind,
+                    escrows,
+                    pinned,
                 })
             }
 
-            ClientMessage::PutObject { request, bytes } => {
+            ClientMessage::PutObjects { request, objects } => {
                 self.identity()?;
                 Ok(ServerMessage::Stored {
                     request,
-                    hash: self.store.put_object(&bytes)?,
+                    hashes: self.store.put_objects(&objects)?,
                 })
+            }
+            ClientMessage::Batch { request, messages } => {
+                let mut responses = Vec::with_capacity(messages.len());
+                for message in messages {
+                    let id = message.request();
+                    let response = match message {
+                        ClientMessage::Batch { .. } => Err(ServerError::Refused(
+                            ErrorCode::InvalidRequest,
+                            "a batch may not hold another batch".into(),
+                        )),
+                        message => Box::pin(self.dispatch(message)).await,
+                    };
+                    responses.push(response.unwrap_or_else(|error| ServerMessage::Failed {
+                        request: id,
+                        code: error.code(),
+                        message: error.to_string(),
+                    }));
+                }
+                Ok(ServerMessage::Batched { request, responses })
             }
             ClientMessage::GetObject { request, hash } => {
                 let identity = self.identity()?;
@@ -622,13 +745,16 @@ impl Connection {
                 content_type,
                 parent,
                 metadata,
+                key,
+                keys,
             } => {
                 let identity = self.identity()?;
                 let block = self
                     .store
-                    .create_block(identity, block, content_type, parent, metadata)
+                    .create_block(identity, block, content_type, parent, metadata, key, keys)
                     .await?;
-                self.reannounce(identity, vec![block.id], false).await;
+                self.reannounce(identity, vec![block.id], false, BTreeSet::new())
+                    .await;
                 Ok(ServerMessage::Block { request, block })
             }
             ClientMessage::ListBlocks { request } => Ok(ServerMessage::Blocks {
@@ -642,7 +768,8 @@ impl Connection {
             } => {
                 let identity = self.identity()?;
                 let block = self.store.set_metadata(identity, block, metadata).await?;
-                self.reannounce(identity, vec![block.id], false).await;
+                self.reannounce(identity, vec![block.id], false, BTreeSet::new())
+                    .await;
                 Ok(ServerMessage::Block { request, block })
             }
             ClientMessage::Publish {
@@ -665,10 +792,11 @@ impl Connection {
                         references, metadata,
                     )
                     .await?;
-                if let PublishOutcome::Published(_, redescribed) = outcome
-                    && redescribed
-                {
-                    self.reannounce(identity, vec![block], false).await;
+                if let PublishOutcome::Published(_, Some(unlinked)) = &outcome {
+                    let mut blocks = vec![block];
+                    blocks.extend(unlinked);
+                    self.reannounce(identity, blocks, false, BTreeSet::new())
+                        .await;
                 }
                 Ok(match outcome {
                     PublishOutcome::Published(head, _) => {
@@ -706,10 +834,11 @@ impl Connection {
                 request,
                 block,
                 parent,
+                keys,
             } => {
                 let identity = self.identity()?;
-                self.store.set_parent(identity, block, parent).await?;
-                self.reannounce(identity, vec![block], true).await;
+                let before = self.store.set_parent(identity, block, parent, keys).await?;
+                self.reannounce(identity, vec![block], true, before).await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListChildren { request, parent } => Ok(ServerMessage::Blocks {
@@ -741,8 +870,8 @@ impl Connection {
             }
             ClientMessage::DeleteBlock { request, block } => {
                 let identity = self.identity()?;
-                self.store.delete_block(identity, block).await?;
-                self.reannounce(identity, vec![block], true).await;
+                let before = self.store.delete_block(identity, block).await?;
+                self.reannounce(identity, vec![block], true, before).await;
                 self.hub
                     .broadcast(block, self.client, ServerMessage::BlockDeleted { block })
                     .await;
@@ -754,8 +883,11 @@ impl Connection {
                 for block in &collected.blocks {
                     self.hub
                         .announce(
-                            identity.workspace,
-                            ServerMessage::BlockRemoved { block: *block },
+                            identity.organization,
+                            ServerMessage::BlockRemoved {
+                                block: *block,
+                                revision: collected.revision,
+                            },
                         )
                         .await;
                 }
@@ -772,10 +904,19 @@ impl Connection {
                 access,
             } => {
                 let identity = self.identity()?;
-                self.store
+                let before = self
+                    .store
                     .set_access(identity, block, account, access)
                     .await?;
-                self.reannounce(identity, vec![block], true).await;
+                self.revoked(
+                    &[contacts::Granted {
+                        organization: identity.organization,
+                        block,
+                        before,
+                    }],
+                    &[account],
+                )
+                .await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::ListAccess { request, block } => Ok(ServerMessage::AccessList {
@@ -863,6 +1004,12 @@ impl Connection {
             } => {
                 self.identity()?;
                 let participants = self.registry.participants(block).await;
+                if !participants.contains(&self.client) {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        "join the session before speaking in it".into(),
+                    ));
+                }
                 let message = ServerMessage::Relayed {
                     block,
                     from: self.client,
@@ -886,76 +1033,149 @@ impl Connection {
                 }
                 Ok(ServerMessage::Ok { request })
             }
-            ClientMessage::GetKeys { request } => {
-                let (recovery, sealed) = self.store.keys(self.account()?).await?;
-                Ok(ServerMessage::Keys {
+            ClientMessage::GetKeys { request, blocks } => Ok(ServerMessage::Keys {
+                request,
+                keys: self.store.get_keys(self.identity()?, blocks).await?,
+            }),
+            ClientMessage::PutKeys { request, keys } => {
+                self.store.put_keys(self.identity()?, keys).await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::GetRecoveryKey { request } => {
+                let (public, sealed, own) = self.store.recovery_key(self.account()?).await?;
+                Ok(ServerMessage::RecoveryKey {
                     request,
-                    recovery,
+                    public,
                     sealed,
+                    own,
                 })
             }
             ClientMessage::SetRecoveryKey {
                 request,
                 public,
                 sealed,
+                own,
+                changes,
             } => {
+                let account = self.account()?;
+                let told: Vec<Uuid> = changes.iter().map(|change| change.contact).collect();
                 self.store
-                    .set_recovery_key(self.account()?, public, sealed)
+                    .set_recovery_key(account, public, sealed, own, changes)
                     .await?;
+                self.contacts_changed(&told).await;
                 Ok(ServerMessage::Ok { request })
             }
-            ClientMessage::PutWorkspaceKey {
-                request,
-                workspace,
-                sealed,
-            } => {
-                self.store
-                    .put_workspace_key(self.account()?, workspace, sealed)
-                    .await?;
+            ClientMessage::ResealKeys { request, keys } => {
+                self.store.reseal_keys(self.account()?, keys).await?;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::CreateAgent {
                 request,
-                workspace,
+                organization,
                 name,
                 recovery,
-                sealed,
+                contact,
+                escrow,
             } => {
+                let account = self.account()?;
                 let (agent, token) = self
                     .store
-                    .create_agent(self.account()?, workspace, &name, recovery, sealed)
+                    .create_agent(account, organization, &name, recovery, contact, escrow)
                     .await?;
+                self.contacts_changed(&[account]).await;
                 Ok(ServerMessage::AgentCreated {
                     request,
                     agent,
                     token,
                 })
             }
-            ClientMessage::ListAgents { request, workspace } => Ok(ServerMessage::Agents {
+            ClientMessage::ListAgents {
                 request,
-                agents: self.store.list_agents(self.account()?, workspace).await?,
+                organization,
+            } => Ok(ServerMessage::Agents {
+                request,
+                agents: self
+                    .store
+                    .list_agents(self.account()?, organization)
+                    .await?,
             }),
             ClientMessage::RemoveAgent {
                 request,
-                workspace,
+                organization,
                 account,
             } => {
-                self.store
-                    .remove_agent(self.account()?, workspace, account)
+                let revoked = self
+                    .store
+                    .remove_agent(self.account()?, organization, account)
                     .await?;
+                self.hub.drop_member(organization, account).await;
+                self.revoked(&revoked, &[account]).await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::GetKeyWork { request } => Ok(ServerMessage::KeyWork {
+                request,
+                work: self.store.key_work(self.identity()?).await?,
+            }),
+            ClientMessage::Rotate {
+                request,
+                roots,
+                keys,
+            } => {
+                let identity = self.identity()?;
+                self.store.rotate(identity, roots.clone(), keys).await?;
+                self.reannounce(identity, roots, true, BTreeSet::new())
+                    .await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::CreateEscrow {
+                request,
+                escrow,
+                keys,
+            } => {
+                self.store
+                    .create_escrow(self.identity()?, escrow, keys)
+                    .await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::PinEscrow { request, sealed } => {
+                self.store.pin_escrow(self.identity()?, sealed).await?;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::ListMembers { request } => Ok(ServerMessage::Members {
+                request,
+                members: self.store.list_members(self.identity()?).await?,
+            }),
+            ClientMessage::SetRole {
+                request,
+                account,
+                role,
+            } => {
+                let identity = self.identity()?;
+                self.store.set_role(identity, account, role).await?;
+                if account != identity.account {
+                    self.hub.drop_member(identity.organization, account).await;
+                }
+                self.key_work_changed(identity.organization, BTreeSet::new())
+                    .await;
+                Ok(ServerMessage::Ok { request })
+            }
+            ClientMessage::RemoveMember { request, account } => {
+                let identity = self.identity()?;
+                let revoked = self.store.remove_member(identity, account).await?;
+                self.hub.drop_member(identity.organization, account).await;
+                self.revoked(&revoked, &[account]).await;
+                self.key_work_changed(identity.organization, BTreeSet::new())
+                    .await;
                 Ok(ServerMessage::Ok { request })
             }
             ClientMessage::Pair {
                 request,
                 to,
-                workspace,
                 payload,
             } => {
                 let account = self.account()?;
-                self.store.membership(account, workspace).await?;
                 let message = ServerMessage::Paired {
                     from: self.client,
-                    workspace,
                     payload,
                 };
                 let sent = self
@@ -973,12 +1193,97 @@ impl Connection {
         }
     }
 
-    async fn reannounce(&self, identity: Identity, blocks: Vec<Uuid>, subtree: bool) {
-        let members = self.hub.members(identity.workspace).await;
+    async fn revoked(&self, revoked: &[contacts::Granted], accounts: &[Uuid]) {
+        let mut organizations = BTreeSet::new();
+        for granted in revoked {
+            self.reannounce_in(
+                granted.organization,
+                vec![granted.block],
+                true,
+                granted.before.clone(),
+            )
+            .await;
+            self.key_work_changed(granted.organization, granted.before.clone())
+                .await;
+            organizations.insert(granted.organization);
+        }
+        for organization in organizations {
+            for account in accounts {
+                self.evict_sessions(organization, *account).await;
+            }
+        }
+    }
+
+    async fn key_work_changed(&self, organization: Uuid, accounts: BTreeSet<Uuid>) {
+        for (client, _) in self.hub.audience(organization, &accounts).await {
+            if client != self.client {
+                self.hub
+                    .send_to(client, ServerMessage::KeyWorkChanged)
+                    .await;
+            }
+        }
+    }
+
+    async fn evict_sessions(&self, organization: Uuid, account: Uuid) {
+        for (client, identity) in self.hub.clients_of(organization, account).await {
+            for block in self.registry.blocks_of(client).await {
+                if self.store.read_block(identity, block).await.is_ok() {
+                    continue;
+                }
+                self.hub.unwatch(block, client).await;
+                if let Some(state) = self.registry.leave(block, client).await {
+                    let mut told = state.participants.clone();
+                    told.push(client);
+                    self.hub
+                        .send_all(
+                            &told,
+                            0,
+                            &ServerMessage::SessionChanged {
+                                block,
+                                state: state.clone(),
+                            },
+                        )
+                        .await;
+                }
+            }
+        }
+    }
+
+    async fn contacts_changed(&self, accounts: &[Uuid]) {
+        for account in accounts {
+            self.hub
+                .send_account(*account, self.client, None, &ServerMessage::ContactsChanged)
+                .await;
+        }
+    }
+
+    async fn reannounce(
+        &self,
+        identity: Identity,
+        blocks: Vec<Uuid>,
+        subtree: bool,
+        before: BTreeSet<Uuid>,
+    ) {
+        self.reannounce_in(identity.organization, blocks, subtree, before)
+            .await;
+    }
+
+    async fn reannounce_in(
+        &self,
+        organization: Uuid,
+        blocks: Vec<Uuid>,
+        subtree: bool,
+        before: BTreeSet<Uuid>,
+    ) {
+        let Ok(mut accounts) = self.store.audience(organization, blocks.clone()).await else {
+            return;
+        };
+        accounts.extend(before);
+        let members = self.hub.audience(organization, &accounts).await;
         let identities = members.iter().map(|(_, member)| *member).collect();
         let Ok(views) = self
             .store
-            .graph_views(identity.workspace, identities, blocks, subtree)
+            .graph_views(organization, identities, blocks, subtree)
             .await
         else {
             return;
@@ -1009,16 +1314,16 @@ pub async fn add_account(
     email: &str,
     display_name: &str,
     password: &str,
-    workspace: &str,
+    organization: &str,
 ) -> Result<(Uuid, Uuid), ServerError> {
     let store = ServerStore::open(data_dir.into())?;
     let (profile, _) = store.register(email, display_name, password).await?;
     let account = profile.account;
-    let workspace = store.create_workspace(account, workspace).await?;
+    let organization = store.create_organization(account, organization).await?;
     store
-        .add_member(workspace.id, account, WorkspaceRole::Administrator)
+        .add_member(organization.id, account, OrganizationRole::Administrator)
         .await?;
-    Ok((account, workspace.id))
+    Ok((account, organization.id))
 }
 
 #[cfg(test)]

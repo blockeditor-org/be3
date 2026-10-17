@@ -189,6 +189,17 @@ impl Intake {
                 pos: points(pos),
                 force,
             }),
+            Event::Pen {
+                phase,
+                pos,
+                pressure,
+                pen,
+            } => events.push(Event::Pen {
+                phase,
+                pos: points(pos),
+                pressure,
+                pen,
+            }),
             Event::Focus(false) => {
                 self.held = 0;
                 self.left = false;
@@ -275,5 +286,6 @@ fn button_bit(button: PointerButton) -> u8 {
         PointerButton::Middle => 4,
         PointerButton::Back => 8,
         PointerButton::Forward => 16,
+        PointerButton::Other(_) => 32,
     }
 }

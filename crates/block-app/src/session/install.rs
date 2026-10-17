@@ -15,6 +15,7 @@ const LIGHTDM_CONFIGS: [&str; 4] = [
     "etc/lightdm/lightdm.conf.d",
 ];
 const LIGHTDM_CONFIG: &str = "etc/lightdm/lightdm.conf";
+const GREETD_ENVIRONMENTS: &str = "/etc/greetd/environments";
 
 pub(crate) struct Installed {
     pub(crate) home: PathBuf,
@@ -54,6 +55,15 @@ pub(crate) fn install(prefix: Option<&str>) -> Result<(), Box<dyn Error>> {
                 Ok(None) => {}
                 Err(error) => println!(
                     "Could not add the lock screen's PAM service to {PAM_DIR} ({error}), so it checks passwords with the login service."
+                ),
+            }
+            match place_greetd(Path::new(GREETD_ENVIRONMENTS), &installed.link) {
+                Ok(true) => println!(
+                    "Added the session to {GREETD_ENVIRONMENTS}, which greetd's greeters list."
+                ),
+                Ok(false) => {}
+                Err(error) => println!(
+                    "Could not add the session to {GREETD_ENVIRONMENTS} ({error}), so greetd's greeters do not list it."
                 ),
             }
             println!("Log out and pick Block from the session menu on the login screen.");
@@ -184,6 +194,28 @@ pub(crate) fn place(source: &Path, prefix: &Path, sessions: &[PathBuf]) -> io::R
         link,
         entries,
     })
+}
+
+pub(crate) fn place_greetd(environments: &Path, link: &Path) -> io::Result<bool> {
+    let Ok(listed) = std::fs::read_to_string(environments) else {
+        return Ok(false);
+    };
+    let path = link.display().to_string();
+    if path.contains(char::is_whitespace) {
+        return Ok(false);
+    }
+    let command = format!("{path} --session");
+    if listed.lines().any(|line| line.trim() == command) {
+        return Ok(false);
+    }
+    let mut updated = listed;
+    if !updated.is_empty() && !updated.ends_with('\n') {
+        updated.push('\n');
+    }
+    updated.push_str(&command);
+    updated.push('\n');
+    std::fs::write(environments, updated)?;
+    Ok(true)
 }
 
 pub(crate) fn place_pam(dir: &Path) -> io::Result<Option<PathBuf>> {

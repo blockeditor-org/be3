@@ -3,9 +3,9 @@ use std::cell::RefCell;
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use block_ui::{BlockLabel, BlockTypes};
+use block_ui::{BlockLabel, BlockTypes, Reach};
 
-use crate::{BlockInfo, BlockList, BlockQuery, ChildTarget, Editor};
+use crate::{BlockList, BlockQuery, ChildTarget, Editor};
 
 #[derive(Clone, Default, PartialEq)]
 pub struct BlockDisplay {
@@ -14,6 +14,16 @@ pub struct BlockDisplay {
     pub type_name: String,
     pub automatic: bool,
     pub resolved: bool,
+    pub reach: Reach,
+    pub deleted: bool,
+}
+
+pub fn label_glyph(label: &BlockLabel) -> Option<&'static str> {
+    match label.reach {
+        Reach::Open if label.deleted => Some(beui::icons::ICON_DELETE),
+        Reach::Open => label.icon,
+        Reach::Locked | Reach::NoAccess => Some(beui::icons::ICON_LOCK),
+    }
 }
 
 pub fn watch_block_label(
@@ -41,15 +51,15 @@ pub fn watch_block_label(
         drop(list);
         let types = catalog.block_types();
         let resolved = info.is_some();
-        let label = BlockLabel::new(
-            types.as_ref(),
-            next.block_type,
-            info.as_ref().and_then(BlockInfo::name).as_deref(),
-            info.as_ref().is_some_and(BlockInfo::named_by_hand),
-        );
+        let label = match &info {
+            Some(info) => info.label(types.as_ref()),
+            None => BlockLabel::new(types.as_ref(), next.block_type, None, false),
+        };
         let display = BlockDisplay {
+            glyph: label_glyph(&label).map(str::to_owned).unwrap_or_default(),
+            reach: label.reach,
+            deleted: label.deleted,
             name: label.name,
-            glyph: label.icon.map(str::to_owned).unwrap_or_default(),
             type_name: types
                 .display_name(next.block_type)
                 .map_or_else(|| next.block_type.to_string(), str::to_owned),

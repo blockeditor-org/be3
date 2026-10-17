@@ -4,7 +4,7 @@ use super::*;
 async fn every_graph_change_advances_a_blocks_version() {
     let harness = Harness::start().await;
     let mut owner = harness.member("owner@example.com").await;
-    owner.workspace("versions").await;
+    owner.organization("versions").await;
     let folder = owner.create_block(BlockParent::Root).await;
     let block = owner.create_block(BlockParent::Root).await;
     let created = owner.read_block(block).await.version;
@@ -26,6 +26,7 @@ async fn every_graph_change_advances_a_blocks_version() {
             request,
             block,
             parent: BlockParent::Block(folder),
+            keys: KeySet::default(),
         })
         .await;
     assert!(matches!(response, ServerMessage::Ok { .. }), "{response:?}");

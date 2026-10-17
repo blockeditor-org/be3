@@ -45,33 +45,29 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <Show condition={colored}>
-                    {move || view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-                            <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>
-                                {move |index: usize| {
-                                    let (name, color) = PRESETS[index];
-                                    let value = value;
-                                    view! {
-                                        <Swatch
-                                            kind="color"
-                                            name
-                                            color
-                                            value
-                                            on_pick={move |color| set_foreground(state, color)}
-                                        />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
-                    }}
+                    <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
+                        <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>|index: usize| {
+                            let (name, color) = PRESETS[index];
+                            let value = value;
+                            view! {
+                                <Swatch
+                                    kind="color"
+                                    name
+                                    color
+                                    value
+                                    on_pick={move |color| set_foreground(state, color)}
+                                />
+                            }
+                        }</ForEach>
+                    </List>
                 </Show>
                 <IconButton @test_id={"infinite-canvas.front"} action={actions.front} />
                 <IconButton @test_id={"infinite-canvas.delete"} action={actions.delete} />
-                <Show condition={embedded}>
-                    {move || { let open = open.clone(); view! {
+                <Show condition={embedded}>|| {
+                    let open = open.clone(); view! {
                         <IconButton label="Open" @test_id={"infinite-canvas.open"} action={open} />
-                    } }}
-                </Show>
+                    }
+                }</Show>
                 <Show condition={narrow}>
                     <IconButton
                         glyph={ICON_TUNE.to_owned()}
@@ -103,30 +99,29 @@ pub(crate) fn Swatch(
             @test_id={format!("infinite-canvas.{kind}.{name}")}
             accessibility={described}
             on_click={move || on_pick.call(color)}
-            content={move |handle: ButtonHandle| {
-                let ringed = create_memo(move || {
-                    chosen.get() || handle.focused.get() || handle.hovered.get()
-                });
-                let ring = create_memo(move || match chosen.get() {
-                    true => theme.accent.get(),
-                    false => theme.border.get(),
-                });
-                view! {
+        >|handle: ButtonHandle| {
+            let ringed = create_memo(move || {
+                chosen.get() || handle.focused.get() || handle.hovered.get()
+            });
+            let ring = create_memo(move || match chosen.get() {
+                true => theme.accent.get(),
+                false => theme.border.get(),
+            });
+            view! {
+                <Frame
+                    padding=SWATCH_RING
+                    radius={Radius::custom(16.0)}
+                    border={create_memo(move || ringed.get().then(|| Border::new(ColorRole::Custom(ring.get())).width(2.0)))}
+                >
                     <Frame
-                        padding=SWATCH_RING
-                        radius={Radius::custom(16.0)}
-                        border={create_memo(move || ringed.get().then(|| Border::new(ColorRole::Custom(ring.get())).width(2.0)))}
-                    >
-                        <Frame
-                            width=SWATCH
-                            height=SWATCH
-                            radius={Radius::custom(11.0)}
-                            fill={ColorRole::custom(fill)}
-                            border={Border::DEFAULT}
-                        />
-                    </Frame>
-                }
-            }}
-        />
+                        width=SWATCH
+                        height=SWATCH
+                        radius={Radius::custom(11.0)}
+                        fill={ColorRole::custom(fill)}
+                        border={Border::DEFAULT}
+                    />
+                </Frame>
+            }
+        }</unstyled::Button>
     }
 }

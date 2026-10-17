@@ -329,15 +329,11 @@ pub(crate) fn Stage(
             <Layers>
                 <List spacing=0.0>
                     <Canvas view={canvas} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                        <ForEach keys={item_keys}>
-                            {move |id: ItemId| view! {
-                                <TableItem id layout={layout} play={play} hidden={hidden} />
-                            }}
+                        <ForEach keys={item_keys}>|id: ItemId|
+                            <TableItem id layout={layout} play={play} hidden={hidden} />
                         </ForEach>
-                        <ForEach keys={spot_keys}>
-                            {move |spot: Spot| view! {
-                                <SpotItem spot layout={layout} play={play} />
-                            }}
+                        <ForEach keys={spot_keys}>|spot: Spot|
+                            <SpotItem spot layout={layout} play={play} />
                         </ForEach>
                         <CanvasItem
                             x=0.0
@@ -352,10 +348,8 @@ pub(crate) fn Stage(
                     <HandBar hand set_bar play={play} hidden />
                 </List>
                 <Canvas view={screen_view()}>
-                    <ForEach keys={flight_keys}>
-                        {move |id: ItemId| view! {
-                            <FlightItem id motion={motion} />
-                        }}
+                    <ForEach keys={flight_keys}>|id: ItemId|
+                        <FlightItem id motion={motion} />
                     </ForEach>
                     <CanvasItem
                         x={create_memo(move || lifted_rect.get().left())}

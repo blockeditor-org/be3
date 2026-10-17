@@ -12,17 +12,15 @@ fn a_scrolled_document_moves_the_rows_it_already_encoded() {
     let mut document = build(|| {
         view! {
             <Scroll @test_id="scroll">
-                <ForEach keys={(0..12).collect::<Vec<usize>>()}>
-                    {|row: usize| view! {
-                        <Frame
-                            height=16.0
-                            radius=0.0
-                            fill={match row % 2 {
-                                0 => RED,
-                                _ => BLUE,
-                            }}
-                        />
-                    }}
+                <ForEach keys={(0..12).collect::<Vec<usize>>()}>|row: usize|
+                    <Frame
+                        height=16.0
+                        radius=0.0
+                        fill={match row % 2 {
+                            0 => RED,
+                            _ => BLUE,
+                        }}
+                    />
                 </ForEach>
             </Scroll>
         }

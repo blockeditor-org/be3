@@ -150,8 +150,8 @@ impl EditorSession {
         self.host.set_account_id(account);
     }
 
-    pub(crate) fn set_workspace_id(&self, workspace: Uuid) {
-        self.host.set_workspace_id(workspace);
+    pub(crate) fn set_organization_id(&self, organization: Uuid) {
+        self.host.set_organization_id(organization);
     }
 
     pub(crate) fn set_blocks(&self, query: crate::BlockQuery, blocks: Vec<crate::BlockInfo>) {
@@ -561,6 +561,14 @@ impl EditorSession {
                 replaced,
             }));
         }
+        for (block_id, account, access) in self.host.take_access_changes() {
+            messages.push(Message::Editor(EditorMessage::SetAccess {
+                instance,
+                block_id: block_id.into_bytes(),
+                account: account.into_bytes(),
+                access,
+            }));
+        }
         for (request_id, request) in self.host.take_requests() {
             messages.push(Message::Editor(EditorMessage::Request {
                 instance,
@@ -580,14 +588,6 @@ impl EditorSession {
                 instance,
                 key,
                 action,
-            }));
-        }
-        for (block_id, account, access) in self.host.take_access_changes() {
-            messages.push(Message::Editor(EditorMessage::SetAccess {
-                instance,
-                block_id: block_id.into_bytes(),
-                account: account.into_bytes(),
-                access,
             }));
         }
         for commit in self.host.take_child_commits() {
@@ -980,6 +980,7 @@ impl EditorSession {
                 wants_keyboard: window.wants_keyboard,
                 intercepted_keys: window.intercepted_keys.clone(),
                 pastes: window.pastes.clone(),
+                keyboard_toggles: window.keyboard_toggles,
             };
             let reports = matches!(region, EditorRegion::Frame);
             match frame.description.as_mut() {

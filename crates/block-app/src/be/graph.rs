@@ -13,13 +13,13 @@ use uuid::Uuid;
 pub(crate) struct Node {
     pub(crate) id: Uuid,
     pub(crate) content_type: Uuid,
-    pub(crate) author: Uuid,
-    pub(crate) parent: BlockParent,
+    pub(crate) author: Option<Uuid>,
+    pub(crate) parent: Option<BlockParent>,
     pub(crate) access: Access,
     pub(crate) references: Vec<Uuid>,
     pub(crate) metadata: BlockMetadata,
     pub(crate) head: Option<CommitId>,
-    pub(crate) version: u64,
+    pub(crate) locked: bool,
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -33,6 +33,7 @@ pub(crate) enum Query {
     All,
     Roots,
     Detached,
+    Shared,
     Children(Uuid),
     References(Uuid),
     Backrefs(Uuid),
@@ -45,12 +46,18 @@ pub(crate) struct Graph {
     pub(crate) loaded: bool,
     pub(crate) revision: u64,
     nodes: HashMap<Uuid, Node>,
+    heard: HashMap<Uuid, u64>,
+    floor: u64,
     pending: HashMap<Uuid, u32>,
     derived: HashMap<Uuid, Entries>,
+    referenced: HashMap<Uuid, Vec<Uuid>>,
+    placing: std::collections::HashSet<Uuid>,
 }
 
 impl Graph {
-    pub(crate) fn load(&mut self, nodes: Vec<Node>) {
+    pub(crate) fn load(&mut self, nodes: Vec<Node>, revision: u64) {
+        self.heard.clear();
+        self.floor = revision;
         let mut loaded: HashMap<Uuid, Node> =
             nodes.into_iter().map(|node| (node.id, node)).collect();
         for block in self.pending.keys() {
@@ -64,19 +71,35 @@ impl Graph {
                 node.metadata.derived.clone_from(derived);
             }
         }
+        for (block, references) in &self.referenced {
+            if let Some(node) = loaded.get_mut(block) {
+                node.references.clone_from(references);
+            }
+        }
         self.nodes = loaded;
         self.loaded = true;
         self.revision += 1;
     }
 
-    pub(crate) fn put(&mut self, node: Node) {
-        let stale = self
-            .nodes
-            .get(&node.id)
-            .is_some_and(|held| held.version > node.version);
-        if !stale && !self.pending.contains_key(&node.id) {
+    pub(crate) fn put(&mut self, node: Node, revision: u64) {
+        if self.hear(node.id, revision) && !self.pending.contains_key(&node.id) {
             self.insert(node);
         }
+    }
+
+    pub(crate) fn remove(&mut self, block: Uuid, revision: u64) {
+        if self.hear(block, revision) {
+            self.forget(block);
+        }
+    }
+
+    fn hear(&mut self, block: Uuid, revision: u64) -> bool {
+        let newest = self.heard.get(&block).copied().unwrap_or(self.floor);
+        if revision < newest {
+            return false;
+        }
+        self.heard.insert(block, revision);
+        true
     }
 
     pub(crate) fn change(&mut self, node: Node) {
@@ -118,9 +141,26 @@ impl Graph {
         self.derived.remove(&block);
     }
 
+    pub(crate) fn refer(&mut self, block: Uuid, references: Vec<Uuid>) {
+        if let Some(node) = self.nodes.get_mut(&block)
+            && node.references != references
+        {
+            node.references.clone_from(&references);
+            self.revision += 1;
+        }
+        self.referenced.insert(block, references);
+    }
+
+    pub(crate) fn forget_references(&mut self, block: Uuid) {
+        self.referenced.remove(&block);
+    }
+
     fn insert(&mut self, mut node: Node) {
         if let Some(derived) = self.derived.get(&node.id) {
             node.metadata.derived.clone_from(derived);
+        }
+        if let Some(references) = self.referenced.get(&node.id) {
+            node.references.clone_from(references);
         }
         if self.nodes.get(&node.id) != Some(&node) {
             self.nodes.insert(node.id, node);
@@ -138,10 +178,14 @@ impl Graph {
         }
     }
 
-    pub(crate) fn remove(&mut self, block: Uuid) {
+    pub(crate) fn forget(&mut self, block: Uuid) {
         if self.nodes.remove(&block).is_some() {
             self.revision += 1;
         }
+    }
+
+    pub(crate) fn nodes(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.values()
     }
 
     pub(crate) fn get(&self, block: Uuid) -> Option<&Node> {
@@ -153,6 +197,12 @@ impl Graph {
             Query::All => self.nodes.values().cloned().collect(),
             Query::Roots => self.with_parent(BlockParent::Root),
             Query::Detached => self.with_parent(BlockParent::Detached),
+            Query::Shared => self
+                .nodes
+                .values()
+                .filter(|node| node.access.can_view() && self.entered_from_outside(node))
+                .cloned()
+                .collect(),
             Query::Children(parent) => self.with_parent(BlockParent::Block(parent)),
             Query::References(block) => {
                 return self.nodes.get(&block).map_or_else(Vec::new, |node| {
@@ -177,7 +227,7 @@ impl Graph {
 
     pub(crate) fn scope_of(&self, block: Uuid) -> Option<Scope> {
         let mut seen = 0;
-        let mut current = self.nodes.get(&block)?.parent.block();
+        let mut current = self.nodes.get(&block)?.parent.and_then(BlockParent::block);
         while let Some(parent) = current {
             let node = self.nodes.get(&parent)?;
             if node.content_type == <be_block::Checkout as be_block::Root>::CONTENT_TYPE {
@@ -190,7 +240,7 @@ impl Graph {
             if seen > self.nodes.len() {
                 return None;
             }
-            current = node.parent.block();
+            current = node.parent.and_then(BlockParent::block);
         }
         None
     }
@@ -215,7 +265,7 @@ impl Graph {
     pub(crate) fn subtree(&self, root: Uuid) -> Vec<Uuid> {
         let mut children: HashMap<Uuid, Vec<Uuid>> = HashMap::new();
         for node in self.nodes.values() {
-            if let BlockParent::Block(parent) = node.parent {
+            if let Some(BlockParent::Block(parent)) = node.parent {
                 children.entry(parent).or_default().push(node.id);
             }
         }
@@ -237,17 +287,54 @@ impl Graph {
         found
     }
 
+    pub(crate) fn placing(&mut self, block: Uuid, placing: bool) {
+        let changed = match placing {
+            true => self.placing.insert(block),
+            false => self.placing.remove(&block),
+        };
+        if changed {
+            self.revision += 1;
+        }
+    }
+
+    pub(crate) fn deleted_root(&self, block: Uuid) -> Option<Uuid> {
+        let mut current = block;
+        for _ in 0..=self.nodes.len() {
+            match self.nodes.get(&current)?.parent? {
+                BlockParent::Detached if self.placing.contains(&current) => return None,
+                BlockParent::Detached => return Some(current),
+                BlockParent::Root => return None,
+                BlockParent::Block(parent) => current = parent,
+            }
+        }
+        None
+    }
+
+    fn entered_from_outside(&self, node: &Node) -> bool {
+        node.parent
+            .and_then(BlockParent::block)
+            .is_some_and(|parent| {
+                !self
+                    .nodes
+                    .get(&parent)
+                    .is_some_and(|above| above.access.can_view())
+            })
+    }
+
     fn with_parent(&self, parent: BlockParent) -> Vec<Node> {
         self.nodes
             .values()
-            .filter(|node| node.parent == parent)
+            .filter(|node| node.parent == Some(parent))
             .cloned()
             .collect()
     }
 
     fn ancestors(&self, block: Uuid) -> Vec<Node> {
         let mut chain = Vec::new();
-        let mut current = self.nodes.get(&block).and_then(|node| node.parent.block());
+        let mut current = self
+            .nodes
+            .get(&block)
+            .and_then(|node| node.parent.and_then(BlockParent::block));
         while let Some(parent) = current {
             let Some(node) = self.nodes.get(&parent) else {
                 break;
@@ -256,9 +343,12 @@ impl Graph {
                 break;
             }
             chain.push(node.clone());
-            current = node.parent.block();
+            current = node.parent.and_then(BlockParent::block);
         }
         chain.reverse();
         chain
     }
 }
+
+#[cfg(test)]
+mod tests;

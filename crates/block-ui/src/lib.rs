@@ -150,12 +150,32 @@ impl BlockTypes for BlockCatalog {
             .map_or_else(ChildEdits::default, |entry| entry.child_edits)
     }
 }
+#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
+pub enum Reach {
+    #[default]
+    Open,
+    Locked,
+    NoAccess,
+}
+
+impl Reach {
+    pub fn label(self) -> Option<&'static str> {
+        match self {
+            Self::Open => None,
+            Self::Locked => Some("Locked"),
+            Self::NoAccess => Some("No access"),
+        }
+    }
+}
+
 #[derive(Clone, PartialEq)]
 pub struct BlockLabel {
     pub block_type: Uuid,
     pub icon: Option<&'static str>,
     pub name: String,
     pub automatic: bool,
+    pub reach: Reach,
+    pub deleted: bool,
 }
 
 impl BlockLabel {
@@ -180,6 +200,23 @@ impl BlockLabel {
             icon: types.icon(block_type),
             name,
             automatic,
+            reach: Reach::Open,
+            deleted: false,
         }
+    }
+
+    pub fn reached(mut self, reach: Reach) -> Self {
+        if let Some(label) = reach.label() {
+            label.clone_into(&mut self.name);
+            self.automatic = true;
+            self.icon = None;
+        }
+        self.reach = reach;
+        self
+    }
+
+    pub fn deleted(mut self, deleted: bool) -> Self {
+        self.deleted = deleted;
+        self
     }
 }

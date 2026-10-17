@@ -75,16 +75,14 @@ pub(crate) fn MapSidebar(state: MapState) -> NodeId {
                 <PointDetails state={state} selected={selected} />
             </Show>
             <Show condition={failed}>
-                {move || view! {
-                    <List spacing=4.0>
-                        <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
-                        <Button
-                            label="Dismiss"
-                            variant=ButtonVariant::Secondary
-                            on_click={move || state.dismiss_import_error()}
-                        />
-                    </List>
-                }}
+                <List spacing=4.0>
+                    <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
+                    <Button
+                        label="Dismiss"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || state.dismiss_import_error()}
+                    />
+                </List>
             </Show>
         </List>
     }
@@ -116,27 +114,25 @@ fn RegionInspector(state: MapState) -> NodeId {
                 />
             </Show>
             <Show condition={fixed}>
-                {move || view! {
-                    <List spacing=6.0>
-                        <RegionEdges state={state} />
-                        <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                            <Button
-                                label="Use current view"
-                                variant=ButtonVariant::Secondary
-                                @test_id={"map.capture-region"}
-                                on_click={move || {
-                                    let region = Some(state.visible_region.get_untracked());
-                                    state.record(Map::set_preview_region(region));
-                                }}
-                            />
-                            <Button
-                                label="Zoom to region"
-                                variant=ButtonVariant::Secondary
-                                on_click={move || state.request_fit()}
-                            />
-                        </List>
+                <List spacing=6.0>
+                    <RegionEdges state={state} />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
+                        <Button
+                            label="Use current view"
+                            variant=ButtonVariant::Secondary
+                            @test_id={"map.capture-region"}
+                            on_click={move || {
+                                let region = Some(state.visible_region.get_untracked());
+                                state.record(Map::set_preview_region(region));
+                            }}
+                        />
+                        <Button
+                            label="Zoom to region"
+                            variant=ButtonVariant::Secondary
+                            on_click={move || state.request_fit()}
+                        />
                     </List>
-                }}
+                </List>
             </Show>
         </List>
     }
@@ -289,12 +285,8 @@ fn PointList(state: MapState) -> NodeId {
             <Show condition={any}>
                 <Text style=TextStyle::CAPTION string="Select a marker to edit it." />
             </Show>
-            <ForEach keys={ids}>
-                {move |id: Uuid| {
-                    view! {
-                        <PointRow state id />
-                    }
-                }}
+            <ForEach keys={ids}>|id: Uuid|
+                <PointRow state id />
             </ForEach>
         </List>
     }
@@ -446,14 +438,14 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
             />
             <Text string="Colour" />
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                <ForEach keys={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}>
-                    {move |name: String| {
-                        let point = coloured_point;
-                        view! {
-                            <ColorPreset state point name />
-                        }
-                    }}
-                </ForEach>
+                <ForEach
+                    keys={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}
+                >|name: String| {
+                    let point = coloured_point;
+                    view! {
+                        <ColorPreset state point name />
+                    }
+                }</ForEach>
             </List>
             <ColorInput
                 value={custom}

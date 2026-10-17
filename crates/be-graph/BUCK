@@ -1,5 +1,9 @@
-load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+load("@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_test")
 
 cargo_library()
 
 cargo_test()
+
+# Timing access on a large organization: `./scripts/buck run -m release //crates/be-graph:example-access-bench`.
+
+cargo_example("access-bench")

@@ -1,4 +1,4 @@
-use super::{Uuid, WORKSPACE_ID, block_url, editor, text};
+use super::{ORGANIZATION_ID, Uuid, block_url, editor, text};
 
 #[test]
 fn replacing_a_referenced_block_rewrites_its_url() {
@@ -6,7 +6,7 @@ fn replacing_a_referenced_block_rewrites_its_url() {
     let new = Uuid::from_u128(0x0e00_0000_0000_4000_8000_0000_0000_0002);
     let mut editor = editor(&format!(
         "see {}\n",
-        block_url("https://example.com/", WORKSPACE_ID, old)
+        block_url("https://example.com/", ORGANIZATION_ID, old)
     ));
 
     assert!(editor.replace_child(old, new));
@@ -15,7 +15,7 @@ fn replacing_a_referenced_block_rewrites_its_url() {
         text(&editor),
         format!(
             "see {}\n",
-            block_url("https://example.com/", WORKSPACE_ID, new)
+            block_url("https://example.com/", ORGANIZATION_ID, new)
         )
     );
 }

@@ -29,7 +29,12 @@ async fn metadata_is_sealed_on_the_server_and_opened_by_members() {
     let listed = laptop.list_blocks().await.unwrap();
     let summary = listed.iter().find(|summary| summary.id == block).unwrap();
     assert_eq!(
-        laptop.metadata(summary).unwrap().name().as_deref(),
+        laptop
+            .metadata_of_summary(summary)
+            .await
+            .unwrap()
+            .name()
+            .as_deref(),
         Some("Groceries")
     );
 

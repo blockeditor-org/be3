@@ -4,7 +4,7 @@ use crate::context::Context;
 use crate::document::Document;
 use crate::geometry::Pos2;
 use crate::input::{
-    AutoscrollGesture, CursorIcon, Event, PointerButton, PointerEvent, PointerId, PointerPhase,
+    AutoscrollGesture, CursorIcon, Event, PointerButton, PointerEvent, PointerPhase,
 };
 use crate::node::NodeId;
 
@@ -62,7 +62,7 @@ pub(crate) fn pointer(doc: &mut Document, event: &PointerEvent) -> bool {
             finish(doc, &autoscroll);
             true
         }
-        PointerPhase::Move if event.pointer == PointerId::Mouse => {
+        PointerPhase::Move if event.pointer.hovers() => {
             autoscroll.travelled |=
                 autoscroll.held && event.pos.distance(autoscroll.origin) > AUTOSCROLL_DEAD_ZONE;
             if event.pos != autoscroll.pos {

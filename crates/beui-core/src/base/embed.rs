@@ -21,16 +21,34 @@ type PlaceListener = Box<dyn Fn(Option<EmbedPlacement>)>;
 pub struct EmbedState {
     pub node: Cell<Option<NodeId>>,
     placement: Cell<Option<EmbedPlacement>>,
+    concealed: Cell<bool>,
     listener: RefCell<Option<PlaceListener>>,
 }
 
 impl EmbedState {
+    fn shown(&self) -> Option<EmbedPlacement> {
+        self.placement.get().filter(|_| !self.concealed.get())
+    }
+
     fn place(&self, placement: Option<EmbedPlacement>) {
-        if self.placement.replace(placement) == placement {
+        let was = self.shown();
+        self.placement.set(placement);
+        self.announce(was);
+    }
+
+    pub(crate) fn conceal(&self, concealed: bool) {
+        let was = self.shown();
+        self.concealed.set(concealed);
+        self.announce(was);
+    }
+
+    fn announce(&self, was: Option<EmbedPlacement>) {
+        let shown = self.shown();
+        if shown == was {
             return;
         }
         if let Some(listener) = self.listener.borrow().as_ref() {
-            listener(placement);
+            listener(shown);
         }
     }
 }
@@ -54,7 +72,7 @@ impl EmbedSlot {
     }
 
     pub fn placement(&self) -> Option<EmbedPlacement> {
-        self.0.with(|state| state.placement.get())
+        self.0.with(EmbedState::shown)
     }
 
     pub fn on_place(&self, listener: impl Fn(Option<EmbedPlacement>) + 'static) {
@@ -145,7 +163,7 @@ impl Element for EmbedNode {
     }
 
     fn detail(&self) -> Option<String> {
-        let placement = self.state.placement.get()?;
+        let placement = self.state.shown()?;
         Some(format!(
             "{:.0}x{:.0}",
             placement.rect.width(),
@@ -164,6 +182,14 @@ impl Element for EmbedNode {
 
 impl Document {
     pub fn create_embed(&mut self, state: Rc<EmbedState>) -> NodeOf<EmbedNode> {
+        state.concealed.set(self.hidden);
+        if !self
+            .embeds
+            .iter()
+            .any(|held| std::ptr::eq(held.as_ptr(), Rc::as_ptr(&state)))
+        {
+            self.embeds.push(Rc::downgrade(&state));
+        }
         let embed = self.arena.insert(EmbedNode {
             child: None,
             punch: false,

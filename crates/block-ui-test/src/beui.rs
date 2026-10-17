@@ -1,6 +1,6 @@
 use beui::{
-    Color32, Document, Event, Key, KeyChord, KeyPress, Modifiers, PointerButton, Pos2, Rect,
-    TouchId, TouchPhase, Vec2,
+    Color32, Document, Event, Key, KeyChord, KeyPress, Modifiers, Pen, PenPhase, PointerButton,
+    Pos2, Rect, TouchId, TouchPhase, Vec2,
 };
 use block_editor_beui::be_block::LiveEdit;
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
@@ -153,11 +153,11 @@ impl<A: BeuiApp> BeuiTest<A> {
         host.waker().install(move || woken.wake());
         let mut plugin = HeadlessPlugin::new("block-ui-test", "block-ui-test", "0");
         plugin.adopt::<A>(INSTANCE, adopted);
-        let store = ContentStore::new(host.workspace_id());
+        let store = ContentStore::new(host.organization_id());
         let block_type = host.block_type().unwrap_or_default();
-        let (account_id, workspace_id, client_id) = (
+        let (account_id, organization_id, client_id) = (
             host.account_id().into_bytes(),
-            host.workspace_id().into_bytes(),
+            host.organization_id().into_bytes(),
             host.client_id().into_bytes(),
         );
         let open = match kind {
@@ -169,7 +169,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                     block_type: block_type.into_bytes(),
                     view_block: host.view_block().map(Uuid::into_bytes),
                     account_id,
-                    workspace_id,
+                    organization_id,
                     client_id,
                     editable: host.editable(),
                 }
@@ -179,7 +179,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 block_type: block_type.into_bytes(),
                 template: template.clone(),
                 account_id,
-                workspace_id,
+                organization_id,
                 client_id,
             },
             Kind::Settings => EditorMessage::OpenArtifact {
@@ -188,7 +188,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 block_id: artifact.unwrap_or_default().into_bytes(),
                 block_type: block_type.into_bytes(),
                 account_id,
-                workspace_id,
+                organization_id,
                 client_id,
                 data: data.clone(),
             },
@@ -1293,6 +1293,15 @@ impl<A: BeuiApp> BeuiTest<A> {
             phase,
             pos,
             force: None,
+        });
+    }
+
+    pub fn pen(&mut self, phase: PenPhase, pos: Pos2, pressure: f32) {
+        self.push(Event::Pen {
+            phase,
+            pos,
+            pressure,
+            pen: Pen::default(),
         });
     }
 

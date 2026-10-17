@@ -573,6 +573,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -590,6 +591,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -599,6 +601,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -616,6 +619,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -625,6 +629,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -642,6 +647,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -651,6 +657,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -668,6 +675,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -677,6 +685,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -694,6 +703,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -703,6 +713,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -727,6 +738,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -744,6 +756,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -753,6 +766,7 @@ crates = {
                     "//crates/be-block:be-block",
                     "//crates/be-commit:be-commit",
                     "//crates/be-graph:be-graph",
+                    "//crates/be-keys:be-keys",
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
@@ -770,6 +784,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-server:be-server",
+                    "//third-party/rust:rusqlite-0.32.1",
                 ],
                 "test_features": [],
             },
@@ -1173,6 +1188,10 @@ crates = {
         "edition": "2024",
         "examples": [
             {
+                "crate_root": "examples/block-file.rs",
+                "name": "block-file",
+            },
+            {
                 "crate_root": "examples/freeze.rs",
                 "name": "freeze",
             },
@@ -1188,6 +1207,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1229,6 +1266,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1270,6 +1325,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1311,6 +1384,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1352,6 +1443,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1393,6 +1502,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1434,6 +1561,24 @@ crates = {
                 "binaries": {},
                 "deps": [],
                 "examples": {
+                    "block-file": {
+                        "deps": [
+                            "//crates/be-block:be-block",
+                            "//crates/be-cli:be-cli",
+                            "//crates/be-client:be-client",
+                            "//crates/be-graph:be-graph",
+                            "//crates/be-keys:be-keys",
+                            "//crates/be-protocol:be-protocol",
+                            "//crates/be-server:be-server",
+                            "//crates/be-store:be-store",
+                            "//crates/build-id:build-id",
+                            "//third-party/rust:rusqlite-0.32.1",
+                            "//third-party/rust:tokio-1.52.3",
+                            "//third-party/rust:uuid-1.23.2",
+                            "//third-party/rust:zip-8.6.0",
+                        ],
+                        "features": [],
+                    },
                     "freeze": {
                         "deps": [
                             "//crates/be-block:be-block",
@@ -1478,7 +1623,12 @@ crates = {
     "crates/be-graph": {
         "binaries": [],
         "edition": "2024",
-        "examples": [],
+        "examples": [
+            {
+                "crate_root": "examples/access-bench.rs",
+                "name": "access-bench",
+            },
+        ],
         "library": {
             "crate": "be_graph",
             "crate_root": "src/lib.rs",
@@ -1494,7 +1644,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1507,7 +1667,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1520,7 +1690,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1533,7 +1713,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1546,7 +1736,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1572,7 +1772,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1585,7 +1795,17 @@ crates = {
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "access-bench": {
+                        "deps": [
+                            "//crates/be-commit:be-commit",
+                            "//crates/be-store:be-store",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
@@ -1610,6 +1830,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1629,6 +1850,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1648,6 +1870,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1667,6 +1890,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1686,6 +1910,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1705,6 +1930,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1724,6 +1950,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -1743,6 +1970,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:bip39-2.2.2",
                     "//third-party/rust:chacha20poly1305-0.10.1",
+                    "//third-party/rust:ed25519-dalek-2.2.0",
                     "//third-party/rust:hkdf-0.12.4",
                     "//third-party/rust:postcard-1.1.3",
                     "//third-party/rust:rand-0.9.4",
@@ -2494,7 +2722,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "linux-arm64": {
@@ -2548,7 +2778,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "linux-x86_64": {
@@ -2602,7 +2834,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "macos-arm64": {
@@ -2656,7 +2890,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "macos-x86_64": {
@@ -2710,7 +2946,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "windows-arm64": {
@@ -2764,7 +3002,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
             "windows-x86_64": {
@@ -2818,7 +3058,9 @@ crates = {
                 ],
                 "examples": {},
                 "features": [],
-                "test_deps": [],
+                "test_deps": [
+                    "//crates/be-keys:be-keys",
+                ],
                 "test_features": [],
             },
         },
@@ -2968,6 +3210,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:ciborium-0.2.2",
+                    "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -2983,6 +3226,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:ciborium-0.2.2",
+                    "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -2998,6 +3242,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:ciborium-0.2.2",
+                    "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -4625,12 +4870,12 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:accesskit-0.24.1",
-                    "//third-party/rust:accesskit_winit-0.33.2",
+                    "//third-party/rust:accesskit_unix-0.22.1",
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:ashpd-0.11.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:winit-0.30.13",
+                    "//third-party/rust:winit-0.31.0-beta.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -4642,12 +4887,12 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:accesskit-0.24.1",
-                    "//third-party/rust:accesskit_winit-0.33.2",
+                    "//third-party/rust:accesskit_unix-0.22.1",
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:ashpd-0.11.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
-                    "//third-party/rust:winit-0.30.13",
+                    "//third-party/rust:winit-0.31.0-beta.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -4659,12 +4904,12 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:accesskit-0.24.1",
-                    "//third-party/rust:accesskit_winit-0.33.2",
+                    "//third-party/rust:accesskit_macos-0.26.3",
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rfd-0.15.4",
-                    "//third-party/rust:winit-0.30.13",
+                    "//third-party/rust:winit-0.31.0-beta.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -4676,12 +4921,12 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:accesskit-0.24.1",
-                    "//third-party/rust:accesskit_winit-0.33.2",
+                    "//third-party/rust:accesskit_macos-0.26.3",
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rfd-0.15.4",
-                    "//third-party/rust:winit-0.30.13",
+                    "//third-party/rust:winit-0.31.0-beta.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -4693,12 +4938,12 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:accesskit-0.24.1",
-                    "//third-party/rust:accesskit_winit-0.33.2",
+                    "//third-party/rust:accesskit_windows-0.34.0",
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rfd-0.15.4",
-                    "//third-party/rust:winit-0.30.13",
+                    "//third-party/rust:winit-0.31.0-beta.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -4710,12 +4955,12 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//third-party/rust:accesskit-0.24.1",
-                    "//third-party/rust:accesskit_winit-0.33.2",
+                    "//third-party/rust:accesskit_windows-0.34.0",
                     "//third-party/rust:arboard-3.6.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:pollster-0.4.0",
                     "//third-party/rust:rfd-0.15.4",
-                    "//third-party/rust:winit-0.30.13",
+                    "//third-party/rust:winit-0.31.0-beta.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -5345,6 +5590,7 @@ crates = {
                     "open-bench": {
                         "deps": [
                             "//crates/beui-core:beui-core",
+                            "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui:beui",
@@ -5358,6 +5604,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
@@ -5381,6 +5628,7 @@ crates = {
                     "open-bench": {
                         "deps": [
                             "//crates/beui-core:beui-core",
+                            "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui:beui",
@@ -5394,6 +5642,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
@@ -5417,6 +5666,7 @@ crates = {
                     "open-bench": {
                         "deps": [
                             "//crates/beui-core:beui-core",
+                            "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui:beui",
@@ -5430,6 +5680,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
@@ -5453,6 +5704,7 @@ crates = {
                     "open-bench": {
                         "deps": [
                             "//crates/beui-core:beui-core",
+                            "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui:beui",
@@ -5466,6 +5718,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
@@ -5489,6 +5742,7 @@ crates = {
                     "open-bench": {
                         "deps": [
                             "//crates/beui-core:beui-core",
+                            "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui:beui",
@@ -5502,6 +5756,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
@@ -5536,6 +5791,7 @@ crates = {
                 "examples": {
                     "open-bench": {
                         "deps": [
+                            "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui:beui",
                             "//crates/block-ui-test:block-ui-test",
@@ -5546,6 +5802,7 @@ crates = {
                 },
                 "features": [],
                 "test_deps": [
+                    "//crates/beui-inspector:beui-inspector",
                     "//crates/block-ui-test:block-ui-test",
                 ],
                 "test_features": [],
@@ -5567,6 +5824,7 @@ crates = {
                     "open-bench": {
                         "deps": [
                             "//crates/beui-core:beui-core",
+                            "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui:beui",
@@ -5580,6 +5838,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
@@ -5603,6 +5862,7 @@ crates = {
                     "open-bench": {
                         "deps": [
                             "//crates/beui-core:beui-core",
+                            "//crates/beui-inspector:beui-inspector",
                             "//crates/beui-macros:beui_macros",
                             "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                             "//crates/beui:beui",
@@ -5616,6 +5876,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/beui-core:beui-core",
+                    "//crates/beui-inspector:beui-inspector",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-ui-test:block-ui-test",
                     "//third-party/rust:pollster-0.4.0",
@@ -6951,6 +7212,7 @@ crates = {
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/remap/host:be-remap-host",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
                         "//third-party/rust:ashpd-0.11.1",
@@ -6972,7 +7234,6 @@ crates = {
                         "//third-party/rust:ureq-2.12.1",
                         "//third-party/rust:uuid-1.23.2",
                         "//third-party/rust:wgpu-29.0.3",
-                        "//third-party/rust:winit-0.30.13",
                         "//third-party/rust:wry-0.55.1",
                         "//third-party/rust:zbus-5.18.0",
                     ],
@@ -6996,6 +7257,7 @@ crates = {
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/remap/host:be-remap-host",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
                     "//third-party/rust:ashpd-0.11.1",
@@ -7017,7 +7279,6 @@ crates = {
                     "//third-party/rust:ureq-2.12.1",
                     "//third-party/rust:uuid-1.23.2",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:winit-0.30.13",
                     "//third-party/rust:wry-0.55.1",
                     "//third-party/rust:zbus-5.18.0",
                 ],
@@ -7057,6 +7318,7 @@ crates = {
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/remap/host:be-remap-host",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
                         "//third-party/rust:ashpd-0.11.1",
@@ -7078,7 +7340,6 @@ crates = {
                         "//third-party/rust:ureq-2.12.1",
                         "//third-party/rust:uuid-1.23.2",
                         "//third-party/rust:wgpu-29.0.3",
-                        "//third-party/rust:winit-0.30.13",
                         "//third-party/rust:wry-0.55.1",
                         "//third-party/rust:zbus-5.18.0",
                     ],
@@ -7102,6 +7363,7 @@ crates = {
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/remap/host:be-remap-host",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
                     "//third-party/rust:ashpd-0.11.1",
@@ -7123,7 +7385,6 @@ crates = {
                     "//third-party/rust:ureq-2.12.1",
                     "//third-party/rust:uuid-1.23.2",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:winit-0.30.13",
                     "//third-party/rust:wry-0.55.1",
                     "//third-party/rust:zbus-5.18.0",
                 ],
@@ -7177,7 +7438,6 @@ crates = {
                         "//third-party/rust:ureq-2.12.1",
                         "//third-party/rust:uuid-1.23.2",
                         "//third-party/rust:wgpu-29.0.3",
-                        "//third-party/rust:winit-0.30.13",
                         "//third-party/rust:wry-0.55.1",
                     ],
                 },
@@ -7214,7 +7474,6 @@ crates = {
                     "//third-party/rust:ureq-2.12.1",
                     "//third-party/rust:uuid-1.23.2",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:winit-0.30.13",
                     "//third-party/rust:wry-0.55.1",
                 ],
                 "examples": {},
@@ -7267,7 +7526,6 @@ crates = {
                         "//third-party/rust:ureq-2.12.1",
                         "//third-party/rust:uuid-1.23.2",
                         "//third-party/rust:wgpu-29.0.3",
-                        "//third-party/rust:winit-0.30.13",
                         "//third-party/rust:wry-0.55.1",
                     ],
                 },
@@ -7304,7 +7562,6 @@ crates = {
                     "//third-party/rust:ureq-2.12.1",
                     "//third-party/rust:uuid-1.23.2",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:winit-0.30.13",
                     "//third-party/rust:wry-0.55.1",
                 ],
                 "examples": {},
@@ -7395,7 +7652,6 @@ crates = {
                         "//third-party/rust:ureq-2.12.1",
                         "//third-party/rust:uuid-1.23.2",
                         "//third-party/rust:wgpu-29.0.3",
-                        "//third-party/rust:winit-0.30.13",
                         "//third-party/rust:wry-0.55.1",
                     ],
                 },
@@ -7431,7 +7687,6 @@ crates = {
                     "//third-party/rust:ureq-2.12.1",
                     "//third-party/rust:uuid-1.23.2",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:winit-0.30.13",
                     "//third-party/rust:wry-0.55.1",
                 ],
                 "examples": {},
@@ -7483,7 +7738,6 @@ crates = {
                         "//third-party/rust:ureq-2.12.1",
                         "//third-party/rust:uuid-1.23.2",
                         "//third-party/rust:wgpu-29.0.3",
-                        "//third-party/rust:winit-0.30.13",
                         "//third-party/rust:wry-0.55.1",
                     ],
                 },
@@ -7519,7 +7773,6 @@ crates = {
                     "//third-party/rust:ureq-2.12.1",
                     "//third-party/rust:uuid-1.23.2",
                     "//third-party/rust:wgpu-29.0.3",
-                    "//third-party/rust:winit-0.30.13",
                     "//third-party/rust:wry-0.55.1",
                 ],
                 "examples": {},
@@ -9822,35 +10075,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/editors/display-settings": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "display_settings",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "display_settings",
-        "platforms": {
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
-                    "//third-party/rust:uuid-1.23.2",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/block-ui-test:block-ui-test",
-                ],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/editors/file-tree": {
         "binaries": [],
         "edition": "2024",
@@ -9942,35 +10166,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/editors/input-settings": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "input_settings",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "input_settings",
-        "platforms": {
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
-                    "//third-party/rust:uuid-1.23.2",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/block-ui-test:block-ui-test",
-                ],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/editors/linux-desktop": {
         "binaries": [],
         "edition": "2024",
@@ -9994,6 +10189,37 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/editors/linux-settings": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "linux_settings",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "linux_settings",
+        "platforms": {
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/remap/rules:be-remap",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
                     "//crates/block-ui-test:block-ui-test",
                 ],
                 "test_features": [],
@@ -10359,35 +10585,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/editors/ui-settings": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "ui_settings",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "ui_settings",
-        "platforms": {
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
-                    "//third-party/rust:uuid-1.23.2",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/block-ui-test:block-ui-test",
-                ],
                 "test_features": [],
             },
         },
@@ -12052,6 +12249,357 @@ crates = {
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/remap/host": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_remap_host",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-remap-host",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/remap/module": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_remap_module",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-remap-module",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/remap/rules": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_remap",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-remap",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
             },
         },
         "profile_flags": [],
@@ -14311,6 +14859,7 @@ third_party = {
                 ],
                 "features": [
                     "async-io",
+                    "default",
                 ],
             },
             "linux-x86_64": {
@@ -14328,6 +14877,7 @@ third_party = {
                 ],
                 "features": [
                     "async-io",
+                    "default",
                 ],
             },
         },
@@ -14383,128 +14933,6 @@ third_party = {
         "sha256": "106c2b961215864d1c2e703ee63269c25c4e80a577ffb2c1017b9c17dcdf83a1",
         "size_bytes": 59770,
         "version": "0.34.0",
-    },
-    "accesskit_winit-0.33.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The AccessKit contributors",
-            "CARGO_PKG_DESCRIPTION": "AccessKit UI accessibility infrastructure: winit adapter",
-            "CARGO_PKG_LICENSE": "Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/AccessKit/accesskit",
-            "CARGO_PKG_RUST_VERSION": "1.85",
-        },
-        "library": {
-            "crate": "accesskit_winit",
-            "crate_root": "src/lib.rs",
-            "edition": "2024",
-            "proc_macro": False,
-        },
-        "name": "accesskit_winit",
-        "platforms": {
-            "linux-arm64": {
-                "deps": [
-                    ":accesskit-0.24.1",
-                    ":accesskit_unix-0.22.1",
-                    ":winit-0.30.13",
-                ],
-                "features": [
-                    "accesskit_unix",
-                    "async-io",
-                    "default",
-                    "rwh_06",
-                ],
-                "named_deps": {
-                    "rwh_06": ":raw-window-handle-0.6.2",
-                },
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":accesskit-0.24.1",
-                    ":accesskit_unix-0.22.1",
-                    ":winit-0.30.13",
-                ],
-                "features": [
-                    "accesskit_unix",
-                    "async-io",
-                    "default",
-                    "rwh_06",
-                ],
-                "named_deps": {
-                    "rwh_06": ":raw-window-handle-0.6.2",
-                },
-            },
-            "macos-arm64": {
-                "deps": [
-                    ":accesskit-0.24.1",
-                    ":accesskit_macos-0.26.3",
-                    ":winit-0.30.13",
-                ],
-                "features": [
-                    "accesskit_unix",
-                    "async-io",
-                    "default",
-                    "rwh_06",
-                ],
-                "named_deps": {
-                    "rwh_06": ":raw-window-handle-0.6.2",
-                },
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":accesskit-0.24.1",
-                    ":accesskit_macos-0.26.3",
-                    ":winit-0.30.13",
-                ],
-                "features": [
-                    "accesskit_unix",
-                    "async-io",
-                    "default",
-                    "rwh_06",
-                ],
-                "named_deps": {
-                    "rwh_06": ":raw-window-handle-0.6.2",
-                },
-            },
-            "windows-arm64": {
-                "deps": [
-                    ":accesskit-0.24.1",
-                    ":accesskit_windows-0.34.0",
-                    ":winit-0.30.13",
-                ],
-                "features": [
-                    "accesskit_unix",
-                    "async-io",
-                    "default",
-                    "rwh_06",
-                ],
-                "named_deps": {
-                    "rwh_06": ":raw-window-handle-0.6.2",
-                },
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":accesskit-0.24.1",
-                    ":accesskit_windows-0.34.0",
-                    ":winit-0.30.13",
-                ],
-                "features": [
-                    "accesskit_unix",
-                    "async-io",
-                    "default",
-                    "rwh_06",
-                ],
-                "named_deps": {
-                    "rwh_06": ":raw-window-handle-0.6.2",
-                },
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "d5b41e63a69f36d9f1f41e70464c7e5f72eee485ef26aab19f0b4f86e6c0a84c",
-        "size_bytes": 37801,
-        "version": "0.33.2",
     },
     "adler2-2.0.1": {
         "build_script": None,
@@ -14702,31 +15130,15 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
-                    ":getrandom-0.3.4",
                     ":once_cell-1.21.4",
                     ":zerocopy-0.8.50",
-                ],
-                "features": [
-                    "default",
-                    "getrandom",
-                    "no-rng",
-                    "runtime-rng",
-                    "std",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
                     ":cfg-if-1.0.4",
-                    ":getrandom-0.3.4",
                     ":once_cell-1.21.4",
                     ":zerocopy-0.8.50",
-                ],
-                "features": [
-                    "default",
-                    "getrandom",
-                    "no-rng",
-                    "runtime-rng",
-                    "std",
                 ],
             },
             "macos-arm64": {
@@ -17585,52 +17997,6 @@ third_party = {
         "size_bytes": 10538,
         "version": "0.10.4",
     },
-    "block2-0.5.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Steven Sheldon:Mads Marquart <mads@marquart.dk>",
-            "CARGO_PKG_DESCRIPTION": "Apple's C language extension of blocks",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/madsmtm/objc2",
-            "CARGO_PKG_RUST_VERSION": "1.60",
-        },
-        "library": {
-            "crate": "block2",
-            "crate_root": "src/lib.rs",
-            "edition": "2021",
-            "proc_macro": False,
-        },
-        "name": "block2",
-        "platforms": {
-            "macos-arm64": {
-                "deps": [
-                    ":objc2-0.5.2",
-                ],
-                "features": [
-                    "alloc",
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":objc2-0.5.2",
-                ],
-                "features": [
-                    "alloc",
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "2c132eebf10f5cad5289222520a4a058514204aed6d791f1cf4fe8088b82d15f",
-        "size_bytes": 24191,
-        "version": "0.5.1",
-    },
     "block2-0.6.2": {
         "build_script": None,
         "env": {
@@ -18321,52 +18687,6 @@ third_party = {
         "size_bytes": 11855,
         "version": "0.18.2",
     },
-    "calloop-0.13.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Elinor Berger <elinor@safaradeg.net>",
-            "CARGO_PKG_DESCRIPTION": "A callback-based event loop",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/Smithay/calloop",
-            "CARGO_PKG_RUST_VERSION": "1.63.0",
-        },
-        "library": {
-            "crate": "calloop",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "calloop",
-        "platforms": {
-            "linux-arm64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":log-0.4.31",
-                    ":polling-3.11.0",
-                    ":rustix-0.38.44",
-                    ":slab-0.4.12",
-                    ":thiserror-1.0.69",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":bitflags-2.12.1",
-                    ":log-0.4.31",
-                    ":polling-3.11.0",
-                    ":rustix-0.38.44",
-                    ":slab-0.4.12",
-                    ":thiserror-1.0.69",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "b99da2f8558ca23c71f4fd15dc57c906239752dd27ff3c00a1d56b685b7cbfec",
-        "size_bytes": 69698,
-        "version": "0.13.0",
-    },
     "calloop-0.14.4": {
         "build_script": None,
         "env": {
@@ -18456,7 +18776,7 @@ third_party = {
         "size_bytes": 77843,
         "version": "0.14.4",
     },
-    "calloop-wayland-source-0.3.0": {
+    "calloop-wayland-source-0.4.1": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "Kirill Chibisov <contact@kchibisov.com>",
@@ -18476,16 +18796,16 @@ third_party = {
         "platforms": {
             "linux-arm64": {
                 "deps": [
-                    ":calloop-0.13.0",
-                    ":rustix-0.38.44",
+                    ":calloop-0.14.4",
+                    ":rustix-1.1.4",
                     ":wayland-backend-0.3.15",
                     ":wayland-client-0.31.14",
                 ],
             },
             "linux-x86_64": {
                 "deps": [
-                    ":calloop-0.13.0",
-                    ":rustix-0.38.44",
+                    ":calloop-0.14.4",
+                    ":rustix-1.1.4",
                     ":wayland-backend-0.3.15",
                     ":wayland-client-0.31.14",
                 ],
@@ -18494,9 +18814,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "95a66a987056935f7efce4ab5668920b5d0dac4a7c99991a67395f13702ddd20",
-        "size_bytes": 11300,
-        "version": "0.3.0",
+        "sha256": "138efcf0940a02ebf0cc8d1eff41a1682a46b431630f4c52450d6265876021fa",
+        "size_bytes": 11247,
+        "version": "0.4.1",
     },
     "cap-fs-ext-4.0.3": {
         "build_script": {
@@ -19079,7 +19399,7 @@ third_party = {
         "size_bytes": 6009,
         "version": "0.1.1",
     },
-    "cfg_aliases-0.2.1": {
+    "cfg_aliases-0.2.2": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "Zicklag <zicklag@katharostech.com>",
@@ -19102,9 +19422,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "613afe47fcd5fac7ccf1db93babcb082c5994d996f20b8b159f2ad1658eb5724",
-        "size_bytes": 6355,
-        "version": "0.2.1",
+        "sha256": "f079e83a288787bcd14a6aea84cee5c87a67c5a3e660c30f557a3d24761b3527",
+        "size_bytes": 6527,
+        "version": "0.2.2",
     },
     "cgmath-0.18.0": {
         "build_script": {
@@ -20663,58 +20983,6 @@ third_party = {
         "sha256": "2581bbab3b8ffc6fcbd550bf46c355135d16e9ff2a6ea032ad6b9bf1d7efe4fb",
         "size_bytes": 29514,
         "version": "0.22.3",
-    },
-    "core-graphics-0.23.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "The Servo Project Developers",
-            "CARGO_PKG_DESCRIPTION": "Bindings to Core Graphics for macOS",
-            "CARGO_PKG_HOMEPAGE": "https://github.com/servo/core-foundation-rs",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/servo/core-foundation-rs",
-        },
-        "library": {
-            "crate": "core_graphics",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "core-graphics",
-        "platforms": {
-            "macos-arm64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-types-0.1.3",
-                    ":foreign-types-0.5.0",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "link",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":bitflags-1.3.2",
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-types-0.1.3",
-                    ":foreign-types-0.5.0",
-                    ":libc-0.2.186",
-                ],
-                "features": [
-                    "default",
-                    "link",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "c07782be35f9e1140080c6b96f0d44b739e2278479f64e02fdab4e32dfd8b081",
-        "size_bytes": 30763,
-        "version": "0.23.2",
     },
     "core-graphics-types-0.1.3": {
         "build_script": None,
@@ -23046,12 +23314,14 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23060,12 +23330,14 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23076,12 +23348,14 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":cpufeatures-0.2.17",
                     ":curve25519-dalek-derive-0.1.1",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23090,12 +23364,14 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23106,12 +23382,14 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":cpufeatures-0.2.17",
                     ":curve25519-dalek-derive-0.1.1",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23120,12 +23398,14 @@ third_party = {
             "wasi": {
                 "deps": [
                     ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23134,12 +23414,14 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":cfg-if-1.0.4",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23150,12 +23432,14 @@ third_party = {
                     ":cfg-if-1.0.4",
                     ":cpufeatures-0.2.17",
                     ":curve25519-dalek-derive-0.1.1",
+                    ":digest-0.10.7",
                     ":rand_core-0.6.4",
                     ":subtle-2.6.1",
                     ":zeroize-1.9.0",
                 ],
                 "features": [
                     "alloc",
+                    "digest",
                     "precomputed-tables",
                     "rand_core",
                     "zeroize",
@@ -23878,33 +24162,6 @@ third_party = {
         "size_bytes": 10681,
         "version": "0.1.2",
     },
-    "dispatch-0.2.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Steven Sheldon",
-            "CARGO_PKG_DESCRIPTION": "Rust wrapper for Apple's Grand Central Dispatch.",
-            "CARGO_PKG_LICENSE": "MIT",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "http://github.com/SSheldon/rust-dispatch",
-        },
-        "library": {
-            "crate": "dispatch",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "dispatch",
-        "platforms": {
-            "macos-arm64": {},
-            "macos-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "bd0c93bb4b0c6d9b77f4435b0ae98c24d17f1c45b2ff844c6151a07256ca923b",
-        "size_bytes": 10229,
-        "version": "0.2.0",
-    },
     "dispatch2-0.3.1": {
         "build_script": None,
         "env": {
@@ -24572,6 +24829,259 @@ third_party = {
         "size_bytes": 8244,
         "version": "1.0.5",
     },
+    "ed25519-2.2.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Edwards Digital Signature Algorithm (EdDSA) over Curve25519 (as specified in RFC 8032)\nsupport library providing signature type definitions and PKCS#8 private key\ndecoding/encoding support\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/signatures/tree/master/ed25519",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "ed25519",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ed25519",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":signature-2.2.0",
+                ],
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "115531babc129696a58c64a4fef0a8bf9e9698629fb97e9e40767d235cfbcd53",
+        "size_bytes": 17802,
+        "version": "2.2.3",
+    },
+    "ed25519-dalek-2.2.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "isis lovecruft <isis@patternsinthevoid.net>:Tony Arcieri <bascule@gmail.com>:Michael Rosenberg <michael@mrosenberg.pub>",
+            "CARGO_PKG_DESCRIPTION": "Fast and efficient ed25519 EdDSA key generations, signing, and verification in pure Rust.",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/dalek-cryptography/curve25519-dalek",
+            "CARGO_PKG_LICENSE": "BSD-3-Clause",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dalek-cryptography/curve25519-dalek/tree/main/ed25519-dalek",
+            "CARGO_PKG_RUST_VERSION": "1.81",
+        },
+        "library": {
+            "crate": "ed25519_dalek",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "ed25519-dalek",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "wasi": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":curve25519-dalek-4.1.3",
+                    ":ed25519-2.2.3",
+                    ":sha2-0.10.9",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "fast",
+                    "std",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9",
+        "size_bytes": 98034,
+        "version": "2.2.0",
+    },
     "either-1.17.0": {
         "build_script": None,
         "env": {
@@ -25067,6 +25577,7 @@ third_party = {
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
+            "wasi-guest": {},
             "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
@@ -26176,85 +26687,6 @@ third_party = {
         "size_bytes": 7504,
         "version": "0.3.2",
     },
-    "foreign-types-0.5.0": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Steven Fackler <sfackler@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A framework for Rust wrappers over C APIs",
-            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sfackler/foreign-types",
-        },
-        "library": {
-            "crate": "foreign_types",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "foreign-types",
-        "platforms": {
-            "macos-arm64": {
-                "deps": [
-                    ":foreign-types-macros-0.2.3",
-                    ":foreign-types-shared-0.3.1",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "deps": [
-                    ":foreign-types-macros-0.2.3",
-                    ":foreign-types-shared-0.3.1",
-                ],
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "d737d9aa519fb7b749cbc3b962edcf310a8dd1f4b67c91c4f83975dbdd17d965",
-        "size_bytes": 7824,
-        "version": "0.5.0",
-    },
-    "foreign-types-macros-0.2.3": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Steven Fackler <sfackler@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "An internal crate used by foreign-types",
-            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sfackler/foreign-types",
-        },
-        "library": {
-            "crate": "foreign_types_macros",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": True,
-        },
-        "name": "foreign-types-macros",
-        "platforms": {
-            "linux-x86_64": {
-                "deps": [
-                    ":proc-macro2-1.0.106",
-                    ":quote-1.0.45",
-                    ":syn-2.0.117",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "1a5c6c585bc94aaf2c7b51dd4c2ba22680844aba4c687be581871a6f518c5742",
-        "size_bytes": 7635,
-        "version": "0.2.3",
-    },
     "foreign-types-shared-0.1.1": {
         "build_script": None,
         "env": {
@@ -26280,32 +26712,6 @@ third_party = {
         "sha256": "00b0228411908ca8685dba7fc2cdd70ec9990a6e753e89b6ac91a84c40fbaf4b",
         "size_bytes": 5672,
         "version": "0.1.1",
-    },
-    "foreign-types-shared-0.3.1": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Steven Fackler <sfackler@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "An internal crate used by foreign-types",
-            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
-            "CARGO_PKG_REPOSITORY": "https://github.com/sfackler/foreign-types",
-        },
-        "library": {
-            "crate": "foreign_types_shared",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "foreign-types-shared",
-        "platforms": {
-            "macos-arm64": {},
-            "macos-x86_64": {},
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "aa9a19cbb55df58761df49b23516a86d432839add4af60fc256da840f66ed35b",
-        "size_bytes": 6006,
-        "version": "0.3.1",
     },
     "form_urlencoded-1.2.2": {
         "build_script": None,
@@ -30682,6 +31088,7 @@ third_party = {
                 ],
             },
             "wasi": {},
+            "wasi-guest": {},
             "wasm32": {},
             "windows-arm64": {
                 "deps": [
@@ -32974,10 +33381,24 @@ third_party = {
                     ":hashbrown-0.17.1",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":equivalent-1.0.2",
+                    ":hashbrown-0.17.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "wasm32": {
                 "deps": [
                     ":equivalent-1.0.2",
                     ":hashbrown-0.17.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
                 ],
             },
             "windows-arm64": {
@@ -34413,6 +34834,86 @@ third_party = {
         "size_bytes": 108515,
         "version": "0.3.99",
     },
+    "keyboard-types-0.8.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Pyfisch <pyfisch@posteo.org>",
+            "CARGO_PKG_DESCRIPTION": "Contains types to define keyboard related events.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-windowing/keyboard-types",
+            "CARGO_PKG_RUST_VERSION": "1.61",
+        },
+        "library": {
+            "crate": "keyboard_types",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "keyboard-types",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "0fbe853b403ae61a04233030ae8a79d94975281ed9770a1f9e246732b534b28d",
+        "size_bytes": 97188,
+        "version": "0.8.3",
+    },
     "khronos-egl-6.0.0": {
         "build_script": {
             "crate_root": "build.rs",
@@ -35482,8 +35983,6 @@ third_party = {
                     "general",
                     "ioctl",
                     "no_std",
-                    "prctl",
-                    "system",
                 ],
             },
             "linux-x86_64": {
@@ -35493,8 +35992,6 @@ third_party = {
                     "general",
                     "ioctl",
                     "no_std",
-                    "prctl",
-                    "system",
                 ],
             },
         },
@@ -36729,7 +37226,7 @@ third_party = {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
-                ":cfg_aliases-0.2.1",
+                ":cfg_aliases-0.2.2",
             ],
             "edition": "2021",
         },
@@ -37715,7 +38212,6 @@ third_party = {
                 "features": [
                     "alloc",
                     "default",
-                    "relax-sign-encoding",
                     "std",
                 ],
             },
@@ -37727,7 +38223,6 @@ third_party = {
                 "features": [
                     "alloc",
                     "default",
-                    "relax-sign-encoding",
                     "std",
                 ],
             },
@@ -37770,6 +38265,7 @@ third_party = {
                     "default",
                     "disable-encoding-assertions",
                     "exception",
+                    "relax-sign-encoding",
                     "std",
                 ],
             },
@@ -37783,6 +38279,7 @@ third_party = {
                     "default",
                     "disable-encoding-assertions",
                     "exception",
+                    "relax-sign-encoding",
                     "std",
                 ],
             },
@@ -37822,33 +38319,11 @@ third_party = {
                     "NSAccessibilityConstants",
                     "NSAccessibilityElement",
                     "NSAccessibilityProtocols",
-                    "NSAppearance",
-                    "NSApplication",
-                    "NSBitmapImageRep",
-                    "NSButton",
                     "NSColor",
-                    "NSControl",
-                    "NSCursor",
-                    "NSDragging",
-                    "NSEvent",
-                    "NSGraphics",
-                    "NSGraphicsContext",
-                    "NSImage",
-                    "NSImageRep",
-                    "NSMenu",
-                    "NSMenuItem",
-                    "NSOpenGLView",
-                    "NSPasteboard",
                     "NSResponder",
-                    "NSRunningApplication",
-                    "NSScreen",
                     "NSText",
-                    "NSTextInputClient",
-                    "NSTextInputContext",
                     "NSView",
                     "NSWindow",
-                    "NSWindowScripting",
-                    "NSWindowTabGroup",
                     "alloc",
                     "bitflags",
                     "default",
@@ -37866,33 +38341,11 @@ third_party = {
                     "NSAccessibilityConstants",
                     "NSAccessibilityElement",
                     "NSAccessibilityProtocols",
-                    "NSAppearance",
-                    "NSApplication",
-                    "NSBitmapImageRep",
-                    "NSButton",
                     "NSColor",
-                    "NSControl",
-                    "NSCursor",
-                    "NSDragging",
-                    "NSEvent",
-                    "NSGraphics",
-                    "NSGraphicsContext",
-                    "NSImage",
-                    "NSImageRep",
-                    "NSMenu",
-                    "NSMenuItem",
-                    "NSOpenGLView",
-                    "NSPasteboard",
                     "NSResponder",
-                    "NSRunningApplication",
-                    "NSScreen",
                     "NSText",
-                    "NSTextInputClient",
-                    "NSTextInputContext",
                     "NSView",
                     "NSWindow",
-                    "NSWindowScripting",
-                    "NSWindowTabGroup",
                     "alloc",
                     "bitflags",
                     "default",
@@ -37940,15 +38393,22 @@ third_party = {
                     "NSAppearance",
                     "NSApplication",
                     "NSAttributedString",
+                    "NSBitmapImageRep",
                     "NSButton",
                     "NSColor",
                     "NSControl",
+                    "NSCursor",
                     "NSDragging",
+                    "NSDraggingItem",
+                    "NSDraggingSession",
                     "NSEvent",
                     "NSGraphics",
+                    "NSGraphicsContext",
                     "NSImage",
+                    "NSImageRep",
                     "NSMenu",
                     "NSMenuItem",
+                    "NSOpenGLView",
                     "NSOpenPanel",
                     "NSPanel",
                     "NSPasteboard",
@@ -37961,11 +38421,18 @@ third_party = {
                     "NSSavePanel",
                     "NSScreen",
                     "NSTextFinder",
+                    "NSTextInputClient",
+                    "NSTextInputContext",
                     "NSTextView",
+                    "NSToolbar",
+                    "NSTrackingArea",
                     "NSUserInterfaceItemIdentification",
                     "NSUserInterfaceValidation",
                     "NSView",
+                    "NSVisualEffectView",
                     "NSWindow",
+                    "NSWindowScripting",
+                    "NSWindowTabGroup",
                     "alloc",
                     "bitflags",
                     "block2",
@@ -37990,15 +38457,22 @@ third_party = {
                     "NSAppearance",
                     "NSApplication",
                     "NSAttributedString",
+                    "NSBitmapImageRep",
                     "NSButton",
                     "NSColor",
                     "NSControl",
+                    "NSCursor",
                     "NSDragging",
+                    "NSDraggingItem",
+                    "NSDraggingSession",
                     "NSEvent",
                     "NSGraphics",
+                    "NSGraphicsContext",
                     "NSImage",
+                    "NSImageRep",
                     "NSMenu",
                     "NSMenuItem",
+                    "NSOpenGLView",
                     "NSOpenPanel",
                     "NSPanel",
                     "NSPasteboard",
@@ -38011,11 +38485,18 @@ third_party = {
                     "NSSavePanel",
                     "NSScreen",
                     "NSTextFinder",
+                    "NSTextInputClient",
+                    "NSTextInputContext",
                     "NSTextView",
+                    "NSToolbar",
+                    "NSTrackingArea",
                     "NSUserInterfaceItemIdentification",
                     "NSUserInterfaceValidation",
                     "NSView",
+                    "NSVisualEffectView",
                     "NSWindow",
+                    "NSWindowScripting",
+                    "NSWindowTabGroup",
                     "alloc",
                     "bitflags",
                     "block2",
@@ -38052,6 +38533,7 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":block2-0.6.2",
                     ":objc2-0.6.4",
                 ],
                 "features": [
@@ -38074,9 +38556,11 @@ third_party = {
                     "CFStream",
                     "CFString",
                     "CFURL",
+                    "CFUUID",
                     "CFUserNotification",
                     "alloc",
                     "bitflags",
+                    "block2",
                     "objc2",
                     "std",
                 ],
@@ -38084,6 +38568,7 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":block2-0.6.2",
                     ":objc2-0.6.4",
                 ],
                 "features": [
@@ -38106,9 +38591,11 @@ third_party = {
                     "CFStream",
                     "CFString",
                     "CFURL",
+                    "CFUUID",
                     "CFUserNotification",
                     "alloc",
                     "bitflags",
+                    "block2",
                     "objc2",
                     "std",
                 ],
@@ -38141,6 +38628,7 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":libc-0.2.186",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
                 ],
@@ -38150,12 +38638,18 @@ third_party = {
                     "CGContext",
                     "CGDataProvider",
                     "CGDirectDisplay",
+                    "CGDisplayConfiguration",
+                    "CGDisplayFade",
+                    "CGError",
                     "CGEventTypes",
                     "CGFont",
                     "CGImage",
                     "CGPath",
+                    "CGRemoteOperation",
+                    "CGWindowLevel",
                     "alloc",
                     "bitflags",
+                    "libc",
                     "objc2",
                     "std",
                 ],
@@ -38163,6 +38657,7 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":libc-0.2.186",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
                 ],
@@ -38172,12 +38667,18 @@ third_party = {
                     "CGContext",
                     "CGDataProvider",
                     "CGDirectDisplay",
+                    "CGDisplayConfiguration",
+                    "CGDisplayFade",
+                    "CGError",
                     "CGEventTypes",
                     "CGFont",
                     "CGImage",
                     "CGPath",
+                    "CGRemoteOperation",
+                    "CGWindowLevel",
                     "alloc",
                     "bitflags",
+                    "libc",
                     "objc2",
                     "std",
                 ],
@@ -38188,6 +38689,63 @@ third_party = {
         ],
         "sha256": "e022c9d066895efa1345f8e33e584b9f958da2fd4cd116792e15e07e4720a807",
         "size_bytes": 84981,
+        "version": "0.3.2",
+    },
+    "objc2-core-video-0.3.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Bindings to the CoreVideo framework",
+            "CARGO_PKG_LICENSE": "Zlib OR Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/madsmtm/objc2",
+            "CARGO_PKG_RUST_VERSION": "1.71",
+        },
+        "library": {
+            "crate": "objc2_core_video",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "objc2-core-video",
+        "platforms": {
+            "macos-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
+                ],
+                "features": [
+                    "CVBase",
+                    "CVDisplayLink",
+                    "CVReturn",
+                    "alloc",
+                    "bitflags",
+                    "objc2-core-graphics",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
+                ],
+                "features": [
+                    "CVBase",
+                    "CVDisplayLink",
+                    "CVReturn",
+                    "alloc",
+                    "bitflags",
+                    "objc2-core-graphics",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "d425caf1df73233f29fd8a5c3e5edbc30d2d4307870f802d18f00d83dc5141a6",
+        "size_bytes": 39345,
         "version": "0.3.2",
     },
     "objc2-encode-4.1.0": {
@@ -38283,8 +38841,6 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
-                    ":block2-0.5.1",
-                    ":dispatch-0.2.0",
                     ":objc2-0.5.2",
                 ],
                 "features": [
@@ -38295,46 +38851,26 @@ third_party = {
                     "NSData",
                     "NSDate",
                     "NSDictionary",
-                    "NSDistributedNotificationCenter",
-                    "NSEnumerator",
                     "NSError",
-                    "NSException",
-                    "NSFileWrapper",
-                    "NSFormatter",
                     "NSGeometry",
-                    "NSItemProvider",
-                    "NSKeyValueObserving",
-                    "NSLocale",
                     "NSNotification",
                     "NSObjCRuntime",
                     "NSObject",
-                    "NSPathUtilities",
-                    "NSProcessInfo",
                     "NSRange",
-                    "NSRunLoop",
-                    "NSScriptCommand",
-                    "NSScriptStandardSuiteCommands",
-                    "NSSet",
                     "NSString",
                     "NSThread",
                     "NSURL",
                     "NSUndoManager",
-                    "NSUserActivity",
                     "NSValue",
-                    "NSZone",
                     "alloc",
                     "bitflags",
-                    "block2",
                     "default",
-                    "dispatch",
                     "std",
                 ],
             },
             "macos-x86_64": {
                 "deps": [
                     ":bitflags-2.12.1",
-                    ":block2-0.5.1",
-                    ":dispatch-0.2.0",
                     ":objc2-0.5.2",
                 ],
                 "features": [
@@ -38345,38 +38881,20 @@ third_party = {
                     "NSData",
                     "NSDate",
                     "NSDictionary",
-                    "NSDistributedNotificationCenter",
-                    "NSEnumerator",
                     "NSError",
-                    "NSException",
-                    "NSFileWrapper",
-                    "NSFormatter",
                     "NSGeometry",
-                    "NSItemProvider",
-                    "NSKeyValueObserving",
-                    "NSLocale",
                     "NSNotification",
                     "NSObjCRuntime",
                     "NSObject",
-                    "NSPathUtilities",
-                    "NSProcessInfo",
                     "NSRange",
-                    "NSRunLoop",
-                    "NSScriptCommand",
-                    "NSScriptStandardSuiteCommands",
-                    "NSSet",
                     "NSString",
                     "NSThread",
                     "NSURL",
                     "NSUndoManager",
-                    "NSUserActivity",
                     "NSValue",
-                    "NSZone",
                     "alloc",
                     "bitflags",
-                    "block2",
                     "default",
-                    "dispatch",
                     "std",
                 ],
             },
@@ -38408,6 +38926,7 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":block2-0.6.2",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
                 ],
@@ -38419,6 +38938,7 @@ third_party = {
                     "NSData",
                     "NSDate",
                     "NSDictionary",
+                    "NSDistributedNotificationCenter",
                     "NSEnumerator",
                     "NSError",
                     "NSException",
@@ -38435,11 +38955,15 @@ third_party = {
                     "NSNull",
                     "NSObjCRuntime",
                     "NSObject",
+                    "NSOperation",
                     "NSOrthography",
+                    "NSPathUtilities",
                     "NSProcessInfo",
                     "NSProgress",
                     "NSRange",
                     "NSRunLoop",
+                    "NSScriptCommand",
+                    "NSScriptStandardSuiteCommands",
                     "NSSet",
                     "NSStream",
                     "NSString",
@@ -38458,6 +38982,7 @@ third_party = {
                     "NSZone",
                     "alloc",
                     "bitflags",
+                    "block2",
                     "objc2-core-foundation",
                     "std",
                 ],
@@ -38465,6 +38990,7 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":bitflags-2.12.1",
+                    ":block2-0.6.2",
                     ":objc2-0.6.4",
                     ":objc2-core-foundation-0.3.2",
                 ],
@@ -38476,6 +39002,7 @@ third_party = {
                     "NSData",
                     "NSDate",
                     "NSDictionary",
+                    "NSDistributedNotificationCenter",
                     "NSEnumerator",
                     "NSError",
                     "NSException",
@@ -38492,11 +39019,15 @@ third_party = {
                     "NSNull",
                     "NSObjCRuntime",
                     "NSObject",
+                    "NSOperation",
                     "NSOrthography",
+                    "NSPathUtilities",
                     "NSProcessInfo",
                     "NSProgress",
                     "NSRange",
                     "NSRunLoop",
+                    "NSScriptCommand",
+                    "NSScriptStandardSuiteCommands",
                     "NSSet",
                     "NSStream",
                     "NSString",
@@ -38515,6 +39046,7 @@ third_party = {
                     "NSZone",
                     "alloc",
                     "bitflags",
+                    "block2",
                     "objc2-core-foundation",
                     "std",
                 ],
@@ -45994,16 +46526,10 @@ third_party = {
                 "features": [
                     "alloc",
                     "default",
-                    "event",
                     "fs",
                     "libc-extra-traits",
                     "mm",
-                    "pipe",
-                    "process",
-                    "shm",
                     "std",
-                    "system",
-                    "thread",
                     "use-libc-auxv",
                 ],
             },
@@ -46015,16 +46541,10 @@ third_party = {
                 "features": [
                     "alloc",
                     "default",
-                    "event",
                     "fs",
                     "libc-extra-traits",
                     "mm",
-                    "pipe",
-                    "process",
-                    "shm",
                     "std",
-                    "system",
-                    "thread",
                     "use-libc-auxv",
                 ],
             },
@@ -46174,6 +46694,7 @@ third_party = {
                     "std",
                     "system",
                     "termios",
+                    "thread",
                     "time",
                 ],
             },
@@ -46196,6 +46717,7 @@ third_party = {
                     "std",
                     "system",
                     "termios",
+                    "thread",
                     "time",
                 ],
             },
@@ -46902,7 +47424,7 @@ third_party = {
         "size_bytes": 11619,
         "version": "1.2.0",
     },
-    "sctk-adwaita-0.10.1": {
+    "sctk-adwaita-0.12.0": {
         "build_script": None,
         "env": {
             "CARGO_PKG_AUTHORS": "Poly <marynczak.bartlomiej@gmail.com>",
@@ -46924,8 +47446,8 @@ third_party = {
                     ":ab_glyph-0.2.32",
                     ":log-0.4.31",
                     ":memmap2-0.9.10",
-                    ":smithay-client-toolkit-0.19.2",
-                    ":tiny-skia-0.11.4",
+                    ":smithay-client-toolkit-0.21.1",
+                    ":tiny-skia-0.12.0",
                 ],
                 "features": [
                     "ab_glyph",
@@ -46937,8 +47459,8 @@ third_party = {
                     ":ab_glyph-0.2.32",
                     ":log-0.4.31",
                     ":memmap2-0.9.10",
-                    ":smithay-client-toolkit-0.19.2",
-                    ":tiny-skia-0.11.4",
+                    ":smithay-client-toolkit-0.21.1",
+                    ":tiny-skia-0.12.0",
                 ],
                 "features": [
                     "ab_glyph",
@@ -46949,9 +47471,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "b6277f0217056f77f1d8f49f2950ac6c278c0d607c45f5ee99328d792ede24ec",
-        "size_bytes": 53237,
-        "version": "0.10.1",
+        "sha256": "1f8ea028b7cb32e2f577b0a55a7b54cb206376bdb1221bd5c81dcf20b68db1fb",
+        "size_bytes": 63639,
+        "version": "0.12.0",
     },
     "semver-1.0.28": {
         "build_script": None,
@@ -47376,6 +47898,7 @@ third_party = {
             },
             "wasm32": {
                 "features": [
+                    "alloc",
                     "result",
                     "std",
                 ],
@@ -47715,6 +48238,26 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -48326,6 +48869,80 @@ third_party = {
         "sha256": "c4db69cba1110affc0e9f7bcd48bbf87b3f4fc7c61fc9155afd4c469eb3d6c1b",
         "size_bytes": 21668,
         "version": "1.4.8",
+    },
+    "signature-2.2.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Traits for cryptographic signature algorithms (e.g. ECDSA, Ed25519)",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits/tree/master/signature",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "signature",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "signature",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "wasi": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "alloc",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "77549399552de45a898a580c1b41d445bf730df867cc44e6c0233bbc4b8329de",
+        "size_bytes": 15531,
+        "version": "2.2.0",
     },
     "simd-adler32-0.3.9": {
         "build_script": None,
@@ -49473,7 +50090,7 @@ third_party = {
         "size_bytes": 708976,
         "version": "0.7.0",
     },
-    "smithay-client-toolkit-0.19.2": {
+    "smithay-client-toolkit-0.21.1": {
         "build_script": {
             "crate_root": "build.rs",
             "edition": "2021",
@@ -49484,6 +50101,7 @@ third_party = {
             "CARGO_PKG_LICENSE": "MIT",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/smithay/client-toolkit",
+            "CARGO_PKG_RUST_VERSION": "1.86",
         },
         "library": {
             "crate": "smithay_client_toolkit",
@@ -49496,19 +50114,19 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
-                    ":calloop-0.13.0",
-                    ":calloop-wayland-source-0.3.0",
+                    ":calloop-0.14.4",
+                    ":calloop-wayland-source-0.4.1",
                     ":cursor-icon-1.2.0",
-                    ":libc-0.2.186",
                     ":log-0.4.31",
                     ":memmap2-0.9.10",
-                    ":rustix-0.38.44",
-                    ":thiserror-1.0.69",
-                    ":wayland-backend-0.3.15",
+                    ":rustix-1.1.4",
+                    ":thiserror-2.0.18",
                     ":wayland-client-0.31.14",
                     ":wayland-csd-frame-0.3.0",
                     ":wayland-cursor-0.31.14",
                     ":wayland-protocols-0.32.12",
+                    ":wayland-protocols-experimental-20251230.0.3",
+                    ":wayland-protocols-misc-0.3.12",
                     ":wayland-protocols-wlr-0.3.12",
                     ":wayland-scanner-0.31.10",
                     ":xkeysym-0.2.1",
@@ -49521,19 +50139,19 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":bitflags-2.12.1",
-                    ":calloop-0.13.0",
-                    ":calloop-wayland-source-0.3.0",
+                    ":calloop-0.14.4",
+                    ":calloop-wayland-source-0.4.1",
                     ":cursor-icon-1.2.0",
-                    ":libc-0.2.186",
                     ":log-0.4.31",
                     ":memmap2-0.9.10",
-                    ":rustix-0.38.44",
-                    ":thiserror-1.0.69",
-                    ":wayland-backend-0.3.15",
+                    ":rustix-1.1.4",
+                    ":thiserror-2.0.18",
                     ":wayland-client-0.31.14",
                     ":wayland-csd-frame-0.3.0",
                     ":wayland-cursor-0.31.14",
                     ":wayland-protocols-0.32.12",
+                    ":wayland-protocols-experimental-20251230.0.3",
+                    ":wayland-protocols-misc-0.3.12",
                     ":wayland-protocols-wlr-0.3.12",
                     ":wayland-scanner-0.31.10",
                     ":xkeysym-0.2.1",
@@ -49547,70 +50165,9 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "3457dea1f0eb631b4034d61d4d8c32074caa6cd1ab2d59f2327bd8461e2c0016",
-        "size_bytes": 131504,
-        "version": "0.19.2",
-    },
-    "smol_str-0.2.2": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Aleksey Kladov <aleksey.kladov@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "small-string optimized string type with O(1) clone",
-            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/rust-analyzer/smol_str",
-        },
-        "library": {
-            "crate": "smol_str",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "smol_str",
-        "platforms": {
-            "linux-arm64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-arm64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "macos-x86_64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-arm64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-            "windows-x86_64": {
-                "features": [
-                    "default",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "dd538fb6910ac1099850255cf94a94df6551fbdd602454387d0adb2d1ca6dead",
-        "size_bytes": 15840,
-        "version": "0.2.2",
+        "sha256": "74dc9ee14b0fdcb535f9556141bacac070c994a977d2240ee455d7438a617f00",
+        "size_bytes": 145643,
+        "version": "0.21.1",
     },
     "smol_str-0.3.6": {
         "build_script": None,
@@ -52197,59 +52754,6 @@ third_party = {
         "size_bytes": 33664,
         "version": "0.2.32",
     },
-    "tiny-skia-0.11.4": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Yevhenii Reizner <razrfalcon@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A tiny Skia subset ported to Rust.",
-            "CARGO_PKG_LICENSE": "BSD-3-Clause",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/RazrFalcon/tiny-skia",
-        },
-        "library": {
-            "crate": "tiny_skia",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "tiny-skia",
-        "platforms": {
-            "linux-arm64": {
-                "deps": [
-                    ":arrayref-0.3.9",
-                    ":arrayvec-0.7.6",
-                    ":bytemuck-1.25.0",
-                    ":cfg-if-1.0.4",
-                    ":log-0.4.31",
-                    ":tiny-skia-path-0.11.4",
-                ],
-                "features": [
-                    "simd",
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":arrayref-0.3.9",
-                    ":arrayvec-0.7.6",
-                    ":bytemuck-1.25.0",
-                    ":cfg-if-1.0.4",
-                    ":log-0.4.31",
-                    ":tiny-skia-path-0.11.4",
-                ],
-                "features": [
-                    "simd",
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "83d13394d44dae3207b52a326c0c85a8bf87f1541f23b0d143811088497b09ab",
-        "size_bytes": 201082,
-        "version": "0.11.4",
-    },
     "tiny-skia-0.12.0": {
         "build_script": None,
         "env": {
@@ -52393,51 +52897,6 @@ third_party = {
         "sha256": "47ffee5eaaf5527f630fb0e356b90ebdec84d5d18d937c5e440350f88c5a91ea",
         "size_bytes": 268071,
         "version": "0.12.0",
-    },
-    "tiny-skia-path-0.11.4": {
-        "build_script": None,
-        "env": {
-            "CARGO_PKG_AUTHORS": "Yevhenii Reizner <razrfalcon@gmail.com>",
-            "CARGO_PKG_DESCRIPTION": "A tiny-skia Bezier path implementation",
-            "CARGO_PKG_LICENSE": "BSD-3-Clause",
-            "CARGO_PKG_README": "README.md",
-            "CARGO_PKG_REPOSITORY": "https://github.com/RazrFalcon/tiny-skia/tree/master/path",
-        },
-        "library": {
-            "crate": "tiny_skia_path",
-            "crate_root": "src/lib.rs",
-            "edition": "2018",
-            "proc_macro": False,
-        },
-        "name": "tiny-skia-path",
-        "platforms": {
-            "linux-arm64": {
-                "deps": [
-                    ":arrayref-0.3.9",
-                    ":bytemuck-1.25.0",
-                    ":strict-num-0.1.1",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-            "linux-x86_64": {
-                "deps": [
-                    ":arrayref-0.3.9",
-                    ":bytemuck-1.25.0",
-                    ":strict-num-0.1.1",
-                ],
-                "features": [
-                    "std",
-                ],
-            },
-        },
-        "profile_flags": [
-            "-Cdebuginfo=0",
-        ],
-        "sha256": "9c9e7fc0c2e86a30b117d0462aa261b72b7a99b7ebd7deb3a14ceda95c5bdc93",
-        "size_bytes": 47764,
-        "version": "0.11.4",
     },
     "tiny-skia-path-0.12.0": {
         "build_script": None,
@@ -53479,6 +53938,40 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                    ":serde_spanned-1.1.1",
+                    ":toml_datetime-0.7.5+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-0.7.15",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                    ":serde_spanned-1.1.1",
+                    ":toml_datetime-0.7.5+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-0.7.15",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                    "serde",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -53621,6 +54114,26 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -53666,7 +54179,63 @@ third_party = {
         },
         "name": "toml_datetime",
         "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
             "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
                 "features": [
                     "alloc",
                     "default",
@@ -53808,14 +54377,129 @@ third_party = {
         },
         "name": "toml_edit",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
             "linux-x86_64": {
                 "deps": [
                     ":indexmap-2.14.0",
                     ":toml_datetime-1.1.1+spec-1.1.0",
                     ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
                     ":winnow-1.0.3",
                 ],
                 "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "wasm32": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
                     "parse",
                 ],
             },
@@ -53850,6 +54534,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -53859,6 +54544,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -53878,6 +54564,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -53887,6 +54574,27 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "deps": [
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -53896,6 +54604,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -53905,6 +54614,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -53936,42 +54646,63 @@ third_party = {
             "android-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "linux-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "linux-x86_64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "macos-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "macos-x86_64": {
                 "features": [
                     "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "features": [
+                    "alloc",
+                    "default",
                     "std",
                 ],
             },
             "windows-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "windows-x86_64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -60608,6 +61339,58 @@ third_party = {
         "size_bytes": 156132,
         "version": "0.32.12",
     },
+    "wayland-protocols-experimental-20251230.0.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Elinor Berger <elinor@safaradeg.net>",
+            "CARGO_PKG_DESCRIPTION": "Generated API for experimental wayland protocol extensions",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/smithay/wayland-rs",
+            "CARGO_PKG_RUST_VERSION": "1.71",
+        },
+        "library": {
+            "crate": "wayland_protocols_experimental",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "wayland-protocols-experimental",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":wayland-backend-0.3.15",
+                    ":wayland-client-0.31.14",
+                    ":wayland-protocols-0.32.12",
+                    ":wayland-scanner-0.31.10",
+                ],
+                "features": [
+                    "client",
+                    "wayland-client",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":wayland-backend-0.3.15",
+                    ":wayland-client-0.31.14",
+                    ":wayland-protocols-0.32.12",
+                    ":wayland-scanner-0.31.10",
+                ],
+                "features": [
+                    "client",
+                    "wayland-client",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "91c6c3e7178e553d093d46999032bc79aafea9dedd71dd702c8ace7bbc25cf13",
+        "size_bytes": 29065,
+        "version": "20251230.0.3",
+    },
     "wayland-protocols-misc-0.3.12": {
         "build_script": None,
         "env": {
@@ -61912,7 +62695,7 @@ third_party = {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
-                ":cfg_aliases-0.2.1",
+                ":cfg_aliases-0.2.2",
             ],
             "edition": "2021",
         },
@@ -62267,7 +63050,7 @@ third_party = {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
-                ":cfg_aliases-0.2.1",
+                ":cfg_aliases-0.2.2",
             ],
             "edition": "2021",
         },
@@ -62797,7 +63580,7 @@ third_party = {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
-                ":cfg_aliases-0.2.1",
+                ":cfg_aliases-0.2.2",
             ],
             "edition": "2021",
         },
@@ -64741,75 +65524,9 @@ third_party = {
                 ],
                 "features": [
                     "Win32",
-                    "Win32_Devices",
-                    "Win32_Devices_HumanInterfaceDevice",
                     "Win32_Foundation",
-                    "Win32_Globalization",
-                    "Win32_Graphics",
-                    "Win32_Graphics_Dwm",
-                    "Win32_Graphics_Gdi",
-                    "Win32_Media",
-                    "Win32_Security",
                     "Win32_System",
-                    "Win32_System_Com",
-                    "Win32_System_Com_StructuredStorage",
-                    "Win32_System_LibraryLoader",
-                    "Win32_System_Ole",
-                    "Win32_System_SystemInformation",
-                    "Win32_System_SystemServices",
                     "Win32_System_Threading",
-                    "Win32_System_WindowsProgramming",
-                    "Win32_UI",
-                    "Win32_UI_Accessibility",
-                    "Win32_UI_Controls",
-                    "Win32_UI_HiDpi",
-                    "Win32_UI_Input",
-                    "Win32_UI_Input_Ime",
-                    "Win32_UI_Input_KeyboardAndMouse",
-                    "Win32_UI_Input_Pointer",
-                    "Win32_UI_Input_Touch",
-                    "Win32_UI_Shell",
-                    "Win32_UI_TextServices",
-                    "Win32_UI_WindowsAndMessaging",
-                    "default",
-                ],
-            },
-            "windows-x86_64": {
-                "deps": [
-                    ":windows-targets-0.52.6",
-                ],
-                "features": [
-                    "Win32",
-                    "Win32_Devices",
-                    "Win32_Devices_HumanInterfaceDevice",
-                    "Win32_Foundation",
-                    "Win32_Globalization",
-                    "Win32_Graphics",
-                    "Win32_Graphics_Dwm",
-                    "Win32_Graphics_Gdi",
-                    "Win32_Media",
-                    "Win32_Security",
-                    "Win32_System",
-                    "Win32_System_Com",
-                    "Win32_System_Com_StructuredStorage",
-                    "Win32_System_LibraryLoader",
-                    "Win32_System_Ole",
-                    "Win32_System_SystemInformation",
-                    "Win32_System_SystemServices",
-                    "Win32_System_Threading",
-                    "Win32_System_WindowsProgramming",
-                    "Win32_UI",
-                    "Win32_UI_Accessibility",
-                    "Win32_UI_Controls",
-                    "Win32_UI_HiDpi",
-                    "Win32_UI_Input",
-                    "Win32_UI_Input_Ime",
-                    "Win32_UI_Input_KeyboardAndMouse",
-                    "Win32_UI_Input_Pointer",
-                    "Win32_UI_Input_Touch",
-                    "Win32_UI_Shell",
-                    "Win32_UI_TextServices",
-                    "Win32_UI_WindowsAndMessaging",
                     "default",
                 ],
             },
@@ -64946,20 +65663,30 @@ third_party = {
                     "Win32",
                     "Win32_Devices",
                     "Win32_Devices_Communication",
+                    "Win32_Devices_HumanInterfaceDevice",
                     "Win32_Foundation",
+                    "Win32_Globalization",
+                    "Win32_Graphics",
+                    "Win32_Graphics_Dwm",
+                    "Win32_Graphics_Gdi",
+                    "Win32_Media",
                     "Win32_Networking",
                     "Win32_Networking_WinSock",
                     "Win32_Security",
                     "Win32_Storage",
                     "Win32_Storage_FileSystem",
                     "Win32_System",
+                    "Win32_System_Com",
+                    "Win32_System_Com_StructuredStorage",
                     "Win32_System_Console",
+                    "Win32_System_DataExchange",
                     "Win32_System_Diagnostics",
                     "Win32_System_Diagnostics_Debug",
                     "Win32_System_IO",
                     "Win32_System_Kernel",
                     "Win32_System_LibraryLoader",
                     "Win32_System_Memory",
+                    "Win32_System_Ole",
                     "Win32_System_Performance",
                     "Win32_System_Pipes",
                     "Win32_System_Registry",
@@ -64967,6 +65694,18 @@ third_party = {
                     "Win32_System_SystemServices",
                     "Win32_System_Threading",
                     "Win32_System_WindowsProgramming",
+                    "Win32_UI",
+                    "Win32_UI_Accessibility",
+                    "Win32_UI_Controls",
+                    "Win32_UI_HiDpi",
+                    "Win32_UI_Input",
+                    "Win32_UI_Input_Ime",
+                    "Win32_UI_Input_KeyboardAndMouse",
+                    "Win32_UI_Input_Pointer",
+                    "Win32_UI_Input_Touch",
+                    "Win32_UI_Shell",
+                    "Win32_UI_TextServices",
+                    "Win32_UI_WindowsAndMessaging",
                     "default",
                 ],
             },
@@ -64984,20 +65723,30 @@ third_party = {
                     "Win32",
                     "Win32_Devices",
                     "Win32_Devices_Communication",
+                    "Win32_Devices_HumanInterfaceDevice",
                     "Win32_Foundation",
+                    "Win32_Globalization",
+                    "Win32_Graphics",
+                    "Win32_Graphics_Dwm",
+                    "Win32_Graphics_Gdi",
+                    "Win32_Media",
                     "Win32_Networking",
                     "Win32_Networking_WinSock",
                     "Win32_Security",
                     "Win32_Storage",
                     "Win32_Storage_FileSystem",
                     "Win32_System",
+                    "Win32_System_Com",
+                    "Win32_System_Com_StructuredStorage",
                     "Win32_System_Console",
+                    "Win32_System_DataExchange",
                     "Win32_System_Diagnostics",
                     "Win32_System_Diagnostics_Debug",
                     "Win32_System_IO",
                     "Win32_System_Kernel",
                     "Win32_System_LibraryLoader",
                     "Win32_System_Memory",
+                    "Win32_System_Ole",
                     "Win32_System_Performance",
                     "Win32_System_Pipes",
                     "Win32_System_Registry",
@@ -65005,6 +65754,18 @@ third_party = {
                     "Win32_System_SystemServices",
                     "Win32_System_Threading",
                     "Win32_System_WindowsProgramming",
+                    "Win32_UI",
+                    "Win32_UI_Accessibility",
+                    "Win32_UI_Controls",
+                    "Win32_UI_HiDpi",
+                    "Win32_UI_Input",
+                    "Win32_UI_Input_Ime",
+                    "Win32_UI_Input_KeyboardAndMouse",
+                    "Win32_UI_Input_Pointer",
+                    "Win32_UI_Input_Touch",
+                    "Win32_UI_Shell",
+                    "Win32_UI_TextServices",
+                    "Win32_UI_WindowsAndMessaging",
                     "default",
                 ],
             },
@@ -65307,159 +66068,101 @@ third_party = {
         "size_bytes": 832564,
         "version": "0.52.6",
     },
-    "winit-0.30.13": {
+    "winit-0.31.0-beta.3": {
         "build_script": {
             "crate_root": "build.rs",
             "deps": [
-                ":cfg_aliases-0.2.1",
+                ":cfg_aliases-0.2.2",
             ],
-            "edition": "2021",
+            "edition": "2024",
         },
         "env": {
-            "CARGO_PKG_AUTHORS": "The winit contributors:Pierre Krieger <pierre.krieger1708@gmail.com>",
             "CARGO_PKG_DESCRIPTION": "Cross-platform window creation library.",
             "CARGO_PKG_LICENSE": "Apache-2.0",
             "CARGO_PKG_README": "README.md",
             "CARGO_PKG_REPOSITORY": "https://github.com/rust-windowing/winit",
-            "CARGO_PKG_RUST_VERSION": "1.70.0",
+            "CARGO_PKG_RUST_VERSION": "1.86",
         },
         "library": {
             "crate": "winit",
             "crate_root": "src/lib.rs",
-            "edition": "2021",
+            "edition": "2024",
             "proc_macro": False,
         },
         "name": "winit",
         "platforms": {
             "linux-arm64": {
                 "deps": [
-                    ":ahash-0.8.12",
                     ":bitflags-2.12.1",
-                    ":bytemuck-1.25.0",
-                    ":calloop-0.13.0",
                     ":cursor-icon-1.2.0",
                     ":dpi-0.1.2",
                     ":libc-0.2.186",
-                    ":memmap2-0.9.10",
-                    ":percent-encoding-2.3.2",
-                    ":rustix-0.38.44",
-                    ":sctk-adwaita-0.10.1",
-                    ":smol_str-0.2.2",
+                    ":rustix-1.1.4",
+                    ":smol_str-0.3.6",
                     ":tracing-0.1.44",
-                    ":wayland-backend-0.3.15",
-                    ":wayland-client-0.31.14",
-                    ":wayland-protocols-0.32.12",
-                    ":wayland-protocols-plasma-0.3.12",
-                    ":x11-dl-2.21.0",
-                    ":x11rb-0.13.2",
-                    ":xkbcommon-dl-0.4.2",
+                    ":winit-common-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
+                    ":winit-wayland-0.31.0-beta.3",
+                    ":winit-x11-0.31.0-beta.3",
                 ],
                 "features": [
-                    "ahash",
-                    "bytemuck",
                     "default",
-                    "memmap2",
-                    "percent-encoding",
-                    "rwh_06",
-                    "sctk",
-                    "sctk-adwaita",
                     "wayland",
-                    "wayland-backend",
-                    "wayland-client",
                     "wayland-csd-adwaita",
                     "wayland-dlopen",
-                    "wayland-protocols",
-                    "wayland-protocols-plasma",
+                    "winit-wayland",
+                    "winit-x11",
                     "x11",
-                    "x11-dl",
-                    "x11rb",
                 ],
                 "named_deps": {
                     "rwh_06": ":raw-window-handle-0.6.2",
-                    "sctk": ":smithay-client-toolkit-0.19.2",
                 },
             },
             "linux-x86_64": {
                 "deps": [
-                    ":ahash-0.8.12",
                     ":bitflags-2.12.1",
-                    ":bytemuck-1.25.0",
-                    ":calloop-0.13.0",
                     ":cursor-icon-1.2.0",
                     ":dpi-0.1.2",
                     ":libc-0.2.186",
-                    ":memmap2-0.9.10",
-                    ":percent-encoding-2.3.2",
-                    ":rustix-0.38.44",
-                    ":sctk-adwaita-0.10.1",
-                    ":smol_str-0.2.2",
+                    ":rustix-1.1.4",
+                    ":smol_str-0.3.6",
                     ":tracing-0.1.44",
-                    ":wayland-backend-0.3.15",
-                    ":wayland-client-0.31.14",
-                    ":wayland-protocols-0.32.12",
-                    ":wayland-protocols-plasma-0.3.12",
-                    ":x11-dl-2.21.0",
-                    ":x11rb-0.13.2",
-                    ":xkbcommon-dl-0.4.2",
+                    ":winit-common-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
+                    ":winit-wayland-0.31.0-beta.3",
+                    ":winit-x11-0.31.0-beta.3",
                 ],
                 "features": [
-                    "ahash",
-                    "bytemuck",
                     "default",
-                    "memmap2",
-                    "percent-encoding",
-                    "rwh_06",
-                    "sctk",
-                    "sctk-adwaita",
                     "wayland",
-                    "wayland-backend",
-                    "wayland-client",
                     "wayland-csd-adwaita",
                     "wayland-dlopen",
-                    "wayland-protocols",
-                    "wayland-protocols-plasma",
+                    "winit-wayland",
+                    "winit-x11",
                     "x11",
-                    "x11-dl",
-                    "x11rb",
                 ],
                 "named_deps": {
                     "rwh_06": ":raw-window-handle-0.6.2",
-                    "sctk": ":smithay-client-toolkit-0.19.2",
                 },
             },
             "macos-arm64": {
                 "deps": [
                     ":bitflags-2.12.1",
-                    ":block2-0.5.1",
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-0.23.2",
                     ":cursor-icon-1.2.0",
                     ":dpi-0.1.2",
-                    ":objc2-0.5.2",
-                    ":objc2-app-kit-0.2.2",
-                    ":objc2-foundation-0.2.2",
-                    ":smol_str-0.2.2",
+                    ":smol_str-0.3.6",
                     ":tracing-0.1.44",
+                    ":winit-appkit-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
                 ],
                 "features": [
-                    "ahash",
-                    "bytemuck",
                     "default",
-                    "memmap2",
-                    "percent-encoding",
-                    "rwh_06",
-                    "sctk",
-                    "sctk-adwaita",
                     "wayland",
-                    "wayland-backend",
-                    "wayland-client",
                     "wayland-csd-adwaita",
                     "wayland-dlopen",
-                    "wayland-protocols",
-                    "wayland-protocols-plasma",
+                    "winit-wayland",
+                    "winit-x11",
                     "x11",
-                    "x11-dl",
-                    "x11rb",
                 ],
                 "named_deps": {
                     "rwh_06": ":raw-window-handle-0.6.2",
@@ -65468,36 +66171,21 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":bitflags-2.12.1",
-                    ":block2-0.5.1",
-                    ":core-foundation-0.9.4",
-                    ":core-graphics-0.23.2",
                     ":cursor-icon-1.2.0",
                     ":dpi-0.1.2",
-                    ":objc2-0.5.2",
-                    ":objc2-app-kit-0.2.2",
-                    ":objc2-foundation-0.2.2",
-                    ":smol_str-0.2.2",
+                    ":smol_str-0.3.6",
                     ":tracing-0.1.44",
+                    ":winit-appkit-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
                 ],
                 "features": [
-                    "ahash",
-                    "bytemuck",
                     "default",
-                    "memmap2",
-                    "percent-encoding",
-                    "rwh_06",
-                    "sctk",
-                    "sctk-adwaita",
                     "wayland",
-                    "wayland-backend",
-                    "wayland-client",
                     "wayland-csd-adwaita",
                     "wayland-dlopen",
-                    "wayland-protocols",
-                    "wayland-protocols-plasma",
+                    "winit-wayland",
+                    "winit-x11",
                     "x11",
-                    "x11-dl",
-                    "x11rb",
                 ],
                 "named_deps": {
                     "rwh_06": ":raw-window-handle-0.6.2",
@@ -65508,30 +66196,19 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":cursor-icon-1.2.0",
                     ":dpi-0.1.2",
-                    ":smol_str-0.2.2",
+                    ":smol_str-0.3.6",
                     ":tracing-0.1.44",
-                    ":unicode-segmentation-1.13.3",
-                    ":windows-sys-0.52.0",
+                    ":winit-core-0.31.0-beta.3",
+                    ":winit-win32-0.31.0-beta.3",
                 ],
                 "features": [
-                    "ahash",
-                    "bytemuck",
                     "default",
-                    "memmap2",
-                    "percent-encoding",
-                    "rwh_06",
-                    "sctk",
-                    "sctk-adwaita",
                     "wayland",
-                    "wayland-backend",
-                    "wayland-client",
                     "wayland-csd-adwaita",
                     "wayland-dlopen",
-                    "wayland-protocols",
-                    "wayland-protocols-plasma",
+                    "winit-wayland",
+                    "winit-x11",
                     "x11",
-                    "x11-dl",
-                    "x11rb",
                 ],
                 "named_deps": {
                     "rwh_06": ":raw-window-handle-0.6.2",
@@ -65542,30 +66219,19 @@ third_party = {
                     ":bitflags-2.12.1",
                     ":cursor-icon-1.2.0",
                     ":dpi-0.1.2",
-                    ":smol_str-0.2.2",
+                    ":smol_str-0.3.6",
                     ":tracing-0.1.44",
-                    ":unicode-segmentation-1.13.3",
-                    ":windows-sys-0.52.0",
+                    ":winit-core-0.31.0-beta.3",
+                    ":winit-win32-0.31.0-beta.3",
                 ],
                 "features": [
-                    "ahash",
-                    "bytemuck",
                     "default",
-                    "memmap2",
-                    "percent-encoding",
-                    "rwh_06",
-                    "sctk",
-                    "sctk-adwaita",
                     "wayland",
-                    "wayland-backend",
-                    "wayland-client",
                     "wayland-csd-adwaita",
                     "wayland-dlopen",
-                    "wayland-protocols",
-                    "wayland-protocols-plasma",
+                    "winit-wayland",
+                    "winit-x11",
                     "x11",
-                    "x11-dl",
-                    "x11rb",
                 ],
                 "named_deps": {
                     "rwh_06": ":raw-window-handle-0.6.2",
@@ -65575,9 +66241,504 @@ third_party = {
         "profile_flags": [
             "-Cdebuginfo=0",
         ],
-        "sha256": "a6755fa58a9f8350bd1e472d4c3fcc25f824ec358933bba33306d0b63df5978d",
-        "size_bytes": 605180,
-        "version": "0.30.13",
+        "sha256": "f431156a3e4f0f1b35eaaf37674e55838e3652908c8088f570466274d1902e2b",
+        "size_bytes": 434266,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-appkit-0.31.0-beta.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Winit's Appkit / macOS backend",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-windowing/winit",
+            "CARGO_PKG_RUST_VERSION": "1.86",
+        },
+        "library": {
+            "crate": "winit_appkit",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "winit-appkit",
+        "platforms": {
+            "macos-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":block2-0.6.2",
+                    ":dispatch2-0.3.1",
+                    ":dpi-0.1.2",
+                    ":objc2-0.6.4",
+                    ":objc2-app-kit-0.3.2",
+                    ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
+                    ":objc2-core-video-0.3.2",
+                    ":objc2-foundation-0.3.2",
+                    ":smol_str-0.3.6",
+                    ":tracing-0.1.44",
+                    ":winit-common-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":block2-0.6.2",
+                    ":dispatch2-0.3.1",
+                    ":dpi-0.1.2",
+                    ":objc2-0.6.4",
+                    ":objc2-app-kit-0.3.2",
+                    ":objc2-core-foundation-0.3.2",
+                    ":objc2-core-graphics-0.3.2",
+                    ":objc2-core-video-0.3.2",
+                    ":objc2-foundation-0.3.2",
+                    ":smol_str-0.3.6",
+                    ":tracing-0.1.44",
+                    ":winit-common-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "23343ec0ea7ac6aa72f38009a6ff66fb63bcf6395e0622fba72794d2a762ab42",
+        "size_bytes": 91762,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-common-0.31.0-beta.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Winit implementation helpers",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-windowing/winit",
+            "CARGO_PKG_RUST_VERSION": "1.86",
+        },
+        "library": {
+            "crate": "winit_common",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "winit-common",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":memmap2-0.9.10",
+                    ":smol_str-0.3.6",
+                    ":tracing-0.1.44",
+                    ":winit-core-0.31.0-beta.3",
+                    ":x11-dl-2.21.0",
+                    ":xkbcommon-dl-0.4.2",
+                ],
+                "features": [
+                    "wayland",
+                    "x11",
+                    "xkb",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":memmap2-0.9.10",
+                    ":smol_str-0.3.6",
+                    ":tracing-0.1.44",
+                    ":winit-core-0.31.0-beta.3",
+                    ":x11-dl-2.21.0",
+                    ":xkbcommon-dl-0.4.2",
+                ],
+                "features": [
+                    "wayland",
+                    "x11",
+                    "xkb",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":block2-0.6.2",
+                    ":dpi-0.1.2",
+                    ":objc2-0.6.4",
+                    ":objc2-core-foundation-0.3.2",
+                    ":objc2-foundation-0.3.2",
+                    ":tracing-0.1.44",
+                    ":winit-core-0.31.0-beta.3",
+                ],
+                "features": [
+                    "core-foundation",
+                    "event-handler",
+                    "foundation",
+                    "positioner",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":block2-0.6.2",
+                    ":dpi-0.1.2",
+                    ":objc2-0.6.4",
+                    ":objc2-core-foundation-0.3.2",
+                    ":objc2-foundation-0.3.2",
+                    ":tracing-0.1.44",
+                    ":winit-core-0.31.0-beta.3",
+                ],
+                "features": [
+                    "core-foundation",
+                    "event-handler",
+                    "foundation",
+                    "positioner",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":dpi-0.1.2",
+                    ":tracing-0.1.44",
+                    ":winit-core-0.31.0-beta.3",
+                ],
+                "features": [
+                    "positioner",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":dpi-0.1.2",
+                    ":tracing-0.1.44",
+                    ":winit-core-0.31.0-beta.3",
+                ],
+                "features": [
+                    "positioner",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "e90422ff1c04502aaaac1dad1d099791c2bbb3fbb3f823019e0ce5cdeee04025",
+        "size_bytes": 40643,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-core-0.31.0-beta.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The winit contributors:Kirill Chibisov <contact@kchibisov.com>",
+            "CARGO_PKG_DESCRIPTION": "winit core API.",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-windowing/winit",
+            "CARGO_PKG_RUST_VERSION": "1.86",
+        },
+        "library": {
+            "crate": "winit_core",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "winit-core",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":keyboard-types-0.8.3",
+                    ":smol_str-0.3.6",
+                    ":url-2.5.8",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":keyboard-types-0.8.3",
+                    ":smol_str-0.3.6",
+                    ":url-2.5.8",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":keyboard-types-0.8.3",
+                    ":smol_str-0.3.6",
+                    ":url-2.5.8",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":keyboard-types-0.8.3",
+                    ":smol_str-0.3.6",
+                    ":url-2.5.8",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":keyboard-types-0.8.3",
+                    ":smol_str-0.3.6",
+                    ":url-2.5.8",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":keyboard-types-0.8.3",
+                    ":smol_str-0.3.6",
+                    ":url-2.5.8",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "b8af6307236c51847199950c15cf80e0481a250bb96ce9132f5026df4ad3d0f9",
+        "size_bytes": 82056,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-wayland-0.31.0-beta.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Winit's Wayland backend",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-windowing/winit",
+            "CARGO_PKG_RUST_VERSION": "1.86",
+        },
+        "library": {
+            "crate": "winit_wayland",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "winit-wayland",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":calloop-0.14.4",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":foldhash-0.2.0",
+                    ":libc-0.2.186",
+                    ":memmap2-0.9.10",
+                    ":percent-encoding-2.3.2",
+                    ":rustix-1.1.4",
+                    ":sctk-adwaita-0.12.0",
+                    ":smol_str-0.3.6",
+                    ":tracing-0.1.44",
+                    ":wayland-backend-0.3.15",
+                    ":wayland-client-0.31.14",
+                    ":wayland-protocols-0.32.12",
+                    ":wayland-protocols-plasma-0.3.12",
+                    ":winit-common-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
+                ],
+                "features": [
+                    "csd-adwaita",
+                    "dlopen",
+                    "sctk-adwaita",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                    "sctk": ":smithay-client-toolkit-0.21.1",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":calloop-0.14.4",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":foldhash-0.2.0",
+                    ":libc-0.2.186",
+                    ":memmap2-0.9.10",
+                    ":percent-encoding-2.3.2",
+                    ":rustix-1.1.4",
+                    ":sctk-adwaita-0.12.0",
+                    ":smol_str-0.3.6",
+                    ":tracing-0.1.44",
+                    ":wayland-backend-0.3.15",
+                    ":wayland-client-0.31.14",
+                    ":wayland-protocols-0.32.12",
+                    ":wayland-protocols-plasma-0.3.12",
+                    ":winit-common-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
+                ],
+                "features": [
+                    "csd-adwaita",
+                    "dlopen",
+                    "sctk-adwaita",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                    "sctk": ":smithay-client-toolkit-0.21.1",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "8b64ceed06de0c45886eef05102106abe1413e703384e337bc57c7e95b71f803",
+        "size_bytes": 84601,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-win32-0.31.0-beta.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Winit's Win32/Windows backend",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-windowing/winit",
+            "CARGO_PKG_RUST_VERSION": "1.86",
+        },
+        "library": {
+            "crate": "winit_win32",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "winit-win32",
+        "platforms": {
+            "windows-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":smol_str-0.3.6",
+                    ":tracing-0.1.44",
+                    ":unicode-segmentation-1.13.3",
+                    ":url-2.5.8",
+                    ":windows-sys-0.61.2",
+                    ":winit-common-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":smol_str-0.3.6",
+                    ":tracing-0.1.44",
+                    ":unicode-segmentation-1.13.3",
+                    ":url-2.5.8",
+                    ":windows-sys-0.61.2",
+                    ":winit-common-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "25fb480c41df01d351f656cbf3ad74013f8a9d22bb5b2dcab59f9167e7a0b6ec",
+        "size_bytes": 128314,
+        "version": "0.31.0-beta.3",
+    },
+    "winit-x11-0.31.0-beta.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_DESCRIPTION": "Winit's X11 backend",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-windowing/winit",
+            "CARGO_PKG_RUST_VERSION": "1.86",
+        },
+        "library": {
+            "crate": "winit_x11",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "winit-x11",
+        "platforms": {
+            "linux-arm64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":calloop-0.14.4",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":libc-0.2.186",
+                    ":percent-encoding-2.3.2",
+                    ":rustix-1.1.4",
+                    ":smol_str-0.3.6",
+                    ":tracing-0.1.44",
+                    ":winit-common-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
+                    ":x11-dl-2.21.0",
+                    ":x11rb-0.13.2",
+                    ":xkbcommon-dl-0.4.2",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":bitflags-2.12.1",
+                    ":bytemuck-1.25.0",
+                    ":calloop-0.14.4",
+                    ":cursor-icon-1.2.0",
+                    ":dpi-0.1.2",
+                    ":libc-0.2.186",
+                    ":percent-encoding-2.3.2",
+                    ":rustix-1.1.4",
+                    ":smol_str-0.3.6",
+                    ":tracing-0.1.44",
+                    ":winit-common-0.31.0-beta.3",
+                    ":winit-core-0.31.0-beta.3",
+                    ":x11-dl-2.21.0",
+                    ":x11rb-0.13.2",
+                    ":xkbcommon-dl-0.4.2",
+                ],
+                "named_deps": {
+                    "rwh_06": ":raw-window-handle-0.6.2",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "bb5746cd907e514b7895491a1c6f7d0cb70077f9e16928cd74ae6f987ffd96aa",
+        "size_bytes": 102332,
+        "version": "0.31.0-beta.3",
     },
     "winnow-0.5.40": {
         "build_script": None,
@@ -65639,6 +66800,8 @@ third_party = {
             },
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -65707,6 +66870,26 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "ascii",
+                    "binary",
+                    "default",
+                    "parser",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "ascii",
+                    "binary",
+                    "default",
+                    "parser",
+                    "std",
+                ],
+            },
+            "wasm32": {
                 "features": [
                     "alloc",
                     "ascii",
@@ -66306,11 +67489,13 @@ third_party = {
                     ":once_cell-1.21.4",
                     ":rustix-1.1.4",
                     ":x11rb-protocol-0.13.2",
+                    ":xcursor-0.3.10",
                 ],
                 "features": [
                     "allow-unsafe-code",
                     "as-raw-xcb-connection",
                     "composite",
+                    "cursor",
                     "dl-libxcb",
                     "libc",
                     "libloading",
@@ -66320,6 +67505,8 @@ third_party = {
                     "res",
                     "resource_manager",
                     "shape",
+                    "sync",
+                    "xcursor",
                     "xfixes",
                     "xinput",
                     "xkb",
@@ -66334,11 +67521,13 @@ third_party = {
                     ":once_cell-1.21.4",
                     ":rustix-1.1.4",
                     ":x11rb-protocol-0.13.2",
+                    ":xcursor-0.3.10",
                 ],
                 "features": [
                     "allow-unsafe-code",
                     "as-raw-xcb-connection",
                     "composite",
+                    "cursor",
                     "dl-libxcb",
                     "libc",
                     "libloading",
@@ -66348,6 +67537,8 @@ third_party = {
                     "res",
                     "resource_manager",
                     "shape",
+                    "sync",
+                    "xcursor",
                     "xfixes",
                     "xinput",
                     "xkb",
@@ -66459,6 +67650,7 @@ third_party = {
                     "resource_manager",
                     "shape",
                     "std",
+                    "sync",
                     "xfixes",
                     "xinput",
                     "xkb",
@@ -66473,6 +67665,7 @@ third_party = {
                     "resource_manager",
                     "shape",
                     "std",
+                    "sync",
                     "xfixes",
                     "xinput",
                     "xkb",

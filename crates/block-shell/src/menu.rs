@@ -12,11 +12,13 @@ use super::workspace::Workspace;
 pub(crate) enum Action {
     Open,
     Picker,
+    MoveToMyFiles,
     SetParent(BlockParent),
     Rename,
     Share,
     Unlink,
     Delete,
+    Restore,
 }
 
 pub(crate) struct Permissions {
@@ -25,19 +27,20 @@ pub(crate) struct Permissions {
     pub(crate) delete: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) is_reference: bool,
-    pub(crate) source: BlockParent,
+    pub(crate) source: Option<BlockParent>,
 }
 
 pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
     match path {
         [0] => Some(Action::Open),
         [1] => Some(Action::Picker),
-        [2, 0] => Some(Action::SetParent(BlockParent::Root)),
+        [2, 0] => Some(Action::MoveToMyFiles),
         [2, 1] => Some(Action::SetParent(BlockParent::Detached)),
         [3] => Some(Action::Rename),
         [4] => Some(Action::Share),
         [5] => Some(Action::Unlink),
         [6] => Some(Action::Delete),
+        [7] => Some(Action::Restore),
         _ => None,
     }
 }
@@ -79,15 +82,16 @@ pub(crate) fn permissions(
     containing: Option<Uuid>,
 ) -> Permissions {
     let can_edit = workspace.can_edit(reference.id);
-    let source = containing.map_or(reference.parent, BlockParent::Block);
-    let is_reference = containing.is_some_and(|id| reference.parent != BlockParent::Block(id));
+    let source = containing.map(BlockParent::Block).or(reference.parent);
+    let is_reference =
+        containing.is_some_and(|id| reference.parent != Some(BlockParent::Block(id)));
     let types = workspace.types();
     Permissions {
         add: types.child_edits(reference.block_type).add && can_edit,
         edit: can_edit,
-        delete: source != BlockParent::Detached
-            && can_delete_from(workspace, source)
-            && (is_reference || can_edit),
+        delete: source.is_some_and(|source| {
+            source != BlockParent::Detached && can_delete_from(workspace, source)
+        }) && (is_reference || can_edit),
         unlink: unlink_permission(workspace, containing),
         is_reference,
         source,
@@ -104,20 +108,38 @@ pub(crate) fn apply(
     match action {
         Action::Open => workspace.open(TabItem::new(reference.id, reference.block_type), None),
         Action::Picker => workspace.open_picker(reference.id),
+        Action::MoveToMyFiles => {
+            if let Some(files) = workspace.my_files()
+                && let Some(source) = permissions.source
+            {
+                workspace.host().move_block(
+                    reference.id,
+                    reference.block_type,
+                    source,
+                    files,
+                    permissions.is_reference,
+                );
+            }
+        }
         Action::SetParent(parent) => workspace.blocks().set_parent(reference.id, parent),
         Action::Rename => workspace.open_dialog(OpenDialog::Rename(reference.id)),
         Action::Share => workspace.open_dialog(OpenDialog::Share(reference.id)),
         Action::Unlink => {
-            if let BlockParent::Block(container) = permissions.source {
+            if let Some(BlockParent::Block(container)) = permissions.source {
                 workspace.host().unlink_block(reference.id, container);
             }
         }
-        Action::Delete => workspace.host().delete_block(
-            reference.id,
-            reference.block_type,
-            permissions.source,
-            permissions.is_reference,
-        ),
+        Action::Restore => workspace.host().restore_block(reference.id),
+        Action::Delete => {
+            if let Some(source) = permissions.source {
+                workspace.host().delete_block(
+                    reference.id,
+                    reference.block_type,
+                    source,
+                    permissions.is_reference,
+                );
+            }
+        }
     }
 }
 
@@ -156,34 +178,61 @@ pub(crate) fn ReferenceMenuItem(
     let edit = create_memo(move || rights.get().is_none_or(|rights| rights.1));
     let delete = create_memo(move || rights.get().is_none_or(|rights| rights.2));
     let unlink = create_memo(move || rights.get().is_none_or(|rights| rights.3));
+    let files = create_memo(move || workspace.my_files());
     let rooted = create_memo(move || {
-        edit.get()
-            || rights
-                .get()
-                .is_none_or(|rights| rights.4 == BlockParent::Root)
+        let files = files.get();
+        delete.get()
+            || files.is_none()
+            || rights.get().is_none_or(|rights| {
+                rights.4.is_none_or(|parent| {
+                    parent == BlockParent::Root
+                        || files.is_none_or(|files| parent == BlockParent::Block(files))
+                })
+            })
     });
     let orphaned = create_memo(move || {
         edit.get()
-            || rights
-                .get()
-                .is_none_or(|rights| rights.4 == BlockParent::Detached)
+            || rights.get().is_none_or(|rights| {
+                rights
+                    .4
+                    .is_none_or(|parent| parent == BlockParent::Detached)
+            })
+    });
+    let detail = create_memo(move || {
+        match reference.with(|reference| {
+            reference
+                .as_ref()
+                .is_some_and(|reference| reference.deleted)
+        }) {
+            true => "In Recently Deleted".to_owned(),
+            false => String::new(),
+        }
+    });
+    let restore = create_memo(move || {
+        edit.get()
+            || reference.with(|reference| {
+                reference
+                    .as_ref()
+                    .is_none_or(|reference| !reference.deleted)
+            })
     });
     let delete_label = create_memo(move || match rights.get().is_some_and(|rights| rights.5) {
         true => "Remove link".to_owned(),
         false => "Delete".to_owned(),
     });
     view! {
-        <MenuItem label={label}>
+        <MenuItem label={label} detail={detail}>
             <MenuItem label="Open" />
             <MenuItem label="Add" disabled={add} />
             <MenuItem label="Set parent" disabled={edit}>
-                <MenuItem label="Root" disabled={rooted} />
+                <MenuItem label="My files" disabled={rooted} />
                 <MenuItem label="Orphaned" disabled={orphaned} />
             </MenuItem>
             <MenuItem label="Rename" disabled={edit} />
             <MenuItem label="Share" disabled={edit} />
             <MenuItem label="Unlink" disabled={unlink} />
             <MenuItem label={delete_label} disabled={delete} />
+            <MenuItem label="Restore" disabled={restore} />
         </MenuItem>
     }
 }

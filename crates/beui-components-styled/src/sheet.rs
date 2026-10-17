@@ -67,9 +67,9 @@ pub fn ModalSheet(
                 <SheetPanel>{content}</SheetPanel>
             }}
             on_close={on_close}
-        >
-            {move || content.call(())}
-        </unstyled::ModalSheet>
+        >|| {
+            content.call(())
+        }</unstyled::ModalSheet>
     }
 }
 

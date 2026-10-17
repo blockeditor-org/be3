@@ -1,5 +1,5 @@
 use beui_core::geometry::{pos2, vec2};
-use beui_core::input::{Event, KeyPress, Modifiers, TouchId};
+use beui_core::input::{Event, KeyPress, Modifiers, Pen, TouchId};
 use beui_core::runner::{Input, Keystroke, ScrollDelta};
 use block_editor_plugin::{InputEvent, Region, WheelUnit};
 
@@ -95,6 +95,24 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Option<Input> {
             Event::InterceptedTap(key).into()
         }
         InputEvent::Back(phase) => Event::Back(beui_plugin_input::beui_back(*phase)).into(),
+        InputEvent::Pen {
+            phase,
+            x,
+            y,
+            pressure,
+            tilt_x,
+            tilt_y,
+            eraser,
+        } => Event::Pen {
+            phase: beui_plugin_input::beui_pen_phase(*phase)?,
+            pos: at(*x, *y),
+            pressure: *pressure,
+            pen: Pen {
+                tilt: vec2(*tilt_x, *tilt_y),
+                eraser: *eraser,
+            },
+        }
+        .into(),
     };
     Some(input)
 }

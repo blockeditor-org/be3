@@ -1,8 +1,11 @@
 use super::*;
 
+mod a_contact_card_opens_only_with_its_code_in_its_role;
 mod a_recovery_phrase_round_trips_through_its_words;
-mod a_sealed_key_opens_only_with_its_recovery_phrase;
+mod a_sealed_key_opens_only_from_the_account_that_sealed_it;
 mod a_typed_code_is_normalized;
-mod an_invite_code_opens_only_its_own_workspaces_key;
+mod an_escrow_key_signs_the_next_and_opens_what_is_sealed_to_it;
+mod an_invite_code_opens_only_its_own_organizations_key;
 mod pairing_with_a_different_code_fails;
 mod pairing_with_the_same_code_shares_a_key;
+mod what_an_account_seals_for_itself_opens_only_with_its_secret;

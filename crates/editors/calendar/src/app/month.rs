@@ -30,31 +30,19 @@ pub(crate) fn MonthGrid(
     view! {
         <List spacing=CELL_SPACING>
             <List direction=Direction::Horizontal spacing=CELL_SPACING>
-                <ForEach keys={weekday_names()}>
-                    {move |name: &'static str| {
-                        view! {
-                            <Text
-                                @sizing=ItemSize::Percent(100.0)
-                                string={name}
-                                align=TextAlign::Center
-                            />
-                        }
-                    }}
+                <ForEach keys={weekday_names()}>|name: &'static str|
+                    <Text @sizing=ItemSize::Percent(100.0) string={name} align=TextAlign::Center />
                 </ForEach>
             </List>
-            <ForEach keys={weeks}>
-                {move |start: i64| {
-                    view! {
-                        <MonthWeek
-                            @sizing=ItemSize::Fixed(CELL_HEIGHT)
-                            start={start}
-                            anchor={anchor}
-                            events={events}
-                            on_pick_day={forward(on_pick_day)}
-                            on_pick_event={forward(on_pick_event)}
-                        />
-                    }
-                }}
+            <ForEach keys={weeks}>|start: i64|
+                <MonthWeek
+                    @sizing=ItemSize::Fixed(CELL_HEIGHT)
+                    start={start}
+                    anchor={anchor}
+                    events={events}
+                    on_pick_day={forward(on_pick_day)}
+                    on_pick_event={forward(on_pick_event)}
+                />
             </ForEach>
         </List>
     }
@@ -71,19 +59,15 @@ fn MonthWeek(
     let days = create_memo(move || (0..7).map(|offset| start + offset).collect::<Vec<i64>>());
     view! {
         <List direction=Direction::Horizontal spacing=CELL_SPACING>
-            <ForEach keys={days}>
-                {move |day: i64| {
-                    view! {
-                        <MonthCell
-                            @sizing=ItemSize::Percent(100.0)
-                            day={day}
-                            anchor={anchor}
-                            events={events}
-                            on_pick_day={forward(on_pick_day)}
-                            on_pick_event={forward(on_pick_event)}
-                        />
-                    }
-                }}
+            <ForEach keys={days}>|day: i64|
+                <MonthCell
+                    @sizing=ItemSize::Percent(100.0)
+                    day={day}
+                    anchor={anchor}
+                    events={events}
+                    on_pick_day={forward(on_pick_day)}
+                    on_pick_event={forward(on_pick_event)}
+                />
             </ForEach>
         </List>
     }
@@ -151,26 +135,24 @@ fn MonthCell(
                         color={number_color}
                     />
                 </ListRow>
-                <ForEach keys={shown}>
-                    {move |id: ObjectId| {
-                        let event = event_of(day_events, id);
-                        let title = create_memo(move || {
-                            event.get().map(|event| event.value.title).unwrap_or_default()
-                        });
-                        let open = move || {
-                            if let Some(event) = event.get_untracked() {
-                                on_pick_event.call(event);
-                            }
-                        };
-                        view! {
-                            <EventChip
-                                title={title}
-                                @test_id={format!("calendar.event.{id}")}
-                                on_click={open}
-                            />
+                <ForEach keys={shown}>|id: ObjectId| {
+                    let event = event_of(day_events, id);
+                    let title = create_memo(move || {
+                        event.get().map(|event| event.value.title).unwrap_or_default()
+                    });
+                    let open = move || {
+                        if let Some(event) = event.get_untracked() {
+                            on_pick_event.call(event);
                         }
-                    }}
-                </ForEach>
+                    };
+                    view! {
+                        <EventChip
+                            title={title}
+                            @test_id={format!("calendar.event.{id}")}
+                            on_click={open}
+                        />
+                    }
+                }</ForEach>
                 <Text style=TextStyle::CAPTION string={overflow} />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>

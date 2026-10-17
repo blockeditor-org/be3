@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::profile::{RECENTS, VIEW_EDITORS};
 use block_editor_beui::be_block::{
-    BlockContent, EditorSettings, EditorView, EditorViewContent, FILES_EDITOR, Recents, ViewState,
+    BlockContent, EditorSettings, EditorView, EditorViewContent, FILES_EDITOR, MY_FILES, Recents,
+    ViewState, WorkspaceContent,
 };
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
@@ -15,8 +16,9 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::beui::{NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, BlockPick, ChildState, Editor, EditorHost, FocusedBlock, HostPanel,
-    HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed, ShellDialog, WindowAction,
+    AccessLevel, BlockFilter, BlockPick, ChildState, Contacts, Editor, EditorHost, FocusedBlock,
+    HostPanel, HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed, ShellDialog,
+    WindowAction,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -35,6 +37,7 @@ use super::window::{
 };
 
 pub const FILES: TabId = TabId::new(1);
+pub const SETTINGS: TabId = TabId::new(1 << 39);
 const FIRST_BLOCK_TAB: u64 = 2;
 const MAX_OPENED_VIA_HOPS: usize = 64;
 const PANEL_PADDING: f32 = 14.0;
@@ -186,6 +189,11 @@ impl Workspace {
         });
         create_effect(move || {
             workspace.report_focus();
+        });
+        let contacts = workspace.editor.host_value::<Contacts>();
+        create_effect(move || {
+            contacts.with(|_| ());
+            untrack(|| workspace.relist_share());
         });
         workspace.editor.on_reply(move || {
             if workspace.state.is_alive() {
@@ -447,12 +455,10 @@ impl Workspace {
     }
 
     fn forget_share(&self) {
-        if let Some(Share {
-            request: Some(request),
-            ..
-        }) = self.share.get_untracked()
-        {
-            self.host().forget_request(request);
+        if let Some(share) = self.share.get_untracked() {
+            for request in share.request.into_iter().chain(share.inviting) {
+                self.host().forget_request(request);
+            }
         }
         self.set_share.set(None);
     }
@@ -468,6 +474,15 @@ impl Workspace {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
+        if let ShareAction::InviteNew = action {
+            if share.inviting.is_none() {
+                share.invite_link = None;
+                share.error = None;
+                share.inviting = Some(self.host().contact_link(share.block, share.pending_access));
+            }
+            self.set_share.set(Some(share));
+            return;
+        }
         let (grants, mut reload) = share.act(action, self.host().account_id());
         for (account, access) in grants {
             self.host().set_access(share.block, account, access);
@@ -483,10 +498,27 @@ impl Workspace {
         self.set_share.set(Some(share));
     }
 
+    fn relist_share(&self) {
+        if self.share.with_untracked(Option::is_some) {
+            self.share_action(ShareAction::Refresh);
+        }
+    }
+
     fn share_listed(&self) {
         let Some(mut share) = self.share.get_untracked() else {
             return;
         };
+        if let Some(made) = share
+            .inviting
+            .and_then(|request| self.host().take_contact_link(request))
+        {
+            share.inviting = None;
+            match made {
+                block_editor_beui::ContactLinkResult::Made(link) => share.invite_link = Some(link),
+                block_editor_beui::ContactLinkResult::Failed(error) => share.error = Some(error),
+            }
+            self.set_share.set(Some(share.clone()));
+        }
         let Some(listing) = share
             .request
             .and_then(|request| self.host().take_access_listing(request))
@@ -495,6 +527,20 @@ impl Workspace {
         };
         share.listed(listing);
         self.set_share.set(Some(share));
+    }
+
+    pub(crate) fn my_files(&self) -> Option<Uuid> {
+        let account = self.host().account_id();
+        self.every_block()
+            .into_iter()
+            .filter(|block| {
+                block.block_type == WorkspaceContent::CONTENT_TYPE
+                    && block.parent == Some(BlockParent::Root)
+                    && block.author == Some(account)
+                    && block.metadata.get(&MY_FILES) == Some(true)
+            })
+            .map(|block| block.id)
+            .min()
     }
 
     pub(crate) fn every_block(&self) -> Vec<BlockInfo> {
@@ -515,7 +561,7 @@ impl Workspace {
         };
         if let PickAction::Import = action {
             if held.importing.is_none() {
-                held.importing = Some(self.host().import_blocks(held.created_parent()));
+                held.importing = Some(self.host().import_blocks(held.import_parent()));
                 self.resolve(PickOutcome::Open(Box::new(held)));
             }
             return;
@@ -847,7 +893,7 @@ impl Workspace {
 
     pub(crate) fn record_reference_types(&self, reference: &BlockInfo) {
         self.record_type(reference.id, reference.block_type);
-        if let BlockParent::Block(parent) = reference.parent
+        if let Some(BlockParent::Block(parent)) = reference.parent
             && let Some(parent) = self.blocks().info(parent)
         {
             self.record_type(parent.id, parent.block_type);
@@ -1044,10 +1090,8 @@ impl Workspace {
             true => BlockParent::Block(id),
             false => self
                 .info(id)
-                .map_or(BlockParent::Root, |info| match info.parent {
-                    BlockParent::Detached => BlockParent::Root,
-                    parent => parent,
-                }),
+                .and_then(|info| info.parent)
+                .unwrap_or(BlockParent::Detached),
         };
         self.create_in(parent);
     }
@@ -1056,7 +1100,9 @@ impl Workspace {
         self.set_sheet.set(PhoneSheet::Closed);
         self.set_error.set(None);
         let parent = match parent {
-            BlockParent::Detached => BlockParent::Root,
+            BlockParent::Root | BlockParent::Detached => self
+                .my_files()
+                .map_or(BlockParent::Root, BlockParent::Block),
             parent => parent,
         };
         let excluded = match parent {
@@ -1149,7 +1195,9 @@ pub fn BlockTab(workspace: Workspace, tab: TabId) -> DockEntry<TabId> {
     let icon = create_memo(move || {
         workspace
             .tab(tab)
-            .and_then(|item| workspace.label(item.id, item.block_type).icon)
+            .and_then(|item| {
+                block_editor_beui::label_glyph(&workspace.label(item.id, item.block_type))
+            })
             .unwrap_or_default()
             .to_owned()
     });
@@ -1207,8 +1255,8 @@ pub fn WindowTab(
     view! {
         <DockTab id={tab} title icon=ICON_WEB_ASSET picture on_close={move || workspace.close(tab)}>
             <Layers>
-                <Dynamic value={bound}>
-                    {move |bound: Option<HostWindowId>| match (bound, placeholder) {
+                <Dynamic value={bound}>|bound: Option<HostWindowId>| {
+                    match (bound, placeholder) {
                         (Some(window), _) => view! {
                             <WindowPanel
                                 editor={editor}
@@ -1225,8 +1273,8 @@ pub fn WindowTab(
                         (None, None) => view! {
                             <Frame />
                         },
-                    }}
-                </Dynamic>
+                    }
+                }</Dynamic>
             </Layers>
         </DockTab>
     }

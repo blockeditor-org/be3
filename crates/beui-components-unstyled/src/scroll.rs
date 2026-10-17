@@ -12,7 +12,7 @@ use super::rubber_band::{
 use beui_core::base::Sides;
 use beui_core::base::offset::OffsetNode;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::base::{Direction, ItemSize, ScrollPosition, Sizing};
+use beui_core::base::{Direction, ItemSize, Justify, ScrollPosition, Sizing};
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::Pos2;
@@ -32,22 +32,27 @@ const STEP: f32 = 40.0;
 const AUTOSCROLL_GAIN: f32 = 6.0;
 const AUTOSCROLL_ACCELERATION: f32 = 0.02;
 
+pub const SCROLLBAR_LINGER: Duration = Duration::from_millis(1000);
+pub const SCROLLBAR_FADE_OUT: Duration = Duration::from_millis(250);
+
 pub struct ScrollHandle {
     pub position: Memo<ScrollPosition>,
     pub direction: Prop<Direction>,
     pub scroll_to: Callback<f32>,
+    pub visibility: ReadSignal<f32>,
+    pub on_engage: Callback<bool>,
 }
 
 #[derive(Clone, Copy, Default)]
 pub struct ScrollbarStyle {
-    bar: Option<(f32, RenderFn<ScrollHandle, ListChild>)>,
+    bar: Option<(f32, RenderFn<ScrollHandle, NodeId>)>,
     fade: f32,
 }
 
 impl ScrollbarStyle {
-    pub fn new(spacing: f32, bar: impl Fn(ScrollHandle) -> ListChild + 'static) -> Self {
+    pub fn new(width: f32, bar: impl Fn(ScrollHandle) -> NodeId + 'static) -> Self {
         Self {
-            bar: Some((spacing, RenderFn::new(bar))),
+            bar: Some((width, RenderFn::new(bar))),
             fade: 0.0,
         }
     }
@@ -60,24 +65,61 @@ impl ScrollbarStyle {
         self.fade
     }
 
-    fn spacing(&self) -> f32 {
-        self.bar.as_ref().map_or(0.0, |(spacing, _)| *spacing)
+    fn width(&self) -> f32 {
+        self.bar.as_ref().map_or(0.0, |(width, _)| *width)
     }
 
-    fn beside(
-        &self,
-        position: Memo<ScrollPosition>,
-        direction: Prop<Direction>,
-        scroll_to: Callback<f32>,
-    ) -> Children<ListChild> {
+    fn over(&self, handle: ScrollHandle) -> Children<ListChild> {
         match &self.bar {
             None => Children::default(),
-            Some((_, bar)) => Children::from(bar.call(ScrollHandle {
-                position,
-                direction,
-                scroll_to,
-            })),
+            Some((width, bar)) => {
+                Children::from(with_sizing(bar.call(handle), ItemSize::Fixed(*width)))
+            }
         }
+    }
+}
+
+struct Reveal {
+    held: Memo<bool>,
+    visibility: (ReadSignal<f32>, WriteSignal<f32>),
+    poked: Cell<Instant>,
+    timer: Cell<Option<Timer>>,
+}
+
+impl Reveal {
+    fn show(&self) {
+        self.fade_to(1.0);
+    }
+
+    fn fade_to(&self, visibility: f32) {
+        let (shown, set_shown) = self.visibility;
+        if untrack(|| shown.get()) != visibility {
+            set_shown.set(visibility);
+        }
+    }
+
+    fn poke(&self) {
+        self.poked.set(beui_core::timer::now());
+        self.show();
+        if let Some(timer) = self.timer.get() {
+            timer.restart(SCROLLBAR_LINGER);
+        }
+    }
+
+    fn step(&self) -> Option<Duration> {
+        if untrack(|| self.held.get()) {
+            self.show();
+            return None;
+        }
+        let elapsed = beui_core::timer::now().duration_since(self.poked.get());
+        if elapsed < SCROLLBAR_LINGER {
+            self.show();
+            return Some(SCROLLBAR_LINGER - elapsed);
+        }
+        let fading = (elapsed - SCROLLBAR_LINGER).as_secs_f32() / SCROLLBAR_FADE_OUT.as_secs_f32();
+        let visibility = (1.0 - fading).max(0.0);
+        self.fade_to(visibility);
+        (visibility > 0.0).then_some(Duration::ZERO)
     }
 }
 
@@ -399,6 +441,7 @@ impl Motion {
 fn Scrolling(
     direction: Prop<Direction>,
     fit: bool,
+    bleed: Prop<Sides>,
     tab_stop: bool,
     focus_color: Prop<Color32>,
     scrollbar: ScrollbarStyle,
@@ -430,6 +473,54 @@ fn Scrolling(
     let position = create_memo(move || reported.get().unwrap_or_default());
     component_accessibility(create_memo(move || scroll_view(reported.get())));
 
+    let (near, set_near) = create_signal(false);
+    let (engaged, set_engaged) = create_signal(false);
+    let reveal = store(Reveal {
+        held: create_memo(move || near.get() || engaged.get()),
+        visibility: create_signal(0.0),
+        poked: Cell::new(beui_core::timer::now()),
+        timer: Cell::default(),
+    });
+    let fading = create_timer(move || reveal.get().step());
+    reveal.with(|reveal| reveal.timer.set(Some(fading)));
+    let moved = Cell::new(None::<(f32, f32)>);
+    create_effect(move || {
+        let Some(position) = reported.get() else {
+            return;
+        };
+        let at = (position.offset, position.overscroll);
+        if moved.replace(Some(at)).is_some_and(|was| was != at) {
+            reveal.get().poke();
+        }
+    });
+    create_effect(move || {
+        let held = reveal.with(|reveal| reveal.held.get());
+        match held {
+            true => {
+                reveal.get().show();
+                fading.stop();
+            }
+            false => {
+                if untrack(|| reveal.with(|reveal| reveal.visibility.0.get())) > 0.0 {
+                    reveal.get().poke();
+                }
+            }
+        }
+    });
+    let bar_width = scrollbar.width();
+    let edge_axis = direction;
+    let bar = ScrollHandle {
+        position,
+        direction,
+        scroll_to: Callback::new(move |offset: f32| motion.get().scroll_to(offset)),
+        visibility: reveal.with(|reveal| reveal.visibility.0),
+        on_engage: Callback::new(move |now: bool| {
+            if untrack(|| engaged.get()) != now {
+                set_engaged.set(now);
+            }
+        }),
+    };
+
     let (focused, set_focused) = create_signal(false);
     let across = across(&direction);
     let axis = create_memo(move || Some(direction.get()));
@@ -440,57 +531,73 @@ fn Scrolling(
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
     let content_axis = marker_axis;
-    let scroll_to = Callback::new(move |offset: f32| motion.get().scroll_to(offset));
     on_scroll_key(KeyAt::Node(catcher), KeyPhase::Bubble, move |event| {
         event
             .press()
             .is_some_and(|press| navigates(press.key) && motion.get().key(press))
     });
+    let outset = create_memo(move || -bleed.get());
     view! {
-        <List direction={across} spacing={scrollbar.spacing()}>
-            <Interactive
-                focusable=true
-                tab_stop
-                @sizing=ItemSize::Percent(100.0)
-                on_focus_change={move |focused: bool| set_focused.set(focused)}
-                on_key={move |press: KeyPress| motion.get().key(press)}
-                scroll_axis={axis}
-                @node_ref=&catcher
-                claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                    motion.get().flinging() && under(&catcher_rect, pos)
-                }}
-                on_press={move |_: PointerPress| motion.get().stop_fling()}
-                on_scroll={move |gesture: ScrollGesture| motion.get().wheel(gesture)}
-                on_scroll_drag={move |gesture: DragGesture| motion.get().drag(gesture)}
-                on_autoscroll={move |gesture: AutoscrollGesture| {
-                        let marking = (!gesture.ended).then_some(gesture.origin);
-                        if untrack(|| origin.get()) != marking {
-                            set_origin.set(marking);
-                        }
-                        motion.get().autoscroll(gesture);
+        <Frame padding={outset}>
+            <Layers>
+                <Interactive
+                    focusable=true
+                    tab_stop
+                    on_focus_change={move |focused: bool| set_focused.set(focused)}
+                    on_key={move |press: KeyPress| motion.get().key(press)}
+                    scroll_axis={axis}
+                    @node_ref=&catcher
+                    claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
+                        motion.get().flinging() && under(&catcher_rect, pos)
                     }}
-            >
-                <Frame
-                    outline={focus_outline(focused, focus_color, FOCUS_RING_WIDTH, FOCUS_RING_INSET)}
+                    on_press={move |_: PointerPress| motion.get().stop_fling()}
+                    on_hover_move={move |press: PointerPress| {
+                        let at_edge = bar_width > 0.0
+                            && untrack(|| position.get()).max_offset() > 0.0
+                            && near_edge(untrack(|| edge_axis.get()), press, bar_width);
+                        if untrack(|| near.get()) != at_edge {
+                            set_near.set(at_edge);
+                        }
+                    }}
+                    on_hover_change={move |inside: bool| {
+                        if !inside && untrack(|| near.get()) {
+                            set_near.set(false);
+                        }
+                    }}
+                    on_scroll={move |gesture: ScrollGesture| motion.get().wheel(gesture)}
+                    on_scroll_drag={move |gesture: DragGesture| motion.get().drag(gesture)}
+                    on_autoscroll={move |gesture: AutoscrollGesture| {
+                            let marking = (!gesture.ended).then_some(gesture.origin);
+                            if untrack(|| origin.get()) != marking {
+                                set_origin.set(marking);
+                            }
+                            motion.get().autoscroll(gesture);
+                        }}
                 >
-                    <List direction={content_axis} spacing=0.0>
-                        {node} @sizing={content_sizing(fit)}
-                        <ShowKeepAlive condition={marked}>
-                            <Overlay
-                                anchor
-                                placement=Placement::Around
-                                policy=LayerPolicy::Inert
-                                traps_focus=false
-                                open={marked}
-                            >
-                                {marker.call(marker_axis)}
-                            </Overlay>
-                        </ShowKeepAlive>
-                    </List>
-                </Frame>
-            </Interactive>
-            {scrollbar.beside(position, direction, scroll_to)}
-        </List>
+                    <Frame
+                        outline={focus_outline(focused, focus_color, FOCUS_RING_WIDTH, FOCUS_RING_INSET)}
+                    >
+                        <List direction={content_axis} spacing=0.0>
+                            {node} @sizing={content_sizing(fit)}
+                            <ShowKeepAlive condition={marked}>
+                                <Overlay
+                                    anchor
+                                    placement=Placement::Around
+                                    policy=LayerPolicy::Inert
+                                    traps_focus=false
+                                    open={marked}
+                                >
+                                    {marker.call(marker_axis)}
+                                </Overlay>
+                            </ShowKeepAlive>
+                        </List>
+                    </Frame>
+                </Interactive>
+                <List direction={across} justify=Justify::End spacing=0.0>
+                    {scrollbar.over(bar)}
+                </List>
+            </Layers>
+        </Frame>
     }
 }
 
@@ -500,6 +607,7 @@ pub fn Scroll(
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
+    #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
     #[prop(default = true)] tab_stop: bool,
     #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
@@ -522,26 +630,33 @@ pub fn Scroll(
         })
     });
     let scroll = view! {
-        <Scrolling direction fit tab_stop focus_color scrollbar marker on_change={on_change}>
-            {move |report: Callback<ScrollPosition>| {
-                view! {
-                    <Fade edges>
-                        <Offset
-                            offset
-                            direction={content_direction}
-                            fit
-                            on_change={move |position: ScrollPosition| {
-                                set_faded.set(Some(position));
-                                report.call(position);
-                            }}
-                        >
-                            <List @node_ref=&rows direction={rows_direction} spacing=0.0>
-                                {children}
-                            </List>
-                        </Offset>
-                    </Fade>
-                }
-            }}
+        <Scrolling
+            direction
+            fit
+            bleed
+            tab_stop
+            focus_color
+            scrollbar
+            marker
+            on_change={on_change}
+        >|report: Callback<ScrollPosition>|
+            <Fade edges>
+                <Offset
+                    offset
+                    direction={content_direction}
+                    fit
+                    on_change={move |position: ScrollPosition| {
+                        set_faded.set(Some(position));
+                        report.call(position);
+                    }}
+                >
+                    <Frame padding={bleed}>
+                        <List @node_ref=&rows direction={rows_direction} spacing=0.0>
+                            {children}
+                        </List>
+                    </Frame>
+                </Offset>
+            </Fade>
         </Scrolling>
     };
     create_effect(move || {
@@ -621,6 +736,14 @@ pub(crate) fn under(node: &NodeRef, pos: Pos2) -> bool {
     node.try_get().is_some_and(|node| {
         with_document(|document| document.node_rect(node)).is_some_and(|rect| rect.contains(pos))
     })
+}
+
+fn near_edge(direction: Direction, press: PointerPress, width: f32) -> bool {
+    let across = match direction {
+        Direction::Horizontal => Direction::Vertical,
+        Direction::Vertical => Direction::Horizontal,
+    };
+    !press.touch && across.main(press.size) - across.main(press.local.to_vec2()) <= width
 }
 
 fn navigates(key: Key) -> bool {

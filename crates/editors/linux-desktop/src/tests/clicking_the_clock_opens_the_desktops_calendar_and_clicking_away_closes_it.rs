@@ -29,7 +29,7 @@ fn clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it() 
     assert_eq!(info.block_type, Calendar::CONTENT_TYPE);
     assert_eq!(
         info.parent,
-        BlockParent::Block(desktop),
+        Some(BlockParent::Block(desktop)),
         "the desktop owns its calendar"
     );
     let remembered = fixture

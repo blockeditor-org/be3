@@ -12,11 +12,33 @@ pub trait HostAction: Clone + Serialize + DeserializeOwned + 'static {
     const KEY: &'static str;
 }
 
+pub enum Administrator {}
+
+impl HostValue for Administrator {
+    const KEY: &'static str = "administrator";
+    type Value = bool;
+}
+
 pub enum LinkBase {}
 
 impl HostValue for LinkBase {
     const KEY: &'static str = "link_base";
     type Value = String;
+}
+
+pub enum Contacts {}
+
+impl HostValue for Contacts {
+    const KEY: &'static str = "contacts";
+    type Value = Vec<HostContact>;
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct HostContact {
+    pub account: [u8; 16],
+    pub display_name: String,
+    pub email: String,
+    pub verified: bool,
 }
 
 #[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]

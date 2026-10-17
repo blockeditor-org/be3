@@ -154,12 +154,14 @@ impl OffsetNode {
                 None => return 0.0,
             }
         }
-        let Some((start, rect)) =
-            shown.and_then(|node| Some((self.content_start(out, host, node)?, out.get(&node)?)))
+        let Some((node, start, rect)) = shown
+            .and_then(|node| Some((node, self.content_start(out, host, node)?, out.get(&node)?)))
         else {
             return 0.0;
         };
-        let end = start + self.direction.main(rect.size());
+        let extent = doc.outlined_extent(out, node).unwrap_or(rect);
+        let end = start + self.direction.main(extent.max - rect.min);
+        let start = start - self.direction.main(rect.min - extent.min);
         let Some(revealed) = revealed_offset(start, end, self.offset, main) else {
             return 0.0;
         };

@@ -7,7 +7,8 @@ plugin instead of workspace-ui. These flags start it that way:
   `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
   server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
   session of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
-  once and Ctrl+Alt+F<n> switches terminals.
+  once, as does holding four fingers on a touchscreen for three seconds, and Ctrl+Alt+F<n>
+  switches terminals. guides/pinenote.md covers an e-paper tablet.
   `BEUI_SCALE` sets its scale.
 - `--desktop` (every native platform): the desktop shell, linux-desktop on its own session as
   under `--session`, in a normal window, with programs opening as windows inside it as they
@@ -24,7 +25,7 @@ Everything the desktop gets from the host is a host value, and linux-desktop sho
 only while the host offers what backs it (`editor.host_offers::<T>()`, true once the host has
 published `T`): the Programs button, the Super tap and placeholders' Open need `Programs`, the
 bell `Notifications`, the power menu `Power`, the media keys `Media` (the volume item, its
-`output`), and the tray its items. block-app publishes each as soon as the service behind it
+`output`), the Wi-Fi item `Wifi` (its `available`), and the tray its items. block-app publishes each as soon as the service behind it
 runs, even empty, and off Linux its `host_values.rs` tables list none of them, so a plugin
 watching one gets nothing and its actions are refused. The web and Android apps have no
 `--desktop`: a desktop with none of these is only a dock of block windows, which their own
@@ -63,7 +64,9 @@ LightDM all read that directory, and LightDM (Mint's slick-greeter) never reads
 lists; `X-LightDM-Session-Type=wayland` makes LightDM run it as Wayland from any directory. The
 login screen then offers Block on its session menu, where it can be picked and remembered as
 the default. Running it again replaces the install, and removes an entry an older install left
-in `PREFIX/share/wayland-sessions`.
+in `PREFIX/share/wayland-sessions`. greetd's greeters (gtkgreet, regreet) list the commands in
+`/etc/greetd/environments` instead, so when that file exists the installed link with
+`--session` is added to it once.
 
 In session mode stdout and stderr, and so every `eprintln!`, every panic with its backtrace
 and the output of every program the app starts, go to `$XDG_STATE_HOME/block/session.log`
@@ -74,7 +77,7 @@ corner of the screen: `beui_adapter_drm::Problems` carries the display and input
 puts each in front of the person, as an error toast that stays until it is dismissed;
 `notices::report_with` also keeps a full report (a crashed plugin's error, or the backtrace of
 the panic that ended the last session) behind the toast's Copy report button. The host draws these itself, so they show before any shell
-plugin runs (signing in, choosing a workspace) and over either shell; they stack in the
+plugin runs (signing in, choosing an organization) and over either shell; they stack in the
 top-right corner (`Toasts` with `edge=Edge::TopEnd`), clear of linux-desktop's bar and its
 notification toasts at the bottom.
 
@@ -247,6 +250,104 @@ with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press
 and change them from outside the app with `pactl set-sink-volume`, `set-sink-mute` and
 `set-default-sink`.
 
+## Wi-Fi
+
+The bar's Wi-Fi item (linux-desktop's `app/wifi.rs`) shows while the host reports a Wi-Fi
+device (`WifiStatus::available` in the `Wifi` host value): its glyph is the joined network's
+strength, and its popup turns Wi-Fi on and off, lists the networks in range and joins or leaves
+one with `WifiRequest`s. Opening the popup asks for a scan. A saved or open network is joined at
+once; a protected one asks for its password first, and asks again when the host reports that
+joining it `failed`. Enterprise and WEP networks (`WifiSecurity::Unsupported`) can only be joined
+from a connection saved elsewhere.
+
+block-app's `src/wifi/` starts once a plugin watches `Wifi` and talks to NetworkManager on the
+system bus (`network_manager.rs`, a task on the D-Bus thread). It reads the first Wi-Fi device,
+its access points and the saved Wi-Fi connections again after every signal NetworkManager sends,
+so a change made elsewhere (`nmcli`, another program) shows at once. A saved network is joined
+with `ActivateConnection`; anything else with `AddAndActivateConnection`, which saves it. A new
+connection that fails to come up is deleted again, and one made with a new password replaces the
+saved ones for that network once it is up. `model.rs` is the pure part and where to test it:
+security from the access point's flags, the list (hidden networks left out, each name once at its
+strongest), how a network is joined, and when an attempt has connected or failed. The test
+`wifi_on_a_private_bus_lists_networks_and_connects` runs a fake NetworkManager on a private bus.
+
+The VM has no Wi-Fi device, so under `:dev -- --desktop` the item does not show.
+
+## The on-screen keyboard
+
+beui's own on-screen keyboard (guides/beui.md, The on-screen keyboard) is the desktop's. Under
+`--session` it opens by itself when a field is tapped and no libinput device with letter keys is
+plugged in; the keyboard button beside the bar's clock (`desktop.keyboard`, which calls
+`toggle_keyboard()` and so goes to the host as `WindowRequests::keyboard_toggles`) opens and closes
+it whatever is plugged in. It is drawn by the host along the bottom of the screen the focused field
+is on, so the shell's screen, bar and windows on that screen are laid out above it.
+
+Programs reach it through `zwp_text_input_v3` (be-wayland's `text_input.rs`; there is no input
+method protocol, since the keyboard is the compositor's own): a text input is entered on the surface
+with the keyboard focus, and while one of the focused window's is enabled the window's
+`WindowView` is a field that takes text (`ime`) with the number of enables so far as its
+`keyboard_asks`, so a program enabling its field again, as GTK does when a focused entry is tapped,
+asks for the keyboard again. Keys reach a program as any key does, by scan code; text no key types
+(é, π, an emoji) reaches it as `commit_string`, and a program without an enabled text input never
+gets it. X11 programs, and programs such as foot that use no text input, take the keyboard's keys
+but never open it by themselves, so the bar's button is how it comes up over them. Pressing the
+button gives the shell the focus, so tap the window again before typing into it.
+
+## Input remaps
+
+Under `--session` the keys, mouse buttons and wheel notches libinput reports can be remapped before
+anything else sees them, the way AutoHotkey does on Windows. What remaps them is a remapper: a
+WebAssembly module a plugin ships as its data, given a config the plugin's editor writes.
+
+A remapper's settings are a block of the `InputRemapper` type (`be_block::InputRemapper`), which any
+plugin can edit by declaring an editor for that block type. Its content is an envelope the host reads
+without the plugin running: the plugin's id, the module's path in that plugin's data, and the config,
+bytes only the module reads. The input settings' `remapper` (`RemapperChoice`: the block and the
+editor that made it) picks one, in the shared input settings for every device or in a profile's for
+its devices, the profile's replacing the shared one. The input settings' Remaps section offers every
+editor of the `InputRemapper` type as the Remapper, and its Remaps link opens the chosen block with its
+editor in a tab, making it first (with the chosen remapper, else the first there is) when there is none.
+
+The remapper that ships is the Linux settings plugin's Input Remaps editor (`editors/linux-settings`, `input_remaps`): its block's config is TOML text, stored exactly as
+written, comments and layout included, and its module is `crates/remap/module`, staged as its data
+(`remapper.wasm`). The module is `be-remap`'s engine and text reader (`be_remap::text`, whose errors
+name the group and rule): rules apply in every window or only while a window whose executable, app id
+or title matches has the keyboard, and hold a key while a key or button is held, or tap a key for some
+milliseconds or play a sequence of taps. Keys are named the way `be_remap::names` does (evdev's names,
+AutoHotkey's for the common ones, and `Key:CODE` or `Button:CODE` for any other). Its page has two
+tabs over the same text. Editor shows each group and rule as settings rows and changes the text through
+`be_remap::edit`, which reads an outline of it as written (so a name that does not read yet still shows)
+and edits it in place with `toml_edit`, so comments and layout outside what changed stay; each change is
+stored once the whole text reads, and a problem is shown until it does. TOML is the text itself, stored
+when Apply is pressed and it reads.
+
+A module exports `memory`, `be_remap_buffer` and `be_remap_handle`, and trades `be_remap::protocol`
+requests (start with the config, focus, input, timer) and replies in bincode; a start can answer with a
+problem instead, such as a config it cannot read. `be-remap-host` runs it on wasmi: each call gets a
+fixed amount of fuel and the instance a capped memory, so a module that loops, traps or answers with
+nonsense only stops itself. The host fails open: on any failure it lets go of every key and button the
+module held down, passes the input that failed through unchanged, says so with a toast, and starts the
+module again on the next input; after three failures in a minute, or a config it cannot read, it stays
+off until the remapper changes. Ctrl+Alt+Backspace, Ctrl+Alt+F<n>, Super+L and Super+Escape never reach
+the module (the modifiers they need are pressed for them if the module held them back), and while the
+screen is locked nothing does, so a module can neither keep the session from ending nor read the
+password. Locking lets go of what the module held, too.
+
+block-app (`src/remap/linux.rs`) holds the chosen block, reads the envelope whenever it changes, fetches
+the module from the plugin's data (`discovery::data`, only from a plugin that has an `InputRemapper`
+editor) when the plugin or path changes and only reconfigures the running one when only the config
+does, and keeps the last module and config it ran in its own database (`remapper`), so the session
+remaps from its first input, before the workspace is open. The `Remaps` host value says whether this
+device runs a remapper, runs none, or stopped it. The DRM adapter hands every key, button and wheel
+notch to the `InputFilter` block-app sets on its `InputControl`, after the `WakeGate`, delivers what the
+filter returns as if libinput had sent it (so a remapped `VolumeUp` reaches linux-desktop's media keys
+and shows the level, and a remapped key goes to the window with the keyboard), and runs a timer for
+the filter's next deadline, on its monotonic clock. Changes the filter makes outside input, such as
+the releases when the focus, the lock or the remapper change, go through `InputControl::inject`.
+block-app tells the filter which window has the keyboard (`Compositor::keyboard_window`); its
+executable is the last part of the first argument of its process's command line, which for a Proton
+or Wine game is the Windows path of its `.exe`. Outside a session nothing runs.
+
 ## The lock screen
 
 In the desktop shell (`--session` and `--desktop`) the screen locks on Super+L, the bar's power
@@ -313,9 +414,20 @@ presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
-`wl_keyboard` events, keys by their scan codes (`Event::Key`'s `code`). Where the shell draws over a
+`wl_keyboard` events, keys by their scan codes (`Event::Key`'s `code`) and buttons by theirs: a
+button beyond beui's five is `PointerButton::Other` carrying its evdev code, which the DRM adapter
+reads from libinput and the window gets unchanged (`drive down TARGET button:0x115`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
+
+A pen (a drawing tablet's tool or a screen's stylus, `Event::Pen` in guides/beui.md) reaches a
+window as a `zwp_tablet_tool_v2` of one tablet be-wayland makes when a pen is first used
+(`src/tablet.rs`), with its pressure and tilt; the tip is the tool's `down` and the barrel buttons
+are `BTN_STYLUS` and `BTN_STYLUS2`. A program that never asked for a tablet seat
+(`zwp_tablet_manager_v2.get_tablet_seat`) gets the pen as its pointer instead, the tip a left
+click, decided when the pen comes over it and kept while the tip is down. Under `--session` the
+DRM adapter reads libinput's tablet tools over the area of every display, as it does an absolute
+pointer, and moves the cursor with them.
 
 A window's tab shows the icon its program set with `xdg-toplevel-icon-v1`: be-wayland
 reads the pixels it was handed (the smallest at least 64 pixels, shrunk to 64) or looks the

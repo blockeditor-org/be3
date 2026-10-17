@@ -36,6 +36,7 @@ pub mod select;
 pub mod selectable;
 pub mod sheet;
 pub mod slider;
+pub mod software_keyboard;
 pub mod split_button;
 pub mod stack;
 pub mod text_area;
@@ -89,11 +90,11 @@ pub use dock::{
     DockMode, DockNode, DockPane, DockPreviewHandle, DockSplit, DockSplitter, DockSplitterHandle,
     DockStackHandle, DockState, DockSwitch, DockSwitchHandle, DockSwitchRowHandle,
     DockSwitcherCardHandle, DockSwitcherHandle, DockTab, DockTabControl, DockTabHandle,
-    DockTabMenu, DockTree, DockTreeEntry, DockWindow, Docking, DockingLayout, DockingSnapshot,
-    Entry, GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, OwnedDockingLayout, SIDEBAR_WIDTH,
-    SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId, TabPosition, Tree, dock_actions,
-    dock_menu, dock_menu_items, dock_state, layout_surface, layout_tree, sidebar_size,
-    use_dock_tab,
+    DockTabMenu, DockTree, DockTreeEntry, DockVisit, DockWindow, Docking, DockingLayout,
+    DockingSnapshot, Entry, GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH,
+    OwnedDockingLayout, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId,
+    TabPosition, Tree, dock_actions, dock_menu, dock_menu_items, dock_state, layout_surface,
+    layout_tree, sidebar_size, use_dock_tab,
 };
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,
@@ -117,7 +118,9 @@ pub use popover::{
     Popover, PopoverHandle, PopoverPlacement, PopoverTriggerHandle, popover_open, popover_trigger,
 };
 pub use pressable::Pressable;
-pub use scroll::{Scroll, ScrollHandle, ScrollbarStyle, scroll_animating};
+pub use scroll::{
+    SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER, Scroll, ScrollHandle, ScrollbarStyle, scroll_animating,
+};
 pub use scrollbar::{
     Scrollbar, ScrollbarHandle, ScrollbarThumb, thumb_length, thumb_rect, thumb_start,
 };
@@ -128,6 +131,7 @@ pub use select::{
 pub use selectable::{Selectable, SelectableState, copy_selection, select_all, selectable_text};
 pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, SheetGripHandle};
 pub use slider::{Slider, SliderHandle, SliderScale, slider_value};
+pub use software_keyboard::{KeyCapHandle, KeyboardHandle, SoftwareKeyboard};
 pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use text_area::text_area_handles;

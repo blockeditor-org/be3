@@ -1,4 +1,5 @@
 use beui::{FrameOutput, Rect, Renderer, Repaint, Vec2, vec2};
+use smithay::utils::{Physical, Rectangle};
 
 use crate::gpu::{Gpu, Sprite};
 
@@ -12,6 +13,8 @@ pub enum Pointer<'a> {
         hotspot: Vec2,
     },
 }
+
+pub type Damage = Option<Vec<Rectangle<i32, Physical>>>;
 
 pub struct Frame<'a> {
     pub scale: f32,
@@ -28,6 +31,7 @@ pub struct Screen {
     pending: Option<Repaint>,
     prepared: Option<Repaint>,
     pub cursor: bool,
+    drawn_cursor: Option<Rectangle<i32, Physical>>,
 }
 
 impl Screen {
@@ -40,6 +44,7 @@ impl Screen {
             pending: Some(Repaint::Everything),
             prepared: None,
             cursor: false,
+            drawn_cursor: None,
         }
     }
 
@@ -84,14 +89,29 @@ impl Screen {
         gpu: &Gpu,
         frame: &Frame<'_>,
         target: &wgpu::Texture,
-    ) -> wgpu::CommandBuffer {
+    ) -> (wgpu::CommandBuffer, Damage) {
         let device = gpu.device();
         let queue = gpu.queue();
         let mut encoder = device.create_command_encoder(&wgpu::CommandEncoderDescriptor {
             label: Some("output"),
         });
+        let mut damage = Some(Vec::new());
         if let Some(effective) = self.prepared.take() {
             self.pending = None;
+            damage = match (effective, self.renderer.scissors()) {
+                (Repaint::Region { .. }, Some(scissors)) => Some(
+                    scissors
+                        .iter()
+                        .map(|[x, y, width, height]| {
+                            Rectangle::new(
+                                (*x as i32, *y as i32).into(),
+                                (*width as i32, *height as i32).into(),
+                            )
+                        })
+                        .collect(),
+                ),
+                _ => None,
+            };
             let load = match effective {
                 Repaint::Region { .. } => wgpu::LoadOp::Load,
                 Repaint::Everything => wgpu::LoadOp::Clear(beui::clear_color(frame.clear)),
@@ -112,9 +132,13 @@ impl Screen {
             },
         );
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
-        self.paint_cursor(gpu, &mut encoder, &view, frame);
+        let cursor = self.paint_cursor(gpu, &mut encoder, &view, frame);
+        if let Some(damage) = &mut damage {
+            damage.extend(self.drawn_cursor.into_iter().chain(cursor));
+        }
+        self.drawn_cursor = cursor;
         self.cursor = false;
-        encoder.finish()
+        (encoder.finish(), damage)
     }
 
     fn paint_cursor(
@@ -123,9 +147,9 @@ impl Screen {
         encoder: &mut wgpu::CommandEncoder,
         view: &wgpu::TextureView,
         frame: &Frame<'_>,
-    ) {
+    ) -> Option<Rectangle<i32, Physical>> {
         let (sprite, size, hotspot) = match &frame.sprite {
-            Pointer::Hidden => return,
+            Pointer::Hidden => return None,
             Pointer::Sprite {
                 sprite,
                 size,
@@ -138,9 +162,17 @@ impl Screen {
         let rect = [left, top, left + size.x * scale, top + size.y * scale];
         let (width, height) = (self.size.0 as f32, self.size.1 as f32);
         if rect[2] <= 0.0 || rect[3] <= 0.0 || rect[0] >= width || rect[1] >= height {
-            return;
+            return None;
         }
         gpu.paint_sprite(encoder, view, self.size, rect, sprite);
+        let left = rect[0].floor().max(0.0) as i32;
+        let top = rect[1].floor().max(0.0) as i32;
+        let right = rect[2].ceil().min(width) as i32;
+        let bottom = rect[3].ceil().min(height) as i32;
+        Some(Rectangle::new(
+            (left, top).into(),
+            (right - left, bottom - top).into(),
+        ))
     }
 }
 

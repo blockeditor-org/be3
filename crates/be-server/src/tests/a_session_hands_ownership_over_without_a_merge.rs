@@ -5,7 +5,7 @@ async fn a_session_hands_ownership_over_without_a_merge() {
     let harness = Harness::start().await;
     let mut phone = harness.client().await;
     let account = phone.register("phone@example.com").await;
-    let workspace = phone.workspace("notes").await;
+    let organization = phone.organization("notes").await;
     let block = phone.create_block(BlockParent::Root).await;
     let author = Author::new(account);
 
@@ -34,7 +34,7 @@ async fn a_session_hands_ownership_over_without_a_merge() {
     drop(phone);
     tokio::time::sleep(Duration::from_millis(200)).await;
 
-    let mut laptop = harness.second_connection(&token, workspace).await;
+    let mut laptop = harness.second_connection(&token, organization).await;
     let (_, taken) = laptop.join_session(block).await;
     assert!(
         taken.owner.is_some() && taken.owner != Some(owner),
@@ -57,7 +57,7 @@ async fn a_session_hands_ownership_over_without_a_merge() {
         "the new owner could not continue from the head: {response:?}"
     );
 
-    let mut returned = harness.second_connection(&token, workspace).await;
+    let mut returned = harness.second_connection(&token, organization).await;
     let remote = returned.read_block(block).await.head;
     assert_eq!(
         resume(&author.commits, Some(first.0), remote).unwrap(),

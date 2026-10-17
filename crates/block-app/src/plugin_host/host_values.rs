@@ -1,13 +1,14 @@
 use std::{collections::HashMap, sync::Arc};
 
+use block_plugin_api::{
+    Administrator, Contacts, EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows,
+    LinkBase, Message, WindowAction,
+};
 #[cfg(target_os = "linux")]
 use block_plugin_api::{
-    Displays, InputDevices, Media, MediaRequest, NotificationReport, Notifications, Power,
-    PowerAction, ProgramAction, Programs, ScreenLocked, Tray, TrayRequest,
-};
-use block_plugin_api::{
-    EditorInstanceId, EditorMessage, HostAction, HostValue, HostWindows, LinkBase, Message,
-    WindowAction,
+    Displays, Epaper, EpaperRequest, InputDevices, Media, MediaRequest, NotificationReport,
+    Notifications, Power, PowerAction, ProgramAction, Programs, Remaps, ScreenLocked, Tray,
+    TrayRequest, Wifi, WifiRequest,
 };
 
 pub(super) const MAX_ACTIONS: usize = 64;
@@ -22,20 +23,27 @@ enum Access {
 const VALUES: &[(&str, Access)] = &[
     (HostWindows::KEY, Access::Shell),
     (InputDevices::KEY, Access::Anyone),
+    (Remaps::KEY, Access::Anyone),
     (Displays::KEY, Access::Anyone),
     (Power::KEY, Access::Anyone),
     (Media::KEY, Access::Anyone),
+    (Wifi::KEY, Access::Shell),
+    (Epaper::KEY, Access::Anyone),
     (Notifications::KEY, Access::Shell),
     (ScreenLocked::KEY, Access::Anyone),
     (Programs::KEY, Access::Shell),
     (Tray::KEY, Access::Shell),
     (LinkBase::KEY, Access::Anyone),
+    (Administrator::KEY, Access::Anyone),
+    (Contacts::KEY, Access::Shell),
 ];
 
 #[cfg(not(target_os = "linux"))]
 const VALUES: &[(&str, Access)] = &[
     (HostWindows::KEY, Access::Shell),
     (LinkBase::KEY, Access::Anyone),
+    (Administrator::KEY, Access::Anyone),
+    (Contacts::KEY, Access::Shell),
 ];
 
 #[cfg(target_os = "linux")]
@@ -43,6 +51,8 @@ const ACTIONS: &[(&str, Access)] = &[
     (WindowAction::KEY, Access::Shell),
     (PowerAction::KEY, Access::Shell),
     (MediaRequest::KEY, Access::Shell),
+    (WifiRequest::KEY, Access::Shell),
+    (EpaperRequest::KEY, Access::Shell),
     (NotificationReport::KEY, Access::Shell),
     (ProgramAction::KEY, Access::Shell),
     (TrayRequest::KEY, Access::Shell),

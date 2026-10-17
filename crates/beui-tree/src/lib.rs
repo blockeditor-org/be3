@@ -16,8 +16,9 @@ pub mod reactive {
         SlotChild, SlotHost, into_child, into_segment,
     };
     pub use crate::component::{
-        ChildValue, ComponentBuilder, ComponentContext, IntoRender, IntoRenderFn, MissingProp,
-        Render, RenderFn, UnitHandle, component, current_component, try_current_component,
+        BuildsItsChildren, ChildValue, ComponentBuilder, ComponentContext, ComponentInfo,
+        ComponentRecord, HandsAValue, IntoRender, IntoRenderFn, MissingProp, Render, RenderFn,
+        component, current_component, try_current_component,
     };
     pub use crate::control::{Dynamic, ForEach, Keyed, Show, ShowKeepAlive};
     pub use crate::prop::{Func, Getter, IntoFunc, IntoProp, Prop};

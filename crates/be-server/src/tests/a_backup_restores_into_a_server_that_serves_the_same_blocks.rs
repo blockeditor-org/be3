@@ -7,7 +7,7 @@ async fn a_backup_restores_into_a_server_that_serves_the_same_blocks() {
     let harness = Harness::start().await;
     let mut client = harness.client().await;
     let account = client.register("keeper@example.com").await;
-    let workspace = client.workspace("notes").await;
+    let organization = client.organization("notes").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;
     let (head, chunks) = author.compose(b"a note worth keeping\n", 1_000, None);
@@ -60,7 +60,7 @@ async fn a_backup_restores_into_a_server_that_serves_the_same_blocks() {
     let token = client.token.clone();
     harness.stop().await;
     let revived = Harness::at(restored.clone()).await;
-    let mut returning = revived.second_connection(&token, workspace).await;
+    let mut returning = revived.second_connection(&token, organization).await;
     assert_eq!(returning.read_block(block).await.head, Some(head));
     for chunk in &chunks {
         let response = returning

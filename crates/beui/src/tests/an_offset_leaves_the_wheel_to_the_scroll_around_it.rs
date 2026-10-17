@@ -45,14 +45,12 @@ fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
 #[component]
 fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
-        <ForEach keys={indices(count)}>
-            {|index: usize| view! {
-                <Text
-                    string={format!("Row {index}")}
-                    color=Color32::WHITE
-                    font={FontId::proportional(20.0)}
-                />
-            }}
+        <ForEach keys={indices(count)}>|index: usize|
+            <Text
+                string={format!("Row {index}")}
+                color=Color32::WHITE
+                font={FontId::proportional(20.0)}
+            />
         </ForEach>
     }
 }

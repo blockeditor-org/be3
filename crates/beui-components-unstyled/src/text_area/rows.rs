@@ -556,6 +556,28 @@ impl Builder<'_> {
 
     fn push_inline(&mut self, inline: Inline, style: SpanStyle, label: String) -> usize {
         let size = inline_size(inline, &label, style);
+        self.push_inline_sized(inline, style, label, size)
+    }
+
+    fn inline_sized(
+        &mut self,
+        inline: Inline,
+        source: Range<usize>,
+        style: SpanStyle,
+        label: String,
+        size: Vec2,
+    ) {
+        let index = self.push_inline_sized(inline, style, label, size);
+        self.push(OBJECT, source, false, style, SpanKind::Inline(index));
+    }
+
+    fn push_inline_sized(
+        &mut self,
+        inline: Inline,
+        style: SpanStyle,
+        label: String,
+        size: Vec2,
+    ) -> usize {
         self.row.inline.push(InlineItem {
             inline,
             size,
@@ -599,10 +621,15 @@ pub fn inline_size(inline: Inline, label: &str, style: SpanStyle) -> Vec2 {
 }
 
 pub fn widget_label(widget: &TextWidget) -> String {
-    match widget.icon {
-        Some(_) => format!("   {} ", widget.label),
-        None => format!(" {} ", widget.label),
-    }
+    format!(" {} ", widget.label)
+}
+
+pub fn widget_size(widget: &TextWidget, label: &str, style: SpanStyle) -> Vec2 {
+    let icon = match widget.icon {
+        Some(_) => INLINE_WIDGET_ICON_INSET * 2.0,
+        None => 0.0,
+    };
+    inline_size(Inline::Widget(0), label, style) + Vec2::new(icon, 0.0)
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -787,11 +814,13 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 builder.row.block = Some((widget_index, widget.block_size.unwrap_or_default()));
             }
             let label = widget_label(widget);
-            builder.inline(
+            let size = widget_size(widget, &label, base);
+            builder.inline_sized(
                 Inline::Widget(widget_index),
                 widget.range.clone(),
                 base,
                 label,
+                size,
             );
             index = widget.range.end;
             continue;

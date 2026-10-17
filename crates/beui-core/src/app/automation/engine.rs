@@ -12,8 +12,8 @@ use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::{
-    BackEdge, BackGesture, DroppedFile, Event, ImeEvent, Key, Modifiers, PointerButton, TouchId,
-    TouchPhase,
+    BackEdge, BackGesture, DroppedFile, Event, ImeEvent, Key, Modifiers, Pen, PenPhase,
+    PointerButton, TouchId, TouchPhase,
 };
 use crate::runner::Platform;
 use crate::window::WindowState;
@@ -29,6 +29,7 @@ pub const USAGE: &str = "Reading:
   tree                      the accessibility tree, one node per line
   ids                       every test id on screen, with where it is
   find TARGET               where TARGET is
+  comps [--internals]        component tree, optionally including component internals
   hit TARGET                what a press at TARGET would reach: the Interactives along its path,
                             the components that made them and what each handles
   state                     window, cursor, pointer, fingers, held keys, input method, clipboard, dialogs
@@ -41,7 +42,9 @@ pub const USAGE: &str = "Reading:
 Pointer:
   click TARGET [right|middle|double]
   move TARGET               move the pointer onto TARGET (hover)
-  down TARGET [right|middle] / up [TARGET] [right|middle]   press and let go, for any gesture
+  down TARGET [BUTTON] / up [TARGET] [BUTTON]   press and let go, for any gesture; BUTTON is
+                            right, middle, back, forward or button:CODE (an evdev code,
+                            such as button:0x115)
   drag FROM TO [STEPS]      press, move in STEPS (2), let go
   wheel TARGET TICKS [XTICKS]   turn a mouse wheel, down (right) when positive
   scroll TARGET DY [DX]     a touchpad scroll of DY pixels, down when positive
@@ -53,6 +56,13 @@ Touch:
   pinch TARGET FACTOR       two fingers spreading (FACTOR > 1) or closing around TARGET
   touch down|move|up [FINGER=]TARGET...   fingers 0, 1, ... step by step, all in one frame
   touch up                  lift every finger
+Pen:
+  pen move TARGET [PRESSURE]   the pen hovers over TARGET, or moves there pressed down with PRESSURE
+  pen down TARGET [PRESSURE]   the tip touches TARGET, PRESSURE from 0 to 1 (0.5)
+  pen up [TARGET]           the tip lifts; the pen stays in range
+  pen draw FROM TO [STEPS]  the tip down at FROM, along in STEPS (8) with the pressure rising and
+                            falling, and up at TO
+  pen leave                 the pen goes out of range
   back                      the system back gesture, whole
   back [left|right] / back PROGRESS / back commit|cancel   step by step, PROGRESS from 0 to 1
 Keyboard:
@@ -83,6 +93,8 @@ Waiting:
   gone TEXT|#TEST_ID        wait until it is not
   pause MILLISECONDS        let that much time pass, by the app's clock
   clock stop / clock run    stop the app's clock, so time passes only with pause, frame by frame
+  hurry off / hurry on      stop or start the app's shortcuts for a driven run, such as saving at once,
+                            so it waits as it does for a person
 A TARGET is #TEST_ID, X,Y or X,Y,WIDTH,HEIGHT in the tree's pixels, or text found in one line of the tree.
 Every command that gives input waits for the app to settle and answers with what changed in the tree,
 at most 60 lines of it; before the command, --changes=N|all changes that, and --no-settle answers
@@ -136,6 +148,7 @@ enum Phase {
         before: String,
     },
     Hitting,
+    Components,
     Uploading {
         file: PathBuf,
         before: String,
@@ -174,12 +187,14 @@ pub struct Automation {
     pointer: Pos2,
     buttons: Vec<PointerButton>,
     fingers: Vec<(u64, Pos2)>,
+    pen: Option<(Pos2, bool)>,
     keys: Vec<Key>,
     grabbed: Vec<DroppedFile>,
     composing: Option<String>,
     ime: bool,
     back: Option<f32>,
     clock_stopped: bool,
+    unhurried: bool,
     closing: bool,
     focused: bool,
     picks: Vec<(FilePickRequest, FilePickAnswer)>,
@@ -194,12 +209,14 @@ impl Automation {
             pointer: Pos2::ZERO,
             buttons: Vec::new(),
             fingers: Vec::new(),
+            pen: None,
             keys: Vec::new(),
             grabbed: Vec::new(),
             composing: None,
             ime: false,
             back: None,
             clock_stopped: false,
+            unhurried: false,
             closing: false,
             focused: true,
             picks: Vec::new(),
@@ -327,6 +344,7 @@ impl Automation {
         settled: Settled,
         unran: &[String],
         hits: Option<&[String]>,
+        comps: Option<&[String]>,
     ) {
         let quiet = !settled.again && !settled.busy;
         let Some(active) = &mut self.active else {
@@ -407,6 +425,7 @@ impl Automation {
                     Some(Reply::Text(String::new()))
                 }
                 Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
+                Phase::Components => comps.map(|trees| Reply::Text(trees.join("\n"))),
                 Phase::Hitting => hits.map(|hits| {
                     Reply::Text(match hits.is_empty() {
                         true => "nothing in the window is there\n".to_owned(),
@@ -556,6 +575,14 @@ impl Automation {
             "find" => {
                 let rect = locate(argument(0)?, view.lines)?;
                 Ok(Started::Done(Reply::Text(format!("{}\n", describe(rect)))))
+            }
+            "comps" => {
+                if arguments.len() > 1 || arguments.first().is_some_and(|arg| arg != "--internals")
+                {
+                    return Err("usage: comps [--internals]".to_owned());
+                }
+                world.context.request_comps(!arguments.is_empty());
+                Ok(Started::Phase(Phase::Components))
             }
             "hit" => {
                 world.context.request_hit(at(argument(0)?)?);
@@ -763,6 +790,100 @@ impl Automation {
                     .chain(std::iter::once(vec![touch(finger, TouchPhase::End, to)]))
                     .collect();
                 input(steps)
+            }
+            "pen" => {
+                let pressure = |index: usize, default: f32| {
+                    arguments.get(index).map_or(Ok(default), |text| {
+                        text.parse::<f32>()
+                            .ok()
+                            .filter(|pressure| (0.0..=1.0).contains(pressure))
+                            .ok_or_else(|| format!("{text} is not a pressure from 0 to 1"))
+                    })
+                };
+                let held = self.pen;
+                let mut frames = Vec::new();
+                match argument(0)? {
+                    "move" => {
+                        let to = at(argument(1)?)?;
+                        let down = held.is_some_and(|(_, down)| down);
+                        let pressure = pressure(2, if down { 0.5 } else { 0.0 })?;
+                        frames.push(vec![pen(PenPhase::Move, to, pressure)]);
+                        self.pen = Some((to, down));
+                    }
+                    "down" => {
+                        let to = at(argument(1)?)?;
+                        if held.is_some_and(|(_, down)| down) {
+                            return Err("the pen is already down".to_owned());
+                        }
+                        let pressure = pressure(2, 0.5)?;
+                        frames.push(vec![
+                            pen(PenPhase::Move, to, 0.0),
+                            pen(PenPhase::Down(PointerButton::Primary), to, pressure),
+                        ]);
+                        self.pen = Some((to, true));
+                    }
+                    "up" => {
+                        let Some((last, true)) = held else {
+                            return Err("the pen is not down".to_owned());
+                        };
+                        let to = match arguments.get(1) {
+                            Some(target) => at(target)?,
+                            None => last,
+                        };
+                        frames.push(vec![
+                            pen(PenPhase::Move, to, 0.5),
+                            pen(PenPhase::Up(PointerButton::Primary), to, 0.0),
+                        ]);
+                        self.pen = Some((to, false));
+                    }
+                    "draw" => {
+                        let from = at(argument(1)?)?;
+                        let to = at(argument(2)?)?;
+                        let steps: usize = match arguments.get(3) {
+                            Some(steps) => steps
+                                .parse()
+                                .map_err(|_| format!("{steps} is not a number of steps"))?,
+                            None => 8,
+                        };
+                        if held.is_some_and(|(_, down)| down) {
+                            return Err("the pen is already down".to_owned());
+                        }
+                        let steps = steps.max(1);
+                        let along = |step: usize| {
+                            let fraction = step as f32 / steps as f32;
+                            let pressure = 0.2 + 0.8 * (fraction * std::f32::consts::PI).sin();
+                            (from + (to - from) * fraction, pressure)
+                        };
+                        frames.push(vec![
+                            pen(PenPhase::Move, from, 0.0),
+                            pen(PenPhase::Down(PointerButton::Primary), from, 0.2),
+                        ]);
+                        for step in 1..=steps {
+                            let (at, pressure) = along(step);
+                            frames.push(vec![pen(PenPhase::Move, at, pressure)]);
+                        }
+                        frames.push(vec![pen(PenPhase::Up(PointerButton::Primary), to, 0.0)]);
+                        self.pen = Some((to, false));
+                    }
+                    "leave" => {
+                        let Some((last, _)) = held else {
+                            return Err("the pen is not in range".to_owned());
+                        };
+                        let mut frame = Vec::new();
+                        if held.is_some_and(|(_, down)| down) {
+                            frame.push(pen(PenPhase::Up(PointerButton::Primary), last, 0.0));
+                        }
+                        frame.push(pen(PenPhase::Gone, last, 0.0));
+                        frames.push(frame);
+                        self.pen = None;
+                    }
+                    other => {
+                        return Err(format!(
+                            "pen takes move, down, up, draw or leave, not {other}"
+                        ));
+                    }
+                }
+                input(frames)
             }
             "touch" => {
                 let phase = match argument(0)? {
@@ -1108,6 +1229,15 @@ impl Automation {
                 self.clock_stopped = argument(0)? == "stop";
                 Ok(Started::Phase(Phase::Settling { before: None }))
             }
+            "hurry" => {
+                self.unhurried = match argument(0)? {
+                    "on" => false,
+                    "off" => true,
+                    other => return Err(format!("hurry takes on or off, not {other}")),
+                };
+                world.context.set_hurried(!self.unhurried);
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
             "wait" | "gone" => Ok(Started::Phase(Phase::Waiting {
                 text: arguments.join(" "),
                 present: command == "wait",
@@ -1183,6 +1313,14 @@ impl Automation {
                     (pos.y * scale).round()
                 )
             }))
+            .chain(self.pen.map(|(pos, down)| {
+                format!(
+                    "the pen {} at {},{}",
+                    if down { "down" } else { "in range" },
+                    (pos.x * scale).round(),
+                    (pos.y * scale).round()
+                )
+            }))
             .collect();
         text.push_str(&format!(
             "pointer {},{}{}\n",
@@ -1229,6 +1367,9 @@ impl Automation {
         if self.clock_stopped {
             text.push_str("clock stopped: time passes only with pause\n");
         }
+        if self.unhurried {
+            text.push_str("hurry off: the app waits as it does for a person\n");
+        }
         if let Some(progress) = self.back {
             text.push_str(&format!("back gesture at {progress}\n"));
         }
@@ -1257,7 +1398,16 @@ fn button_named(name: &str) -> Option<PointerButton> {
         "left" => Some(PointerButton::Primary),
         "right" => Some(PointerButton::Secondary),
         "middle" => Some(PointerButton::Middle),
-        _ => None,
+        "back" => Some(PointerButton::Back),
+        "forward" => Some(PointerButton::Forward),
+        _ => {
+            let code = name.strip_prefix("button:")?;
+            let code = match code.strip_prefix("0x") {
+                Some(hex) => u16::from_str_radix(hex, 16).ok()?,
+                None => code.parse().ok()?,
+            };
+            Some(PointerButton::Other(code))
+        }
     }
 }
 
@@ -1346,6 +1496,15 @@ fn finger(argument: Option<&String>) -> Result<u64, String> {
             .parse()
             .map_err(|_| format!("{finger} is not a finger number"))
     })
+}
+
+fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Event {
+    Event::Pen {
+        phase,
+        pos,
+        pressure,
+        pen: Pen::default(),
+    }
 }
 
 fn touch(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {

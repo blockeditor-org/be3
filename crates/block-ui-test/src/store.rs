@@ -17,7 +17,7 @@ trait Held: Any {
 
     fn content_type(&self) -> Uuid;
 
-    fn references(&self, workspace: Uuid) -> Vec<Uuid>;
+    fn references(&self, organization: Uuid) -> Vec<Uuid>;
 
     fn as_any(&self) -> &dyn Any;
 }
@@ -41,8 +41,8 @@ impl<C: LiveEdit> Held for C {
         C::CONTENT_TYPE
     }
 
-    fn references(&self, workspace: Uuid) -> Vec<Uuid> {
-        BlockContent::references_in(self, workspace)
+    fn references(&self, organization: Uuid) -> Vec<Uuid> {
+        BlockContent::references_in(self, organization)
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -186,7 +186,7 @@ impl Block {
 #[derive(Default)]
 struct Inner {
     own: Option<Uuid>,
-    workspace: Uuid,
+    organization: Uuid,
     blocks: BTreeMap<Uuid, Block>,
     seeded: Vec<SeededContent>,
     graph: BTreeMap<Uuid, BlockInfo>,
@@ -201,9 +201,9 @@ struct Inner {
 pub struct ContentStore(Rc<RefCell<Inner>>);
 
 impl ContentStore {
-    pub(crate) fn new(workspace: Uuid) -> Self {
+    pub(crate) fn new(organization: Uuid) -> Self {
         let store = Self::default();
-        store.0.borrow_mut().workspace = workspace;
+        store.0.borrow_mut().organization = organization;
         store
     }
 
@@ -392,14 +392,16 @@ impl ContentStore {
                 let info = BlockInfo::decode(block_plugin_api::BlockInfo {
                     block_id: *block_id,
                     block_type: *content_type,
-                    author: Uuid::nil().into_bytes(),
-                    parent: *parent,
+                    author: Some(Uuid::nil().into_bytes()),
+                    parent: Some(*parent),
                     references: Vec::new(),
                     access: block_plugin_api::AccessLevel::Edit,
                     metadata: block_plugin_api::BlockMetadata {
                         defined: defined.clone(),
                         ..block_plugin_api::BlockMetadata::default()
                     },
+                    locked: false,
+                    deleted: false,
                 });
                 {
                     let mut inner = self.0.borrow_mut();
@@ -419,7 +421,7 @@ impl ContentStore {
                     .graph
                     .get_mut(&Uuid::from_bytes(*block_id))
                 {
-                    info.parent = BlockParent::decode(*parent);
+                    info.parent = Some(BlockParent::decode(*parent));
                 }
             }
             EditorMessage::Define {
@@ -502,7 +504,7 @@ impl ContentStore {
     fn references_of(&self, id: Uuid) -> Vec<Uuid> {
         let inner = self.0.borrow();
         match inner.blocks.get(&id).map(|held| &held.content) {
-            Some(Stored::Typed(content)) => content.references(inner.workspace),
+            Some(Stored::Typed(content)) => content.references(inner.organization),
             _ => inner
                 .graph
                 .get(&id)
@@ -522,17 +524,30 @@ impl ContentStore {
             BlockQuery::All => nodes.clone(),
             BlockQuery::Roots => nodes
                 .iter()
-                .filter(|node| node.parent == BlockParent::Root)
+                .filter(|node| node.parent == Some(BlockParent::Root))
+                .cloned()
+                .collect(),
+            BlockQuery::Shared => nodes
+                .iter()
+                .filter(|node| {
+                    node.access.can_view()
+                        && node
+                            .parent
+                            .and_then(BlockParent::block)
+                            .is_some_and(|parent| {
+                                !known(&parent).is_some_and(|above| above.access.can_view())
+                            })
+                })
                 .cloned()
                 .collect(),
             BlockQuery::Detached => nodes
                 .iter()
-                .filter(|node| node.parent == BlockParent::Detached)
+                .filter(|node| node.parent == Some(BlockParent::Detached))
                 .cloned()
                 .collect(),
             BlockQuery::Children(parent) => nodes
                 .iter()
-                .filter(|node| node.parent == BlockParent::Block(parent))
+                .filter(|node| node.parent == Some(BlockParent::Block(parent)))
                 .cloned()
                 .collect(),
             BlockQuery::References(block) => {
@@ -545,7 +560,7 @@ impl ContentStore {
                 .collect(),
             BlockQuery::Parents(block) => {
                 let mut chain = Vec::new();
-                let mut current = known(&block).and_then(|node| node.parent.block());
+                let mut current = known(&block).and_then(|node| node.parent?.block());
                 while let Some(parent) = current {
                     let Some(node) = known(&parent) else {
                         break;
@@ -553,7 +568,7 @@ impl ContentStore {
                     if chain.iter().any(|seen: &BlockInfo| seen.id == parent) {
                         break;
                     }
-                    current = node.parent.block();
+                    current = node.parent.and_then(BlockParent::block);
                     chain.push(node);
                 }
                 chain.reverse();
@@ -561,6 +576,28 @@ impl ContentStore {
             }
             BlockQuery::Block(block) => known(&block).into_iter().collect(),
         };
-        listed.into_iter().map(with_references).collect()
+        listed
+            .into_iter()
+            .map(with_references)
+            .map(|mut info| {
+                info.deleted = info.deleted || deleted(&nodes, info.id);
+                info
+            })
+            .collect()
     }
+}
+
+fn deleted(nodes: &[BlockInfo], block: Uuid) -> bool {
+    let mut current = block;
+    for _ in 0..=nodes.len() {
+        let Some(node) = nodes.iter().find(|node| node.id == current) else {
+            return false;
+        };
+        match node.parent {
+            Some(BlockParent::Detached) => return true,
+            Some(BlockParent::Block(parent)) => current = parent,
+            Some(BlockParent::Root) | None => return false,
+        }
+    }
+    false
 }

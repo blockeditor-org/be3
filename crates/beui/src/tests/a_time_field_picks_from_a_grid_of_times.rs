@@ -2,7 +2,7 @@ use super::*;
 use crate::datetime::{DateTime, Time};
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::DateTimeParts;
+use crate::unstyled::{Container, DateTimeParts};
 
 #[test]
 fn a_time_field_picks_from_a_grid_of_times() {
@@ -10,13 +10,15 @@ fn a_time_field_picks_from_a_grid_of_times() {
     let (reported, set_reported) = create_signal(Vec::new());
     let document = build(move || {
         view! {
-            <DateTimeField
-                value={Some(DateTime::new(crate::datetime::Date::EPOCH, Time::new(10, 0)))}
-                parts=DateTimeParts::Time
-                on_change={move |value: Option<DateTime>| {
-                    set_reported.update(|reported| reported.push(value.map(|value| value.time)))
-                }}
-            />
+            <Container>|_size|
+                <DateTimeField
+                    value={Some(DateTime::new(crate::datetime::Date::EPOCH, Time::new(10, 0)))}
+                    parts=DateTimeParts::Time
+                    on_change={move |value: Option<DateTime>| {
+                        set_reported.update(|reported| reported.push(value.map(|value| value.time)))
+                    }}
+                />
+            </Container>
         }
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);

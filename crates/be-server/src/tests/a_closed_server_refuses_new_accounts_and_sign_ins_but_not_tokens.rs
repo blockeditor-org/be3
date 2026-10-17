@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
     let directory = std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()));
-    let (account, workspace) = add_account(
+    let (account, organization) = add_account(
         &directory,
         "owner@example.com",
         "Owner",
@@ -73,7 +73,7 @@ async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
         matches!(resumed, ServerMessage::Authenticated { .. }),
         "a device already signed in was turned away: {resumed:?}"
     );
-    client.open(workspace).await;
+    client.open(organization).await;
 
     let _ = shutdown.send(());
     server.await.unwrap().unwrap();

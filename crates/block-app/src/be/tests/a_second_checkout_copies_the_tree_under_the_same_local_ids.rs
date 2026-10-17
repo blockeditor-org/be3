@@ -13,14 +13,14 @@ fn a_second_checkout_copies_the_tree_under_the_same_local_ids() {
         copy_of(versioned.note, second),
     );
     let copied = node(folder).expect("the folder was copied");
-    assert_eq!(copied.parent, be_graph::BlockParent::Block(second));
+    assert_eq!(copied.parent, Some(be_graph::BlockParent::Block(second)));
     assert_eq!(
         copied.metadata.get(&be_block::LOCAL_ID),
         Some(versioned.folder)
     );
     assert_eq!(copied.references, vec![note]);
     assert_eq!(
-        node(note).map(|node| node.parent),
+        node(note).and_then(|node| node.parent),
         Some(be_graph::BlockParent::Block(folder))
     );
 

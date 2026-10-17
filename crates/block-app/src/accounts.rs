@@ -1,5 +1,5 @@
 use be_client::{ClientError, Connection};
-use be_protocol::{ClientMessage, ErrorCode, ServerMessage, Workspace, WorkspaceInvitation};
+use be_protocol::{ClientMessage, ErrorCode, Organization, OrganizationInvitation, ServerMessage};
 use uuid::Uuid;
 
 #[derive(Clone, Debug)]
@@ -123,120 +123,103 @@ pub(crate) async fn logout(server_url: String, token: String) -> Result<(), Acco
     Ok(())
 }
 
-pub(crate) async fn workspaces(
+pub(crate) async fn organizations(
     server_url: String,
     token: String,
-) -> Result<Vec<Workspace>, AccountError> {
+) -> Result<Vec<Organization>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let ServerMessage::Workspaces { workspaces, .. } = connection
-        .request(|request| ClientMessage::ListWorkspaces { request })
+    let ServerMessage::Organizations { organizations, .. } = connection
+        .request(|request| ClientMessage::ListOrganizations { request })
         .await?
     else {
         return Err(ClientError::Unexpected.into());
     };
-    Ok(workspaces)
+    Ok(organizations)
 }
 
-pub(crate) async fn create_workspace(
+pub(crate) async fn create_organization(
     server_url: String,
     token: String,
     name: String,
-) -> Result<Workspace, AccountError> {
+) -> Result<Organization, AccountError> {
     let connection = authenticated(&server_url, token).await?;
     match connection
-        .request(|request| ClientMessage::CreateWorkspace { request, name })
+        .request(|request| ClientMessage::CreateOrganization { request, name })
         .await?
     {
-        ServerMessage::Workspaces { mut workspaces, .. } if !workspaces.is_empty() => {
-            Ok(workspaces.remove(0))
-        }
+        ServerMessage::Organizations {
+            mut organizations, ..
+        } if !organizations.is_empty() => Ok(organizations.remove(0)),
         _ => Err(ClientError::Unexpected.into()),
+    }
+}
+
+#[derive(Clone, Debug)]
+pub(crate) struct Me {
+    pub(crate) account: Uuid,
+    pub(crate) identity: [u8; 32],
+    pub(crate) display_name: String,
+    pub(crate) email: String,
+}
+
+impl Me {
+    pub(crate) fn secret(&self) -> be_keys::RecoverySecret {
+        be_keys::RecoverySecret::from_bytes(self.identity)
+    }
+
+    pub(crate) fn card(&self) -> be_keys::ContactCard {
+        be_client::contacts::card(
+            self.account,
+            &self.secret(),
+            &self.display_name,
+            &self.email,
+        )
     }
 }
 
 pub(crate) async fn invitation(
     server_url: String,
     token: String,
-    invitation: Uuid,
-) -> Result<WorkspaceInvitation, AccountError> {
+    code: be_keys::InviteCode,
+) -> Result<OrganizationInvitation, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let ServerMessage::Invitation { invitation, .. } = connection
-        .request(|request| ClientMessage::GetInvitation {
-            request,
-            invitation,
-        })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
-    Ok(invitation)
+    Ok(be_client::contacts::invitation(&connection, &code).await?.0)
 }
 
 pub(crate) async fn accept_invitation(
     server_url: String,
     token: String,
+    me: Me,
     code: be_keys::InviteCode,
-    recovery: Option<be_keys::RecoveryPublic>,
-) -> Result<(Uuid, [u8; 32]), AccountError> {
+) -> Result<Uuid, AccountError> {
     let connection = authenticated(&server_url, token).await?;
-    let id = Uuid::from_bytes(code.lookup());
-    let ServerMessage::Invitation { invitation, .. } = connection
-        .request(|request| ClientMessage::GetInvitation {
-            request,
-            invitation: id,
-        })
-        .await?
-    else {
-        return Err(ClientError::Unexpected.into());
-    };
-    let workspace = invitation.workspace;
-    let key: [u8; 32] = code
-        .open(workspace.as_bytes(), &invitation.sealed)
-        .ok()
-        .and_then(|key| key.try_into().ok())
-        .ok_or_else(|| AccountError {
-            message: "This invite link does not open its workspace. Ask for a new one.".into(),
-            invalid_token: false,
-        })?;
-    connection
-        .request(|request| ClientMessage::AcceptInvitation {
-            request,
-            invitation: id,
-        })
-        .await?;
-    if let Some(recovery) = recovery {
-        connection
-            .request(|request| ClientMessage::PutWorkspaceKey {
-                request,
-                workspace,
-                sealed: recovery.seal(&key),
-            })
+    let invitation =
+        be_client::contacts::accept_invitation(&connection, &me.secret(), &me.card(), &code)
             .await?;
-    }
-    Ok((workspace, key))
+    Ok(invitation.organization)
 }
 
 pub(crate) async fn invite(
     server_url: String,
     token: String,
-    workspace: Uuid,
+    me: Me,
+    organization: Uuid,
     email: String,
-    role: be_protocol::WorkspaceRole,
-    content_key: [u8; 32],
+    role: be_protocol::OrganizationRole,
 ) -> Result<String, AccountError> {
-    let code = be_keys::InviteCode::generate();
-    let sealed = code.seal(workspace.as_bytes(), &content_key);
     let connection = authenticated(&server_url, token).await?;
-    connection
-        .request(|request| ClientMessage::Invite {
-            request,
-            invitation: Uuid::from_bytes(code.lookup()),
-            workspace,
-            email,
-            role,
-            sealed,
-        })
-        .await?;
+    let escrow =
+        be_client::contacts::verified_escrow(&connection, &me.secret(), organization).await?;
+    let code = be_client::contacts::invite(
+        &connection,
+        &me.secret(),
+        &me.card(),
+        organization,
+        email,
+        role,
+        escrow.as_ref(),
+    )
+    .await?;
     Ok(crate::invite_link::link(&link_base(&server_url), &code))
 }
 
@@ -244,7 +227,7 @@ pub(crate) async fn invite(
 pub(crate) struct AgentCredentials {
     pub(crate) name: String,
     pub(crate) server: String,
-    pub(crate) workspace: Uuid,
+    pub(crate) organization: Uuid,
     pub(crate) token: String,
     pub(crate) phrase: String,
 }
@@ -252,30 +235,48 @@ pub(crate) struct AgentCredentials {
 pub(crate) async fn create_agent(
     server_url: String,
     token: String,
-    workspace: Uuid,
+    me: Me,
+    organization: Uuid,
     name: String,
-    key: [u8; 32],
 ) -> Result<AgentCredentials, AccountError> {
     let phrase = be_keys::RecoveryPhrase::generate();
-    let public = phrase.secret().public();
-    let sealed = public.seal(&key);
+    let secret = phrase.secret();
+    let public = secret.public();
     let connection = authenticated(&server_url, token).await?;
+    let escrow =
+        be_client::contacts::verified_escrow(&connection, &me.secret(), organization).await?;
     let ServerMessage::AgentCreated { agent, token, .. } = connection
         .request(|request| ClientMessage::CreateAgent {
             request,
-            workspace,
+            organization,
             name,
             recovery: public.0,
-            sealed,
+            contact: me.card().seal_own(&secret),
+            escrow: escrow.map_or_else(Vec::new, |escrow| {
+                be_client::contacts::seal_pin(&secret, organization, &escrow)
+            }),
         })
         .await?
     else {
         return Err(ClientError::Unexpected.into());
     };
+    let card = be_keys::ContactCard {
+        account: agent.account.into_bytes(),
+        public,
+        display_name: agent.name.clone(),
+        email: agent.email.clone(),
+    };
+    connection
+        .request(|request| ClientMessage::PutContact {
+            request,
+            contact: agent.account,
+            sealed: card.seal_own(&me.secret()),
+        })
+        .await?;
     Ok(AgentCredentials {
         name: agent.name,
         server: server_url,
-        workspace,
+        organization,
         token,
         phrase: phrase.to_string(),
     })
@@ -284,11 +285,14 @@ pub(crate) async fn create_agent(
 pub(crate) async fn agents(
     server_url: String,
     token: String,
-    workspace: Uuid,
+    organization: Uuid,
 ) -> Result<Vec<be_protocol::Agent>, AccountError> {
     let connection = authenticated(&server_url, token).await?;
     let ServerMessage::Agents { agents, .. } = connection
-        .request(|request| ClientMessage::ListAgents { request, workspace })
+        .request(|request| ClientMessage::ListAgents {
+            request,
+            organization,
+        })
         .await?
     else {
         return Err(ClientError::Unexpected.into());
@@ -299,14 +303,14 @@ pub(crate) async fn agents(
 pub(crate) async fn remove_agent(
     server_url: String,
     token: String,
-    workspace: Uuid,
+    organization: Uuid,
     account: Uuid,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
     connection
         .request(|request| ClientMessage::RemoveAgent {
             request,
-            workspace,
+            organization,
             account,
         })
         .await?;
@@ -315,26 +319,36 @@ pub(crate) async fn remove_agent(
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Keys {
+    pub(crate) account: Uuid,
     pub(crate) recovery: Option<be_keys::RecoveryPublic>,
-    pub(crate) sealed: std::collections::HashMap<Uuid, Vec<u8>>,
+    pub(crate) sealed: Vec<be_protocol::SealedKey>,
+    pub(crate) own: Vec<be_protocol::OwnSealed>,
 }
 
 pub(crate) async fn keys(server_url: String, token: String) -> Result<Keys, AccountError> {
-    let connection = authenticated(&server_url, token).await?;
-    let ServerMessage::Keys {
-        recovery, sealed, ..
+    let connection = Connection::connect(&socket_url(&server_url)).await?;
+    let ServerMessage::Authenticated { account, .. } = connection
+        .request(|request| ClientMessage::Authenticate { request, token })
+        .await?
+    else {
+        return Err(ClientError::Unexpected.into());
+    };
+    let ServerMessage::RecoveryKey {
+        public,
+        sealed,
+        own,
+        ..
     } = connection
-        .request(|request| ClientMessage::GetKeys { request })
+        .request(|request| ClientMessage::GetRecoveryKey { request })
         .await?
     else {
         return Err(ClientError::Unexpected.into());
     };
     Ok(Keys {
-        recovery: recovery.map(be_keys::RecoveryPublic),
-        sealed: sealed
-            .into_iter()
-            .map(|key| (key.workspace, key.sealed))
-            .collect(),
+        account,
+        recovery: public.map(be_keys::RecoveryPublic),
+        sealed,
+        own,
     })
 }
 
@@ -342,60 +356,48 @@ pub(crate) async fn set_recovery_key(
     server_url: String,
     token: String,
     public: be_keys::RecoveryPublic,
-    sealed: Vec<be_protocol::SealedKey>,
+    resealed: be_client::contacts::NewIdentity,
 ) -> Result<(), AccountError> {
     let connection = authenticated(&server_url, token).await?;
     connection
         .request(|request| ClientMessage::SetRecoveryKey {
             request,
             public: public.0,
-            sealed,
+            sealed: resealed.sealed,
+            own: resealed.own,
+            changes: resealed.changes,
         })
         .await?;
     Ok(())
 }
 
-#[derive(Clone, Copy, Debug, PartialEq)]
-pub(crate) struct Paired {
-    pub(crate) key: [u8; 32],
-    pub(crate) recovery: Option<[u8; 32]>,
-}
-
 pub(crate) async fn pair(
     server_url: String,
     token: String,
-    workspace: Uuid,
+    account: Uuid,
     code: String,
     device: String,
     cancelled: futures_util::future::BoxFuture<'static, ()>,
-) -> Result<Paired, AccountError> {
+) -> Result<[u8; 32], AccountError> {
     let connection = authenticated(&server_url, token).await?;
     let mut events = connection.subscribe();
-    let (pairing, message) = be_keys::Pairing::start(&code, workspace.as_bytes());
+    let (pairing, message) = be_keys::Pairing::start(&code, account.as_bytes());
     let payload = be_keys::PairingMessage::Request { message, device }.encode();
     connection
         .request(|request| ClientMessage::Pair {
             request,
             to: None,
-            workspace,
             payload,
         })
         .await?;
     let reply = async {
         loop {
             match events.recv().await {
-                Ok(ServerMessage::Paired {
-                    workspace: answered,
-                    payload,
-                    ..
-                }) if answered == workspace => {
-                    if let Ok(be_keys::PairingMessage::Reply {
-                        message,
-                        sealed,
-                        recovery,
-                    }) = be_keys::PairingMessage::decode(&payload)
+                Ok(ServerMessage::Paired { payload, .. }) => {
+                    if let Ok(be_keys::PairingMessage::Reply { message, sealed }) =
+                        be_keys::PairingMessage::decode(&payload)
                     {
-                        return Ok((message, sealed, recovery));
+                        return Ok((message, sealed));
                     }
                 }
                 Ok(_) | Err(tokio::sync::broadcast::error::RecvError::Lagged(_)) => {}
@@ -407,7 +409,7 @@ pub(crate) async fn pair(
             }
         }
     };
-    let (message, sealed, recovery) =
+    let (message, sealed) =
         match futures_util::future::select(std::pin::pin!(reply), cancelled).await {
             futures_util::future::Either::Left((reply, _)) => reply?,
             futures_util::future::Either::Right(_) => {
@@ -422,24 +424,10 @@ pub(crate) async fn pair(
         invalid_token: false,
     };
     let key = pairing.finish(&message).map_err(|_| wrong())?;
-    let content_key = key
-        .open(&sealed)
+    key.open(&sealed)
         .map_err(|_| wrong())?
         .try_into()
-        .map_err(|_| wrong())?;
-    let recovery = match recovery.is_empty() {
-        true => None,
-        false => Some(
-            key.open(&recovery)
-                .map_err(|_| wrong())?
-                .try_into()
-                .map_err(|_| wrong())?,
-        ),
-    };
-    Ok(Paired {
-        key: content_key,
-        recovery,
-    })
+        .map_err(|_| wrong())
 }
 
 pub(crate) fn authorize(saved: &[crate::app_state::SavedAccount]) {

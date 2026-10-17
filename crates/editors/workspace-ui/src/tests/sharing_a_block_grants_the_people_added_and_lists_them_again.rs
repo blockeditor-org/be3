@@ -30,6 +30,7 @@ fn sharing_a_block_grants_the_people_added_and_lists_them_again() {
         author: false,
         granted,
         effective: granted.unwrap_or(AccessLevel::None),
+        waiting: false,
     };
     fixture.test.reply(
         listing,

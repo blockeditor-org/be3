@@ -95,7 +95,6 @@ rodio = "0.20"
 # Desktop only: Android has no embedded browser, and the browser sandbox has
 # none either.
 [target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
-winit = "0.30"
 wry = { version = "0.55.1", optional = true }
 
 # The plugin side of the protocol, for the tests that check the host only sends
@@ -120,6 +119,7 @@ async-io = "2"
 async-lock = "3"
 be-dmabuf = { path = "../be-dmabuf" }
 be-wayland = { path = "../be-wayland" }
+be-remap-host = { path = "../remap/host" }
 beui-adapter-drm = { path = "../beui-adapter-drm" }
 pollster = "0.4"
 # The PulseAudio protocol, which pipewire-pulse serves, in pure Rust: the volume

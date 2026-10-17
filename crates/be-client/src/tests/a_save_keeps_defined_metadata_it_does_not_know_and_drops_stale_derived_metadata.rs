@@ -52,7 +52,7 @@ async fn a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_
         })
         .await
         .unwrap();
-    let renamed = phone.metadata(&renamed).unwrap();
+    let renamed = phone.metadata_of_summary(&renamed).await.unwrap();
     assert_eq!(
         renamed.get(&WORDS),
         Some(3),
@@ -86,7 +86,7 @@ async fn a_save_keeps_defined_metadata_it_does_not_know_and_drops_stale_derived_
         "derived metadata nobody here can recompute is dropped"
     );
     let summary = phone.summary(block).await.unwrap();
-    assert_eq!(phone.metadata(&summary).unwrap(), saved);
+    assert_eq!(phone.metadata_of_summary(&summary).await.unwrap(), saved);
     assert_ne!(saved, BlockMetadata::default());
 
     harness.stop().await;

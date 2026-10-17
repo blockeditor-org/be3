@@ -49,15 +49,14 @@ pub fn Disclosure(
                     set_open.set(next);
                     on_toggle.call(next);
                 }}
-                content={move |handle: ButtonHandle| {
-                    header.call(DisclosureHandle {
-                        hovered: handle.hovered,
-                        active: handle.active,
-                        focused: handle.focused,
-                        open: open_for_header,
-                    })
-                }}
-            />
+            >|handle: ButtonHandle| {
+                header.call(DisclosureHandle {
+                    hovered: handle.hovered,
+                    active: handle.active,
+                    focused: handle.focused,
+                    open: open_for_header,
+                })
+            }</unstyled::Button>
             <Frame visible={open_read}>
                 <List spacing>
                     <Frame />

@@ -22,9 +22,9 @@ each of these is something not to bring back.
   operation it had ever received, and it could not be fixed in place:
   operations were ciphertext to the server, and compaction needs understanding.
   An append-only operation log and end-to-end encryption are incompatible.
-- **References cost a workspace per keystroke.** The client replayed pending
+- **References cost an organization per keystroke.** The client replayed pending
   operations to diff the full reference set, and the server rewrote every
-  reference row in the workspace on every update. Under a CRDT the delta was
+  reference row in the organization on every update. Under a CRDT the delta was
   also wrong, because it was computed against an optimistic local state rather
   than the converged one.
 - **There was no local persistence.** Unsent work lived in memory, so closing
@@ -76,14 +76,21 @@ Content-addressed, encrypted object storage.
   holds without being able to read it.
 - `chunker::split` is a gear-hash content-defined chunker. An edit in the middle
   of a large file re-uploads one chunk, and the chunks either side resynchronise.
-- `Vault::seal` derives its nonce from the key and the plaintext. That is
-  deliberate: it makes identical content deduplicate under one key, and share
-  nothing across keys. Do not replace it with a random nonce without replacing
-  the deduplication story too.
+- `Vault` seals with a key it is named by id from its `Keyring`, and opens by
+  the id the sealed bytes carry (see Keys). Sealing derives its nonce from the
+  key and the plaintext. That is deliberate: it makes identical content
+  deduplicate under one key, and share nothing across keys. Do not replace it
+  with a random nonce without replacing the deduplication story too.
 - `Manifest` is `{content_type, length, chunks}`. `Vault::read_range` and
   `chunks_in_range` are the streaming primitives.
 - `ObjectStore` is `MemoryStore` or `FileStore`. It is synchronous on purpose;
   network fetching is explicit (see `Peer::fetch`), so nothing blocks inside it.
+  `FileStore::put` writes atomically (a temporary file renamed into place) but
+  does not wait for the disk; `sync` makes everything put so far durable at
+  once (one `syncfs` on Linux and Android). Call it before telling anyone else
+  an object exists: `Peer::push` syncs before it uploads, and the server syncs
+  a `PutObjects` before it answers. A torn object left by a crash fails its
+  hash on reading and is dropped.
 - `Vault::put_value` stores a value (a commit, a version-control tree) as a
   CBOR map by field name (`encode_value`), so a later build can add a field to
   one, with `#[serde(default)]`, without a migration. Commits are encrypted, so
@@ -175,41 +182,88 @@ time, so notifications wait for the next post.
   silently ordered after it.
 - A publish writes one head update, the handful of edge rows the commit
   declares, and refcounts for chunks it actually introduced. It does not rewrite
-  the workspace.
-- Access is computed per member (`Visibility` in `blocks.rs`, over
-  `BlockGraph::access_map`). A workspace administrator edits everything. Anyone
-  else gets `Edit` on what they authored and whatever they were granted, and
-  both are inherited down through parents; a block they can see references
-  gives them `KnowExists` on it, and so does being an ancestor of anything they
-  know of, so the path to a shared block is visible without its content.
-  `SetAccess` grants, and only someone who may edit a block may grant on it.
-- Graph announcements are per member too: when a block changes, every
-  connected member of the workspace is sent the `BlockChanged` their own access
-  lets them see, or a `BlockRemoved` when it no longer does.
+  the organization.
+- The tenant is an organization (`organizations`, everything keyed by
+  `organization_id`): one block graph, its members and its administrators.
+  Its `kind` is `company`, made with `CreateOrganization` by an administrator,
+  or `personal`, the server's one organization everyone may share, which
+  `ServerStore::personal_organization` makes on demand; registering joins it
+  as an editor, and nobody administers it.
+- Access is computed per member (`Visibility` in `blocks.rs`). An organization
+  administrator edits everything. Anyone else gets the best grant on the block
+  or an ancestor (a grant that can view is inherited down), and `Edit` on what
+  they authored when its parent is `Root` or `Detached` or they can view its
+  parent, so a member taken off a workspace loses what they wrote inside it.
+  A block they can view references gives them `KnowExists` on it, and on
+  nothing that block references in turn. Of a block they may only know exists
+  they are told its id, content type and access and nothing else
+  (`BlockSummary::no_access`: no author, parent, head, version, references,
+  metadata, key or scope), and are served none of its keys or objects. Ancestors
+  are not shown: a block someone can see whose parent they cannot is an entry
+  point, which the app lists under Shared with me. `SetAccess` grants, and only
+  someone who may edit a block may grant on it; a grant above `None` must also
+  name a member of the organization who is a contact of the granter (see
+  Contacts). Anyone may revoke their own grant (leaving a block). `ListAccess`
+  lists the block's author, grantees and viewers and the caller's contacts who
+  are members, never the rest of the membership, and marks a grantee still
+  `waiting` for the block's scope key. An administrator lists the members
+  (`ListMembers`), changes a role (`SetRole`) and removes a member
+  (`RemoveMember`, which revokes their grants and drops their wrapped keys);
+  the organization always keeps one administrator, and the affected account's
+  connections to it are closed (`WatchHub::drop_member`), so they reconnect
+  with what they now are.
+- Nothing that runs per request or per publish maps the whole graph.
+  `BlockGraph` indexes children by parent and blocks by the accounts that
+  authored them or hold a grant on them (their entry points).
+  `BlockGraph::inherited` walks up from one block, which answers every edit
+  and view check; `visible` walks down from an account's entry points to list
+  what it knows of; `audience` names the accounts that may know a block: the
+  authors and viewers of its parent chain, its own grants and the viewers of
+  what references it. A move or a grant changes what is below the block only
+  for accounts in its audience before or after, so nothing walks the subtree
+  to find them.
+- Graph announcements are per member too: when a block changes, each connected
+  client whose account is in the block's audience before or after the change
+  (and every administrator) is sent the `BlockChanged` its own access lets it
+  see, or a `BlockRemoved` when it no longer does. The blocks a changed block
+  references, and those a publish stopped referencing, are announced with it,
+  since who may know they exist changed too; an id no block has (one linked
+  before it is made) is never announced. `WatchHub` indexes clients
+  by organization and account, so this never scans every connection.
+- Every `BlockSummary` and `BlockRemoved` carries the `revision` it was read
+  at: `ServerStore::with_graph` advances one counter on each call, under the
+  lock every graph read and change takes, so a larger revision is always a
+  later view. Announcements and replies can reach a client out of order (a
+  reply overtakes the announcements queued before it, and two requests'
+  announcements interleave), and the revision is how the client puts them back
+  in order. The counter restarts with the server, which a client sees as a
+  reconnect and a reload.
 - Accounts live here. `Register` (refused unless the server runs with
   `--allow-registration`; the app's embedded server and the dev targets do),
   `Login` (refused unless the server runs with `--allow-login`, so a server
   on the internet takes only the tokens of devices already signed in),
-  `Authenticate` with a token and `Logout`; workspaces are created
+  `Authenticate` with a token and `Logout`; organizations are created
   through it, and an administrator can `Invite` an email under an id the
-  inviting client picks. Only an account with that email can read the
+  inviting client picks. Accepting an invitation makes inviter and invitee
+  contacts. Only an account with that email can read the
   invitation (`GetInvitation`) or join with it (`AcceptInvitation`), once;
   inviting the same email again replaces it. There is no list of an account's
   invitations: the id only reaches the invitee in the link (see Keys).
-  `--add-account EMAIL NAME WORKSPACE` provisions an account and its workspace
+  `--add-account EMAIL NAME ORGANIZATION` provisions an account and its organization
   from the command line, reading the password from standard input. Password
   checks run off the database lock, a few at a time, and an email with five
   failed sign-ins in a row is locked out for a time that doubles with each
   further failure.
   The server never reads `Authorization`, which is left to a gateway in front
   of it. An administrator's `CreateAgent` makes an agent: an
-  editor account with no password, its workspace key sealed to a recovery key
-  the caller made for it, and a token, all answered once (guides/tracker.md).
+  editor account with no password, with the recovery public key the caller made
+  for it, and a token, answered once (guides/tracker.md); the agent and its
+  creator become contacts.
 - An object is served only to a member who can view a block that holds it, by
   a commit (`commit_objects`) or by `HoldObjects`; anything else reads as
   missing. A merge commit holds its extra parents' objects, so a `stash` that
   was never a head stays readable.
-- The graph is cached per workspace in memory and dropped on any error so it
+- The graph is cached per organization in memory and dropped on any error so it
   reloads from the database rather than drifting.
 
 ### be-block
@@ -224,7 +278,7 @@ trait BlockContent {                    // durable form and the edges it declare
     fn encode(&self) -> Vec<u8>;
     fn decode(bytes: &[u8]) -> Result<Self, ContentError>;
     fn references(&self) -> Vec<Uuid> { Vec::new() }
-    fn references_in(&self, workspace: Uuid) -> Vec<Uuid> { self.references() }
+    fn references_in(&self, organization: Uuid) -> Vec<Uuid> { self.references() }
     fn name(&self) -> Option<String> { None }
 }
 trait LiveEdit: BlockContent {          // optional: what a session carries
@@ -263,13 +317,13 @@ rescheduled.
 lets a reader take the header and then a byte range. Every `Blob` (below) is
 streamed.
 
-`references_in` is `references` for one workspace, and it is what the peer
+`references_in` is `references` for one organization, and it is what the peer
 calls when it records a commit's references (`Root::references_in` for a
-document). Text uses it: a block URL names its workspace, and a URL pasted from
-another workspace is a link, not a reference.
+document). Text uses it: a block URL names its organization, and a URL pasted from
+another organization is a link, not a reference.
 The URL format itself lives in `be_block::block_url`: a block URL is
-`<base>#block/<workspace>/<block>`, where the base is the URL of the server the
-workspace is on (the `LinkBase` host value), sub-path and all, or nothing for
+`<base>#block/<organization>/<block>`, where the base is the URL of the server the
+organization is on (the `LinkBase` host value), sub-path and all, or nothing for
 the device's own server. Text stores these bytes, so the format is read
 forever: a reference is found by its fragment alone, whatever host comes before
 it, and the link it belongs to starts at the `http://` or `https://` directly
@@ -290,7 +344,8 @@ polling either.
 
 - `open` reads the head commit, fetches its chunks and decodes.
 - `save` chunks the content, uploads only what `MissingObjects` says the server
-  lacks, and publishes against the head it read.
+  lacks, in `PutObjects` of up to 2 MiB each, and publishes against the head it
+  read.
 - `fetch` verifies that bytes the server returns hash to the hash that was asked
   for. The server is not trusted with content, so do not drop this check.
 - `fetch_history` walks a commit's parents into the local store. Anything that
@@ -550,7 +605,7 @@ Version control is two content types and a peer-side operation set, not a
 store of its own: history is be-store objects and be-commit commits.
 
 - A **repository** (`be_block::Repository`) holds branch heads and an optional
-  upstream repository in the same workspace. It holds its history with
+  upstream repository in the same organization. It holds its history with
   `Peer::hold` (`HoldObjects`): a block that holds objects keeps them alive
   whatever its own commits' retention does, until it is collected.
 - A **snapshot** is a `be_commit::Commit` of kind `Snapshot(message)` whose
@@ -594,7 +649,7 @@ store of its own: history is be-store objects and be-commit commits.
 ## Running it
 
 ```
-./scripts/buck run //crates/be-server:bin -- --add-account you@example.com "You" hunter2hunter2 Workspace
+echo hunter2hunter2 | ./scripts/buck run //crates/be-server:bin -- --add-account you@example.com "You" Organization
 ./scripts/buck run //crates/be-server:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
 ```
 
@@ -610,12 +665,12 @@ accounts).
 Tests start their own server on an ephemeral port; see `Harness` in
 `crates/be-client/src/tests.rs` and `crates/be-server/src/tests.rs`. The app's
 own tests do the same through the embedded server, register an account and
-create a workspace, and then start the app's peer against it the way the app
+create an organization, and then start the app's peer against it the way the app
 does: `Harness` in `crates/block-app/src/be/tests.rs`.
 
 ## How the app hosts content
 
-The app is the peer, not the plugin. A plugin never sees the content key, the
+The app is the peer, not the plugin. A plugin never sees a key, the
 connection or the server; it is handed content and graph answers by the host,
 and hands back operations and graph commands.
 
@@ -658,12 +713,18 @@ what it needs.
 
 The app keeps a mirror of the server's graph, as the account sees it, in
 `be/graph.rs`: a `Node` per block with its content type, author, parent, access,
-references and unsealed `BlockMetadata`. The worker loads it with
+references, unsealed `BlockMetadata` and whether no key it holds opens it
+(`locked`). A block the account may only know exists has no author or parent, so `Roots`, `Detached`, `Shared` and `Children` never list it; it is
+reached only through what references it, and is never `locked`. The worker loads it with
 `Peer::list_blocks` whenever it connects and keeps it current from the server's
 `BlockChanged` and `BlockRemoved` events, reloading it whole when it has fallen
-behind the event broadcast. `Query` (`Roots`, `Detached`,
+behind the event broadcast. It remembers the newest revision it has heard of
+each block (and, for the rest, that of its last load) and drops anything
+older, so an announcement the worker reads late never undoes a newer reply. `Query` (`Roots`, `Detached`, `Shared`,
 `Children`, `References`, `Backrefs`, `Parents`, `Block`) is how everything in
 the app asks it a question, and `be::graph_revision` says when to ask again.
+`Shared` is the account's entry points: blocks it can view whose parent it
+cannot.
 
 A change made here - `be::create`, `be::set_parent`, `be::define` - is
 applied to the mirror straight away, so the file tree and every editor see it in
@@ -671,7 +732,9 @@ the next frame, and counts as pending for that block. While a block has a
 pending change the mirror ignores the server's echoes for it, which would
 otherwise show a state older than the one on screen; the worker settles the
 change when the server has answered, and refreshes the block from the server
-once nothing is pending.
+once nothing is pending. An open block's references come from its session's
+content rather than the server, so a child added to a folder is listed before
+the edit is sealed.
 
 ### Metadata
 
@@ -691,8 +754,8 @@ them through its `name`, `thumbhash` and `artifact`, and set a defined key with
 at the image's size and paints the blurred placeholder until the image arrives.
 
 Metadata travels with content. Every commit carries the encoded metadata of the
-content it saves, and `Publish` carries it sealed with the content key
-(`Peer::seal_metadata`), so the server stores it in the same step that moves the
+content it saves, and `Publish` carries it sealed with the block's data key
+(see Keys), so the server stores it in the same step that moves the
 head and cannot keep metadata that belongs to a head it refused. A save takes
 `defined` from the head it builds on and recomputes `derived` from the content
 (`be_block::derived_metadata`: `BlockContent::name` and `BlockContent::describe`;
@@ -776,7 +839,31 @@ list of `BlockQuery`s the host answers from its mirror with `Blocks { query,
 blocks }` whenever the answer changes (`plugin_host/graph.rs`). A `BlockInfo`
 carries the block's type, author, parent (`BlockLocation`: `Root`, `Detached` or
 a block), name and whether it was named by hand, references, the account's
-access and the artifact source. It changes the graph with
+access, the artifact source and whether it is `locked`: the account may view
+it but holds no key that opens it yet, so its metadata is empty. A block the
+account may only know exists (`AccessLevel::KnowExists`) comes with no author
+or parent and nothing else but its type. `BlockInfo::reach` tells the two
+apart (`block_ui::Reach`: `Open`, `Locked`, `NoAccess`), `BlockInfo::label`
+names such a block "Locked" or "No access" in place of its name, and
+`block_editor_beui::label_glyph` gives either a lock icon, so every place that
+draws a referenced block from its label (text links and embeds, the files
+pane, database cells, canvas cards, pickers) shows it; a frame says so in
+place of an editor. `BlockInfo::deleted` is set on a block whose parent chain
+the host's mirror follows up to a `Detached` block (`Graph::deleted_root`): it
+is in Recently Deleted, itself or inside a deleted folder, though links to it
+still resolve. A chain that runs into a block the account cannot see counts as
+live. `BlockInfo::label` carries the flag, `label_glyph` gives such a block a
+trash icon, and the places that list references treat it as a link that will
+break: the files pane mutes it (but not inside Recently Deleted, where every
+row is deleted), the shell's reference menus and phone details sheet list it
+last as "In Recently Deleted" and leave it out of the counts and the linked
+bar, pickers never offer it, and a deleted block opened in a tab has a bar
+above it saying so. Anything may ask the host to bring one back with
+`EditorHost::restore_block` (`BlockCommand::Restore`): the host finds the
+`Detached` block at the top of its chain and puts it back where the
+`DELETED_FROM` metadata key says it was deleted from, which `be::set_parent`
+records when it detaches a block and clears when it gives it a parent again,
+or in My files when that place is gone, deleted or not editable. It changes the graph with
 `CreateBlock { block_id, content_type, parent, name, artifact, content }`,
 `SetParent` and `SetName`, which the host takes only when the account may edit
 the block and the parent it names, and hands to `be::create`, `be::set_parent`
@@ -825,7 +912,20 @@ else its head, so it works for content types the app does not know.
 it: every block gets a new id, old ids in the content bytes and references are
 swapped for the new ones, a database whose row id prefix is taken here loses
 it, and each block is created and given its bytes as its first commit. The
-reply, `BlocksImported`, names the outermost block.
+reply, `BlocksImported`, names the outermost block. The tree is in the mirror
+at once and uploads in the background, as a task beside the worker's loop
+(`worker/uploads.rs`), so commands for other blocks are not held up.
+`Peer::import_blocks` mints every block's keys and writes its commit locally,
+needing the server only for the scope of the folder it goes into, then sends
+the objects as `PutObjects` and the creates and publishes as `Batch`es, one
+after another without waiting, since the server answers a connection's
+requests in order: a tree costs a few round trips, not a few per block. A
+command that needs a block still uploading waits for it, and one that rekeys
+everything below a block (moving, sharing or leaving it) waits until all of
+that has uploaded. Opening an imported block
+shows the bytes from the file (`Kind::preview`) until its session joins, so it
+needs no round trip to show. The picker imports straight into the folder it
+places in, since moving a tree into another workspace rekeys every block in it.
 
 ### Children, duplication and undo
 
@@ -842,8 +942,9 @@ source's type, references and metadata (without its artifact source), and the
 worker copies what the source's session shows, or its head when it is not open,
 into the copy's id before anything opens the copy.
 
-The app can read a block itself, not only through an editor: the theme in
-`sync_ui_settings` comes from the UI settings, and
+The app can read a block itself, not only through an editor: the theme and the
+scale in `sync_ui_settings` come from the UI settings (the scale is beui's zoom
+factor, multiplied into the screen's own pixels per point), and
 `sync_local_settings` hands the input settings (keymap, key repeat, and
 pointer settings for every pointer with per-device overrides) to the `--session`
 seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
@@ -875,7 +976,7 @@ the block with them on top until a revision holds them.
 `be::hold` opens a
 block for the app and keeps it open when the last editor showing it closes,
 because `be::close` leaves a held block alone. Nothing releases a held block
-before the stack stops, which is when the workspace changes.
+before the stack stops, which is when the organization changes.
 
 Undo lives in the app's peer, not in an editor, because it is the one place that
 sees every edit to a block from this device, whichever editor made it. A content
@@ -887,17 +988,65 @@ Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
 whether either is possible with `EditorMessage::WatchHistory`, which the host
 answers with `HistoryStates` whenever they change.
 
+### Organizations and workspaces
+
+The account switcher picks an account, the Organizations screen one of its
+organizations (it opens the only one by itself), and everything below happens
+inside that one organization. A workspace is a block of its own content type,
+`be_block::Workspace` (shaped like a folder: an ordered list of children),
+whose parent is `BlockParent::Root`; its name is its `NAME` and its members are
+the grants on it. Only workspaces and an account's own `Settings` belong at
+the root. Opening an organization makes sure the account has a "My files"
+workspace it authored, marked with the `MY_FILES` metadata key
+(`RootSettings::ensure_my_files`, beside the settings it ensures).
+
+The files pane (crates/editors/file-tree) shows a section per workspace the
+account can see (My files first, then by name; another account's My files is
+never listed), then Shared with me (`BlockQuery::Shared`, plus any root block
+that is not a system block), then Recently Deleted, then
+System: the account's own internal root blocks, the content types in
+`SYSTEM_TYPES` (today `Settings` and settings profiles), which open in their
+editors and expand to what they hold; another account's are never listed. It is
+there for debugging: settings are reached from the workspace's Settings tab,
+beside Files, which shows the account's `Settings` block in the settings editor,
+a list whose rows open each kind or profile in a tab of the editors pane. A
+section's header has its own menu (add, rename, share, delete, and leave on a
+workspace someone else made) and, where the account may edit the workspace, a
+"+" that adds a block into it, as a row's "+" adds into that row; the toolbar
+has no add of its own, only New workspace, which makes one at the root and
+opens the rename dialog. Every picker places a new block in a workspace, My
+files when nothing else is named.
+A block moves between workspaces with the host's `move_block`, by dragging it
+or from its Move to menu. A phone shows the same tree with taller rows, under a
+title with New workspace and the account button in place of the toolbar.
+Pressing a folder, a workspace or one of the other sections zooms into it rather
+than opening it: the tree then holds only what it holds, under a bar with the
+path, a back button (or, on a phone, a swipe back) and a New that adds into it
+where the account may. Every row's menu has Zoom in too, so a block that holds
+others without being a folder, a text block with a subtree, can be zoomed
+into as well. The folder editor (crates/editors/workspace-index) still edits
+folders and workspaces wherever they are embedded, and opens from Open with.
+
 ### Settings, settings profiles and sessions
 
-Each account keeps what is its own in a workspace under one top-level
-`Settings` block it authored. Every reader finds it by its author: a workspace
+Each account keeps what is its own in an organization under one top-level
+`Settings` block it authored. Every reader finds it by its author: an organization
 administrator can see every block, including other accounts' `Settings`, and
 nothing may pick those up. `root_settings::own_settings_blocks` (plugins) and
 `RootSettings::owned` (block-app) list the account's own, and when two devices
 each made one before seeing the other's, both are read as one
 (`Settings::merged`, the lowest id winning a clash) and written through the
 lowest. The settings editor shows someone else's `Settings` or settings profile
-with a notice, and makes and changes nothing in it.
+with a notice, and makes and changes nothing in it. The editors of the kinds lay out
+their pages with beui's `SettingsPage`, `SettingsSection` and `SettingsRow`: a
+card of rows per section, each a label and description beside its control,
+stacked once the row is narrow, and a section runs edge to edge once it is. A
+`modified` row has an accent bar at its edge and, given `on_reset`, a small
+Reset link after its label. A `SettingsLink` is a row that opens a page of its own (a block,
+in a tab): its label and description, a chevron where a control would be, and the
+hover a button has, inset and rounded so it stays inside the card. It takes `modified`
+and `on_reset` as a row does, and with `reset_confirm` its Reset asks in a dialog
+first, for a reset that deletes the block it opens.
 
 Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
 `EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:
@@ -907,7 +1056,7 @@ Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
 - A settings profile is a `SettingsProfile` block, a child of the `Settings`
   block listed in its `profiles`, with `kinds` of its own. Each device
   (`device_profiles`, keyed by the client id) uses one, and block-app makes one
-  named after the device the first time a device opens the workspace.
+  named after the device the first time a device opens the organization.
 
 `Settings::layers(kind, profile)` lists a kind's blocks from the bottom, and
 `be_block::layered` folds their contents with the kind's `Layered::over`: what
@@ -916,8 +1065,8 @@ the settings for every device, then to the built-in default. Every field of a
 layered kind is an `Option` for this. `Editor::inherited_settings` gives a
 kind's editor what the layers below its block resolve to, which the UI, input
 and display settings editors show for what is unset, and
-`Editor::effective_settings` what every layer resolves to, which is how the
-workspace reads `EditorSettings`: the default editor of each block type, keyed
+`Editor::effective_settings` what every layer resolves to, which is how
+workspace-ui reads `EditorSettings`: the default editor of each block type, keyed
 by the editor ids the host's catalog lists (see guides/adding_a_plugin_editor.md).
 The hotbar is not merged:
 the logic editors use the topmost layer that has one, and make one for every
@@ -931,20 +1080,20 @@ lists every session, and `Settings::session(shell, client)` is the one this
 client uses for that shell, so the desktop and the app each keep their own while
 sharing the device's settings profile. The host opens the shell on that session,
 creating one named after the device when the client has none, and reopens the
-shell when it changes. block-app's sessions screen (the workspace list's
+shell when it changes. block-app's sessions screen (the organization list's
 dropdown, or Sessions and profiles in the app menu) picks the device's settings
 profile and its session, or starts a new one of either. A shell keeps its dock
 layout and recents in the session's state; every tab, and the file tree, is an
 `EditorView` child of the session that the layout references, and closing a tab
 detaches its view. A block whose type is one of `profile::VIEW_EDITORS` is its
-own view, so a workspace session opened on the desktop keeps its tabs in its own
+own view, so a workspace-ui session opened on the desktop keeps its tabs in its own
 session and closing it leaves that session alone.
 
 ### View state
 
 What a person has open is blocks too, one generic type for all of it:
 `EditorView { editor, content, state }` names the editor that draws it, the
-block it shows (none for the file tree or the workspace itself), and a
+block it shows (none for the file tree or workspace-ui itself), and a
 `LatestMap` of opaque `ViewState { bytes, refs }` the editor owns. `refs` are the
 blocks an entry points at; `references()` is `content` plus every entry's refs,
 and a deleted or replaced child is blanked or repointed in place, so the bytes
@@ -960,7 +1109,7 @@ An editor learns its view block from `Open { view_block }`, which a parent sets
 with `ChildTarget::viewed_by(view)`. `editor.view_state(key)` and
 `editor.set_view_state(key, state)` read and write it; writes skip the block's
 editability, since view state is the viewer's own. An editor on no content (the
-file tree, the workspace) is opened on its own view block, and the host links
+file tree, workspace-ui) is opened on its own view block, and the host links
 that block's content as an `EditorView`. `be_block::profile::VIEW_EDITORS` lists
 the editor ids that are not content types.
 
@@ -968,7 +1117,7 @@ the editor ids that are not content types.
 
 The peer writes out what its sessions hold before it goes away: `flush()` seals
 and waits, `stop()` does the same and then joins the worker, and the close
-handler and every workspace change go through one of them, because a session
+handler and every organization change go through one of them, because a session
 that is merely dropped loses everything since the last autosave
 (`status().unsealed` is what says whether anything is outstanding). The host
 refuses an `Operate`, a `ReplaceContent` and a graph command for a block the
@@ -976,7 +1125,7 @@ account may only read: the plugin holds its own edits behind `editable()`, but
 the host does not trust it to, so `Instances::editable` asks the mirror's
 access. And nothing in the worker runs on a timer. It waits on its command
 channel and on the connection's broadcast, with one deadline for the autosave a
-dirty session is owed, so a workspace nobody is editing costs nothing;
+dirty session is owed, so an organization nobody is editing costs nothing;
 `status().wakes` counts the times it woke, and a test asserts that an idle peer
 never does.
 
@@ -994,58 +1143,261 @@ does not use yet.
 The app talks to be-server directly. `crates/block-app/src/accounts.rs` is the
 account client: it connects to `{server}/api/be` (be-server accepts the
 websocket on any path, so the suffix only matters behind a proxy that routes on
-it), registers, logs in and out, lists and creates workspaces, and invites and
+it), registers, logs in and out, lists and creates organizations, and invites and
 joins with invite links. What comes back is an account id and a token, and the
-app's peer connects with `Credentials::Token` for the workspace it opens.
+app's peer connects with `Credentials::Token` for the organization it opens.
 
 ### Keys
 
-Each workspace has a random content key (`Config::content_key`) that seals its
-content, commits, block metadata and session traffic. The server never holds it
-in the clear. `crates/be-keys` holds the cryptography.
+Every block is sealed with keys of its own, wrapped by the keys of the scope it
+lies in, and the server holds only wrapped keys. `crates/be-keys` holds the
+account-level cryptography, `be_store::Keyring` the content keys, and
+`be_client::KeyBook` (each `Peer` has one) the rows and their unwrapping.
 
-- **On the device.** The app keeps each workspace's key in its app state, per
-  account (`AppStateStore::workspace_key`). A workspace with no key there opens
-  on the unlock screen (`crates/block-app/src/keys.rs`, `ui/keys.rs`) instead of
-  starting the peer.
-- **Recovery.** Each account has a twelve-word recovery phrase, shown once and
-  checked by typing three of its words. The phrase derives an X25519 key pair,
-  and the server stores only the public half (`SetRecoveryKey`). Each member's
-  copy of a workspace key is sealed to that public key (`PutWorkspaceKey`,
-  which only seals for the caller's own account, and `GetKeys`), so a new
-  device opens a workspace with the phrase alone. A new
-  phrase (the workspace menu's New recovery phrase) has to reseal every key the
-  old one sealed, which the server checks, so it can only be made on a device
-  that holds all of them.
-- **Trusting a recovery key.** The server can lie about any account's recovery
-  key, so a device seals only to the public key it learned without the server:
-  from the phrase, when it made one or opened a workspace with one, or from the
-  device that paired it (sealed in the pairing reply). The app keeps it per
-  account (`AppStateStore::recovery_key`). When the worker connects, it seals
-  every key the device holds that has no sealed copy yet, which covers a
-  workspace made on this device, and only while the server's recovery key is
-  the trusted one. The server only ever inserts a sealed key, never replaces
-  one.
-- **Inviting.** Joining a workspace takes an invite link, the only way in. The
-  inviting device makes a random invite code (`be_keys::InviteCode`, 200 bits),
-  seals the workspace key under it (keyed by the workspace id too), and names
-  the invitation by an id derived from the code (`InviteCode::lookup`), so the
-  link only needs the code: `{server}/#invite/{CODE}` (`invite_link.rs`). The
-  dialog shows the link once, for the person to pass on outside the app. The
-  invitee pastes it on the Workspaces screen, or opens it in the web app, which
-  takes it from the address bar on load and replaces it with `#`. The app reads
-  the invitation, asks to join, and then (`accounts::accept_invitation`) opens
-  the key with the code, accepts, and seals the key to its own trusted recovery
-  key. The server holds only the sealed copy and never sees the part of the
-  link after `#`. No device ever seals a key to another account's recovery
-  key, since the server could have chosen that key.
+- **Sealed bytes name their key.** Everything sealed for content - chunks,
+  commits, manifests, block metadata, session traffic, wrapped keys - is
+  `b"be3K"`, the 16-byte key id, a 12-byte nonce derived from the key and the
+  plaintext (so identical content under one key still deduplicates), then the
+  ChaCha20Poly1305 ciphertext. `Keyring::open` looks the id up; an unknown id is
+  `StoreError::MissingKey`, a missing tag `Corrupt`. Every `Vault` write names
+  the key it seals with.
+- **Data keys (DEKs).** Each block has its own: random, with a random id, made
+  when the block is created (`CreateBlock` carries it, and the server keeps the
+  block's current one in `blocks.key_id`, `BlockSummary::key`). A block keeps
+  every DEK it ever had (epochs), so its history stays readable.
+- **Scope keys (KEKs).** A scope root is a block at the root (a workspace,
+  settings), a detached block, or a block with grants of its own;
+  `BlockSummary::scope` is a block's nearest one (`BlockGraph::scope`). A DEK is
+  wrapped under its scope's current KEK, a scope root's KEK under its parent
+  scope's KEK, and a KEK is sealed to each account that may open it with that
+  account's identity key (its recovery public key). A new root block's KEK is
+  sealed to its author.
+- **Who sealed a key.** A key sealed to an account names its sender and is
+  sealed by it (`RecoverySecret::seal_for`/`open_from`: an ephemeral X25519
+  key and the sender's identity key both agree with the recipient's, and HKDF
+  binds both public keys, both account ids and the key's id). A device takes
+  such a key only from itself or a contact it verified (`KeyBook::contact`);
+  any other row, including one sealed to its public key by someone who only
+  knows it (the server), is ignored and nothing is said about it. A key the
+  device made, one sealed to it that way, or one wrapped under such a key is
+  *trusted* (`KeyBook::trusted`); a key opened only through the escrow key
+  (below) is not. A device reads with any key it holds but seals content,
+  wraps or seals a key, or hands a key over (`seal_to`, `wrap`, `escrow_wrap`,
+  `Peer::sealing_key`, `Peer::offer`) only with trusted ones, so a key the
+  server made up never protects anything new. A rotation by such a device
+  leaves the data keys it does not trust where they are, still readable under
+  the old scope key by whoever holds it.
+- **On the server.** `keys` (id, block, kind `data`, `scope` or `escrow`,
+  epoch) and `wrapped_keys` (key, `wrapped_by`: a key id or `account:{uuid}`,
+  the sender, which the server sets to the account storing the row, sealed). `GetKeys` serves the key rows of the blocks the account can view
+  (all of them, or the named blocks and their ancestors) and the wrapped rows
+  wrapped by its own account or by a key it is served; nothing for a block it no
+  longer sees, and nothing sealed to another account. `PutKeys`, `CreateBlock`
+  and `SetParent` store rows (`keys::store_keys`): only for blocks the caller
+  may edit (for a move, the moved subtree), never replacing a sealed row, and a
+  key wrapped under a new scope key loses its wraps under the old ones (escrow
+  aside). Collecting a block drops its keys.
+- **On the client.** `Peer::signed_in` loads every row it is served and unwraps
+  what it can (`KeyBook::absorb`: its own account's rows with the identity
+  secret, then key under key). A read that meets an unknown key fetches the rows
+  again once, and otherwise fails with `ClientError::Locked`; `Peer::learn`
+  fetches the rows of blocks that appear later (the worker calls it for every
+  summary it is told about). A write seals with `Peer::sealing_key`, the
+  block's current DEK.
+- **Moving** (`Peer::set_parent`) into another scope wraps the moved blocks'
+  DEKs, old epochs too, under the destination's KEK, gives each a fresh DEK,
+  and wraps any scope root inside it under that KEK, all in the `SetParent`
+  request. A move within a scope, or to Recently Deleted, changes no keys.
+  `Peer::share` grants and makes the block a scope root of its own (a KEK, its
+  subtree rewrapped under it) sealed to the grantee's identity key, which is
+  only ever a contact's verified key (below). The server refuses to store a
+  key sealed to any account but the caller's own and its contacts'.
+- **Rotation.** When an account stops being able to view a block (a grant
+  revoked or left, a contact removed, a member removed), the server records
+  the block in `rotations`, drops that account's wraps of the block's keys and
+  ends its sessions on what it can no longer see (a client must be in a
+  session to speak in it). `GetKeyWork` tells a client what it can do about
+  keys: the rotations on blocks it may edit, scope keys (and the escrow key)
+  not yet sealed to someone who should have them (`unsealed`), and scope keys
+  not yet wrapped under the escrow key (`unescrowed`). `Peer::tend` does all of
+  it; the app's worker calls it on connect, on `ContactsChanged`, on
+  `KeyWorkChanged` (sent to a block's audience when a revocation records a
+  rotation) and after its own changes. `Peer::rotate` walks the block's
+  subtree and sends one `Rotate`: a new epoch of every scope key in it, each
+  wrapped under its parent scope's new (or, above the block, current) key and
+  sealed to whoever may still open it (grantees, and the author of a root
+  block, by their verified keys), every data key of every block (old epochs
+  too) rewrapped under its scope's new key, and a new data key per block. The
+  server takes it only whole: every block below the root a new data key, every
+  scope root a new scope key, in one transaction, and drops the account wraps
+  of the old scope keys for anyone who can no longer view them. Content is
+  never sealed again, except that the worker has the owner of a live session
+  on a block whose key changed seal it once more (`Session::rekey`), so the
+  head is under the new key. A rotation nobody could do yet (the one who
+  left cannot edit, or lacks a contact's key) waits in `rotations` until a
+  client that may edit the block tends; grantees it could not seal to are
+  listed as `unsealed` for any device that holds the key and the contact.
+- **Escrow** (company organizations). The escrow key is a 32-byte secret
+  (`be_keys::EscrowSecret`) that is both an X25519 key and, through HKDF, an
+  Ed25519 signing key. It is a key row of kind `escrow` (its block is the
+  organization id; `keys.public`, `signing` and `signature` hold
+  `EscrowKey`), sealed to each administrator by another. The first
+  administrator device to open the organization makes it (`CreateEscrow`),
+  and `mint_scope` seals every new scope key to its public half too, so
+  administrators open every scope key and with them everything. Only
+  administrators are served the escrow rows. Promoting someone leaves the
+  escrow key unsealed to them until an administrator who has them as a
+  contact tends; demoting or removing an administrator records an escrow
+  rotation, which an administrator holding the current escrow secret does
+  with a new `CreateEscrow`: the next epoch, signed by the current one over
+  `EscrowKey::chained` (organization, previous id, new id, epoch, both public
+  halves), sealed to the remaining administrators, with every scope key it
+  holds wrapped under it and the old escrow wraps of those keys dropped.
+- **Pinning the escrow key.** `OrganizationOpened` and `KeyWork` carry the
+  whole chain, which the server could make up, so a member wraps only under an
+  escrow key it pinned from somewhere the server cannot forge: its own (the
+  creator), the invitation (the inviter's verified key, sealed with the invite
+  code, `InviteCode::seal_escrow`), an agent's maker, or a secret it holds
+  because an administrator contact sealed it to it. From the pinned key it
+  follows the chain one signature at a time (`keys::verify_escrow`) and pins
+  the newest it verified (`PinEscrow`: sealed for itself, so every device of
+  the account has it; `OwnKind::Escrow` rows are resealed with a new phrase
+  like contacts). A newer key it cannot verify is not used: it keeps wrapping
+  under the last verified one, and the app menu shows the warning
+  (`KeyBook::escrow_warning`); with nothing pinned it escrows nothing.
+- **Identity.** Each account has a twelve-word recovery phrase, shown once and
+  checked by typing three of its words. The phrase derives an X25519 key pair;
+  the server stores only the public half (`SetRecoveryKey`, `GetRecoveryKey`),
+  and a `Peer` sets it from its secret when the account has none. A device keeps
+  the secret itself (`AppStateStore::identity`), and an account whose device
+  lacks it, or holds one the server's public key does not match, opens on the
+  unlock screen (`crates/block-app/src/keys.rs`, `ui/keys.rs`): the phrase, or
+  a pairing code. A new phrase (the organization menu's New recovery phrase)
+  must reseal every row sealed to the account by itself or a verified contact
+  (others are dropped), and everything the account sealed for itself (contact
+  rows, link codes and pinned escrow keys, `OwnSealed`), which the server
+  checks, so only a device holding the old secret can make one; the account's
+  other devices then ask to be unlocked again. Contacts keep working across
+  it: the new phrase sends each verified contact a key change
+  (`be_client::contacts::new_identity`, `RecoverySecret::seal_key_change`: the
+  account id and new public key, sealed from the old secret to the contact),
+  which the server keeps in `key_changes` and hands out with `ListContacts`.
+  A contact's device follows the changes one at a time from the key it holds
+  (`contacts::contacts`), so a change not sealed by that key is ignored; when
+  it reaches a newer key it seals the keys that account had sealed to it again
+  for itself (`ResealKeys`, since they were sealed by the old key) and then
+  replaces its contact row (`PutContact`).
+- **Inviting.** Joining an organization takes an invite link, the only way in,
+  and hands over no key: keys come with what is shared. The inviting device
+  makes a random invite code (`be_keys::InviteCode`, 200 bits) and names the
+  invitation by an id derived from it (`InviteCode::lookup`), so the link only
+  needs the code: `{server}/#invite/{CODE}` (`invite_link.rs`). The invitation
+  carries the inviter's contact card and the organization's escrow key as the
+  inviter verified it, both sealed with the code, and accepting it sends the
+  invitee's card back, exactly like a contact link (below), and pins the
+  escrow key. The dialog shows
+  the link once. The invitee pastes it on the Organizations screen, or opens it
+  in the web app, which takes it from the address bar on load and replaces it
+  with `#`. The server never sees the part of the link after `#`.
 - **Adding a device.** The new device shows an eight-character code. The user
-  types it on a device that holds the key and has any workspace of the account
-  open (the worker gets every key the device holds), and the two run SPAKE2
-  keyed by the code over the server's relay (`Pair`, delivered as `Paired` to
-  the account's other connections). The open device seals the key under the
-  agreed secret, so the server would have to guess the code to read or replace
-  it. It gets one guess, because a wrong code ends the request.
+  types it on a device of the same account that has any organization open, and
+  the two run SPAKE2 keyed by the code and the account id over the server's
+  relay (`Pair`, delivered as `Paired` to the account's other connections). The
+  open device seals the identity secret under the agreed key, so the server
+  would have to guess the code to read or replace it. It gets one guess,
+  because a wrong code ends the request.
+
+### Contacts
+
+Nobody reaches a stranger from inside the app: every sharing relationship
+starts with a link one person passes to another outside it. A contact is what
+that exchange leaves behind, and a device seals a key only to a contact's
+public key it verified this way, never to one the server hands it.
+
+- **A contact card** (`be_keys::ContactCard`) is an account id, its identity
+  public key, a display name and an email. A contact link is an `InviteCode`
+  like an invite's, `{server}/#contact/{CODE}`; the card is sealed with the
+  code (`ContactCard::seal`, keyed by the code and by the side, owner or
+  accepter, so one cannot stand in for the other), and the server, which never
+  sees the code, can neither read nor replace it. What an account keeps for
+  itself (its contacts' cards, its links' codes) is sealed with a key derived
+  from its identity secret (`RecoverySecret::seal_own`): sealing to the public
+  key would let anyone, the server included, make a row the owner would trust.
+- **The exchange** (`be_client::contacts`). The maker posts
+  `CreateContactLink` under `InviteCode::lookup`: its card sealed with the code,
+  and the code sealed for itself, so any of its devices can finish. The other
+  person reads it (`GetContactLink`), opens the card, which only the code
+  opens, and on "Connect with NAME (EMAIL)?" accepts (`AcceptContactLink`),
+  posting its own card sealed with the code and its row for the maker. The
+  server records both `contacts` rows (the maker's empty), marks the link used
+  and sends `ContactsChanged` to both accounts. The maker's device then lists
+  its links (`ListContactLinks`), opens the accepter's card with the code,
+  writes its row (`PutContact`) and deletes the link (`finish_links`; the app's
+  worker does it on connect and on `ContactsChanged`). Organization invites
+  finish the same way: accepting one leaves a used link behind for the inviter.
+- **A pending grant.** A link may carry a block, an access level and that
+  block's own scope key sealed with the code and bound to the key's id
+  (`Peer::offer` makes the block a scope root first). Accepting it has the
+  accepter seal the key for itself, and the server
+  applies the grant and stores that wrap at once, so the share works while the
+  maker is offline; when it finishes, it seals the scope again
+  (`Peer::seal_share`), which also covers blocks made inside it meanwhile. The
+  grant is applied only if the accepter is a member of that organization. A link whose grant is in another
+  organization than the one the maker's device has open stays until a device
+  of the maker opens that one. A grant to a contact whose key the granter has
+  not verified yet works on the server at once, and the key is sealed to them
+  (`unsealed`, above) when the granter's device verifies it; the share dialog
+  says so meanwhile.
+- **On the server** `contact_links` (lookup id, owner, card, code, the pending
+  grant, the accepter and its card) and `contacts` (account, contact, the
+  contact's card sealed for the account). Contacts are per account, across
+  organizations; a grant needs both to be members of the block's organization
+  too. `RemoveContact` deletes both rows and, in every organization they share,
+  revokes each one's grants on blocks the other may edit, which records their
+  rotations.
+- **In the app** the Contacts dialog (app menu) lists contacts, removes them,
+  makes a link shown once with a copy button, and opens a pasted one; the web
+  app takes `#contact/` from the address bar like `#invite/`. The worker keeps
+  `Shared::contacts` (each with its verified key, or none until the exchange
+  finishes) and seals a share only to those keys. The share dialog lists
+  contacts and current grantees, lists them again when the `Contacts` host
+  value changes and after each grant it makes, and its "Invite someone new"
+  makes a link carrying a pending grant of the block (`HostRequest::ContactLink`). Invite
+  member and Agents show only in a company organization, and Members (list,
+  change a role, remove, invite) only to its administrators.
+
+### What the server can and cannot do
+
+The server stores and relays everything, so it can withhold, delay, replay
+or delete rows, refuse requests, and see who shares with whom, block shapes,
+sizes and timing. It cannot read content or metadata, and it cannot choose a
+key a device will seal with:
+
+- every key sealed to an account is authenticated by its sender, and a device
+  takes it only from itself or a contact it verified through a link;
+- a contact's key is replaced only by a key change sealed with the key the
+  device verified;
+- contact cards, link codes, pending grants and the escrow key in an
+  invitation are sealed with codes the server never sees;
+- a key wrapped under another key is AEAD under that key, and a device wraps
+  only under keys it trusts;
+- an escrow key is used only when pinned or signed down a chain from a pinned
+  one.
+
+What it still decides, and a device trusts it for:
+
+- which of the keys a device holds is a block's current data key and which
+  epoch is newest: a server working with someone who lost access, or with an
+  administrator who was demoted (who knows the old escrow signing key), can
+  keep a device writing under a key that person knows;
+- grants, membership and roles: a device seals a scope key to any verified
+  contact the server lists as granted on it (`unsealed`, rotations), and the
+  escrow secret to any verified contact it lists as an administrator;
+- which public key belongs to a non-contact (never used for sealing), and
+  the rows of keys opened only through escrow, which administrators read but
+  never write under;
+- which blocks an account knows exist: it sends the id and type of a block
+  an account may view references, and could send those of any other.
 
 ### Presence
 
@@ -1106,8 +1458,11 @@ pixel art export regenerate this way.
 - A repository never lets go of history: deleting a branch frees nothing until
   the repository block itself is collected. Freeing it wants the server to
   count holds per object, with a commit holding its parents and its tree.
-- An upstream is another repository in the same workspace. Across workspaces
-  the content keys differ, so a pull would have to reseal every object.
+- An upstream is another repository in the same organization. Across organizations
+  the keys differ, so a pull would have to reseal every object.
+- A snapshot tree reuses the manifests of the blocks it holds, sealed with their
+  own data keys, so reading a repository needs the keys of every block it took
+  a snapshot of.
 - Moving a block into or out of a checkout keeps the ids its content stores, so
   what they name changes with the scope it lands in.
 - Undo in the text editor lives in the editor, so it is gone when the editor
@@ -1134,14 +1489,14 @@ pixel art export regenerate this way.
   that wants.
 - Reconnecting rejoins from the server's head, so operations a session had not
   sealed when the socket dropped are gone.
-- A workspace has one key for its whole life. Removing a member does not
-  rotate it, and sealed objects carry no key id to rotate by. Sharing a block
-  across workspaces does not share a key of its own.
+- A move into another scope lists the moved subtree one level at a time
+  (`ListChildren`), and the old data keys of a block this device cannot open
+  are not rewrapped, so that block's history stays closed to its new scope.
 - Sessions relay through the server. Direct peer connections are a latency
   optimisation on the same protocol and can come later.
 - The server learns the shape of the graph, object sizes and timings. It never
   learns content. If graph privacy matters later, block ids can be blinded per
-  workspace, but the server still needs some graph to do access inheritance.
+  organization, but the server still needs some graph to do access inheritance.
 - Retention is driven by the client calling `Peer::prune`. Nothing schedules it.
 - An empty session is remembered while it carries a `clean_at`, which is bounded
   by the number of blocks that have been edited live. If that grows, evict by

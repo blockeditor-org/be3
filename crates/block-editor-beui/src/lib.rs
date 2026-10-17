@@ -21,7 +21,7 @@ pub mod version_control;
 use be_block::presence::PresenceColor;
 
 pub use beui_frame::phone_layout;
-pub use block_link::{BlockDisplay, BlockLink, watch_block_label};
+pub use block_link::{BlockDisplay, BlockLink, label_glyph, watch_block_label};
 pub use child::{ChildBlock, ChildHandle as ChildBlockHandle, Subregion};
 pub use chrome::{
     NARROW_WIDTH, SIDEBAR_WIDTH, Side, Sidebar, Toolbar, narrow_chrome, sheet_control, sheet_open,

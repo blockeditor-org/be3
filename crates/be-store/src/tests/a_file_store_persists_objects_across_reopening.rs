@@ -6,12 +6,15 @@ fn a_file_store_persists_objects_across_reopening() {
     let data = pseudorandom(40_000, 41);
     let manifest = {
         let vault =
-            Vault::new(FileStore::open(&root).unwrap(), key(8)).with_chunker(ChunkerConfig::SMALL);
-        vault.write(CONTENT, &data).unwrap()
+            Vault::new(FileStore::open(&root).unwrap(), keys(8)).with_chunker(ChunkerConfig::SMALL);
+        let manifest = vault.write(id(8), CONTENT, &data).unwrap();
+        vault.store().sync().unwrap();
+        vault.store().sync().unwrap();
+        manifest
     };
 
     let reopened =
-        Vault::new(FileStore::open(&root).unwrap(), key(8)).with_chunker(ChunkerConfig::SMALL);
+        Vault::new(FileStore::open(&root).unwrap(), keys(8)).with_chunker(ChunkerConfig::SMALL);
     assert_eq!(reopened.read(&manifest).unwrap(), data);
     assert!(reopened.missing_chunks(&manifest).unwrap().is_empty());
 

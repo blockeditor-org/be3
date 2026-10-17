@@ -9,7 +9,19 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
         .unwrap();
     assert!(made.starts_with("made Issues"), "{made}");
 
-    let root = run(&tracker, "ls").await.unwrap();
+    let top = run(&tracker, "ls").await.unwrap();
+    assert!(
+        top.lines()
+            .any(|line| line.contains("workspace") && line.contains("Tracker")),
+        "{top}"
+    );
+    assert!(!top.contains("settings"), "{top}");
+    let workspaces = run(&tracker, "workspaces").await.unwrap();
+    assert!(
+        workspaces.contains("may write") && workspaces.ends_with("Tracker"),
+        "{workspaces}"
+    );
+    let root = run(&tracker, "Tracker ls").await.unwrap();
     let line = root.lines().find(|line| line.contains("Issues")).unwrap();
     assert!(line.contains("database view"), "{line}");
     let view = line.split_whitespace().next().unwrap().to_owned();

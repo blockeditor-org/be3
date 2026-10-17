@@ -1450,7 +1450,7 @@ impl crate::root_settings::SettingsGraph for Editor {
         list.is_loaded().then(|| {
             list.read()
                 .into_iter()
-                .map(|info| (info.id, info.block_type, info.author))
+                .filter_map(|info| Some((info.id, info.block_type, info.author?)))
                 .collect()
         })
     }

@@ -40,14 +40,15 @@ pub use beui_core::icons;
 pub use beui_core::image::{Image, ImageFit, ImageId, Thumbhash};
 pub use beui_core::input::{
     AutoscrollGesture, BackEdge, BackGesture, CursorIcon, DroppedFile, Event, ImeArea, ImeEvent,
-    ImeText, InputState, Key, KeyChord, KeyPress, Keyboard, Modifiers, PointerButton, PointerEvent,
-    PointerId, PointerPhase, PointerPress, RawInput, ScrollGesture, SecondaryDrag, TouchId,
-    TouchPhase, ZoomGesture,
+    ImeText, InputState, Key, KeyChord, KeyPress, Keyboard, Modifiers, Pen, PenPhase,
+    PointerButton, PointerEvent, PointerId, PointerPhase, PointerPress, RawInput, ScrollGesture,
+    SecondaryDrag, TouchId, TouchPhase, ZoomGesture,
 };
 pub use beui_core::interact::forward::{Forwarded, ForwardedInput};
 pub use beui_core::keys::{KeyAt, KeyEvent, KeyInput, KeyPhase, KeyTarget};
 pub use beui_core::layer::{Dismiss, LayerLevel, LayerPolicy};
 pub use beui_core::node::{ClickHandler, Handler, NodeId, NodeOf};
+pub use beui_core::overflow;
 pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};
 pub use beui_core::painting;
@@ -105,6 +106,7 @@ pub mod reactive {
     pub fn build(f: impl FnOnce() -> NodeId) -> Document {
         let mut document = beui_view::reactive::build(f);
         beui_inspector::install(&mut document);
+        beui_components_styled::install_keyboard(&mut document);
         document
     }
 }

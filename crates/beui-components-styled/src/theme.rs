@@ -230,6 +230,27 @@ impl DocumentTheme for Document {
     }
 }
 
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum Density {
+    #[default]
+    Compact,
+    Comfortable,
+}
+
+#[derive(Clone, Copy)]
+struct DensityContext(Memo<Density>);
+
+pub fn provide_density(density: Memo<Density>) {
+    provide_context(DensityContext(density));
+}
+
+pub fn use_density() -> Memo<Density> {
+    match use_context::<DensityContext>() {
+        Some(DensityContext(density)) => density,
+        None => create_memo(|| Density::Compact),
+    }
+}
+
 pub const NARROW_WIDTH: f32 = 700.0;
 
 pub const BORDER_WIDTH: f32 = 1.0;
@@ -238,5 +259,4 @@ pub const SEPARATOR_THICKNESS: f32 = 1.0;
 pub const SCROLLBAR_TRACK_WIDTH: f32 = 6.0;
 pub const SCROLLBAR_INSET: f32 = 2.0;
 pub const SCROLLBAR_WIDTH: f32 = SCROLLBAR_TRACK_WIDTH + SCROLLBAR_INSET;
-pub const SCROLLBAR_SPACING: f32 = 4.0;
 pub const SCROLL_FADE: f32 = 24.0;

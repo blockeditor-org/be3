@@ -1,3 +1,6 @@
+#[cfg(test)]
+pub(crate) mod test_bus;
+
 use std::future::{Future, pending};
 use std::sync::Once;
 

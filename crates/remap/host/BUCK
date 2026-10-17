@@ -1,0 +1,6 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+cargo_library()
+
+# REMAP_WASM is the module block-app runs.
+cargo_test(env = {"REMAP_WASM": "$(location //crates/remap/module:module)"})

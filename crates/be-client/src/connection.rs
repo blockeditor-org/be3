@@ -15,7 +15,7 @@ use crate::{
     transport::{Frame, Reader, Writer, connect, spawn},
 };
 
-const EVENT_CAPACITY: usize = 256;
+const EVENT_CAPACITY: usize = 4096;
 
 struct Outbound {
     request: u64,
@@ -63,6 +63,10 @@ impl Connection {
         &self,
         build: impl FnOnce(u64) -> ClientMessage,
     ) -> Result<ServerMessage, ClientError> {
+        self.send(build)?.await
+    }
+
+    pub fn send(&self, build: impl FnOnce(u64) -> ClientMessage) -> Result<Answer, ClientError> {
         let message = build(self.next.fetch_add(1, Ordering::Relaxed) + 1);
         let request = message.request();
         let bytes = encode(&message).map_err(|error| ClientError::Encoding(error.to_string()))?;
@@ -74,15 +78,22 @@ impl Connection {
                 reply,
             })
             .map_err(|_| ClientError::Disconnected("the connection worker stopped".into()))?;
-        let response = response
-            .await
-            .map_err(|_| ClientError::Disconnected("the connection closed".into()))?;
-        match response {
-            ServerMessage::Failed { code, message, .. } => Err(ClientError::Refused(code, message)),
-            response => Ok(response),
-        }
+        Ok(Box::pin(async move {
+            let response = response
+                .await
+                .map_err(|_| ClientError::Disconnected("the connection closed".into()))?;
+            match response {
+                ServerMessage::Failed { code, message, .. } => {
+                    Err(ClientError::Refused(code, message))
+                }
+                response => Ok(response),
+            }
+        }))
     }
 }
+
+pub type Answer =
+    std::pin::Pin<Box<dyn Future<Output = Result<ServerMessage, ClientError>> + Send>>;
 
 async fn greet(writer: &mut Writer, reader: &mut Reader) -> Result<(), ClientError> {
     let ours = build_id::current().map_err(ClientError::NoBuild)?;

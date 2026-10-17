@@ -84,13 +84,13 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
         "{response:?}"
     );
 
-    let list = encode(&ClientMessage::ListWorkspaces { request: 2 }).unwrap();
-    let again = encode(&ClientMessage::ListWorkspaces { request: 3 }).unwrap();
+    let list = encode(&ClientMessage::ListOrganizations { request: 2 }).unwrap();
+    let again = encode(&ClientMessage::ListOrganizations { request: 3 }).unwrap();
     let (_, _, frames) = post(&mut stream, Some(&session), &[&list, &again]).await;
     let requests: Vec<Option<u64>> = frames
         .iter()
         .map(|frame| be_protocol::decode::<ServerMessage>(frame).unwrap())
-        .filter(|response| matches!(response, ServerMessage::Workspaces { .. }))
+        .filter(|response| matches!(response, ServerMessage::Organizations { .. }))
         .map(|response| response.request())
         .collect();
     assert_eq!(

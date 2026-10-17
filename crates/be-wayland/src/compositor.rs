@@ -6,8 +6,8 @@ use std::time::{Duration, Instant};
 
 use beui::reactive::*;
 use beui::{
-    Context, CursorIcon, Document, Event, Forwarded, ForwardedInput, NodeId, PointerButton,
-    PointerId, PointerPhase, Pos2, Rect, Vec2, Waker,
+    Context, CursorIcon, Document, Event, Forwarded, ForwardedInput, ImeEvent, NodeId,
+    PointerButton, PointerId, PointerPhase, Pos2, Rect, Vec2, Waker,
 };
 use smithay::backend::renderer::utils::with_renderer_surface_state;
 use smithay::input::pointer::{CursorImageStatus, CursorImageSurfaceData};
@@ -214,6 +214,13 @@ impl Compositor {
                 windows.raise(id);
             }
         });
+    }
+
+    pub fn keyboard_window(&self) -> Option<WindowInfo> {
+        let id = self.server.state.keyboard_window()?;
+        self.windows
+            .list()
+            .with_untracked(|windows| windows.iter().find(|window| window.id == id).cloned())
     }
 
     pub fn windows(&self) -> Windows {
@@ -647,6 +654,14 @@ impl Compositor {
                     }
                     state.key(*code, press.pressed);
                 }
+                Forwarded::Input(Event::Text(text)) if state.keyboard_window() == Some(id) => {
+                    state.text_inputs.commit_text(text);
+                }
+                Forwarded::Input(Event::Ime(ImeEvent::CommitText(text)))
+                    if state.keyboard_window() == Some(id) =>
+                {
+                    state.text_inputs.commit_text(text);
+                }
                 Forwarded::Pointer { event, over } if event.pointer == PointerId::Mouse => {
                     match event.phase {
                         PointerPhase::Move => state.pointer_motion(at(*over, event.pos)),
@@ -671,10 +686,38 @@ impl Compositor {
                         _ => {}
                     }
                 }
-                Forwarded::Left
-                    if !hovered && !state.buttons_held() && state.pointer_window() == Some(id) =>
-                {
-                    state.pointer_motion(None);
+                Forwarded::Pointer { event, over } if event.pointer == PointerId::Pen => {
+                    let pen = event.pen.unwrap_or_default();
+                    let target = at(*over, event.pos);
+                    state.pen_motion(
+                        target,
+                        f64::from(event.force.unwrap_or(0.0)),
+                        (f64::from(pen.tilt.x), f64::from(pen.tilt.y)),
+                        pen.eraser,
+                    );
+                    match event.phase {
+                        PointerPhase::Down(button) | PointerPhase::Up(button) => {
+                            let pressed = matches!(event.phase, PointerPhase::Down(_));
+                            if pressed {
+                                state.ping(id, now);
+                                if let Some((target, _)) = target {
+                                    windows.pressed(target);
+                                }
+                            }
+                            match button {
+                                PointerButton::Primary => state.pen_tip(pressed),
+                                button => state.pen_button(button_code(button), pressed),
+                            }
+                        }
+                        PointerPhase::Cancel | PointerPhase::Gone => state.pen_gone(),
+                        _ => {}
+                    }
+                }
+                Forwarded::Left => {
+                    state.pen_left(id);
+                    if !hovered && !state.buttons_held() && state.pointer_window() == Some(id) {
+                        state.pointer_motion(None);
+                    }
                 }
                 _ => {}
             }
@@ -927,6 +970,13 @@ impl Compositor {
         self.focus(now);
         self.input(now);
         self.apply(now, document);
+        let typing = self
+            .server
+            .state
+            .keyboard_window()
+            .zip(self.server.state.text_inputs.asks());
+        let windows = self.windows;
+        with_reactive_scope(document, || windows.set_typing(typing));
         self.server.flush();
         self.ping_unowned(context);
         self.watch_pings(context);
@@ -1005,6 +1055,7 @@ fn button_code(button: PointerButton) -> u32 {
         PointerButton::Middle => BUTTON_MIDDLE,
         PointerButton::Back => BUTTON_SIDE,
         PointerButton::Forward => BUTTON_EXTRA,
+        PointerButton::Other(code) => u32::from(code),
     }
 }
 

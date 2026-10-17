@@ -13,10 +13,8 @@ pub fn RadioGroup(
     on_change: Callback<Option<usize>>,
 ) -> NodeId {
     view! {
-        <Choice options selected kind=Kind::Radio on_change={on_change}>
-            {|handle| view! {
-                <OptionFace kind=Kind::Radio handle />
-            }}
+        <Choice options selected kind=Kind::Radio on_change={on_change}>|handle|
+            <OptionFace kind=Kind::Radio handle />
         </Choice>
     }
 }

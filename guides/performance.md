@@ -17,6 +17,8 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
   keeps grow from empty every time. A long-lived document reuses the slots of the nodes
   it removed; don't chase the growth of those tables in a profile of the bench.
 - `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
+- `//crates/be-graph:example-access-bench` times the server's access queries (one block,
+  what one account sees, a block's audience) on an organization of 100,000 blocks.
 
 The target for opening a page is under 2 ms warm.
 
@@ -73,10 +75,17 @@ or dump stacks to fold them yourself:
   splits the report by plugin and `--comms 'plugin be3.data'` keeps one plugin's samples.
   Without a GPU, wgpu draws through llvmpipe on its own threads, which take most of a
   scroll's or resize's samples; leave them out when judging the app's own work.
-- To fill a workspace with data, add an agent from the dev app's menu (Agents) and point a
-  `be` built from the checkout at it with the `BE3_*` values the dialog shows
-  (guides/tracker.md): `be new-database`, `add-column` and `import` a generated CSV make
-  a tracker of any size.
+  The block store's worker is the thread `block-app-be`, and `:dev`'s embedded server runs on
+  `tokio-rt-worker` threads.
+- Time block-app's waits as well as its work: an import or a create that uses little CPU but
+  takes long is waiting on round trips to the server, one after another. Run `drive hurry off`
+  first (guides/running/drive.md): otherwise the app seals edits at once, and anything shown
+  only once an edit is sealed looks faster under `drive` than in a window.
+- To fill an organization with data, create a company organization on the dev app's
+  Organizations screen (the personal one has no agents), add an agent from its app menu
+  (Agents), share a workspace with it, and point a `be` built from the checkout at it with
+  the `BE3_*` values the dialog shows (guides/tracker.md): `be new-database`, `add-column`
+  and `import` a generated CSV make a tracker of any size.
 
 4. Ideas tried and set aside
 

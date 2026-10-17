@@ -15,10 +15,8 @@ fn a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls() {
                     <Frame @sizing=ItemSize::Percent(100.0) />
                     <ModalSheet open={open} fit=true on_close={|| ()}>
                         <List @node_ref=&rows spacing=0.0>
-                            <ForEach keys={indices(SHEET_ROWS)}>
-                                {|_: usize| view! {
-                                    <Frame height=SHEET_ROW_HEIGHT />
-                                }}
+                            <ForEach keys={indices(SHEET_ROWS)}>|_: usize|
+                                <Frame height=SHEET_ROW_HEIGHT />
                             </ForEach>
                         </List>
                     </ModalSheet>

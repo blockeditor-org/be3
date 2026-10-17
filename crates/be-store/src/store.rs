@@ -3,7 +3,7 @@ use std::{
     fs,
     io::{ErrorKind, Write},
     path::{Path, PathBuf},
-    sync::{Arc, RwLock},
+    sync::{Arc, Mutex, PoisonError, RwLock},
     time::Duration,
 };
 
@@ -23,6 +23,10 @@ pub trait ObjectStore: Send + Sync {
     fn has(&self, hash: Hash) -> Result<bool, StoreError>;
 
     fn remove(&self, hash: Hash) -> Result<(), StoreError>;
+
+    fn sync(&self) -> Result<(), StoreError> {
+        Ok(())
+    }
 
     fn len(&self, hash: Hash) -> Result<Option<usize>, StoreError> {
         Ok(self.get(hash)?.map(|bytes| bytes.len()))
@@ -87,13 +91,23 @@ impl ObjectStore for MemoryStore {
 #[derive(Clone)]
 pub struct FileStore {
     root: PathBuf,
+    unsynced: Arc<Mutex<Unsynced>>,
+}
+
+#[derive(Default)]
+struct Unsynced {
+    files: Vec<PathBuf>,
+    directories: std::collections::BTreeSet<PathBuf>,
 }
 
 impl FileStore {
     pub fn open(root: impl Into<PathBuf>) -> Result<Self, StoreError> {
         let root = root.into();
         fs::create_dir_all(&root)?;
-        let store = Self { root };
+        let store = Self {
+            root,
+            unsynced: Arc::default(),
+        };
         store.remove_abandoned_writes()?;
         Ok(store)
     }
@@ -144,17 +158,21 @@ impl ObjectStore for FileStore {
             Err(error) => return Err(error.into()),
         }
         let directory = path.parent().ok_or(StoreError::InvalidPath)?;
-        if !directory.exists() {
+        let created = !directory.exists();
+        if created {
             fs::create_dir_all(directory)?;
-            sync_directory(&self.root)?;
         }
         let temporary = directory.join(format!("{}.partial", uuid::Uuid::new_v4()));
         let mut file = fs::File::create(&temporary)?;
         file.write_all(bytes)?;
-        file.sync_all()?;
         drop(file);
         fs::rename(&temporary, &path)?;
-        sync_directory(directory)?;
+        let mut unsynced = self.unsynced.lock().unwrap_or_else(PoisonError::into_inner);
+        if created {
+            unsynced.directories.insert(self.root.clone());
+        }
+        unsynced.directories.insert(directory.to_owned());
+        unsynced.files.push(path);
         Ok(hash)
     }
 
@@ -179,6 +197,21 @@ impl ObjectStore for FileStore {
         remove_if_present(&self.path(hash))
     }
 
+    fn sync(&self) -> Result<(), StoreError> {
+        let unsynced =
+            std::mem::take(&mut *self.unsynced.lock().unwrap_or_else(PoisonError::into_inner));
+        if unsynced.files.is_empty() && unsynced.directories.is_empty() {
+            return Ok(());
+        }
+        let synced = sync_written(&self.root, &unsynced);
+        if synced.is_err() {
+            let mut held = self.unsynced.lock().unwrap_or_else(PoisonError::into_inner);
+            held.files.extend(unsynced.files);
+            held.directories.extend(unsynced.directories);
+        }
+        synced
+    }
+
     fn len(&self, hash: Hash) -> Result<Option<usize>, StoreError> {
         match fs::metadata(self.path(hash)) {
             Ok(metadata) => Ok(Some(usize::try_from(metadata.len()).unwrap_or(usize::MAX))),
@@ -198,7 +231,32 @@ fn remove_if_present(path: &Path) -> Result<(), StoreError> {
     }
 }
 
-#[cfg(unix)]
+#[cfg(any(target_os = "linux", target_os = "android"))]
+fn sync_written(root: &Path, _: &Unsynced) -> Result<(), StoreError> {
+    use std::os::fd::AsRawFd;
+    let directory = fs::File::open(root)?;
+    match unsafe { libc::syncfs(directory.as_raw_fd()) } {
+        0 => Ok(()),
+        _ => Err(std::io::Error::last_os_error().into()),
+    }
+}
+
+#[cfg(not(any(target_os = "linux", target_os = "android")))]
+fn sync_written(_: &Path, unsynced: &Unsynced) -> Result<(), StoreError> {
+    for file in &unsynced.files {
+        match fs::File::open(file) {
+            Ok(file) => file.sync_all()?,
+            Err(error) if error.kind() == ErrorKind::NotFound => {}
+            Err(error) => return Err(error.into()),
+        }
+    }
+    for directory in &unsynced.directories {
+        sync_directory(directory)?;
+    }
+    Ok(())
+}
+
+#[cfg(all(unix, not(any(target_os = "linux", target_os = "android"))))]
 fn sync_directory(directory: &Path) -> Result<(), StoreError> {
     fs::File::open(directory)?.sync_all()?;
     Ok(())
@@ -228,6 +286,10 @@ impl<S: ObjectStore + ?Sized> ObjectStore for Arc<S> {
 
     fn remove(&self, hash: Hash) -> Result<(), StoreError> {
         (**self).remove(hash)
+    }
+
+    fn sync(&self) -> Result<(), StoreError> {
+        (**self).sync()
     }
 
     fn len(&self, hash: Hash) -> Result<Option<usize>, StoreError> {

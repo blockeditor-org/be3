@@ -63,6 +63,7 @@ pub struct Document {
     pub activation_key: Option<Key>,
     pub rects: Rc<Rects>,
     tools: Option<Box<dyn Tools>>,
+    keyboard_host: Option<Box<dyn crate::software_keyboard::KeyboardHost>>,
     inspector_requested: bool,
     screen_pointer: Option<Pos2>,
     pub last_pointer: Option<crate::input::PointerSample>,
@@ -125,6 +126,8 @@ pub struct Document {
     anchor_shift: f32,
     pub(crate) reveals: NodeMap<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
+    pub(crate) hidden: bool,
+    pub(crate) embeds: Vec<std::rc::Weak<crate::base::embed::EmbedState>>,
     fonts_generation: u64,
     painting: Vec<(Rc<Display>, Vec2)>,
     pub paint_cache: RefCell<PaintCache>,
@@ -268,6 +271,7 @@ impl Document {
             drags: Rc::new(crate::drag_board::Board::new(Rc::clone(&rects))),
             rects,
             tools: None,
+            keyboard_host: None,
             inspector_requested: false,
             screen_pointer: None,
             last_pointer: None,
@@ -329,6 +333,8 @@ impl Document {
             anchor_shift: 0.0,
             reveals: NodeMap::default(),
             viewport: None,
+            hidden: false,
+            embeds: Vec::new(),
             fonts_generation: 0,
             painting: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
@@ -1005,7 +1011,9 @@ impl Document {
         self.track_changes(false);
         self.track_damage(false);
         let content = trim_bottom(rect, ctx.measure_mouse_simulation(rect)).0;
-        self.show_screen(ctx, content);
+        crate::software_keyboard::show_with_keyboard(self, ctx, content, |document, content| {
+            document.show_screen(ctx, content)
+        });
         ctx.show_mouse_simulation(rect);
     }
 
@@ -1015,6 +1023,16 @@ impl Document {
 
     pub fn on_laid_out(&mut self, laid_out: impl Fn() + 'static) {
         self.laid_out = Some(Rc::new(laid_out));
+    }
+
+    pub fn set_keyboard_host(&mut self, host: Box<dyn crate::software_keyboard::KeyboardHost>) {
+        self.keyboard_host = Some(host);
+    }
+
+    pub(crate) fn take_keyboard_host(
+        &mut self,
+    ) -> Option<Box<dyn crate::software_keyboard::KeyboardHost>> {
+        self.keyboard_host.take()
     }
 
     pub fn set_tools(&mut self, tools: Box<dyn Tools>) {
@@ -1030,7 +1048,19 @@ impl Document {
     }
 
     pub fn hide(&mut self) {
-        self.viewport = None;
+        if !std::mem::replace(&mut self.hidden, true) {
+            self.conceal_embeds(true);
+        }
+    }
+
+    fn conceal_embeds(&mut self, concealed: bool) {
+        self.embeds.retain(|embed| match embed.upgrade() {
+            Some(embed) => {
+                embed.conceal(concealed);
+                true
+            }
+            None => false,
+        });
     }
 
     pub fn show_screen(&mut self, ctx: &Context, rect: Rect) {
@@ -1053,7 +1083,10 @@ impl Document {
         ctx.set_screen_scale(placement.map_or(1.0, |placement| placement.scale));
         self.offered_screens = match placement {
             Some(placement) => Some(vec![Screen::window(placement.screen)]),
-            None => Some(crate::screens::shown_in(&ctx.screens(), rect)),
+            None => Some(crate::software_keyboard::usable_screens(
+                ctx,
+                crate::screens::shown_in(&ctx.screens(), rect),
+            )),
         };
         match placement {
             Some(placement) => {
@@ -1090,6 +1123,10 @@ impl Document {
 
     pub fn show_content(&mut self, ctx: &Context, rect: Rect) {
         self.now = ctx.now();
+        if std::mem::take(&mut self.hidden) {
+            ctx.report_damage(rect);
+            self.conceal_embeds(false);
+        }
         let mut measurement = FrameMeasurement::new();
         self.work.reset();
         let scale = ctx.pixels_per_point();
@@ -1460,7 +1497,7 @@ impl Document {
         self.placements.insert(id, watched);
     }
 
-    pub fn name_component(&mut self, id: NodeId, name: &'static str) {
+    pub fn name_component(&mut self, id: NodeId, name: beui_tree::component::ComponentRecord) {
         let names = match self.component_names.remove(&id) {
             None => ComponentNames::One(name),
             Some(ComponentNames::One(first)) => ComponentNames::Many(vec![first, name]),
@@ -1472,7 +1509,14 @@ impl Document {
         self.component_names.insert(id, names);
     }
 
-    pub fn component_names(&self, id: NodeId) -> &[&'static str] {
+    pub fn component_names(&self, id: NodeId) -> Vec<&'static str> {
+        self.components(id)
+            .iter()
+            .map(|component| component.info.name)
+            .collect()
+    }
+
+    pub fn components(&self, id: NodeId) -> &[beui_tree::component::ComponentRecord] {
         match self.component_names.get(&id) {
             None => &[],
             Some(ComponentNames::One(name)) => std::slice::from_ref(name),
@@ -2189,6 +2233,6 @@ impl Default for Document {
 }
 
 enum ComponentNames {
-    One(&'static str),
-    Many(Vec<&'static str>),
+    One(beui_tree::component::ComponentRecord),
+    Many(Vec<beui_tree::component::ComponentRecord>),
 }

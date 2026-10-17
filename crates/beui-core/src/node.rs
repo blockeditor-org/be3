@@ -4,6 +4,7 @@ use std::marker::PhantomData;
 
 use crate::geometry::{Rect, Vec2};
 use crate::painter::Painter;
+use crate::pixel_grid::PixelGrid;
 
 use crate::document::Document;
 
@@ -105,6 +106,12 @@ pub enum FocusChild {
     Unbuilt(std::ops::Range<usize>),
 }
 
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct Outlined {
+    pub inner: Rect,
+    pub outer: Rect,
+}
+
 pub trait Element: Any {
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2;
 
@@ -176,6 +183,10 @@ pub trait Element: Any {
     fn kind(&self) -> &'static str;
 
     fn ink(&self) -> Option<Rect> {
+        None
+    }
+
+    fn outline(&self, _grid: PixelGrid, _rect: Rect) -> Option<Outlined> {
         None
     }
 

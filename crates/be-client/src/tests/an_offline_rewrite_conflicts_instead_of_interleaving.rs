@@ -43,6 +43,7 @@ async fn an_offline_rewrite_conflicts_instead_of_interleaving() {
     let ours = offline
         .commits()
         .write(
+            offline.sealing_key(block).await.unwrap(),
             TextContent::CONTENT_TYPE,
             TextBlock::of(retyped.as_str()).encode().as_slice(),
             offline.account(),

@@ -11,10 +11,8 @@ fn clicking_a_popover_trigger_again_closes_it() {
     let document = build({
         move || {
             view! {
-                <Popover @node_ref=&popover label="Filters">
-                    {move |_: PopoverHandle| view! {
-                        <Text string="inside" />
-                    }}
+                <Popover @node_ref=&popover label="Filters">|_: PopoverHandle|
+                    <Text string="inside" />
                 </Popover>
             }
         }

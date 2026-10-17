@@ -10,15 +10,19 @@ mod linux;
 mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
-pub use host_value::{HostAction, HostImage, HostValue, LinkBase, decode_host, encode_host};
+pub use host_value::{
+    Administrator, Contacts, HostAction, HostContact, HostImage, HostValue, LinkBase, decode_host,
+    encode_host,
+};
 pub use linux::{
-    AudioOutput, Displays, HostDisplay, HostDisplayMode, HostInputDevice, HostNotificationAction,
-    HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows, IncomingNotification,
-    InputDevices, Media, MediaLevel, MediaLevels, MediaRequest, NotificationCloseReason,
-    NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
-    NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction, PowerAvailability,
-    ProgramAction, Programs, ScreenLocked, Tray, TrayMenuEntry, TrayRequest, TrayStatus,
-    TrayToggle, WindowAction, WindowOrigin,
+    AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostDisplayMode, HostInputDevice,
+    HostNotificationAction, HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows,
+    IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
+    NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
+    NotificationSignal, NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction,
+    PowerAvailability, ProgramAction, Programs, RemapState, Remaps, ScreenLocked, Tray,
+    TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, Wifi, WifiLink, WifiNetwork, WifiRequest,
+    WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
@@ -115,6 +119,7 @@ pub struct WindowRequests {
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
     pub pastes: Vec<PasteKind>,
+    pub keyboard_toggles: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -416,11 +421,18 @@ pub struct AccessGrant {
     pub author: bool,
     pub granted: Option<AccessLevel>,
     pub effective: AccessLevel,
+    pub waiting: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum AccessListing {
     Listed(Vec<AccessGrant>),
+    Failed(String),
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum ContactLinkResult {
+    Made(String),
     Failed(String),
 }
 
@@ -748,7 +760,7 @@ pub enum EditorMessage {
         block_type: [u8; 16],
         view_block: Option<[u8; 16]>,
         account_id: [u8; 16],
-        workspace_id: [u8; 16],
+        organization_id: [u8; 16],
         client_id: [u8; 16],
         editable: bool,
     },
@@ -1009,7 +1021,7 @@ pub enum EditorMessage {
         block_type: [u8; 16],
         template: String,
         account_id: [u8; 16],
-        workspace_id: [u8; 16],
+        organization_id: [u8; 16],
         client_id: [u8; 16],
     },
     CreationReady {
@@ -1046,7 +1058,7 @@ pub enum EditorMessage {
         block_id: [u8; 16],
         block_type: [u8; 16],
         account_id: [u8; 16],
-        workspace_id: [u8; 16],
+        organization_id: [u8; 16],
         client_id: [u8; 16],
         #[serde(with = "serde_bytes")]
         data: Vec<u8>,
@@ -1361,6 +1373,7 @@ pub enum BlockQuery {
     All,
     Roots,
     Detached,
+    Shared,
     Children([u8; 16]),
     References([u8; 16]),
     Backrefs([u8; 16]),
@@ -1380,11 +1393,13 @@ pub struct BlockMetadata {
 pub struct BlockInfo {
     pub block_id: [u8; 16],
     pub block_type: [u8; 16],
-    pub author: [u8; 16],
-    pub parent: BlockLocation,
+    pub author: Option<[u8; 16]>,
+    pub parent: Option<BlockLocation>,
     pub references: Vec<[u8; 16]>,
     pub access: AccessLevel,
     pub metadata: BlockMetadata,
+    pub locked: bool,
+    pub deleted: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1466,6 +1481,7 @@ pub struct HistoryState {
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BlockCommand {
     Share,
+    Leave,
     Rename,
     Undo,
     Redo,
@@ -1495,6 +1511,7 @@ pub enum BlockCommand {
         parent: [u8; 16],
         linked: bool,
     },
+    Restore,
     AppMenu,
 }
 
@@ -1585,6 +1602,10 @@ pub enum HostRequest {
     ReadData(String),
     ExportBlock([u8; 16]),
     ImportBlocks(BlockLocation),
+    ContactLink {
+        block_id: [u8; 16],
+        access: AccessLevel,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -1597,6 +1618,7 @@ pub enum HostReply {
     DataRead(FetchResult),
     AccessListed(AccessListing),
     BlocksImported(BlockImport),
+    ContactLinkMade(ContactLinkResult),
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2067,6 +2089,23 @@ pub enum InputEvent {
     InterceptedTap {
         key: Key,
     },
+    Pen {
+        phase: PenPhase,
+        x: f32,
+        y: f32,
+        pressure: f32,
+        tilt_x: f32,
+        tilt_y: f32,
+        eraser: bool,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PenPhase {
+    Move,
+    Down(PointerButton),
+    Up(PointerButton),
+    Gone,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -2836,7 +2875,9 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
         HostRequest::ListData => Ok(()),
         HostRequest::Fetch(url) => string(url),
         HostRequest::ReadData(path) => string(path),
-        HostRequest::ExportBlock(_) | HostRequest::ImportBlocks(_) => Ok(()),
+        HostRequest::ExportBlock(_)
+        | HostRequest::ImportBlocks(_)
+        | HostRequest::ContactLink { .. } => Ok(()),
     }
 }
 
@@ -2858,7 +2899,10 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         | HostReply::DataRead(FetchResult::Failed(message))
         | HostReply::DataListed(DataListing::Failed(message))
         | HostReply::AccessListed(AccessListing::Failed(message))
-        | HostReply::BlocksImported(BlockImport::Failed(message)) => string(message),
+        | HostReply::BlocksImported(BlockImport::Failed(message))
+        | HostReply::ContactLinkMade(
+            ContactLinkResult::Made(message) | ContactLinkResult::Failed(message),
+        ) => string(message),
         HostReply::AccessListed(AccessListing::Listed(grants)) => {
             collection(grants.len())?;
             for grant in grants {

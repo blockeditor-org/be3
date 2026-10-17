@@ -117,7 +117,7 @@ impl Review {
     fn orphaned(&self, id: Uuid) -> bool {
         self.store
             .block(id)
-            .is_some_and(|info| info.parent == BlockParent::Detached)
+            .is_some_and(|info| info.parent == Some(BlockParent::Detached))
     }
 
     fn approvals(&self) -> usize {

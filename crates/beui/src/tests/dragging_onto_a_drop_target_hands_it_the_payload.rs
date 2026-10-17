@@ -12,19 +12,15 @@ fn dragging_onto_a_drop_target_hands_it_the_payload() {
                 <Draggable
                     payload={7_u32}
                     on_click={move || set_clicks.update(|clicks| *clicks += 1)}
-                >
-                    {|_: DragHandle| view! {
-                        <Frame width=40.0 height=40.0 />
-                    }}
+                >|_: DragHandle|
+                    <Frame width=40.0 height=40.0 />
                 </Draggable>
             },
             view! {
                 <DropTarget
                     on_drop={move |(payload, _): (u32, DragPoint)| set_dropped.set(Some(payload))}
-                >
-                    {|_: DropHandle| view! {
-                        <Frame width=100.0 height=100.0 />
-                    }}
+                >|_: DropHandle|
+                    <Frame width=100.0 height=100.0 />
                 </DropTarget>
             },
         ]

@@ -59,7 +59,7 @@ much of its own frame left to spend, so a plugin answering promptly is drawn
 into the frame that delivered the input rather than the one after it. A screen
 the host did not draw last frame is sent nothing.
 
-Opening an instance carries the account and workspace its block client speaks
+Opening an instance carries the account and organization its block client speaks
 for, and the id of the app client the host itself is: a per-installation
 identity a block that stores one setting per client - the settings block -
 resolves against, which the instance's own tunnelled client cannot supply
@@ -119,7 +119,7 @@ An editor of a repository or a checkout asks the host to act on it with a
 version control command naming that block: adopting a block as the tree to
 version, committing, bringing the branch's changes in, switching, making a
 branch or a checkout, resolving a conflict by taking one side, and forking,
-pulling or pushing an upstream in the same workspace. The host answers every
+pulling or pushing an upstream in the same organization. The host answers every
 instance whose block is a repository or a checkout with that block's status
 whenever it changes: whether it is busy, the last error, the branches, what
 the working tree changed since its base, whether the branch has moved past the
@@ -186,7 +186,7 @@ The host tells every open instance which block the user is looking at - the
 block of the tab that has focus, absent while none has - along with the chain
 of containers that block was opened through, innermost first. It is sent when
 it changes and whenever an instance opens, which is what lets an editor that
-lists the workspace's blocks mark where the user is. The instance that owns
+lists the organization's blocks mark where the user is. The instance that owns
 the tabs reports it the other way, with the same message: only it knows which
 tab has focus, and the host passes what it says on to every other instance.
 
@@ -228,11 +228,18 @@ settings and summarises what it would produce, and committing that child
 stores the copy.
 
 The instance that draws the window may ask the host who can open a block,
-answered once with every member of the workspace - their account, email, name,
-whether they administer the workspace, the access granted to them on that
-block if any and the access they end up with - or with why it could not be
-listed, and may grant a member a level of access to a block. A grant is not
-answered; the instance lists the block again to see it.
+answered once with the people the account may share it with: whoever already
+reaches it and the account's contacts in the organization, never the rest of
+its members - their account, email, name, whether they administer the
+organization, whether they made the block, the access granted to them on it if
+any, the access they end up with and whether they still wait for its key - or
+with why it could not be listed. It may grant one of them a level of access to
+a block, which reaches the host before any request the instance makes in the
+same turn, so a listing asked for after a grant includes it, and it may ask for
+a contact link carrying a grant of the block, answered with the link or why it
+could not be made. A grant is not answered; the instance lists the block again
+to see it, and lists it again when the account's contacts, a value the host
+publishes to that instance, change.
 
 An editor instance may ask the host to choose a file for it, which only the
 host can do on every platform the app runs on. The request carries the filter
@@ -277,8 +284,8 @@ name is not one the plugin's manifest names, and reports the refusal as an
 ordinary failure rather than as a protocol error.
 
 An editor instance may read the files its plugin was staged with, which are
-read-only data the build lays out beside the app rather than anything a
-workspace holds: a plugin has no file system of its own on any platform. It
+read-only data the build lays out beside the app rather than anything an
+organization holds: a plugin has no file system of its own on any platform. It
 may ask for the list of those files, answered with every path relative to its
 data, and for one file by that path, answered with its bytes or with why they
 could not be read. A plugin reaches only its own data; a path that is not a

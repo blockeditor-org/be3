@@ -186,37 +186,33 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                             </Show>
                         </List>
                         <Show condition={behind}>
-                            {move || view! {
-                                <Card>
-                                    <List
-                                        direction=Direction::Horizontal
-                                        align=Align::Center
-                                        spacing=10.0
-                                    >
-                                        <Text
-                                            @sizing=ItemSize::Percent(100.0)
-                                            string="The branch has moved on since this checkout's base."
-                                        />
-                                        <Button
-                                            label="Bring changes in"
-                                            variant=ButtonVariant::Primary
-                                            disabled={blocked}
-                                            @test_id={"checkout.update"}
-                                            on_click={move || editor.version(VersionCommand::Update)}
-                                        />
-                                    </List>
-                                </Card>
-                            }}
+                            <Card>
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=10.0
+                                >
+                                    <Text
+                                        @sizing=ItemSize::Percent(100.0)
+                                        string="The branch has moved on since this checkout's base."
+                                    />
+                                    <Button
+                                        label="Bring changes in"
+                                        variant=ButtonVariant::Primary
+                                        disabled={blocked}
+                                        @test_id={"checkout.update"}
+                                        on_click={move || editor.version(VersionCommand::Update)}
+                                    />
+                                </List>
+                            </Card>
                         </Show>
                         <Show condition={conflicted}>
-                            {move || view! {
-                                <Card>
-                                    <List spacing=12.0>
-                                        <Text style=TextStyle::HEADING string="Conflicts" />
-                                        <ForEach keys={conflicts} view={conflict_rows} />
-                                    </List>
-                                </Card>
-                            }}
+                            <Card>
+                                <List spacing=12.0>
+                                    <Text style=TextStyle::HEADING string="Conflicts" />
+                                    <ForEach keys={conflicts} view={conflict_rows} />
+                                </List>
+                            </Card>
                         </Show>
                         <Card>
                             <List spacing=10.0>
@@ -353,43 +349,39 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
             </List>
             <List spacing=8.0>
                 <Show condition={compared}>
-                    {move || view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                            <Text style=TextStyle::CAPTION string="Base" />
-                            <BlockLink editor={editor} block={base} fallback="none" />
-                            <Text style=TextStyle::CAPTION string="Yours" />
-                            <BlockLink editor={editor} block={ours} fallback="none" />
-                            <Text style=TextStyle::CAPTION string="Theirs" />
-                            <BlockLink editor={editor} block={theirs} fallback="none" />
-                        </List>
-                    }}
+                    <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
+                        <Text style=TextStyle::CAPTION string="Base" />
+                        <BlockLink editor={editor} block={base} fallback="none" />
+                        <Text style=TextStyle::CAPTION string="Yours" />
+                        <BlockLink editor={editor} block={ours} fallback="none" />
+                        <Text style=TextStyle::CAPTION string="Theirs" />
+                        <BlockLink editor={editor} block={theirs} fallback="none" />
+                    </List>
                 </Show>
                 <Show condition={compared}>
-                    {move || view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Button
-                                label="Take base"
-                                variant=ButtonVariant::Secondary
-                                disabled={base_blocked}
-                                @test_id={format!("checkout.base.{block}")}
-                                on_click={take_base}
-                            />
-                            <Button
-                                label="Take yours"
-                                variant=ButtonVariant::Secondary
-                                disabled={ours_blocked}
-                                @test_id={format!("checkout.ours.{block}")}
-                                on_click={take_ours}
-                            />
-                            <Button
-                                label="Take theirs"
-                                variant=ButtonVariant::Secondary
-                                disabled={theirs_blocked}
-                                @test_id={format!("checkout.theirs.{block}")}
-                                on_click={take_theirs}
-                            />
-                        </List>
-                    }}
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Button
+                            label="Take base"
+                            variant=ButtonVariant::Secondary
+                            disabled={base_blocked}
+                            @test_id={format!("checkout.base.{block}")}
+                            on_click={take_base}
+                        />
+                        <Button
+                            label="Take yours"
+                            variant=ButtonVariant::Secondary
+                            disabled={ours_blocked}
+                            @test_id={format!("checkout.ours.{block}")}
+                            on_click={take_ours}
+                        />
+                        <Button
+                            label="Take theirs"
+                            variant=ButtonVariant::Secondary
+                            disabled={theirs_blocked}
+                            @test_id={format!("checkout.theirs.{block}")}
+                            on_click={take_theirs}
+                        />
+                    </List>
                 </Show>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

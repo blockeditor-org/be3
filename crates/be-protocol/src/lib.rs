@@ -6,15 +6,17 @@ use be_store::Hash;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub use serde_bytes::ByteBuf;
+
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub enum WorkspaceRole {
+pub enum OrganizationRole {
     Administrator,
     Editor,
 }
 
-impl WorkspaceRole {
+impl OrganizationRole {
     pub fn label(self) -> &'static str {
         match self {
             Self::Administrator => "Administrator",
@@ -23,21 +25,93 @@ impl WorkspaceRole {
     }
 }
 
-#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct Workspace {
-    pub id: Uuid,
-    pub name: String,
-    pub role: WorkspaceRole,
+#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub enum OrganizationKind {
+    #[default]
+    Company,
+    Personal,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
-pub struct WorkspaceInvitation {
+pub struct Organization {
     pub id: Uuid,
-    pub workspace: Uuid,
-    pub workspace_name: String,
+    pub name: String,
+    pub kind: OrganizationKind,
+    pub role: OrganizationRole,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct OrganizationInvitation {
+    pub id: Uuid,
+    pub organization: Uuid,
+    pub organization_name: String,
     pub email: String,
-    pub role: WorkspaceRole,
+    pub role: OrganizationRole,
     pub invited_by: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
+    #[serde(with = "serde_bytes")]
+    pub escrow: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct PendingGrant {
+    pub organization: Uuid,
+    pub block: Uuid,
+    pub access: Access,
+    pub key: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ContactLink {
+    pub id: Uuid,
+    pub owner: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub card: Vec<u8>,
+    pub grant: Option<PendingGrant>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct OwnContactLink {
+    pub id: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub code: Vec<u8>,
+    pub accepter: Option<Uuid>,
+    #[serde(with = "serde_bytes")]
+    pub card: Vec<u8>,
+    pub grant: Option<PendingGrant>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct ContactRow {
+    pub account: Uuid,
+    pub email: String,
+    pub display_name: String,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
+    pub changes: Vec<Vec<u8>>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeyChange {
+    pub contact: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub enum OwnKind {
+    Contact,
+    Link,
+    Escrow,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct OwnSealed {
+    pub kind: OwnKind,
+    pub id: Uuid,
     #[serde(with = "serde_bytes")]
     pub sealed: Vec<u8>,
 }
@@ -46,14 +120,141 @@ pub struct WorkspaceInvitation {
 pub struct BlockSummary {
     pub id: Uuid,
     pub content_type: Uuid,
-    pub author: Uuid,
-    pub parent: BlockParent,
-    pub head: Option<CommitId>,
     pub access: Access,
+    pub author: Option<Uuid>,
+    pub parent: Option<BlockParent>,
+    pub head: Option<CommitId>,
     pub references: Vec<Uuid>,
     #[serde(with = "serde_bytes")]
     pub metadata: Vec<u8>,
-    pub version: u64,
+    pub version: Option<u64>,
+    pub key: Option<Uuid>,
+    pub scope: Option<Uuid>,
+    pub revision: u64,
+}
+
+impl BlockSummary {
+    pub fn no_access(id: Uuid, content_type: Uuid, access: Access) -> Self {
+        Self {
+            id,
+            content_type,
+            access,
+            author: None,
+            parent: None,
+            head: None,
+            references: Vec::new(),
+            metadata: Vec::new(),
+            version: None,
+            key: None,
+            scope: None,
+            revision: 0,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum KeyKind {
+    Data,
+    Scope,
+    Escrow,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeyRow {
+    pub id: Uuid,
+    pub block: Uuid,
+    pub kind: KeyKind,
+    pub epoch: u64,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
+pub enum WrappedBy {
+    Key(Uuid),
+    Account(Uuid),
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct WrappedKey {
+    pub key: Uuid,
+    pub wrapped_by: WrappedBy,
+    pub sender: Uuid,
+    #[serde(with = "serde_bytes")]
+    pub sealed: Vec<u8>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct EscrowKey {
+    pub id: Uuid,
+    pub epoch: u64,
+    pub public: [u8; 32],
+    pub signing: [u8; 32],
+    #[serde(with = "serde_bytes")]
+    pub signature: Vec<u8>,
+}
+
+impl EscrowKey {
+    pub fn encode(&self) -> Vec<u8> {
+        postcard::to_stdvec(self).expect("an escrow key always encodes")
+    }
+
+    pub fn decode(bytes: &[u8]) -> Option<Self> {
+        postcard::from_bytes(bytes).ok()
+    }
+
+    pub fn chained(&self, organization: Uuid, previous: Uuid) -> Vec<u8> {
+        [
+            b"be3.escrow.chain.v1".as_slice(),
+            organization.as_bytes(),
+            previous.as_bytes(),
+            self.id.as_bytes(),
+            &self.epoch.to_be_bytes(),
+            &self.public,
+            &self.signing,
+        ]
+        .concat()
+    }
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Ord, PartialEq, PartialOrd, Serialize)]
+pub struct Unsealed {
+    pub key: Uuid,
+    pub account: Uuid,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeyWork {
+    pub rotations: Vec<Uuid>,
+    pub escrow_rotation: bool,
+    pub unsealed: Vec<Unsealed>,
+    pub unescrowed: Vec<Uuid>,
+    pub escrows: Vec<EscrowKey>,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct Member {
+    pub account: Uuid,
+    pub email: String,
+    pub display_name: String,
+    pub role: OrganizationRole,
+    pub agent: bool,
+    pub contact: bool,
+}
+
+#[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
+pub struct KeySet {
+    pub keys: Vec<KeyRow>,
+    pub wrapped: Vec<WrappedKey>,
+}
+
+impl KeySet {
+    pub fn is_empty(&self) -> bool {
+        self.keys.is_empty() && self.wrapped.is_empty()
+    }
+
+    pub fn extend(&mut self, other: KeySet) {
+        self.keys.extend(other.keys);
+        self.wrapped.extend(other.wrapped);
+    }
 }
 
 pub type ClientId = u64;
@@ -77,10 +278,12 @@ pub struct AccessEntry {
     pub account: Uuid,
     pub email: String,
     pub display_name: String,
-    pub role: WorkspaceRole,
+    pub role: OrganizationRole,
     pub author: bool,
     pub granted: Option<Access>,
     pub effective: Access,
+    pub contact: bool,
+    pub waiting: bool,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -96,11 +299,15 @@ pub enum ErrorCode {
     ObjectTooLarge,
     ParentCycle,
     Storage,
-    WorkspaceNotFound,
+    OrganizationNotFound,
     RegistrationDisabled,
     InvitationNotFound,
     LoginDisabled,
     BlockHasContent,
+    KeyMissing,
+    NotAContact,
+    LinkNotFound,
+    LastAdministrator,
 }
 
 impl fmt::Display for ErrorCode {
@@ -129,25 +336,29 @@ pub enum ClientMessage {
     Logout {
         request: u64,
     },
-    ListWorkspaces {
+    ListOrganizations {
         request: u64,
     },
-    CreateWorkspace {
+    CreateOrganization {
         request: u64,
         name: String,
     },
-    OpenWorkspace {
+    OpenOrganization {
         request: u64,
-        workspace: Uuid,
+        organization: Uuid,
     },
     Invite {
         request: u64,
         invitation: Uuid,
-        workspace: Uuid,
+        organization: Uuid,
         email: String,
-        role: WorkspaceRole,
+        role: OrganizationRole,
         #[serde(with = "serde_bytes")]
         sealed: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        code: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        escrow: Vec<u8>,
     },
     GetInvitation {
         request: u64,
@@ -156,12 +367,60 @@ pub enum ClientMessage {
     AcceptInvitation {
         request: u64,
         invitation: Uuid,
+        #[serde(with = "serde_bytes")]
+        card: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        contact: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        escrow: Vec<u8>,
+    },
+    CreateContactLink {
+        request: u64,
+        link: Uuid,
+        #[serde(with = "serde_bytes")]
+        card: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        code: Vec<u8>,
+        grant: Option<PendingGrant>,
+    },
+    GetContactLink {
+        request: u64,
+        link: Uuid,
+    },
+    AcceptContactLink {
+        request: u64,
+        link: Uuid,
+        #[serde(with = "serde_bytes")]
+        card: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        contact: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        key: Vec<u8>,
+    },
+    ListContactLinks {
+        request: u64,
+    },
+    DeleteContactLink {
+        request: u64,
+        link: Uuid,
+    },
+    PutContact {
+        request: u64,
+        contact: Uuid,
+        #[serde(with = "serde_bytes")]
+        sealed: Vec<u8>,
+    },
+    ListContacts {
+        request: u64,
+    },
+    RemoveContact {
+        request: u64,
+        account: Uuid,
     },
 
-    PutObject {
+    PutObjects {
         request: u64,
-        #[serde(with = "serde_bytes")]
-        bytes: Vec<u8>,
+        objects: Vec<ByteBuf>,
     },
     GetObject {
         request: u64,
@@ -185,6 +444,8 @@ pub enum ClientMessage {
         parent: BlockParent,
         #[serde(with = "serde_bytes")]
         metadata: Vec<u8>,
+        key: Uuid,
+        keys: KeySet,
     },
     ListBlocks {
         request: u64,
@@ -221,6 +482,7 @@ pub enum ClientMessage {
         request: u64,
         block: Uuid,
         parent: BlockParent,
+        keys: KeySet,
     },
     ListChildren {
         request: u64,
@@ -293,41 +555,84 @@ pub enum ClientMessage {
     },
     GetKeys {
         request: u64,
+        blocks: Option<Vec<Uuid>>,
+    },
+    PutKeys {
+        request: u64,
+        keys: KeySet,
+    },
+    GetRecoveryKey {
+        request: u64,
     },
     SetRecoveryKey {
         request: u64,
         public: [u8; 32],
         sealed: Vec<SealedKey>,
+        own: Vec<OwnSealed>,
+        changes: Vec<KeyChange>,
     },
-    PutWorkspaceKey {
+    ResealKeys {
         request: u64,
-        workspace: Uuid,
-        #[serde(with = "serde_bytes")]
-        sealed: Vec<u8>,
+        keys: Vec<SealedKey>,
     },
     Pair {
         request: u64,
         to: Option<ClientId>,
-        workspace: Uuid,
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
     CreateAgent {
         request: u64,
-        workspace: Uuid,
+        organization: Uuid,
         name: String,
         recovery: [u8; 32],
         #[serde(with = "serde_bytes")]
-        sealed: Vec<u8>,
+        contact: Vec<u8>,
+        #[serde(with = "serde_bytes")]
+        escrow: Vec<u8>,
     },
     ListAgents {
         request: u64,
-        workspace: Uuid,
+        organization: Uuid,
     },
     RemoveAgent {
         request: u64,
-        workspace: Uuid,
+        organization: Uuid,
         account: Uuid,
+    },
+    GetKeyWork {
+        request: u64,
+    },
+    Rotate {
+        request: u64,
+        roots: Vec<Uuid>,
+        keys: KeySet,
+    },
+    CreateEscrow {
+        request: u64,
+        escrow: EscrowKey,
+        keys: KeySet,
+    },
+    PinEscrow {
+        request: u64,
+        #[serde(with = "serde_bytes")]
+        sealed: Vec<u8>,
+    },
+    ListMembers {
+        request: u64,
+    },
+    SetRole {
+        request: u64,
+        account: Uuid,
+        role: OrganizationRole,
+    },
+    RemoveMember {
+        request: u64,
+        account: Uuid,
+    },
+    Batch {
+        request: u64,
+        messages: Vec<ClientMessage>,
     },
 }
 
@@ -340,7 +645,9 @@ pub struct Agent {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct SealedKey {
-    pub workspace: Uuid,
+    pub organization: Uuid,
+    pub key: Uuid,
+    pub sender: Uuid,
     #[serde(with = "serde_bytes")]
     pub sealed: Vec<u8>,
 }
@@ -355,10 +662,18 @@ impl ClientMessage {
             | Self::Invite { request, .. }
             | Self::GetInvitation { request, .. }
             | Self::AcceptInvitation { request, .. }
-            | Self::ListWorkspaces { request }
-            | Self::CreateWorkspace { request, .. }
-            | Self::OpenWorkspace { request, .. }
-            | Self::PutObject { request, .. }
+            | Self::CreateContactLink { request, .. }
+            | Self::GetContactLink { request, .. }
+            | Self::AcceptContactLink { request, .. }
+            | Self::ListContactLinks { request }
+            | Self::DeleteContactLink { request, .. }
+            | Self::PutContact { request, .. }
+            | Self::ListContacts { request }
+            | Self::RemoveContact { request, .. }
+            | Self::ListOrganizations { request }
+            | Self::CreateOrganization { request, .. }
+            | Self::OpenOrganization { request, .. }
+            | Self::PutObjects { request, .. }
             | Self::GetObject { request, .. }
             | Self::GetObjectRange { request, .. }
             | Self::MissingObjects { request, .. }
@@ -384,13 +699,23 @@ impl ClientMessage {
             | Self::ClaimOwnership { request, .. }
             | Self::Heartbeat { request, .. }
             | Self::Relay { request, .. }
-            | Self::GetKeys { request }
+            | Self::GetKeys { request, .. }
+            | Self::PutKeys { request, .. }
+            | Self::GetRecoveryKey { request }
             | Self::SetRecoveryKey { request, .. }
-            | Self::PutWorkspaceKey { request, .. }
+            | Self::ResealKeys { request, .. }
             | Self::Pair { request, .. }
             | Self::CreateAgent { request, .. }
             | Self::ListAgents { request, .. }
-            | Self::RemoveAgent { request, .. } => *request,
+            | Self::RemoveAgent { request, .. }
+            | Self::GetKeyWork { request }
+            | Self::Rotate { request, .. }
+            | Self::CreateEscrow { request, .. }
+            | Self::PinEscrow { request, .. }
+            | Self::ListMembers { request }
+            | Self::SetRole { request, .. }
+            | Self::RemoveMember { request, .. }
+            | Self::Batch { request, .. } => *request,
         }
     }
 }
@@ -420,22 +745,26 @@ pub enum ServerMessage {
         display_name: String,
         token: String,
     },
-    Workspaces {
+    Organizations {
         request: u64,
-        workspaces: Vec<Workspace>,
+        organizations: Vec<Organization>,
     },
     Invitation {
         request: u64,
-        invitation: WorkspaceInvitation,
+        invitation: OrganizationInvitation,
     },
-    WorkspaceOpened {
+    OrganizationOpened {
         request: u64,
-        workspace: Uuid,
-        role: WorkspaceRole,
+        organization: Uuid,
+        role: OrganizationRole,
+        kind: OrganizationKind,
+        escrows: Vec<EscrowKey>,
+        #[serde(with = "serde_bytes")]
+        pinned: Vec<u8>,
     },
     Stored {
         request: u64,
-        hash: Hash,
+        hashes: Vec<Hash>,
     },
     Object {
         request: u64,
@@ -494,6 +823,7 @@ pub enum ServerMessage {
     },
     BlockRemoved {
         block: Uuid,
+        revision: u64,
     },
     SessionChanged {
         block: Uuid,
@@ -507,12 +837,29 @@ pub enum ServerMessage {
     },
     Keys {
         request: u64,
-        recovery: Option<[u8; 32]>,
-        sealed: Vec<SealedKey>,
+        keys: KeySet,
     },
+    RecoveryKey {
+        request: u64,
+        public: Option<[u8; 32]>,
+        sealed: Vec<SealedKey>,
+        own: Vec<OwnSealed>,
+    },
+    ContactLink {
+        request: u64,
+        link: ContactLink,
+    },
+    ContactLinks {
+        request: u64,
+        links: Vec<OwnContactLink>,
+    },
+    Contacts {
+        request: u64,
+        contacts: Vec<ContactRow>,
+    },
+    ContactsChanged,
     Paired {
         from: ClientId,
-        workspace: Uuid,
         #[serde(with = "serde_bytes")]
         payload: Vec<u8>,
     },
@@ -525,6 +872,19 @@ pub enum ServerMessage {
         request: u64,
         agents: Vec<Agent>,
     },
+    KeyWork {
+        request: u64,
+        work: KeyWork,
+    },
+    Members {
+        request: u64,
+        members: Vec<Member>,
+    },
+    KeyWorkChanged,
+    Batched {
+        request: u64,
+        responses: Vec<ServerMessage>,
+    },
 }
 
 impl ServerMessage {
@@ -533,10 +893,11 @@ impl ServerMessage {
             Self::Ok { request }
             | Self::Failed { request, .. }
             | Self::Authenticated { request, .. }
-            | Self::Workspaces { request, .. }
+            | Self::Organizations { request, .. }
             | Self::Invitation { request, .. }
-            | Self::WorkspaceOpened { request, .. }
+            | Self::OrganizationOpened { request, .. }
             | Self::Stored { request, .. }
+            | Self::Batched { request, .. }
             | Self::Object { request, .. }
             | Self::Missing { request, .. }
             | Self::Block { request, .. }
@@ -548,15 +909,23 @@ impl ServerMessage {
             | Self::AccessList { request, .. }
             | Self::Session { request, .. }
             | Self::Keys { request, .. }
+            | Self::RecoveryKey { request, .. }
+            | Self::ContactLink { request, .. }
+            | Self::ContactLinks { request, .. }
+            | Self::Contacts { request, .. }
             | Self::AgentCreated { request, .. }
-            | Self::Agents { request, .. } => Some(*request),
+            | Self::Agents { request, .. }
+            | Self::KeyWork { request, .. }
+            | Self::Members { request, .. } => Some(*request),
             Self::HeadChanged { .. }
             | Self::BlockDeleted { .. }
             | Self::BlockChanged { .. }
             | Self::BlockRemoved { .. }
             | Self::SessionChanged { .. }
             | Self::Relayed { .. }
-            | Self::Paired { .. } => None,
+            | Self::Paired { .. }
+            | Self::ContactsChanged
+            | Self::KeyWorkChanged => None,
         }
     }
 }

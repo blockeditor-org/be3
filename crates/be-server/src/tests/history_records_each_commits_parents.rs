@@ -5,7 +5,7 @@ async fn history_records_each_commits_parents() {
     let harness = Harness::start().await;
     let mut client = harness.client().await;
     let account = client.register("historian@example.com").await;
-    client.workspace("notes").await;
+    client.organization("notes").await;
     let author = Author::new(account);
     let block = client.create_block(BlockParent::Root).await;
 

@@ -28,7 +28,7 @@ How the server runs on a VPS for real notes. The files referred to are in
   be-server, sign in, then empty that line and restart again. Restarting drops
   every connection for a moment; devices reconnect on their own.
 - Registration is closed. Accounts are made on the server:
-  `sudo -u be-server be-server --data-dir /var/lib/be-server --add-account EMAIL NAME WORKSPACE`,
+  `sudo -u be-server be-server --data-dir /var/lib/be-server --add-account EMAIL NAME ORGANIZATION`,
   typing the password on standard input. It writes the database directly, so
   stop the service while it runs.
 
@@ -105,8 +105,8 @@ it. `be-server --help` describes what a backup holds and keeps.
   its backups. Turn on the zone's replication to a second region, and now and
   then copy the zone to a machine the VPS cannot reach.
 - Notes are end-to-end encrypted. A restored server serves them, but reading
-  them still needs the account's recovery phrase or a device that holds the
-  workspace key.
+  them still needs the account's recovery phrase or a device the account has
+  unlocked.
 
 ## Restoring
 

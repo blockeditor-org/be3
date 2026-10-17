@@ -91,6 +91,7 @@ mod copied_text_round_trips;
 mod creation_messages_round_trip;
 mod data_messages_round_trip;
 mod drag_messages_round_trip;
+mod epaper_messages_round_trip;
 mod every_block_id_a_message_carries_is_visited;
 mod every_editor_manifest_parses;
 mod every_key_round_trips;
@@ -135,6 +136,7 @@ mod tray_messages_round_trip;
 mod version_control_messages_round_trip;
 mod view_messages_round_trip;
 mod web_view_messages_round_trip;
+mod wifi_messages_round_trip;
 mod window_requests_round_trip;
 mod zoom_gesture_round_trips;
 

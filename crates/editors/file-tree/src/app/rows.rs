@@ -2,19 +2,27 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_beui::Editor;
-use block_editor_beui::be_block::ViewState;
+use block_editor_beui::be_block::{
+    BlockContent, MY_FILES, SettingsContent, SettingsProfileContent, ViewState, WorkspaceContent,
+};
+use block_editor_beui::beui::icons::{ICON_DATABASE, ICON_HISTORY, ICON_PEOPLE, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
+use block_editor_beui::{Editor, label_glyph};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 #[derive(Clone, PartialEq, Eq, Hash)]
 pub(crate) enum RowKey {
     Block(Vec<Uuid>),
+    Shared,
     Orphans,
+    System,
     Note(Vec<Uuid>),
+    SharedNote,
+    OrphansNote,
+    SystemNote,
 }
 
 #[derive(Clone, PartialEq)]
@@ -26,6 +34,7 @@ pub(crate) struct Row {
     pub(crate) glyph: String,
     pub(crate) automatic: bool,
     pub(crate) depth: usize,
+    pub(crate) section: bool,
     pub(crate) expandable: bool,
     pub(crate) expanded: bool,
     pub(crate) container: Option<Uuid>,
@@ -33,12 +42,15 @@ pub(crate) struct Row {
     pub(crate) is_reference: bool,
     pub(crate) access: AccessLevel,
     pub(crate) dynamic_artifact: bool,
-    pub(crate) parent: BlockParent,
+    pub(crate) parent: Option<BlockParent>,
     pub(crate) can_add: bool,
     pub(crate) can_edit: bool,
     pub(crate) can_delete: bool,
+    pub(crate) can_leave: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) inspection: Option<Inspection>,
+    pub(crate) deleted: bool,
+    pub(crate) marked_deleted: bool,
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -56,14 +68,19 @@ pub(crate) struct Inspection {
 
 impl Row {
     pub(crate) fn note(path: Vec<Uuid>, depth: usize, label: &str) -> Self {
+        Self::note_at(RowKey::Note(path), depth, label)
+    }
+
+    pub(crate) fn note_at(key: RowKey, depth: usize, label: &str) -> Self {
         Self {
-            key: RowKey::Note(path),
+            key,
             id: None,
             block_type: Uuid::nil(),
             label: label.to_owned(),
             glyph: String::new(),
             automatic: true,
             depth,
+            section: false,
             expandable: false,
             expanded: false,
             container: None,
@@ -71,12 +88,15 @@ impl Row {
             is_reference: false,
             access: AccessLevel::None,
             dynamic_artifact: false,
-            parent: BlockParent::Root,
+            parent: None,
             can_add: false,
             can_edit: false,
             can_delete: false,
+            can_leave: false,
             unlink: Err("Loading…"),
             inspection: None,
+            deleted: false,
+            marked_deleted: false,
         }
     }
 }
@@ -84,25 +104,105 @@ impl Row {
 const OPENED: &str = "opened";
 
 #[derive(Default, Deserialize, Serialize)]
+#[serde(default)]
 struct Opened {
     expanded: Vec<Uuid>,
     orphans: bool,
+    collapsed: Vec<Uuid>,
+    shared_closed: bool,
+    system: bool,
+}
+
+#[derive(Clone, Copy, Default, PartialEq)]
+struct Folded {
+    orphans_open: bool,
+    shared_closed: bool,
+    system_open: bool,
 }
 
 #[derive(Default)]
 struct Watched {
     expanded: HashMap<Uuid, BlockList>,
+    sections: HashMap<Uuid, BlockList>,
     orphans: Option<BlockList>,
     block_types: HashMap<Uuid, Uuid>,
+    workspaces: HashSet<Uuid>,
+    system: HashSet<Uuid>,
+}
+
+pub(crate) fn is_workspace(block_type: Uuid) -> bool {
+    block_type == WorkspaceContent::CONTENT_TYPE
+}
+
+const SYSTEM_TYPES: [Uuid; 2] = [
+    SettingsContent::CONTENT_TYPE,
+    SettingsProfileContent::CONTENT_TYPE,
+];
+
+fn is_system(block_type: Uuid) -> bool {
+    SYSTEM_TYPES.contains(&block_type)
+}
+
+pub(crate) fn is_my_files(block: &BlockInfo, account: Uuid) -> bool {
+    is_workspace(block.block_type)
+        && block.author == Some(account)
+        && block.metadata.get(&MY_FILES) == Some(true)
+}
+
+pub(crate) fn workspaces(
+    roots: Vec<BlockInfo>,
+    account: Uuid,
+    types: &dyn BlockTypes,
+) -> Vec<BlockInfo> {
+    let mut found: Vec<(bool, String, BlockInfo)> = roots
+        .into_iter()
+        .filter(|block| is_workspace(block.block_type))
+        .filter(|block| {
+            block.metadata.get(&MY_FILES) != Some(true) || block.author == Some(account)
+        })
+        .map(|block| {
+            let name = block.label(types).name.to_lowercase();
+            (!is_my_files(&block, account), name, block)
+        })
+        .collect();
+    found.sort_by(|left, right| (left.0, &left.1, left.2.id).cmp(&(right.0, &right.1, right.2.id)));
+    found.into_iter().map(|(_, _, block)| block).collect()
+}
+
+pub(crate) fn shared_with_me(roots: Vec<BlockInfo>, shared: Vec<BlockInfo>) -> Vec<BlockInfo> {
+    shared
+        .into_iter()
+        .chain(
+            roots
+                .into_iter()
+                .filter(|block| !is_workspace(block.block_type)),
+        )
+        .filter(|block| !is_system(block.block_type))
+        .collect()
+}
+
+pub(crate) fn own_system(roots: Vec<BlockInfo>, account: Uuid) -> Vec<BlockInfo> {
+    let mut found: Vec<BlockInfo> = roots
+        .into_iter()
+        .filter(|block| is_system(block.block_type) && block.author == Some(account))
+        .collect();
+    found.sort_by_key(|block| {
+        let kind = SYSTEM_TYPES
+            .iter()
+            .position(|kind| *kind == block.block_type);
+        (kind, block.id)
+    });
+    found
 }
 
 #[derive(Clone, Copy)]
 pub(crate) struct Tree {
     inner: Stored<Inner>,
     rows: Memo<Vec<Row>>,
-    orphans_open: Memo<bool>,
+    folded: Memo<Folded>,
     set_expanded: block_editor_beui::beui::reactive::WriteSignal<HashSet<Uuid>>,
-    set_orphans_open: block_editor_beui::beui::reactive::WriteSignal<bool>,
+    set_collapsed: WriteSignal<HashSet<Uuid>>,
+    set_folded: WriteSignal<Folded>,
     set_remembered: WriteSignal<u64>,
 }
 
@@ -115,9 +215,11 @@ impl Tree {
     pub(crate) fn watch(editor: Editor) -> Self {
         let client = editor.blocks();
         let roots = client.watch(BlockQuery::Roots);
+        let shared = client.watch(BlockQuery::Shared);
         let watched = Rc::new(RefCell::new(Watched::default()));
         let (expanded, set_expanded) = create_signal(HashSet::<Uuid>::new());
-        let (orphans_open, set_orphans_open) = create_signal(false);
+        let (collapsed, set_collapsed) = create_signal(HashSet::<Uuid>::new());
+        let (folded, set_folded) = create_signal(Folded::default());
         let (rows, set_rows) = create_signal(Vec::<Row>::new());
         let (remembered, set_remembered) = create_signal(0_u64);
 
@@ -125,11 +227,16 @@ impl Tree {
         let host = editor.host();
         let building = client.clone();
         let open = expanded;
-        let orphans = orphans_open;
         create_effect(move || {
             remembered.get();
             let mut watched = build.borrow_mut();
             let open = open.get();
+            let collapsed = collapsed.get();
+            let Folded {
+                orphans_open: showing,
+                shared_closed,
+                system_open,
+            } = folded.get();
             watched.expanded.retain(|id, _| open.contains(id));
             for id in &open {
                 watched
@@ -137,7 +244,6 @@ impl Tree {
                     .entry(*id)
                     .or_insert_with(|| building.watch(BlockQuery::References(*id)));
             }
-            let showing = orphans.get();
             if showing && watched.orphans.is_none() {
                 watched.orphans = Some(building.watch(BlockQuery::Detached));
             }
@@ -146,22 +252,43 @@ impl Tree {
             }
 
             let types = host.block_types();
+            let listed = roots.read();
+            let sections = workspaces(listed.clone(), host.account_id(), types.as_ref());
+            let system = own_system(listed.clone(), host.account_id());
+            let loose = shared_with_me(listed, shared.read());
+            watched.system = system.iter().map(|block| block.id).collect();
+            watched.workspaces = sections.iter().map(|block| block.id).collect();
+            let shown: HashSet<Uuid> = sections
+                .iter()
+                .map(|block| block.id)
+                .filter(|id| !collapsed.contains(id))
+                .collect();
+            watched.sections.retain(|id, _| shown.contains(id));
+            for id in &shown {
+                watched
+                    .sections
+                    .entry(*id)
+                    .or_insert_with(|| building.watch(BlockQuery::References(*id)));
+            }
             let mut builder = Builder {
+                account: host.account_id(),
                 client: &building,
                 types: types.as_ref(),
                 watched: &mut watched,
                 rows: Vec::new(),
             };
-            let listed = roots.read();
-            if listed.is_empty() && roots.is_loaded() {
+            if sections.is_empty() && roots.is_loaded() {
                 builder
                     .rows
-                    .push(Row::note(Vec::new(), 0, "No root blocks"));
+                    .push(Row::note(Vec::new(), 0, "No workspaces yet"));
             }
-            for root in listed {
-                builder.push(root, 0, None, &mut Vec::new());
+            for section in sections {
+                let open = shown.contains(&section.id);
+                builder.push_section(section, open);
             }
+            builder.push_shared(loose, !shared_closed, shared.is_loaded());
             builder.push_orphans(showing);
+            builder.push_system(system, system_open, roots.is_loaded());
             let rows = builder.rows;
             drop(watched);
             set_rows.set(rows);
@@ -169,7 +296,6 @@ impl Tree {
 
         let restored = Rc::new(Cell::new(false));
         let adopted = Rc::clone(&restored);
-        let (adopt_expanded, adopt_orphans) = (set_expanded, set_orphans_open);
         create_effect(move || {
             if adopted.get() {
                 return;
@@ -187,40 +313,55 @@ impl Tree {
             adopted.set(true);
             if let Some(opened) = opened {
                 untrack(|| {
-                    adopt_expanded.set(opened.expanded.into_iter().collect());
-                    adopt_orphans.set(opened.orphans);
+                    set_expanded.set(opened.expanded.into_iter().collect());
+                    set_collapsed.set(opened.collapsed.into_iter().collect());
+                    set_folded.set(Folded {
+                        orphans_open: opened.orphans,
+                        shared_closed: opened.shared_closed,
+                        system_open: opened.system,
+                    });
                 });
             }
         });
-        let (open, orphans) = (expanded, orphans_open);
         create_effect(move || {
             let mut expanded: Vec<Uuid> = open.get().into_iter().collect();
-            let orphans = orphans.get();
+            let mut collapsed: Vec<Uuid> = collapsed.get().into_iter().collect();
+            let Folded {
+                orphans_open,
+                shared_closed,
+                system_open,
+            } = folded.get();
             if !restored.get() {
                 return;
             }
             expanded.sort_unstable();
-            let opened = ViewState::new(&Opened { expanded, orphans }, Vec::new());
+            collapsed.sort_unstable();
+            let opened = ViewState::new(
+                &Opened {
+                    expanded,
+                    orphans: orphans_open,
+                    collapsed,
+                    shared_closed,
+                    system: system_open,
+                },
+                Vec::new(),
+            );
             untrack(|| editor.set_view_state(OPENED, Some(&opened)));
         });
 
         Self {
             inner: store(Inner { client, watched }),
             rows: create_memo(move || rows.get()),
-            orphans_open: create_memo(move || orphans_open.get()),
+            folded: create_memo(move || folded.get()),
             set_expanded,
-            set_orphans_open,
+            set_collapsed,
+            set_folded,
             set_remembered,
         }
     }
 
     pub(crate) fn rows(&self) -> Memo<Vec<Row>> {
         self.rows
-    }
-
-    pub(crate) fn keys(&self) -> Memo<Vec<RowKey>> {
-        let rows = self.rows;
-        create_memo(move || rows.with(|rows| rows.iter().map(|row| row.key.clone()).collect()))
     }
 
     pub(crate) fn row(&self, key: RowKey) -> Memo<Option<Row>> {
@@ -243,16 +384,48 @@ impl Tree {
         self.inner.with(|inner| inner.client.clone())
     }
 
-    pub(crate) fn block_types(&self) -> HashMap<Uuid, Uuid> {
+    pub(crate) fn workspaces(&self) -> HashSet<Uuid> {
         self.inner
-            .with(|inner| inner.watched.borrow().block_types.clone())
+            .with(|inner| inner.watched.borrow().workspaces.clone())
     }
 
     pub(crate) fn toggle(&self, key: &RowKey, id: Option<Uuid>, expanded: bool) {
         match key {
             RowKey::Orphans => {
-                let open = untrack(|| self.orphans_open.get());
-                self.set_orphans_open.set(!open);
+                let folded = untrack(|| self.folded.get());
+                self.set_folded.set(Folded {
+                    orphans_open: !folded.orphans_open,
+                    ..folded
+                });
+            }
+            RowKey::Shared => {
+                let folded = untrack(|| self.folded.get());
+                self.set_folded.set(Folded {
+                    shared_closed: !folded.shared_closed,
+                    ..folded
+                });
+            }
+            RowKey::System => {
+                let folded = untrack(|| self.folded.get());
+                self.set_folded.set(Folded {
+                    system_open: !folded.system_open,
+                    ..folded
+                });
+            }
+            RowKey::Block(path)
+                if path.len() == 1 && id.is_some_and(|id| self.workspaces().contains(&id)) =>
+            {
+                let Some(id) = id else {
+                    return;
+                };
+                self.set_collapsed.update(|collapsed| match expanded {
+                    true => {
+                        collapsed.insert(id);
+                    }
+                    false => {
+                        collapsed.remove(&id);
+                    }
+                });
             }
             RowKey::Block(_) => {
                 let Some(id) = id else {
@@ -267,7 +440,7 @@ impl Tree {
                     }
                 });
             }
-            RowKey::Note(_) => {}
+            RowKey::Note(_) | RowKey::SharedNote | RowKey::OrphansNote | RowKey::SystemNote => {}
         }
     }
 
@@ -277,11 +450,29 @@ impl Tree {
     }
 
     pub(crate) fn show_orphans(&self) {
-        self.set_orphans_open.set(true);
+        let folded = untrack(|| self.folded.get());
+        self.set_folded.set(Folded {
+            orphans_open: true,
+            ..folded
+        });
+    }
+
+    pub(crate) fn reveal_system(&self, root: Option<Uuid>) {
+        let held = self
+            .inner
+            .with(|inner| root.is_some_and(|id| inner.watched.borrow().system.contains(&id)));
+        let folded = untrack(|| self.folded.get());
+        if held && !folded.system_open {
+            self.set_folded.set(Folded {
+                system_open: true,
+                ..folded
+            });
+        }
     }
 }
 
 struct Builder<'a> {
+    account: Uuid,
     client: &'a Blocks,
     types: &'a dyn BlockTypes,
     watched: &'a mut Watched,
@@ -293,6 +484,8 @@ impl Builder<'_> {
         self.rows.push(Row {
             key: RowKey::Orphans,
             label: "Recently Deleted".to_owned(),
+            glyph: ICON_HISTORY.to_owned(),
+            section: true,
             expandable: true,
             expanded: open,
             ..Row::note(Vec::new(), 0, "Recently Deleted")
@@ -305,16 +498,127 @@ impl Builder<'_> {
         };
         let listed = orphans.read();
         if !orphans.is_loaded() {
-            self.rows.push(Row::note(Vec::new(), 1, "Loading…"));
+            self.rows
+                .push(Row::note_at(RowKey::OrphansNote, 1, "Loading…"));
             return;
         }
         if listed.is_empty() {
-            self.rows
-                .push(Row::note(Vec::new(), 1, "No recently deleted blocks"));
+            self.rows.push(Row::note_at(
+                RowKey::OrphansNote,
+                1,
+                "No recently deleted blocks",
+            ));
             return;
         }
         for block in listed {
-            self.push(block, 1, None, &mut Vec::new());
+            self.push(block, 1, None, &mut Vec::new(), true);
+        }
+    }
+
+    fn push_system(&mut self, blocks: Vec<BlockInfo>, open: bool, loaded: bool) {
+        self.rows.push(Row {
+            section: true,
+            expandable: true,
+            expanded: open,
+            glyph: ICON_DATABASE.to_owned(),
+            ..Row::note_at(RowKey::System, 0, "System")
+        });
+        if !open {
+            return;
+        }
+        if !loaded {
+            self.rows
+                .push(Row::note_at(RowKey::SystemNote, 1, "Loading…"));
+            return;
+        }
+        if blocks.is_empty() {
+            self.rows
+                .push(Row::note_at(RowKey::SystemNote, 1, "Nothing here yet"));
+            return;
+        }
+        for block in blocks {
+            self.push(block, 1, None, &mut Vec::new(), false);
+        }
+    }
+
+    fn push_section(&mut self, section: BlockInfo, open: bool) {
+        self.watched
+            .block_types
+            .insert(section.id, section.block_type);
+        let path = vec![section.id];
+        let mut row = describe(
+            self.client,
+            self.types,
+            &self.watched.block_types,
+            &section,
+            Placement {
+                key: RowKey::Block(path.clone()),
+                depth: 0,
+                container: None,
+                expanded: false,
+                trashed: false,
+            },
+            |id| id.to_string(),
+        );
+        row.section = true;
+        if row.glyph.is_empty() {
+            ICON_WORKSPACES.clone_into(&mut row.glyph);
+        }
+        row.expandable = true;
+        row.expanded = open;
+        row.can_leave = section.author != Some(self.account);
+        self.rows.push(row);
+        if !open {
+            return;
+        }
+        let Some(watched) = self.watched.sections.get(&section.id) else {
+            return;
+        };
+        let children = watched.read();
+        if !watched.is_loaded() {
+            self.rows.push(Row::note(path, 1, "Loading…"));
+            return;
+        }
+        if children.is_empty() {
+            self.rows.push(Row::note(path, 1, "Nothing here yet"));
+            return;
+        }
+        let mut path = path;
+        for child in children {
+            self.push(child, 1, Some(section.id), &mut path, false);
+        }
+    }
+
+    fn push_shared(&mut self, shared: Vec<BlockInfo>, open: bool, loaded: bool) {
+        self.rows.push(Row {
+            key: RowKey::Shared,
+            section: true,
+            expandable: true,
+            expanded: open,
+            glyph: ICON_PEOPLE.to_owned(),
+            ..Row::note_at(RowKey::Shared, 0, "Shared with me")
+        });
+        if !open {
+            return;
+        }
+        if !loaded {
+            self.rows
+                .push(Row::note_at(RowKey::SharedNote, 1, "Loading…"));
+            return;
+        }
+        if shared.is_empty() {
+            self.rows.push(Row::note_at(
+                RowKey::SharedNote,
+                1,
+                "Nothing has been shared with you",
+            ));
+            return;
+        }
+        for block in shared {
+            let at = self.rows.len();
+            let leavable = block.author != Some(self.account);
+            self.push(block, 1, None, &mut Vec::new(), false);
+            self.rows[at].can_leave = leavable;
         }
     }
 
@@ -324,6 +628,7 @@ impl Builder<'_> {
         depth: usize,
         container: Option<Uuid>,
         path: &mut Vec<Uuid>,
+        trashed: bool,
     ) {
         self.watched
             .block_types
@@ -342,6 +647,7 @@ impl Builder<'_> {
                 depth,
                 container,
                 expanded,
+                trashed,
             },
             |id| {
                 rows.iter()
@@ -350,6 +656,7 @@ impl Builder<'_> {
             },
         );
         let expanded = row.expanded;
+        let trashed = trashed || row.deleted;
         self.rows.push(row);
         if !expanded || path.contains(&reference.id) {
             return;
@@ -368,7 +675,7 @@ impl Builder<'_> {
         }
         path.push(reference.id);
         for child in children {
-            self.push(child, depth + 1, Some(reference.id), path);
+            self.push(child, depth + 1, Some(reference.id), path, trashed);
         }
         path.pop();
     }
@@ -379,6 +686,7 @@ pub(crate) struct Placement {
     pub(crate) depth: usize,
     pub(crate) container: Option<Uuid>,
     pub(crate) expanded: bool,
+    pub(crate) trashed: bool,
 }
 
 pub(crate) fn describe(
@@ -394,12 +702,13 @@ pub(crate) fn describe(
         depth,
         container,
         expanded,
+        trashed,
     } = placement;
-    let is_reference = container.is_some_and(|id| reference.parent != BlockParent::Block(id));
+    let is_reference = container.is_some_and(|id| reference.parent != Some(BlockParent::Block(id)));
     let source = container.map_or_else(
         || match reference.parent {
-            BlockParent::Detached => BlockParent::Detached,
-            BlockParent::Root | BlockParent::Block(_) => BlockParent::Root,
+            Some(BlockParent::Detached) => BlockParent::Detached,
+            Some(BlockParent::Root | BlockParent::Block(_)) | None => BlockParent::Root,
         },
         BlockParent::Block,
     );
@@ -417,7 +726,10 @@ pub(crate) fn describe(
         );
     let unlink = unlink_permission(client, types, block_types, container);
     let expandable = !is_reference && !reference.references.is_empty();
-    let label = reference.label(types);
+    let label = reference
+        .label(types)
+        .deleted(reference.deleted && !trashed);
+    let glyph = label_glyph(&label).unwrap_or_default().to_owned();
     let inspection = inspect(
         types,
         reference,
@@ -430,10 +742,11 @@ pub(crate) fn describe(
         key,
         id: Some(reference.id),
         block_type: reference.block_type,
-        label: label.name,
-        glyph: label.icon.map(str::to_owned).unwrap_or_default(),
+        label: label.name.clone(),
+        glyph,
         automatic: label.automatic,
         depth,
+        section: false,
         expandable,
         expanded: expandable && expanded,
         container,
@@ -445,8 +758,11 @@ pub(crate) fn describe(
         can_add,
         can_edit,
         can_delete,
+        can_leave: false,
         unlink,
         inspection: Some(inspection),
+        deleted: reference.deleted,
+        marked_deleted: label.deleted,
     }
 }
 
@@ -463,13 +779,17 @@ fn inspect(
         false => format!("{name} (automatic)"),
     };
     let parent = match block.parent {
-        BlockParent::Root => "Root".to_owned(),
-        BlockParent::Detached => "Recently Deleted".to_owned(),
-        BlockParent::Block(id) => described(id),
+        Some(BlockParent::Root) => "Root".to_owned(),
+        Some(BlockParent::Detached) => "Recently Deleted".to_owned(),
+        Some(BlockParent::Block(id)) if block.deleted => {
+            format!("{}, in Recently Deleted", described(id))
+        }
+        Some(BlockParent::Block(id)) => described(id),
+        None => "Unknown".to_owned(),
     };
-    let author = match block.author.is_nil() {
-        true => "Unknown".to_owned(),
-        false => block.author.to_string(),
+    let author = match block.author.filter(|author| !author.is_nil()) {
+        Some(author) => author.to_string(),
+        None => "Unknown".to_owned(),
     };
     let generated = block.artifact().map_or_else(
         || "No".to_owned(),

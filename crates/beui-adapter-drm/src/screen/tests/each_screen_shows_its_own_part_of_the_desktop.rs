@@ -46,8 +46,8 @@ fn each_screen_shows_its_own_part_of_the_desktop() {
 
     let (left_target, right_target) = (target(&gpu), target(&gpu));
     let drawn = [
-        left.draw(&gpu, &frame, &left_target),
-        right.draw(&gpu, &frame, &right_target),
+        left.draw(&gpu, &frame, &left_target).0,
+        right.draw(&gpu, &frame, &right_target).0,
     ];
     gpu.queue().submit(drawn);
     let (left_pixels, right_pixels) = (

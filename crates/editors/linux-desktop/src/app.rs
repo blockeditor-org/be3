@@ -11,6 +11,7 @@ mod sessions;
 mod switcher;
 mod tray;
 mod volume;
+mod wifi;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -54,12 +55,8 @@ fn DesktopShell(editor: Editor) -> NodeId {
     let loaded = create_memo(move || layout.is_none_or(|loaded| loaded.get()));
     view! {
         <Loaded loaded={loaded} label="Loading the desktop">
-            <Container>
-                {move |_| {
-                    view! {
-                        <DesktopBody workspace />
-                    }
-                }}
+            <Container>|_|
+                <DesktopBody workspace />
             </Container>
         </Loaded>
     }
@@ -102,25 +99,17 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     layout
                     drag_modifier={Some(Modifiers::LOGO)}
                 >
-                    <ForEach keys={block_tabs}>
-                        {move |tab: TabId| view! {
-                            <BlockWindow workspace tab />
-                        }}
+                    <ForEach keys={block_tabs}>|tab: TabId|
+                        <BlockWindow workspace tab />
                     </ForEach>
-                    <ForEach keys={desk}>
-                        {move |key: HostWindowId| view! {
-                            <FloatingWindow workspace key placeholder />
-                        }}
+                    <ForEach keys={desk}>|key: HostWindowId|
+                        <FloatingWindow workspace key placeholder />
                     </ForEach>
-                    <ForEach keys={dialog_windows}>
-                        {move |(window, parent): (HostWindowId, HostWindowId)| view! {
-                            <AttachedWindow workspace window parent />
-                        }}
+                    <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
+                        <AttachedWindow workspace window parent />
                     </ForEach>
-                    <ForEach keys={panels}>
-                        {move |panel: HostPanel| view! {
-                            <PanelWindow workspace panel />
-                        }}
+                    <ForEach keys={panels}>|panel: HostPanel|
+                        <PanelWindow workspace panel />
                     </ForEach>
                 </Docking>
                 <DesktopBar

@@ -1,5 +1,6 @@
 mod access;
 mod artifact;
+mod deleted;
 mod dialogs;
 mod host_panel;
 mod kept;
@@ -22,6 +23,6 @@ pub use picker_view::PickerDialogs;
 pub use saved::saved_windows;
 pub use window::{window_tab, window_title};
 pub use workspace::{
-    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, WindowTab,
-    Workspace,
+    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, SETTINGS,
+    WindowTab, Workspace,
 };

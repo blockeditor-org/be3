@@ -36,9 +36,11 @@ pub mod scroll;
 pub mod scrollbar;
 pub mod select;
 pub mod selectable_text;
+pub mod settings;
 pub mod sheet;
 pub mod shortcut;
 pub mod slider;
+pub mod software_keyboard;
 pub mod spinner;
 pub mod split_button;
 pub mod stack;
@@ -94,13 +96,15 @@ pub use number_input::{NumberInput, number_input_field, number_input_text};
 pub use popover::Popover;
 pub use progress::Progress;
 pub use responsive_tabs::{ResponsiveTabs, responsive_tabs_selected};
-pub use scroll::Scroll;
+pub use scroll::{Bleed, Scroll};
 pub use scrollbar::Scrollbar;
 pub use select::{Select, select_open, select_selected};
 pub use selectable_text::SelectableText;
+pub use settings::{SettingsLink, SettingsPage, SettingsRow, SettingsSection};
 pub use sheet::{ModalSheet, Sheet};
 pub use shortcut::Shortcut;
 pub use slider::{Slider, slider_value};
+pub use software_keyboard::{SoftwareKeyboard, install_keyboard, keyboard_height};
 pub use spinner::Spinner;
 pub use split_button::SplitButton;
 pub use stack::Stack;
@@ -114,10 +118,13 @@ pub use text::{
 pub use text_area::emoji::emoji_menu;
 pub use text_area::{TextArea, text_area_surface};
 pub use text_input::{TextInput, text_input_value};
-pub use theme::{DocumentTheme, Theme, ThemeKind, ThemeProvider, ThemeStore, use_theme};
+pub use theme::{
+    Density, DocumentTheme, Theme, ThemeKind, ThemeProvider, ThemeStore, provide_density,
+    use_density, use_theme,
+};
 pub use toast::{TOAST_DURATION, Toast, ToastAction, Toasts};
 pub use tooltip::Tooltip;
-pub use tree::{Tree, TreeRowFace, tree_focused, tree_row_node, tree_rows};
+pub use tree::{Tree, TreeMenu, TreeRowFace, tree_focused, tree_row_node, tree_rows};
 
 pub mod choice;
 pub mod listbox;

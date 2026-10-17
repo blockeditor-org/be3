@@ -71,6 +71,9 @@ pub fn interact(document: &mut Document, ctx: &Context, rects: &Rects, root: Nod
     }
     run_in(document, |doc| {
         pointer::end_frame(doc, &frame);
+        if let Some(internals) = ctx.comps_query() {
+            ctx.answer_comps(doc.component_tree().text(doc, internals));
+        }
         if let Some(pos) = ctx.hit_query()
             && rects.visible(&root).is_some_and(|rect| rect.contains(pos))
         {
@@ -515,6 +518,7 @@ fn is_activity(event: &Event) -> bool {
             | Event::Text(_)
             | Event::Paste(_)
             | Event::Touch { .. }
+            | Event::Pen { .. }
             | Event::Zoom(_)
     )
 }
@@ -544,6 +548,10 @@ fn taps(doc: &mut Document, events: &[Event]) -> Vec<usize> {
             | Event::Focus(false)
             | Event::Touch {
                 phase: crate::input::TouchPhase::Start,
+                ..
+            }
+            | Event::Pen {
+                phase: crate::input::PenPhase::Down(_),
                 ..
             } => doc.tapping = None,
             _ => {}

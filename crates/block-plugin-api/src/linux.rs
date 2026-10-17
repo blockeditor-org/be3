@@ -129,6 +129,14 @@ impl PlayerCommand {
     pub const ALL: [Self; 4] = [Self::PlayPause, Self::Next, Self::Previous, Self::Stop];
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RemapState {
+    #[default]
+    Off,
+    On,
+    Stopped,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MediaRequest {
     StepVolume(f32),
@@ -139,6 +147,55 @@ pub enum MediaRequest {
     ToggleMicMute,
     StepBrightness(f32),
     Player(PlayerCommand),
+}
+
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WifiSecurity {
+    #[default]
+    Open,
+    Password,
+    Unsupported,
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WifiNetwork {
+    pub ssid: String,
+    pub strength: u8,
+    pub security: WifiSecurity,
+    pub saved: bool,
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WifiLink {
+    #[default]
+    Disconnected,
+    Connecting(String),
+    Connected(String),
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WifiStatus {
+    pub available: bool,
+    pub enabled: bool,
+    pub link: WifiLink,
+    pub networks: Vec<WifiNetwork>,
+    pub failed: Option<String>,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WifiRequest {
+    SetEnabled(bool),
+    Scan,
+    Connect {
+        ssid: String,
+        password: Option<String>,
+    },
+    Disconnect,
+}
+
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum EpaperRequest {
+    Refresh,
 }
 
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
@@ -310,6 +367,13 @@ impl HostValue for InputDevices {
     type Value = Vec<HostInputDevice>;
 }
 
+pub enum Remaps {}
+
+impl HostValue for Remaps {
+    const KEY: &'static str = "remaps";
+    type Value = RemapState;
+}
+
 pub enum Displays {}
 
 impl HostValue for Displays {
@@ -329,6 +393,20 @@ pub enum Media {}
 impl HostValue for Media {
     const KEY: &'static str = "media";
     type Value = MediaLevels;
+}
+
+pub enum Wifi {}
+
+impl HostValue for Wifi {
+    const KEY: &'static str = "wifi";
+    type Value = WifiStatus;
+}
+
+pub enum Epaper {}
+
+impl HostValue for Epaper {
+    const KEY: &'static str = "epaper";
+    type Value = bool;
 }
 
 pub enum Notifications {}
@@ -377,6 +455,14 @@ impl HostAction for PowerAction {
 
 impl HostAction for MediaRequest {
     const KEY: &'static str = "media";
+}
+
+impl HostAction for WifiRequest {
+    const KEY: &'static str = "wifi";
+}
+
+impl HostAction for EpaperRequest {
+    const KEY: &'static str = "epaper";
 }
 
 impl HostAction for NotificationReport {

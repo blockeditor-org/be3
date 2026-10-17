@@ -115,26 +115,24 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
     });
     view! {
         <Layers>
-            <ForEach keys={keys}>
-                {move |_key: (EditorInstanceId, EditorRegion)| {
-                    let Some(hosted) = region.get_untracked() else {
-                        return view! {
-                            <Frame />
-                        };
-                    };
-                    let child_view: ChildView = store(Box::new(|_, _, _| view! {
+            <ForEach keys={keys}>|_key: (EditorInstanceId, EditorRegion)| {
+                let Some(hosted) = region.get_untracked() else {
+                    return view! {
                         <Frame />
-                    }));
-                    view! {
-                        <PluginRegion
-                            editor={hosted.editor}
-                            region={hosted.region}
-                            frame={hosted.frame}
-                            child_view
-                        />
-                    }
-                }}
-            </ForEach>
+                    };
+                };
+                let child_view: ChildView = store(Box::new(|_, _, _| view! {
+                    <Frame />
+                }));
+                view! {
+                    <PluginRegion
+                        editor={hosted.editor}
+                        region={hosted.region}
+                        frame={hosted.frame}
+                        child_view
+                    />
+                }
+            }</ForEach>
         </Layers>
     }
 }
@@ -177,7 +175,8 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         let content = content;
         move || match content.get() {
             HostItem::Fallback { icon, .. } => icon.unwrap_or_default(),
-            _ => String::new(),
+            HostItem::Notice { icon, .. } => icon.unwrap_or_default().to_owned(),
+            HostItem::Unsupported { .. } => String::new(),
         }
     });
     let has_glyph = create_memo(move || !glyph.get().is_empty());
@@ -234,12 +233,14 @@ pub(crate) fn StaleBlock(block: Uuid, block_type: Uuid, stale: crate::be::Stale)
         }
     };
     let delete = move || {
-        let source =
-            crate::be::node(block).map_or(BlockLocation::Detached, |node| match node.parent {
+        let source = crate::be::node(block).and_then(|node| node.parent).map_or(
+            BlockLocation::Detached,
+            |parent| match parent {
                 be_graph::BlockParent::Root => BlockLocation::Root,
                 be_graph::BlockParent::Detached => BlockLocation::Detached,
                 be_graph::BlockParent::Block(parent) => BlockLocation::Block(parent.into_bytes()),
-            });
+            },
+        );
         crate::compositor::act(
             None,
             crate::editors::EditorAction::Command {

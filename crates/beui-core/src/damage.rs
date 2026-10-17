@@ -44,7 +44,7 @@ impl Region {
         }
         if let Some(region) = self.rects[..self.count]
             .iter_mut()
-            .find(|region| region.intersects(rect))
+            .find(|region| region.intersects(rect) && !wasteful(**region, rect))
         {
             *region = region.union(rect);
         } else if self.count < REGIONS {
@@ -70,8 +70,8 @@ impl Region {
             for first in 0..self.count {
                 for second in first + 1..self.count {
                     let (a, b) = (self.rects[first], self.rects[second]);
-                    let union = a.union(b);
-                    if area(union) <= MERGE_WASTE * (area(a) + area(b)) {
+                    if !wasteful(a, b) {
+                        let union = a.union(b);
                         self.rects[first] = union;
                         self.rects.copy_within(second + 1..self.count, second);
                         self.count -= 1;
@@ -105,6 +105,10 @@ impl Default for Region {
     fn default() -> Self {
         Self::NOTHING
     }
+}
+
+fn wasteful(a: Rect, b: Rect) -> bool {
+    area(a.union(b)) > MERGE_WASTE * (area(a) + area(b))
 }
 
 fn area(rect: Rect) -> f32 {

@@ -1,5 +1,5 @@
 use std::{
-    sync::{Arc, Condvar, Mutex},
+    sync::{Arc, Condvar, Mutex, PoisonError},
     thread::{self, JoinHandle},
     time::Duration,
 };
@@ -39,7 +39,7 @@ pub(super) fn spawn(
             {
                 Ok(runtime) => runtime,
                 Err(error) => {
-                    shared.lock().unwrap().error =
+                    shared.lock().unwrap_or_else(PoisonError::into_inner).error =
                         Some(format!("the new block stack cannot start: {error}"));
                     return;
                 }
@@ -49,10 +49,15 @@ pub(super) fn spawn(
                 FileStore::open(&directory)
                     .map_err(|error| format!("the local object store cannot open: {error}"))
             };
-            runtime.block_on(serve(config, store, commands, shared, changed));
+            tokio::task::LocalSet::new()
+                .block_on(&runtime, serve(config, store, commands, shared, changed));
         })
         .ok();
     Running(worker)
+}
+
+pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
+    tokio::task::spawn_local(task);
 }
 
 pub(super) async fn sleep(duration: Duration) {

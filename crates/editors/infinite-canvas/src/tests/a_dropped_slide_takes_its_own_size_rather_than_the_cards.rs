@@ -14,7 +14,7 @@ fn a_dropped_slide_takes_its_own_size_rather_than_the_cards() {
         &[BlockInfo::new(
             slide,
             CanvasContent::CONTENT_TYPE,
-            BlockParent::Detached,
+            BlockParent::Root,
         )],
     );
     editor.drag_block(

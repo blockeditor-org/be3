@@ -11,14 +11,16 @@ fn multiplexed_messages_round_trip() {
         blocks: vec![BlockInfo {
             block_id: [1; 16],
             block_type: [2; 16],
-            author: [3; 16],
-            parent: BlockLocation::Root,
+            author: Some([3; 16]),
+            parent: Some(BlockLocation::Root),
             references: vec![[4; 16]],
             access: AccessLevel::Edit,
             metadata: BlockMetadata {
                 defined: [([8; 16], ByteBuf::from(b"Notes".to_vec()))].into(),
                 derived: [([9; 16], ByteBuf::from(vec![5, 6, 7]))].into(),
             },
+            locked: false,
+            deleted: false,
         }],
     });
     assert_eq!(

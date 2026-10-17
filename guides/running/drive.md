@@ -8,7 +8,7 @@ see a change working in the real app. Start it with its `:dev` target:
     source ~/.cache/be3/dev/env
     drive tree
 
-`:dev` exists for block-app (signed in, with a workspace called Dev open), beui-demo
+`:dev` exists for block-app (signed in, with the personal organization open on My files), beui-demo
 (`//crates/beui-demo:dev`, `~/.cache/be3/beui-demo/env`) and be-launcher
 (`//crates/be-launcher:dev`). Each builds the program, starts it with no window and returns
 once it has settled; running it again restarts it, which is how to pick up a rebuild. The
@@ -71,7 +71,7 @@ block-app (guides/testing_a_gui.md, 6).
         Slider "Load" value=0.8 at 291,476 size 771x20
 
 Coordinates are pixels from the window's corner. `offscreen` marks a node scrolled or clipped
-out of view and `focused` the one with keyboard focus. In block-app each plugin region is a
+out of view, `focused` the one with keyboard focus and `selected` a selected row or option. In block-app each plugin region is a
 `Pane` named after its plugin, holding the nodes its editor describes (guides/adding_a_plugin_editor.md),
 so dialogs, the file tree and every editor read like the host's own controls.
 
@@ -85,6 +85,12 @@ so dialogs, the file tree and every editor read like the host's own controls.
   made in and what it handles, then what forwarded input goes to and which overlays the press
   would dismiss. Use it when a press goes to the wrong place or nowhere. It sees the host's own
   document only; in block-app a press over a plugin ends at that plugin region's catcher.
+- `drive comps` prints the host document's component tree with module-qualified names, text
+  leaves and `#test_id`s. Caller-supplied children appear beneath the component; components
+  built by its body are hidden under `internals`. `drive comps --internals` includes those
+  implementation trees too. This is the same tree as the inspector's Comp tab; the inspector
+  initially collapses internals of components defined in `beui_*` crates and expands others.
+  Like `hit`, this sees the host document, not plugin documents.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
   fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
   method's composition, a back gesture under way, files being dragged in, and any open file
@@ -127,6 +133,9 @@ A command that acts on something takes a TARGET:
     drive swipe FROM TO
     drive pinch TARGET 2                      two fingers spreading apart
     drive touch down 0=TARGET 1=TARGET; drive touch move 0=... 1=...; drive touch up
+    drive pen draw FROM TO [STEPS]            a stylus stroke, its pressure rising and falling
+    drive pen move TARGET; drive pen down TARGET 0.8; drive pen move TARGET 0.3; drive pen up
+    drive pen leave                           the pen goes out of range
     drive back                                the system back gesture; back 0.4 holds it part way,
                                               back commit and back cancel finish it
     drive type 'buy milk'                     keys into what has focus; a newline presses Enter
@@ -149,10 +158,10 @@ change is cut to its first 60 lines; `drive --changes=N COMMAND` (or `all`) prin
 has settled once a frame asks for no other and `App::busy` is false; block-app is busy while a
 plugin is starting, owes a frame, holds unanswered input or has yet to answer a `paint`, while
 an editor on screen waits for its block's content, while a plugin's change arrived after the
-frame's layout and is shown only by the next, while an account or workspace request is
+frame's layout and is shown only by the next, while an account or organization request is
 pending, and while the block store has commands to carry out, edits it owes a seal (which a
-driven app asks for at once, rather than after the pause a person's edits wait for) or is
-still loading the workspace's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
+driven app asks for at once unless `hurry` is off, below) or is
+still loading the organization's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
 TEXT` (or `#TEST_ID`), which return once a line of the tree contains TEXT or none does;
@@ -163,6 +172,12 @@ own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.
 a time, so an animation can be stopped at any point and a screenshot of it taken the same way
 every run, and an app that animates forever still settles. `drive clock run` starts it again.
 Anything else waiting on time, such as a plugin's frame timeout, waits for `pause` too.
+
+A driven app may take shortcuts a person never sees so that it settles sooner: block-app seals
+edits at once rather than after the pause a person's edits wait for. An app asks
+`Context::hurried` before taking one. `drive hurry off` turns them off until `drive hurry on`,
+so the app waits as it does in a window; time how long something takes to show with it off,
+such as `drive hurry off; drive --no-settle click TARGET; time drive wait TEXT`.
 
 `drive -` reads commands from standard input, one a line, quoted as a shell would, prints each
 before its answer and stops at the first that fails:

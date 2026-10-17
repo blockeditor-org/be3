@@ -26,6 +26,7 @@ async fn a_follower_stops_saving_after_a_message_it_cannot_read() {
         .unwrap();
     type_at(&mut owner, 5, " world").await;
 
+    newer_peer.join_session(block).await.unwrap();
     newer_peer
         .relay(block, None, &[0xff, 0xff, 0xff, 0xff])
         .await

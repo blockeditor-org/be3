@@ -6,17 +6,27 @@ use uuid::Uuid;
 
 use crate::app::FileTreeApp;
 
+mod a_block_whose_key_has_not_arrived_shows_locked_and_a_shared_workspace_can_be_left;
+mod a_link_to_a_deleted_block_is_marked_and_can_restore_it;
+mod a_linked_block_it_cannot_see_shows_no_access_rather_than_locked;
 mod a_narrow_files_pane_on_a_desktop_keeps_the_tree;
+mod a_new_workspace_is_made_at_the_top_and_named_by_hand;
+mod a_phone_lists_what_is_shared_with_it;
+mod a_phone_reaches_the_account_s_system_blocks;
 mod a_phone_walks_into_folders_and_opens_files;
+mod a_workspace_header_adds_into_that_workspace;
 mod an_opened_folder_is_kept_open_in_the_view_and_reopens_open;
 mod clicking_the_chevron_opens_and_closes_its_own_row;
 mod expanding_a_folder_shows_its_children_without_more_input;
 mod exporting_a_text_block_saves_it_as_a_markdown_file;
 mod exporting_any_block_as_a_block_file_asks_the_host_for_it;
 mod inspecting_a_row_shows_what_is_known_about_its_block;
+mod leave_is_offered_on_a_phone_but_never_to_an_administrator;
 mod open_with_opens_a_block_in_the_editor_chosen_for_it;
 mod swiping_back_in_a_folder_shows_the_one_above_it;
+mod the_account_s_system_blocks_are_reached_from_the_bottom_of_the_files;
 mod the_desktop_files_toolbar_opens_the_app_menu;
+mod the_files_are_shown_by_workspace_then_what_is_shared;
 mod the_inspect_dialog_stays_on_a_narrow_screen;
 mod the_phone_files_header_opens_the_app_menu;
 
@@ -31,6 +41,17 @@ impl Fixture {
     }
 
     fn choose(&mut self, block: Uuid, label: &str) {
+        self.open_menu(block);
+        let document = self.test.document();
+        let item = document
+            .root()
+            .and_then(|root| open_item(document, root, label, false))
+            .unwrap_or_else(|| panic!("right clicking a row opens a menu that offers {label}"));
+        self.test.click_at(item);
+        self.settle();
+    }
+
+    fn open_menu(&mut self, block: Uuid) {
         let pos = self
             .test
             .rect_of(&format!("file-tree.{block}.row"))
@@ -49,13 +70,6 @@ impl Fixture {
             modifiers: Modifiers::NONE,
         }]);
         self.settle();
-        let document = self.test.document();
-        let item = document
-            .root()
-            .and_then(|root| open_item(document, root, label, false))
-            .unwrap_or_else(|| panic!("right clicking a row opens a menu that offers {label}"));
-        self.test.click_at(item);
-        self.settle();
     }
 
     fn click_item(&mut self, label: &str) {
@@ -66,6 +80,14 @@ impl Fixture {
             .unwrap_or_else(|| panic!("an open menu offers {label}"));
         self.test.click_at(item);
         self.settle();
+    }
+
+    fn offers(&self, label: &str) -> bool {
+        let document = self.test.document();
+        document
+            .root()
+            .and_then(|root| open_item(document, root, label, false))
+            .is_some()
     }
 
     fn says(&self, words: &str) -> bool {
@@ -82,6 +104,58 @@ impl Fixture {
             .map(|open| open.block_id)
             .collect()
     }
+}
+
+const MY_FILES: Uuid = Uuid::from_u128(0x006d_7966_696c_6573);
+
+fn files_workspace(
+    host: &EditorHost,
+    inside: &[block_editor_beui::BlockInfo],
+) -> block_editor_beui::BlockInfo {
+    use block_editor_beui::be_block::{BlockContent, WorkspaceContent};
+    use block_editor_beui::{BlockInfo, BlockParent};
+    let mut files = BlockInfo::new(MY_FILES, WorkspaceContent::CONTENT_TYPE, BlockParent::Root);
+    files.author = Some(host.account_id());
+    files.set_name("My files");
+    files
+        .metadata
+        .insert(&block_editor_beui::be_block::MY_FILES, &true);
+    files.references = inside.iter().map(|block| block.id).collect();
+    files
+}
+
+fn my_files(fixture: &mut Fixture, inside: Vec<block_editor_beui::BlockInfo>) -> Uuid {
+    use block_editor_beui::BlockQuery;
+    let files = files_workspace(&fixture.host, &inside);
+    fixture.host.set_blocks(BlockQuery::Roots, vec![files]);
+    fixture.settle();
+    fixture
+        .host
+        .set_blocks(BlockQuery::References(MY_FILES), inside);
+    MY_FILES
+}
+
+fn containers_hold_blocks(fixture: &mut Fixture) {
+    use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
+    use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations};
+    let holding = |block_type: Uuid, name: &str| BlockTypeDescriptor {
+        block_type: block_type.into_bytes(),
+        display_name: name.to_owned(),
+        icon_codepoint: String::new(),
+        children: ChildOperations {
+            add: true,
+            delete: true,
+            replace: true,
+        },
+    };
+    fixture.test.catalog(Catalog {
+        types: vec![
+            holding(WorkspaceContent::CONTENT_TYPE, "Workspace"),
+            holding(FolderContent::CONTENT_TYPE, "Folder"),
+        ],
+        templates: Vec::new(),
+        editors: Vec::new(),
+    });
 }
 
 fn editor() -> Fixture {

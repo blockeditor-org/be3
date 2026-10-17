@@ -2,11 +2,13 @@ use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_MENU, ICON_WORKSPACES};
+use block_editor_beui::beui::icons::{
+    ICON_ADD, ICON_APPS, ICON_KEYBOARD, ICON_MENU, ICON_REFRESH, ICON_WORKSPACES,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
-use block_editor_beui::{Media, Power, utc_offset};
+use block_editor_beui::{Epaper, EpaperRequest, Media, Power, Wifi, utc_offset};
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
@@ -18,6 +20,7 @@ use super::power::PowerMenu;
 use super::sessions::Sessions;
 use super::tray::TrayItems;
 use super::volume::VolumeButton;
+use super::wifi::WifiButton;
 
 const BAR_PADDING: f32 = 6.0;
 const BAR_SPACING: f32 = 8.0;
@@ -59,6 +62,8 @@ pub(crate) fn DesktopBar(
     let editor = workspace.editor();
     let levels = editor.host_value::<Media>();
     let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
+    let wifi = editor.host_value::<Wifi>();
+    let wireless = create_memo(move || wifi.with(|wifi| wifi.available));
     let kept = placeholders.keys;
     let launches = placeholders.launchable;
     let waiting = create_memo(move || launches.get() && !kept.with(Vec::is_empty));
@@ -66,6 +71,8 @@ pub(crate) fn DesktopBar(
     let launcher = move || launcher.show(true);
     let notified = notifications.offered;
     let powered = editor.host_offers::<Power>();
+    let epaper = editor.host_value::<Epaper>();
+    let refresh = move || editor.act(EpaperRequest::Refresh);
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let sessions = Sessions::new(workspace);
     let listed = sessions.listed;
@@ -114,23 +121,21 @@ pub(crate) fn DesktopBar(
                         disabled={unready}
                         @test_id={"desktop.sessions"}
                         items={view! {
-                            <ForEach keys={keys}>
-                                {move |block: uuid::Uuid| {
-                                    let named = named;
-                                    let label = create_memo(move || {
-                                        named.with(|sessions| {
-                                            sessions
-                                                .iter()
-                                                .find(|session| session.block == block)
-                                                .map(|session| session.name.clone())
-                                                .unwrap_or_default()
-                                        })
-                                    });
-                                    view! {
-                                        <MenuItem label />
-                                    }
-                                }}
-                            </ForEach>
+                            <ForEach keys={keys}>|block: uuid::Uuid| {
+                                let named = named;
+                                let label = create_memo(move || {
+                                    named.with(|sessions| {
+                                        sessions
+                                            .iter()
+                                            .find(|session| session.block == block)
+                                            .map(|session| session.name.clone())
+                                            .unwrap_or_default()
+                                    })
+                                });
+                                view! {
+                                    <MenuItem label />
+                                }
+                            }</ForEach>
                             <MenuItem
                                 row_test_id={"desktop.sessions.new".to_owned()}
                                 label="New session"
@@ -146,16 +151,37 @@ pub(crate) fn DesktopBar(
                         <OpenAllButton placeholders />
                     </Show>
                     <TrayItems editor={editor} />
+                    <Show condition={wireless}>
+                        <WifiButton editor={editor} status={wifi} />
+                    </Show>
                     <Show condition={audible}>
                         <VolumeButton editor={editor} levels={levels} />
                     </Show>
                     <Show condition={notified}>
                         <NotificationsButton notifications />
                     </Show>
-                    <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
-                        {move |_: PopoverHandle| view! {
-                            <DesktopCalendar editor={editor} />
-                        }}
+                    <Show condition={epaper}>
+                        <IconButton
+                            glyph={ICON_REFRESH.to_owned()}
+                            label="Refresh the screen"
+                            @test_id={"desktop.refresh"}
+                            press_focus=false
+                            on_click={refresh}
+                        />
+                    </Show>
+                    <IconButton
+                        glyph={ICON_KEYBOARD.to_owned()}
+                        label="On-screen keyboard"
+                        @test_id={"desktop.keyboard"}
+                        press_focus=false
+                        on_click={toggle_keyboard}
+                    />
+                    <BarPopup
+                        label={clock}
+                        width=CALENDAR_WIDTH
+                        @test_id={"desktop.clock"}
+                    >|_: PopoverHandle|
+                        <DesktopCalendar editor={editor} />
                     </BarPopup>
                     <Show condition={powered}>
                         <PowerMenu editor={editor} />

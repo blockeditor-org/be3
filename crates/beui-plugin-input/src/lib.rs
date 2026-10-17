@@ -1,6 +1,6 @@
 use block_plugin_api::{
     BackEdge, BackPhase, CursorIcon, FilePick, ImeInput, ImeText, Key, KeyChord, Modifiers,
-    PasteKind, Pasted, PointerButton, TouchPhase,
+    PasteKind, Pasted, PenPhase, PointerButton, TouchPhase,
 };
 
 pub fn protocol_modifiers(modifiers: beui::Modifiers) -> Modifiers {
@@ -44,6 +44,7 @@ pub fn pointer_button(button: beui::PointerButton) -> PointerButton {
         beui::PointerButton::Middle => PointerButton::Middle,
         beui::PointerButton::Back => PointerButton::Back,
         beui::PointerButton::Forward => PointerButton::Forward,
+        beui::PointerButton::Other(code) => PointerButton::Other(code),
     }
 }
 
@@ -53,6 +54,15 @@ pub fn touch_phase(phase: beui::TouchPhase) -> TouchPhase {
         beui::TouchPhase::Move => TouchPhase::Move,
         beui::TouchPhase::End => TouchPhase::End,
         beui::TouchPhase::Cancel => TouchPhase::Cancel,
+    }
+}
+
+pub fn pen_phase(phase: beui::PenPhase) -> PenPhase {
+    match phase {
+        beui::PenPhase::Move => PenPhase::Move,
+        beui::PenPhase::Down(button) => PenPhase::Down(pointer_button(button)),
+        beui::PenPhase::Up(button) => PenPhase::Up(pointer_button(button)),
+        beui::PenPhase::Gone => PenPhase::Gone,
     }
 }
 
@@ -385,7 +395,7 @@ pub fn beui_button(button: PointerButton) -> Option<beui::PointerButton> {
         PointerButton::Middle => Some(beui::PointerButton::Middle),
         PointerButton::Back => Some(beui::PointerButton::Back),
         PointerButton::Forward => Some(beui::PointerButton::Forward),
-        PointerButton::Other(_) => None,
+        PointerButton::Other(code) => Some(beui::PointerButton::Other(code)),
     }
 }
 
@@ -396,6 +406,15 @@ pub fn beui_touch_phase(phase: TouchPhase) -> beui::TouchPhase {
         TouchPhase::End => beui::TouchPhase::End,
         TouchPhase::Cancel => beui::TouchPhase::Cancel,
     }
+}
+
+pub fn beui_pen_phase(phase: PenPhase) -> Option<beui::PenPhase> {
+    Some(match phase {
+        PenPhase::Move => beui::PenPhase::Move,
+        PenPhase::Down(button) => beui::PenPhase::Down(beui_button(button)?),
+        PenPhase::Up(button) => beui::PenPhase::Up(beui_button(button)?),
+        PenPhase::Gone => beui::PenPhase::Gone,
+    })
 }
 
 pub fn protocol_cursor(cursor: beui::CursorIcon) -> CursorIcon {

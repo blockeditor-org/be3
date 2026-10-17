@@ -27,6 +27,12 @@ pub const ARTIFACT: MetaKey<ArtifactSource> =
 pub const LOCAL_ID: MetaKey<Uuid> =
     MetaKey::defined(0x6be3_6d65_7461_4c00_8a1e_6c6f_6361_0001, "local_id");
 
+pub const MY_FILES: MetaKey<bool> =
+    MetaKey::defined(0x6be3_6d65_7461_4d00_8a1e_6d79_6669_0001, "my_files");
+
+pub const DELETED_FROM: MetaKey<DeletedFrom> =
+    MetaKey::defined(0x6be3_6d65_7461_4400_8a1e_6465_6c66_0001, "deleted_from");
+
 const DEFINED: &str = "defined";
 const DERIVED: &str = "derived";
 const UUID_TAG: u64 = 37;
@@ -106,6 +112,12 @@ pub struct ArtifactSource {
     pub source_type: Uuid,
     #[serde(with = "be_model::bytes")]
     pub data: Vec<u8>,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub enum DeletedFrom {
+    Root,
+    Block(Uuid),
 }
 
 impl BlockMetadata {

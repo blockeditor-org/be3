@@ -43,6 +43,10 @@ impl Platform for HostPlatform {
         drop(answer);
     }
 
+    fn shows_keyboard(&self) -> bool {
+        true
+    }
+
     fn delivers_paste_shortcut(&self) -> bool {
         true
     }

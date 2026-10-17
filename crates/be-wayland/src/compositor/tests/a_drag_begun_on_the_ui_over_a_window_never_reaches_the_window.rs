@@ -38,14 +38,10 @@ fn Covered(windows: Windows) -> NodeId {
                 <Frame width={SCREEN.x} height={SCREEN.y} />
             </Interactive>
             <List spacing=0.0>
-                <ForEach keys={ids}>
-                    {move |id: WindowId| {
-                        view! {
-                            <Frame width={SHOWN.x} height={SHOWN.y}>
-                                <WindowView windows id occluders={vec![tab()]} />
-                            </Frame>
-                        }
-                    }}
+                <ForEach keys={ids}>|id: WindowId|
+                    <Frame width={SHOWN.x} height={SHOWN.y}>
+                        <WindowView windows id occluders={vec![tab()]} />
+                    </Frame>
                 </ForEach>
             </List>
         </Layers>
