@@ -2757,6 +2757,7 @@ fn SettingsSections() -> NodeId {
     let (sounds, set_sounds) = create_signal(true);
     let (volume, set_volume) = create_signal(DEFAULT_VOLUME);
     let (size, set_size) = create_signal(Some(1));
+    let (effects, set_effects) = create_signal(true);
     let volume_changed = create_memo(move || volume.get() != DEFAULT_VOLUME);
     let size_changed = create_memo(move || size.get() != Some(1));
     view! {
@@ -2806,6 +2807,15 @@ fn SettingsSections() -> NodeId {
                         on_change={move |index| set_size.set(index)}
                     />
                 </SettingsRow>
+                <SettingsLink
+                    label="Sound effects"
+                    description="A link row opens a page of its own; its reset can ask first."
+                    separated=true
+                    modified={effects}
+                    reset_confirm="Resetting deletes the sound effects page."
+                    on_reset={move || set_effects.set(false)}
+                    on_click={|| {}}
+                />
             </SettingsSection>
         </List>
     }

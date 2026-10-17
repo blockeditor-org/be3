@@ -247,6 +247,61 @@ with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press
 and change them from outside the app with `pactl set-sink-volume`, `set-sink-mute` and
 `set-default-sink`.
 
+## Input remaps
+
+Under `--session` the keys, mouse buttons and wheel notches libinput reports can be remapped before
+anything else sees them, the way AutoHotkey does on Windows. What remaps them is a remapper: a
+WebAssembly module a plugin ships as its data, given a config the plugin's editor writes.
+
+A remapper's settings are a block of the `InputRemapper` type (`be_block::InputRemapper`), which any
+plugin can edit by declaring an editor for that block type. Its content is an envelope the host reads
+without the plugin running: the plugin's id, the module's path in that plugin's data, and the config,
+bytes only the module reads. The input settings' `remapper` (`RemapperChoice`: the block and the
+editor that made it) picks one, in the shared input settings for every device or in a profile's for
+its devices, the profile's replacing the shared one. The input settings' Remaps section offers every
+editor of the `InputRemapper` type as the Remapper, and its Remaps link opens the chosen block with its
+editor in a tab, making it first (with the chosen remapper, else the first there is) when there is none.
+
+The remapper that ships is `editors/input-remaps`: its block's config is TOML text, stored exactly as
+written, comments and layout included, and its module is `crates/remap/module`, staged as its data
+(`remapper.wasm`). The module is `be-remap`'s engine and text reader (`be_remap::text`, whose errors
+name the group and rule): rules apply in every window or only while a window whose executable, app id
+or title matches has the keyboard, and hold a key while a key or button is held, or tap a key for some
+milliseconds or play a sequence of taps. Keys are named the way `be_remap::names` does (evdev's names,
+AutoHotkey's for the common ones, and `Key:CODE` or `Button:CODE` for any other). Its page has two
+tabs over the same text. Editor shows each group and rule as settings rows and changes the text through
+`be_remap::edit`, which reads an outline of it as written (so a name that does not read yet still shows)
+and edits it in place with `toml_edit`, so comments and layout outside what changed stay; each change is
+stored once the whole text reads, and a problem is shown until it does. TOML is the text itself, stored
+when Apply is pressed and it reads.
+
+A module exports `memory`, `be_remap_buffer` and `be_remap_handle`, and trades `be_remap::protocol`
+requests (start with the config, focus, input, timer) and replies in bincode; a start can answer with a
+problem instead, such as a config it cannot read. `be-remap-host` runs it on wasmi: each call gets a
+fixed amount of fuel and the instance a capped memory, so a module that loops, traps or answers with
+nonsense only stops itself. The host fails open: on any failure it lets go of every key and button the
+module held down, passes the input that failed through unchanged, says so with a toast, and starts the
+module again on the next input; after three failures in a minute, or a config it cannot read, it stays
+off until the remapper changes. Ctrl+Alt+Backspace, Ctrl+Alt+F<n>, Super+L and Super+Escape never reach
+the module (the modifiers they need are pressed for them if the module held them back), and while the
+screen is locked nothing does, so a module can neither keep the session from ending nor read the
+password. Locking lets go of what the module held, too.
+
+block-app (`src/remap/linux.rs`) holds the chosen block, reads the envelope whenever it changes, fetches
+the module from the plugin's data (`discovery::data`, only from a plugin that has an `InputRemapper`
+editor) when the plugin or path changes and only reconfigures the running one when only the config
+does, and keeps the last module and config it ran in its own database (`remapper`), so the session
+remaps from its first input, before the workspace is open. The `Remaps` host value says whether this
+device runs a remapper, runs none, or stopped it. The DRM adapter hands every key, button and wheel
+notch to the `InputFilter` block-app sets on its `InputControl`, after the `WakeGate`, delivers what the
+filter returns as if libinput had sent it (so a remapped `VolumeUp` reaches linux-desktop's media keys
+and shows the level, and a remapped key goes to the window with the keyboard), and runs a timer for
+the filter's next deadline, on its monotonic clock. Changes the filter makes outside input, such as
+the releases when the focus, the lock or the remapper change, go through `InputControl::inject`.
+block-app tells the filter which window has the keyboard (`Compositor::keyboard_window`); its
+executable is the last part of the first argument of its process's command line, which for a Proton
+or Wine game is the Windows path of its `.exe`. Outside a session nothing runs.
+
 ## The lock screen
 
 In the desktop shell (`--session` and `--desktop`) the screen locks on Super+L, the bar's power
@@ -313,7 +368,9 @@ presses: `drive keydown alt; drive key tab tab; drive keyup alt`.
 Each window is a `be_wayland::WindowView`, a forwarding catcher like a plugin's region (see
 guides/beui_keyboard.md, One input path): beui decides which window a press, motion, scroll or key
 goes to, and `Compositor::after` turns what each window was forwarded into `wl_pointer` and
-`wl_keyboard` events, keys by their scan codes (`Event::Key`'s `code`). Where the shell draws over a
+`wl_keyboard` events, keys by their scan codes (`Event::Key`'s `code`) and buttons by theirs: a
+button beyond beui's five is `PointerButton::Other` carrying its evdev code, which the DRM adapter
+reads from libinput and the window gets unchanged (`drive down TARGET button:0x115`). Where the shell draws over a
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 

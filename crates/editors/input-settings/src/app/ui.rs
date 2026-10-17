@@ -9,9 +9,11 @@ use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{ContentProjection, Editor, HostInputDevice, InputDevices};
 
+use super::remapper::RemapperSetting;
+
 const VALUE_WIDTH: f32 = 64.0;
 
-type Settings = ContentProjection<InputSettingsContent>;
+pub(super) type Settings = ContentProjection<InputSettingsContent>;
 type DeviceKey = (String, u32, u32);
 type Apply = Callback<PointerSetting>;
 
@@ -139,6 +141,13 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                     }}
                 />
             </SettingsSection>
+            <RemapperSetting
+                editor={editor}
+                settings={settings}
+                root={root}
+                effective={effective}
+                read_only={read_only}
+            />
         </SettingsPage>
     }
 }

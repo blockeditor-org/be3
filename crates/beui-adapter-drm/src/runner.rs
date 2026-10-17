@@ -47,7 +47,9 @@ use crate::display::{DisplayConfig, DisplayControl};
 use crate::displays::{DisplayRenderer, Displays};
 use crate::flips::{Flip, Flips};
 use crate::gpu::{Gpu, SoftwareCursor};
-use crate::input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
+use crate::input::{
+    DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice, RawInput, SharedFilter,
+};
 use crate::keyboard::Keyboard;
 use crate::layout::{arrange, bounds, clamp, moved};
 use crate::output::{Output, connected, wait_for};
@@ -87,6 +89,7 @@ struct Session {
     flips: Flips,
     keyboard: Keyboard,
     repeat: Option<(u32, RegistrationToken)>,
+    filter_timer: Option<(Duration, RegistrationToken)>,
     wakeup: Option<(Duration, RegistrationToken)>,
     darken_retry: Option<RegistrationToken>,
     lost: Arc<AtomicBool>,
@@ -211,6 +214,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         clock: Clock::new(),
         flips,
         repeat: None,
+        filter_timer: None,
         wakeup: None,
         darken_retry: None,
         lost,
@@ -353,6 +357,7 @@ impl Session {
         if let Some(config) = self.control.take() {
             self.configure(config);
         }
+        self.drain_filter();
         if let Some(config) = self.display_control.take() {
             self.display_config = config;
             self.modes_pending = true;
@@ -824,7 +829,10 @@ impl Session {
             }
             InputEvent::Keyboard { event } => {
                 let code = event.key_code().raw().saturating_sub(8);
-                self.key(code, event.state() == KeyState::Pressed);
+                self.filtered(RawInput::Key {
+                    code,
+                    pressed: event.state() == KeyState::Pressed,
+                });
             }
             InputEvent::PointerMotion { event } => {
                 let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
@@ -840,26 +848,26 @@ impl Session {
                 self.point(position);
             }
             InputEvent::PointerButton { event } => {
-                let Some(button) = pointer_button(event.button_code()) else {
-                    return;
-                };
-                let pos = self.physical(self.pointer());
-                self.runner
-                    .pointer_button(pos, button, event.state() == ButtonState::Pressed);
-                self.pacer.ask();
+                self.filtered(RawInput::Button {
+                    code: event.button_code(),
+                    pressed: event.state() == ButtonState::Pressed,
+                });
             }
             InputEvent::PointerAxis { event } => {
-                let notches = |axis| event.amount_v120(axis).map(|v120| -v120 as f32 / 120.0);
-                let delta = match (notches(Axis::Horizontal), notches(Axis::Vertical)) {
-                    (None, None) => {
-                        let amount = |axis| -event.amount(axis).unwrap_or(0.0) as f32;
-                        let scale = self.displays.borrow().scale;
-                        ScrollDelta::Pixels(
-                            vec2(amount(Axis::Horizontal), amount(Axis::Vertical)) * scale,
-                        )
-                    }
-                    (x, y) => ScrollDelta::Lines(vec2(x.unwrap_or(0.0), y.unwrap_or(0.0))),
-                };
+                let notch = |axis| event.amount_v120(axis).map(|v120| v120.round() as i32);
+                let (x, y) = (notch(Axis::Horizontal), notch(Axis::Vertical));
+                if x.is_some() || y.is_some() {
+                    self.filtered(RawInput::Wheel {
+                        x: x.unwrap_or(0),
+                        y: y.unwrap_or(0),
+                    });
+                    return;
+                }
+                let amount = |axis| -event.amount(axis).unwrap_or(0.0) as f32;
+                let scale = self.displays.borrow().scale;
+                let delta = ScrollDelta::Pixels(
+                    vec2(amount(Axis::Horizontal), amount(Axis::Vertical)) * scale,
+                );
                 self.push(delta);
             }
             InputEvent::TouchDown { event } => {
@@ -904,6 +912,85 @@ impl Session {
             pos,
             force: None,
         });
+    }
+
+    fn filtered(&mut self, input: RawInput) {
+        let Some(filter) = self.control.filter() else {
+            self.deliver(input);
+            return;
+        };
+        let outputs = filter.borrow_mut().input(input, self.now());
+        for output in outputs {
+            self.deliver(output);
+        }
+        self.schedule_filter(&filter);
+    }
+
+    fn drain_filter(&mut self) {
+        for input in self.control.take_injected() {
+            self.deliver(input);
+        }
+        match self.control.filter() {
+            Some(filter) => self.schedule_filter(&filter),
+            None => self.stop_filter_timer(),
+        }
+    }
+
+    fn fire_filter(&mut self) {
+        self.filter_timer = None;
+        let Some(filter) = self.control.filter() else {
+            return;
+        };
+        let outputs = filter.borrow_mut().timer(self.now());
+        for output in outputs {
+            self.deliver(output);
+        }
+        self.schedule_filter(&filter);
+    }
+
+    fn schedule_filter(&mut self, filter: &SharedFilter) {
+        let deadline = filter.borrow().deadline();
+        if self.filter_timer.as_ref().map(|(at, _)| *at) == deadline {
+            return;
+        }
+        self.stop_filter_timer();
+        let Some(at) = deadline else {
+            return;
+        };
+        let wait = at.saturating_sub(self.now());
+        let token = self
+            .handle
+            .insert_source(Timer::from_duration(wait), |_, _, session| {
+                session.fire_filter();
+                TimeoutAction::Drop
+            });
+        if let Ok(token) = token {
+            self.filter_timer = Some((at, token));
+        }
+    }
+
+    fn stop_filter_timer(&mut self) {
+        if let Some((_, token)) = self.filter_timer.take() {
+            self.handle.remove(token);
+        }
+    }
+
+    fn deliver(&mut self, input: RawInput) {
+        match input {
+            RawInput::Key { code, pressed } => self.key(code, pressed),
+            RawInput::Button { code, pressed } => {
+                let Some(button) = pointer_button(code) else {
+                    return;
+                };
+                let pos = self.physical(self.pointer());
+                self.runner.pointer_button(pos, button, pressed);
+                self.pacer.ask();
+            }
+            RawInput::Wheel { x, y } => {
+                let notches = |v120: i32| -v120 as f32 / 120.0;
+                self.push(ScrollDelta::Lines(vec2(notches(x), notches(y))));
+            }
+        }
     }
 
     fn key(&mut self, code: u32, pressed: bool) {
@@ -961,6 +1048,10 @@ impl Card for Session {
         self.libinput.suspend();
         self.drm.pause();
         self.stop_repeat();
+        self.stop_filter_timer();
+        if let Some(filter) = self.control.filter() {
+            filter.borrow_mut().forget_held();
+        }
     }
 
     fn release(&mut self, output: Option<connector::Handle>) {
@@ -1093,8 +1184,8 @@ fn pointer_button(code: u32) -> Option<PointerButton> {
         0x110 => Some(PointerButton::Primary),
         0x111 => Some(PointerButton::Secondary),
         0x112 => Some(PointerButton::Middle),
-        0x113 | 0x116 => Some(PointerButton::Back),
-        0x114 | 0x115 => Some(PointerButton::Forward),
-        _ => None,
+        0x113 => Some(PointerButton::Back),
+        0x114 => Some(PointerButton::Forward),
+        code => u16::try_from(code).ok().map(PointerButton::Other),
     }
 }

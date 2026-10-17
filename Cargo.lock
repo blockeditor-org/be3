@@ -827,6 +827,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "be-remap"
+version = "0.1.0"
+dependencies = [
+ "bincode",
+ "serde",
+ "toml 0.9.12+spec-1.1.0",
+ "toml_edit 0.25.12+spec-1.1.0",
+]
+
+[[package]]
+name = "be-remap-host"
+version = "0.1.0"
+dependencies = [
+ "be-remap",
+ "wasmi",
+]
+
+[[package]]
+name = "be-remap-module"
+version = "0.1.0"
+dependencies = [
+ "be-remap",
+]
+
+[[package]]
 name = "be-server"
 version = "0.1.0"
 dependencies = [
@@ -1302,6 +1327,7 @@ dependencies = [
  "be-graph",
  "be-keys",
  "be-protocol",
+ "be-remap-host",
  "be-server",
  "be-store",
  "be-vcs",
@@ -4098,6 +4124,18 @@ name = "input-sys"
 version = "1.19.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "36eee07d8e02bd95bf52b2e642cf13d33701b94c6e4b04fbf1d1fb07e9cb19e7"
+
+[[package]]
+name = "input_remaps"
+version = "0.1.0"
+dependencies = [
+ "be-remap",
+ "beui",
+ "block-editor-beui",
+ "block-ui-test",
+ "text-editor-core",
+ "uuid",
+]
 
 [[package]]
 name = "input_settings"
@@ -7505,6 +7543,7 @@ dependencies = [
  "indexmap",
  "toml_datetime 1.1.1+spec-1.1.0",
  "toml_parser",
+ "toml_writer",
  "winnow 1.0.3",
 ]
 
