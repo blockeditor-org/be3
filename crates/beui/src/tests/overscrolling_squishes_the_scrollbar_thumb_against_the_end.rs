@@ -22,13 +22,13 @@ fn overscrolling_squishes_the_scrollbar_thumb_against_the_end() {
     harness.frame(Vec::new());
     let thumb = |harness: &mut Harness| {
         let output = harness.frame(Vec::new());
-        let bar = harness.document().children(scroll)[1];
-        let interactive = harness.document().children(bar)[0];
-        let inset = harness.document().children(interactive)[0];
-        let track = harness.rect(harness.document().children(inset)[0]);
+        let track = track_within(harness, scrollbar_of(harness, scroll));
         (track, painted_thumb(&output, track))
     };
+    let edge = harness.rect(scrollbar_of(&harness, scroll)).center();
+    harness.frame(vec![Event::PointerMoved(edge)]);
     let (bar, resting) = thumb(&mut harness);
+    harness.frame(vec![Event::PointerGone]);
     assert_eq!(resting.top(), bar.top());
 
     let x = harness.rect(scroll).center().x - 40.0;

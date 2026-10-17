@@ -24,8 +24,7 @@ fn dragging_the_scrollbar_thumb_scrolls_the_content_beside_it() {
     harness.frame(Vec::new());
 
     let scroll = scroll.get();
-    let outer = harness.document().children(scroll)[1];
-    let bar = harness.rect(harness.document().children(outer)[0]);
+    let bar = harness.rect(harness.document().children(scrollbar_of(&harness, scroll))[0]);
     let thumb = bar.height() * VIEWPORT.y / CONTENT_HEIGHT;
     let grabbed = pos2(bar.center().x, bar.top() + thumb / 2.0);
 

@@ -1,7 +1,7 @@
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{Edge, Floating, Scroll};
+use beui::unstyled::{Edge, Floating};
 
 use crate::chrome::sheet_open;
 

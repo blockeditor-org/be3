@@ -16,8 +16,11 @@ const RADIUS: f32 = 3.0;
 pub fn Scrollbar(
     position: Prop<ScrollPosition>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
+    #[prop(default = 1.0)] visibility: Prop<f32>,
     on_scroll_to: Callback<f32>,
+    on_engage: Callback<bool>,
 ) -> NodeId {
+    let shown = create_memo(move || visibility.get() > 0.0);
     let ends_horizontal = inset_when(&direction, Direction::Horizontal);
     let ends_vertical = inset_when(&direction, Direction::Vertical);
     view! {
@@ -27,9 +30,11 @@ pub fn Scrollbar(
             <unstyled::Scrollbar
                 position
                 direction
+                shown
                 on_scroll_to={move |offset: f32| on_scroll_to.call(offset)}
+                on_engage={move |engaged: bool| on_engage.call(engaged)}
             >|handle: ScrollbarHandle|
-                <ScrollbarTrack handle />
+                <ScrollbarTrack handle visibility />
             </unstyled::Scrollbar>
         </Frame>
     }
@@ -52,18 +57,23 @@ fn outer_side_inset(direction: &Prop<Direction>, along: Direction) -> Memo<f32> 
 }
 
 #[component]
-fn ScrollbarTrack(handle: ScrollbarHandle) -> NodeId {
+fn ScrollbarTrack(handle: ScrollbarHandle, visibility: Prop<f32>) -> NodeId {
     let ScrollbarHandle {
         position,
         direction,
         hovered,
         dragging,
+        engaged,
     } = handle;
     let theme = use_theme();
 
-    let color =
-        create_memo(move || thumb_color(&theme, position.get(), hovered.get(), dragging.get()));
-    let track = create_memo(move || track_color(&theme, position.get()));
+    let color = create_memo(move || {
+        thumb_color(&theme, position.get(), hovered.get(), dragging.get())
+            .scale_alpha(visibility.get())
+    });
+    let track = create_memo(move || {
+        track_color(&theme, position.get(), engaged.get()).scale_alpha(visibility.get())
+    });
     let right = outer_side_inset(&direction, Direction::Vertical);
     let bottom = outer_side_inset(&direction, Direction::Horizontal);
 
@@ -92,8 +102,8 @@ fn thumb_color(
     }
 }
 
-fn track_color(theme: &ThemeStore, position: ScrollPosition) -> Color32 {
-    if position.max_offset() > 0.0 {
+fn track_color(theme: &ThemeStore, position: ScrollPosition, engaged: bool) -> Color32 {
+    if engaged && position.max_offset() > 0.0 {
         theme.surface_raised.get()
     } else {
         Color32::TRANSPARENT
