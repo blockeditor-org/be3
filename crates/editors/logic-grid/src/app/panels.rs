@@ -26,15 +26,13 @@ pub(super) fn Panels(session: Session) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Show condition={challenged}>
-                {move || view! {
-                    <Accordion
-                        title="Challenge"
-                        open={challenge_open}
-                        on_toggle={move |open| set_challenge_open.set(open)}
-                    >
-                        <ChallengePanel session={session} />
-                    </Accordion>
-                }}
+                <Accordion
+                    title="Challenge"
+                    open={challenge_open}
+                    on_toggle={move |open| set_challenge_open.set(open)}
+                >
+                    <ChallengePanel session={session} />
+                </Accordion>
             </Show>
             <Accordion
                 title="Simulation"
@@ -95,19 +93,17 @@ fn Rows(rows: Memo<Vec<(String, String)>>) -> NodeId {
             <Show condition={empty}>
                 <Text style=TextStyle::CAPTION string="None" />
             </Show>
-            <ForEach keys={keys}>
-                {move |index: usize| {
-                    let label = create_memo(move || {
-                        rows.with(|rows| rows.get(index).map(|row| row.0.clone()).unwrap_or_default())
-                    });
-                    let value = create_memo(move || {
-                        rows.with(|rows| rows.get(index).map(|row| row.1.clone()).unwrap_or_default())
-                    });
-                    view! {
-                        <Field label={label} value={value} />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|index: usize| {
+                let label = create_memo(move || {
+                    rows.with(|rows| rows.get(index).map(|row| row.0.clone()).unwrap_or_default())
+                });
+                let value = create_memo(move || {
+                    rows.with(|rows| rows.get(index).map(|row| row.1.clone()).unwrap_or_default())
+                });
+                view! {
+                    <Field label={label} value={value} />
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -416,81 +412,73 @@ fn SimulationPanel(session: Session) -> NodeId {
                 />
             </Show>
             <Show condition={compiled}>
-                {move || view! {
-                    <List spacing=SPACING>
-                        <Rows rows={summary} />
-                        <Separator />
-                        <Text string="Call stack" />
-                        <List spacing=2.0>
-                            <ForEach keys={frames}>
-                                {move |index: usize| {
-                                    let row = create_memo(move || {
-                                        frame_shown.get().frames.get(index).cloned()
-                                    });
-                                    let label = create_memo(move || {
-                                        row.get().map(|row| row.0).unwrap_or_default()
-                                    });
-                                    let selected = create_memo(move || {
-                                        row.get().is_some_and(|row| row.1)
-                                    });
-                                    let chose = move || {
-                                        if let Some((_, _, frame)) = row.get_untracked() {
-                                            session.update(|model| model.select_simulation_frame(frame));
-                                        }
-                                    };
-                                    view! {
-                                        <ListRow selected={selected} on_click={chose}>
-                                            <Text string={label} />
-                                        </ListRow>
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
-                        <Separator />
-                        <Text string="Instructions" />
-                        <Show condition={no_instructions}>
-                            <Text style=TextStyle::CAPTION string="No instructions" />
-                        </Show>
-                        <List spacing=2.0>
-                            <ForEach keys={instructions}>
-                                {move |index: usize| {
-                                    let row = create_memo(move || {
-                                        instruction_shown.get().instructions.get(index).cloned()
-                                    });
-                                    view! {
-                                        <InstructionRow session={session} row={row} index={index} />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
-                        <Separator />
-                        <Text string="Inputs" />
-                        <Show condition={no_inputs}>
-                            <Text style=TextStyle::CAPTION string="None" />
-                        </Show>
-                        <List spacing=4.0>
-                            <ForEach keys={inputs}>
-                                {move |index: usize| {
-                                    let row = create_memo(move || {
-                                        input_shown.get().inputs.get(index).cloned()
-                                    });
-                                    view! {
-                                        <InputRow session={session} row={row} index={index} />
-                                    }
-                                }}
-                            </ForEach>
-                        </List>
-                        <Separator />
-                        <Text string="Outputs" />
-                        <Rows rows={outputs} />
-                        <Separator />
-                        <Text string="Wire groups" />
-                        <Rows rows={wires} />
-                        <Separator />
-                        <Text string="Storage" />
-                        <Rows rows={storage} />
+                <List spacing=SPACING>
+                    <Rows rows={summary} />
+                    <Separator />
+                    <Text string="Call stack" />
+                    <List spacing=2.0>
+                        <ForEach keys={frames}>|index: usize| {
+                            let row = create_memo(move || {
+                                frame_shown.get().frames.get(index).cloned()
+                            });
+                            let label = create_memo(move || {
+                                row.get().map(|row| row.0).unwrap_or_default()
+                            });
+                            let selected = create_memo(move || {
+                                row.get().is_some_and(|row| row.1)
+                            });
+                            let chose = move || {
+                                if let Some((_, _, frame)) = row.get_untracked() {
+                                    session.update(|model| model.select_simulation_frame(frame));
+                                }
+                            };
+                            view! {
+                                <ListRow selected={selected} on_click={chose}>
+                                    <Text string={label} />
+                                </ListRow>
+                            }
+                        }</ForEach>
                     </List>
-                }}
+                    <Separator />
+                    <Text string="Instructions" />
+                    <Show condition={no_instructions}>
+                        <Text style=TextStyle::CAPTION string="No instructions" />
+                    </Show>
+                    <List spacing=2.0>
+                        <ForEach keys={instructions}>|index: usize| {
+                            let row = create_memo(move || {
+                                instruction_shown.get().instructions.get(index).cloned()
+                            });
+                            view! {
+                                <InstructionRow session={session} row={row} index={index} />
+                            }
+                        }</ForEach>
+                    </List>
+                    <Separator />
+                    <Text string="Inputs" />
+                    <Show condition={no_inputs}>
+                        <Text style=TextStyle::CAPTION string="None" />
+                    </Show>
+                    <List spacing=4.0>
+                        <ForEach keys={inputs}>|index: usize| {
+                            let row = create_memo(move || {
+                                input_shown.get().inputs.get(index).cloned()
+                            });
+                            view! {
+                                <InputRow session={session} row={row} index={index} />
+                            }
+                        }</ForEach>
+                    </List>
+                    <Separator />
+                    <Text string="Outputs" />
+                    <Rows rows={outputs} />
+                    <Separator />
+                    <Text string="Wire groups" />
+                    <Rows rows={wires} />
+                    <Separator />
+                    <Text string="Storage" />
+                    <Rows rows={storage} />
+                </List>
             </Show>
         </List>
     }
@@ -548,23 +536,21 @@ fn InputRow(session: Session, row: Memo<Option<InputView>>, index: usize) -> Nod
             <Show condition={deleted}>
                 <Text style=TextStyle::CAPTION string="deleted" />
             </Show>
-            <ForEach keys={bits}>
-                {move |bit: u32| {
-                    let state = create_memo(move || {
-                        row.get()
-                            .and_then(|row| row.1)
-                            .and_then(|bits| bits.into_iter().find(|(held, _)| *held == bit))
-                            .map_or(0, |(_, state)| state)
-                    });
-                    let text = create_memo(move || format!("{bit}:{}", state.get()));
-                    let toggle = move || {
-                        session.update(|model| model.toggle_simulation_input_bit(index, bit));
-                    };
-                    view! {
-                        <Button label={text} variant=ButtonVariant::Secondary on_click={toggle} />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={bits}>|bit: u32| {
+                let state = create_memo(move || {
+                    row.get()
+                        .and_then(|row| row.1)
+                        .and_then(|bits| bits.into_iter().find(|(held, _)| *held == bit))
+                        .map_or(0, |(_, state)| state)
+                });
+                let text = create_memo(move || format!("{bit}:{}", state.get()));
+                let toggle = move || {
+                    session.update(|model| model.toggle_simulation_input_bit(index, bit));
+                };
+                view! {
+                    <Button label={text} variant=ButtonVariant::Secondary on_click={toggle} />
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -673,32 +659,28 @@ fn ChallengePanel(session: Session) -> NodeId {
                 <Problem content={problem} />
             </Show>
             <Show condition={working}>
-                {move || view! {
-                    <List spacing=2.0>
-                        <Text
-                            style=TextStyle::CAPTION
-                            string={status}
-                            @test_id={"logic-grid.challenge-status"}
-                        />
-                        <Scroll direction=Direction::Horizontal>
-                            <List spacing=2.0>
-                                <TableRow cells={header} />
-                                <ForEach keys={ticks}>
-                                    {move |tick: usize| {
-                                        let row = create_memo(move || {
-                                            rows_shown
-                                                .get()
-                                                .and_then(|shown| shown.rows.get(tick).cloned())
-                                        });
-                                        view! {
-                                            <TickRow session={session} row={row} tick={tick} />
-                                        }
-                                    }}
-                                </ForEach>
-                            </List>
-                        </Scroll>
-                    </List>
-                }}
+                <List spacing=2.0>
+                    <Text
+                        style=TextStyle::CAPTION
+                        string={status}
+                        @test_id={"logic-grid.challenge-status"}
+                    />
+                    <Scroll direction=Direction::Horizontal>
+                        <List spacing=2.0>
+                            <TableRow cells={header} />
+                            <ForEach keys={ticks}>|tick: usize| {
+                                let row = create_memo(move || {
+                                    rows_shown
+                                        .get()
+                                        .and_then(|shown| shown.rows.get(tick).cloned())
+                                });
+                                view! {
+                                    <TickRow session={session} row={row} tick={tick} />
+                                }
+                            }</ForEach>
+                        </List>
+                    </Scroll>
+                </List>
             </Show>
         </List>
     }
@@ -709,18 +691,16 @@ fn TableRow(cells: Memo<Vec<String>>) -> NodeId {
     let keys = create_memo(move || (0..cells.with(Vec::len)).collect::<Vec<_>>());
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <ForEach keys={keys}>
-                {move |index: usize| {
-                    let text = create_memo(move || {
-                        cells.with(|cells| cells.get(index).cloned().unwrap_or_default())
-                    });
-                    view! {
-                        <Frame @sizing=ItemSize::Fixed(CELL_WIDTH) padding={Sides::horizontal(2.0)}>
-                            <Text string={text} />
-                        </Frame>
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|index: usize| {
+                let text = create_memo(move || {
+                    cells.with(|cells| cells.get(index).cloned().unwrap_or_default())
+                });
+                view! {
+                    <Frame @sizing=ItemSize::Fixed(CELL_WIDTH) padding={Sides::horizontal(2.0)}>
+                        <Text string={text} />
+                    </Frame>
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -733,16 +713,14 @@ fn TickRow(session: Session, row: Memo<Option<TickView>>, tick: usize) -> NodeId
     view! {
         <ListRow selected={active} on_click={seek}>
             <List direction=Direction::Horizontal spacing=0.0>
-                <ForEach keys={keys}>
-                    {move |index: usize| {
-                        let cell = create_memo(move || {
-                            row.get().and_then(|row| row.0.get(index).cloned())
-                        });
-                        view! {
-                            <TickCell cell={cell} />
-                        }
-                    }}
-                </ForEach>
+                <ForEach keys={keys}>|index: usize| {
+                    let cell = create_memo(move || {
+                        row.get().and_then(|row| row.0.get(index).cloned())
+                    });
+                    view! {
+                        <TickCell cell={cell} />
+                    }
+                }</ForEach>
             </List>
         </ListRow>
     }
@@ -883,31 +861,27 @@ fn DebuggerPanel(session: Session) -> NodeId {
             <Show condition={valid}>
                 <Text style=TextStyle::CAPTION string="No validation errors" />
             </Show>
-            <ForEach keys={error_keys}>
-                {move |index: usize| {
-                    let text = create_memo(move || {
-                        errors.with(|errors| errors.get(index).cloned().unwrap_or_default())
-                    });
-                    view! {
-                        <Problem content={text} />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={error_keys}>|index: usize| {
+                let text = create_memo(move || {
+                    errors.with(|errors| errors.get(index).cloned().unwrap_or_default())
+                });
+                view! {
+                    <Problem content={text} />
+                }
+            }</ForEach>
             <Separator />
             <Text string="Entities" />
             <Show condition={empty}>
                 <Text style=TextStyle::CAPTION string="No entities" />
             </Show>
-            <ForEach keys={entity_keys}>
-                {move |entity: DebugEntity| {
-                    let row = create_memo(move || {
-                        entities.with(|rows| rows.iter().find(|row| row.entity == entity).cloned())
-                    });
-                    view! {
-                        <EntityPanel session={session} row={row} entity={entity} />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={entity_keys}>|entity: DebugEntity| {
+                let row = create_memo(move || {
+                    entities.with(|rows| rows.iter().find(|row| row.entity == entity).cloned())
+                });
+                view! {
+                    <EntityPanel session={session} row={row} entity={entity} />
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -1019,8 +993,8 @@ fn GraphPanel(session: Session) -> NodeId {
             <Show condition={empty}>
                 <Text style=TextStyle::CAPTION string="The generated graph is empty." />
             </Show>
-            <Show condition={drawn}>
-                {move || { let draw = draw.clone(); view! {
+            <Show condition={drawn}>|| {
+                let draw = draw.clone(); view! {
                     <Scroll direction=Direction::Horizontal>
                         <GraphCanvas
                             session={session}
@@ -1030,8 +1004,8 @@ fn GraphPanel(session: Session) -> NodeId {
                             draw={draw}
                         />
                     </Scroll>
-                } }}
-            </Show>
+                }
+            }</Show>
         </List>
     }
 }
@@ -1104,27 +1078,25 @@ fn StorageDialog(session: Session) -> NodeId {
     view! {
         <Dialog open={open} title={title} width=DIALOG_WIDTH on_dismiss={dismiss}>
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
-                <ForEach keys={bits}>
-                    {move |bit: u32| {
-                        let label = create_memo(move || {
-                            let state = configured.get().map_or(0, |(_, _, value)| (value >> bit) & 1);
-                            format!("Bit {bit}: {state}")
-                        });
-                        let toggle = move || {
-                            if let Some((id, _, _)) = configured.get_untracked() {
-                                session.edit(|model| model.toggle_storage_bit(id, bit));
-                            }
-                        };
-                        view! {
-                            <Button
-                                label={label}
-                                variant=ButtonVariant::Secondary
-                                @test_id={format!("logic-grid.storage-bit.{bit}")}
-                                on_click={toggle}
-                            />
+                <ForEach keys={bits}>|bit: u32| {
+                    let label = create_memo(move || {
+                        let state = configured.get().map_or(0, |(_, _, value)| (value >> bit) & 1);
+                        format!("Bit {bit}: {state}")
+                    });
+                    let toggle = move || {
+                        if let Some((id, _, _)) = configured.get_untracked() {
+                            session.edit(|model| model.toggle_storage_bit(id, bit));
                         }
-                    }}
-                </ForEach>
+                    };
+                    view! {
+                        <Button
+                            label={label}
+                            variant=ButtonVariant::Secondary
+                            @test_id={format!("logic-grid.storage-bit.{bit}")}
+                            on_click={toggle}
+                        />
+                    }
+                }</ForEach>
             </List>
         </Dialog>
     }

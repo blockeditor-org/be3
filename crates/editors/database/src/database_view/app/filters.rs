@@ -194,12 +194,8 @@ pub fn FilterBar(data: Data) -> NodeId {
     });
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING wrap=true>
-            <ForEach keys={keys}>
-                {move |id: ObjectId| {
-                    view! {
-                        <FilterChip data={data} id={id} />
-                    }
-                }}
+            <ForEach keys={keys}>|id: ObjectId|
+                <FilterChip data={data} id={id} />
             </ForEach>
             <AddFilter data={data} />
         </List>
@@ -238,14 +234,10 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                             </ControlFace>
                         }
                     }}
-                >
-                    {move |_: PopoverHandle| {
-                        view! {
-                            <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
-                                <FilterEditor data={data} id={id} />
-                            </PopoverPanel>
-                        }
-                    }}
+                >|_: PopoverHandle|
+                    <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
+                        <FilterEditor data={data} id={id} />
+                    </PopoverPanel>
                 </unstyled::Popover>
                 <IconButton
                     glyph={ICON_CLOSE.to_owned()}
@@ -289,39 +281,33 @@ fn AddFilter(data: Data) -> NodeId {
                     </List>
                 </ControlFace>
             }}
-        >
-            {move |_: PopoverHandle| {
-                let set_adding = set_adding;
-                let editing = editing;
-                view! {
-                    <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
-                        <List spacing=0.0>
-                            <Show condition={choosing}>
-                                {move || view! {
-                                    <FieldChoices
-                                        data={data}
-                                        on_pick={move |id: ObjectId| set_adding.set(Some(id))}
-                                    />
-                                }}
-                            </Show>
-                            <Show condition={has_editing}>
-                                {move || {
-                                    let id = editing.get_untracked();
-                                    match id {
-                                        Some(id) => view! {
-                                            <FilterEditor data={data} id={id} />
-                                        },
-                                        None => view! {
-                                            <Frame />
-                                        },
-                                    }
-                                }}
-                            </Show>
-                        </List>
-                    </PopoverPanel>
-                }
-            }}
-        </unstyled::Popover>
+        >|_: PopoverHandle| {
+            let set_adding = set_adding;
+            let editing = editing;
+            view! {
+                <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
+                    <List spacing=0.0>
+                        <Show condition={choosing}>
+                            <FieldChoices
+                                data={data}
+                                on_pick={move |id: ObjectId| set_adding.set(Some(id))}
+                            />
+                        </Show>
+                        <Show condition={has_editing}>|| {
+                            let id = editing.get_untracked();
+                            match id {
+                                Some(id) => view! {
+                                    <FilterEditor data={data} id={id} />
+                                },
+                                None => view! {
+                                    <Frame />
+                                },
+                            }
+                        }</Show>
+                    </List>
+                </PopoverPanel>
+            }
+        }</unstyled::Popover>
     }
 }
 
@@ -342,45 +328,42 @@ fn FieldChoices(
     view! {
         <List spacing=2.0>
             <Text style=TextStyle::CAPTION string="Filter by" />
-            <ForEach keys={keys}>
-                {move |field: Uuid| {
-                    let on_pick = on_pick;
-                    let name = create_memo(move || {
-                        data.fields.with(|fields| {
-                            fields
-                                .iter()
-                                .find(|known| known.id == field)
-                                .map_or_else(String::new, |known| known.name.clone())
-                        })
-                    });
-                    let pick = move || {
-                        let Some(known) = data.fields.with_untracked(|fields| {
-                            fields.iter().find(|known| known.id == field).cloned()
-                        }) else {
-                            return;
-                        };
-                        let (id, edit) =
-                            DatabaseView::add_filter(Some(field), starting_condition(&known));
-                        data.operate_view(edit);
-                        on_pick.call(id);
+            <ForEach keys={keys}>|field: Uuid| {
+                let on_pick = on_pick;
+                let name = create_memo(move || {
+                    data.fields.with(|fields| {
+                        fields
+                            .iter()
+                            .find(|known| known.id == field)
+                            .map_or_else(String::new, |known| known.name.clone())
+                    })
+                });
+                let pick = move || {
+                    let Some(known) = data.fields.with_untracked(|fields| {
+                        fields.iter().find(|known| known.id == field).cloned()
+                    }) else {
+                        return;
                     };
-                    view! {
-                        <unstyled::Button
-                            label={name}
-                            @test_id={format!("database-view.filters.field.{field}")}
-                            on_click={pick}
-                            content={move |handle| {
-                                let name = name;
-                                view! {
-                                    <ControlFace handle={handle}>
-                                        <Text string={name} />
-                                    </ControlFace>
-                                }
-                            }}
-                        />
-                    }
-                }}
-            </ForEach>
+                    let (id, edit) =
+                        DatabaseView::add_filter(Some(field), starting_condition(&known));
+                    data.operate_view(edit);
+                    on_pick.call(id);
+                };
+                view! {
+                    <unstyled::Button
+                        label={name}
+                        @test_id={format!("database-view.filters.field.{field}")}
+                        on_click={pick}
+                    >|handle| {
+                        let name = name;
+                        view! {
+                            <ControlFace handle={handle}>
+                                <Text string={name} />
+                            </ControlFace>
+                        }
+                    }</unstyled::Button>
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -479,18 +462,16 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                     <Frame @sizing=ItemSize::Percent(100.0)>
                         <Select
                             options={view! {
-                                <ForEach keys={kind_keys}>
-                                    {move |index: usize| {
-                                        let label = create_memo(move || {
-                                            condition_names.with(|kinds| {
-                                                kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
-                                            })
-                                        });
-                                        view! {
-                                            <ChoiceOption label={label} />
-                                        }
-                                    }}
-                                </ForEach>
+                                <ForEach keys={kind_keys}>|index: usize| {
+                                    let label = create_memo(move || {
+                                        condition_names.with(|kinds| {
+                                            kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
+                                        })
+                                    });
+                                    view! {
+                                        <ChoiceOption label={label} />
+                                    }
+                                }</ForEach>
                             }}
                             selected={selected}
                             label="Condition"
@@ -501,14 +482,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                     </Frame>
                 </List>
                 <Show condition={choosing}>
-                    {move || view! {
-                        <ValueChoices
-                            data={data}
-                            id={id}
-                            filter={choice_filter}
-                            field={choice_field}
-                        />
-                    }}
+                    <ValueChoices data={data} id={id} filter={choice_filter} field={choice_field} />
                 </Show>
                 <Show condition={comparing}>
                     <DatabaseValueEditor
@@ -644,59 +618,57 @@ fn ValueChoices(
             </Show>
             <Scroll max_length=CHOICES_HEIGHT>
                 <List spacing=2.0>
-                    <ForEach keys={keys}>
-                        {move |index: usize| {
-                            let choice = create_memo(move || choices.with(|choices| choices.get(index).cloned()));
-                            let label = create_memo(move || choice.with(|choice| choice.as_ref().map(|choice| choice.label.clone()).unwrap_or_default()));
-                            let count = create_memo(move || choice.with(|choice| choice.as_ref().map_or(0, |choice| choice.count)).to_string());
-                            let option = create_memo(move || choice.with(|choice| choice.as_ref().and_then(|choice| choice.option.clone())));
-                            let marked = create_memo(move || option.with(Option::is_some));
-                            let checked = create_memo(move || {
-                                let Some(choice) = choice.get() else {
-                                    return false;
-                                };
-                                values_of(&filter.get().condition).contains(&choice.value)
-                            });
-                            let toggle = move |on: bool| {
-                                let Some(choice) = choice.get_untracked() else {
-                                    return;
-                                };
-                                let current = filter.get_untracked().condition;
-                                let mut values = values_of(&current);
-                                values.retain(|held| *held != choice.value);
-                                if on {
-                                    values.push(choice.value);
-                                }
-                                let next = match current {
-                                    FilterCondition::NoneOf(_) => FilterCondition::NoneOf(values),
-                                    _ => FilterCondition::AnyOf(values),
-                                };
-                                data.operate_view(DatabaseView::set_filter_condition(id, &next));
+                    <ForEach keys={keys}>|index: usize| {
+                        let choice = create_memo(move || choices.with(|choices| choices.get(index).cloned()));
+                        let label = create_memo(move || choice.with(|choice| choice.as_ref().map(|choice| choice.label.clone()).unwrap_or_default()));
+                        let count = create_memo(move || choice.with(|choice| choice.as_ref().map_or(0, |choice| choice.count)).to_string());
+                        let option = create_memo(move || choice.with(|choice| choice.as_ref().and_then(|choice| choice.option.clone())));
+                        let marked = create_memo(move || option.with(Option::is_some));
+                        let checked = create_memo(move || {
+                            let Some(choice) = choice.get() else {
+                                return false;
                             };
-                            let test_id = format!("database-view.filter.{}.choice.{index}", id.as_uuid());
-                            let read_only = read_only;
-                            view! {
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=SPACING
-                                >
-                                    <Frame visible={marked}>
-                                        <ChoiceMark option={option} size=MARK />
-                                    </Frame>
-                                    <Checkbox
-                                        @sizing={block_editor_beui::beui::reactive::ItemSize::Percent(100.0).shrink(1.0)}
-                                        label={label}
-                                        checked={checked}
-                                        disabled={read_only}
-                                        @test_id={test_id}
-                                        on_change={toggle}
-                                    />
-                                    <Text style=TextStyle::CAPTION string={count} />
-                                </List>
+                            values_of(&filter.get().condition).contains(&choice.value)
+                        });
+                        let toggle = move |on: bool| {
+                            let Some(choice) = choice.get_untracked() else {
+                                return;
+                            };
+                            let current = filter.get_untracked().condition;
+                            let mut values = values_of(&current);
+                            values.retain(|held| *held != choice.value);
+                            if on {
+                                values.push(choice.value);
                             }
-                        }}
-                    </ForEach>
+                            let next = match current {
+                                FilterCondition::NoneOf(_) => FilterCondition::NoneOf(values),
+                                _ => FilterCondition::AnyOf(values),
+                            };
+                            data.operate_view(DatabaseView::set_filter_condition(id, &next));
+                        };
+                        let test_id = format!("database-view.filter.{}.choice.{index}", id.as_uuid());
+                        let read_only = read_only;
+                        view! {
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=SPACING
+                            >
+                                <Frame visible={marked}>
+                                    <ChoiceMark option={option} size=MARK />
+                                </Frame>
+                                <Checkbox
+                                    @sizing={block_editor_beui::beui::reactive::ItemSize::Percent(100.0).shrink(1.0)}
+                                    label={label}
+                                    checked={checked}
+                                    disabled={read_only}
+                                    @test_id={test_id}
+                                    on_change={toggle}
+                                />
+                                <Text style=TextStyle::CAPTION string={count} />
+                            </List>
+                        }
+                    }</ForEach>
                 </List>
             </Scroll>
         </List>
@@ -728,25 +700,23 @@ pub fn FilterList(data: Data) -> NodeId {
             <Show condition={none}>
                 <Text style=TextStyle::CAPTION string="Every row is shown." />
             </Show>
-            <ForEach keys={keys}>
-                {move |id: ObjectId| {
-                    let remove = move || data.operate_view(DatabaseView::remove_filter(id));
-                    let read_only = data.read_only;
-                    view! {
-                        <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
-                            <FilterEditor @sizing=ItemSize::Percent(100.0) data={data} id={id} />
-                            <IconButton
-                                glyph={ICON_CLOSE.to_owned()}
-                                label="Remove filter"
-                                variant=ButtonVariant::Ghost
-                                disabled={read_only}
-                                @test_id={format!("database-view.filter.{}.remove", id.as_uuid())}
-                                on_click={remove}
-                            />
-                        </List>
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|id: ObjectId| {
+                let remove = move || data.operate_view(DatabaseView::remove_filter(id));
+                let read_only = data.read_only;
+                view! {
+                    <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
+                        <FilterEditor @sizing=ItemSize::Percent(100.0) data={data} id={id} />
+                        <IconButton
+                            glyph={ICON_CLOSE.to_owned()}
+                            label="Remove filter"
+                            variant=ButtonVariant::Ghost
+                            disabled={read_only}
+                            @test_id={format!("database-view.filter.{}.remove", id.as_uuid())}
+                            on_click={remove}
+                        />
+                    </List>
+                }
+            }</ForEach>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph={ICON_ADD.to_owned()} />
@@ -754,16 +724,14 @@ pub fn FilterList(data: Data) -> NodeId {
                 <Frame @sizing=ItemSize::Percent(100.0)>
                     <Select
                         options={view! {
-                            <ForEach keys={field_keys}>
-                                {move |index: usize| {
-                                    let label = create_memo(move || {
-                                        names.with(|fields| fields.get(index).map(|field| field.name.clone()).unwrap_or_default())
-                                    });
-                                    view! {
-                                        <ChoiceOption label={label} />
-                                    }
-                                }}
-                            </ForEach>
+                            <ForEach keys={field_keys}>|index: usize| {
+                                let label = create_memo(move || {
+                                    names.with(|fields| fields.get(index).map(|field| field.name.clone()).unwrap_or_default())
+                                });
+                                view! {
+                                    <ChoiceOption label={label} />
+                                }
+                            }</ForEach>
                         }}
                         selected={None}
                         label="Add a filter"

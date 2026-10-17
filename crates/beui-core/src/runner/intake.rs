@@ -275,5 +275,6 @@ fn button_bit(button: PointerButton) -> u8 {
         PointerButton::Middle => 4,
         PointerButton::Back => 8,
         PointerButton::Forward => 16,
+        PointerButton::Other(_) => 32,
     }
 }

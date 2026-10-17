@@ -14,15 +14,10 @@ fn the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in() {
                     @test_id="strip"
                     direction=Direction::Horizontal
                 >
-                    <ForEach keys={indices(40)}>
-                        {|index: usize| view! {
-                            <Frame width=120.0>
-                                <LabelledButton
-                                    label={format!("Card {index}")}
-                                    on_click={move || {}}
-                                />
-                            </Frame>
-                        }}
+                    <ForEach keys={indices(40)}>|index: usize|
+                        <Frame width=120.0>
+                            <LabelledButton label={format!("Card {index}")} on_click={move || {}} />
+                        </Frame>
                     </ForEach>
                 </Scroll>
             </List>

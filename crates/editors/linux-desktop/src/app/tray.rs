@@ -60,10 +60,8 @@ pub(crate) fn TrayItems(editor: Editor) -> NodeId {
             spacing=TRAY_SPACING
             @test_id={"desktop.tray"}
         >
-            <ForEach keys>
-                {move |id: String| view! {
-                    <TrayButton editor={editor} listed={listed} id />
-                }}
+            <ForEach keys>|id: String|
+                <TrayButton editor={editor} listed={listed} id />
             </ForEach>
         </List>
     }
@@ -163,10 +161,8 @@ fn TrayEntries(
         })
     });
     view! {
-        <ForEach keys>
-            {move |id: i32| view! {
-                <TrayEntry entries={entries} id chosen={chosen} prefix={prefix.clone()} />
-            }}
+        <ForEach keys>|id: i32|
+            <TrayEntry entries={entries} id chosen={chosen} prefix={prefix.clone()} />
         </ForEach>
     }
 }

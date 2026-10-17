@@ -115,26 +115,24 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
     });
     view! {
         <Layers>
-            <ForEach keys={keys}>
-                {move |_key: (EditorInstanceId, EditorRegion)| {
-                    let Some(hosted) = region.get_untracked() else {
-                        return view! {
-                            <Frame />
-                        };
-                    };
-                    let child_view: ChildView = store(Box::new(|_, _, _| view! {
+            <ForEach keys={keys}>|_key: (EditorInstanceId, EditorRegion)| {
+                let Some(hosted) = region.get_untracked() else {
+                    return view! {
                         <Frame />
-                    }));
-                    view! {
-                        <PluginRegion
-                            editor={hosted.editor}
-                            region={hosted.region}
-                            frame={hosted.frame}
-                            child_view
-                        />
-                    }
-                }}
-            </ForEach>
+                    };
+                };
+                let child_view: ChildView = store(Box::new(|_, _, _| view! {
+                    <Frame />
+                }));
+                view! {
+                    <PluginRegion
+                        editor={hosted.editor}
+                        region={hosted.region}
+                        frame={hosted.frame}
+                        child_view
+                    />
+                }
+            }</ForEach>
         </Layers>
     }
 }

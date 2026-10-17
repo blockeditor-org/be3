@@ -17,17 +17,13 @@ fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
                     @test_id="strip"
                     direction=Direction::Horizontal
                 >
-                    <ForEach keys={indices(40)}>
-                        {move |index: usize| {
-                            view! {
-                                <Frame width=120.0>
-                                    <LabelledButton
-                                        label={format!("Card {index}")}
-                                        on_click={move || set_clicks.update(|clicks| *clicks += 1)}
-                                    />
-                                </Frame>
-                            }
-                        }}
+                    <ForEach keys={indices(40)}>|index: usize|
+                        <Frame width=120.0>
+                            <LabelledButton
+                                label={format!("Card {index}")}
+                                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                            />
+                        </Frame>
                     </ForEach>
                 </Scroll>
             </List>

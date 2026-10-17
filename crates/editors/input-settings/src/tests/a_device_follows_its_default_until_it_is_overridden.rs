@@ -14,12 +14,9 @@ fn a_device_follows_its_default_until_it_is_overridden() {
             .tap_to_click
     };
 
-    editor.click(TAP_RESET);
-    editor.run();
-    assert_eq!(
-        tap(&editor),
-        None,
-        "the reset does nothing while the default is used"
+    assert!(
+        !editor.shown(TAP_RESET),
+        "there is nothing to reset while the default is used"
     );
 
     editor.click(TAP);

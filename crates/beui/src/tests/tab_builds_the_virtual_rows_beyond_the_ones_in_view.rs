@@ -14,18 +14,16 @@ fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {
                         <VirtualList
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
-                        >
-                            {move |key: ReadSignal<usize>| {
-                                let label = create_memo(move || format!("Row {}", key.get()));
-                                view! {
-                                    <Interactive focusable=true>
-                                        <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                            <Text string={label} />
-                                        </Frame>
-                                    </Interactive>
-                                }
-                            }}
-                        </VirtualList>
+                        >|key: ReadSignal<usize>| {
+                            let label = create_memo(move || format!("Row {}", key.get()));
+                            view! {
+                                <Interactive focusable=true>
+                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                        <Text string={label} />
+                                    </Frame>
+                                </Interactive>
+                            }
+                        }</VirtualList>
                     </Offset>
                 </List>
             }

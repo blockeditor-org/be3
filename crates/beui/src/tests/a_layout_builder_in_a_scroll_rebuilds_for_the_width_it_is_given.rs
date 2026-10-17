@@ -11,22 +11,20 @@ fn a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given() {
         view! {
             <Scroll>
                 <Frame height=900.0>
-                    <LayoutBuilder>
-                        {move |size: ReadSignal<Vec2>| {
-                            let wide = create_memo(move || size.get().x >= 480.0);
-                            let direction = create_memo(move || match wide.get() {
-                                true => Direction::Horizontal,
-                                false => Direction::Vertical,
-                            });
-                            let label = create_memo(move || format!("{:.0} wide", size.get().x));
-                            view! {
-                                <List direction spacing=8.0>
-                                    <Text string={label} @test_id={"width"} />
-                                    <Text string="beside" />
-                                </List>
-                            }
-                        }}
-                    </LayoutBuilder>
+                    <LayoutBuilder>|size: ReadSignal<Vec2>| {
+                        let wide = create_memo(move || size.get().x >= 480.0);
+                        let direction = create_memo(move || match wide.get() {
+                            true => Direction::Horizontal,
+                            false => Direction::Vertical,
+                        });
+                        let label = create_memo(move || format!("{:.0} wide", size.get().x));
+                        view! {
+                            <List direction spacing=8.0>
+                                <Text string={label} @test_id={"width"} />
+                                <Text string="beside" />
+                            </List>
+                        }
+                    }</LayoutBuilder>
                 </Frame>
             </Scroll>
         }

@@ -16,24 +16,23 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
                     <unstyled::Button
                         @node_ref=&row
                         on_click={move || set_row_clicks.update(|row_clicks| *row_clicks += 1)}
-                        content={move |_: unstyled::ButtonHandle| view! {
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                <Text string="a row that opens something" />
-                                <Spacer @sizing=ItemSize::Percent(100.0) />
-                                <unstyled::Button
-                                    @node_ref=&inner
-                                    tab_stop=false
-                                    capture_presses=true
-                                    on_click={move || {
-                                        set_inner_clicks.update(|inner_clicks| *inner_clicks += 1)
-                                    }}
-                                    content={move |_: unstyled::ButtonHandle| view! {
-                                        <Text string="add" />
-                                    }}
-                                />
-                            </List>
-                        }}
-                    />
+                    >|_: unstyled::ButtonHandle|
+                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                            <Text string="a row that opens something" />
+                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                            <unstyled::Button
+                                @node_ref=&inner
+                                tab_stop=false
+                                capture_presses=true
+                                on_click={move || {
+                                    set_inner_clicks.update(|inner_clicks| *inner_clicks += 1)
+                                }}
+                                content={move |_: unstyled::ButtonHandle| view! {
+                                    <Text string="add" />
+                                }}
+                            />
+                        </List>
+                    </unstyled::Button>
                 </List>
             }
         }

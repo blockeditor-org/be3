@@ -28,6 +28,7 @@ mod performance;
 mod platform;
 mod plugin_host;
 mod programs;
+mod remap;
 mod root_settings;
 #[cfg(target_os = "linux")]
 mod session;
@@ -295,6 +296,10 @@ impl beui::App for Shell {
             session::export_environment(wayland::environment());
         }
         display::start(setup);
+        remap::load_cached(self.app.app_state.remapper().unwrap_or_else(|error| {
+            eprintln!("block-app: the input remapper kept for this session was not read: {error}");
+            None
+        }));
         self.app.input.boot(&self.app.app_state);
         self.app.display.boot(&self.app.app_state);
         #[cfg(all(
@@ -807,6 +812,7 @@ impl BlockApp {
         }
         let locked = lock.locked();
         wayland::set_locked(locked);
+        remap::set_locked(locked);
         plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
         if locked {
             self.app_menu_open = false;
@@ -2402,7 +2408,10 @@ impl BlockApp {
         self.process_pending_copies();
         self.show_shell();
         #[cfg(target_os = "linux")]
-        self.take_power_request();
+        {
+            self.take_power_request();
+            remap::frame(&self.app_state);
+        }
         self.poll_artifacts();
         plugin_host::flush();
         performance::end_frame();

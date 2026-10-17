@@ -11,10 +11,8 @@ fn middle_clicking_a_scroll_scrolls_it_towards_the_pointer() {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={indices(100)}>
-                        {|index: usize| view! {
-                            <LabelledButton label={format!("Row {index}")} />
-                        }}
+                    <ForEach keys={indices(100)}>|index: usize|
+                        <LabelledButton label={format!("Row {index}")} />
                     </ForEach>
                 </Scroll>
             </List>

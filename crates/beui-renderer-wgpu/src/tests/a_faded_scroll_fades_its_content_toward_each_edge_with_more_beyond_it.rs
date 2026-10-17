@@ -8,10 +8,8 @@ fn a_faded_scroll_fades_its_content_toward_each_edge_with_more_beyond_it() {
     let mut document = build(|| {
         view! {
             <Scroll @test_id="scroll" scrollbar={ScrollbarStyle::default().fading(16.0)}>
-                <ForEach keys={(0..8).collect::<Vec<usize>>()}>
-                    {|_: usize| view! {
-                        <Frame height=16.0 radius=0.0 fill=Color32::WHITE />
-                    }}
+                <ForEach keys={(0..8).collect::<Vec<usize>>()}>|_: usize|
+                    <Frame height=16.0 radius=0.0 fill=Color32::WHITE />
                 </ForEach>
             </Scroll>
         }

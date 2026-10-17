@@ -45,26 +45,24 @@ pub(crate) fn StatusBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                 <Text style=TextStyle::CAPTION string="Relationships loading…" />
             </Show>
             <Show condition={loaded}>
-                {move || view! {
-                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <ReferenceMenu
-                            workspace={workspace}
-                            name="Backrefs"
-                            empty="No backrefs"
-                            refs={backrefs}
-                            containing={nothing_contains}
-                            named="workspace.backrefs"
-                        />
-                        <ReferenceMenu
-                            workspace={workspace}
-                            name="References"
-                            empty="No references"
-                            refs={references}
-                            containing={containing}
-                            named="workspace.references"
-                        />
-                    </List>
-                }}
+                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                    <ReferenceMenu
+                        workspace={workspace}
+                        name="Backrefs"
+                        empty="No backrefs"
+                        refs={backrefs}
+                        containing={nothing_contains}
+                        named="workspace.backrefs"
+                    />
+                    <ReferenceMenu
+                        workspace={workspace}
+                        name="References"
+                        empty="No references"
+                        refs={references}
+                        containing={containing}
+                        named="workspace.references"
+                    />
+                </List>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <AccessMode workspace={workspace} info={info} />
@@ -103,20 +101,18 @@ pub(crate) fn ReferenceMenu(
                 <Show condition={nothing}>
                     <MenuItem label={nothing_label} disabled=true />
                 </Show>
-                <ForEach keys={indices}>
-                    {move |index: usize| {
-                        let reference = create_memo(move || {
-                            items_refs.with(|refs| refs.list.get(index).cloned())
-                        });
-                        view! {
-                            <ReferenceMenuItem
-                                workspace={workspace}
-                                reference={reference}
-                                containing={containing}
-                            />
-                        }
-                    }}
-                </ForEach>
+                <ForEach keys={indices}>|index: usize| {
+                    let reference = create_memo(move || {
+                        items_refs.with(|refs| refs.list.get(index).cloned())
+                    });
+                    view! {
+                        <ReferenceMenuItem
+                            workspace={workspace}
+                            reference={reference}
+                            containing={containing}
+                        />
+                    }
+                }</ForEach>
             }}
             on_select={move |path: Vec<usize>| {
                 let Some((index, rest)) = path.split_first() else {

@@ -13,17 +13,13 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={indices(100)}>
-                        {move |index: usize| {
-                            view! {
-                                <LabelledButton
-                                    label={format!("Row {index}")}
-                                    on_click={move || {
-                                        set_clicks.update(|clicks| *clicks += 1);
-                                    }}
-                                />
-                            }
-                        }}
+                    <ForEach keys={indices(100)}>|index: usize|
+                        <LabelledButton
+                            label={format!("Row {index}")}
+                            on_click={move || {
+                                set_clicks.update(|clicks| *clicks += 1);
+                            }}
+                        />
                     </ForEach>
                 </Scroll>
             </List>

@@ -1,6 +1,7 @@
 use super::*;
 use beui::KeyAt;
 
+mod a_button_beyond_the_five_reaches_the_window_with_its_own_code;
 mod a_click_on_beui_dismisses_a_grabbed_popup;
 mod a_closed_window_leaves_the_list;
 mod a_cursor_shape_a_client_names_is_shown_over_its_window;
@@ -136,26 +137,24 @@ fn Shown(windows: Windows) -> NodeId {
                         value={text}
                         on_change={move |line: String| set_text.set(line)}
                     />
-                    <ForEach keys={ids}>
-                        {move |id: WindowId| {
-                            let list = windows.list();
-                            let size = create_memo(move || {
-                                list.with(|list| {
-                                    list.iter()
-                                        .find(|info| info.id == id)
-                                        .and_then(|info| info.fullscreen)
-                                        .map_or(SHOWN, |area| area.size())
-                                })
-                            });
-                            let width = create_memo(move || Some(size.get().x));
-                            let height = create_memo(move || Some(size.get().y));
-                            view! {
-                                <Frame width=width height=height>
-                                    <WindowView windows id />
-                                </Frame>
-                            }
-                        }}
-                    </ForEach>
+                    <ForEach keys={ids}>|id: WindowId| {
+                        let list = windows.list();
+                        let size = create_memo(move || {
+                            list.with(|list| {
+                                list.iter()
+                                    .find(|info| info.id == id)
+                                    .and_then(|info| info.fullscreen)
+                                    .map_or(SHOWN, |area| area.size())
+                            })
+                        });
+                        let width = create_memo(move || Some(size.get().x));
+                        let height = create_memo(move || Some(size.get().y));
+                        view! {
+                            <Frame width=width height=height>
+                                <WindowView windows id />
+                            </Frame>
+                        }
+                    }</ForEach>
                     <Overlay
                         anchor=OverlayAnchor::Point(Pos2::ZERO)
                         placement=Placement::Fill

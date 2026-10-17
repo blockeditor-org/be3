@@ -116,23 +116,21 @@ pub(crate) fn DesktopBar(
                         disabled={unready}
                         @test_id={"desktop.sessions"}
                         items={view! {
-                            <ForEach keys={keys}>
-                                {move |block: uuid::Uuid| {
-                                    let named = named;
-                                    let label = create_memo(move || {
-                                        named.with(|sessions| {
-                                            sessions
-                                                .iter()
-                                                .find(|session| session.block == block)
-                                                .map(|session| session.name.clone())
-                                                .unwrap_or_default()
-                                        })
-                                    });
-                                    view! {
-                                        <MenuItem label />
-                                    }
-                                }}
-                            </ForEach>
+                            <ForEach keys={keys}>|block: uuid::Uuid| {
+                                let named = named;
+                                let label = create_memo(move || {
+                                    named.with(|sessions| {
+                                        sessions
+                                            .iter()
+                                            .find(|session| session.block == block)
+                                            .map(|session| session.name.clone())
+                                            .unwrap_or_default()
+                                    })
+                                });
+                                view! {
+                                    <MenuItem label />
+                                }
+                            }</ForEach>
                             <MenuItem
                                 row_test_id={"desktop.sessions.new".to_owned()}
                                 label="New session"
@@ -161,10 +159,12 @@ pub(crate) fn DesktopBar(
                         press_focus=false
                         on_click={toggle_keyboard}
                     />
-                    <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
-                        {move |_: PopoverHandle| view! {
-                            <DesktopCalendar editor={editor} />
-                        }}
+                    <BarPopup
+                        label={clock}
+                        width=CALENDAR_WIDTH
+                        @test_id={"desktop.clock"}
+                    >|_: PopoverHandle|
+                        <DesktopCalendar editor={editor} />
                     </BarPopup>
                     <Show condition={powered}>
                         <PowerMenu editor={editor} />

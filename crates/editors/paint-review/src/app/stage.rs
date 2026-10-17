@@ -142,29 +142,27 @@ pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
         <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Canvas view={view} @sizing=ItemSize::Percent(100.0)>
-                    <ForEach keys={places}>
-                        {move |index: usize| {
-                            let panels = panels;
-                            let layout = layout;
-                            let image = create_memo(move || {
-                                panels.get().get(index).map(|panel: &Rendered| {
-                                    panel.image.clone()
-                                })
-                            });
-                            let rect = create_memo(move || {
-                                layout.get().get(index).copied().unwrap_or(Rect::ZERO)
-                            });
-                            let x = create_memo(move || rect.get().min.x);
-                            let y = create_memo(move || rect.get().min.y);
-                            let width = create_memo(move || rect.get().width());
-                            let height = create_memo(move || rect.get().height());
-                            view! {
-                                <CanvasItem x={x} y={y} width={width} height={height}>
-                                    <Picture image={image} fit=ImageFit::Fill smooth=false />
-                                </CanvasItem>
-                            }
-                        }}
-                    </ForEach>
+                    <ForEach keys={places}>|index: usize| {
+                        let panels = panels;
+                        let layout = layout;
+                        let image = create_memo(move || {
+                            panels.get().get(index).map(|panel: &Rendered| {
+                                panel.image.clone()
+                            })
+                        });
+                        let rect = create_memo(move || {
+                            layout.get().get(index).copied().unwrap_or(Rect::ZERO)
+                        });
+                        let x = create_memo(move || rect.get().min.x);
+                        let y = create_memo(move || rect.get().min.y);
+                        let width = create_memo(move || rect.get().width());
+                        let height = create_memo(move || rect.get().height());
+                        view! {
+                            <CanvasItem x={x} y={y} width={width} height={height}>
+                                <Picture image={image} fit=ImageFit::Fill smooth=false />
+                            </CanvasItem>
+                        }
+                    }</ForEach>
                 </Canvas>
                 <Notice shown={stalled} note={note} failed={broken} progress={progress} />
             </List>

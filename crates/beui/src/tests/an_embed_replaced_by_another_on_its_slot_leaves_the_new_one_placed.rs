@@ -11,20 +11,18 @@ fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Dynamic value={tall}>
-                    {move |tall: bool| {
-                        let height = match tall {
-                            true => 200.0,
-                            false => 100.0,
-                        };
-                        let slot = held;
-                        view! {
-                            <Frame height=height>
-                                <Embed slot={slot} />
-                            </Frame>
-                        }
-                    }}
-                </Dynamic>
+                <Dynamic value={tall}>|tall: bool| {
+                    let height = match tall {
+                        true => 200.0,
+                        false => 100.0,
+                    };
+                    let slot = held;
+                    view! {
+                        <Frame height=height>
+                            <Embed slot={slot} />
+                        </Frame>
+                    }
+                }</Dynamic>
             </List>
         }
     });

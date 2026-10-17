@@ -7,9 +7,11 @@ use beui_core::base::Direction;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 use serde::{Deserialize, Serialize};
 
+mod history;
 mod spec;
 mod switch;
 
+pub use history::DockVisit;
 pub use spec::{DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow};
 pub use switch::DockSwitch;
 
@@ -482,6 +484,7 @@ pub struct DockState {
     homes: Vec<Home>,
     focus: Option<LeafId>,
     recent: Vec<TabId>,
+    history: Vec<DockVisit>,
     next: u64,
     seeded: bool,
     #[serde(skip)]
@@ -508,6 +511,7 @@ impl DockState {
             homes: Vec::new(),
             focus: None,
             recent: Vec::new(),
+            history: Vec::new(),
             next: 0,
             seeded: false,
             fullscreen: None,
@@ -928,6 +932,7 @@ impl DockState {
         if self.recent.first() == Some(&tab) {
             return;
         }
+        self.record_visit(tab);
         self.recent.retain(|other| *other != tab);
         self.recent.insert(0, tab);
     }
@@ -1069,6 +1074,7 @@ impl DockState {
             return false;
         }
         self.recent.retain(|other| *other != tab);
+        self.forget_visits(tab);
         if self.fullscreen.is_some_and(|shown| shown.tab == tab) {
             self.fullscreen = None;
         }
@@ -1079,11 +1085,18 @@ impl DockState {
 
     pub fn close(&mut self, tab: TabId) -> bool {
         let shown = self.stacked_tab() == Some(tab);
+        let opener = self.back().map(|visit| visit.from);
         if !self.remove(tab) {
             return false;
         }
-        if let Some(next) = self.recent_tabs().first().copied().filter(|_| shown) {
-            self.show(next);
+        if !shown {
+            return true;
+        }
+        let next = opener
+            .filter(|opener| self.contains(*opener))
+            .or_else(|| self.recent_tabs().first().copied());
+        if let Some(next) = next {
+            self.return_to(next);
         }
         true
     }
@@ -1120,6 +1133,7 @@ impl DockState {
                 *recent = with;
             }
         }
+        self.rename_visits(tab, with);
         true
     }
 

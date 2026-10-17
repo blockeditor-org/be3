@@ -192,26 +192,24 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                 </List>
             </Show>
             <Show condition={waiting}>
-                {move || view! {
-                    <List spacing=8.0>
-                        <Text
-                            style=TextStyle::PARAGRAPH
-                            string="Type this code on the other device:"
-                            wrap=true
+                <List spacing=8.0>
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="Type this code on the other device:"
+                        wrap=true
+                    />
+                    <Text style=TextStyle::TITLE string={code} />
+                    <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                        <Spinner />
+                        <Text style=TextStyle::CAPTION string="Waiting for the other device…" />
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Button
+                            label="Cancel"
+                            variant=ButtonVariant::Secondary
+                            on_click={|| send(UiCommand::CancelPairing)}
                         />
-                        <Text style=TextStyle::TITLE string={code} />
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Spinner />
-                            <Text style=TextStyle::CAPTION string="Waiting for the other device…" />
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
-                            <Button
-                                label="Cancel"
-                                variant=ButtonVariant::Secondary
-                                on_click={|| send(UiCommand::CancelPairing)}
-                            />
-                        </List>
                     </List>
-                }}
+                </List>
             </Show>
             <ErrorText text={error} />
             <List direction=Direction::Horizontal spacing=8.0>

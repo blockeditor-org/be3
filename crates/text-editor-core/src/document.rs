@@ -14,17 +14,25 @@ pub enum TextLanguage {
     Markdown,
     PlainText,
     Rust,
+    Toml,
     Zig,
 }
 
 impl TextLanguage {
-    pub const ALL: [Self; 4] = [Self::Markdown, Self::PlainText, Self::Rust, Self::Zig];
+    pub const ALL: [Self; 5] = [
+        Self::Markdown,
+        Self::PlainText,
+        Self::Rust,
+        Self::Toml,
+        Self::Zig,
+    ];
 
     pub const fn label(self) -> &'static str {
         match self {
             Self::Markdown => "Markdown",
             Self::PlainText => "Plain text",
             Self::Rust => "Rust",
+            Self::Toml => "TOML",
             Self::Zig => "Zig",
         }
     }

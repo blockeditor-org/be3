@@ -345,8 +345,8 @@ it, is for tests and host integration: `*_selected`, `*_open`, `*_pressed`,
 ## Composing controls and embedding beui
 
 The unstyled controls hand their interaction state to whoever renders their
-content: `<unstyled::Button content={...}>` calls the content builder with a
-`ButtonHandle` carrying `hovered`, `active`, `focused` and `disabled` signals, and the
+content: `<unstyled::Button>|handle| <Face handle /></unstyled::Button>` builds its
+face with a `ButtonHandle` carrying `hovered`, `active`, `focused` and `disabled` signals, and the
 text input and select equivalents do the same. Build reactive props out of
 those signals — including effects that react to a child's hover or focus —
 instead of querying the control's state back afterwards.

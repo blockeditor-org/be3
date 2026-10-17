@@ -11,10 +11,8 @@ fn a_second_swipe_during_a_fling_keeps_scrolling() {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={indices(300)}>
-                        {move |index: usize| view! {
-                            <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
-                        }}
+                    <ForEach keys={indices(300)}>|index: usize|
+                        <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
                     </ForEach>
                 </Scroll>
             </List>

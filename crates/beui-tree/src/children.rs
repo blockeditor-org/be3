@@ -471,6 +471,12 @@ impl<T: SlotChild> From<Run<T>> for Children<T> {
     }
 }
 
+impl<T: SlotChild> IntoChild<Children<T>> for Children<T> {
+    fn into_child(self) -> Children<T> {
+        self
+    }
+}
+
 impl<T: SlotChild> From<DynamicSegment<T>> for Children<T> {
     fn from(segment: DynamicSegment<T>) -> Self {
         Self::from(segment.into_segment())

@@ -21,16 +21,9 @@ pub fn Link(
     on_click: ClickCallback,
 ) -> NodeId {
     view! {
-        <unstyled::Button
-            label
-            glyph
-            role=Role::Link
-            disabled
-            on_click={on_click}
-            content={move |handle| view! {
-                <LinkFace handle size />
-            }}
-        />
+        <unstyled::Button label glyph role=Role::Link disabled on_click={on_click}>|handle|
+            <LinkFace handle size />
+        </unstyled::Button>
     }
 }
 

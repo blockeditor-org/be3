@@ -81,44 +81,40 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                             clip=true
                         />
                         <Show condition={editable}>
-                            {move || view! {
-                                <Button
-                                    label="Edit"
-                                    variant=ButtonVariant::Secondary
-                                    @test_id={format!("text.embed.{}.edit", key.id)}
-                                    on_click={move || {
-                                        state.set_focused_embed.set(Some(key));
-                                        state.inner().focus_confirmed.set(false);
-                                    }}
-                                />
-                            }}
+                            <Button
+                                label="Edit"
+                                variant=ButtonVariant::Secondary
+                                @test_id={format!("text.embed.{}.edit", key.id)}
+                                on_click={move || {
+                                    state.set_focused_embed.set(Some(key));
+                                    state.inner().focus_confirmed.set(false);
+                                }}
+                            />
                         </Show>
                     </List>
                 </Frame>
                 <Show condition={unavailable} then={unavailable_row} />
                 <Show condition={available}>
-                    {move || view! {
-                        <ChildBlock
-                            @sizing=ItemSize::Percent(100.0)
-                            editor={state.editor}
-                            block={Some(target)}
-                            mode={mode}
-                            on_state={move |next: ChildState| {
-                                set_child.set(next.clone());
-                                state.inner().embed_children.borrow_mut().insert(key, next.clone());
-                                if let Some(size) = next.intrinsic_size
-                                    && state
-                                        .embed_sizes
-                                        .with_untracked(|sizes| sizes.get(&key.id) != Some(&size))
-                                {
-                                    state.set_embed_sizes.update(|sizes| {
-                                        sizes.insert(key.id, size);
-                                    });
-                                }
-                                confirm_focus(state, key, next.active);
-                            }}
-                        />
-                    }}
+                    <ChildBlock
+                        @sizing=ItemSize::Percent(100.0)
+                        editor={state.editor}
+                        block={Some(target)}
+                        mode={mode}
+                        on_state={move |next: ChildState| {
+                            set_child.set(next.clone());
+                            state.inner().embed_children.borrow_mut().insert(key, next.clone());
+                            if let Some(size) = next.intrinsic_size
+                                && state
+                                    .embed_sizes
+                                    .with_untracked(|sizes| sizes.get(&key.id) != Some(&size))
+                            {
+                                state.set_embed_sizes.update(|sizes| {
+                                    sizes.insert(key.id, size);
+                                });
+                            }
+                            confirm_focus(state, key, next.active);
+                        }}
+                    />
                 </Show>
             </List>
         </Frame>

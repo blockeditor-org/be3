@@ -111,10 +111,8 @@ pub fn TimeList(
         <TimeListBox label>
             <unstyled::Scroll @sizing=ItemSize::Percent(100.0) offset={shown} scrollbar>
                 <List spacing>
-                    <ForEach keys={rows}>
-                        {move |row: usize| view! {
-                            <TimeRow state={state} row spacing hour_cycle face={option} />
-                        }}
+                    <ForEach keys={rows}>|row: usize|
+                        <TimeRow state={state} row spacing hour_cycle face={option} />
                     </ForEach>
                 </List>
             </unstyled::Scroll>
@@ -144,16 +142,14 @@ fn TimeRow(
     });
     view! {
         <List direction=Direction::Horizontal spacing>
-            <ForEach keys={cells}>
-                {move |minutes: u32| view! {
-                    <TimeOption
-                        @sizing=ItemSize::Percent(100.0)
-                        state={state}
-                        minutes
-                        hour_cycle
-                        face={face}
-                    />
-                }}
+            <ForEach keys={cells}>|minutes: u32|
+                <TimeOption
+                    @sizing=ItemSize::Percent(100.0)
+                    state={state}
+                    minutes
+                    hour_cycle
+                    face={face}
+                />
             </ForEach>
         </List>
     }
@@ -209,17 +205,16 @@ fn TimeOption(
             }}
             on_click={move || choose(state, time)}
             on_key={move |press: KeyPress| option_key(state, minutes, press)}
-            content={move |button: ButtonHandle| {
-                face.call(TimeOptionHandle {
-                    time,
-                    label,
-                    selected,
-                    hovered: button.hovered,
-                    active: button.active,
-                    focused: button.focused,
-                })
-            }}
-        />
+        >|button: ButtonHandle| {
+            face.call(TimeOptionHandle {
+                time,
+                label,
+                selected,
+                hovered: button.hovered,
+                active: button.active,
+                focused: button.focused,
+            })
+        }</unstyled::Button>
     }
 }
 

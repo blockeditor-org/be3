@@ -12,16 +12,14 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
         view! {
             <styled::Docking @node_ref=&dock layout>
                 <DockPane id="tabs">
-                    <ForEach keys={vec![1u64, 2, 3]}>
-                        {move |id: u64| view! {
-                            <DockTab
-                                id
-                                title={format!("Tab {id}")}
-                                on_close={move || set_closed.update(|closed| closed.push(TabId::new(id)))}
-                            >
-                                <Frame @test_id={format!("content.{id}")} />
-                            </DockTab>
-                        }}
+                    <ForEach keys={vec![1u64, 2, 3]}>|id: u64|
+                        <DockTab
+                            id
+                            title={format!("Tab {id}")}
+                            on_close={move || set_closed.update(|closed| closed.push(TabId::new(id)))}
+                        >
+                            <Frame @test_id={format!("content.{id}")} />
+                        </DockTab>
                     </ForEach>
                 </DockPane>
             </styled::Docking>

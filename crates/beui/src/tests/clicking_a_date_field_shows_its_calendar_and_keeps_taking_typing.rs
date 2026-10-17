@@ -4,7 +4,7 @@ use super::*;
 use crate::datetime::{Date, DateTime, Time};
 use crate::reactive::*;
 use crate::styled::*;
-use crate::unstyled::DateTimeParts;
+use crate::unstyled::{Container, DateTimeParts};
 
 #[test]
 fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
@@ -13,18 +13,20 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
     let field = NodeRef::new();
     let document = build(move || {
         view! {
-            <List spacing=0.0>
-                <DateTimeField
-                    @node_ref=&field
-                    value={Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT))}
-                    today={Some(Date::new(2026, 1, 1))}
-                    parts=DateTimeParts::Date
-                    label="Due"
-                    on_change={move |value: Option<DateTime>| {
-                        set_reported.update(|reported| reported.push(value.map(|value| value.date)))
-                    }}
-                />
-            </List>
+            <Container>|_size|
+                <List spacing=0.0>
+                    <DateTimeField
+                        @node_ref=&field
+                        value={Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT))}
+                        today={Some(Date::new(2026, 1, 1))}
+                        parts=DateTimeParts::Date
+                        label="Due"
+                        on_change={move |value: Option<DateTime>| {
+                            set_reported.update(|reported| reported.push(value.map(|value| value.date)))
+                        }}
+                    />
+                </List>
+            </Container>
         }
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);

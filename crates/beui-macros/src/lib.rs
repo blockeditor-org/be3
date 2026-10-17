@@ -108,6 +108,73 @@ fn func_setter(
     }
 }
 
+struct RenderOutput {
+    child: proc_macro2::TokenStream,
+    item: Option<proc_macro2::TokenStream>,
+}
+
+impl RenderOutput {
+    fn built_bound(&self) -> proc_macro2::TokenStream {
+        let child = &self.child;
+        match &self.item {
+            Some(item) => quote! { ::beui::reactive::IntoSegment<#item> },
+            None => quote! { ::beui::reactive::IntoChild<#child> },
+        }
+    }
+
+    fn block_bound(&self) -> proc_macro2::TokenStream {
+        let child = &self.child;
+        match &self.item {
+            Some(item) => quote! { ::beui::reactive::IntoSegments<#item> },
+            None => quote! { ::beui::reactive::OneChild<#child> },
+        }
+    }
+
+    fn wrap_built(&self, built: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+        let child = &self.child;
+        match &self.item {
+            Some(_) => {
+                quote! { ::beui::reactive::Children::from(::beui::reactive::into_segment(#built)) }
+            }
+            None => quote! { ::beui::reactive::into_child::<#child>(#built) },
+        }
+    }
+
+    fn wrap_block(&self, block: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+        let child = &self.child;
+        match &self.item {
+            Some(_) => quote! { ::beui::reactive::Children::from_block(#block) },
+            None => quote! { <_ as ::beui::reactive::OneChild<#child>>::one_child(#block) },
+        }
+    }
+}
+
+fn render_output(render: &Render) -> RenderOutput {
+    let child = render_child(render);
+    let item = render
+        .child
+        .as_ref()
+        .filter(|ty| is_named_type(ty, "Children"))
+        .map(|_| quote! { <#child as ::beui::reactive::ChildrenSlot>::Child });
+    RenderOutput { child, item }
+}
+
+fn render_new(render: &Render) -> proc_macro2::TokenStream {
+    if render.once {
+        quote! { ::beui::reactive::Render::new }
+    } else {
+        quote! { ::beui::reactive::RenderFn::new }
+    }
+}
+
+fn render_fn_bound(render: &Render, args: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    if render.once {
+        quote! { ::core::ops::FnOnce(#args) }
+    } else {
+        quote! { ::core::ops::Fn(#args) }
+    }
+}
+
 fn render_setter(
     method: &Ident,
     render: &Render,
@@ -127,28 +194,86 @@ fn render_setter(
             quote! {},
             quote! { ::beui::reactive::IntoRenderFn::into_render_fn(value) },
         ),
-        (None, true) => (
-            quote! { <Built> },
-            quote! { ::core::ops::FnOnce() -> Built + 'static },
-            quote! { where Built: ::beui::reactive::IntoChild<#child> },
-            quote! { ::beui::reactive::Render::new(
-                move |()| ::beui::reactive::into_child::<#child>(value()),
-            ) },
-        ),
-        (None, false) => (
-            quote! { <Built> },
-            quote! { ::core::ops::Fn() -> Built + 'static },
-            quote! { where Built: ::beui::reactive::IntoChild<#child> },
-            quote! { ::beui::reactive::RenderFn::new(
-                move |()| ::beui::reactive::into_child::<#child>(value()),
-            ) },
-        ),
+        (None, _) => {
+            let output = render_output(render);
+            let bound = render_fn_bound(render, quote! {});
+            let built_bound = output.built_bound();
+            let new = render_new(render);
+            let built = output.wrap_built(quote! { value() });
+            (
+                quote! { <Built> },
+                quote! { #bound -> Built + 'static },
+                quote! { where Built: #built_bound },
+                quote! { #new(move |()| #built) },
+            )
+        }
     };
     Setter {
         method: method.clone(),
         generics,
         args: quote! { value: impl #signature },
         where_clause,
+        value: wrap(build),
+    }
+}
+
+fn render_children_closure(
+    render: &Render,
+    wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
+) -> Setter {
+    let output = render_output(render);
+    let new = render_new(render);
+    let (bound, where_clause, build) = match &render.handle {
+        Some(handle) if output.item.is_none() => {
+            let child = &output.child;
+            let (into, convert) = if render.once {
+                (
+                    quote! { ::beui::reactive::IntoRender<#handle, #child> },
+                    quote! { ::beui::reactive::IntoRender::into_render(value) },
+                )
+            } else {
+                (
+                    quote! { ::beui::reactive::IntoRenderFn<#handle, #child> },
+                    quote! { ::beui::reactive::IntoRenderFn::into_render_fn(value) },
+                )
+            };
+            let bound = render_fn_bound(render, quote! { #handle });
+            (
+                quote! { #bound -> Built + 'static + #into },
+                quote! {},
+                convert,
+            )
+        }
+        Some(handle) => {
+            let bound = render_fn_bound(render, quote! { #handle });
+            let built_bound = output.built_bound();
+            let built = output.wrap_built(quote! { value(handle) });
+            (
+                quote! { #bound -> Built + 'static },
+                quote! { Built: #built_bound, },
+                quote! { #new(move |handle: #handle| #built) },
+            )
+        }
+        None => {
+            let bound = render_fn_bound(render, quote! {});
+            let built_bound = output.built_bound();
+            let built = output.wrap_built(quote! { value() });
+            (
+                quote! { #bound -> Built + 'static },
+                quote! { Built: #built_bound, },
+                quote! { #new(move |()| #built) },
+            )
+        }
+    };
+    Setter {
+        method: format_ident!("children_render"),
+        generics: quote! { <ChildrenFn, Built> },
+        args: quote! { value: ChildrenFn },
+        where_clause: quote! {
+            where
+                ChildrenFn: #bound,
+                #where_clause
+        },
         value: wrap(build),
     }
 }
@@ -161,32 +286,66 @@ fn render_children_block(
         .handle
         .clone()
         .unwrap_or_else(|| syn::parse_quote!(()));
-    let child = render_child(render);
-    let (bound, build) = if render.once {
-        (
-            quote! { ::core::ops::FnOnce() -> ChildrenBlock + 'static },
-            quote! { ::beui::reactive::Render::new(
-                move |_handle: #handle| ::beui::reactive::OneChild::one_child(children()),
-            ) },
-        )
-    } else {
-        (
-            quote! { ::core::ops::Fn() -> ChildrenBlock + 'static },
-            quote! { ::beui::reactive::RenderFn::new(
-                move |_handle: #handle| ::beui::reactive::OneChild::one_child(children()),
-            ) },
-        )
-    };
+    let output = render_output(render);
+    let bound = render_fn_bound(render, quote! {});
+    let block_bound = output.block_bound();
+    let new = render_new(render);
+    let built = output.wrap_block(quote! { children() });
     Setter {
         method: format_ident!("children_block"),
         generics: quote! { <ChildrenFn, ChildrenBlock> },
         args: quote! { children: ChildrenFn },
         where_clause: quote! {
             where
-                ChildrenFn: #bound + ::beui::reactive::UnitHandle<#handle>,
-                ChildrenBlock: ::beui::reactive::OneChild<#child>,
+                ChildrenFn: #bound -> ChildrenBlock + 'static,
+                ChildrenBlock: #block_bound,
         },
-        value: wrap(build),
+        value: wrap(quote! { #new(move |_handle: #handle| #built) }),
+    }
+}
+
+fn render_children_with(
+    render: &Render,
+    wrap: impl Fn(proc_macro2::TokenStream) -> proc_macro2::TokenStream,
+) -> Setter {
+    let Some(handle) = &render.handle else {
+        return no_children_with();
+    };
+    let output = render_output(render);
+    let bound = render_fn_bound(render, quote! { #handle });
+    let block_bound = output.block_bound();
+    let new = render_new(render);
+    let built = output.wrap_block(quote! { children(handle) });
+    Setter {
+        method: format_ident!("children_with"),
+        generics: quote! { <ChildrenFn, ChildrenBlock> },
+        args: quote! { children: ChildrenFn },
+        where_clause: quote! {
+            where
+                ChildrenFn: #bound -> ChildrenBlock + 'static,
+                ChildrenBlock: #block_bound,
+        },
+        value: wrap(quote! { #new(move |handle: #handle| #built) }),
+    }
+}
+
+fn no_children_with() -> Setter {
+    Setter {
+        method: format_ident!("children_with"),
+        generics: quote! { <ChildrenFn> },
+        args: quote! { children: ChildrenFn },
+        where_clause: quote! { where ChildrenFn: ::beui::reactive::HandsAValue },
+        value: quote! { ::beui::reactive::HandsAValue::bind(children) },
+    }
+}
+
+fn no_children_render() -> Setter {
+    Setter {
+        method: format_ident!("children_render"),
+        generics: quote! { <ChildrenFn> },
+        args: quote! { children: ChildrenFn },
+        where_clause: quote! { where ChildrenFn: ::beui::reactive::BuildsItsChildren },
+        value: quote! { ::beui::reactive::BuildsItsChildren::build(children) },
     }
 }
 
@@ -195,48 +354,61 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
     if prop.is_children {
         let ty = &prop.ty;
         let child = quote! { <#ty as ::beui::reactive::ChildrenSlot>::Child };
-        return vec![Setter {
-            method: block,
-            generics: quote! { <ChildrenBlock> },
-            args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-            where_clause: quote! { where ChildrenBlock: ::beui::reactive::IntoSegments<#child> },
-            value: quote! { ::beui::reactive::Children::from_block(children()) },
-        }];
+        return vec![
+            Setter {
+                method: block,
+                generics: quote! { <ChildrenBlock> },
+                args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
+                where_clause: quote! { where ChildrenBlock: ::beui::reactive::IntoSegments<#child> },
+                value: quote! { ::beui::reactive::Children::from_block(children()) },
+            },
+            no_children_with(),
+            no_children_render(),
+        ];
     }
     if prop.is_optional_child {
         let item = prop
             .inner_ty
             .as_ref()
             .expect("an optional child has an inner type");
-        return vec![Setter {
-            method: block,
-            generics: quote! { <ChildrenBlock> },
-            args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-            where_clause: quote! { where ChildrenBlock: ::beui::reactive::AtMostOneChild<#item> },
-            value: quote! { ::beui::reactive::AtMostOneChild::at_most_one_child(children()) },
-        }];
+        return vec![
+            Setter {
+                method: block,
+                generics: quote! { <ChildrenBlock> },
+                args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
+                where_clause: quote! { where ChildrenBlock: ::beui::reactive::AtMostOneChild<#item> },
+                value: quote! { ::beui::reactive::AtMostOneChild::at_most_one_child(children()) },
+            },
+            no_children_with(),
+            no_children_render(),
+        ];
     }
     if prop.is_child {
         let ty = &prop.ty;
-        return vec![Setter {
-            method: block,
-            generics: quote! { <ChildrenBlock> },
-            args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-            where_clause: quote! { where ChildrenBlock: ::beui::reactive::OneChild<#ty> },
-            value: quote! { ::beui::reactive::OneChild::one_child(children()) },
-        }];
+        return vec![
+            Setter {
+                method: block,
+                generics: quote! { <ChildrenBlock> },
+                args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
+                where_clause: quote! { where ChildrenBlock: ::beui::reactive::OneChild<#ty> },
+                value: quote! { ::beui::reactive::OneChild::one_child(children()) },
+            },
+            no_children_with(),
+            no_children_render(),
+        ];
     }
-    let children_render = format_ident!("children_render");
     match &prop.optional_render {
         Some(render) => vec![
-            render_setter(&children_render, render, |build| quote! { Some(#build) }),
+            render_children_closure(render, |build| quote! { Some(#build) }),
             render_children_block(render, |build| quote! { Some(#build) }),
+            render_children_with(render, |build| quote! { Some(#build) }),
         ],
         None => {
             let render = prop.render.as_ref().expect("checked by the caller");
             vec![
-                render_setter(&children_render, render, |build| build),
+                render_children_closure(render, |build| build),
                 render_children_block(render, |build| build),
+                render_children_with(render, |build| build),
             ]
         }
     }
@@ -1155,7 +1327,54 @@ struct ViewNode {
     props: Vec<ViewAttr>,
     specials: Vec<ViewAttr>,
     sizing: Option<ViewSizing>,
+    head: Option<ViewHead>,
     children: Option<Vec<ViewChild>>,
+}
+
+struct ViewHead {
+    span: proc_macro2::Span,
+    pattern: Option<Pat>,
+    block: Option<syn::Block>,
+}
+
+fn parse_view_head(input: ParseStream) -> syn::Result<Option<ViewHead>> {
+    let (span, pattern) = if input.peek(Token![||]) {
+        (input.parse::<Token![||]>()?.spans[0], None)
+    } else if input.peek(Token![|]) {
+        let open = input.parse::<Token![|]>()?;
+        let pattern = Pat::parse_single(input)?;
+        let pattern = if input.peek(Token![:]) {
+            let colon_token = input.parse::<Token![:]>()?;
+            Pat::Type(PatType {
+                attrs: Vec::new(),
+                pat: Box::new(pattern),
+                colon_token,
+                ty: Box::new(input.parse()?),
+            })
+        } else {
+            pattern
+        };
+        input.parse::<Token![|]>()?;
+        (open.span, Some(pattern))
+    } else {
+        return Ok(None);
+    };
+    let block = if input.peek(syn::token::Brace) {
+        let fork = input.fork();
+        fork.parse::<syn::Block>()?;
+        if fork.peek(Token![<]) && fork.peek2(Token![/]) {
+            Some(input.parse::<syn::Block>()?)
+        } else {
+            None
+        }
+    } else {
+        None
+    };
+    Ok(Some(ViewHead {
+        span,
+        pattern,
+        block,
+    }))
 }
 
 fn parse_tag_path(input: ParseStream) -> syn::Result<Vec<Ident>> {
@@ -1234,11 +1453,13 @@ impl Parse for ViewNode {
                 props,
                 specials,
                 sizing,
+                head: None,
                 children: None,
             });
         }
         input.parse::<Token![>]>()?;
 
+        let head = parse_view_head(input)?;
         let mut children = Vec::new();
         while !(input.peek(Token![<]) && input.peek2(Token![/])) {
             children.push(input.parse::<ViewChild>()?);
@@ -1264,11 +1485,24 @@ impl Parse for ViewNode {
             ));
         }
 
+        if let [
+            ViewChild {
+                kind: ViewChildKind::Expr(Expr::Closure(closure), None),
+            },
+        ] = children.as_slice()
+        {
+            return Err(syn::Error::new_spanned(
+                closure,
+                "write a closure child without its braces and `move`, as `|value| <Tag />` or `|value| { ... }`",
+            ));
+        }
+
         Ok(ViewNode {
             tag_path,
             props,
             specials,
             sizing,
+            head,
             children: Some(children),
         })
     }
@@ -1347,16 +1581,25 @@ fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
     match &node.children {
         None => quote_spanned! { tag => #builder .#build() },
         Some(children) => {
-            if let [
-                ViewChild {
-                    kind: ViewChildKind::Expr(Expr::Closure(closure), None),
-                },
-            ] = children.as_slice()
-            {
-                let children_render = format_ident!("children_render", span = tag);
-                return quote_spanned! { tag =>
-                    #builder .#children_render(#closure) .#build()
+            if let Some(head) = &node.head {
+                let span = head.span;
+                let params = match &head.pattern {
+                    Some(pattern) => quote! { |#pattern| },
+                    None => quote! { || },
                 };
+                if let Some(block) = &head.block {
+                    let children_render = format_ident!("children_render", span = span);
+                    return quote_spanned! { span =>
+                        #builder .#children_render(move #params #block) .#build()
+                    };
+                }
+                if head.pattern.is_some() {
+                    let items = expand_child_block(children);
+                    let children_with = format_ident!("children_with", span = span);
+                    return quote_spanned! { span =>
+                        #builder .#children_with(move #params #items) .#build()
+                    };
+                }
             }
             let items = expand_child_block(children);
             let block = quote_spanned! { tag => move || #items };

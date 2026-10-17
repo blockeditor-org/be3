@@ -16,10 +16,8 @@ fn a_long_change_is_cut_short_unless_asked_for_in_full() {
                 />
                 <ShowKeepAlive condition={shown}>
                     <List spacing=0.0>
-                        <ForEach keys={(0..80).collect::<Vec<usize>>()}>
-                            {move |row: usize| view! {
-                                <Text string={format!("Row {row}")} />
-                            }}
+                        <ForEach keys={(0..80).collect::<Vec<usize>>()}>|row: usize|
+                            <Text string={format!("Row {row}")} />
                         </ForEach>
                     </List>
                 </ShowKeepAlive>

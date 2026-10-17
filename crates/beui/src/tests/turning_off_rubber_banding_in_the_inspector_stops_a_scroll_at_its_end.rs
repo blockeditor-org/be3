@@ -11,12 +11,10 @@ fn turning_off_rubber_banding_in_the_inspector_stops_a_scroll_at_its_end() {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={indices(40)}>
-                        {|_: usize| view! {
-                            <Frame padding={Sides::symmetric(0.0, 20.0)}>
-                                <Spacer />
-                            </Frame>
-                        }}
+                    <ForEach keys={indices(40)}>|_: usize|
+                        <Frame padding={Sides::symmetric(0.0, 20.0)}>
+                            <Spacer />
+                        </Frame>
                     </ForEach>
                 </Scroll>
             </List>

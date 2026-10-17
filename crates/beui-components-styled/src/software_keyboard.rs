@@ -228,8 +228,8 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
                 justify=Justify::SpaceEvenly
                 @sizing=ItemSize::Fixed(EMOJI_SIZE)
             >
-                <ForEach keys={groups}>
-                    {move |index: usize| {
+                <ForEach keys={groups}>|index: usize| {
+                    {
                         let (_, glyph, label) = EMOJI_GROUPS[index];
                         let selected = create_memo(move || group.get() == index);
                         view! {
@@ -240,15 +240,17 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
                                 on_click={move || set_group.set(index)}
                             />
                         }
-                    }}
+                    }
+                }
                 </ForEach>
             </List>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <List direction=Direction::Horizontal wrap=true spacing=0.0>
-                    <ForEach keys={shown}>
-                        {move |emoji: &'static str| view! {
+                    <ForEach keys={shown}>|emoji: &'static str| {
+                        view! {
                             <EmojiKey emoji keyboard />
-                        }}
+                        }
+                    }
                     </ForEach>
                 </List>
             </Scroll>

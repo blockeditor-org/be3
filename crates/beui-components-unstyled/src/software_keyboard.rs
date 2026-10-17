@@ -141,8 +141,8 @@ pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHan
     };
     view! {
         <List spacing=0.0>
-            <Dynamic value={layer}>
-                {move |layer: Layer| match layer {
+            <Dynamic value={layer}>|layer: Layer| {
+                match layer {
                     Layer::Emoji => view! { {emoji.call(keyboard)} @sizing=ItemSize::Percent(100.0) },
                     _ => view! {
                         <Interactive
@@ -154,7 +154,8 @@ pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHan
                             <KeyRows layout={layout::layout(layer)} keyboard cap />
                         </Interactive>
                     },
-                }}
+                }
+            }
             </Dynamic>
         </List>
     }
@@ -176,8 +177,8 @@ fn KeyRows(
     let rows: Vec<usize> = (0..layout.rows.len()).collect();
     view! {
         <List spacing=0.0>
-            <ForEach keys={rows}>
-                {move |row: usize| view! {
+            <ForEach keys={rows}>|row: usize| {
+                view! {
                     <KeyRow
                         @sizing=ItemSize::Percent(layout.rows[row].height)
                         layout
@@ -185,7 +186,8 @@ fn KeyRows(
                         keyboard
                         cap
                     />
-                }}
+                }
+            }
             </ForEach>
         </List>
     }
@@ -216,8 +218,8 @@ fn KeyRow(
     let layer = keyboard.layer();
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <ForEach keys={cells}>
-                {move |cell: Cell| match cell {
+            <ForEach keys={cells}>|cell: Cell| {
+                match cell {
                     Cell::Gap(column) => view! {
                         <Frame @sizing=ItemSize::Percent(keys[column].shift) />
                     },
@@ -258,7 +260,8 @@ fn KeyRow(
                             <KeyCell @sizing=ItemSize::Percent(def.width) handle cap />
                         }
                     }
-                }}
+                }
+            }
             </ForEach>
         </List>
     }

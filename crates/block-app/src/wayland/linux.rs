@@ -174,6 +174,7 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
 pub(crate) fn after(context: &Context, document: &mut Document) {
     with(|running| {
         running.compositor.after(context, document);
+        crate::remap::focus(running.compositor.keyboard_window());
         if let Some(flips) = &running.flips {
             flips.watch(running.compositor.awaits_flip());
         }

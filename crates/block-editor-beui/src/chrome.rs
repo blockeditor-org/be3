@@ -3,6 +3,7 @@ use beui::reactive::*;
 use beui::styled::theme::BORDER_WIDTH;
 pub use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
+use beui::unstyled::{Container, narrower_than};
 use beui::{NodeId, Vec2};
 
 pub const SIDEBAR_WIDTH: f32 = 260.0;
@@ -67,85 +68,72 @@ pub(crate) fn ChromeRoot(
 ) -> NodeId {
     let phone = create_memo(move || phone.get());
     view! {
-        <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
-                let narrow = create_memo(move || {
-                    let width = size.get().x;
-                    width > 0.0 && width < NARROW_WIDTH
-                });
-                let (panels, set_panels) = create_signal(Vec::<NodeId>::new());
-                let (open, set_open) = create_signal(false);
-                let (toolbars, set_toolbars) = create_signal(0usize);
-                let layout = ChromeLayout {
-                    narrow,
-                    panels,
-                    set_panels,
-                    open,
-                    set_open,
-                    set_toolbars,
-                };
-                provide_context(layout.clone());
-                let content = content.call(());
-                let offers = layout.offers_sheet();
-                let sheet = create_memo(move || offers.get() && open.get());
-                let bare = create_memo(move || {
-                    offers.get() && toolbars.get() == 0 && !phone.get()
-                });
-                let listed = create_memo(move || offers.get() && phone.get());
-                let opener = layout.set_open;
-                let theme = use_theme();
-                let bar_color = theme.surface;
-                let extent = create_memo(move || size.get().y);
-                let close = layout.set_open;
-                view! {
-                    <List spacing=0.0>
-                        <Show condition={bare}>
-                            <Frame fill={ColorRole::custom(bar_color)}>
-                                <List spacing=0.0>
-                                    <Frame
-                                        padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
-                                    >
-                                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                            <SheetToggle />
-                                        </List>
-                                    </Frame>
-                                    <Separator />
-                                </List>
-                            </Frame>
-                        </Show>
-                        <Show condition={listed}>
-                            {move || view! {
-                                <PanelItem set_open={opener} />
-                            }}
-                        </Show>
-                        {content} @sizing=ItemSize::Percent(100.0)
-                        <Show condition={sheet}>
-                            {move || view! {
-                                <Sheet
-                                    extent={extent}
-                                    open={sheet}
-                                    rest={SHEET_STOPS[0]}
-                                    on_close={move || close.set(false)}
+        <Container>|size: ReadSignal<Vec2>| {
+            let narrow = narrower_than(NARROW_WIDTH);
+            let (panels, set_panels) = create_signal(Vec::<NodeId>::new());
+            let (open, set_open) = create_signal(false);
+            let (toolbars, set_toolbars) = create_signal(0usize);
+            let layout = ChromeLayout {
+                narrow,
+                panels,
+                set_panels,
+                open,
+                set_open,
+                set_toolbars,
+            };
+            provide_context(layout.clone());
+            let content = content.call(());
+            let offers = layout.offers_sheet();
+            let sheet = create_memo(move || offers.get() && open.get());
+            let bare = create_memo(move || {
+                offers.get() && toolbars.get() == 0 && !phone.get()
+            });
+            let listed = create_memo(move || offers.get() && phone.get());
+            let opener = layout.set_open;
+            let theme = use_theme();
+            let bar_color = theme.surface;
+            let extent = create_memo(move || size.get().y);
+            let close = layout.set_open;
+            view! {
+                <List spacing=0.0>
+                    <Show condition={bare}>
+                        <Frame fill={ColorRole::custom(bar_color)}>
+                            <List spacing=0.0>
+                                <Frame
+                                    padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
                                 >
-                                    <List spacing=0.0>
-                                        <ForEach keys={panels}>
-                                            {move |panel: NodeId| {
-                                                view! {
-                                                    <Portal
-                                                        @sizing=ItemSize::Percent(100.0)
-                                                        node={Some(panel)}
-                                                    />
-                                                }
-                                            }}
-                                        </ForEach>
+                                    <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                                        <SheetToggle />
                                     </List>
-                                </Sheet>
-                            }}
-                        </Show>
-                    </List>
-                }
-            }}
-        </LayoutBuilder>
+                                </Frame>
+                                <Separator />
+                            </List>
+                        </Frame>
+                    </Show>
+                    <Show condition={listed}>
+                        <PanelItem set_open={opener} />
+                    </Show>
+                    {content} @sizing=ItemSize::Percent(100.0)
+                    <Show condition={sheet}>
+                        <Sheet
+                                extent={extent}
+                                open={sheet}
+                                rest={SHEET_STOPS[0]}
+                                on_close={move || close.set(false)}
+                            >
+                                <List spacing=0.0>
+                                    <ForEach keys={panels}>
+                                        |panel: NodeId| <Portal
+                                                    @sizing=ItemSize::Percent(100.0)
+                                                    node={Some(panel)}
+                                                />
+                                    </ForEach>
+                                </List>
+                            </Sheet>
+                    </Show>
+                </List>
+            }
+        }</Container>
     }
 }
 
@@ -283,41 +271,37 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
         <Frame visible={shown} fill=ColorRole::Surface>
             <List spacing=0.0>
                 <Show condition={roomy}>
-                    {move || view! {
-                        <Frame
-                            padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
-                        >
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
-                                <Show condition={fitted_toggle}>
-                                    <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
-                                        <SheetToggle />
-                                    </Frame>
-                                </Show>
-                            </List>
-                        </Frame>
-                    }}
+                    <Frame
+                        padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
+                    >
+                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                            <Portal @sizing=ItemSize::Percent(100.0) node={spread} />
+                            <Show condition={fitted_toggle}>
+                                <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
+                                    <SheetToggle />
+                                </Frame>
+                            </Show>
+                        </List>
+                    </Frame>
                 </Show>
                 <Show condition={narrow}>
-                    {move || view! {
-                        <Frame padding={Sides::vertical(BAND_PADDING_VERTICAL)}>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                <Scroll
-                                    @sizing=ItemSize::Percent(100.0)
-                                    direction=Direction::Horizontal
-                                >
-                                    <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
-                                        <Portal node={scrolled} />
-                                    </Frame>
-                                </Scroll>
-                                <Show condition={offers}>
-                                    <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
-                                        <SheetToggle />
-                                    </Frame>
-                                </Show>
-                            </List>
-                        </Frame>
-                    }}
+                    <Frame padding={Sides::vertical(BAND_PADDING_VERTICAL)}>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                            <Scroll
+                                @sizing=ItemSize::Percent(100.0)
+                                direction=Direction::Horizontal
+                            >
+                                <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
+                                    <Portal node={scrolled} />
+                                </Frame>
+                            </Scroll>
+                            <Show condition={offers}>
+                                <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
+                                    <SheetToggle />
+                                </Frame>
+                            </Show>
+                        </List>
+                    </Frame>
                 </Show>
                 <Separator />
             </List>
