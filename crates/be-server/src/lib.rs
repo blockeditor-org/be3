@@ -684,12 +684,31 @@ impl Connection {
                 })
             }
 
-            ClientMessage::PutObject { request, bytes } => {
+            ClientMessage::PutObjects { request, objects } => {
                 self.identity()?;
                 Ok(ServerMessage::Stored {
                     request,
-                    hash: self.store.put_object(&bytes)?,
+                    hashes: self.store.put_objects(&objects)?,
                 })
+            }
+            ClientMessage::Batch { request, messages } => {
+                let mut responses = Vec::with_capacity(messages.len());
+                for message in messages {
+                    let id = message.request();
+                    let response = match message {
+                        ClientMessage::Batch { .. } => Err(ServerError::Refused(
+                            ErrorCode::InvalidRequest,
+                            "a batch may not hold another batch".into(),
+                        )),
+                        message => Box::pin(self.dispatch(message)).await,
+                    };
+                    responses.push(response.unwrap_or_else(|error| ServerMessage::Failed {
+                        request: id,
+                        code: error.code(),
+                        message: error.to_string(),
+                    }));
+                }
+                Ok(ServerMessage::Batched { request, responses })
             }
             ClientMessage::GetObject { request, hash } => {
                 let identity = self.identity()?;

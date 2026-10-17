@@ -129,6 +129,10 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         &self.visible
     }
 
+    pub fn references(&self) -> Vec<Uuid> {
+        self.peer.references(self.block, &self.visible)
+    }
+
     pub fn head(&self) -> Option<CommitId> {
         self.base
     }

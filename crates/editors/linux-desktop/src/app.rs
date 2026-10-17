@@ -11,6 +11,7 @@ mod sessions;
 mod switcher;
 mod tray;
 mod volume;
+mod wifi;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;

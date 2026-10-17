@@ -17,6 +17,10 @@ use super::graph::{Graph, Node};
 use super::version::{Context, Versions};
 use super::{Config, Content, platform};
 
+mod uploads;
+
+use uploads::Uploads;
+
 const SEAL_INTERVAL: Duration = Duration::from_millis(750);
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
 const EDIT_BURST: Duration = Duration::from_millis(750);
@@ -88,10 +92,7 @@ pub(super) enum Command {
         blocks: Vec<be_client::transfer::Saved>,
         reply: ExportReply,
     },
-    Import {
-        block: be_client::transfer::Saved,
-        parent: BlockParent,
-    },
+    Import(Vec<(be_client::transfer::Saved, BlockParent)>),
     Version {
         block: Uuid,
         command: block_plugin_api::VersionCommand,
@@ -105,6 +106,67 @@ pub(super) enum Command {
     Contact(ContactCommand),
     Leave(Uuid),
     Members(MembersCommand),
+}
+
+impl Command {
+    fn needs(&self) -> Vec<Uuid> {
+        match self {
+            Command::Create { block, parent, .. } | Command::SetParent { block, parent } => {
+                [Some(*block), parent.block()]
+                    .into_iter()
+                    .flatten()
+                    .collect()
+            }
+            Command::Duplicate { from, to, .. } => vec![*from, *to],
+            Command::Export { blocks, .. } => blocks.iter().map(|block| block.id).collect(),
+            command => command.subject().into_iter().collect(),
+        }
+    }
+
+    fn subject(&self) -> Option<Uuid> {
+        match self {
+            Command::Open { block, .. }
+            | Command::Close(block)
+            | Command::Operate(block, ..)
+            | Command::Seed { block, .. }
+            | Command::Replace { block, .. }
+            | Command::History { block, .. }
+            | Command::Presence { block, .. }
+            | Command::Create { block, .. }
+            | Command::SetParent { block, .. }
+            | Command::Define { block, .. }
+            | Command::SetAccess { block, .. }
+            | Command::ListAccess { block, .. }
+            | Command::Version { block, .. }
+            | Command::WatchVersion(block)
+            | Command::Leave(block)
+            | Command::Contact(ContactCommand::Link {
+                offer: Some((block, _)),
+                ..
+            }) => Some(*block),
+            Command::Duplicate { to, .. } => Some(*to),
+            Command::Export { .. }
+            | Command::Import(_)
+            | Command::Flush(_)
+            | Command::ApprovePairing { .. }
+            | Command::DismissPairing(_)
+            | Command::Contact(_)
+            | Command::Members(_) => None,
+        }
+    }
+
+    fn rekeys(&self) -> Option<Uuid> {
+        match self {
+            Command::SetParent { block, .. }
+            | Command::SetAccess { block, .. }
+            | Command::Leave(block)
+            | Command::Contact(ContactCommand::Link {
+                offer: Some((block, _)),
+                ..
+            }) => Some(*block),
+            _ => None,
+        }
+    }
 }
 
 type MembersReply = Box<dyn FnOnce(Result<Vec<be_protocol::Member>, String>) + Send>;
@@ -173,6 +235,9 @@ pub(crate) struct Shared {
     pub(crate) versions: HashMap<Uuid, super::version::VersionState>,
     pub(crate) touched: std::collections::HashSet<Uuid>,
     pub(crate) pending: usize,
+    pub(crate) uploading: usize,
+    pub(crate) previewed: std::collections::HashSet<Uuid>,
+    pub(crate) staged: HashMap<Uuid, (Uuid, Vec<u8>)>,
     pub(crate) owned: std::collections::HashSet<Uuid>,
     pub(crate) unreadable: HashMap<Uuid, String>,
     pub(crate) stale_revision: u64,
@@ -277,6 +342,8 @@ pub(super) trait Session {
     fn session_state(&self) -> Vec<u8>;
 
     fn derived(&self) -> Option<be_block::Entries>;
+
+    fn references(&self) -> Vec<Uuid>;
 
     fn head(&self) -> Option<CommitId>;
 
@@ -399,6 +466,10 @@ where
 
     fn derived(&self) -> Option<be_block::Entries> {
         Some(be_block::derived_metadata(self.live.content()))
+    }
+
+    fn references(&self) -> Vec<Uuid> {
+        self.live.references()
     }
 
     fn head(&self) -> Option<CommitId> {
@@ -592,6 +663,10 @@ where
         Some(be_block::derived_metadata(self.live.content()))
     }
 
+    fn references(&self) -> Vec<Uuid> {
+        self.live.references()
+    }
+
     fn head(&self) -> Option<CommitId> {
         self.live.head()
     }
@@ -760,6 +835,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
     changed: Arc<Condvar>,
 ) {
     let mut open: HashMap<Uuid, Uuid> = HashMap::new();
+    let mut uploads = Uploads::new(&shared);
     loop {
         if let Outcome::Stopped = connected(
             &config,
@@ -768,6 +844,7 @@ pub(super) async fn serve<S: Fn() -> Result<Store, String>>(
             &shared,
             &changed,
             &mut open,
+            &mut uploads,
         )
         .await
         {
@@ -796,6 +873,7 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     shared: &Arc<Mutex<Shared>>,
     changed: &Arc<Condvar>,
     open: &mut HashMap<Uuid, Uuid>,
+    uploads: &mut Uploads,
 ) -> Outcome {
     let store = match make_store() {
         Ok(store) => store,
@@ -859,91 +937,71 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     let mut unsealed_since: Option<Instant> = None;
     let mut flushes = Vec::new();
     let mut keyed: HashMap<Uuid, Uuid> = HashMap::new();
+    let mut stopping = false;
+    uploads.connect(&peer);
     loop {
+        if stopping && uploads.is_empty() {
+            seal_all(&mut sessions, shared).await;
+            return Outcome::Stopped;
+        }
         let deadline = unsealed_since.map(|since| since + SEAL_INTERVAL);
         let woken = match deadline {
             Some(deadline) => {
                 let remaining = deadline.saturating_duration_since(Instant::now());
-                let waited = std::pin::pin!(wait(commands, &mut events, &mut gone));
+                let waited =
+                    std::pin::pin!(wait(commands, &mut events, &mut gone, uploads, stopping));
                 let timer = std::pin::pin!(platform::sleep(remaining));
                 match select(waited, timer).await {
                     Either::Left((woken, _)) => woken,
                     Either::Right(_) => Woken::Deadline,
                 }
             }
-            None => wait(commands, &mut events, &mut gone).await,
+            None => wait(commands, &mut events, &mut gone, uploads, stopping).await,
         };
         shared.lock().unwrap_or_else(PoisonError::into_inner).wakes += 1;
+        let mut ran = Ran {
+            peer: &peer,
+            sessions: &mut sessions,
+            shared,
+            config,
+            open: &mut *open,
+            versions: &mut versions,
+            flushes: &mut flushes,
+        };
         let sealed = match woken {
             Woken::Stopped => {
-                seal_all(&mut sessions, shared).await;
-                return Outcome::Stopped;
+                stopping = true;
+                false
             }
+            Woken::Disconnected if stopping => return Outcome::Stopped,
             Woken::Disconnected => return Outcome::Lost,
-            Woken::Command(command) => {
-                let applied = match command {
-                    Command::Contact(command) => {
-                        contact(&peer, shared, config, command).await;
-                        false
-                    }
-                    Command::Members(command) => {
-                        members(&peer, shared, command).await;
-                        false
-                    }
-                    command => {
-                        apply(
-                            &peer,
-                            &mut sessions,
-                            shared,
-                            open,
-                            &mut versions,
-                            &mut flushes,
-                            command,
-                        )
-                        .await
-                    }
-                };
-                {
-                    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                    held.pending = held.pending.saturating_sub(1);
+            Woken::Command(Command::Import(blocks)) => {
+                uploads.add(blocks);
+                ran.done();
+                false
+            }
+            Woken::Command(command) => match uploads.defer(command) {
+                Some(command) => ran.run(command).await,
+                None => false,
+            },
+            Woken::Uploaded => {
+                let mut applied = false;
+                for command in uploads.runnable() {
+                    applied |= ran.run(command).await;
                 }
                 crate::host::wake();
                 applied
             }
             Woken::Event(event) => {
-                match event {
-                    Some(ServerMessage::BlockChanged { block }) => {
-                        if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
-                            record(shared, error);
+                heard(&peer, shared, event).await;
+                loop {
+                    match events.try_recv() {
+                        Ok(event) => heard(&peer, shared, Some(event)).await,
+                        Err(tokio::sync::broadcast::error::TryRecvError::Lagged(_)) => {
+                            heard(&peer, shared, None).await;
                         }
-                        let node = node_of(&peer, &block);
-                        shared
-                            .lock()
-                            .unwrap_or_else(PoisonError::into_inner)
-                            .graph
-                            .put(node, block.revision);
+                        Err(_) => break,
                     }
-                    Some(ServerMessage::BlockRemoved { block, revision }) => {
-                        shared
-                            .lock()
-                            .unwrap_or_else(PoisonError::into_inner)
-                            .graph
-                            .remove(block, revision);
-                    }
-                    Some(ServerMessage::HeadChanged { block, head, .. }) => {
-                        shared
-                            .lock()
-                            .unwrap_or_else(PoisonError::into_inner)
-                            .graph
-                            .set_head(block, Some(head));
-                    }
-                    Some(ServerMessage::Paired { from, payload }) => {
-                        asked_to_pair(shared, from, &payload);
-                    }
-                    Some(ServerMessage::ContactsChanged) => sync_contacts(&peer, shared).await,
-                    Some(ServerMessage::KeyWorkChanged) => tend(&peer, shared).await,
-                    Some(_) => {}
-                    None => load_graph(&peer, shared).await,
                 }
                 for session in sessions.values_mut() {
                     if let Err(error) = session.poll().await {
@@ -978,7 +1036,9 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             })
             .await;
         moved |= version_revisions(shared) != before;
-        if events.is_empty() {
+        if events.is_empty() && uploads.is_empty() && !flushes.is_empty() {
+            seal_all(&mut sessions, shared).await;
+            publish(&mut sessions, shared);
             for done in flushes.drain(..) {
                 let _ = done.send(());
             }
@@ -1013,6 +1073,7 @@ async fn rekey_changed(
 
 enum Woken {
     Command(Command),
+    Uploaded,
     Event(Option<ServerMessage>),
     Deadline,
     Disconnected,
@@ -1023,19 +1084,77 @@ async fn wait(
     commands: &mut UnboundedReceiver<Command>,
     events: &mut tokio::sync::broadcast::Receiver<be_protocol::ServerMessage>,
     gone: &mut tokio::sync::watch::Receiver<bool>,
+    uploads: &mut Uploads,
+    stopping: bool,
 ) -> Woken {
-    let command = std::pin::pin!(commands.recv());
+    let command = std::pin::pin!(async {
+        match stopping {
+            true => std::future::pending().await,
+            false => commands.recv().await,
+        }
+    });
     let event = std::pin::pin!(events.recv());
     let closed = std::pin::pin!(gone.changed());
-    match select(select(command, event), closed).await {
-        Either::Left((Either::Left((Some(command), _)), _)) => Woken::Command(command),
-        Either::Left((Either::Left((None, _)), _)) => Woken::Stopped,
-        Either::Left((Either::Right((Ok(event), _)), _)) => Woken::Event(Some(event)),
-        Either::Left((Either::Right((Err(error), _)), _)) => match error {
-            tokio::sync::broadcast::error::RecvError::Lagged(_) => Woken::Event(None),
-            tokio::sync::broadcast::error::RecvError::Closed => Woken::Disconnected,
+    let uploaded = std::pin::pin!(uploads.next());
+    match select(select(select(command, event), closed), uploaded).await {
+        Either::Right(_) => Woken::Uploaded,
+        Either::Left((woken, _)) => match woken {
+            Either::Left((Either::Left((Some(command), _)), _)) => Woken::Command(command),
+            Either::Left((Either::Left((None, _)), _)) => Woken::Stopped,
+            Either::Left((Either::Right((Ok(event), _)), _)) => Woken::Event(Some(event)),
+            Either::Left((Either::Right((Err(error), _)), _)) => match error {
+                tokio::sync::broadcast::error::RecvError::Lagged(_) => Woken::Event(None),
+                tokio::sync::broadcast::error::RecvError::Closed => Woken::Disconnected,
+            },
+            Either::Right(_) => Woken::Disconnected,
         },
-        Either::Right(_) => Woken::Disconnected,
+    }
+}
+
+struct Ran<'a> {
+    peer: &'a Arc<Peer<Store>>,
+    sessions: &'a mut HashMap<Uuid, Box<dyn Session>>,
+    shared: &'a Arc<Mutex<Shared>>,
+    config: &'a Config,
+    open: &'a mut HashMap<Uuid, Uuid>,
+    versions: &'a mut Versions,
+    flushes: &'a mut Vec<std::sync::mpsc::Sender<()>>,
+}
+
+impl Ran<'_> {
+    async fn run(&mut self, command: Command) -> bool {
+        let applied = match command {
+            Command::Contact(command) => {
+                contact(self.peer, self.shared, self.config, command).await;
+                false
+            }
+            Command::Members(command) => {
+                members(self.peer, self.shared, command).await;
+                false
+            }
+            command => {
+                apply(
+                    self.peer,
+                    self.sessions,
+                    self.shared,
+                    self.open,
+                    self.versions,
+                    self.flushes,
+                    command,
+                )
+                .await
+            }
+        };
+        self.done();
+        applied
+    }
+
+    fn done(&self) {
+        {
+            let mut held = self.shared.lock().unwrap_or_else(PoisonError::into_inner);
+            held.pending = held.pending.saturating_sub(1);
+        }
+        crate::host::wake();
     }
 }
 
@@ -1439,6 +1558,8 @@ async fn apply(
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.blocks.remove(&block);
             held.graph.forget_derived(block);
+            held.graph.forget_references(block);
+            held.previewed.remove(&block);
             held.histories.remove(&block);
             held.presence.remove(&block);
             held.touch(block);
@@ -1647,30 +1768,62 @@ async fn apply(
             crate::host::wake();
             false
         }
-        Command::Import { block, parent } => {
-            let created = peer
-                .create_block(block.id, block.block_type, parent, &block.metadata)
-                .await;
-            if let Err(error) = settled(peer, shared, block.id, created).await {
-                record(shared, error);
-                return false;
-            }
-            match peer.publish_content(&block).await {
-                Ok(Some(saved)) if saved.published().is_none() => {
-                    record(shared, ClientError::Contended);
-                }
-                Ok(_) => {}
-                Err(error) => record(shared, error),
-            }
-            remember_head(peer, shared, block.id);
-            true
-        }
+        Command::Import(_) => false,
         Command::Flush(done) => {
             seal_all(sessions, shared).await;
             publish(sessions, shared);
             flushes.push(done);
             true
         }
+    }
+}
+
+async fn imported(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    block: Uuid,
+    imported: be_client::peer::Imported,
+) {
+    if let Err(error) = settled(peer, shared, block, imported).await {
+        record(shared, error);
+    }
+    remember_head(peer, shared, block);
+}
+
+async fn heard(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, event: Option<ServerMessage>) {
+    match event {
+        Some(ServerMessage::BlockChanged { block }) => {
+            if let Err(error) = peer.learn(std::slice::from_ref(&block)).await {
+                record(shared, error);
+            }
+            let node = node_of(peer, &block);
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .put(node, block.revision);
+        }
+        Some(ServerMessage::BlockRemoved { block, revision }) => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .remove(block, revision);
+        }
+        Some(ServerMessage::HeadChanged { block, head, .. }) => {
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .set_head(block, Some(head));
+        }
+        Some(ServerMessage::Paired { from, payload }) => {
+            asked_to_pair(shared, from, &payload);
+        }
+        Some(ServerMessage::ContactsChanged) => sync_contacts(peer, shared).await,
+        Some(ServerMessage::KeyWorkChanged) => tend(peer, shared).await,
+        Some(_) => {}
+        None => load_graph(peer, shared).await,
     }
 }
 
@@ -1775,7 +1928,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
         let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
         sessions
             .keys()
-            .filter(|block| held.blocks.contains_key(*block))
+            .filter(|block| held.blocks.contains_key(*block) && !held.previewed.contains(*block))
             .copied()
             .collect()
     };
@@ -1797,6 +1950,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
                     session.bytes(),
                     session.session_state(),
                     session.derived(),
+                    session.references(),
                 )
             });
             Published {
@@ -1844,9 +1998,11 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             changed = true;
         }
         held.graph.set_head(block, published.head);
-        let Some((content_type, bytes, session, derived)) = published.content else {
+        let Some((content_type, bytes, session, derived, references)) = published.content else {
             continue;
         };
+        held.graph.refer(block, references);
+        held.previewed.remove(&block);
         match held.blocks.get_mut(&block) {
             Some(content) => {
                 for entry in published.log {
@@ -1867,7 +2023,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
     changed
 }
 
-type PublishedContent = (Uuid, Vec<u8>, Vec<u8>, Option<be_block::Entries>);
+type PublishedContent = (Uuid, Vec<u8>, Vec<u8>, Option<be_block::Entries>, Vec<Uuid>);
 
 struct Published {
     block: Uuid,

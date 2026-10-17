@@ -8,7 +8,7 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
-use block_editor_beui::{Media, Power, utc_offset};
+use block_editor_beui::{Media, Power, Wifi, utc_offset};
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
@@ -20,6 +20,7 @@ use super::power::PowerMenu;
 use super::sessions::Sessions;
 use super::tray::TrayItems;
 use super::volume::VolumeButton;
+use super::wifi::WifiButton;
 
 const BAR_PADDING: f32 = 6.0;
 const BAR_SPACING: f32 = 8.0;
@@ -61,6 +62,8 @@ pub(crate) fn DesktopBar(
     let editor = workspace.editor();
     let levels = editor.host_value::<Media>();
     let audible = create_memo(move || levels.with(|levels| levels.output.is_some()));
+    let wifi = editor.host_value::<Wifi>();
+    let wireless = create_memo(move || wifi.with(|wifi| wifi.available));
     let kept = placeholders.keys;
     let launches = placeholders.launchable;
     let waiting = create_memo(move || launches.get() && !kept.with(Vec::is_empty));
@@ -146,6 +149,9 @@ pub(crate) fn DesktopBar(
                         <OpenAllButton placeholders />
                     </Show>
                     <TrayItems editor={editor} />
+                    <Show condition={wireless}>
+                        <WifiButton editor={editor} status={wifi} />
+                    </Show>
                     <Show condition={audible}>
                         <VolumeButton editor={editor} levels={levels} />
                     </Show>

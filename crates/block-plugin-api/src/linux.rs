@@ -149,6 +149,50 @@ pub enum MediaRequest {
     Player(PlayerCommand),
 }
 
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WifiSecurity {
+    #[default]
+    Open,
+    Password,
+    Unsupported,
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WifiNetwork {
+    pub ssid: String,
+    pub strength: u8,
+    pub security: WifiSecurity,
+    pub saved: bool,
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WifiLink {
+    #[default]
+    Disconnected,
+    Connecting(String),
+    Connected(String),
+}
+
+#[derive(Clone, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub struct WifiStatus {
+    pub available: bool,
+    pub enabled: bool,
+    pub link: WifiLink,
+    pub networks: Vec<WifiNetwork>,
+    pub failed: Option<String>,
+}
+
+#[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum WifiRequest {
+    SetEnabled(bool),
+    Scan,
+    Connect {
+        ssid: String,
+        password: Option<String>,
+    },
+    Disconnect,
+}
+
 #[derive(Clone, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HostNotificationAction {
     pub key: String,
@@ -346,6 +390,13 @@ impl HostValue for Media {
     type Value = MediaLevels;
 }
 
+pub enum Wifi {}
+
+impl HostValue for Wifi {
+    const KEY: &'static str = "wifi";
+    type Value = WifiStatus;
+}
+
 pub enum Notifications {}
 
 impl HostValue for Notifications {
@@ -392,6 +443,10 @@ impl HostAction for PowerAction {
 
 impl HostAction for MediaRequest {
     const KEY: &'static str = "media";
+}
+
+impl HostAction for WifiRequest {
+    const KEY: &'static str = "wifi";
 }
 
 impl HostAction for NotificationReport {

@@ -431,6 +431,7 @@ pub fn restore(
         }
         objects.put(&bytes)?;
     }
+    objects.sync()?;
     fs::rename(&staging, data_dir.join("metadata.sqlite"))?;
     Ok(RestoreReport {
         snapshot: name,

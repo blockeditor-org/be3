@@ -8,7 +8,8 @@ use block_editor_beui::{
     HostWindow, HostWindowId, HostWindows, IncomingNotification, Media, MediaLevel, MediaLevels,
     MediaRequest, NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
     Notifications, OwnedEditor, PlayerCommand, Power, PowerAction, PowerAvailability,
-    ProgramAction, Programs, WindowAction, WindowOrigin,
+    ProgramAction, Programs, Wifi, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus,
+    WindowAction, WindowOrigin,
 };
 use block_plugin_api::Size;
 use block_shell::{KeptWindow, saved_windows};
@@ -59,6 +60,8 @@ mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
 mod the_volume_in_the_bar_follows_the_host_and_opens_its_controls;
 mod the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output;
 mod the_volume_shows_on_every_monitor;
+mod the_wifi_in_the_bar_lists_the_networks_the_host_reports;
+mod the_wifi_popup_asks_the_host_to_connect;
 mod windows_that_close_as_the_session_ends_are_kept;
 
 const MAX_TAB: u64 = 64;
@@ -227,6 +230,11 @@ impl Fixture {
         self.settle();
     }
 
+    fn wifi(&mut self, status: WifiStatus) {
+        self.test.set_host_value::<Wifi>(&status);
+        self.settle();
+    }
+
     fn settle(&mut self) {
         self.test.run();
     }
@@ -333,6 +341,30 @@ impl Fixture {
             .expect("an open tab can be closed");
         self.test.click_at(cross.center());
         self.settle();
+    }
+}
+
+fn network(ssid: &str, strength: u8, security: WifiSecurity, saved: bool) -> WifiNetwork {
+    WifiNetwork {
+        ssid: ssid.to_owned(),
+        strength,
+        security,
+        saved,
+    }
+}
+
+fn nearby() -> WifiStatus {
+    WifiStatus {
+        available: true,
+        enabled: true,
+        link: WifiLink::Connected("Home".to_owned()),
+        networks: vec![
+            network("Home", 82, WifiSecurity::Password, true),
+            network("Office", 60, WifiSecurity::Unsupported, false),
+            network("Cafe", 48, WifiSecurity::Open, false),
+            network("Flat", 25, WifiSecurity::Password, false),
+        ],
+        failed: None,
     }
 }
 

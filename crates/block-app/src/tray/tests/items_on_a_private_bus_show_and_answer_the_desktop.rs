@@ -1,6 +1,3 @@
-use std::io::{BufRead, BufReader};
-use std::path::PathBuf;
-use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
 use std::sync::mpsc::{Receiver, SyncSender, sync_channel};
 use std::time::Duration;
@@ -10,70 +7,14 @@ use futures_util::StreamExt;
 use tokio::sync::mpsc::unbounded_channel;
 use zbus::object_server::SignalEmitter;
 use zbus::zvariant::OwnedObjectPath;
-use zbus::{Connection, MatchRule, MessageStream};
+use zbus::{MatchRule, MessageStream};
 
 use super::super::client::{Event, run_on};
 use super::*;
+use crate::dbus::test_bus::Bus;
 
 const WAIT: Duration = Duration::from_secs(20);
 const MENU_PATH: &str = "/MenuBar";
-
-struct Bus {
-    daemon: Child,
-    dir: PathBuf,
-    address: String,
-}
-
-impl Bus {
-    fn start() -> Self {
-        let dir = std::env::temp_dir().join(format!("be3-tray-bus-{}", std::process::id()));
-        std::fs::create_dir_all(&dir).expect("a directory for the bus");
-        let config = dir.join("bus.conf");
-        std::fs::write(
-            &config,
-            format!(
-                "<busconfig><type>session</type><listen>unix:path={}</listen>\
-                 <auth>EXTERNAL</auth><policy context=\"default\">\
-                 <allow send_destination=\"*\" eavesdrop=\"true\"/><allow eavesdrop=\"true\"/>\
-                 <allow own=\"*\"/></policy></busconfig>",
-                dir.join("socket").display()
-            ),
-        )
-        .expect("the bus configuration is written");
-        let program = std::env::var("BE3_DBUS_DAEMON").unwrap_or_else(|_| "dbus-daemon".to_owned());
-        let mut daemon = Command::new(program)
-            .arg(format!("--config-file={}", config.display()))
-            .args(["--nofork", "--nopidfile", "--print-address=1"])
-            .stdout(Stdio::piped())
-            .spawn()
-            .expect("dbus-daemon runs");
-        let mut address = String::new();
-        BufReader::new(daemon.stdout.take().expect("the daemon's output"))
-            .read_line(&mut address)
-            .expect("the daemon prints its address once it listens");
-        Self {
-            daemon,
-            dir,
-            address: address.trim().to_owned(),
-        }
-    }
-
-    async fn connect(&self) -> Connection {
-        zbus::connection::Builder::address(self.address.as_str())
-            .expect("the address parses")
-            .build()
-            .await
-            .expect("the bus takes a connection")
-    }
-}
-
-impl Drop for Bus {
-    fn drop(&mut self) {
-        let _ = self.daemon.kill();
-        let _ = self.daemon.wait();
-        let _ = std::fs::remove_dir_all(&self.dir);
-    }
-}
 
 struct FakeItem {
     title: String,

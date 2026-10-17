@@ -1,0 +1,38 @@
+use block_editor_beui::be_block::{BlockContent, FolderContent};
+use block_editor_beui::{BlockInfo, BlockLocation, HostRequest};
+
+use super::*;
+
+#[test]
+fn an_import_into_a_folder_is_made_inside_it() {
+    let (mut fixture, _) = editor();
+    let folder = Uuid::new_v4();
+    let mut info = BlockInfo::new(folder, FolderContent::CONTENT_TYPE, BlockParent::Root);
+    info.set_name("Trips".to_owned());
+    fixture.test.store().add_block(info);
+    let mut placing = filter();
+    placing.place = Some(BlockLocation::Block(folder.into_bytes()));
+    fixture
+        .test
+        .request_pick(5, placing, BlockLocation::Detached);
+    fixture.settle();
+    fixture.test.take_requests();
+
+    fixture.click_text("Import");
+    fixture.test.click("picker.import");
+    fixture.settle();
+    let place = fixture
+        .test
+        .take_requests()
+        .into_iter()
+        .find_map(|(_, request)| match request {
+            HostRequest::ImportBlocks(place) => Some(place),
+            _ => None,
+        })
+        .expect("choosing a file asks the host to import one");
+    assert_eq!(
+        place,
+        BlockLocation::Block(folder.into_bytes()),
+        "the copy is made in the folder, so it never has to move there"
+    );
+}

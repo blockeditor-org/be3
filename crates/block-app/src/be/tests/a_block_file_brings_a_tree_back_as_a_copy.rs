@@ -25,6 +25,14 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
         named,
         None,
     );
+    let inner = Uuid::new_v4();
+    create(
+        inner,
+        be_block::FolderContent::CONTENT_TYPE,
+        be_graph::BlockParent::Block(folder),
+        be_block::BlockMetadata::default(),
+        None,
+    );
     let counter = Uuid::new_v4();
     create(
         counter,
@@ -36,6 +44,19 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
     open(counter, CounterContent::CONTENT_TYPE);
     add(counter, 5);
     wait_for_count(counter, 5);
+    let deeper: Vec<Uuid> = (0..3).map(|_| Uuid::new_v4()).collect();
+    for (count, block) in (1..).zip(&deeper) {
+        create(
+            *block,
+            CounterContent::CONTENT_TYPE,
+            be_graph::BlockParent::Block(inner),
+            be_block::BlockMetadata::default(),
+            None,
+        );
+        open(*block, CounterContent::CONTENT_TYPE);
+        add(*block, count);
+        wait_for_count(*block, count);
+    }
 
     let (name, while_open) = exported(folder);
     assert_eq!(name, "Trip.block");
@@ -64,5 +85,29 @@ fn a_block_file_brings_a_tree_back_as_a_copy() {
         assert_ne!(copy, counter);
         open(copy, CounterContent::CONTENT_TYPE);
         wait_for_count(copy, 5);
+        if top_type != be_block::FolderContent::CONTENT_TYPE {
+            continue;
+        }
+        let inner_copy = query(Query::Children(top))
+            .into_iter()
+            .find(|node| node.content_type == be_block::FolderContent::CONTENT_TYPE)
+            .expect("the inner folder comes with it")
+            .id;
+        let mut counts: Vec<i64> = query(Query::Children(inner_copy))
+            .into_iter()
+            .map(|node| {
+                open(node.id, CounterContent::CONTENT_TYPE);
+                wait_for(PATIENCE, |shared| {
+                    counted(shared, node.id).filter(|count| *count > 0)
+                })
+                .expect("each copied counter keeps its count")
+            })
+            .collect();
+        counts.sort_unstable();
+        assert_eq!(
+            counts,
+            vec![1, 2, 3],
+            "every block a level down comes with it"
+        );
     }
 }
