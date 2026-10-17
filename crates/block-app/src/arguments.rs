@@ -4,6 +4,7 @@ pub(crate) struct Arguments {
     pub(crate) desktop: bool,
     pub(crate) session: bool,
     pub(crate) install_session: Option<Option<String>>,
+    pub(crate) server_address: Option<String>,
 }
 
 pub(crate) const LINUX: bool = cfg!(target_os = "linux");
@@ -26,7 +27,10 @@ pub(crate) fn parse(arguments: &[String], linux: bool) -> Result<Arguments, Stri
                 parsed.desktop = true;
             }
             "--session" => return Err(only_on_linux("--session")),
-            _ => return Err(format!("unknown argument {argument}")),
+            _ => match argument.strip_prefix("--server-address=") {
+                Some(address) => parsed.server_address = Some(address.to_owned()),
+                None => return Err(format!("unknown argument {argument}")),
+            },
         }
     }
     Ok(parsed)

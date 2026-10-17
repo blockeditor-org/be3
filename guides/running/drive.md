@@ -33,6 +33,10 @@ Arguments after `--` go to the launcher, which passes on those it does not know:
 - `--stop` stops it.
 - `--size=WIDTHxHEIGHT[@SCALE]` (1100x720 by default) and `--screen=WIDTHxHEIGHT` (1440x900).
 - Anything else, such as block-app's `--desktop` (guides/linux_desktop.md), goes to the program.
+- block-app's `--server-address=127.0.0.1:PORT` puts its local server on a fixed port, so a second
+  copy (its own `BE_DRIVE_DIR`, started without `--dev-workspace`) can log in to it as Remote
+  `http://127.0.0.1:PORT` with `dev@localhost` / `dev-password` and pair to get the workspace:
+  two devices on one account, as crates/app-tests' a_peer_on_another_device_sees_the_selection does.
 
 A program's output goes to `~/.cache/be3/NAME/app.log`. `BE_DRIVE_DIR` moves the directory,
 for two copies of one program at once, so agents sharing a machine each give theirs a

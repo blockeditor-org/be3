@@ -64,7 +64,7 @@ impl Harness {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         build_id::install("test");
         let directory = std::env::temp_dir().join(format!("block-app-be-test-{}", Uuid::new_v4()));
-        let server = platform::start_embedded_server(directory.join("server"))
+        let server = platform::start_embedded_server_at("127.0.0.1:0", directory.join("server"))
             .expect("the embedded block server starts");
         let url = server.url.clone();
         let managed = url.clone();

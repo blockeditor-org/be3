@@ -40,12 +40,6 @@ impl Drop for EmbeddedServer {
     }
 }
 
-pub(crate) fn start_embedded_server(
-    data_dir: PathBuf,
-) -> Result<EmbeddedServer, Box<dyn Error + Send + Sync>> {
-    start_embedded_server_at("127.0.0.1:0", data_dir)
-}
-
 pub(crate) fn start_embedded_server_at(
     address: &str,
     data_dir: PathBuf,
