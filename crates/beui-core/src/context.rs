@@ -85,6 +85,8 @@ struct Inner {
     action_requests: RefCell<Vec<String>>,
     hit_query: Cell<Option<Pos2>>,
     hit_answers: RefCell<Vec<String>>,
+    comps_query: Cell<Option<bool>>,
+    comps_answers: RefCell<Vec<String>>,
     accessibility_known: RefCell<HashSet<u32>>,
     accessibility_published: RefCell<HashSet<u32>>,
     kept: RefCell<Option<Kept>>,
@@ -178,6 +180,7 @@ pub struct FrameOutput {
     pub actions: Vec<ActionGroup>,
     pub unran_actions: Vec<String>,
     pub hits: Option<Vec<String>>,
+    pub comps: Option<Vec<String>>,
     pub typed: Vec<Event>,
     pixels_per_point: f32,
 }
@@ -288,6 +291,8 @@ impl Context {
                 action_requests: RefCell::new(Vec::new()),
                 hit_query: Cell::new(None),
                 hit_answers: RefCell::new(Vec::new()),
+                comps_query: Cell::new(None),
+                comps_answers: RefCell::new(Vec::new()),
                 accessibility_known: RefCell::new(HashSet::default()),
                 accessibility_published: RefCell::new(HashSet::default()),
                 kept: RefCell::new(Some(Kept::default())),
@@ -396,6 +401,20 @@ impl Context {
 
     pub fn action_requests(&self) -> Vec<String> {
         self.inner.action_requests.borrow().clone()
+    }
+
+    pub fn request_comps(&self, internals: bool) {
+        self.inner.comps_query.set(Some(internals));
+        self.inner.comps_answers.borrow_mut().clear();
+        self.request_repaint();
+    }
+
+    pub fn comps_query(&self) -> Option<bool> {
+        self.inner.comps_query.get()
+    }
+
+    pub fn answer_comps(&self, answer: String) {
+        self.inner.comps_answers.borrow_mut().push(answer);
     }
 
     pub fn request_hit(&self, pos: Pos2) {
@@ -588,6 +607,11 @@ impl Context {
                 .hit_query
                 .take()
                 .map(|_| std::mem::take(&mut *self.inner.hit_answers.borrow_mut())),
+            comps: self
+                .inner
+                .comps_query
+                .take()
+                .map(|_| std::mem::take(&mut *self.inner.comps_answers.borrow_mut())),
             typed: self.inner.keyboard.borrow_mut().take_typed(),
             pixels_per_point: scale,
         }

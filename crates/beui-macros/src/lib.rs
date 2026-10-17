@@ -1062,7 +1062,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     };
 
     let finish = quote! {
-        ::beui::reactive::component(#name, move || #block)
+        ::beui::reactive::component(&::beui::reactive::ComponentInfo { name: #name, module: module_path!() }, move || #block)
     };
 
     Ok(quote! {

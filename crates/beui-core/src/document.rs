@@ -1497,7 +1497,7 @@ impl Document {
         self.placements.insert(id, watched);
     }
 
-    pub fn name_component(&mut self, id: NodeId, name: &'static str) {
+    pub fn name_component(&mut self, id: NodeId, name: beui_tree::component::ComponentRecord) {
         let names = match self.component_names.remove(&id) {
             None => ComponentNames::One(name),
             Some(ComponentNames::One(first)) => ComponentNames::Many(vec![first, name]),
@@ -1509,7 +1509,14 @@ impl Document {
         self.component_names.insert(id, names);
     }
 
-    pub fn component_names(&self, id: NodeId) -> &[&'static str] {
+    pub fn component_names(&self, id: NodeId) -> Vec<&'static str> {
+        self.components(id)
+            .iter()
+            .map(|component| component.info.name)
+            .collect()
+    }
+
+    pub fn components(&self, id: NodeId) -> &[beui_tree::component::ComponentRecord] {
         match self.component_names.get(&id) {
             None => &[],
             Some(ComponentNames::One(name)) => std::slice::from_ref(name),
@@ -2226,6 +2233,6 @@ impl Default for Document {
 }
 
 enum ComponentNames {
-    One(&'static str),
-    Many(Vec<&'static str>),
+    One(beui_tree::component::ComponentRecord),
+    Many(Vec<beui_tree::component::ComponentRecord>),
 }

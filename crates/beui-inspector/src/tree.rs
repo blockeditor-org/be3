@@ -1,26 +1,32 @@
 use accesskit::{Node as AccessNode, NodeId as AccessNodeId};
 
 use beui_core::accessibility::AccessibilityView;
+use beui_core::component_tree::ComponentTreeKey;
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 
 use super::State;
 
 const AUTO_EXPAND_DEPTH: usize = 3;
-const COMPONENT_AUTO_EXPAND_DEPTH: usize = 8;
 const DETAIL_LIMIT: usize = 24;
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
 pub enum Key {
     Node(NodeId),
     Component(NodeId, usize),
+    Internals(NodeId, usize),
+    Text(NodeId),
     AccessKit(NodeId),
 }
 
 impl Key {
     pub fn node(self) -> NodeId {
         match self {
-            Key::Node(id) | Key::Component(id, _) | Key::AccessKit(id) => id,
+            Key::Node(id)
+            | Key::Component(id, _)
+            | Key::Internals(id, _)
+            | Key::Text(id)
+            | Key::AccessKit(id) => id,
         }
     }
 
@@ -30,6 +36,8 @@ impl Key {
             Key::Component(id, level) => {
                 format!("inspector.row.component.{}.{level}", id.index())
             }
+            Key::Internals(id, level) => format!("inspector.row.internals.{}.{level}", id.index()),
+            Key::Text(id) => format!("inspector.row.text.{}", id.index()),
             Key::AccessKit(id) => format!("inspector.row.accesskit.{}", id.index()),
         }
     }
@@ -54,53 +62,88 @@ pub fn collect(target: &Document, state: &State) -> Vec<Entry> {
     entries
 }
 
+fn component_key(key: ComponentTreeKey) -> Key {
+    match key {
+        ComponentTreeKey::Component(node, level) => Key::Component(node, level),
+        ComponentTreeKey::Internals(node, level) => Key::Internals(node, level),
+        ComponentTreeKey::Text(node) => Key::Text(node),
+    }
+}
+
 pub fn collect_components(target: &Document, state: &State) -> Vec<Entry> {
+    fn visit(
+        target: &Document,
+        state: &State,
+        tree: &beui_core::component_tree::ComponentTree,
+        index: usize,
+        depth: usize,
+        entries: &mut Vec<Entry>,
+    ) {
+        let row = &tree.rows[index];
+        let key = component_key(row.key);
+        let expandable = !row.children.is_empty();
+        let expanded = expandable && state.expanded(key, row.expanded);
+        entries.push(Entry {
+            key,
+            depth,
+            kind: row.label.clone(),
+            expandable,
+            expanded,
+            detail: String::new(),
+            size: size(target, key.node()),
+        });
+        if expanded {
+            for child in &row.children {
+                visit(target, state, tree, *child, depth + 1, entries);
+            }
+        }
+    }
+    let tree = target.component_tree();
     let mut entries = Vec::new();
-    for key in component_roots(target) {
-        visit(target, state, key, 0, &mut entries);
+    for root in &tree.roots {
+        visit(target, state, &tree, *root, 0, &mut entries);
     }
     entries
 }
 
 pub fn component_count(target: &Document) -> usize {
-    fn count(target: &Document, id: NodeId) -> usize {
-        target.component_names(id).len()
-            + target
-                .children(id)
-                .into_iter()
-                .map(|child| count(target, child))
-                .sum::<usize>()
+    target
+        .component_tree()
+        .rows
+        .iter()
+        .filter(|row| matches!(row.key, ComponentTreeKey::Component(..)))
+        .count()
+}
+
+pub fn component_path(target: &Document, id: NodeId, chosen: Option<Key>) -> Vec<Key> {
+    fn descend(
+        tree: &beui_core::component_tree::ComponentTree,
+        index: usize,
+        id: NodeId,
+        chosen: Option<Key>,
+        path: &mut Vec<Key>,
+    ) -> bool {
+        let row = &tree.rows[index];
+        path.push(component_key(row.key));
+        if chosen.map_or(row.key.node() == id, |key| component_key(row.key) == key)
+            || row
+                .children
+                .iter()
+                .any(|child| descend(tree, *child, id, chosen, path))
+        {
+            return true;
+        }
+        path.pop();
+        false
     }
-    target.root().map_or(0, |root| count(target, root))
-}
-
-pub fn component_path(target: &Document, id: NodeId) -> Vec<Key> {
-    path(target, id)
-        .into_iter()
-        .flat_map(|key| {
-            let node = key.node();
-            (0..target.component_names(node).len()).map(move |level| Key::Component(node, level))
-        })
-        .collect()
-}
-
-fn component_roots(target: &Document) -> Vec<Key> {
-    match target.root() {
-        Some(root) if target.component_names(root).is_empty() => components_below(target, root),
-        Some(root) => vec![Key::Component(root, 0)],
-        None => Vec::new(),
-    }
-}
-
-fn components_below(target: &Document, id: NodeId) -> Vec<Key> {
-    let mut found = Vec::new();
-    for child in target.children(id) {
-        match target.component_names(child).is_empty() {
-            true => found.extend(components_below(target, child)),
-            false => found.push(Key::Component(child, 0)),
+    let tree = target.component_tree();
+    let mut path = Vec::new();
+    for root in &tree.roots {
+        if descend(&tree, *root, id, chosen, &mut path) {
+            break;
         }
     }
-    found
+    path
 }
 
 pub fn collect_accesskit(target: &Document, state: &State) -> Vec<Entry> {
@@ -290,29 +333,21 @@ fn children(target: &Document, key: Key) -> Vec<Key> {
     match key {
         Key::AccessKit(_) => Vec::new(),
         Key::Node(id) => target.children(id).into_iter().map(Key::Node).collect(),
-        Key::Component(id, level) if level + 1 < target.component_names(id).len() => {
-            vec![Key::Component(id, level + 1)]
-        }
-        Key::Component(id, _) => components_below(target, id),
+        Key::Component(..) | Key::Internals(..) | Key::Text(..) => unreachable!(),
     }
 }
 
 fn kind(target: &Document, key: Key) -> &'static str {
     match key {
         Key::Node(id) => target.node_kind(id),
-        Key::Component(id, level) => component_name(target, id, level),
+        Key::Component(..) | Key::Internals(..) | Key::Text(..) => unreachable!(),
         Key::AccessKit(_) => unreachable!(),
     }
 }
 
-pub fn component_name(target: &Document, id: NodeId, level: usize) -> &'static str {
-    let names = target.component_names(id);
-    names[names.len() - 1 - level]
-}
-
 fn auto_expand(key: Key, depth: usize) -> bool {
     match key {
-        Key::Component(..) => depth < COMPONENT_AUTO_EXPAND_DEPTH,
+        Key::Component(..) | Key::Internals(..) | Key::Text(..) => unreachable!(),
         Key::Node(_) | Key::AccessKit(_) => depth < AUTO_EXPAND_DEPTH,
     }
 }
@@ -320,10 +355,7 @@ fn auto_expand(key: Key, depth: usize) -> bool {
 fn detail(target: &Document, key: Key) -> String {
     let detail = match key {
         Key::Node(id) => target.node_detail(id),
-        Key::Component(id, level) => {
-            let innermost = level + 1 == target.component_names(id).len();
-            innermost.then(|| target.node_kind(id).to_owned())
-        }
+        Key::Component(..) | Key::Internals(..) | Key::Text(..) => unreachable!(),
         Key::AccessKit(_) => unreachable!(),
     };
     detail.map(|detail| trim(&detail)).unwrap_or_default()

@@ -29,6 +29,7 @@ pub const USAGE: &str = "Reading:
   tree                      the accessibility tree, one node per line
   ids                       every test id on screen, with where it is
   find TARGET               where TARGET is
+  comps [--internals]        component tree, optionally including component internals
   hit TARGET                what a press at TARGET would reach: the Interactives along its path,
                             the components that made them and what each handles
   state                     window, cursor, pointer, fingers, held keys, input method, clipboard, dialogs
@@ -147,6 +148,7 @@ enum Phase {
         before: String,
     },
     Hitting,
+    Components,
     Uploading {
         file: PathBuf,
         before: String,
@@ -342,6 +344,7 @@ impl Automation {
         settled: Settled,
         unran: &[String],
         hits: Option<&[String]>,
+        comps: Option<&[String]>,
     ) {
         let quiet = !settled.again && !settled.busy;
         let Some(active) = &mut self.active else {
@@ -422,6 +425,7 @@ impl Automation {
                     Some(Reply::Text(String::new()))
                 }
                 Phase::Pausing { until } if view.now >= *until => Some(Reply::Text(String::new())),
+                Phase::Components => comps.map(|trees| Reply::Text(trees.join("\n"))),
                 Phase::Hitting => hits.map(|hits| {
                     Reply::Text(match hits.is_empty() {
                         true => "nothing in the window is there\n".to_owned(),
@@ -571,6 +575,14 @@ impl Automation {
             "find" => {
                 let rect = locate(argument(0)?, view.lines)?;
                 Ok(Started::Done(Reply::Text(format!("{}\n", describe(rect)))))
+            }
+            "comps" => {
+                if arguments.len() > 1 || arguments.first().is_some_and(|arg| arg != "--internals")
+                {
+                    return Err("usage: comps [--internals]".to_owned());
+                }
+                world.context.request_comps(!arguments.is_empty());
+                Ok(Started::Phase(Phase::Components))
             }
             "hit" => {
                 world.context.request_hit(at(argument(0)?)?);
