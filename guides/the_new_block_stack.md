@@ -725,7 +725,9 @@ the next frame, and counts as pending for that block. While a block has a
 pending change the mirror ignores the server's echoes for it, which would
 otherwise show a state older than the one on screen; the worker settles the
 change when the server has answered, and refreshes the block from the server
-once nothing is pending.
+once nothing is pending. An open block's references come from its session's
+content rather than the server, so a child added to a folder is listed before
+the edit is sealed.
 
 ### Metadata
 
@@ -903,7 +905,16 @@ else its head, so it works for content types the app does not know.
 it: every block gets a new id, old ids in the content bytes and references are
 swapped for the new ones, a database whose row id prefix is taken here loses
 it, and each block is created and given its bytes as its first commit. The
-reply, `BlocksImported`, names the outermost block.
+reply, `BlocksImported`, names the outermost block. The tree is in the mirror
+at once and uploads in the background: `worker/uploads.rs` runs each block's
+create and first commit as a task of its own, parents before children and many
+at a time, beside the worker's loop, so commands for other blocks are not held
+up. A command that needs a block still uploading waits for it and moves it to
+the front, and one that rekeys everything below a block (moving, sharing or
+leaving it) waits until all of that has uploaded. Opening an imported block
+shows the bytes from the file (`Kind::preview`) until its session joins, so it
+needs no round trip to show. The picker imports straight into the folder it
+places in, since moving a tree into another workspace rekeys every block in it.
 
 ### Children, duplication and undo
 

@@ -110,6 +110,13 @@ impl Pick {
         }
     }
 
+    pub(crate) fn import_parent(&self) -> BlockParent {
+        match self.place {
+            Some(BlockParent::Block(container)) => BlockParent::Block(container),
+            _ => self.created_parent(),
+        }
+    }
+
     pub(crate) fn act(mut self, action: PickAction) -> PickOutcome {
         match action {
             PickAction::Tab(tab) => self.tab = tab,

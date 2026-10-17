@@ -561,7 +561,7 @@ impl Workspace {
         };
         if let PickAction::Import = action {
             if held.importing.is_none() {
-                held.importing = Some(self.host().import_blocks(held.created_parent()));
+                held.importing = Some(self.host().import_blocks(held.import_parent()));
                 self.resolve(PickOutcome::Open(Box::new(held)));
             }
             return;

@@ -15,7 +15,7 @@ use crate::{
     transport::{Frame, Reader, Writer, connect, spawn},
 };
 
-const EVENT_CAPACITY: usize = 256;
+const EVENT_CAPACITY: usize = 4096;
 
 struct Outbound {
     request: u64,

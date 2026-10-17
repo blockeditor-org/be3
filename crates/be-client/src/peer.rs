@@ -1210,26 +1210,34 @@ impl<S: ObjectStore> Peer<S> {
         if moved.key.is_some_and(wrapped_under) {
             return Ok(keys);
         }
-        let mut pending = vec![moved];
-        while let Some(node) = pending.pop() {
-            if node.id != block && node.scope == Some(node.id) {
-                if let Some(nested) = self.keys.scope_key(node.id)
-                    && !wrapped_under(nested)
-                {
-                    keys.wrapped.push(self.keys.wrap(nested, under)?);
-                }
-                continue;
-            }
-            if !node.key.is_some_and(wrapped_under) {
-                for row in self.keys.keys_of(node.id, KeyKind::Data) {
-                    if self.keys.trusted(row.id) && !wrapped_under(row.id) {
-                        keys.wrapped.push(self.keys.wrap(row.id, under)?);
+        let mut level = vec![moved];
+        while !level.is_empty() {
+            let mut below = Vec::new();
+            for node in level {
+                if node.id != block && node.scope == Some(node.id) {
+                    if let Some(nested) = self.keys.scope_key(node.id)
+                        && !wrapped_under(nested)
+                    {
+                        keys.wrapped.push(self.keys.wrap(nested, under)?);
                     }
+                    continue;
                 }
-                let (_, fresh) = self.keys.mint_data(node.id, under)?;
-                keys.extend(fresh);
+                if !node.key.is_some_and(wrapped_under) {
+                    for row in self.keys.keys_of(node.id, KeyKind::Data) {
+                        if self.keys.trusted(row.id) && !wrapped_under(row.id) {
+                            keys.wrapped.push(self.keys.wrap(row.id, under)?);
+                        }
+                    }
+                    let (_, fresh) = self.keys.mint_data(node.id, under)?;
+                    keys.extend(fresh);
+                }
+                below.push(self.children(BlockParent::Block(node.id)));
             }
-            pending.extend(self.children(BlockParent::Block(node.id)).await?);
+            level = futures_util::future::try_join_all(below)
+                .await?
+                .into_iter()
+                .flatten()
+                .collect();
         }
         Ok(keys)
     }

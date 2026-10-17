@@ -184,6 +184,10 @@ impl Graph {
         }
     }
 
+    pub(crate) fn nodes(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.values()
+    }
+
     pub(crate) fn get(&self, block: Uuid) -> Option<&Node> {
         self.nodes.get(&block)
     }
