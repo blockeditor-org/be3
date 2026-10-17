@@ -1,4 +1,5 @@
-use block_editor_beui::{BlockLocation, BlockPick, CreationProgress};
+use block_editor_beui::be_block::{BlockContent, FolderContent};
+use block_editor_beui::{BlockInfo, BlockLocation, BlockPick, CreationProgress};
 
 use super::*;
 
@@ -6,6 +7,13 @@ use super::*;
 fn a_placing_pick_names_and_places_the_block_it_creates() {
     let (mut fixture, _) = editor();
     fixture.test.catalog(catalog());
+    let mut trips = BlockInfo::new(
+        Uuid::new_v4(),
+        FolderContent::CONTENT_TYPE,
+        BlockParent::Root,
+    );
+    trips.set_name("Trips".to_owned());
+    fixture.test.store().add_block(trips);
     let mut placing = filter();
     placing.place = Some(BlockLocation::Root);
     fixture.test.request_pick(
@@ -19,6 +27,9 @@ fn a_placing_pick_names_and_places_the_block_it_creates() {
     fixture.settle();
     fixture.test.text("Minutes");
     fixture.settle();
+    fixture
+        .test
+        .snapshot("a_placing_pick_names_and_places_the_block_it_creates");
     fixture
         .test
         .click(&format!("picker.tile.{TEMPLATE_EDITOR}/main"));

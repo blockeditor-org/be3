@@ -18,7 +18,10 @@ use uuid::Uuid;
 
 use crate::{ClientError, connection::Connection, keys::KeyBook};
 
+mod import;
 mod rotation;
+
+pub use import::Imported;
 
 #[derive(Clone)]
 pub enum Credentials {
@@ -636,6 +639,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn push(&self, hashes: &[Hash]) -> Result<(), ClientError> {
+        self.commits.vault().store().sync()?;
         let response = self
             .connection
             .request(|request| ClientMessage::MissingObjects {
@@ -649,24 +653,17 @@ impl<S: ObjectStore> Peer<S> {
         else {
             return Err(ClientError::Unexpected);
         };
-        for hash in missing {
-            let bytes = self
-                .commits
-                .vault()
-                .store()
-                .get(hash)?
-                .ok_or(ClientError::MissingObject(hash))?;
-            let response = self
-                .connection
-                .request(|request| ClientMessage::PutObject {
-                    request,
-                    bytes: bytes.clone(),
-                })
-                .await?;
-            match response {
-                ServerMessage::Stored { hash: stored, .. } if stored == hash => {}
-                _ => return Err(ClientError::Unexpected),
+        let mut pending = std::collections::VecDeque::new();
+        for group in self.object_groups(&missing)? {
+            if pending.len() >= import::IN_FLIGHT
+                && let Some(sent) = pending.pop_front()
+            {
+                sent.await?;
             }
+            pending.push_back(self.send_objects(group)?);
+        }
+        for sent in pending {
+            sent.await?;
         }
         Ok(())
     }

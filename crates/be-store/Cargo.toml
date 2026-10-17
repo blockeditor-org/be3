@@ -12,5 +12,8 @@ serde = { version = "1", features = ["derive"] }
 sha2 = "0.10"
 uuid = { version = "1", features = ["serde", "v4"] }
 
+[target.'cfg(any(target_os = "linux", target_os = "android"))'.dependencies]
+libc = "0.2"
+
 [lints]
 workspace = true

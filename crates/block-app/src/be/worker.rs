@@ -1778,27 +1778,16 @@ async fn apply(
     }
 }
 
-async fn import(
+async fn imported(
     peer: &Arc<Peer<Store>>,
     shared: &Arc<Mutex<Shared>>,
-    block: &be_client::transfer::Saved,
-    parent: BlockParent,
+    block: Uuid,
+    imported: be_client::peer::Imported,
 ) {
-    let created = peer
-        .create_block(block.id, block.block_type, parent, &block.metadata)
-        .await;
-    if let Err(error) = settled(peer, shared, block.id, created).await {
+    if let Err(error) = settled(peer, shared, block, imported).await {
         record(shared, error);
-        return;
     }
-    match peer.publish_content(block).await {
-        Ok(Some(saved)) if saved.published().is_none() => {
-            record(shared, ClientError::Contended);
-        }
-        Ok(_) => {}
-        Err(error) => record(shared, error),
-    }
-    remember_head(peer, shared, block.id);
+    remember_head(peer, shared, block);
 }
 
 async fn heard(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, event: Option<ServerMessage>) {

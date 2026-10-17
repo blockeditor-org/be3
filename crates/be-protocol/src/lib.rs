@@ -6,6 +6,8 @@ use be_store::Hash;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
+pub use serde_bytes::ByteBuf;
+
 pub const MAX_FRAME_BYTES: usize = 8 * 1024 * 1024;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -416,10 +418,9 @@ pub enum ClientMessage {
         account: Uuid,
     },
 
-    PutObject {
+    PutObjects {
         request: u64,
-        #[serde(with = "serde_bytes")]
-        bytes: Vec<u8>,
+        objects: Vec<ByteBuf>,
     },
     GetObject {
         request: u64,
@@ -629,6 +630,10 @@ pub enum ClientMessage {
         request: u64,
         account: Uuid,
     },
+    Batch {
+        request: u64,
+        messages: Vec<ClientMessage>,
+    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -668,7 +673,7 @@ impl ClientMessage {
             | Self::ListOrganizations { request }
             | Self::CreateOrganization { request, .. }
             | Self::OpenOrganization { request, .. }
-            | Self::PutObject { request, .. }
+            | Self::PutObjects { request, .. }
             | Self::GetObject { request, .. }
             | Self::GetObjectRange { request, .. }
             | Self::MissingObjects { request, .. }
@@ -709,7 +714,8 @@ impl ClientMessage {
             | Self::PinEscrow { request, .. }
             | Self::ListMembers { request }
             | Self::SetRole { request, .. }
-            | Self::RemoveMember { request, .. } => *request,
+            | Self::RemoveMember { request, .. }
+            | Self::Batch { request, .. } => *request,
         }
     }
 }
@@ -758,7 +764,7 @@ pub enum ServerMessage {
     },
     Stored {
         request: u64,
-        hash: Hash,
+        hashes: Vec<Hash>,
     },
     Object {
         request: u64,
@@ -875,6 +881,10 @@ pub enum ServerMessage {
         members: Vec<Member>,
     },
     KeyWorkChanged,
+    Batched {
+        request: u64,
+        responses: Vec<ServerMessage>,
+    },
 }
 
 impl ServerMessage {
@@ -887,6 +897,7 @@ impl ServerMessage {
             | Self::Invitation { request, .. }
             | Self::OrganizationOpened { request, .. }
             | Self::Stored { request, .. }
+            | Self::Batched { request, .. }
             | Self::Object { request, .. }
             | Self::Missing { request, .. }
             | Self::Block { request, .. }
