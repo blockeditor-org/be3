@@ -375,25 +375,24 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
             accessibility
             tab_stop=false
             press_focus=false
-            content={move |handle: ButtonHandle| {
-                let hovered = handle.hovered;
-                create_effect(move || {
-                    if hovered.get() {
-                        state.set_highlighted.set(Some(hover_row.clone()));
-                    }
-                });
-                view! {
-                    <LauncherRowFace
-                        title={title}
-                        detail={detail}
-                        image={image}
-                        glyph={glyph.to_owned()}
-                        lit={lit}
-                    />
-                }
-            }}
             on_click={move || state.activate(click_row.clone())}
-        />
+        >|handle: ButtonHandle| {
+            let hovered = handle.hovered;
+            create_effect(move || {
+                if hovered.get() {
+                    state.set_highlighted.set(Some(hover_row.clone()));
+                }
+            });
+            view! {
+                <LauncherRowFace
+                    title={title}
+                    detail={detail}
+                    image={image}
+                    glyph={glyph.to_owned()}
+                    lit={lit}
+                />
+            }
+        }</unstyled::Button>
     }
 }
 

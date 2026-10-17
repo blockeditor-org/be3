@@ -674,10 +674,12 @@ the closure is always `move`. When the body needs statements before its tags,
 it is a block instead, the only thing before the closing tag:
 `<Container>|size| { let narrow = narrower_than(W); view! { <Card narrow /> } }</Container>`.
 
-A slot whose value is `()`, like `show`'s `then`, takes its tags as they are:
-`view!` wraps them in the closure itself, so they stay unbuilt until the
-component asks for them, and naming a value there is a compile error. Its
-block form is `|| { ... }`. A `RenderFn` slot, like `Show`'s or `ForEach`'s,
+Tags written without `|value|` are a closure that ignores the value, so a
+slot whose value is `()`, like `show`'s `then`, takes its tags as they are, and
+so does a button whose face needs nothing from its handle. Either way `view!`
+wraps them in the closure itself, so they stay unbuilt until the component asks
+for them. Naming a value on a slot whose value is `()` is a compile error, and
+its block form is `|| { ... }`. A `RenderFn` slot, like `Show`'s or `ForEach`'s,
 may run that closure more than once, so the body clones what it hands on
 rather than moving it: `<Show condition>|| { let a = a.clone(); view! { ... } }</Show>`.
 A closure written in braces between the tags, `{move |x| ...}`, is a compile

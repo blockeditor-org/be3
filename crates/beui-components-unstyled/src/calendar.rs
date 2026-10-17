@@ -354,20 +354,19 @@ fn CalendarYear(
             }}
             on_click={move || pick_year(state, click_year.get_untracked())}
             on_key={move |press: KeyPress| year_key(state, key_year.get_untracked(), press)}
-            content={move |button: ButtonHandle| {
-                face.call(CalendarCellHandle {
-                    kind: CalendarMode::Years,
-                    label: create_memo(move || year.get().to_string()),
-                    selected,
-                    marked: current,
-                    outside: create_memo(|| false),
-                    disabled: handle_disabled,
-                    hovered: button.hovered,
-                    active: button.active,
-                    focused: button.focused,
-                })
-            }}
-        />
+        >|button: ButtonHandle| {
+            face.call(CalendarCellHandle {
+                kind: CalendarMode::Years,
+                label: create_memo(move || year.get().to_string()),
+                selected,
+                marked: current,
+                outside: create_memo(|| false),
+                disabled: handle_disabled,
+                hovered: button.hovered,
+                active: button.active,
+                focused: button.focused,
+            })
+        }</unstyled::Button>
     }
 }
 
@@ -469,20 +468,19 @@ fn CalendarDay(
             }}
             on_click={move || choose(state, click_date.get_untracked())}
             on_key={move |press: KeyPress| day_key(state, key_date.get_untracked(), press)}
-            content={move |button: ButtonHandle| {
-                face.call(CalendarCellHandle {
-                    kind: CalendarMode::Days,
-                    label: create_memo(move || date.get().day.to_string()),
-                    selected,
-                    marked: today,
-                    outside,
-                    disabled: handle_disabled,
-                    hovered: button.hovered,
-                    active: button.active,
-                    focused: button.focused,
-                })
-            }}
-        />
+        >|button: ButtonHandle| {
+            face.call(CalendarCellHandle {
+                kind: CalendarMode::Days,
+                label: create_memo(move || date.get().day.to_string()),
+                selected,
+                marked: today,
+                outside,
+                disabled: handle_disabled,
+                hovered: button.hovered,
+                active: button.active,
+                focused: button.focused,
+            })
+        }</unstyled::Button>
     }
 }
 
@@ -556,20 +554,19 @@ fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -
             }}
             on_click={move || pick_month(state, click_month.get_untracked())}
             on_key={move |press: KeyPress| month_key(state, number, press)}
-            content={move |button: ButtonHandle| {
-                face.call(CalendarCellHandle {
-                    kind: CalendarMode::Months,
-                    label: create_memo(move || month.get().month_name()[..3].to_owned()),
-                    selected,
-                    marked: current,
-                    outside: create_memo(|| false),
-                    disabled: handle_disabled,
-                    hovered: button.hovered,
-                    active: button.active,
-                    focused: button.focused,
-                })
-            }}
-        />
+        >|button: ButtonHandle| {
+            face.call(CalendarCellHandle {
+                kind: CalendarMode::Months,
+                label: create_memo(move || month.get().month_name()[..3].to_owned()),
+                selected,
+                marked: current,
+                outside: create_memo(|| false),
+                disabled: handle_disabled,
+                hovered: button.hovered,
+                active: button.active,
+                focused: button.focused,
+            })
+        }</unstyled::Button>
     }
 }
 

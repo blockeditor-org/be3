@@ -242,9 +242,10 @@ fn Toolbar(
                         glyph=ICON_MORE_HORIZ
                         tab_stop=false
                         press_focus=false
-                        content={move |handle: ButtonHandle| button.call(handle)}
                         on_click_at={move |press: PointerPress| on_more.call(press.pos)}
-                    />
+                    >|handle: ButtonHandle| {
+                        button.call(handle)
+                    }</unstyled::Button>
                 </List>
             })}
         </Overlay>
@@ -267,7 +268,6 @@ fn ToolbarButton(
             disabled={item.disabled}
             tab_stop=false
             press_focus=false
-            content={move |handle: ButtonHandle| button.call(handle)}
             on_click={move || {
                 if disabled.get_untracked() {
                     return;
@@ -278,7 +278,9 @@ fn ToolbarButton(
                 }
                 clicked.call();
             }}
-        />
+        >|handle: ButtonHandle| {
+            button.call(handle)
+        }</unstyled::Button>
     }
 }
 

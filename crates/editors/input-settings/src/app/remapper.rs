@@ -118,22 +118,20 @@ pub(super) fn RemapperSetting(
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ForEach keys={keys}>
-                            {move |remapper: Uuid| {
-                                let label = create_memo(move || {
-                                    remappers.with(|remappers| {
-                                        remappers
-                                            .iter()
-                                            .find(|(id, _)| *id == remapper)
-                                            .map(|(_, name)| name.clone())
-                                            .unwrap_or_default()
-                                    })
-                                });
-                                view! {
-                                    <ChoiceOption label={label} />
-                                }
-                            }}
-                        </ForEach>
+                        <ForEach keys={keys}>|remapper: Uuid| {
+                            let label = create_memo(move || {
+                                remappers.with(|remappers| {
+                                    remappers
+                                        .iter()
+                                        .find(|(id, _)| *id == remapper)
+                                        .map(|(_, name)| name.clone())
+                                        .unwrap_or_default()
+                                })
+                            });
+                            view! {
+                                <ChoiceOption label={label} />
+                            }
+                        }</ForEach>
                     }}
                     selected={selected}
                     label="Remapper"

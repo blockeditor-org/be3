@@ -818,10 +818,9 @@ fn AddChild(
                     accessibility={accessibility}
                     on_focus_change={move |has_focus: bool| set_focused.set(has_focus)}
                     on_click={on_click}
-                    content={move |button: ButtonHandle| view! {
-                        <AddChildFace handle={button} shown={shown} label={label} />
-                    }}
-                />
+                >|button: ButtonHandle|
+                    <AddChildFace handle={button} shown={shown} label={label} />
+                </unstyled::Button>
             </List>
         </Frame>
     }

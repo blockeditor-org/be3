@@ -112,35 +112,34 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
             @test_id={"dock.switch"}
             label
             on_click={on_click}
-            content={move |handle: unstyled::ButtonHandle| {
-                let unstyled::ButtonHandle { hovered, focused, .. } = handle;
-                let theme = theme;
-                let fill = create_memo(move || match hovered.get() {
-                    true => theme.hover.get(),
-                    false => Color32::TRANSPARENT,
-                });
-                let shown = shown;
-                view! {
+        >|handle: unstyled::ButtonHandle| {
+            let unstyled::ButtonHandle { hovered, focused, .. } = handle;
+            let theme = theme;
+            let fill = create_memo(move || match hovered.get() {
+                true => theme.hover.get(),
+                false => Color32::TRANSPARENT,
+            });
+            let shown = shown;
+            view! {
+                <Frame
+                    width=COUNT_TARGET
+                    height=COUNT_TARGET
+                    fill={ColorRole::custom(fill)}
+                    radius={Radius::custom(COUNT_TARGET_RADIUS)}
+                    border={focus_border(focused, Border::FOCUS)}
+                    align=Align::Center
+                >
                     <Frame
-                        width=COUNT_TARGET
-                        height=COUNT_TARGET
-                        fill={ColorRole::custom(fill)}
-                        radius={Radius::custom(COUNT_TARGET_RADIUS)}
-                        border={focus_border(focused, Border::FOCUS)}
-                        align=Align::Center
+                        width=COUNT_SIDE
+                        height=COUNT_SIDE
+                        radius={Radius::custom(COUNT_RADIUS)}
+                        border={Border::new(ColorRole::Text).width(COUNT_OUTLINE)}
                     >
-                        <Frame
-                            width=COUNT_SIDE
-                            height=COUNT_SIDE
-                            radius={Radius::custom(COUNT_RADIUS)}
-                            border={Border::new(ColorRole::Text).width(COUNT_OUTLINE)}
-                        >
-                            <Text string={shown} size=TextSize::Sm align=TextAlign::Center />
-                        </Frame>
+                        <Text string={shown} size=TextSize::Sm align=TextAlign::Center />
                     </Frame>
-                }
-            }}
-        />
+                </Frame>
+            }
+        }</unstyled::Button>
     }
 }
 

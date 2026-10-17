@@ -99,30 +99,29 @@ pub(crate) fn Swatch(
             @test_id={format!("infinite-canvas.{kind}.{name}")}
             accessibility={described}
             on_click={move || on_pick.call(color)}
-            content={move |handle: ButtonHandle| {
-                let ringed = create_memo(move || {
-                    chosen.get() || handle.focused.get() || handle.hovered.get()
-                });
-                let ring = create_memo(move || match chosen.get() {
-                    true => theme.accent.get(),
-                    false => theme.border.get(),
-                });
-                view! {
+        >|handle: ButtonHandle| {
+            let ringed = create_memo(move || {
+                chosen.get() || handle.focused.get() || handle.hovered.get()
+            });
+            let ring = create_memo(move || match chosen.get() {
+                true => theme.accent.get(),
+                false => theme.border.get(),
+            });
+            view! {
+                <Frame
+                    padding=SWATCH_RING
+                    radius={Radius::custom(16.0)}
+                    border={create_memo(move || ringed.get().then(|| Border::new(ColorRole::Custom(ring.get())).width(2.0)))}
+                >
                     <Frame
-                        padding=SWATCH_RING
-                        radius={Radius::custom(16.0)}
-                        border={create_memo(move || ringed.get().then(|| Border::new(ColorRole::Custom(ring.get())).width(2.0)))}
-                    >
-                        <Frame
-                            width=SWATCH
-                            height=SWATCH
-                            radius={Radius::custom(11.0)}
-                            fill={ColorRole::custom(fill)}
-                            border={Border::DEFAULT}
-                        />
-                    </Frame>
-                }
-            }}
-        />
+                        width=SWATCH
+                        height=SWATCH
+                        radius={Radius::custom(11.0)}
+                        fill={ColorRole::custom(fill)}
+                        border={Border::DEFAULT}
+                    />
+                </Frame>
+            }
+        }</unstyled::Button>
     }
 }

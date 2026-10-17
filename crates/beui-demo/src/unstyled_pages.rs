@@ -105,10 +105,9 @@ fn PillButton() -> NodeId {
             <List direction=Direction::Horizontal spacing=0.0>
                 <unstyled::Button
                     on_click={move || set_launched.set("Launched".to_owned())}
-                    content={move |handle: ButtonHandle| view! {
-                        <PillFace handle label="Launch" />
-                    }}
-                />
+                >|handle: ButtonHandle|
+                    <PillFace handle label="Launch" />
+                </unstyled::Button>
             </List>
             <Text string={launched} color=TextColor::Muted />
         </List>
@@ -652,10 +651,9 @@ fn InfoPopover() -> NodeId {
                             />
                             <unstyled::Button
                                 on_click={move || close.call(())}
-                                content={move |handle: ButtonHandle| view! {
-                                    <PillFace handle label="Got it" />
-                                }}
-                            />
+                            >|handle: ButtonHandle|
+                                <PillFace handle label="Got it" />
+                            </unstyled::Button>
                         </List>
                     </PopupPanel>
                 }
@@ -1266,12 +1264,9 @@ fn FolderTree() -> NodeId {
                     button={move |handle: TreeRevealHandle| {
                         let reveal = handle.reveal;
                         view! {
-                            <unstyled::Button
-                                on_click={reveal}
-                                content={move |handle: ButtonHandle| view! {
-                                    <PillFace handle label="Show the selection" />
-                                }}
-                            />
+                            <unstyled::Button on_click={reveal}>|handle: ButtonHandle|
+                                <PillFace handle label="Show the selection" />
+                            </unstyled::Button>
                         }
                     }}
                 />
@@ -1470,12 +1465,9 @@ fn PullUpSheet() -> NodeId {
     let ink = TextColor::Default;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <unstyled::Button
-                on_click={move || set_open.set(true)}
-                content={move |handle: ButtonHandle| view! {
-                    <PillFace handle label="Open the sheet" />
-                }}
-            />
+            <unstyled::Button on_click={move || set_open.set(true)}>|handle: ButtonHandle|
+                <PillFace handle label="Open the sheet" />
+            </unstyled::Button>
             <unstyled::ModalSheet
                 open={open}
                 fit=true
@@ -1498,10 +1490,9 @@ fn PullUpSheet() -> NodeId {
                         <List direction=Direction::Horizontal spacing=0.0>
                             <unstyled::Button
                                 on_click={move || done.set(false)}
-                                content={move |handle: ButtonHandle| view! {
-                                    <PillFace handle label="Done" />
-                                }}
-                            />
+                            >|handle: ButtonHandle|
+                                <PillFace handle label="Done" />
+                            </unstyled::Button>
                         </List>
                     </List>
                 </Frame>
@@ -1547,10 +1538,9 @@ fn FolderPages() -> NodeId {
                     <List direction=Direction::Horizontal spacing=0.0>
                         <unstyled::Button
                             on_click={move || set_depth.set(depth.get_untracked() + 1)}
-                            content={move |handle: ButtonHandle| view! {
-                                <PillFace handle label="Open a folder" />
-                            }}
-                        />
+                        >|handle: ButtonHandle|
+                            <PillFace handle label="Open a folder" />
+                        </unstyled::Button>
                     </List>
                 </List>
             </Frame>
@@ -1681,12 +1671,9 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
     let preset = move |label: &'static str, date: Date| {
         let pick = pick;
         view! {
-            <unstyled::Button
-                on_click={move || pick.call(date)}
-                content={move |handle: ButtonHandle| view! {
-                    <PillFace handle label />
-                }}
-            />
+            <unstyled::Button on_click={move || pick.call(date)}>|handle: ButtonHandle|
+                <PillFace handle label />
+            </unstyled::Button>
         }
     };
     view! {
@@ -1696,18 +1683,12 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
                 {preset("In a week", start.add_days(7))}
                 {preset("In a month", start.add_months(1))}
                 <List direction=Direction::Horizontal spacing=8.0>
-                    <unstyled::Button
-                        on_click={now}
-                        content={move |handle: ButtonHandle| view! {
-                            <PillFace handle label=now_label />
-                        }}
-                    />
-                    <unstyled::Button
-                        on_click={clear}
-                        content={move |handle: ButtonHandle| view! {
-                            <PillFace handle label="Clear" />
-                        }}
-                    />
+                    <unstyled::Button on_click={now}>|handle: ButtonHandle|
+                        <PillFace handle label=now_label />
+                    </unstyled::Button>
+                    <unstyled::Button on_click={clear}>|handle: ButtonHandle|
+                        <PillFace handle label="Clear" />
+                    </unstyled::Button>
                 </List>
             </List>
         </PopupPanel>

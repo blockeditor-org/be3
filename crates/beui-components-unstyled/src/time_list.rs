@@ -205,17 +205,16 @@ fn TimeOption(
             }}
             on_click={move || choose(state, time)}
             on_key={move |press: KeyPress| option_key(state, minutes, press)}
-            content={move |button: ButtonHandle| {
-                face.call(TimeOptionHandle {
-                    time,
-                    label,
-                    selected,
-                    hovered: button.hovered,
-                    active: button.active,
-                    focused: button.focused,
-                })
-            }}
-        />
+        >|button: ButtonHandle| {
+            face.call(TimeOptionHandle {
+                time,
+                label,
+                selected,
+                hovered: button.hovered,
+                active: button.active,
+                focused: button.focused,
+            })
+        }</unstyled::Button>
     }
 }
 

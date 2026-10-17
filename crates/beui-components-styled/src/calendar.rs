@@ -143,14 +143,9 @@ fn HeaderToggle(
         false => ICON_ARROW_DROP_DOWN.to_owned(),
     });
     view! {
-        <unstyled::Button
-            label
-            accessibility
-            on_click={on_click}
-            content={move |button: unstyled::ButtonHandle| view! {
-                <ButtonFace handle={button} variant=ButtonVariant::Ghost trailing_glyph={glyph} />
-            }}
-        />
+        <unstyled::Button label accessibility on_click={on_click}>|button: unstyled::ButtonHandle|
+            <ButtonFace handle={button} variant=ButtonVariant::Ghost trailing_glyph={glyph} />
+        </unstyled::Button>
     }
 }
 

@@ -127,13 +127,12 @@ pub fn Popover(
                     }
                 }}
                 on_click={toggle}
-                content={move |button: ButtonHandle| {
-                    trigger.call(PopoverTriggerHandle {
-                        open: trigger_open,
-                        button,
-                    })
-                }}
-            />
+            >|button: ButtonHandle| {
+                trigger.call(PopoverTriggerHandle {
+                    open: trigger_open,
+                    button,
+                })
+            }</unstyled::Button>
             <Overlay
                 anchor=anchor
                 placement

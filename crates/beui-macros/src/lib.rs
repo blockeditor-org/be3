@@ -297,7 +297,7 @@ fn render_children_block(
         args: quote! { children: ChildrenFn },
         where_clause: quote! {
             where
-                ChildrenFn: #bound -> ChildrenBlock + 'static + ::beui::reactive::UnitHandle<#handle>,
+                ChildrenFn: #bound -> ChildrenBlock + 'static,
                 ChildrenBlock: #block_bound,
         },
         value: wrap(quote! { #new(move |_handle: #handle| #built) }),

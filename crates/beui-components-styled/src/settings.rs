@@ -264,14 +264,9 @@ pub fn SettingsLink(
                     @sizing=ItemSize::Percent(100.0)
                     padding={Sides::new(0.0, LINK_INSET, LINK_INSET, LINK_INSET)}
                 >
-                    <unstyled::Button
-                        label
-                        disabled
-                        on_click={on_click}
-                        content={move |handle| view! {
-                            <SettingsLinkFace handle look={face} on_reset={reset} />
-                        }}
-                    />
+                    <unstyled::Button label disabled on_click={on_click}>|handle|
+                        <SettingsLinkFace handle look={face} on_reset={reset} />
+                    </unstyled::Button>
                 </Frame>
             </List>
             <Dialog open={asking} title="Reset?" on_dismiss={move || set_asking.set(false)}>

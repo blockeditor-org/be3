@@ -610,18 +610,17 @@ fn FocusedTile() -> NodeId {
                 <beui::unstyled::Button
                     label="Open the album"
                     on_click={move || set_opened.set("Opened the album".to_owned())}
-                    content={move |handle: beui::unstyled::ButtonHandle| view! {
-                        <FocusRing
-                            focused={handle.focused}
-                            radius={Radius::custom(Radius::Lg.px() + 3.0)}
-                            offset=3.0
-                        >
-                            <Card>
-                                <Text string={handle.label} />
-                            </Card>
-                        </FocusRing>
-                    }}
-                />
+                >|handle: beui::unstyled::ButtonHandle|
+                    <FocusRing
+                        focused={handle.focused}
+                        radius={Radius::custom(Radius::Lg.px() + 3.0)}
+                        offset=3.0
+                    >
+                        <Card>
+                            <Text string={handle.label} />
+                        </Card>
+                    </FocusRing>
+                </beui::unstyled::Button>
             </List>
             <Text style=TextStyle::CAPTION string={opened} />
         </List>
@@ -2431,12 +2430,9 @@ fn ScrollRow(
 ) -> NodeId {
     let selected = create_memo(move || selection.is_selected(&Some(index.get())));
     view! {
-        <unstyled::Button
-            on_click={on_click}
-            content={move |handle| view! {
-                <ScrollRowFace index handle selected timings compact />
-            }}
-        />
+        <unstyled::Button on_click={on_click}>|handle|
+            <ScrollRowFace index handle selected timings compact />
+        </unstyled::Button>
     }
 }
 

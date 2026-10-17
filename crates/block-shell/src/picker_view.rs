@@ -473,10 +473,9 @@ fn TileButton(act: Act, key: String, tile: Memo<Option<TemplateEntry>>) -> NodeI
         <unstyled::Button
             @test_id={format!("picker.tile.{key}")}
             on_click={pick}
-            content={move |handle: ButtonHandle| view! {
-                <TileFace handle label glyph />
-            }}
-        />
+        >|handle: ButtonHandle|
+            <TileFace handle label glyph />
+        </unstyled::Button>
     }
 }
 

@@ -354,15 +354,14 @@ fn FieldChoices(
                         label={name}
                         @test_id={format!("database-view.filters.field.{field}")}
                         on_click={pick}
-                        content={move |handle| {
-                            let name = name;
-                            view! {
-                                <ControlFace handle={handle}>
-                                    <Text string={name} />
-                                </ControlFace>
-                            }
-                        }}
-                    />
+                    >|handle| {
+                        let name = name;
+                        view! {
+                            <ControlFace handle={handle}>
+                                <Text string={name} />
+                            </ControlFace>
+                        }
+                    }</unstyled::Button>
                 }
             }</ForEach>
         </List>
