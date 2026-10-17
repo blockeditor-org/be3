@@ -14,6 +14,7 @@ use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2};
 
 use crate::Prose;
+use crate::RemoteTextCursor;
 use crate::SyntaxColors;
 use crate::TextArea;
 use crate::TextAreaColors;
@@ -83,7 +84,8 @@ struct Input {
 
 #[component]
 pub fn TextInput(
-    value: Prop<String>,
+    #[prop(default = String::new())] value: Prop<String>,
+    document: Option<TextAreaState>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -94,6 +96,7 @@ pub fn TextInput(
     placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = TextInputStyle::default())] style: TextInputStyle,
+    #[prop(default = Vec::new())] remote_cursors: Prop<Vec<RemoteTextCursor>>,
     on_change: Callback<String>,
     on_submit: Callback<String>,
     on_hover_change: Callback<bool>,
@@ -111,8 +114,14 @@ pub fn TextInput(
         prose,
         menu,
     } = style;
-    let initial = value.peek();
-    let state = plain_text(&initial);
+    let (state, buffer) = match document {
+        Some(state) => (state, None),
+        None => {
+            let (state, buffer) = plain_text(&value.peek());
+            (state, Some(buffer))
+        }
+    };
+    let initial = text_of(state);
     let (hovered, set_hovered) = create_signal(false);
     let (is_focused, set_focused) = create_signal(false);
     let disabled = create_memo(move || disabled.get());
@@ -125,12 +134,13 @@ pub fn TextInput(
         focused: is_focused,
     });
 
-    create_effect(move || {
-        let value = value.get();
-        if text_of(state) != value {
-            state.execute(EditorCommand::ReplaceWholeFile(value.as_bytes()));
-        }
-    });
+    if let Some(buffer) = buffer {
+        create_effect(move || {
+            if buffer.adopt(value.get().as_bytes()) {
+                state.external_edit();
+            }
+        });
+    }
     let edited = state.content();
     let empty = create_memo(move || {
         edited.get();
@@ -241,6 +251,7 @@ pub fn TextInput(
             font_size
             padding
             prose
+            remote_cursors
             accessibility
             on_toolbar={open_menu}
             on_submit={move || on_submit.call(text_of(state))}
@@ -271,19 +282,21 @@ pub fn measure_prose(
     prose: Prose,
     wrap_width: f32,
 ) -> Option<Vec2> {
-    plain_text(value).measure_prose(font_size, prose, placeholder, wrap_width)
+    plain_text(value)
+        .0
+        .measure_prose(font_size, prose, placeholder, wrap_width)
 }
 
-fn plain_text(value: &str) -> TextAreaState {
+fn plain_text(value: &str) -> (TextAreaState, Arc<TextBuffer>) {
     let buffer = Arc::new(TextBuffer::new(value.as_bytes()));
-    let state = TextAreaState::new(buffer as Arc<dyn text_editor_core::Document>);
+    let state = TextAreaState::new(buffer.clone() as Arc<dyn text_editor_core::Document>);
     state.execute(EditorCommand::SetLanguage(TextLanguage::PlainText));
     let end = state.with_core(|core| core.position(value.len()));
     state.execute(EditorCommand::SetSelection {
         anchor: end,
         focus: end,
     });
-    state
+    (state, buffer)
 }
 
 fn text_of(state: TextAreaState) -> String {

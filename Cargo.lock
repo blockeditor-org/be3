@@ -1365,6 +1365,7 @@ dependencies = [
  "block-ui",
  "serde",
  "serde_json",
+ "text-editor-core",
  "uuid",
 ]
 
@@ -4069,6 +4070,7 @@ dependencies = [
  "block-ui-test",
  "serde",
  "serde_json",
+ "text-editor-core",
  "uuid",
 ]
 

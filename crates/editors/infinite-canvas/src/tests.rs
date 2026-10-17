@@ -26,6 +26,7 @@ mod a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_cli
 mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_multiple_selection_outlines_each_selected_entity;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
+mod a_peer_types_into_the_text_being_edited_and_their_caret_is_drawn;
 mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
 mod a_preview_with_no_camera_fits_its_artboard;
 mod a_resize_handle_follows_the_drag_rather_than_jumping_to_the_pointer;
@@ -64,6 +65,7 @@ mod the_preview_shows_the_first_artboard;
 mod the_transform_fields_edit_the_selected_entity;
 mod typed_text_grows_away_from_the_edges_it_is_aligned_to;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
+mod undo_in_a_text_takes_back_only_what_was_typed_there;
 
 fn entity(id: Uuid) -> CanvasEntity {
     CanvasEntity {
@@ -153,6 +155,18 @@ fn apply(editor: &mut BeuiTest<CanvasApp>, operation: InfiniteCanvasOperation) {
         .content::<CanvasContent>(None)
         .root()
         .edit_for(&operation);
+    editor.edit::<CanvasContent>(None, &edit);
+}
+
+fn peer_types(editor: &mut BeuiTest<CanvasApp>, entity: Uuid, at: usize, typed: &str) {
+    let edit = Canvas::replace_text(
+        &editor.content::<CanvasContent>(None),
+        2,
+        entity,
+        at..at,
+        typed.as_bytes(),
+    )
+    .expect("the peer has somewhere to type");
     editor.edit::<CanvasContent>(None, &edit);
 }
 

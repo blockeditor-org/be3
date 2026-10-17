@@ -2,23 +2,27 @@ use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 use std::rc::Rc;
+use std::sync::Arc;
 
-use crate::presence::CanvasCursor;
+use crate::presence::{CanvasCursor, TextCaret};
 use block_editor_beui::BlockList;
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ImageContent;
+use block_editor_beui::be_block::be_model::{ObjectId, Sequence, Touched};
 use block_editor_beui::be_block::canvas::{
-    CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
+    Canvas, CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
     CanvasLayerMove, CanvasPoint, CanvasTextStyle, CanvasTransform, InfiniteCanvasOperation,
     first_artboard,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::unstyled::TextAreaState;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_beui::live_text::{LiveText, Synced, TextField};
 use block_editor_beui::{
     BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
 };
@@ -246,6 +250,7 @@ pub(crate) struct RemoteSelection {
 pub(crate) struct Presence {
     pub(crate) cursors: Vec<RemoteCursor>,
     pub(crate) selections: Vec<RemoteSelection>,
+    pub(crate) carets: Vec<(TextCaret, PresenceColor)>,
 }
 
 #[derive(Clone)]
@@ -309,6 +314,8 @@ pub(crate) struct CanvasState {
     pub(crate) presence: ReadSignal<Presence>,
     set_presence: WriteSignal<Presence>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
+    pub(crate) caret: ReadSignal<Option<TextCaret>>,
+    set_caret: WriteSignal<Option<TextCaret>>,
 }
 
 impl CanvasState {
@@ -328,6 +335,7 @@ impl CanvasState {
         let (child_states, set_child_states) = create_signal(HashMap::new());
         let (presence, set_presence) = create_signal(Presence::default());
         let (pointer, set_pointer) = create_signal(None);
+        let (caret, set_caret) = create_signal(None);
         let cells = store(CanvasCells {
             dependencies: editor
                 .blocks()
@@ -383,6 +391,8 @@ impl CanvasState {
             presence,
             set_presence,
             peers: editor.peers::<CanvasCursor>(),
+            caret,
+            set_caret,
         }
     }
 
@@ -774,6 +784,45 @@ impl CanvasState {
 
     pub(crate) fn note_context_position(&self, at: Option<CanvasPoint>) {
         self.cells.get().context_position.set(at);
+    }
+
+    pub(crate) fn live_text(&self, entity: Uuid) -> TextAreaState {
+        let cells = self.cells.get();
+        let document = Arc::new(LiveText::new(
+            EntityText(entity),
+            self.editor.host().waker(),
+        ));
+        cells.content.read(|canvas| document.adopt(canvas));
+        document.take_external_edit();
+        let area = TextAreaState::new(Arc::clone(&document) as Arc<dyn text_editor_core::Document>);
+        let (object, field) = Canvas::text_field(entity);
+        let shared = cells
+            .content
+            .project_on(Touched::Field(object, field), move |canvas| {
+                Canvas::text(canvas, entity).cloned()
+            });
+        let state = *self;
+        create_effect(move || {
+            area.content().get();
+            shared.with(|_| ());
+            untrack(|| {
+                let Some(cells) = state.cells.try_get() else {
+                    return;
+                };
+                let host = state.editor.host();
+                match document.sync(cells.content, &host, state.block_id(), true) {
+                    Synced::External => area.external_edit(),
+                    Synced::Unchanged | Synced::Waiting => area.sync(),
+                }
+            });
+        });
+        area
+    }
+
+    pub(crate) fn note_caret(&self, caret: Option<TextCaret>) {
+        if self.caret.get_untracked() != caret {
+            self.set_caret.set(caret);
+        }
     }
 
     pub(crate) fn note_pointer(&self, at: Option<CanvasPoint>) {
@@ -1949,6 +1998,7 @@ impl CanvasState {
             visible.with(|_| ());
             state.pointer.with(|_| ());
             state.selection.with(|_| ());
+            state.caret.with(|_| ());
             untrack(|| state.publish_presence());
         });
         let state = self;
@@ -2104,6 +2154,7 @@ impl CanvasState {
             CanvasCursor {
                 pointer: self.pointer.get_untracked(),
                 selection: self.selection.get_untracked().iter().copied().collect(),
+                text: self.caret.get_untracked(),
                 color,
             }
         });
@@ -2132,6 +2183,9 @@ impl CanvasState {
                         color,
                     });
                 }
+            }
+            if let Some(caret) = cursor.text {
+                presence.carets.push((caret, color));
             }
             if cursor.pointer.is_some() {
                 presence.cursors.push(RemoteCursor {
@@ -2333,5 +2387,23 @@ impl CanvasState {
             content.x / scale.max(f32::EPSILON),
             content.y / scale.max(f32::EPSILON),
         ))
+    }
+}
+
+struct EntityText(Uuid);
+
+impl TextField for EntityText {
+    type Content = CanvasContent;
+
+    fn object(&self) -> ObjectId {
+        Canvas::text_field(self.0).0
+    }
+
+    fn field(&self) -> u16 {
+        Canvas::text_field(self.0).1
+    }
+
+    fn text<'a>(&self, content: &'a CanvasContent) -> Option<&'a Sequence<u8>> {
+        Canvas::text(content, self.0)
     }
 }
