@@ -40,6 +40,10 @@ impl DocumentTest {
         &self.document
     }
 
+    pub fn output(&self) -> Option<&FrameOutput> {
+        self.output.as_ref()
+    }
+
     pub fn size(&self) -> Vec2 {
         self.size
     }

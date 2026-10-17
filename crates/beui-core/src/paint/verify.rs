@@ -279,6 +279,13 @@ impl Compare<'_> {
             for rect in shape_changes(&shifted, &shown, |old, new| moved_same(old, new, landed)) {
                 self.need([rect.intersect(landed)], Why::Changed(id));
             }
+            for ((_, old), (_, new)) in shifted.iter().zip(&shown) {
+                if let Some(parts) = evenly_moved(old, new, landed) {
+                    let parts: Vec<Rect> =
+                        parts.iter().map(|rect| rect.intersect(landed)).collect();
+                    self.need(parts, Why::Changed(id));
+                }
+            }
         }
         self.restacked(&was.children, &now.children);
     }
@@ -345,6 +352,26 @@ fn footprint(shape: &Shape) -> Vec<Rect> {
 }
 
 fn moved_same(old: &Shape, new: &Shape, landed: Rect) -> bool {
+    plainly_moved_same(old, new, landed) || evenly_moved(old, new, landed).is_some()
+}
+
+fn evenly_moved(old: &Shape, new: &Shape, landed: Rect) -> Option<Vec<Rect>> {
+    let same_paint = matches!(
+        (old, new),
+        (
+            Shape::Rect { corner_radius, stroke_width, color, .. },
+            Shape::Rect { corner_radius: other_radius, stroke_width: other_width, color: other, .. },
+        ) if color == other && corner_radius == other_radius && stroke_width == other_width
+    );
+    if !same_paint || plainly_moved_same(old, new, landed) {
+        return None;
+    }
+    let mut parts = super::uneven(old, landed)?;
+    parts.extend(super::uneven(new, landed)?);
+    Some(parts)
+}
+
+fn plainly_moved_same(old: &Shape, new: &Shape, landed: Rect) -> bool {
     let uniform = |shape: &Shape| super::covers(shape, landed);
     let fill = |shape: &Shape| match shape {
         Shape::Rect { color, .. } => Some(*color),
