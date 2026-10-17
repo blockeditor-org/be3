@@ -335,9 +335,13 @@ impl Runner {
     }
 
     pub fn finish(mut self) -> Result<(), Box<dyn Error>> {
+        Ok(self.outcome()?)
+    }
+
+    pub fn outcome(&mut self) -> Result<(), String> {
         self.exit();
         match self.failure.take() {
-            Some(failure) => Err(format!("the app stopped after a panic: {failure}").into()),
+            Some(failure) => Err(format!("the app stopped after a panic: {failure}")),
             None => Ok(()),
         }
     }

@@ -307,7 +307,7 @@ impl beui::App for Shell {
             not(target_os = "android"),
             not(target_arch = "wasm32")
         ))]
-        if let Some(window) = setup.get::<std::sync::Arc<beui::winit::window::Window>>() {
+        if let Some(window) = setup.get::<std::sync::Arc<dyn beui::winit::window::Window>>() {
             plugin_host::install_web_view(window.clone());
         }
     }

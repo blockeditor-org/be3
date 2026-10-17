@@ -239,7 +239,7 @@ direction:
 | `beui-inspector` | the inspector, the simulated screen reader and the simulated mouse and keyboard |
 | `beui-renderer-wgpu` | the wgpu renderer, its shaders and filters, and presenting to a surface |
 | `beui-renderer-dom` | the DOM renderer: the display tree as nested absolutely positioned elements |
-| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter |
+| `beui-adapter-winit`, `beui-adapter-android`, `beui-adapter-web` | each platform's `Adapter` and `Platform`: its event loop, window or view, input, IME, clipboard, file picker and accessibility adapter (winit's is its own `accessibility.rs` over `accesskit_unix`, `accesskit_windows` and `accesskit_macos`, since `accesskit_winit` has no release for winit 0.31) |
 | `beui-adapter-drm` | Linux's displays and input devices through DRM/KMS and libinput: an `Adapter`, `Platform` and `Renderer` whose screens each keep a retained frame and are drawn when their display flips (the app's frames are paced to the flips too, by `pacing.rs`: at most one per flip, none while nothing changes), handing the flip a fence (or, without atomic fences, waiting for it in the event loop) instead of blocking on the GPU; callers run it with `beui::run_on` |
 | `beui-adapter-plugin` | the `Adapter`, `Platform` and `Renderer` for one region of a block editor plugin, which the plugin framework drives frame by frame (guides/adding_a_plugin_editor.md); it depends on the plugin framework, so the facade does not offer it |
 
@@ -680,8 +680,8 @@ so every control works with it unchanged (`PointerId::hovers` is true for both).
 hears carries them too, as `pressure` and `pen`, sampled when it was pressed and at each drag;
 a finger's press carries its `force` as `pressure` where the platform reports one. The DRM
 adapter reads libinput's tablet tools, the web adapter pointer events whose `pointerType` is
-`pen`, Android a stylus or eraser `MotionEvent`, and drive's `pen` commands make one; winit 0.30
-reports none, so a native window sees a pen only as the mouse its platform makes of it.
+`pen`, Android a stylus or eraser `MotionEvent`, the winit adapter winit's tablet-tool pointer
+events (on Wayland and Windows; X11 and macOS report none), and drive's `pen` commands make one.
 A finger that lands on no control is taken to the nearest `Interactive` that
 takes presses within `TOUCH_REACH` of it, for the whole touch, so every control's
 touch zone is bigger than it looks without anything growing; a direct hit always
