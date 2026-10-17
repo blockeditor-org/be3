@@ -8,7 +8,7 @@ use crate::context::Context;
 use crate::document::{Acted, Document};
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::{
-    DragGesture, FINGER_TAP_TIME, MAX_TOUCH_VELOCITY, Modifiers, PointerButton, PointerEvent,
+    DragGesture, FINGER_TAP_TIME, MAX_TOUCH_VELOCITY, Modifiers, Pen, PointerButton, PointerEvent,
     PointerId, PointerPhase, PointerPress, PointerSample, ScrollGesture, SecondaryDrag,
     TOUCH_DRAG_THRESHOLD, TOUCH_VELOCITY_WINDOW, TouchId, ZoomGesture,
 };
@@ -64,7 +64,7 @@ impl Pointers {
                     session.pos - session.shift,
                     session.origin - session.shift,
                 )),
-                PointerId::Mouse => None,
+                PointerId::Mouse | PointerId::Pen => None,
             })
     }
 }
@@ -114,7 +114,7 @@ impl Kind {
 
     fn of(pointer: PointerId) -> Kind {
         match pointer {
-            PointerId::Mouse => Kind::MOUSE,
+            PointerId::Mouse | PointerId::Pen => Kind::MOUSE,
             PointerId::Touch(_) => Kind::FINGER,
         }
     }
@@ -154,6 +154,8 @@ struct Session {
     pan: Option<NodeId>,
     modifiers: Modifiers,
     clicks: u32,
+    pressure: Option<f32>,
+    pen: Option<Pen>,
     dragged: bool,
     axis: Option<Direction>,
     drag_target: Option<NodeId>,
@@ -169,7 +171,11 @@ struct Session {
 
 impl Session {
     fn press(&self, rect: Rect, pos: Pos2) -> PointerPress {
-        press_at(rect, pos, self.clicks, self.modifiers, self.kind.finger)
+        PointerPress {
+            pressure: self.pressure,
+            pen: self.pen,
+            ..press_at(rect, pos, self.clicks, self.modifiers, self.kind.finger)
+        }
     }
 
     fn secondary(&self, pos: Pos2) -> SecondaryDrag {
@@ -484,6 +490,8 @@ fn press_down(doc: &mut Document, frame: &Frame, down: Down) {
         pan: None,
         modifiers: event.modifiers,
         clicks: event.clicks,
+        pressure: event.force,
+        pen: event.pen,
         dragged: false,
         axis: None,
         drag_target: None,
@@ -693,6 +701,8 @@ fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
         }
         with_session(doc, index, |doc, session| {
             let pos = event.pos + session.shift;
+            session.pressure = event.force;
+            session.pen = event.pen;
             follow(doc, frame, session, pos, false);
         });
     }

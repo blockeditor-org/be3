@@ -127,6 +127,9 @@ A command that acts on something takes a TARGET:
     drive swipe FROM TO
     drive pinch TARGET 2                      two fingers spreading apart
     drive touch down 0=TARGET 1=TARGET; drive touch move 0=... 1=...; drive touch up
+    drive pen draw FROM TO [STEPS]            a stylus stroke, its pressure rising and falling
+    drive pen move TARGET; drive pen down TARGET 0.8; drive pen move TARGET 0.3; drive pen up
+    drive pen leave                           the pen goes out of range
     drive back                                the system back gesture; back 0.4 holds it part way,
                                               back commit and back cancel finish it
     drive type 'buy milk'                     keys into what has focus; a newline presses Enter

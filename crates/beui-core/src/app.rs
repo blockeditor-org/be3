@@ -119,6 +119,10 @@ pub fn next_batch(pending: &mut Vec<Event>) -> Vec<Event> {
                             phase: TouchPhase::Start,
                             ..
                         }
+                        | Event::Pen {
+                            phase: crate::input::PenPhase::Down(_),
+                            ..
+                        }
                 )
             })
             .map(|offset| start + offset)

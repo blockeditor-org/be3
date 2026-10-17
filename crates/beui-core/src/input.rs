@@ -262,6 +262,8 @@ pub struct PointerPress {
     pub clicks: u32,
     pub modifiers: Modifiers,
     pub touch: bool,
+    pub pressure: Option<f32>,
+    pub pen: Option<Pen>,
 }
 
 #[derive(Clone, Copy, PartialEq, Debug)]
@@ -330,6 +332,20 @@ pub struct TouchId {
     pub finger: u64,
 }
 
+#[derive(Clone, Copy, PartialEq, Default, Debug)]
+pub struct Pen {
+    pub tilt: Vec2,
+    pub eraser: bool,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub enum PenPhase {
+    Move,
+    Down(PointerButton),
+    Up(PointerButton),
+    Gone,
+}
+
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum TouchPhase {
     Start,
@@ -365,6 +381,12 @@ pub enum Event {
         phase: TouchPhase,
         pos: Pos2,
         force: Option<f32>,
+    },
+    Pen {
+        phase: PenPhase,
+        pos: Pos2,
+        pressure: f32,
+        pen: Pen,
     },
     Zoom(f32),
     Ime(ImeEvent),
@@ -402,6 +424,7 @@ impl Event {
                 | Self::Scroll(_)
                 | Self::ScrollEnded
                 | Self::Touch { .. }
+                | Self::Pen { .. }
                 | Self::Zoom(_)
         )
     }
@@ -635,11 +658,16 @@ pub struct RawInput {
 pub enum PointerId {
     Mouse,
     Touch(TouchId),
+    Pen,
 }
 
 impl PointerId {
     pub fn is_touch(self) -> bool {
         matches!(self, Self::Touch(_))
+    }
+
+    pub fn hovers(self) -> bool {
+        !self.is_touch()
     }
 }
 
@@ -663,6 +691,7 @@ pub struct PointerEvent {
     pub modifiers: Modifiers,
     pub clicks: u32,
     pub force: Option<f32>,
+    pub pen: Option<Pen>,
     pub source: usize,
 }
 
@@ -677,6 +706,8 @@ pub struct InputState {
     touched: Vec<Pos2>,
     source: usize,
     force: Option<f32>,
+    pen: Option<Pen>,
+    pen_at: Option<Pos2>,
     scroll_samples: VecDeque<(Instant, Vec2)>,
 }
 
@@ -692,6 +723,8 @@ impl Default for InputState {
             touched: Vec::new(),
             source: 0,
             force: None,
+            pen: None,
+            pen_at: None,
             scroll_samples: VecDeque::new(),
         }
     }
@@ -705,7 +738,8 @@ impl InputState {
             match event {
                 Event::PointerMoved(pos)
                 | Event::PointerButton { pos, .. }
-                | Event::Touch { pos, .. } => *pos = scale(*pos),
+                | Event::Touch { pos, .. }
+                | Event::Pen { pos, .. } => *pos = scale(*pos),
                 Event::Scroll(delta) => *delta *= factor,
                 _ => {}
             }
@@ -775,7 +809,11 @@ impl InputState {
             for (id, pos) in &self.touches {
                 input.emit_at(source, PointerId::Touch(*id), PointerPhase::Cancel, *pos);
             }
+            if let Some(pos) = self.pen_at {
+                input.emit_at(source, PointerId::Pen, PointerPhase::Gone, pos);
+            }
         }
+        input.pen_at = None;
         input.pointer.pos = None;
         input.pointer.motion = Vec2::ZERO;
         input.touches.clear();
@@ -785,6 +823,7 @@ impl InputState {
     fn emit_at(&mut self, source: usize, pointer: PointerId, phase: PointerPhase, pos: Pos2) {
         self.source = source;
         self.force = None;
+        self.pen = None;
         self.emit(pointer, phase, pos);
     }
 
@@ -807,6 +846,7 @@ impl InputState {
         for (source, event) in raw.events.iter().enumerate() {
             self.source = source;
             self.force = None;
+            self.pen = None;
             if let Some(modifiers) = event.modifiers() {
                 self.modifiers = modifiers;
             }
@@ -824,6 +864,7 @@ impl InputState {
                         self.emit(PointerId::Touch(id), PointerPhase::Cancel, pos);
                     }
                     self.pointer.lift_finger();
+                    self.pen_event(PenPhase::Gone, self.pen_at.unwrap_or_default(), now);
                     self.mouse_gone();
                 }
                 Event::PointerButton {
@@ -863,6 +904,16 @@ impl InputState {
                     self.force = *force;
                     self.touch(*id, *phase, *pos, now);
                 }
+                Event::Pen {
+                    phase,
+                    pos,
+                    pressure,
+                    pen,
+                } => {
+                    self.force = Some(*pressure);
+                    self.pen = Some(*pen);
+                    self.pen_event(*phase, *pos, now);
+                }
                 _ => {}
             }
         }
@@ -896,8 +947,35 @@ impl InputState {
             modifiers: self.modifiers,
             clicks: self.pointer.clicks,
             force: self.force,
+            pen: self.pen,
             source: self.source,
         });
+    }
+
+    fn pen_event(&mut self, phase: PenPhase, pos: Pos2, now: Instant) {
+        let phase = match phase {
+            PenPhase::Gone => {
+                let Some(at) = self.pen_at.take() else {
+                    return;
+                };
+                if self.pointer.mouse() == Some(at) {
+                    self.pointer.pos = None;
+                }
+                self.emit(PointerId::Pen, PointerPhase::Gone, at);
+                return;
+            }
+            PenPhase::Move => PointerPhase::Move,
+            PenPhase::Down(button) => {
+                if button == PointerButton::Primary {
+                    self.pointer.count_click(pos, now);
+                }
+                PointerPhase::Down(button)
+            }
+            PenPhase::Up(button) => PointerPhase::Up(button),
+        };
+        self.pen_at = Some(pos);
+        self.pointer.place_mouse(pos);
+        self.emit(PointerId::Pen, phase, pos);
     }
 
     fn mouse_gone(&mut self) {

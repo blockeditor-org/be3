@@ -313,7 +313,7 @@ pub(crate) fn entity_bounds(entity: &CanvasEntity) -> WorldRect {
             let end = local_to_world(entity.transform, CanvasPoint::new(0.5, 0.0));
             WorldRect::from_points(start, end)
         }
-        CanvasEntityKind::Pen { points } if !points.is_empty() => points
+        CanvasEntityKind::Pen { points, .. } if !points.is_empty() => points
             .iter()
             .map(|point| local_to_world(entity.transform, *point))
             .map(|point| WorldRect::from_points(point, point))
@@ -403,7 +403,7 @@ pub(crate) fn hit_entity(entity: &CanvasEntity, point: CanvasPoint, radius: f32)
             let b = local_to_world(entity.transform, CanvasPoint::new(0.5, 0.0));
             point_segment_distance(point, a, b) <= radius
         }
-        CanvasEntityKind::Pen { points } => match points.as_slice() {
+        CanvasEntityKind::Pen { points, .. } => match points.as_slice() {
             [dot] => distance(point, local_to_world(entity.transform, *dot)) <= radius,
             _ => points.windows(2).any(|segment| {
                 point_segment_distance(
@@ -744,7 +744,18 @@ pub(crate) fn proportional_resize_bounds(
     }
 }
 
-pub(crate) fn pen_entity(points: Vec<CanvasPoint>, style: CanvasEntityStyle) -> CanvasEntity {
+pub(crate) const PEN_PRESSURE: f32 = 0.5;
+pub(crate) const MOST_PRESSED_WIDTH: f32 = 1.75;
+
+pub(crate) fn pressed_width(width: f32, pressure: f32) -> f32 {
+    width * (0.25 + 1.5 * pressure.clamp(0.0, 1.0))
+}
+
+pub(crate) fn pen_entity(
+    points: Vec<CanvasPoint>,
+    pressures: Vec<f32>,
+    style: CanvasEntityStyle,
+) -> CanvasEntity {
     let bounds = points
         .iter()
         .copied()
@@ -760,7 +771,7 @@ pub(crate) fn pen_entity(points: Vec<CanvasPoint>, style: CanvasEntityStyle) -> 
     CanvasEntity {
         id: Uuid::new_v4(),
         transform: CanvasTransform::new(center, size, 0.0),
-        kind: CanvasEntityKind::Pen { points },
+        kind: CanvasEntityKind::Pen { points, pressures },
         style,
         group_id: None,
         locked: false,

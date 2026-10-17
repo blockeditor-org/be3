@@ -316,6 +316,19 @@ fn coalesce_input(current: &mut InputEvent, incoming: &InputEvent) -> bool {
             *force = *incoming_force;
             true
         }
+        (
+            current @ InputEvent::Pen {
+                phase: crate::PenPhase::Move,
+                ..
+            },
+            InputEvent::Pen {
+                phase: crate::PenPhase::Move,
+                ..
+            },
+        ) => {
+            *current = incoming.clone();
+            true
+        }
         (InputEvent::Modifiers(current), InputEvent::Modifiers(incoming))
             if current == incoming =>
         {

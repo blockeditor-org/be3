@@ -515,6 +515,7 @@ fn is_activity(event: &Event) -> bool {
             | Event::Text(_)
             | Event::Paste(_)
             | Event::Touch { .. }
+            | Event::Pen { .. }
             | Event::Zoom(_)
     )
 }
@@ -544,6 +545,10 @@ fn taps(doc: &mut Document, events: &[Event]) -> Vec<usize> {
             | Event::Focus(false)
             | Event::Touch {
                 phase: crate::input::TouchPhase::Start,
+                ..
+            }
+            | Event::Pen {
+                phase: crate::input::PenPhase::Down(_),
                 ..
             } => doc.tapping = None,
             _ => {}

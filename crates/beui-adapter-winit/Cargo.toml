@@ -6,10 +6,18 @@ license.workspace = true
 
 [target.'cfg(not(any(target_os = "android", target_arch = "wasm32")))'.dependencies]
 accesskit = "0.24.1"
-accesskit_winit = "0.33.2"
 beui-core = { path = "../beui-core" }
 pollster = "0.4"
-winit = "0.30"
+winit = "=0.31.0-beta.3"
+
+[target.'cfg(all(unix, not(any(target_os = "android", target_os = "macos", target_os = "ios"))))'.dependencies]
+accesskit_unix = "0.22.1"
+
+[target.'cfg(target_os = "windows")'.dependencies]
+accesskit_windows = "0.34.0"
+
+[target.'cfg(target_os = "macos")'.dependencies]
+accesskit_macos = "0.26.3"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios", target_arch = "wasm32")))'.dependencies]
 arboard = { version = "3.6", default-features = false, features = ["image-data"] }

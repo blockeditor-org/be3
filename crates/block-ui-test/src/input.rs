@@ -1,6 +1,6 @@
 use beui::Event;
 use beui_plugin_input::{
-    back_phase, pointer_button, protocol_key, protocol_modifiers, touch_phase,
+    back_phase, pen_phase, pointer_button, protocol_key, protocol_modifiers, touch_phase,
 };
 use block_plugin_api::{InputEvent, Modifiers, WheelUnit};
 
@@ -78,6 +78,20 @@ impl Input {
                 x: pos.x,
                 y: pos.y,
                 force,
+            }),
+            Event::Pen {
+                phase,
+                pos,
+                pressure,
+                pen,
+            } => output.push(InputEvent::Pen {
+                phase: pen_phase(phase),
+                x: pos.x,
+                y: pos.y,
+                pressure,
+                tilt_x: pen.tilt.x,
+                tilt_y: pen.tilt.y,
+                eraser: pen.eraser,
             }),
             Event::Key { press, text, .. } => {
                 self.modifiers(press.modifiers, output);

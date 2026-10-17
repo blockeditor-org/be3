@@ -1,0 +1,74 @@
+use super::*;
+use crate::input::{Pen, PenPhase, PointerPress};
+use crate::primitives::*;
+use crate::reactive::*;
+
+#[test]
+fn a_pen_presses_and_drags_like_a_mouse_and_reports_its_pressure() {
+    let _root = crate::reactive::RootScope::new();
+    let (presses, set_presses) = create_signal::<Vec<PointerPress>>(Vec::new());
+    let (hovered, set_hovered) = create_signal(false);
+    let document = build({
+        move || {
+            view! {
+                <Interactive
+                    on_hover_change={move |hover: bool| set_hovered.set(hover)}
+                    on_press={move |press: PointerPress| set_presses.update(|presses| presses.push(press))}
+                    on_drag={move |press: PointerPress| set_presses.update(|presses| presses.push(press))}
+                >
+                    <Frame width=300.0 height=300.0 />
+                </Interactive>
+            }
+        }
+    });
+    let mut harness = Harness::new(document);
+    harness.frame(Vec::new());
+    let tilted = Pen {
+        tilt: vec2(10.0, -5.0),
+        eraser: false,
+    };
+    let pen = |phase, pos, pressure| Event::Pen {
+        phase,
+        pos,
+        pressure,
+        pen: tilted,
+    };
+
+    harness.frame(vec![pen(PenPhase::Move, pos2(100.0, 100.0), 0.0)]);
+    assert!(
+        hovered.get_untracked(),
+        "a pen in range hovers what it is over"
+    );
+
+    harness.frame(vec![pen(
+        PenPhase::Down(PointerButton::Primary),
+        pos2(100.0, 100.0),
+        0.25,
+    )]);
+    harness.frame(vec![pen(PenPhase::Move, pos2(110.0, 100.0), 0.75)]);
+    harness.frame(vec![pen(
+        PenPhase::Up(PointerButton::Primary),
+        pos2(110.0, 100.0),
+        0.0,
+    )]);
+
+    let presses = presses.get_untracked();
+    let seen: Vec<(Pos2, Option<f32>, bool, Option<Pen>)> = presses
+        .iter()
+        .map(|press| (press.pos, press.pressure, press.touch, press.pen))
+        .collect();
+    assert_eq!(
+        (seen.first().copied(), seen.last().copied()),
+        (
+            Some((pos2(100.0, 100.0), Some(0.25), false, Some(tilted))),
+            Some((pos2(110.0, 100.0), Some(0.75), false, Some(tilted))),
+        ),
+        "the press and the drag each carry the pen's pressure and tilt where they happened, and the pen is not a finger"
+    );
+
+    harness.frame(vec![pen(PenPhase::Gone, pos2(110.0, 100.0), 0.0)]);
+    assert!(
+        !hovered.get_untracked(),
+        "a pen leaving range stops hovering"
+    );
+}

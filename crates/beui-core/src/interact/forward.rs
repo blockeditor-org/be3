@@ -153,7 +153,7 @@ pub(super) fn route(
             pointed += 1;
             let to = alive(doc, sink.filter(|sink| reachable(doc, *sink)));
             if let Some(to) = to
-                && pointer_event.pointer == PointerId::Mouse
+                && pointer_event.pointer.hovers()
                 && !entered.contains(&to)
             {
                 entered.push(to);
@@ -183,9 +183,9 @@ pub(super) fn route(
             _ => {}
         }
     }
-    let captured = doc.pointers.sink_of(PointerId::Mouse);
+    let captured = [PointerId::Mouse, PointerId::Pen].map(|pointer| doc.pointers.sink_of(pointer));
     entered.retain(|sink| {
-        let stays = hovered == Some(*sink) || captured == Some(*sink);
+        let stays = hovered == Some(*sink) || captured.contains(&Some(*sink));
         if !stays && alive(doc, Some(*sink)).is_some() {
             deliver(Some(*sink), Forwarded::Left);
         }
