@@ -88,6 +88,7 @@ members = [
     "crates/editors/workspace-ui",
     "crates/fix-rust-source",
     "crates/geometry",
+    "crates/grapheme-segmentation",
     "crates/ghostty-vt",
     "crates/local-tools",
     "crates/logicgame",
