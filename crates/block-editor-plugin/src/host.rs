@@ -824,6 +824,12 @@ impl EditorHost {
         ));
     }
 
+    pub fn restore_block(&self, block_id: Uuid) {
+        self.block_commands
+            .borrow_mut()
+            .push((block_id, BlockCommand::Restore));
+    }
+
     pub fn delete_block(
         &self,
         block_id: Uuid,

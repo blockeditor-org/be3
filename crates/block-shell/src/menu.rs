@@ -18,6 +18,7 @@ pub(crate) enum Action {
     Share,
     Unlink,
     Delete,
+    Restore,
 }
 
 pub(crate) struct Permissions {
@@ -39,6 +40,7 @@ pub(crate) fn action_for(path: &[usize]) -> Option<Action> {
         [4] => Some(Action::Share),
         [5] => Some(Action::Unlink),
         [6] => Some(Action::Delete),
+        [7] => Some(Action::Restore),
         _ => None,
     }
 }
@@ -127,6 +129,7 @@ pub(crate) fn apply(
                 workspace.host().unlink_block(reference.id, container);
             }
         }
+        Action::Restore => workspace.host().restore_block(reference.id),
         Action::Delete => {
             if let Some(source) = permissions.source {
                 workspace.host().delete_block(
@@ -195,12 +198,30 @@ pub(crate) fn ReferenceMenuItem(
                     .is_none_or(|parent| parent == BlockParent::Detached)
             })
     });
+    let detail = create_memo(move || {
+        match reference.with(|reference| {
+            reference
+                .as_ref()
+                .is_some_and(|reference| reference.deleted)
+        }) {
+            true => "In Recently Deleted".to_owned(),
+            false => String::new(),
+        }
+    });
+    let restore = create_memo(move || {
+        edit.get()
+            || reference.with(|reference| {
+                reference
+                    .as_ref()
+                    .is_none_or(|reference| !reference.deleted)
+            })
+    });
     let delete_label = create_memo(move || match rights.get().is_some_and(|rights| rights.5) {
         true => "Remove link".to_owned(),
         false => "Delete".to_owned(),
     });
     view! {
-        <MenuItem label={label}>
+        <MenuItem label={label} detail={detail}>
             <MenuItem label="Open" />
             <MenuItem label="Add" disabled={add} />
             <MenuItem label="Set parent" disabled={edit}>
@@ -211,6 +232,7 @@ pub(crate) fn ReferenceMenuItem(
             <MenuItem label="Share" disabled={edit} />
             <MenuItem label="Unlink" disabled={unlink} />
             <MenuItem label={delete_label} disabled={delete} />
+            <MenuItem label="Restore" disabled={restore} />
         </MenuItem>
     }
 }

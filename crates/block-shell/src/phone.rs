@@ -214,7 +214,14 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
 #[component]
 fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: String) -> NodeId {
     let ids = create_memo(move || {
-        refs.with(|refs| refs.list.iter().map(|info| info.id).collect::<Vec<Uuid>>())
+        refs.with(|refs| {
+            let mut listed = refs.list.iter().collect::<Vec<_>>();
+            listed.sort_by_key(|info| info.deleted);
+            listed
+                .into_iter()
+                .map(|info| info.id)
+                .collect::<Vec<Uuid>>()
+        })
     });
     let some = create_memo(move || !ids.get().is_empty());
     view! {
@@ -259,6 +266,16 @@ fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: S
             .unwrap_or_default()
             .to_owned()
     });
+    let detail = create_memo(move || {
+        match reference.with(|reference| {
+            reference
+                .as_ref()
+                .is_some_and(|reference| reference.deleted)
+        }) {
+            true => "In Recently Deleted".to_owned(),
+            false => String::new(),
+        }
+    });
     let opening = move || {
         let Some(reference) = reference.get_untracked() else {
             return;
@@ -268,6 +285,6 @@ fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: S
         workspace.open(TabItem::new(reference.id, reference.block_type), via);
     };
     view! {
-        <ActionRow @test_id={named} label={name} glyph on_click={opening} />
+        <ActionRow @test_id={named} label={name} glyph detail on_click={opening} />
     }
 }

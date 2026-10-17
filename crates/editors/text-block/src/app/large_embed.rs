@@ -38,6 +38,7 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
     let icon = embed.icon.unwrap_or_default().to_owned();
     let label = embed.label.clone();
     let automatic = embed.automatic;
+    let deleted = embed.deleted;
 
     let icon_row = move || {
         let glyph = icon.clone();
@@ -80,6 +81,13 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                             italic={automatic}
                             clip=true
                         />
+                        <Show condition={deleted}>
+                            <Text
+                                string="In Recently Deleted"
+                                size=TextSize::Sm
+                                color=TextColor::Muted
+                            />
+                        </Show>
                         <Show condition={editable}>
                             {move || view! {
                                 <Button

@@ -319,9 +319,10 @@ pub(crate) fn links(catalog: &BlockCatalog, pick: &Pick, blocks: &[BlockInfo]) -
         .iter()
         .filter(|block| block.access.can_view())
         .filter(|block| {
-            block
-                .parent
-                .is_some_and(|parent| parent != BlockParent::Detached)
+            !block.deleted
+                && block
+                    .parent
+                    .is_some_and(|parent| parent != BlockParent::Detached)
         })
         .filter(|block| !excluded.contains(&block.id))
         .filter(|block| pick.allowed(block.block_type))
@@ -359,9 +360,10 @@ pub(crate) fn places(catalog: &BlockCatalog, pick: &Pick, blocks: &[BlockInfo]) 
         .iter()
         .filter(|block| block.access.can_edit())
         .filter(|block| {
-            block
-                .parent
-                .is_some_and(|parent| parent != BlockParent::Detached)
+            !block.deleted
+                && block
+                    .parent
+                    .is_some_and(|parent| parent != BlockParent::Detached)
         })
         .filter(|block| {
             block.block_type == folder_type

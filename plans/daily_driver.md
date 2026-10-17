@@ -303,8 +303,8 @@ Needed before daily use:
     "restore this version" (a new commit, not a rewind).
   - Bookmarks (`CommitKind::Bookmark`) are kept by retention.
 - **Trash.**
-  - Remember the original parent, so restore goes back there.
-  - Add "Delete forever" and "Empty trash".
+  - Add "Delete forever" and "Empty trash". Restore already goes back to the
+    original parent (`DELETED_FROM`).
   - Any automatic purge waits until history and backups are trusted.
 - **Export and import.**
   - Export a folder or the whole workspace to a directory of `.md` files,

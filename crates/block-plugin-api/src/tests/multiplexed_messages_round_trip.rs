@@ -20,6 +20,7 @@ fn multiplexed_messages_round_trip() {
                 derived: [([9; 16], ByteBuf::from(vec![5, 6, 7]))].into(),
             },
             locked: false,
+            deleted: false,
         }],
     });
     assert_eq!(
