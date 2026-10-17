@@ -9,7 +9,7 @@ fn remaps_written_as_text_name_this_plugins_remapper_once_applied() {
 
     assert_eq!(
         content(&editor).root().runs(),
-        Some(("be3.input-remaps", "remapper.wasm", text.as_bytes())),
+        Some(("be3.linux-settings", "remapper.wasm", text.as_bytes())),
         "the text is stored as it was written, for this plugin's remapper to read"
     );
     editor.snapshot("remaps_written_as_text_name_this_plugins_remapper_once_applied");

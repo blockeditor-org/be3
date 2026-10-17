@@ -49,3 +49,6 @@ impl block_editor_beui::BeuiApp for DefaultEditorsApp {
         Some(Vec2::new(INTRINSIC_WIDTH, EDITORS_HEIGHT))
     }
 }
+
+#[cfg(test)]
+mod tests;

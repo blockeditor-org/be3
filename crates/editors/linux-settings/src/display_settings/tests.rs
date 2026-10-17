@@ -5,7 +5,7 @@ use block_editor_beui::{Displays, EditorHost, HostDisplay, HostDisplayMode, Owne
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::DisplaySettingsApp;
+use crate::display_settings::DisplaySettingsApp;
 
 mod choosing_a_refresh_rate_stores_the_mode;
 mod choosing_a_resolution_uses_its_fastest_refresh_rate;

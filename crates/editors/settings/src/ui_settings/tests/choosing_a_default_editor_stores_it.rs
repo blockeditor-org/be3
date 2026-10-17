@@ -2,7 +2,7 @@ use block_editor_beui::be_block::EditorSettingsContent;
 use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor};
 
 use super::*;
-use crate::app::DefaultEditorsApp;
+use crate::ui_settings::DefaultEditorsApp;
 
 #[test]
 fn choosing_a_default_editor_stores_it() {

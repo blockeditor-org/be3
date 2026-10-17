@@ -1,0 +1,32 @@
+{
+  "id": "be3.linux-settings",
+  "name": "Linux settings",
+  "version": "0.1.0",
+  "editors": [
+    {
+      "block_type": "696e7075-742d-7365-7474-696e67732d31",
+      "display_name": "Input",
+      "icon": "\ue312",
+      "regions": [
+        "Frame"
+      ]
+    },
+    {
+      "block_type": "696e7075-742d-7265-6d61-702d626c6f31",
+      "display_name": "Input Remaps",
+      "icon": "\ue312",
+      "regions": [
+        "Frame"
+      ]
+    },
+    {
+      "block_type": "64697370-6c61-792d-7365-7474696e6773",
+      "display_name": "Displays",
+      "icon": "\ueb97",
+      "regions": [
+        "Frame"
+      ]
+    }
+  ],
+  "entry_point": "linux_settings.wasm"
+}

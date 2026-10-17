@@ -4,7 +4,7 @@ use block_editor_beui::{EditorHost, OwnedEditor, RemapState, Remaps};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::InputRemapsApp;
+use crate::input_remaps::InputRemapsApp;
 
 mod remaps_that_do_not_read_say_why_and_store_nothing;
 mod remaps_written_as_text_name_this_plugins_remapper_once_applied;
@@ -20,7 +20,7 @@ fn editor(state: RemapState, config: Option<&str>) -> BeuiTest<InputRemapsApp> {
     let mut content = InputRemapperContent::default();
     if let Some(config) = config {
         content.apply(&InputRemapper::set(
-            "be3.input-remaps",
+            "be3.linux-settings",
             "remapper.wasm",
             Some(config.as_bytes().to_vec()),
         ));
