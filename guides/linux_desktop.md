@@ -247,6 +247,26 @@ with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press
 and change them from outside the app with `pactl set-sink-volume`, `set-sink-mute` and
 `set-default-sink`.
 
+## The on-screen keyboard
+
+beui's own on-screen keyboard (guides/beui.md, The on-screen keyboard) is the desktop's. Under
+`--session` it opens by itself when a field is tapped and no libinput device with letter keys is
+plugged in; the keyboard button beside the bar's clock (`desktop.keyboard`, which calls
+`toggle_keyboard()` and so goes to the host as `WindowRequests::keyboard_toggles`) opens and closes
+it whatever is plugged in. It is drawn by the host along the bottom of the screen the focused field
+is on, so the shell's screen, bar and windows on that screen are laid out above it.
+
+Programs reach it through `zwp_text_input_v3` (be-wayland's `text_input.rs`; there is no input
+method protocol, since the keyboard is the compositor's own): a text input is entered on the surface
+with the keyboard focus, and while one of the focused window's is enabled the window's
+`WindowView` is a field that takes text (`ime`) with the number of enables so far as its
+`keyboard_asks`, so a program enabling its field again, as GTK does when a focused entry is tapped,
+asks for the keyboard again. Keys reach a program as any key does, by scan code; text no key types
+(é, π, an emoji) reaches it as `commit_string`, and a program without an enabled text input never
+gets it. X11 programs, and programs such as foot that use no text input, take the keyboard's keys
+but never open it by themselves, so the bar's button is how it comes up over them. Pressing the
+button gives the shell the focus, so tap the window again before typing into it.
+
 ## Input remaps
 
 Under `--session` the keys, mouse buttons and wheel notches libinput reports can be remapped before

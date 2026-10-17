@@ -36,6 +36,7 @@ pub mod select;
 pub mod selectable;
 pub mod sheet;
 pub mod slider;
+pub mod software_keyboard;
 pub mod split_button;
 pub mod stack;
 pub mod text_area;
@@ -128,6 +129,7 @@ pub use select::{
 pub use selectable::{Selectable, SelectableState, copy_selection, select_all, selectable_text};
 pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, SheetGripHandle};
 pub use slider::{Slider, SliderHandle, SliderScale, slider_value};
+pub use software_keyboard::{KeyCapHandle, KeyboardHandle, SoftwareKeyboard};
 pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use text_area::text_area_handles;

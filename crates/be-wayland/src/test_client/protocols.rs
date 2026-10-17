@@ -10,6 +10,9 @@ use wayland_protocols::wp::single_pixel_buffer::v1::client::wp_single_pixel_buff
 use wayland_protocols::wp::tearing_control::v1::client::{
     wp_tearing_control_manager_v1, wp_tearing_control_v1,
 };
+use wayland_protocols::wp::text_input::zv3::client::{
+    zwp_text_input_manager_v3, zwp_text_input_v3,
+};
 use wayland_protocols::wp::viewporter::client::{wp_viewport, wp_viewporter};
 use wayland_protocols::xdg::foreign::zv2::client::{
     zxdg_exported_v2, zxdg_exporter_v2, zxdg_imported_v2, zxdg_importer_v2,
@@ -26,6 +29,8 @@ pub(crate) struct Protocols {
     pub(crate) inhibitor_active: Option<bool>,
     pub(crate) exported: Option<String>,
     pub(crate) icon_sizes: Vec<i32>,
+    pub(crate) text_entered: bool,
+    pub(crate) text_committed: Vec<String>,
 }
 
 impl TestClient {
@@ -49,6 +54,12 @@ impl TestClient {
         let manager: zwp_keyboard_shortcuts_inhibit_manager_v1::ZwpKeyboardShortcutsInhibitManagerV1 =
             self.bind("zwp_keyboard_shortcuts_inhibit_manager_v1", 1);
         manager.inhibit_shortcuts(surface, self.seat.as_ref().unwrap(), &self.handle, ())
+    }
+
+    pub(crate) fn text_input(&self) -> zwp_text_input_v3::ZwpTextInputV3 {
+        let manager: zwp_text_input_manager_v3::ZwpTextInputManagerV3 =
+            self.bind("zwp_text_input_manager_v3", 1);
+        manager.get_text_input(self.seat.as_ref().unwrap(), &self.handle, ())
     }
 
     pub(crate) fn content_type(
@@ -149,6 +160,26 @@ impl Dispatch<zwp_keyboard_shortcuts_inhibitor_v1::ZwpKeyboardShortcutsInhibitor
     }
 }
 
+impl Dispatch<zwp_text_input_v3::ZwpTextInputV3, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &zwp_text_input_v3::ZwpTextInputV3,
+        event: zwp_text_input_v3::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        match event {
+            zwp_text_input_v3::Event::Enter { .. } => state.protocols.text_entered = true,
+            zwp_text_input_v3::Event::Leave { .. } => state.protocols.text_entered = false,
+            zwp_text_input_v3::Event::CommitString { text } => {
+                state.protocols.text_committed.extend(text);
+            }
+            _ => {}
+        }
+    }
+}
+
 impl Dispatch<zxdg_exported_v2::ZxdgExportedV2, ()> for Received {
     fn event(
         state: &mut Self,
@@ -181,6 +212,7 @@ impl Dispatch<xdg_toplevel_icon_manager_v1::XdgToplevelIconManagerV1, ()> for Re
 
 wayland_client::delegate_noop!(Received: ignore zwp_keyboard_shortcuts_inhibit_manager_v1::ZwpKeyboardShortcutsInhibitManagerV1);
 wayland_client::delegate_noop!(Received: ignore wp_content_type_manager_v1::WpContentTypeManagerV1);
+wayland_client::delegate_noop!(Received: ignore zwp_text_input_manager_v3::ZwpTextInputManagerV3);
 wayland_client::delegate_noop!(Received: ignore wp_content_type_v1::WpContentTypeV1);
 wayland_client::delegate_noop!(Received: ignore wp_tearing_control_manager_v1::WpTearingControlManagerV1);
 wayland_client::delegate_noop!(Received: ignore wp_tearing_control_v1::WpTearingControlV1);

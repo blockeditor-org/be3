@@ -105,6 +105,7 @@ pub mod reactive {
     pub fn build(f: impl FnOnce() -> NodeId) -> Document {
         let mut document = beui_view::reactive::build(f);
         beui_inspector::install(&mut document);
+        beui_components_styled::install_keyboard(&mut document);
         document
     }
 }

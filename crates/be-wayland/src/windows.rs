@@ -55,6 +55,8 @@ pub struct WindowSignals {
     set_focused: WriteSignal<bool>,
     pub(crate) asks: ReadSignal<u64>,
     set_asks: WriteSignal<u64>,
+    pub(crate) typing: ReadSignal<Option<u32>>,
+    set_typing: WriteSignal<Option<u32>>,
     pub(crate) answered: Rc<Cell<u64>>,
     pub(crate) painted: Rc<Cell<bool>>,
 }
@@ -231,6 +233,7 @@ impl Windows {
         let (popups, set_popups) = create_signal(None);
         let (focused, set_focused) = create_signal(false);
         let (asks, set_asks) = create_signal(1);
+        let (typing, set_typing) = create_signal(None);
         inner.windows.borrow_mut().insert(
             id,
             WindowSignals {
@@ -242,10 +245,24 @@ impl Windows {
                 set_focused,
                 asks,
                 set_asks,
+                typing,
+                set_typing,
                 answered: Rc::new(Cell::new(0)),
                 painted: Rc::new(Cell::new(false)),
             },
         );
+    }
+
+    pub(crate) fn set_typing(&self, typing: Option<(WindowId, u64)>) {
+        let inner = self.0.get();
+        for (id, signals) in inner.windows.borrow().iter() {
+            let asks = typing
+                .filter(|(window, _)| window == id)
+                .map(|(_, asks)| asks as u32);
+            if signals.typing.get_untracked() != asks {
+                signals.set_typing.set(asks);
+            }
+        }
     }
 
     pub(crate) fn forget(&self, id: WindowId) {

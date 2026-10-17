@@ -746,6 +746,9 @@ pub(crate) fn InputsPage() -> NodeId {
             <Sample title="Text input" code={vec![NameInput::SOURCE, greeting_label::SOURCE]}>
                 <NameInput />
             </Sample>
+            <Sample title="On-screen keyboard" code={vec![KeyboardInput::SOURCE]}>
+                <KeyboardInput />
+            </Sample>
             <Sample title="Number input" code={vec![SeatsInput::SOURCE]}>
                 <SeatsInput />
             </Sample>
@@ -783,6 +786,29 @@ fn NameInput() -> NodeId {
                 value=String::new()
                 placeholder="A note, over several lines"
                 multiline=true
+            />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn KeyboardInput() -> NodeId {
+    view! {
+        <List spacing=SECTION_SPACING>
+            <TextInput value=String::new() placeholder="Type with the keys below" />
+            <Frame height={keyboard_height(480.0)}>
+                <SoftwareKeyboard />
+            </Frame>
+            <Text
+                style=TextStyle::CAPTION
+                string="Tap a key, or drag toward a corner for what it shows there. Circle up, right and down for a capital."
+                wrap=true
+            />
+            <Button
+                label="Open the on-screen keyboard"
+                variant=ButtonVariant::Secondary
+                on_click={toggle_keyboard}
             />
         </List>
     }

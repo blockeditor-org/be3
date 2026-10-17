@@ -37,7 +37,7 @@ use smithay::reexports::calloop::{
 use smithay::reexports::drm;
 use smithay::reexports::drm::control::Device as ControlDevice;
 use smithay::reexports::drm::control::{connector, crtc};
-use smithay::reexports::input::{Device as InputDevice, Libinput};
+use smithay::reexports::input::{Device as InputDevice, DeviceCapability, Libinput};
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::utils::{Clock, DeviceFd, Monotonic};
 
@@ -59,6 +59,7 @@ use crate::recovery::{Card, Recovery};
 use crate::screen::FORMAT;
 use crate::wake::{Held, Input, WakeGate};
 
+const KEY_A: u32 = 30;
 const LONGEST_WAIT: Duration = Duration::from_secs(3600);
 const BLANKED_FRAME: Duration = Duration::from_secs(1);
 const DARKEN_RETRY: Duration = Duration::from_secs(1);
@@ -811,6 +812,11 @@ impl Session {
         }
         pointers.sort_by(|left, right| left.id.cmp(&right.id));
         self.control.set_devices(pointers);
+        let typing = self.devices.iter().any(|device| {
+            device.has_capability(DeviceCapability::Keyboard)
+                && device.keyboard_has_key(KEY_A) == Ok(true)
+        });
+        self.runner.reports().keyboard_attached(typing);
     }
 
     fn input(&mut self, event: InputEvent<LibinputInputBackend>) {

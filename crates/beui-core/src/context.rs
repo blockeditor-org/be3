@@ -60,6 +60,7 @@ struct Inner {
     close_requested: Cell<bool>,
     touch_emulation: Cell<bool>,
     input_simulation: RefCell<Option<Box<dyn InputSimulation>>>,
+    keyboard: RefCell<crate::software_keyboard::KeyboardState>,
     simulation_area: Cell<(Rect, f32)>,
     mouse_viewport: Cell<Option<Rect>>,
     shown: Cell<Option<Rect>>,
@@ -103,6 +104,12 @@ pub trait InputSimulation: Any {
     fn measure(&mut self, viewport: Rect, scale: f32);
 
     fn reserved(&self) -> f32;
+
+    fn keyboard(&mut self, _shown: Option<Rect>) {}
+
+    fn take_keyboard_toggle(&mut self) -> bool {
+        false
+    }
 
     fn painting(&self) -> bool;
 
@@ -170,6 +177,7 @@ pub struct FrameOutput {
     pub actions: Vec<ActionGroup>,
     pub unran_actions: Vec<String>,
     pub hits: Option<Vec<String>>,
+    pub typed: Vec<Event>,
     pixels_per_point: f32,
 }
 
@@ -254,6 +262,7 @@ impl Context {
                 close_requested: Cell::new(false),
                 touch_emulation: Cell::new(false),
                 input_simulation: RefCell::new(None),
+                keyboard: RefCell::new(Default::default()),
                 simulation_area: Cell::new((Rect::NOTHING, 1.0)),
                 mouse_viewport: Cell::new(None),
                 shown: Cell::new(None),
@@ -461,10 +470,18 @@ impl Context {
         self.inner.repaint_after.set(Duration::MAX);
         self.inner.mouse_viewport.set(None);
         self.inner.shown.set(None);
-        let (raw, wake) = match self.inner.input_simulation.borrow_mut().as_mut() {
-            Some(simulation) => simulation.translate(raw, now),
-            None => (raw, None),
+        let keyboard = self.keyboard_rect();
+        let (raw, wake, toggled) = match self.inner.input_simulation.borrow_mut().as_mut() {
+            Some(simulation) => {
+                simulation.keyboard(keyboard);
+                let (raw, wake) = simulation.translate(raw, now);
+                (raw, wake, simulation.take_keyboard_toggle())
+            }
+            None => (raw, None, false),
         };
+        if toggled {
+            self.toggle_keyboard();
+        }
         if let Some(delay) = wake {
             self.request_repaint_after(delay);
         }
@@ -561,6 +578,7 @@ impl Context {
                 .hit_query
                 .take()
                 .map(|_| std::mem::take(&mut *self.inner.hit_answers.borrow_mut())),
+            typed: self.inner.keyboard.borrow_mut().take_typed(),
             pixels_per_point: scale,
         }
     }
@@ -632,6 +650,10 @@ impl Context {
         }
     }
 
+    pub fn request_typed_paste(&self) {
+        self.inner.paste.set(Some(PasteRequest::Typed));
+    }
+
     pub fn paste_shortcut(&self) {
         self.inner.paste.set(Some(PasteRequest::Shortcut));
     }
@@ -686,6 +708,7 @@ impl Context {
 
     fn shown_window(&self) -> WindowState {
         let mut window = self.inner.window.borrow().clone();
+        window.keyboard_toggles = self.inner.keyboard.borrow().toggles();
         if self.touch_emulation() {
             window.cursor = CursorIcon::Touch;
         }
@@ -698,6 +721,52 @@ impl Context {
 
     pub fn set_touch_emulation(&self, enabled: bool) {
         self.inner.touch_emulation.set(enabled);
+    }
+
+    pub fn enable_keyboard(&self) {
+        self.inner.keyboard.borrow_mut().enable();
+    }
+
+    pub fn keyboard_enabled(&self) -> bool {
+        self.inner.keyboard.borrow().enabled()
+    }
+
+    pub fn keyboard_attached(&self) -> bool {
+        self.inner.keyboard.borrow().attached()
+    }
+
+    pub fn set_keyboard_attached(&self, attached: bool) {
+        self.inner.keyboard.borrow_mut().set_attached(attached);
+    }
+
+    pub fn toggle_keyboard(&self) {
+        self.inner.keyboard.borrow_mut().toggle();
+        self.request_repaint();
+    }
+
+    pub fn close_keyboard(&self) {
+        self.inner.keyboard.borrow_mut().close();
+        self.request_repaint();
+    }
+
+    pub fn keyboard_opened(&self) -> crate::software_keyboard::Opened {
+        self.inner.keyboard.borrow().opened()
+    }
+
+    pub fn keyboard_rect(&self) -> Option<Rect> {
+        self.inner.keyboard.borrow().rect()
+    }
+
+    pub fn type_events(&self, events: impl IntoIterator<Item = Event>) {
+        self.inner.keyboard.borrow_mut().type_events(events);
+        self.request_repaint();
+    }
+
+    pub(crate) fn keyboard<R>(
+        &self,
+        change: impl FnOnce(&mut crate::software_keyboard::KeyboardState) -> R,
+    ) -> R {
+        change(&mut self.inner.keyboard.borrow_mut())
     }
 
     pub fn mouse_simulation(&self) -> bool {

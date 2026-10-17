@@ -264,6 +264,7 @@ pub(crate) fn PluginRegion(
     });
     let catcher = NodeRef::new();
     take_keyboard(state, &catcher);
+    toggle_keyboard_when_asked(state);
     focus_when_asked(revision, plugin_id, instance, region, &catcher);
     let anchor = NodeRef::new();
     let ime = create_memo(move || state.with(|view| view.ime.is_some()));
@@ -449,6 +450,18 @@ fn focus_when_asked(
                 try_with_document(|document| document.focus_focusable(node));
             }
         });
+    });
+}
+
+fn toggle_keyboard_when_asked(state: Memo<RegionView>) {
+    let toggles = create_memo(move || state.with(|view| view.keyboard_toggles));
+    let seen = StoredCell::new(0u32);
+    create_effect(move || {
+        let toggles = toggles.get();
+        if toggles != seen.get() {
+            seen.set(toggles);
+            untrack(toggle_keyboard);
+        }
     });
 }
 

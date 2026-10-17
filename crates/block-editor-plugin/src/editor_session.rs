@@ -980,6 +980,7 @@ impl EditorSession {
                 wants_keyboard: window.wants_keyboard,
                 intercepted_keys: window.intercepted_keys.clone(),
                 pastes: window.pastes.clone(),
+                keyboard_toggles: window.keyboard_toggles,
             };
             let reports = matches!(region, EditorRegion::Frame);
             match frame.description.as_mut() {

@@ -18,6 +18,7 @@ pub struct DocumentTest {
     fonts: FontLibrary,
     size: Vec2,
     output: Option<FrameOutput>,
+    typed: Vec<beui::Event>,
 }
 
 impl DocumentTest {
@@ -25,12 +26,14 @@ impl DocumentTest {
         let fonts = FontLibrary::bundled();
         let context = Context::new(FreetypeFonts::new(fonts.clone()));
         context.stop_clock();
+        context.enable_keyboard();
         let mut test = Self {
             document,
             context,
             fonts,
             size,
             output: None,
+            typed: Vec::new(),
         };
         test.frame(Vec::new());
         test
@@ -48,17 +51,25 @@ impl DocumentTest {
         &self.fonts
     }
 
+    pub fn context(&self) -> &Context {
+        &self.context
+    }
+
     pub fn frame(&mut self, events: Vec<beui::Event>) {
         let Self {
             document,
             context,
             size,
+            typed,
             ..
         } = self;
+        let mut held = std::mem::take(typed);
+        held.extend(events);
         context.advance_clock(FRAME_INTERVAL);
-        let output = context.run(RawInput { events }, |context| {
+        let mut output = context.run(RawInput { events: held }, |context| {
             document.show(context, Rect::from_min_size(Pos2::ZERO, *size));
         });
+        *typed = std::mem::take(&mut output.typed);
         self.output = Some(output);
     }
 
