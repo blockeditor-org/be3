@@ -88,10 +88,7 @@ pub(super) enum Command {
         blocks: Vec<be_client::transfer::Saved>,
         reply: ExportReply,
     },
-    Import {
-        block: be_client::transfer::Saved,
-        parent: BlockParent,
-    },
+    Import(Vec<(be_client::transfer::Saved, BlockParent)>),
     Version {
         block: Uuid,
         command: block_plugin_api::VersionCommand,
@@ -278,6 +275,8 @@ pub(super) trait Session {
 
     fn derived(&self) -> Option<be_block::Entries>;
 
+    fn references(&self) -> Vec<Uuid>;
+
     fn head(&self) -> Option<CommitId>;
 
     fn is_clean(&self) -> bool;
@@ -399,6 +398,10 @@ where
 
     fn derived(&self) -> Option<be_block::Entries> {
         Some(be_block::derived_metadata(self.live.content()))
+    }
+
+    fn references(&self) -> Vec<Uuid> {
+        self.live.references()
     }
 
     fn head(&self) -> Option<CommitId> {
@@ -590,6 +593,10 @@ where
 
     fn derived(&self) -> Option<be_block::Entries> {
         Some(be_block::derived_metadata(self.live.content()))
+    }
+
+    fn references(&self) -> Vec<Uuid> {
+        self.live.references()
     }
 
     fn head(&self) -> Option<CommitId> {
@@ -1439,6 +1446,7 @@ async fn apply(
             let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
             held.blocks.remove(&block);
             held.graph.forget_derived(block);
+            held.graph.forget_references(block);
             held.histories.remove(&block);
             held.presence.remove(&block);
             held.touch(block);
@@ -1647,22 +1655,25 @@ async fn apply(
             crate::host::wake();
             false
         }
-        Command::Import { block, parent } => {
-            let created = peer
-                .create_block(block.id, block.block_type, parent, &block.metadata)
-                .await;
-            if let Err(error) = settled(peer, shared, block.id, created).await {
-                record(shared, error);
-                return false;
-            }
-            match peer.publish_content(&block).await {
-                Ok(Some(saved)) if saved.published().is_none() => {
-                    record(shared, ClientError::Contended);
+        Command::Import(blocks) => {
+            let mut levels: Vec<Vec<&(be_client::transfer::Saved, BlockParent)>> = Vec::new();
+            let mut depths = Vec::with_capacity(blocks.len());
+            for entry in &blocks {
+                let depth = entry.0.parent.map_or(0, |parent| depths[parent] + 1);
+                depths.push(depth);
+                if levels.len() <= depth {
+                    levels.resize_with(depth + 1, Vec::new);
                 }
-                Ok(_) => {}
-                Err(error) => record(shared, error),
+                levels[depth].push(entry);
             }
-            remember_head(peer, shared, block.id);
+            for level in levels {
+                futures_util::future::join_all(
+                    level
+                        .into_iter()
+                        .map(|(block, parent)| import(peer, shared, block, *parent)),
+                )
+                .await;
+            }
             true
         }
         Command::Flush(done) => {
@@ -1672,6 +1683,29 @@ async fn apply(
             true
         }
     }
+}
+
+async fn import(
+    peer: &Arc<Peer<Store>>,
+    shared: &Arc<Mutex<Shared>>,
+    block: &be_client::transfer::Saved,
+    parent: BlockParent,
+) {
+    let created = peer
+        .create_block(block.id, block.block_type, parent, &block.metadata)
+        .await;
+    if let Err(error) = settled(peer, shared, block.id, created).await {
+        record(shared, error);
+        return;
+    }
+    match peer.publish_content(block).await {
+        Ok(Some(saved)) if saved.published().is_none() => {
+            record(shared, ClientError::Contended);
+        }
+        Ok(_) => {}
+        Err(error) => record(shared, error),
+    }
+    remember_head(peer, shared, block.id);
 }
 
 async fn load_graph(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
@@ -1797,6 +1831,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
                     session.bytes(),
                     session.session_state(),
                     session.derived(),
+                    session.references(),
                 )
             });
             Published {
@@ -1844,9 +1879,10 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
             changed = true;
         }
         held.graph.set_head(block, published.head);
-        let Some((content_type, bytes, session, derived)) = published.content else {
+        let Some((content_type, bytes, session, derived, references)) = published.content else {
             continue;
         };
+        held.graph.refer(block, references);
         match held.blocks.get_mut(&block) {
             Some(content) => {
                 for entry in published.log {
@@ -1867,7 +1903,7 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
     changed
 }
 
-type PublishedContent = (Uuid, Vec<u8>, Vec<u8>, Option<be_block::Entries>);
+type PublishedContent = (Uuid, Vec<u8>, Vec<u8>, Option<be_block::Entries>, Vec<Uuid>);
 
 struct Published {
     block: Uuid,

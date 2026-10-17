@@ -825,7 +825,7 @@ impl<S: ObjectStore> Peer<S> {
         extra_parents: Vec<CommitId>,
         defined: Option<Entries>,
     ) -> Result<Saved, ClientError> {
-        let references = self.resolve(block, content.references_in(self.organization()));
+        let references = self.references(block, content);
         let manifest = self
             .write_content(block, C::CONTENT_TYPE, &content.encode())
             .await?;
@@ -958,6 +958,10 @@ impl<S: ObjectStore> Peer<S> {
 
     pub fn set_resolver(&self, resolver: Resolver) {
         *self.resolver.lock().unwrap() = Some(resolver);
+    }
+
+    pub fn references<C: BlockContent>(&self, block: Uuid, content: &C) -> Vec<Uuid> {
+        self.resolve(block, content.references_in(self.organization()))
     }
 
     pub fn resolve(&self, block: Uuid, references: Vec<Uuid>) -> Vec<Uuid> {

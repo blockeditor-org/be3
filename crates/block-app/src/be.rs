@@ -1066,6 +1066,7 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
         .collect();
     let author = account().ok_or("Sign in to import blocks.")?;
     let top = (blocks[0].id, blocks[0].block_type);
+    let mut imported = Vec::with_capacity(blocks.len());
     for mut block in blocks.iter().cloned() {
         if let Some(prefix) = block.metadata.get(&be_block::ROW_PREFIX)
             && taken.contains(&prefix)
@@ -1095,11 +1096,9 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
                 locked: false,
             });
         });
-        send(Command::Import {
-            block,
-            parent: placed,
-        });
+        imported.push((block, placed));
     }
+    send(Command::Import(imported));
     Ok(top)
 }
 
