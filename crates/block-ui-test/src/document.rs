@@ -73,6 +73,20 @@ impl DocumentTest {
         self.output = Some(output);
     }
 
+    pub fn settle(&mut self) {
+        for _ in 0..1200 {
+            self.frame(Vec::new());
+            if self
+                .output
+                .as_ref()
+                .is_some_and(|output| !output.repaint && output.repaint_after > Duration::ZERO)
+            {
+                return;
+            }
+        }
+        panic!("the document is still animating after 1200 frames");
+    }
+
     pub fn set_screens(&mut self, screens: Vec<beui::Screen>) {
         self.context.set_screens(screens);
         self.frame(Vec::new());
