@@ -628,6 +628,7 @@ fn row_piece(
         }
         .into_child(),
         PieceKey::Inline(item) if layer == Layer::Handles => {
+            let text = inline_text(model, item);
             let size = create_memo(move || {
                 model
                     .get()
@@ -638,19 +639,33 @@ fn row_piece(
             let width = create_memo(move || Some(size.get().x));
             let height = create_memo(move || Some(size.get().y));
             view! {
-                <TextItem>
+                <TextItem text>
                     <Frame width=width height=height />
                 </TextItem>
             }
             .into_child()
         }
-        PieceKey::Inline(item) => view! {
-            <TextItem>
-                <InlineView cx model index=item />
-            </TextItem>
+        PieceKey::Inline(item) => {
+            let text = inline_text(model, item);
+            view! {
+                <TextItem text>
+                    <InlineView cx model index=item />
+                </TextItem>
+            }
+            .into_child()
         }
-        .into_child(),
     }
+}
+
+fn inline_text(model: Memo<Rc<Row>>, item: usize) -> Memo<Option<Rc<str>>> {
+    create_memo(move || {
+        let row = model.get();
+        row.spans
+            .iter()
+            .find(|span| span.kind == SpanKind::Inline(item))
+            .and_then(|span| row.display.get(span.range.clone()))
+            .map(Rc::from)
+    })
 }
 
 #[component]

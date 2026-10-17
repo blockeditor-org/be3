@@ -39,6 +39,7 @@ pub enum Piece<'a> {
     Inline {
         index: usize,
         size: Vec2,
+        text: &'a str,
     },
     Gap(f32),
     Icon {
@@ -61,7 +62,7 @@ impl<'a> Piece<'a> {
     pub fn len(&self) -> usize {
         match self {
             Piece::Text { text, .. } => text.len(),
-            Piece::Inline { .. } => OBJECT.len(),
+            Piece::Inline { text, .. } => text.len(),
             Piece::Gap(_) | Piece::Icon { .. } => 0,
         }
     }
@@ -218,11 +219,19 @@ pub struct RichRun {
     pub width: f32,
     pub height: f32,
     pub galley: Option<Galley>,
+    pub inner: Vec<usize>,
 }
 
 impl RichRun {
     fn text(&self) -> bool {
         self.galley.is_some() && self.kind == SpanKind::Text
+    }
+
+    fn box_height(&self) -> f32 {
+        match &self.galley {
+            Some(galley) => galley.line_height(),
+            None => self.height,
+        }
     }
 
     fn x_of(&self, index: usize) -> f32 {
@@ -233,9 +242,20 @@ impl RichRun {
                         .cursor_pos(pos2(0.0, 0.0), index - self.range.start)
                         .x
             }
-            _ if index > self.range.start => self.x + self.width,
+            _ if index > self.range.start => {
+                let into = (index - self.range.start) as f32 / self.range.len().max(1) as f32;
+                self.x + self.width * into.min(1.0)
+            }
             _ => self.x,
         }
+    }
+
+    fn inner_stops(&self, into: &mut Vec<(usize, f32)>) {
+        into.push((self.range.start, self.x));
+        for index in &self.inner {
+            into.push((*index, self.x_of(*index)));
+        }
+        into.push((self.range.end, self.x + self.width));
     }
 
     fn stops(&self, into: &mut Vec<(usize, f32)>) {
@@ -260,6 +280,7 @@ pub struct RichLine {
     pub left: f32,
     pub height: f32,
     pub baseline: f32,
+    pub middle: f32,
     pub width: f32,
     pub runs: Vec<RichRun>,
 }
@@ -295,8 +316,7 @@ impl RichLine {
     pub fn run_top(&self, run: &RichRun) -> f32 {
         match &run.galley {
             Some(galley) if run.text() => self.top + self.baseline - galley.baseline(),
-            Some(galley) => self.top + (self.height - galley.line_height()) / 2.0,
-            None => self.top + (self.height - run.height) / 2.0,
+            _ => self.top + self.middle - run.box_height() / 2.0,
         }
     }
 }
@@ -415,9 +435,18 @@ impl Builder<'_> {
                     width: galley.size().x,
                     height: galley.line_height(),
                     galley: Some(galley),
+                    inner: Vec::new(),
                 }
             }
             SpanKind::Inline(_, size) => RichRun {
+                inner: self
+                    .text
+                    .get(range.clone())
+                    .unwrap_or_default()
+                    .char_indices()
+                    .skip(1)
+                    .map(|(at, _)| range.start + at)
+                    .collect(),
                 piece,
                 range,
                 style,
@@ -436,6 +465,7 @@ impl Builder<'_> {
                 width,
                 height: 0.0,
                 galley: None,
+                inner: Vec::new(),
             },
             SpanKind::Icon(_) => {
                 let (glyph, text_size) = match self.pieces[piece] {
@@ -458,6 +488,7 @@ impl Builder<'_> {
                     width: galley.size().x,
                     height,
                     galley: Some(galley),
+                    inner: Vec::new(),
                 }
             }
         }
@@ -562,8 +593,9 @@ fn spans_of(pieces: &[Piece], fallback: SpanStyle) -> (String, Vec<TextSpan>) {
             Piece::Inline {
                 index: inline,
                 size,
+                text: stands_for,
             } => {
-                text.push_str(OBJECT);
+                text.push_str(stands_for);
                 (fallback, SpanKind::Inline(inline, size), false)
             }
             Piece::Gap(width) => (fallback, SpanKind::Gap(width), false),
@@ -781,6 +813,7 @@ impl RichLayout {
                         width: ellipsis.size().x,
                         height: ellipsis.line_height(),
                         galley: Some(ellipsis),
+                        inner: Vec::new(),
                     });
                 }
             }
@@ -826,10 +859,7 @@ impl RichLayout {
         for run in &line.runs {
             match run.text() {
                 true => run.stops(&mut stops),
-                false => {
-                    stops.push((run.range.start, run.x));
-                    stops.push((run.range.end, run.x + run.width));
-                }
+                false => run.inner_stops(&mut stops),
             }
         }
         let x = point.x - line.left;
@@ -894,13 +924,23 @@ fn line(
     strut: (f32, f32),
     padding: (f32, f32),
 ) -> RichLine {
-    let mut baseline = strut.0;
-    let mut height = strut.1;
+    let (mut ascent, mut descent) = (strut.0, strut.1 - strut.0);
+    let mut tallest = strut.1;
+    let mut middle = strut.1 / 2.0 - strut.0;
     for run in &runs {
         if let Some(galley) = run.galley.as_ref().filter(|_| run.text()) {
-            baseline = baseline.max(galley.baseline());
+            ascent = ascent.max(galley.baseline());
+            descent = descent.max(galley.line_height() - galley.baseline());
+            if galley.line_height() > tallest {
+                tallest = galley.line_height();
+                middle = galley.line_height() / 2.0 - galley.baseline();
+            }
         }
-        height = height.max(run.height);
+    }
+    for run in runs.iter().filter(|run| !run.text()) {
+        let half = run.height / 2.0;
+        ascent = ascent.max(half - middle);
+        descent = descent.max(half + middle);
     }
     let width = runs.last().map_or(0.0, |run| run.x + run.width);
     RichLine {
@@ -909,8 +949,9 @@ fn line(
         limit: f32::INFINITY,
         top,
         left: 0.0,
-        height: height + padding.0 + padding.1,
-        baseline: baseline + padding.0,
+        height: ascent + descent + padding.0 + padding.1,
+        baseline: ascent + padding.0,
+        middle: ascent + padding.0 + middle,
         width,
         runs,
     }

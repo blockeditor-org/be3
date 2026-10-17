@@ -361,7 +361,11 @@ impl IntoSegment<TextChild> for Gap {
 pub type TextItem = Placed<TextNode>;
 
 #[component]
-pub fn TextItem(at: Option<Prop<Option<usize>>>, children: Option<Child>) -> TextItem {
+pub fn TextItem(
+    at: Option<Prop<Option<usize>>>,
+    text: Option<Prop<Option<Rc<str>>>>,
+    children: Option<Child>,
+) -> TextItem {
     let item = with_document(|document| {
         let item = document.create_text_item();
         if let Some(child) = children {
@@ -369,6 +373,11 @@ pub fn TextItem(at: Option<Prop<Option<usize>>>, children: Option<Child>) -> Tex
         }
         item
     });
+    if let Some(text) = text {
+        create_effect(move || {
+            with_document(|document| document.set_text_item_text(item, text.get()))
+        });
+    }
     let anchored = at.is_some();
     if let Some(at) = at {
         create_effect(move || with_document(|document| document.set_text_item_at(item, at.get())));
