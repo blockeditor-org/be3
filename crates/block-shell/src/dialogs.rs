@@ -372,88 +372,80 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     on_submit={move |_value: String| act.call(ShareAction::Submit)}
                 />
                 <Show condition={searching}>
-                    {move || view! {
-                        <Card>
-                            <List spacing=4.0>
-                                <Show condition={unmatched}>
-                                    <Text style=TextStyle::CAPTION string="No matching contacts." />
-                                </Show>
-                                <ForEach keys={suggestion_keys}>
-                                    {move |id: Uuid| {
-                                        let person = create_memo(move || {
-                                            suggestions
-                                                .get()
-                                                .unwrap_or_default()
-                                                .into_iter()
-                                                .find(|person| person.id == id)
-                                        });
-                                        view! {
-                                            <SuggestionButton person act={act} />
-                                        }
-                                    }}
-                                </ForEach>
-                            </List>
-                        </Card>
-                    }}
+                    <Card>
+                        <List spacing=4.0>
+                            <Show condition={unmatched}>
+                                <Text style=TextStyle::CAPTION string="No matching contacts." />
+                            </Show>
+                            <ForEach keys={suggestion_keys}>|id: Uuid| {
+                                let person = create_memo(move || {
+                                    suggestions
+                                        .get()
+                                        .unwrap_or_default()
+                                        .into_iter()
+                                        .find(|person| person.id == id)
+                                });
+                                view! {
+                                    <SuggestionButton person act={act} />
+                                }
+                            }</ForEach>
+                        </List>
+                    </Card>
                 </Show>
                 <Show condition={has_pending}>
-                    {move || view! {
-                        <List spacing=8.0>
-                            <List direction=Direction::Horizontal spacing=6.0 wrap=true>
-                                <ForEach keys={pending_keys}>
-                                    {move |id: Uuid| {
-                                        let name = create_memo(move || {
-                                            pending
-                                                .get()
-                                                .into_iter()
-                                                .find(|person| person.id == id)
-                                                .map(|person| person.name)
-                                                .unwrap_or_default()
-                                        });
-                                        view! {
-                                            <List
-                                                direction=Direction::Horizontal
-                                                align=Align::Center
-                                                spacing=2.0
-                                            >
-                                                <Chip label={name} />
-                                                <IconButton
-                                                    glyph={ICON_CLOSE.to_owned()}
-                                                    label="Do not add"
-                                                    size=IconButtonSize::Compact
-                                                    on_click={move || act.call(ShareAction::Unpick(id))}
-                                                />
-                                            </List>
-                                        }
-                                    }}
-                                </ForEach>
-                            </List>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <Select
-                                    selected={pending_access}
-                                    label="Access to grant"
-                                    on_change={move |index: Option<usize>| {
-                                        if let Some(access) = index.and_then(|index| GRANTABLE.get(index)) {
-                                            act.call(ShareAction::PendingAccess(*access));
-                                        }
-                                    }}
-                                    options={view! {
-                                        <ChoiceOption label={AccessLevel::Edit.label()} />
-                                        <ChoiceOption label={AccessLevel::View.label()} />
-                                        <ChoiceOption label={AccessLevel::KnowExists.label()} />
-                                    }}
-                                />
-                                <Spacer @sizing=ItemSize::Percent(100.0) />
-                                <Button
-                                    label="Add"
-                                    glyph={ICON_PERSON_ADD.to_owned()}
-                                    variant=ButtonVariant::Primary
-                                    @test_id={"share.add"}
-                                    on_click={move || act.call(ShareAction::AddPending)}
-                                />
-                            </List>
+                    <List spacing=8.0>
+                        <List direction=Direction::Horizontal spacing=6.0 wrap=true>
+                            <ForEach keys={pending_keys}>|id: Uuid| {
+                                let name = create_memo(move || {
+                                    pending
+                                        .get()
+                                        .into_iter()
+                                        .find(|person| person.id == id)
+                                        .map(|person| person.name)
+                                        .unwrap_or_default()
+                                });
+                                view! {
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=2.0
+                                    >
+                                        <Chip label={name} />
+                                        <IconButton
+                                            glyph={ICON_CLOSE.to_owned()}
+                                            label="Do not add"
+                                            size=IconButtonSize::Compact
+                                            on_click={move || act.call(ShareAction::Unpick(id))}
+                                        />
+                                    </List>
+                                }
+                            }</ForEach>
                         </List>
-                    }}
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <Select
+                                selected={pending_access}
+                                label="Access to grant"
+                                on_change={move |index: Option<usize>| {
+                                    if let Some(access) = index.and_then(|index| GRANTABLE.get(index)) {
+                                        act.call(ShareAction::PendingAccess(*access));
+                                    }
+                                }}
+                                options={view! {
+                                    <ChoiceOption label={AccessLevel::Edit.label()} />
+                                    <ChoiceOption label={AccessLevel::View.label()} />
+                                    <ChoiceOption label={AccessLevel::KnowExists.label()} />
+                                }}
+                            />
+                            <Spacer @sizing=ItemSize::Percent(100.0) />
+                            <Button
+                                label="Add"
+                                glyph={ICON_PERSON_ADD.to_owned()}
+                                variant=ButtonVariant::Primary
+                                @test_id={"share.add"}
+                                on_click={move || act.call(ShareAction::AddPending)}
+                            />
+                        </List>
+                    </List>
                 </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Button
@@ -469,29 +461,27 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     </Show>
                 </List>
                 <Show condition={invited}>
-                    {move || view! {
-                        <List spacing=6.0>
-                            <Text
-                                style=TextStyle::CAPTION
-                                @test_id={"share.invite.help"}
-                                string="Send this link yourself, through an app you trust. Whoever opens it first becomes your contact and can open this block. It works once, and it is shown only once."
-                                wrap=true
+                    <List spacing=6.0>
+                        <Text
+                            style=TextStyle::CAPTION
+                            @test_id={"share.invite.help"}
+                            string="Send this link yourself, through an app you trust. Whoever opens it first becomes your contact and can open this block. It works once, and it is shown only once."
+                            wrap=true
+                        />
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <TextInput
+                                @sizing=ItemSize::Percent(100.0)
+                                value={invite_link}
+                                label="Contact link"
+                                @test_id={"share.invite.link"}
                             />
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <TextInput
-                                    @sizing=ItemSize::Percent(100.0)
-                                    value={invite_link}
-                                    label="Contact link"
-                                    @test_id={"share.invite.link"}
-                                />
-                                <IconButton
-                                    glyph={ICON_CONTENT_COPY.to_owned()}
-                                    label="Copy link"
-                                    on_click={move || copy_text(invite_link.get_untracked())}
-                                />
-                            </List>
+                            <IconButton
+                                glyph={ICON_CONTENT_COPY.to_owned()}
+                                label="Copy link"
+                                on_click={move || copy_text(invite_link.get_untracked())}
+                            />
                         </List>
-                    }}
+                    </List>
                 </Show>
                 <Text style=TextStyle::HEADING string="People with access" />
                 <Frame height=MEMBERS_HEIGHT>
@@ -502,16 +492,14 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                                 string="Nobody can open this block yet."
                             />
                         </Show>
-                        <ForEach keys={member_keys}>
-                            {move |id: Uuid| {
-                                let member = create_memo(move || {
-                                    members.get().into_iter().find(|member| member.id == id)
-                                });
-                                view! {
-                                    <MemberRow member act={act} />
-                                }
-                            }}
-                        </ForEach>
+                        <ForEach keys={member_keys}>|id: Uuid| {
+                            let member = create_memo(move || {
+                                members.get().into_iter().find(|member| member.id == id)
+                            });
+                            view! {
+                                <MemberRow member act={act} />
+                            }
+                        }</ForEach>
                     </Scroll>
                 </Frame>
                 <List
@@ -589,18 +577,12 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                         </List>
                         <Text style=TextStyle::CAPTION string={email} />
                         <Show condition={is_fixed}>
-                            {move || view! {
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=4.0
-                                >
-                                    <Text size=TextSize::Sm align=TextAlign::Center>
-                                        <Icon glyph={ICON_LOCK.to_owned()} />
-                                    </Text>
-                                    <Text style=TextStyle::CAPTION string={fixed_text} />
-                                </List>
-                            }}
+                            <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                                <Text size=TextSize::Sm align=TextAlign::Center>
+                                    <Icon glyph={ICON_LOCK.to_owned()} />
+                                </Text>
+                                <Text style=TextStyle::CAPTION string={fixed_text} />
+                            </List>
                         </Show>
                         <Show condition={has_note}>
                             <Text style=TextStyle::CAPTION string={note_text} />
@@ -615,42 +597,38 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                         />
                     </Show>
                     <Show condition={editable}>
-                        {move || view! {
-                            <Select
-                                selected={selected}
-                                label="Access"
-                                on_change={move |index: Option<usize>| {
-                                    let Some(member) = member.get_untracked() else {
-                                        return;
-                                    };
-                                    let Some(access) = index.and_then(|index| GRANTABLE.get(index).copied()) else {
-                                        return;
-                                    };
-                                    if access != member.access {
-                                        act.call(ShareAction::SetAccess(member.id, access));
-                                    }
-                                }}
-                                options={view! {
-                                    <ChoiceOption label={AccessLevel::Edit.label()} />
-                                    <ChoiceOption label={AccessLevel::View.label()} />
-                                    <ChoiceOption label={AccessLevel::KnowExists.label()} />
-                                }}
-                            />
-                        }}
+                        <Select
+                            selected={selected}
+                            label="Access"
+                            on_change={move |index: Option<usize>| {
+                                let Some(member) = member.get_untracked() else {
+                                    return;
+                                };
+                                let Some(access) = index.and_then(|index| GRANTABLE.get(index).copied()) else {
+                                    return;
+                                };
+                                if access != member.access {
+                                    act.call(ShareAction::SetAccess(member.id, access));
+                                }
+                            }}
+                            options={view! {
+                                <ChoiceOption label={AccessLevel::Edit.label()} />
+                                <ChoiceOption label={AccessLevel::View.label()} />
+                                <ChoiceOption label={AccessLevel::KnowExists.label()} />
+                            }}
+                        />
                     </Show>
                     <Show condition={removable}>
-                        {move || view! {
-                            <IconButton
-                                glyph={ICON_CLOSE.to_owned()}
-                                label="Remove access"
-                                size=IconButtonSize::Compact
-                                on_click={move || {
-                                    if let Some(member) = member.get_untracked() {
-                                        act.call(ShareAction::SetAccess(member.id, AccessLevel::None));
-                                    }
-                                }}
-                            />
-                        }}
+                        <IconButton
+                            glyph={ICON_CLOSE.to_owned()}
+                            label="Remove access"
+                            size=IconButtonSize::Compact
+                            on_click={move || {
+                                if let Some(member) = member.get_untracked() {
+                                    act.call(ShareAction::SetAccess(member.id, AccessLevel::None));
+                                }
+                            }}
+                        />
                     </Show>
                 </List>
             </Card>

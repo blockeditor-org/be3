@@ -15,10 +15,12 @@ pub struct BlockDisplay {
     pub automatic: bool,
     pub resolved: bool,
     pub reach: Reach,
+    pub deleted: bool,
 }
 
 pub fn label_glyph(label: &BlockLabel) -> Option<&'static str> {
     match label.reach {
+        Reach::Open if label.deleted => Some(beui::icons::ICON_DELETE),
         Reach::Open => label.icon,
         Reach::Locked | Reach::NoAccess => Some(beui::icons::ICON_LOCK),
     }
@@ -56,6 +58,7 @@ pub fn watch_block_label(
         let display = BlockDisplay {
             glyph: label_glyph(&label).map(str::to_owned).unwrap_or_default(),
             reach: label.reach,
+            deleted: label.deleted,
             name: label.name,
             type_name: types
                 .display_name(next.block_type)

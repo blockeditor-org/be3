@@ -5,7 +5,7 @@ use std::rc::Rc;
 use block_editor_beui::be_block::{
     BlockContent, MY_FILES, SettingsContent, SettingsProfileContent, ViewState, WorkspaceContent,
 };
-use block_editor_beui::beui::icons::ICON_DATABASE;
+use block_editor_beui::beui::icons::{ICON_DATABASE, ICON_HISTORY, ICON_PEOPLE, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
@@ -49,6 +49,8 @@ pub(crate) struct Row {
     pub(crate) can_leave: bool,
     pub(crate) unlink: Result<(), &'static str>,
     pub(crate) inspection: Option<Inspection>,
+    pub(crate) deleted: bool,
+    pub(crate) marked_deleted: bool,
 }
 
 #[derive(Clone, PartialEq, Default)]
@@ -93,6 +95,8 @@ impl Row {
             can_leave: false,
             unlink: Err("Loading…"),
             inspection: None,
+            deleted: false,
+            marked_deleted: false,
         }
     }
 }
@@ -480,6 +484,7 @@ impl Builder<'_> {
         self.rows.push(Row {
             key: RowKey::Orphans,
             label: "Recently Deleted".to_owned(),
+            glyph: ICON_HISTORY.to_owned(),
             section: true,
             expandable: true,
             expanded: open,
@@ -506,7 +511,7 @@ impl Builder<'_> {
             return;
         }
         for block in listed {
-            self.push(block, 1, None, &mut Vec::new());
+            self.push(block, 1, None, &mut Vec::new(), true);
         }
     }
 
@@ -532,7 +537,7 @@ impl Builder<'_> {
             return;
         }
         for block in blocks {
-            self.push(block, 1, None, &mut Vec::new());
+            self.push(block, 1, None, &mut Vec::new(), false);
         }
     }
 
@@ -551,10 +556,14 @@ impl Builder<'_> {
                 depth: 0,
                 container: None,
                 expanded: false,
+                trashed: false,
             },
             |id| id.to_string(),
         );
         row.section = true;
+        if row.glyph.is_empty() {
+            ICON_WORKSPACES.clone_into(&mut row.glyph);
+        }
         row.expandable = true;
         row.expanded = open;
         row.can_leave = section.author != Some(self.account);
@@ -576,7 +585,7 @@ impl Builder<'_> {
         }
         let mut path = path;
         for child in children {
-            self.push(child, 1, Some(section.id), &mut path);
+            self.push(child, 1, Some(section.id), &mut path, false);
         }
     }
 
@@ -586,6 +595,7 @@ impl Builder<'_> {
             section: true,
             expandable: true,
             expanded: open,
+            glyph: ICON_PEOPLE.to_owned(),
             ..Row::note_at(RowKey::Shared, 0, "Shared with me")
         });
         if !open {
@@ -607,7 +617,7 @@ impl Builder<'_> {
         for block in shared {
             let at = self.rows.len();
             let leavable = block.author != Some(self.account);
-            self.push(block, 1, None, &mut Vec::new());
+            self.push(block, 1, None, &mut Vec::new(), false);
             self.rows[at].can_leave = leavable;
         }
     }
@@ -618,6 +628,7 @@ impl Builder<'_> {
         depth: usize,
         container: Option<Uuid>,
         path: &mut Vec<Uuid>,
+        trashed: bool,
     ) {
         self.watched
             .block_types
@@ -636,6 +647,7 @@ impl Builder<'_> {
                 depth,
                 container,
                 expanded,
+                trashed,
             },
             |id| {
                 rows.iter()
@@ -644,6 +656,7 @@ impl Builder<'_> {
             },
         );
         let expanded = row.expanded;
+        let trashed = trashed || row.deleted;
         self.rows.push(row);
         if !expanded || path.contains(&reference.id) {
             return;
@@ -662,7 +675,7 @@ impl Builder<'_> {
         }
         path.push(reference.id);
         for child in children {
-            self.push(child, depth + 1, Some(reference.id), path);
+            self.push(child, depth + 1, Some(reference.id), path, trashed);
         }
         path.pop();
     }
@@ -673,6 +686,7 @@ pub(crate) struct Placement {
     pub(crate) depth: usize,
     pub(crate) container: Option<Uuid>,
     pub(crate) expanded: bool,
+    pub(crate) trashed: bool,
 }
 
 pub(crate) fn describe(
@@ -688,6 +702,7 @@ pub(crate) fn describe(
         depth,
         container,
         expanded,
+        trashed,
     } = placement;
     let is_reference = container.is_some_and(|id| reference.parent != Some(BlockParent::Block(id)));
     let source = container.map_or_else(
@@ -711,7 +726,9 @@ pub(crate) fn describe(
         );
     let unlink = unlink_permission(client, types, block_types, container);
     let expandable = !is_reference && !reference.references.is_empty();
-    let label = reference.label(types);
+    let label = reference
+        .label(types)
+        .deleted(reference.deleted && !trashed);
     let glyph = label_glyph(&label).unwrap_or_default().to_owned();
     let inspection = inspect(
         types,
@@ -744,6 +761,8 @@ pub(crate) fn describe(
         can_leave: false,
         unlink,
         inspection: Some(inspection),
+        deleted: reference.deleted,
+        marked_deleted: label.deleted,
     }
 }
 
@@ -762,6 +781,9 @@ fn inspect(
     let parent = match block.parent {
         Some(BlockParent::Root) => "Root".to_owned(),
         Some(BlockParent::Detached) => "Recently Deleted".to_owned(),
+        Some(BlockParent::Block(id)) if block.deleted => {
+            format!("{}, in Recently Deleted", described(id))
+        }
         Some(BlockParent::Block(id)) => described(id),
         None => "Unknown".to_owned(),
     };

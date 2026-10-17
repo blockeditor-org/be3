@@ -15,8 +15,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
     let document = build({
         move || {
             view! {
-                <Container>
-                    {move |_| {
+                <Container>|_| {
                     let narrow = narrower_than(BREAKPOINT);
                     let size = create_memo(move || if narrow.get() {
                         ItemSize::Fixed(STACKED_LIST_HEIGHT)
@@ -33,27 +32,24 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                                         @node_ref=&scroll
                                         keys={indices(VIRTUAL_ITEM_COUNT)}
                                         item_size=VIRTUAL_ITEM_HEIGHT
-                                    >
-                                        {move |index: ReadSignal<usize>| {
-                                            create_binding(move || {
-                                                let index = index.get();
-                                                set_built.update(|built| built.push(index));
-                                            });
-                                            view! {
-                                                <Frame
-                                                    padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
-                                                >
-                                                    <Spacer />
-                                                </Frame>
-                                            }
-                                        }}
-                                    </VirtualList>
+                                    >|index: ReadSignal<usize>| {
+                                        create_binding(move || {
+                                            let index = index.get();
+                                            set_built.update(|built| built.push(index));
+                                        });
+                                        view! {
+                                            <Frame
+                                                padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
+                                            >
+                                                <Spacer />
+                                            </Frame>
+                                        }
+                                    }</VirtualList>
                                 </List>
                             </List>
                         </Stack>
                     }
-                    }}
-                </Container>
+                }</Container>
             }
         }
     });

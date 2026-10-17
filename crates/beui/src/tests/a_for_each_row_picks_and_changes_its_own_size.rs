@@ -26,20 +26,18 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
                     >
                         <Text string="toggle" />
                     </Button>
-                    <ForEach keys={vec![0, 1]}>
-                        {move |index: usize| {
-                            match index {
-                                0 => view! {
-                                    <Frame @sizing={sizing} @node_ref=&header />
-                                },
-                                _ => {
-                                    view! {
-                                        <Frame @sizing=ItemSize::Percent(100.0) @node_ref=&body />
-                                    }
+                    <ForEach keys={vec![0, 1]}>|index: usize| {
+                        match index {
+                            0 => view! {
+                                <Frame @sizing={sizing} @node_ref=&header />
+                            },
+                            _ => {
+                                view! {
+                                    <Frame @sizing=ItemSize::Percent(100.0) @node_ref=&body />
                                 }
                             }
-                        }}
-                    </ForEach>
+                        }
+                    }</ForEach>
                 </List>
             }
         }

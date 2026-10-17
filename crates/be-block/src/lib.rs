@@ -23,6 +23,7 @@ pub mod folder;
 pub mod game;
 pub mod hotbar;
 pub mod image;
+pub mod input_remapper;
 pub mod input_settings;
 pub mod kinds;
 pub mod logic_game;
@@ -65,14 +66,16 @@ pub use folder::{Folder, FolderContent};
 pub use game::{DeterministicGame, DeterministicGameContent, GameModuleContent, GameMove};
 pub use hotbar::{Hotbar, HotbarContent, HotbarSlot, SlotKind};
 pub use image::{ImageContent, ImageHeader, ImageOp};
+pub use input_remapper::{InputRemapper, InputRemapperContent};
 pub use input_settings::{InputSettings, InputSettingsContent};
 pub use kinds::{BeuiDemoContent, PanZoomContent, Scene3dContent, TriangleContent};
 pub use logic_game::{LogicGameContent, LogicGameProgress};
 pub use logic_grid::{LogicGridContent, LogicGridDocument};
 pub use map::{Map, MapContent};
 pub use metadata::{
-    ARTIFACT, ArtifactSource, BlockMetadata, Definition, Entries, INTRINSIC_NAME, LOCAL_ID,
-    MY_FILES, MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, THUMBHASH, Thumbhash,
+    ARTIFACT, ArtifactSource, BlockMetadata, DELETED_FROM, Definition, DeletedFrom, Entries,
+    INTRINSIC_NAME, LOCAL_ID, MY_FILES, MetaKey, NAME, Origin, ROW_PREFIX, SCHEMA, THUMBHASH,
+    Thumbhash,
 };
 pub use model::Root;
 pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};

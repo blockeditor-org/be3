@@ -68,17 +68,9 @@ pub fn Button(
     on_click: ClickCallback,
 ) -> NodeId {
     view! {
-        <unstyled::Button
-            label
-            glyph
-            action
-            disabled
-            focused
-            on_click={on_click}
-            content={move |handle| view! {
-                <ButtonFace handle variant />
-            }}
-        />
+        <unstyled::Button label glyph action disabled focused on_click={on_click}>|handle|
+            <ButtonFace handle variant />
+        </unstyled::Button>
     }
 }
 

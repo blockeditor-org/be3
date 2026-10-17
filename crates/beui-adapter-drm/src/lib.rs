@@ -21,7 +21,10 @@ mod wake;
 pub use display::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
 pub use flips::{Flip, Flips};
 pub use gpu::{CursorImage, SoftwareCursor};
-pub use input::{DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice};
+pub use input::{
+    DeviceId, InputConfig, InputControl, InputFilter, PointerConfig, PointerDevice, RawInput,
+    SharedFilter,
+};
 pub use problems::Problems;
 pub use runner::run;
 

@@ -18,7 +18,7 @@ fn an_image_still_loading_is_drawn_as_its_thumbhash() {
             [(x * 8) as u8, (y * 10) as u8, 160, 255]
         })
         .collect();
-    let mut info = BlockInfo::new(picture, ImageContent::CONTENT_TYPE, BlockParent::Detached);
+    let mut info = BlockInfo::new(picture, ImageContent::CONTENT_TYPE, BlockParent::Root);
     let thumbhash = Image::from_rgba(32, 24, pixels).thumbhash();
     info.set_thumbhash(&Thumbhash {
         hash: thumbhash.hash,

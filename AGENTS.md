@@ -12,7 +12,7 @@ Guides:
 - guides/build_server.md
 - guides/frozen_formats.md: the formats every later build must keep reading, how to change them, and the tests that hold them
 - guides/hosting.md
-- guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, the lock screen, Wayland and X11 programs
+- guides/linux_desktop.md: block-app as a Linux desktop: the session, notifications, media keys, input remaps, the lock screen, Wayland and X11 programs
 - guides/pan_and_zoom.md: the camera a plugin editor is handed by its host
 - guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
 - guides/plugin_sdk.md: the shared module every plugin is linked against, and how hosts link them
@@ -47,6 +47,7 @@ Do:
 Design principles:
 - Do not edit this list.
 - If a request seems to require violating one of these, confirm with the user using AskUserQuestion before going ahead.
+- If a request asks for a UI/UX feature that seems to violate standard conventions, use AskUserQuestion to confirm.
 - General:
   - Keep reading whatever a frozen format saved, forever (guides/frozen_formats.md: the server's data and backups, and text, folder and database blocks), and change one only by adding to it. Don't keep backward compatibility in any other serialization format or in network requests: the project is early, and users can delete that data.
   - Treat everything in the repo as in scope for any task. Fix bugs and missing features at their source (in beui, for example) rather than working around them, and update any guide you find out of date.

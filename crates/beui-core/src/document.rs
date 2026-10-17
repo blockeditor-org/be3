@@ -63,6 +63,7 @@ pub struct Document {
     pub activation_key: Option<Key>,
     pub rects: Rc<Rects>,
     tools: Option<Box<dyn Tools>>,
+    keyboard_host: Option<Box<dyn crate::software_keyboard::KeyboardHost>>,
     inspector_requested: bool,
     screen_pointer: Option<Pos2>,
     pub last_pointer: Option<crate::input::PointerSample>,
@@ -268,6 +269,7 @@ impl Document {
             drags: Rc::new(crate::drag_board::Board::new(Rc::clone(&rects))),
             rects,
             tools: None,
+            keyboard_host: None,
             inspector_requested: false,
             screen_pointer: None,
             last_pointer: None,
@@ -1005,7 +1007,9 @@ impl Document {
         self.track_changes(false);
         self.track_damage(false);
         let content = trim_bottom(rect, ctx.measure_mouse_simulation(rect)).0;
-        self.show_screen(ctx, content);
+        crate::software_keyboard::show_with_keyboard(self, ctx, content, |document, content| {
+            document.show_screen(ctx, content)
+        });
         ctx.show_mouse_simulation(rect);
     }
 
@@ -1015,6 +1019,16 @@ impl Document {
 
     pub fn on_laid_out(&mut self, laid_out: impl Fn() + 'static) {
         self.laid_out = Some(Rc::new(laid_out));
+    }
+
+    pub fn set_keyboard_host(&mut self, host: Box<dyn crate::software_keyboard::KeyboardHost>) {
+        self.keyboard_host = Some(host);
+    }
+
+    pub(crate) fn take_keyboard_host(
+        &mut self,
+    ) -> Option<Box<dyn crate::software_keyboard::KeyboardHost>> {
+        self.keyboard_host.take()
     }
 
     pub fn set_tools(&mut self, tools: Box<dyn Tools>) {
@@ -1053,7 +1067,10 @@ impl Document {
         ctx.set_screen_scale(placement.map_or(1.0, |placement| placement.scale));
         self.offered_screens = match placement {
             Some(placement) => Some(vec![Screen::window(placement.screen)]),
-            None => Some(crate::screens::shown_in(&ctx.screens(), rect)),
+            None => Some(crate::software_keyboard::usable_screens(
+                ctx,
+                crate::screens::shown_in(&ctx.screens(), rect),
+            )),
         };
         match placement {
             Some(placement) => {

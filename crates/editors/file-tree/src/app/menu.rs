@@ -2,7 +2,7 @@ use block_editor_beui::BlockParent;
 use block_editor_beui::Editor;
 use block_editor_beui::beui::icons::{
     ICON_DELETE, ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_INFO, ICON_LINK_OFF, ICON_LOGOUT,
-    ICON_MOVE_UP, ICON_NOTE_ADD, ICON_SHARE, ICON_ZOOM_IN,
+    ICON_MOVE_UP, ICON_NOTE_ADD, ICON_RESTORE, ICON_SHARE, ICON_ZOOM_IN,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -160,6 +160,12 @@ fn block_menu(
             editor.host().leave_block(id);
         }
     };
+    let restorable = create_memo(move || row.get().is_some_and(|row| row.deleted && row.can_edit));
+    let restore = move || {
+        if let Some(id) = row.get_untracked().and_then(|row| row.id) {
+            editor.host().restore_block(id);
+        }
+    };
     let add = create_memo(move || !row.get().is_some_and(|row| row.can_add));
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
     let unlinkable = create_memo(move || {
@@ -232,38 +238,36 @@ fn block_menu(
                 disabled={rooted}
                 row_test_id={"file-tree.move-to".to_owned()}
             >
-                <ForEach keys={destination_keys}>
-                    {move |target: Uuid| {
-                        let label = create_memo(move || {
-                            destinations.with(|shown| {
-                                shown
-                                    .iter()
-                                    .find(|(id, _)| *id == target)
-                                    .map(|(_, name)| name.clone())
-                                    .unwrap_or_default()
-                            })
-                        });
-                        view! {
-                            <MenuItem
-                                label={label}
-                                row_test_id={format!("file-tree.move-to.{target}")}
-                                on_click={move || {
-                                    if let Some(shown) = row.get_untracked()
-                                        && let Some(id) = shown.id
-                                    {
-                                        editor.host().move_block(
-                                            id,
-                                            shown.block_type,
-                                            shown.source,
-                                            target,
-                                            shown.is_reference,
-                                        );
-                                    }
-                                }}
-                            />
-                        }
-                    }}
-                </ForEach>
+                <ForEach keys={destination_keys}>|target: Uuid| {
+                    let label = create_memo(move || {
+                        destinations.with(|shown| {
+                            shown
+                                .iter()
+                                .find(|(id, _)| *id == target)
+                                .map(|(_, name)| name.clone())
+                                .unwrap_or_default()
+                        })
+                    });
+                    view! {
+                        <MenuItem
+                            label={label}
+                            row_test_id={format!("file-tree.move-to.{target}")}
+                            on_click={move || {
+                                if let Some(shown) = row.get_untracked()
+                                    && let Some(id) = shown.id
+                                {
+                                    editor.host().move_block(
+                                        id,
+                                        shown.block_type,
+                                        shown.source,
+                                        target,
+                                        shown.is_reference,
+                                    );
+                                }
+                            }}
+                        />
+                    }
+                }</ForEach>
                 <MenuItem
                     label="Recently Deleted"
                     disabled={orphaned}
@@ -289,6 +293,14 @@ fn block_menu(
             />
             <MenuItem label="Inspect" glyph={ICON_INFO.to_owned()} disabled={uninspectable} />
             <ExportAs exporter row row_test_id={"file-tree.export".to_owned()} />
+            <Show condition={restorable}>
+                <MenuItem
+                    label="Restore"
+                    glyph={ICON_RESTORE.to_owned()}
+                    row_test_id={"file-tree.restore".to_owned()}
+                    on_click={restore}
+                />
+            </Show>
             <Show condition={leavable}>
                 <MenuItem
                     label="Leave"

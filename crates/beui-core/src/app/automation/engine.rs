@@ -41,7 +41,9 @@ pub const USAGE: &str = "Reading:
 Pointer:
   click TARGET [right|middle|double]
   move TARGET               move the pointer onto TARGET (hover)
-  down TARGET [right|middle] / up [TARGET] [right|middle]   press and let go, for any gesture
+  down TARGET [BUTTON] / up [TARGET] [BUTTON]   press and let go, for any gesture; BUTTON is
+                            right, middle, back, forward or button:CODE (an evdev code,
+                            such as button:0x115)
   drag FROM TO [STEPS]      press, move in STEPS (2), let go
   wheel TARGET TICKS [XTICKS]   turn a mouse wheel, down (right) when positive
   scroll TARGET DY [DX]     a touchpad scroll of DY pixels, down when positive
@@ -1257,7 +1259,16 @@ fn button_named(name: &str) -> Option<PointerButton> {
         "left" => Some(PointerButton::Primary),
         "right" => Some(PointerButton::Secondary),
         "middle" => Some(PointerButton::Middle),
-        _ => None,
+        "back" => Some(PointerButton::Back),
+        "forward" => Some(PointerButton::Forward),
+        _ => {
+            let code = name.strip_prefix("button:")?;
+            let code = match code.strip_prefix("0x") {
+                Some(hex) => u16::from_str_radix(hex, 16).ok()?,
+                None => code.parse().ok()?,
+            };
+            Some(PointerButton::Other(code))
+        }
     }
 }
 

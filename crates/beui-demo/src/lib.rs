@@ -308,10 +308,8 @@ impl DemoApp {
 #[component]
 pub fn Demo() -> NodeId {
     view! {
-        <Container>
-            {move |_| view! {
-                <DemoShell />
-            }}
+        <Container>|_|
+            <DemoShell />
         </Container>
     }
 }
@@ -323,10 +321,8 @@ impl DemoApp {
             document: build(move || {
                 provide_context(Today(today));
                 view! {
-                    <Container>
-                        {move |_| view! {
-                            <LonePage page />
-                        }}
+                    <Container>|_|
+                        <LonePage page />
                     </Container>
                 }
             }),
@@ -571,7 +567,7 @@ fn DemoShell() -> NodeId {
                     <DemoToolbar pages mobile set_mobile />
                 </Frame>
                 <Separator />
-                <Docking @sizing=ItemSize::Percent(100.0) layout mode home=CATALOG drag_modifier>
+                <Docking @sizing=ItemSize::Percent(100.0) layout mode drag_modifier>
                     <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
                         <DockPane id="catalog">
                             <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>
@@ -584,41 +580,35 @@ fn DemoShell() -> NodeId {
                                 <EmptyPanel />
                             }}
                         >
-                            <ForEach keys={open}>
-                                {move |page: Page| view! {
-                                    <DockTab
-                                        id={page.tab()}
-                                        title={page.title()}
-                                        icon={page.icon()}
-                                        on_close={move || pages.close(page)}
-                                    >
-                                        <Container>
-                                            {move |_| view! {
-                                                <PageView page />
-                                            }}
-                                        </Container>
-                                    </DockTab>
-                                }}
+                            <ForEach keys={open}>|page: Page|
+                                <DockTab
+                                    id={page.tab()}
+                                    title={page.title()}
+                                    icon={page.icon()}
+                                    on_close={move || pages.close(page)}
+                                >
+                                    <Container>|_|
+                                        <PageView page />
+                                    </Container>
+                                </DockTab>
                             </ForEach>
                         </DockPane>
                     </DockSplit>
-                    <ForEach keys={attached}>
-                        {move |dialog: DemoDialog| view! {
-                            <DockDialog
-                                id={dialog.id}
-                                parent={dialog.parent}
-                                modal={dialog.modal}
-                                title={match dialog.modal {
-                                    true => "Modal dialog",
-                                    false => "Dialog",
-                                }}
-                                icon=ICON_OPEN_IN_NEW
-                                size={dialog.size()}
-                                on_close={move || dialogs.close(dialog.id)}
-                            >
-                                <AttachedDialog modal={dialog.modal} />
-                            </DockDialog>
-                        }}
+                    <ForEach keys={attached}>|dialog: DemoDialog|
+                        <DockDialog
+                            id={dialog.id}
+                            parent={dialog.parent}
+                            modal={dialog.modal}
+                            title={match dialog.modal {
+                                true => "Modal dialog",
+                                false => "Dialog",
+                            }}
+                            icon=ICON_OPEN_IN_NEW
+                            size={dialog.size()}
+                            on_close={move || dialogs.close(dialog.id)}
+                        >
+                            <AttachedDialog modal={dialog.modal} />
+                        </DockDialog>
                     </ForEach>
                 </Docking>
             </List>
@@ -729,23 +719,19 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={wide}>
-                {move || view! {
-                    <Checkbox
-                        label="Mobile"
-                        checked={mobile}
-                        on_change={move |on: bool| set_mobile.set(on)}
-                    />
-                }}
+                <Checkbox
+                    label="Mobile"
+                    checked={mobile}
+                    on_change={move |on: bool| set_mobile.set(on)}
+                />
             </Show>
             <Select
                 label="Theme"
                 options={view! {
                     <ForEach
                         keys={Theme::BUILT_IN.iter().map(|(label, _)| *label).collect::<Vec<_>>()}
-                    >
-                        {|label: &'static str| view! {
-                            <ChoiceOption label />
-                        }}
+                    >|label: &'static str|
+                        <ChoiceOption label />
                     </ForEach>
                 }}
                 selected={selected_theme}
@@ -821,14 +807,12 @@ fn CatalogGroup(
                     <Text style=TextStyle::CAPTION string={summary} ellipsis=true />
                 </List>
             </Frame>
-            <ForEach keys={listed}>
-                {move |page: Page| {
-                    let selected = active.memo(Some(page));
-                    view! {
-                        <CatalogRow page pages selected />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={listed}>|page: Page| {
+                let selected = active.memo(Some(page));
+                view! {
+                    <CatalogRow page pages selected />
+                }
+            }</ForEach>
         </List>
     }
 }

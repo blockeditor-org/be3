@@ -37,21 +37,19 @@ fn check_compact_rows(inset: f32) {
                             @node_ref=&list
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size={item_height}
-                        >
-                            {move |index: ReadSignal<usize>| {
-                                create_binding(move || {
-                                    let index = index.get();
-                                    set_built.update(|built| built.push(index));
-                                });
-                                view! {
-                                    <Frame
-                                        padding={create_memo(move || Sides::symmetric(0.0, padding.get()))}
-                                    >
-                                        <Spacer />
-                                    </Frame>
-                                }
-                            }}
-                        </VirtualList>
+                        >|index: ReadSignal<usize>| {
+                            create_binding(move || {
+                                let index = index.get();
+                                set_built.update(|built| built.push(index));
+                            });
+                            view! {
+                                <Frame
+                                    padding={create_memo(move || Sides::symmetric(0.0, padding.get()))}
+                                >
+                                    <Spacer />
+                                </Frame>
+                            }
+                        }</VirtualList>
                     </Offset>
                 </List>
             }

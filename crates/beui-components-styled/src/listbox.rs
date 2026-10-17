@@ -13,10 +13,8 @@ pub fn Listbox(
     on_change: Callback<Option<usize>>,
 ) -> NodeId {
     view! {
-        <Choice options selected kind=Kind::Listbox on_change={on_change}>
-            {|handle| view! {
-                <OptionFace kind=Kind::Listbox handle />
-            }}
+        <Choice options selected kind=Kind::Listbox on_change={on_change}>|handle|
+            <OptionFace kind=Kind::Listbox handle />
         </Choice>
     }
 }

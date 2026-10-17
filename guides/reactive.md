@@ -233,12 +233,10 @@ than values:
 
 ```rust
 <List spacing=8.0>
-    <ForEach keys={visible}>
-        {move |id: Uuid| {
-            let item = items.get(&id);
-            view! { <ItemRow item /> }
-        }}
-    </ForEach>
+    <ForEach keys={visible}>|id: Uuid| {
+        let item = items.get(&id);
+        view! { <ItemRow item /> }
+    }</ForEach>
 </List>
 ```
 
@@ -659,27 +657,43 @@ a component has at most one, and a component with both keeps `children`.
 #[component]
 fn Checkbox(label: Prop<String>, checked: Prop<bool>) -> NodeId {
     view! {
-        <Toggle checked>
-            {move |handle| view! { <CheckboxFace handle label /> }}
+        <Toggle checked>|handle|
+            <CheckboxFace handle label />
         </Toggle>
     }
 }
 ```
 
 A slot that hands something over — `toggle`'s `content` above, `for_each`'s
-`view`, `container`'s `content` — takes one closure as its only child, and that
-closure receives the handle. A slot whose handle is `()`, like `show`'s `then`,
-takes tags instead: `view!` wraps them in the closure itself, so they stay
-unbuilt until the component asks for them. A `RenderFn` slot, like `Show`'s,
-may run that closure more than once, so the block clones what it hands on
-rather than moving it: `{move || { let a = a.clone(); view! { ... } }}`.
+`view`, `container`'s `content`, `dynamic`'s and `keyed`'s `view` — names the
+value right after the opening tag, the way a closure names its argument:
+`<Container>|size| <Card size /></Container>`. Everything up to the closing tag
+is the closure's body, which `view!` builds each time the component calls it.
+The value's type comes from the slot, and may be written out (`|key: Uuid|`);
+the closure is always `move`. When the body needs statements before its tags,
+it is a block instead, the only thing before the closing tag:
+`<Container>|size| { let narrow = narrower_than(W); view! { <Card narrow /> } }</Container>`.
+
+Tags written without `|value|` are a closure that ignores the value, so a
+slot whose value is `()`, like `show`'s `then`, takes its tags as they are, and
+so does a button whose face needs nothing from its handle. Either way `view!`
+wraps them in the closure itself, so they stay unbuilt until the component asks
+for them. Naming a value on a slot whose value is `()` is a compile error, and
+its block form is `|| { ... }`. A `RenderFn` slot, like `Show`'s or `ForEach`'s,
+may run that closure more than once, so the body clones what it hands on
+rather than moving it: `<Show condition>|| { let a = a.clone(); view! { ... } }</Show>`.
+A closure written in braces between the tags, `{move |x| ...}`, is a compile
+error pointing at this form.
 
 ```rust
 <Show condition={tab.memo(0)}><ListControls rows={list_rows.clone()} /></Show>
 ```
 
 Either way the block is exactly one child, because a `Render` returns one of
-them; two tags there are a compile error naming the tag that wrote them.
+them; two tags there are a compile error naming the tag that wrote them. A slot
+typed `Render<H, Children<T>>` or `RenderFn<H, Children<T>>` returns a run
+instead, so it takes any number of tags, and the component hands what its call
+returns to a `Children<T>` prop of its own.
 A slot the component always calls is a required prop like any other, so a
 `Show` with nothing between its tags, or a `ForEach` with no closure, does not
 compile rather than panicking once the view runs. Each misuse the types turn
@@ -746,7 +760,9 @@ need the value itself rather than a boolean, like a panel whose fields come from
 the kind of thing it is inspecting.
 
 ```rust
-<Dynamic value={shape}>{move |shape: Shape| view! { <ShapeFields shape /> }}</Dynamic>
+<Dynamic value={shape}>|shape: Shape|
+    <ShapeFields shape />
+</Dynamic>
 ```
 
 `dynamic` rebuilds on every change of its value, which is right when the value
@@ -756,8 +772,8 @@ the two: it rebuilds when its `key` changes and hands its `view` a
 while the branch itself stays put.
 
 ```rust
-<Keyed value={state} key={|state: State| state.shape()}>
-    {|state: ReadSignal<State>| view! { <Screen state /> }}
+<Keyed value={state} key={|state: State| state.shape()}>|state: ReadSignal<State>|
+    <Screen state />
 </Keyed>
 ```
 
@@ -786,7 +802,7 @@ one child per row without saying so.
 
 ```rust
 <ForEach spacing=0.0 keys>
-    {move |key: Uuid| view! { <ItemRow @sizing={row_size(key)} key /> }}
+    |key: Uuid| <ItemRow @sizing={row_size(key)} key />
 </ForEach>
 ```
 
@@ -850,7 +866,19 @@ as a render prop and calls it after `provide_context`. That prop is where
 `#[prop(children)]` earns its keep: the caller still writes the subtree between
 the provider's tags, but `view!` hands it over as a closure rather than as
 finished nodes, so the provide-then-build order holds while the provider reads
-like any other wrapper.
+like any other wrapper. Typed `Render<(), Children<T>>`, it takes as many
+children as a `Children<T>` prop would:
+
+```rust
+#[component]
+fn Page(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
+    view! {
+        <Container>|_size|
+            <List spacing=0.0 children={sections.call(())} />
+        </Container>
+    }
+}
+```
 
 ## Containers and responsive layout
 
@@ -868,9 +896,13 @@ and `Dynamic` do, so context the caller provides still reaches it. It provides
 the size it is laid out at as `ContainerSize`, and hands the signal to its `content`
 render prop. Anything below it can then ask `container_size()`, or
 `narrower_than(width)` for a `Memo<bool>` that is true when the nearest container
-is narrower than `width` (false when nothing provides a size, and false until the
-first layout). Queries answer for the nearest container, so a card that wraps its
-contents in a container gets answers about the card, not the window.
+is narrower than `width` (false until the first layout). Queries answer for the
+nearest container, so a card that wraps its contents in a container gets answers
+about the card, not the window. In debug builds `narrower_than` and `shorter_than`
+panic when no container is above them (release builds answer false), which usually means children built in the caller's
+scope rather than inside a wrapper's container (see the ordering rule above);
+`container_size()` returns `None` there instead, for code that has a use for
+"no container".
 
 `unstyled::stack` consumes that flag: it is a row that turns into a column, with
 its children falling back to intrinsic sizing, while the flag is true. It keeps

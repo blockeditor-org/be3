@@ -76,6 +76,25 @@ impl InputConfig {
     }
 }
 
+#[derive(Clone, Copy, Debug, Eq, PartialEq)]
+pub enum RawInput {
+    Key { code: u32, pressed: bool },
+    Button { code: u32, pressed: bool },
+    Wheel { x: i32, y: i32 },
+}
+
+pub trait InputFilter {
+    fn input(&mut self, input: RawInput, now: Duration) -> Vec<RawInput>;
+
+    fn timer(&mut self, now: Duration) -> Vec<RawInput>;
+
+    fn deadline(&self) -> Option<Duration>;
+
+    fn forget_held(&mut self);
+}
+
+pub type SharedFilter = Rc<RefCell<dyn InputFilter>>;
+
 type DevicesListener = Rc<dyn Fn(&[PointerDevice])>;
 
 #[derive(Clone)]
@@ -83,6 +102,8 @@ pub struct InputControl {
     pending: Rc<RefCell<Option<InputConfig>>>,
     devices: Rc<RefCell<Vec<PointerDevice>>>,
     listener: Rc<RefCell<Option<DevicesListener>>>,
+    filter: Rc<RefCell<Option<SharedFilter>>>,
+    injected: Rc<RefCell<Vec<RawInput>>>,
     waker: Waker,
 }
 
@@ -92,8 +113,31 @@ impl InputControl {
             pending: Rc::default(),
             devices: Rc::default(),
             listener: Rc::default(),
+            filter: Rc::default(),
+            injected: Rc::default(),
             waker,
         }
+    }
+
+    pub fn set_filter(&self, filter: Option<SharedFilter>) {
+        *self.filter.borrow_mut() = filter;
+        self.waker.wake();
+    }
+
+    pub fn inject(&self, inputs: Vec<RawInput>) {
+        if inputs.is_empty() {
+            return;
+        }
+        self.injected.borrow_mut().extend(inputs);
+        self.waker.wake();
+    }
+
+    pub(crate) fn filter(&self) -> Option<SharedFilter> {
+        self.filter.borrow().clone()
+    }
+
+    pub(crate) fn take_injected(&self) -> Vec<RawInput> {
+        std::mem::take(&mut *self.injected.borrow_mut())
     }
 
     pub fn set(&self, config: InputConfig) {

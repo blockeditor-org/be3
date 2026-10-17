@@ -110,6 +110,7 @@ mod a_finger_dragged_across_a_color_area_picks_rather_than_scrolls;
 mod a_finger_dragging_a_tab_out_of_its_bar_moves_it_where_it_is_dropped;
 mod a_finger_drags_a_draggable_down_where_nothing_scrolls;
 mod a_finger_moves_a_window_up_and_down_by_its_bar;
+mod a_finger_on_a_hidden_scrollbar_scrolls_the_content_under_it;
 mod a_finger_press_that_moves_the_focus_keeps_it_when_the_finger_lifts;
 mod a_finger_swiping_a_sheet_raises_it_before_scrolling_what_it_holds;
 mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
@@ -154,6 +155,8 @@ mod a_hidden_show_gives_its_share_of_the_space_to_its_visible_siblings;
 mod a_horizontal_scroll_lays_its_items_out_in_a_row;
 mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
 mod a_justified_row_places_its_leftover_space;
+mod a_key_dragged_off_the_software_keyboard_types_once_when_let_go;
+mod a_key_let_go_over_the_inspector_is_not_left_held;
 mod a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_launcher_closed_by_a_click_outside_opens_again;
@@ -245,6 +248,7 @@ mod a_scroll_inside_a_scroll_lays_out_the_rows_it_holds;
 mod a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips;
 mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
 mod a_scroll_only_re_measures_the_row_that_changed;
+mod a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
 mod a_second_finger_cancels_the_press_the_first_began;
 mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
@@ -278,13 +282,13 @@ mod a_split_button_runs_its_action_or_opens_its_menu;
 mod a_split_divider_takes_presses_only_in_its_gap;
 mod a_stack_becomes_a_column_when_its_container_gets_narrow;
 mod a_stack_built_inside_a_show_still_measures_the_container_above_it;
-mod a_stacked_dock_bar_goes_home_switches_tabs_and_holds_the_tabs_actions;
+mod a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions;
 mod a_stacked_dock_bar_shows_the_menu_its_tab_hands_it;
 mod a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels;
 mod a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it;
 mod a_style_provider_sizes_and_colours_the_text_inside_it;
 mod a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it;
-mod a_styled_scroll_puts_its_scrollbar_beside_the_content;
+mod a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content;
 mod a_tab_clicked_within_one_frame_does_not_start_a_drag;
 mod a_tab_dragged_from_one_window_onto_another_windows_bar_joins_it;
 mod a_tab_dropped_where_windows_overlap_joins_the_one_on_top;
@@ -298,6 +302,7 @@ mod a_tap_intercepted_for_a_document_runs_its_tap_action;
 mod a_tap_on_a_sliders_track_moves_it_there;
 mod a_tap_on_the_simulated_trackpad_holds_its_press_until_the_double_tap_timer_runs_out;
 mod a_tap_outside_selectable_text_puts_its_toolbar_away;
+mod a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it;
 mod a_test_id_names_the_copy_that_is_shown;
 mod a_test_id_reaches_the_accessibility_tree_as_its_author_id;
 mod a_text_area_shows_its_placeholder_until_something_is_typed;
@@ -320,6 +325,7 @@ mod a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
 mod a_twelve_hour_time_field_types_the_afternoon_with_a_p;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
+mod a_typed_paste_types_the_clipboard_key_by_key;
 mod a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone;
 mod a_value_child_that_watches_its_placement_panics_when_built;
 mod a_value_written_between_tags_takes_the_sizing_after_it;
@@ -341,6 +347,7 @@ mod a_window_released_past_the_edge_of_the_dock_springs_back_and_comes_to_rest;
 mod a_window_slides_into_a_shrinking_dock_and_back_out_when_it_grows;
 mod a_window_with_tabs_in_a_sidebar_has_no_title_bar;
 mod a_window_without_room_for_the_app_beside_the_inspector_uses_the_tab_bar;
+mod a_wrapper_provides_a_container_to_every_child_written_between_its_tags;
 mod a_wrapping_caption_grows_taller_than_the_single_line_it_would_be;
 mod a_wrapping_row_flows_its_children_onto_more_lines;
 mod accessibility_exposes_and_operates_a_button;
@@ -401,6 +408,7 @@ mod arrows_at_the_ends_of_a_date_field_leave_its_value_alone;
 mod arrows_pick_which_emoji_the_menu_inserts;
 mod back_and_a_press_outside_close_the_emoji_menu_and_back_the_find_bar;
 mod backspace_deletes_the_character_before_the_caret;
+mod beuis_keyboard_is_used_only_where_the_platform_has_none_of_its_own;
 mod changing_a_filter_damages_only_the_region_it_covers;
 mod changing_one_span_of_a_long_text_shapes_only_that_span;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
@@ -549,6 +557,7 @@ mod moving_a_dock_tab_to_another_pane_keeps_its_panel;
 mod moving_off_a_context_menu_item_clears_its_highlight;
 mod moving_the_caret_builds_no_rows_again;
 mod moving_the_pointer_ends_the_wheel_latch;
+mod narrower_than_with_no_container_above_it_panics;
 mod nested_lists_measure_each_node_a_bounded_number_of_times;
 mod nested_offsets_lay_their_content_out_once_a_layout;
 mod on_a_narrow_screen_picking_a_date_moves_on_to_the_time;
@@ -579,6 +588,7 @@ mod pinching_a_pan_zoom_zooms_around_the_pointer;
 mod platform_scrolls_arrive_in_points;
 mod plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale;
 mod pointer_motion_only_reaches_what_lies_under_the_pointer;
+mod pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track;
 mod pointing_inside_the_autoscroll_dead_zone_leaves_the_scroll_still;
 mod pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows;
 mod pressing_a_sliders_knob_keeps_its_value_until_it_is_dragged;
@@ -703,7 +713,7 @@ mod the_simulate_tab_filters_the_document_without_the_screen_reader;
 mod the_simulated_cursor_stays_a_mouse_pointer_while_touch_is_emulated;
 mod the_simulated_cursor_takes_the_shape_the_document_asks_for;
 mod the_simulated_input_bars_take_their_room_out_of_the_document;
-mod the_simulated_keyboard_types_into_the_focused_input;
+mod the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it;
 mod the_top_layer_takes_a_click_over_the_layer_below;
 mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
 mod the_window_is_shown_the_ime_again_after_typing_into_it;
@@ -811,6 +821,7 @@ pub(crate) struct Harness {
     context: Context,
     document: Document,
     viewport: Vec2,
+    typed: Vec<Event>,
 }
 
 impl Harness {
@@ -823,6 +834,7 @@ impl Harness {
             context,
             document,
             viewport: VIEWPORT,
+            typed: Vec::new(),
         }
     }
 
@@ -857,12 +869,17 @@ impl Harness {
             context,
             document,
             viewport,
+            typed,
         } = self;
-        let input = RawInput { events };
+        let mut held = std::mem::take(typed);
+        held.extend(events);
+        let input = RawInput { events: held };
         context.advance_clock(FRAME_INTERVAL);
-        context.run(input, |context| {
+        let mut output = context.run(input, |context| {
             document.show(context, Rect::from_min_size(Pos2::ZERO, *viewport));
-        })
+        });
+        *typed = std::mem::take(&mut output.typed);
+        output
     }
 
     pub(crate) fn click(&mut self, pos: Pos2) {
@@ -1200,11 +1217,6 @@ impl Harness {
         self.simulation(MouseSimulation::trackpad_center)
     }
 
-    pub(crate) fn simulated_key(&self, label: &str) -> Pos2 {
-        self.simulation(|simulation| simulation.key_center(label))
-            .unwrap_or_else(|| panic!("the simulated keyboard has no {label:?} key"))
-    }
-
     pub(crate) fn enable_mouse_simulation(&mut self) {
         self.toggle_inspector();
         let tab = self.simulation_tab_center();
@@ -1468,16 +1480,18 @@ pub(crate) fn PanZoomStage(
     on_change: crate::reactive::Callback<unstyled::PanZoomView>,
 ) -> NodeId {
     view! {
-        <unstyled::PanZoom @test_id="stage" view on_change={on_change}>
-            {move |handle: unstyled::PanZoomHandle| {
-                let unstyled::PanZoomHandle { view, .. } = handle;
-                view! {
-                    <Canvas view>
-                        <CanvasItem @test_id="item" x=0.0 y=0.0 width=100.0 height=50.0 />
-                    </Canvas>
-                }
-            }}
-        </unstyled::PanZoom>
+        <unstyled::PanZoom
+            @test_id="stage"
+            view
+            on_change={on_change}
+        >|handle: unstyled::PanZoomHandle| {
+            let unstyled::PanZoomHandle { view, .. } = handle;
+            view! {
+                <Canvas view>
+                    <CanvasItem @test_id="item" x=0.0 y=0.0 width=100.0 height=50.0 />
+                </Canvas>
+            }
+        }</unstyled::PanZoom>
     }
 }
 
@@ -1498,21 +1512,17 @@ pub(crate) fn virtual_list(built: WriteSignal<Vec<usize>>) -> VirtualScroll {
                             @node_ref=&list
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
-                        >
-                            {move |index: ReadSignal<usize>| {
-                                create_binding(move || {
-                                    let index = index.get();
-                                    built.update(|built| built.push(index));
-                                });
-                                view! {
-                                    <Frame
-                                        padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
-                                    >
-                                        <Spacer />
-                                    </Frame>
-                                }
-                            }}
-                        </VirtualList>
+                        >|index: ReadSignal<usize>| {
+                            create_binding(move || {
+                                let index = index.get();
+                                built.update(|built| built.push(index));
+                            });
+                            view! {
+                                <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
+                                    <Spacer />
+                                </Frame>
+                            }
+                        }</VirtualList>
                     </Offset>
                 </List>
             }
@@ -1542,19 +1552,21 @@ pub(crate) fn keyed_virtual_list(built: WriteSignal<Vec<usize>>) -> KeyedVirtual
             view! {
                 <List spacing=0.0>
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList @node_ref=&list keys={keys} item_size=VIRTUAL_ITEM_HEIGHT>
-                            {move |key: ReadSignal<usize>| {
-                                create_binding(move || {
-                                    let key = key.get();
-                                    built.update(|built| built.push(key));
-                                });
-                                view! {
-                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                        <Spacer />
-                                    </Frame>
-                                }
-                            }}
-                        </VirtualList>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={keys}
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >|key: ReadSignal<usize>| {
+                            create_binding(move || {
+                                let key = key.get();
+                                built.update(|built| built.push(key));
+                            });
+                            view! {
+                                <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                    <Spacer />
+                                </Frame>
+                            }
+                        }</VirtualList>
                     </Offset>
                 </List>
             }
@@ -1661,6 +1673,24 @@ pub(crate) fn stacked_panels() -> StackedPanels {
     }
 }
 
+pub(crate) fn scrollbar_of(harness: &Harness, scroll: NodeId) -> NodeId {
+    let over = harness.document().children(scroll)[1];
+    harness.document().children(over)[0]
+}
+
+pub(crate) fn track_within(harness: &Harness, bar: NodeId) -> Rect {
+    let document = harness.document();
+    let interactive = document.children(bar)[0];
+    let inset = document.children(interactive)[0];
+    harness.rect(document.children(inset)[0])
+}
+
+pub(crate) fn thumb_painted(output: &crate::FrameOutput, track: Rect) -> bool {
+    output.shapes().iter().any(|shape| {
+        matches!(shape, crate::painter::Shape::Rect { rect, .. } if track.contains_rect(*rect) && *rect != track)
+    })
+}
+
 pub(crate) fn painted_thumb(output: &crate::FrameOutput, track: Rect) -> Rect {
     output
         .shapes()
@@ -1708,10 +1738,8 @@ pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: WriteSignal<usize
                     on_close={move || closed.update(|closed| *closed += 1)}
                 >
                     <List spacing=0.0>
-                        <ForEach keys={indices(SHEET_ROWS)}>
-                            {|_: usize| view! {
-                                <Frame height=SHEET_ROW_HEIGHT />
-                            }}
+                        <ForEach keys={indices(SHEET_ROWS)}>|_: usize|
+                            <Frame height=SHEET_ROW_HEIGHT />
                         </ForEach>
                     </List>
                 </styled::Sheet>
@@ -1743,16 +1771,14 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
         view! {
             <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">
-                    <ForEach keys={open}>
-                        {move |id: u64| view! {
-                            <unstyled::DockTab
-                                id
-                                title={format!("Tab {id}")}
-                                on_close={move || set_open.update(|open| open.retain(|other| *other != id))}
-                            >
-                                <Frame @test_id={format!("content.{id}")} />
-                            </unstyled::DockTab>
-                        }}
+                    <ForEach keys={open}>|id: u64|
+                        <unstyled::DockTab
+                            id
+                            title={format!("Tab {id}")}
+                            on_close={move || set_open.update(|open| open.retain(|other| *other != id))}
+                        >
+                            <Frame @test_id={format!("content.{id}")} />
+                        </unstyled::DockTab>
                     </ForEach>
                 </unstyled::DockPane>
             </styled::Docking>
@@ -1911,7 +1937,7 @@ pub(crate) fn toolbar_of<const N: usize>(
         set_built.set(Some(nodes));
         view! {
             <List spacing=8.0>
-                <ForEach keys={indices(N)}>{move |index: usize| nodes[index]}</ForEach>
+                <ForEach keys={indices(N)}>|index: usize| { nodes[index] }</ForEach>
             </List>
         }
     });
@@ -2063,14 +2089,12 @@ fn nested() -> Document {
 #[component]
 fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
-        <ForEach keys={indices(count)}>
-            {|index: usize| view! {
-                <Text
-                    string={format!("Row {index}")}
-                    color=Color32::WHITE
-                    font={FontId::proportional(20.0)}
-                />
-            }}
+        <ForEach keys={indices(count)}>|index: usize|
+            <Text
+                string={format!("Row {index}")}
+                color=Color32::WHITE
+                font={FontId::proportional(20.0)}
+            />
         </ForEach>
     }
 }
@@ -2306,48 +2330,42 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
         view! {
             <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">
-                    <ForEach keys={tabs.clone()}>
-                        {move |id: u64| {
-                            view! {
-                                <unstyled::DockTab id title={format!("Tab {id}")}>
-                                    <FocusPanel
-                                        name={format!("content.{id}")}
-                                        owner=id
-                                        pressed={set_pressed}
-                                        keyed={set_keyed}
-                                        attended={None}
-                                        size={None}
-                                    />
-                                </unstyled::DockTab>
-                            }
-                        }}
+                    <ForEach keys={tabs.clone()}>|id: u64|
+                        <unstyled::DockTab id title={format!("Tab {id}")}>
+                            <FocusPanel
+                                name={format!("content.{id}")}
+                                owner=id
+                                pressed={set_pressed}
+                                keyed={set_keyed}
+                                attended={None}
+                                size={None}
+                            />
+                        </unstyled::DockTab>
                     </ForEach>
                 </unstyled::DockPane>
-                <ForEach keys>
-                    {move |(id, parent): (u64, u64)| {
-                        let modal = crate::reactive::create_memo(move || {
-                            listed.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
-                        });
-                        view! {
-                            <unstyled::DockDialog
-                                id
-                                parent
-                                modal
-                                title={format!("Dialog {id}")}
-                                size={dialog_size(id)}
-                            >
-                                <FocusPanel
-                                    name={format!("dialog.{id}.field")}
-                                    owner=id
-                                    pressed={set_pressed}
-                                    keyed={set_keyed}
-                                    attended={Some(set_attended)}
-                                    size={Some(dialog_size(id))}
-                                />
-                            </unstyled::DockDialog>
-                        }
-                    }}
-                </ForEach>
+                <ForEach keys>|(id, parent): (u64, u64)| {
+                    let modal = crate::reactive::create_memo(move || {
+                        listed.with(|listed| listed.iter().any(|(held, _, modal)| *held == id && *modal))
+                    });
+                    view! {
+                        <unstyled::DockDialog
+                            id
+                            parent
+                            modal
+                            title={format!("Dialog {id}")}
+                            size={dialog_size(id)}
+                        >
+                            <FocusPanel
+                                name={format!("dialog.{id}.field")}
+                                owner=id
+                                pressed={set_pressed}
+                                keyed={set_keyed}
+                                attended={Some(set_attended)}
+                                size={Some(dialog_size(id))}
+                            />
+                        </unstyled::DockDialog>
+                    }
+                }</ForEach>
             </styled::Docking>
         }
     });
@@ -2412,6 +2430,7 @@ impl App for Seeing {
             match request {
                 crate::PasteRequest::Asked => context.request_paste(),
                 crate::PasteRequest::Shortcut => context.paste_shortcut(),
+                crate::PasteRequest::Typed => context.request_typed_paste(),
             }
         }
     }
@@ -2422,6 +2441,7 @@ pub(crate) struct IntakePlatform {
     pub(crate) clipboard: Option<String>,
     pub(crate) clipboard_image: Option<crate::PickedFile>,
     pub(crate) delivers_paste: bool,
+    pub(crate) shows_keyboard: bool,
     pub(crate) pastes: Vec<Vec<crate::PasteKind>>,
 }
 
@@ -2436,6 +2456,10 @@ impl beui_core::runner::Platform for IntakePlatform {
 
     fn delivers_paste_shortcut(&self) -> bool {
         self.delivers_paste
+    }
+
+    fn shows_keyboard(&self) -> bool {
+        self.shows_keyboard
     }
 }
 

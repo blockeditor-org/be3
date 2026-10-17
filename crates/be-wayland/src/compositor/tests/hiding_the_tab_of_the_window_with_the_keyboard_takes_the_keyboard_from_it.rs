@@ -24,10 +24,8 @@ fn Tabbed(windows: Windows) -> NodeId {
                     title="Program"
                     content={move || view! {
                         <Layers>
-                            <ForEach keys={ids}>
-                                {move |id: WindowId| view! {
-                                    <WindowView windows id />
-                                }}
+                            <ForEach keys={ids}>|id: WindowId|
+                                <WindowView windows id />
                             </ForEach>
                         </Layers>
                     }}

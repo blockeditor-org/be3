@@ -20,8 +20,8 @@ pub use linux::{
     InputDevices, Media, MediaLevel, MediaLevels, MediaRequest, NotificationCloseReason,
     NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
     NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction, PowerAvailability,
-    ProgramAction, Programs, ScreenLocked, Tray, TrayMenuEntry, TrayRequest, TrayStatus,
-    TrayToggle, WindowAction, WindowOrigin,
+    ProgramAction, Programs, RemapState, Remaps, ScreenLocked, Tray, TrayMenuEntry, TrayRequest,
+    TrayStatus, TrayToggle, WindowAction, WindowOrigin,
 };
 pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
@@ -118,6 +118,7 @@ pub struct WindowRequests {
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
     pub pastes: Vec<PasteKind>,
+    pub keyboard_toggles: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -1397,6 +1398,7 @@ pub struct BlockInfo {
     pub access: AccessLevel,
     pub metadata: BlockMetadata,
     pub locked: bool,
+    pub deleted: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1508,6 +1510,7 @@ pub enum BlockCommand {
         parent: [u8; 16],
         linked: bool,
     },
+    Restore,
     AppMenu,
 }
 

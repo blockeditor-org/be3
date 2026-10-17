@@ -2,7 +2,7 @@ use super::*;
 use crate::reactive::*;
 use crate::unstyled::{DockMode, DockPane, DockTab, DockingLayout, dock_menu};
 
-const HOME: u64 = 1;
+const PLAIN: u64 = 1;
 
 fn laid_out(harness: &Harness, test_id: &str) -> bool {
     harness
@@ -19,9 +19,9 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {
-            <styled::Docking layout mode=DockMode::Stacked home=HOME focus=2u64>
+            <styled::Docking layout mode=DockMode::Stacked focus=2u64>
                 <DockPane id="tabs">
-                    <DockTab id=HOME title="Tab 1">
+                    <DockTab id=PLAIN title="Tab 1">
                         <Frame @test_id="content.1" />
                     </DockTab>
                     <DockTab
@@ -62,13 +62,16 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
         "choosing Rename runs the tab's action"
     );
 
-    let back = harness.center(harness.find("dock.back"));
-    harness.click(back);
+    let switch = harness.center(harness.find("dock.switch"));
+    harness.click(switch);
+    harness.settle();
+    let plain = harness.center(harness.find("dock.switcher.tab.1"));
+    harness.click(plain);
     harness.settle();
 
     assert!(laid_out(&harness, "content.1"));
     assert!(
         !laid_out(&harness, "dock.menu"),
-        "the home tab handed the bar no menu"
+        "the other tab handed the bar no menu"
     );
 }

@@ -118,6 +118,7 @@ pub struct WindowRequests {
     pub wants_keyboard: bool,
     pub intercepted_keys: Vec<KeyChord>,
     pub pastes: Vec<block_plugin_api::PasteKind>,
+    pub keyboard_toggles: u32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]

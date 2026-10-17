@@ -83,6 +83,38 @@ pub fn request_paste() {
     with_document(Document::request_paste);
 }
 
+pub fn type_events(events: Vec<beui_core::input::Event>) {
+    with_document(|document| {
+        if let Some(context) = document.context() {
+            context.type_events(events);
+        }
+    });
+}
+
+pub fn request_typed_paste() {
+    with_document(|document| {
+        if let Some(context) = document.context() {
+            context.request_typed_paste();
+        }
+    });
+}
+
+pub fn toggle_keyboard() {
+    with_document(|document| {
+        if let Some(context) = document.context() {
+            context.toggle_keyboard();
+        }
+    });
+}
+
+pub fn close_keyboard() {
+    with_document(|document| {
+        if let Some(context) = document.context() {
+            context.close_keyboard();
+        }
+    });
+}
+
 pub fn pixels_per_point() -> ReadSignal<f32> {
     with_document(|document| document.watch_pixels_per_point())
 }

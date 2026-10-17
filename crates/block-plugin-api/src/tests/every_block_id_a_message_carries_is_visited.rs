@@ -17,6 +17,7 @@ fn every_block_id_a_message_carries_is_visited() {
                 access: AccessLevel::Edit,
                 metadata: crate::BlockMetadata::default(),
                 locked: false,
+                deleted: false,
             }],
         }),
         Message::Editor(EditorMessage::VersionControl {

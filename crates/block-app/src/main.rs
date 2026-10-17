@@ -28,6 +28,7 @@ mod performance;
 mod platform;
 mod plugin_host;
 mod programs;
+mod remap;
 mod root_settings;
 #[cfg(target_os = "linux")]
 mod session;
@@ -295,6 +296,10 @@ impl beui::App for Shell {
             session::export_environment(wayland::environment());
         }
         display::start(setup);
+        remap::load_cached(self.app.app_state.remapper().unwrap_or_else(|error| {
+            eprintln!("block-app: the input remapper kept for this session was not read: {error}");
+            None
+        }));
         self.app.input.boot(&self.app.app_state);
         self.app.display.boot(&self.app.app_state);
         #[cfg(all(
@@ -807,6 +812,7 @@ impl BlockApp {
         }
         let locked = lock.locked();
         wayland::set_locked(locked);
+        remap::set_locked(locked);
         plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
         if locked {
             self.app_menu_open = false;
@@ -1528,6 +1534,9 @@ impl BlockApp {
         if !self.ensure_editor(parent) {
             return;
         }
+        if !linked {
+            be::placing(child, true);
+        }
         self.pending_transfers.push(PendingTransfer {
             child,
             source: None,
@@ -1564,6 +1573,9 @@ impl BlockApp {
         if !source_ready || !self.ensure_editor(destination) {
             return;
         }
+        if source == SidebarDragSource::Orphaned && !is_reference {
+            be::placing(child, true);
+        }
         self.pending_transfers.push(PendingTransfer {
             child,
             source: Some(source),
@@ -1571,6 +1583,42 @@ impl BlockApp {
             parent_after: (!is_reference).then_some(BlockParent::Block(destination)),
             stage: TransferStage::DeleteSource,
         });
+    }
+
+    fn restore(&mut self, id: Uuid) {
+        let Some(root) = be::with_graph(|graph| graph.deleted_root(id)).flatten() else {
+            return;
+        };
+        let Some(node) = be::node(root) else {
+            return;
+        };
+        let from = node.metadata.get(&be_block::DELETED_FROM);
+        let usable = |parent: Uuid| {
+            be::node(parent).is_some_and(|parent| parent.access.can_edit())
+                && be::with_graph(|graph| graph.deleted_root(parent).is_none()).unwrap_or(false)
+        };
+        let destination = match from {
+            Some(be_block::DeletedFrom::Root) => {
+                be::set_parent(root, BlockParent::Root);
+                return;
+            }
+            Some(be_block::DeletedFrom::Block(parent)) if usable(parent) => parent,
+            Some(be_block::DeletedFrom::Block(_)) | None => match self.root_settings.my_files() {
+                Some(files) => files,
+                None => return,
+            },
+        };
+        let listed = be::node(destination).is_some_and(|parent| parent.references.contains(&root));
+        match listed {
+            true => be::set_parent(root, BlockParent::Block(destination)),
+            false => self.queue_move(
+                root,
+                node.content_type,
+                SidebarDragSource::Orphaned,
+                destination,
+                false,
+            ),
+        }
     }
 
     fn queue_delete(
@@ -1638,6 +1686,7 @@ impl BlockApp {
             if let Some(parent) = transfer.parent_after {
                 self.set_block_parent(transfer.child, parent);
             }
+            be::placing(transfer.child, false);
         }
     }
 
@@ -2240,6 +2289,7 @@ impl BlockApp {
                 Uuid::from_bytes(destination),
                 is_reference,
             ),
+            BlockCommand::Restore => self.restore(id),
             BlockCommand::Place {
                 block_type,
                 parent,
@@ -2402,7 +2452,10 @@ impl BlockApp {
         self.process_pending_copies();
         self.show_shell();
         #[cfg(target_os = "linux")]
-        self.take_power_request();
+        {
+            self.take_power_request();
+            remap::frame(&self.app_state);
+        }
         self.poll_artifacts();
         plugin_host::flush();
         performance::end_frame();

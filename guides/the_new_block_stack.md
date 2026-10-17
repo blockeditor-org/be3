@@ -839,7 +839,22 @@ names such a block "Locked" or "No access" in place of its name, and
 `block_editor_beui::label_glyph` gives either a lock icon, so every place that
 draws a referenced block from its label (text links and embeds, the files
 pane, database cells, canvas cards, pickers) shows it; a frame says so in
-place of an editor. It changes the graph with
+place of an editor. `BlockInfo::deleted` is set on a block whose parent chain
+the host's mirror follows up to a `Detached` block (`Graph::deleted_root`): it
+is in Recently Deleted, itself or inside a deleted folder, though links to it
+still resolve. A chain that runs into a block the account cannot see counts as
+live. `BlockInfo::label` carries the flag, `label_glyph` gives such a block a
+trash icon, and the places that list references treat it as a link that will
+break: the files pane mutes it (but not inside Recently Deleted, where every
+row is deleted), the shell's reference menus and phone details sheet list it
+last as "In Recently Deleted" and leave it out of the counts and the linked
+bar, pickers never offer it, and a deleted block opened in a tab has a bar
+above it saying so. Anything may ask the host to bring one back with
+`EditorHost::restore_block` (`BlockCommand::Restore`): the host finds the
+`Detached` block at the top of its chain and puts it back where the
+`DELETED_FROM` metadata key says it was deleted from, which `be::set_parent`
+records when it detaches a block and clears when it gives it a parent again,
+or in My files when that place is gone, deleted or not editable. It changes the graph with
 `CreateBlock { block_id, content_type, parent, name, artifact, content }`,
 `SetParent` and `SetName`, which the host takes only when the account may edit
 the block and the parent it names, and hands to `be::create`, `be::set_parent`
@@ -999,7 +1014,16 @@ nothing may pick those up. `root_settings::own_settings_blocks` (plugins) and
 each made one before seeing the other's, both are read as one
 (`Settings::merged`, the lowest id winning a clash) and written through the
 lowest. The settings editor shows someone else's `Settings` or settings profile
-with a notice, and makes and changes nothing in it.
+with a notice, and makes and changes nothing in it. The editors of the kinds lay out
+their pages with beui's `SettingsPage`, `SettingsSection` and `SettingsRow`: a
+card of rows per section, each a label and description beside its control,
+stacked once the row is narrow, and a section runs edge to edge once it is. A
+`modified` row has an accent bar at its edge and, given `on_reset`, a small
+Reset link after its label. A `SettingsLink` is a row that opens a page of its own (a block,
+in a tab): its label and description, a chevron where a control would be, and the
+hover a button has, inset and rounded so it stays inside the card. It takes `modified`
+and `on_reset` as a row does, and with `reset_confirm` its Reset asks in a dialog
+first, for a reset that deletes the block it opens.
 
 Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
 `EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:

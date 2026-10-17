@@ -18,19 +18,17 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
                                 @node_ref=&list
                                 keys={indices(ROWS)}
                                 item_size=VIRTUAL_ITEM_HEIGHT
-                            >
-                                {move |key: ReadSignal<usize>| {
-                                    create_binding(move || {
-                                        let key = key.get();
-                                        set_built.update(|built| built.push(key));
-                                    });
-                                    view! {
-                                        <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                            <Spacer />
-                                        </Frame>
-                                    }
-                                }}
-                            </VirtualList>
+                            >|key: ReadSignal<usize>| {
+                                create_binding(move || {
+                                    let key = key.get();
+                                    set_built.update(|built| built.push(key));
+                                });
+                                view! {
+                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                        <Spacer />
+                                    </Frame>
+                                }
+                            }</VirtualList>
                             <Frame height=BELOW>
                                 <Spacer />
                             </Frame>

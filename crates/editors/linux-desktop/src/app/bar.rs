@@ -2,7 +2,9 @@ use std::time::Duration;
 
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
-use block_editor_beui::beui::icons::{ICON_ADD, ICON_APPS, ICON_MENU, ICON_WORKSPACES};
+use block_editor_beui::beui::icons::{
+    ICON_ADD, ICON_APPS, ICON_KEYBOARD, ICON_MENU, ICON_WORKSPACES,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
@@ -114,23 +116,21 @@ pub(crate) fn DesktopBar(
                         disabled={unready}
                         @test_id={"desktop.sessions"}
                         items={view! {
-                            <ForEach keys={keys}>
-                                {move |block: uuid::Uuid| {
-                                    let named = named;
-                                    let label = create_memo(move || {
-                                        named.with(|sessions| {
-                                            sessions
-                                                .iter()
-                                                .find(|session| session.block == block)
-                                                .map(|session| session.name.clone())
-                                                .unwrap_or_default()
-                                        })
-                                    });
-                                    view! {
-                                        <MenuItem label />
-                                    }
-                                }}
-                            </ForEach>
+                            <ForEach keys={keys}>|block: uuid::Uuid| {
+                                let named = named;
+                                let label = create_memo(move || {
+                                    named.with(|sessions| {
+                                        sessions
+                                            .iter()
+                                            .find(|session| session.block == block)
+                                            .map(|session| session.name.clone())
+                                            .unwrap_or_default()
+                                    })
+                                });
+                                view! {
+                                    <MenuItem label />
+                                }
+                            }</ForEach>
                             <MenuItem
                                 row_test_id={"desktop.sessions.new".to_owned()}
                                 label="New session"
@@ -152,10 +152,19 @@ pub(crate) fn DesktopBar(
                     <Show condition={notified}>
                         <NotificationsButton notifications />
                     </Show>
-                    <BarPopup label={clock} width=CALENDAR_WIDTH @test_id={"desktop.clock"}>
-                        {move |_: PopoverHandle| view! {
-                            <DesktopCalendar editor={editor} />
-                        }}
+                    <IconButton
+                        glyph={ICON_KEYBOARD.to_owned()}
+                        label="On-screen keyboard"
+                        @test_id={"desktop.keyboard"}
+                        press_focus=false
+                        on_click={toggle_keyboard}
+                    />
+                    <BarPopup
+                        label={clock}
+                        width=CALENDAR_WIDTH
+                        @test_id={"desktop.clock"}
+                    >|_: PopoverHandle|
+                        <DesktopCalendar editor={editor} />
                     </BarPopup>
                     <Show condition={powered}>
                         <PowerMenu editor={editor} />

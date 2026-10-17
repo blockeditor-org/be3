@@ -175,6 +175,7 @@ pub struct BlockLabel {
     pub name: String,
     pub automatic: bool,
     pub reach: Reach,
+    pub deleted: bool,
 }
 
 impl BlockLabel {
@@ -200,6 +201,7 @@ impl BlockLabel {
             name,
             automatic,
             reach: Reach::Open,
+            deleted: false,
         }
     }
 
@@ -210,6 +212,11 @@ impl BlockLabel {
             self.icon = None;
         }
         self.reach = reach;
+        self
+    }
+
+    pub fn deleted(mut self, deleted: bool) -> Self {
+        self.deleted = deleted;
         self
     }
 }

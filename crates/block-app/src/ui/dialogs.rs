@@ -108,74 +108,70 @@ fn MembersPanel(view: AppViewStore) -> NodeId {
                     string="Administrators can open every block in this organization. Removing someone takes away what was shared with them here, and gives new keys to everything they could open."
                     wrap=true
                 />
-                <ForEach keys={keys}>
-                    {move |account: Uuid| {
-                        let row = create_memo(move || {
-                            shown
-                                .get()
-                                .members
-                                .into_iter()
-                                .find(|member| member.account == account)
-                                .unwrap_or_default()
-                        });
-                        let name = create_memo(move || row.get().name);
-                        let detail = create_memo(move || row.get().detail);
-                        let fixed = create_memo(move || {
-                            let row = row.get();
-                            row.me || row.agent || busy.get()
-                        });
-                        let role_label = create_memo(move || match row.get().administrator {
-                            true => "Make editor".to_owned(),
-                            false => "Make administrator".to_owned(),
-                        });
-                        let next_role = move || match row.get_untracked().administrator {
-                            true => OrganizationRole::Editor,
-                            false => OrganizationRole::Administrator,
-                        };
-                        let unremovable = create_memo(move || row.get().me || busy.get());
-                        view! {
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                                    <Text string={name} />
-                                    <Text style=TextStyle::CAPTION string={detail} />
-                                </List>
-                                <Button
-                                    label={role_label}
-                                    variant=ButtonVariant::Secondary
-                                    disabled={fixed}
-                                    @test_id={format!("app.members.role.{account}")}
-                                    on_click={move || send(UiCommand::SetMemberRole(account, next_role()))}
-                                />
-                                <IconButton
-                                    glyph={ICON_PERSON_REMOVE.to_owned()}
-                                    label="Remove member"
-                                    disabled={unremovable}
-                                    @test_id={format!("app.members.remove.{account}")}
-                                    on_click={move || send(UiCommand::RemoveMember(account))}
-                                />
+                <ForEach keys={keys}>|account: Uuid| {
+                    let row = create_memo(move || {
+                        shown
+                            .get()
+                            .members
+                            .into_iter()
+                            .find(|member| member.account == account)
+                            .unwrap_or_default()
+                    });
+                    let name = create_memo(move || row.get().name);
+                    let detail = create_memo(move || row.get().detail);
+                    let fixed = create_memo(move || {
+                        let row = row.get();
+                        row.me || row.agent || busy.get()
+                    });
+                    let role_label = create_memo(move || match row.get().administrator {
+                        true => "Make editor".to_owned(),
+                        false => "Make administrator".to_owned(),
+                    });
+                    let next_role = move || match row.get_untracked().administrator {
+                        true => OrganizationRole::Editor,
+                        false => OrganizationRole::Administrator,
+                    };
+                    let unremovable = create_memo(move || row.get().me || busy.get());
+                    view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                                <Text string={name} />
+                                <Text style=TextStyle::CAPTION string={detail} />
                             </List>
-                        }
-                    }}
-                </ForEach>
-                <Show condition={asks_removal}>
-                    {move || view! {
-                        <List spacing=6.0>
-                            <Text style=TextStyle::PARAGRAPH string={removing} wrap=true />
-                            <List direction=Direction::Horizontal spacing=8.0>
-                                <Button
-                                    label="Remove"
-                                    variant=ButtonVariant::Primary
-                                    @test_id={"app.members.remove.confirm"}
-                                    on_click={|| send(UiCommand::ConfirmRemoveMember)}
-                                />
-                                <Button
-                                    label="Keep"
-                                    variant=ButtonVariant::Secondary
-                                    on_click={|| send(UiCommand::CancelRemoveMember)}
-                                />
-                            </List>
+                            <Button
+                                label={role_label}
+                                variant=ButtonVariant::Secondary
+                                disabled={fixed}
+                                @test_id={format!("app.members.role.{account}")}
+                                on_click={move || send(UiCommand::SetMemberRole(account, next_role()))}
+                            />
+                            <IconButton
+                                glyph={ICON_PERSON_REMOVE.to_owned()}
+                                label="Remove member"
+                                disabled={unremovable}
+                                @test_id={format!("app.members.remove.{account}")}
+                                on_click={move || send(UiCommand::RemoveMember(account))}
+                            />
                         </List>
-                    }}
+                    }
+                }</ForEach>
+                <Show condition={asks_removal}>
+                    <List spacing=6.0>
+                        <Text style=TextStyle::PARAGRAPH string={removing} wrap=true />
+                        <List direction=Direction::Horizontal spacing=8.0>
+                            <Button
+                                label="Remove"
+                                variant=ButtonVariant::Primary
+                                @test_id={"app.members.remove.confirm"}
+                                on_click={|| send(UiCommand::ConfirmRemoveMember)}
+                            />
+                            <Button
+                                label="Keep"
+                                variant=ButtonVariant::Secondary
+                                on_click={|| send(UiCommand::CancelRemoveMember)}
+                            />
+                        </List>
+                    </List>
                 </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Button
@@ -238,59 +234,55 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                 <Show condition={none}>
                     <Text style=TextStyle::CAPTION string="No contacts yet." />
                 </Show>
-                <ForEach keys={keys}>
-                    {move |account: Uuid| {
-                        let row = create_memo(move || {
-                            shown
-                                .get()
-                                .contacts
-                                .into_iter()
-                                .find(|contact| contact.account == account)
-                                .unwrap_or_default()
-                        });
-                        let name = create_memo(move || row.get().name);
-                        let detail = create_memo(move || {
-                            let row = row.get();
-                            match row.verified {
-                                true => row.email,
-                                false => format!("{}, not confirmed yet", row.email),
-                            }
-                        });
-                        view! {
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                                    <Text string={name} />
-                                    <Text style=TextStyle::CAPTION string={detail} />
-                                </List>
-                                <IconButton
-                                    glyph={ICON_DELETE.to_owned()}
-                                    label="Remove contact"
-                                    @test_id={format!("app.contacts.remove.{account}")}
-                                    on_click={move || send(UiCommand::RemoveContact(account))}
-                                />
-                            </List>
+                <ForEach keys={keys}>|account: Uuid| {
+                    let row = create_memo(move || {
+                        shown
+                            .get()
+                            .contacts
+                            .into_iter()
+                            .find(|contact| contact.account == account)
+                            .unwrap_or_default()
+                    });
+                    let name = create_memo(move || row.get().name);
+                    let detail = create_memo(move || {
+                        let row = row.get();
+                        match row.verified {
+                            true => row.email,
+                            false => format!("{}, not confirmed yet", row.email),
                         }
-                    }}
-                </ForEach>
-                <Show condition={asks_removal}>
-                    {move || view! {
-                        <List spacing=6.0>
-                            <Text style=TextStyle::PARAGRAPH string={removing} wrap=true />
-                            <List direction=Direction::Horizontal spacing=8.0>
-                                <Button
-                                    label="Remove"
-                                    variant=ButtonVariant::Primary
-                                    @test_id={"app.contacts.remove.confirm"}
-                                    on_click={|| send(UiCommand::ConfirmRemoveContact)}
-                                />
-                                <Button
-                                    label="Keep"
-                                    variant=ButtonVariant::Secondary
-                                    on_click={|| send(UiCommand::CancelRemoveContact)}
-                                />
+                    });
+                    view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
+                                <Text string={name} />
+                                <Text style=TextStyle::CAPTION string={detail} />
                             </List>
+                            <IconButton
+                                glyph={ICON_DELETE.to_owned()}
+                                label="Remove contact"
+                                @test_id={format!("app.contacts.remove.{account}")}
+                                on_click={move || send(UiCommand::RemoveContact(account))}
+                            />
                         </List>
-                    }}
+                    }
+                }</ForEach>
+                <Show condition={asks_removal}>
+                    <List spacing=6.0>
+                        <Text style=TextStyle::PARAGRAPH string={removing} wrap=true />
+                        <List direction=Direction::Horizontal spacing=8.0>
+                            <Button
+                                label="Remove"
+                                variant=ButtonVariant::Primary
+                                @test_id={"app.contacts.remove.confirm"}
+                                on_click={|| send(UiCommand::ConfirmRemoveContact)}
+                            />
+                            <Button
+                                label="Keep"
+                                variant=ButtonVariant::Secondary
+                                on_click={|| send(UiCommand::CancelRemoveContact)}
+                            />
+                        </List>
+                    </List>
                 </Show>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Button
@@ -305,30 +297,28 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                     </Show>
                 </List>
                 <Show condition={has_link}>
-                    {move || view! {
-                        <List spacing=6.0>
-                            <Text
-                                style=TextStyle::PARAGRAPH
-                                @test_id={"app.contacts.link-help"}
-                                string="Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
-                                wrap=true
+                    <List spacing=6.0>
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            @test_id={"app.contacts.link-help"}
+                            string="Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
+                            wrap=true
+                        />
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <TextInput
+                                @sizing=ItemSize::Percent(100.0)
+                                value={link}
+                                label="Contact link"
+                                @test_id={"app.contacts.link"}
                             />
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <TextInput
-                                    @sizing=ItemSize::Percent(100.0)
-                                    value={link}
-                                    label="Contact link"
-                                    @test_id={"app.contacts.link"}
-                                />
-                                <IconButton
-                                    glyph={ICON_CONTENT_COPY.to_owned()}
-                                    label="Copy link"
-                                    @test_id={"app.contacts.copy"}
-                                    on_click={move || copy_text(link.get_untracked())}
-                                />
-                            </List>
+                            <IconButton
+                                glyph={ICON_CONTENT_COPY.to_owned()}
+                                label="Copy link"
+                                @test_id={"app.contacts.copy"}
+                                on_click={move || copy_text(link.get_untracked())}
+                            />
                         </List>
-                    }}
+                    </List>
                 </Show>
                 <Text style=TextStyle::CAPTION string="Open a contact link someone sent you" />
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -349,29 +339,27 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                     />
                 </List>
                 <Show condition={offered}>
-                    {move || view! {
-                        <List spacing=6.0>
-                            <Text
-                                style=TextStyle::PARAGRAPH
-                                @test_id={"app.contacts.offer"}
-                                string={offer}
-                                wrap=true
+                    <List spacing=6.0>
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            @test_id={"app.contacts.offer"}
+                            string={offer}
+                            wrap=true
+                        />
+                        <List direction=Direction::Horizontal spacing=8.0>
+                            <Button
+                                label="Connect"
+                                variant=ButtonVariant::Primary
+                                @test_id={"app.contacts.accept"}
+                                on_click={|| send(UiCommand::AcceptContact)}
                             />
-                            <List direction=Direction::Horizontal spacing=8.0>
-                                <Button
-                                    label="Connect"
-                                    variant=ButtonVariant::Primary
-                                    @test_id={"app.contacts.accept"}
-                                    on_click={|| send(UiCommand::AcceptContact)}
-                                />
-                                <Button
-                                    label="Cancel"
-                                    variant=ButtonVariant::Secondary
-                                    on_click={|| send(UiCommand::DeclineContact)}
-                                />
-                            </List>
+                            <Button
+                                label="Cancel"
+                                variant=ButtonVariant::Secondary
+                                on_click={|| send(UiCommand::DeclineContact)}
+                            />
                         </List>
-                    }}
+                    </List>
                 </Show>
                 <Show condition={has_connected}>
                     <Text style=TextStyle::PARAGRAPH string={connected} wrap=true />
@@ -420,30 +408,28 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                 <Show condition={none}>
                     <Text style=TextStyle::CAPTION string="No agents yet." />
                 </Show>
-                <ForEach keys={keys}>
-                    {move |account: Uuid| {
-                        let label = create_memo(move || {
-                            names
-                                .get()
-                                .agents
-                                .iter()
-                                .find(|agent| agent.account == account)
-                                .map(|agent| agent.name.clone())
-                                .unwrap_or_default()
-                        });
-                        view! {
-                            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                                <Text @sizing=ItemSize::Percent(100.0) string={label} />
-                                <IconButton
-                                    glyph={ICON_DELETE.to_owned()}
-                                    label="Remove agent"
-                                    @test_id={format!("app.agents.remove.{account}")}
-                                    on_click={move || send(UiCommand::RemoveAgent(account))}
-                                />
-                            </List>
-                        }
-                    }}
-                </ForEach>
+                <ForEach keys={keys}>|account: Uuid| {
+                    let label = create_memo(move || {
+                        names
+                            .get()
+                            .agents
+                            .iter()
+                            .find(|agent| agent.account == account)
+                            .map(|agent| agent.name.clone())
+                            .unwrap_or_default()
+                    });
+                    view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                            <Text @sizing=ItemSize::Percent(100.0) string={label} />
+                            <IconButton
+                                glyph={ICON_DELETE.to_owned()}
+                                label="Remove agent"
+                                @test_id={format!("app.agents.remove.{account}")}
+                                on_click={move || send(UiCommand::RemoveAgent(account))}
+                            />
+                        </List>
+                    }
+                }</ForEach>
                 <Text style=TextStyle::CAPTION string="Name" />
                 <TextInput
                     value={name}
@@ -466,9 +452,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                 </List>
                 <ErrorText text={error} />
                 <Show condition={made}>
-                    {move || view! {
-                        <AgentCredentials created={created} />
-                    }}
+                    <AgentCredentials created={created} />
                 </Show>
             </List>
         </Frame>
@@ -596,21 +580,15 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                 </List>
                 <ErrorText text={error} />
                 <Show condition={has_link}>
-                    {move || view! {
-                        <List spacing=6.0>
-                            <Text
-                                style=TextStyle::PARAGRAPH
-                                @test_id={"app.invite.help"}
-                                string="Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
-                                wrap=true
-                            />
-                            <TextInput
-                                value={link}
-                                label="Invite link"
-                                @test_id={"app.invite.link"}
-                            />
-                        </List>
-                    }}
+                    <List spacing=6.0>
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            @test_id={"app.invite.help"}
+                            string="Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
+                            wrap=true
+                        />
+                        <TextInput value={link} label="Invite link" @test_id={"app.invite.link"} />
+                    </List>
                 </Show>
             </List>
         </Frame>

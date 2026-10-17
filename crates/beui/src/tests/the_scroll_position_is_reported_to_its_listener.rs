@@ -14,10 +14,8 @@ fn the_scroll_position_is_reported_to_its_listener() {
                     on_change={move |position| set_reported.set(Some(position))}
                 >
                     <List spacing=0.0>
-                        <ForEach keys={indices(100)}>
-                            {|index: usize| view! {
-                                <Text string={format!("Row {index}")} color=Color32::WHITE />
-                            }}
+                        <ForEach keys={indices(100)}>|index: usize|
+                            <Text string={format!("Row {index}")} color=Color32::WHITE />
                         </ForEach>
                     </List>
                 </Offset>

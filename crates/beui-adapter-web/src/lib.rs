@@ -215,6 +215,10 @@ impl Platform for WebPlatform {
         });
     }
 
+    fn shows_keyboard(&self) -> bool {
+        true
+    }
+
     fn delivers_paste_shortcut(&self) -> bool {
         true
     }
@@ -248,6 +252,9 @@ impl Platform for WebPlatform {
         if window.ime != shown.ime {
             self.show_ime(window.ime.as_ref());
         }
+        if window.keyboard_toggles != shown.keyboard_toggles {
+            self.toggle_keyboard();
+        }
     }
 
     fn set_fullscreen(&mut self, fullscreen: bool) {
@@ -266,6 +273,23 @@ impl Platform for WebPlatform {
 }
 
 impl WebPlatform {
+    fn toggle_keyboard(&self) {
+        let agent: &web_sys::Element = &self.agent;
+        let focused = web_sys::window()
+            .and_then(|window| window.document())
+            .and_then(|document| document.active_element())
+            .is_some_and(|active| &active == agent);
+        match focused {
+            true => {
+                let _ = self.agent.blur();
+            }
+            false => {
+                let _ = self.agent.remove_attribute("inputmode");
+                let _ = self.agent.focus();
+            }
+        }
+    }
+
     fn show_ime(&self, ime: Option<&ImeArea>) {
         let held = ime.filter(|area| !area.keyboard.shown());
         let was_held = HELD_FIELD.replace(held.map(|area| area.rect)).is_some();

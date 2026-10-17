@@ -13,17 +13,15 @@ fn on_a_narrow_screen_picking_a_date_moves_on_to_the_time() {
     let field = NodeRef::new();
     let document = build(move || {
         view! {
-            <Container>
-                {move |_| view! {
-                    <List spacing=0.0>
-                        <DateTimeField
-                            @node_ref=&field
-                            value={Some(DateTime::new(Date::new(2026, 9, 27), Time::new(9, 0)))}
-                            today={Some(Date::new(2026, 1, 1))}
-                            on_change={move |value| set_reported.update(|reported| reported.push(value))}
-                        />
-                    </List>
-                }}
+            <Container>|_|
+                <List spacing=0.0>
+                    <DateTimeField
+                        @node_ref=&field
+                        value={Some(DateTime::new(Date::new(2026, 9, 27), Time::new(9, 0)))}
+                        today={Some(Date::new(2026, 1, 1))}
+                        on_change={move |value| set_reported.update(|reported| reported.push(value))}
+                    />
+                </List>
             </Container>
         }
     });
