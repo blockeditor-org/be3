@@ -56,6 +56,10 @@ impl BeuiFrame {
         let document = beui::reactive::build(move || {
             provide_context(PhoneLayout(create_memo(move || bar.get().on_phone)));
             let phone = create_memo(move || bar.get().on_phone);
+            provide_density(create_memo(move || match phone.get() {
+                true => Density::Comfortable,
+                false => Density::Compact,
+            }));
             let (palette, set_palette) = create_signal(false);
             let opening = set_palette;
             let opener = Action::new("editor.palette", "Command palette", move || {

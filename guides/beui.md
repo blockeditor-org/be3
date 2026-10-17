@@ -1251,15 +1251,22 @@ keyboard between rows without selecting them, and Enter or Space selects the
 row it is on. `toggle` puts the keyboard on its row too.
 
 `styled::Tree` is the face that split was made for, and the one app code
-reaches for. It draws the indent, a chevron that is a button of its own -
-tooltipped, labelled for a screen reader, and outside the row's highlight, so
-pressing it expands the row without opening it - and the highlighted row
-beside them, and hands its content builder a `TreeRowFace` carrying the row's
-`key`, `item`, `selected`, `focused` and `hovered`. It owns the drag gesture
+reaches for. Everything left of a row's highlight - the indent and the chevron
+- is one button of its own, tooltipped and labelled for a screen reader, so a
+finger anywhere left of the name expands the row without opening it, and
+pressing the highlighted row beside it selects. The content builder gets a
+`TreeRowFace` carrying the row's `key`, `item`, `selected`, `focused` and
+`hovered`. Given `menu`, which answers a key with a `TreeMenu` (its items and
+`on_select`, as a `ContextMenu` takes them) or `None`, every row with one shows
+a "…" button at its end, on a desktop too, and the same menu opens from it, a
+right click or a long press: a dropdown under a mouse and a sheet under a finger.
+Row height follows `use_density()`: `Density::Compact` rows for a desktop and
+`Density::Comfortable` ones, tall enough to tap, where `provide_density` asks for
+them, which a plugin's frame does when its host says the window is a phone's. It owns the drag gesture
 too: a press that travels further than a few pixels reports `on_drag_start`
 and the click it would otherwise have become is dropped, so a row can be
 dragged out without selecting what it left behind. `row_test_id` names each
-row for tests, as `<id>.row` and `<id>.chevron`, and `outline` gives a single
+row for tests, as `<id>.row`, `<id>.chevron` and `<id>.more`, and `outline` gives a single
 row an outline of its own, which is how a drop target says whether it will
 take what is over it.
 

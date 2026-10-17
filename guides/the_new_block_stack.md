@@ -979,10 +979,15 @@ has no add of its own, only New workspace, which makes one at the root and
 opens the rename dialog. Every picker places a new block in a workspace, My
 files when nothing else is named.
 A block moves between workspaces with the host's `move_block`, by dragging it
-or from its Move to menu. The phone layout has the same levels: the workspaces,
-then Shared with me, Recently deleted and System as rows of their own; its
-New button shows only inside a workspace or folder the account may add to. The folder
-editor (crates/editors/workspace-index) opens a workspace too.
+or from its Move to menu. A phone shows the same tree with taller rows, under a
+title with New workspace and the account button in place of the toolbar.
+Pressing a folder, a workspace or one of the other sections zooms into it rather
+than opening it: the tree then holds only what it holds, under a bar with the
+path, a back button (or, on a phone, a swipe back) and a New that adds into it
+where the account may. Every row's menu has Zoom in too, so a block that holds
+others without being a folder, a text block with a subtree, can be zoomed
+into as well. The folder editor (crates/editors/workspace-index) still edits
+folders and workspaces wherever they are embedded, and opens from Open with.
 
 ### Settings, settings profiles and sessions
 

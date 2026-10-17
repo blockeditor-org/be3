@@ -19,20 +19,20 @@ fn a_phone_reaches_the_account_s_system_blocks() {
         vec![other, own, workspace],
     );
     fixture.settle();
-    assert!(!fixture.test.shown(&format!("file-tree.{mine}.open")));
+    assert!(!fixture.test.shown(&format!("file-tree.{mine}.row")));
 
-    fixture.test.click("file-tree.system");
+    fixture.test.click("file-tree.system.row");
     fixture.settle();
-    assert!(fixture.test.shown(&format!("file-tree.{mine}.open")));
+    assert!(fixture.test.shown(&format!("file-tree.{mine}.row")));
     assert!(
-        !fixture.test.shown(&format!("file-tree.{theirs}.open")),
+        !fixture.test.shown(&format!("file-tree.{theirs}.row")),
         "another account's settings are never listed"
     );
     fixture
         .test
         .snapshot("a_phone_reaches_the_account_s_system_blocks");
 
-    fixture.test.click(&format!("file-tree.{mine}.open"));
+    fixture.test.click(&format!("file-tree.{mine}.row"));
     fixture.settle();
     assert_eq!(
         fixture.opened(),

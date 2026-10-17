@@ -40,6 +40,7 @@ mod the_message_toast_sample_offers_its_actions;
 mod the_overlay_sample_closes_on_escape_and_a_click_outside;
 mod the_runs_toggle_shows_where_each_side_typed_and_deleted;
 mod the_stale_notice_sample_answers_each_of_its_buttons;
+mod the_tree_sample_opens_on_the_left_of_a_row_and_its_menu_from_its_button;
 mod toasts_on_the_top_edge_stack_in_the_top_corner;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);

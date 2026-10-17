@@ -124,7 +124,6 @@ struct Watched {
     block_types: HashMap<Uuid, Uuid>,
     workspaces: HashSet<Uuid>,
     system: HashSet<Uuid>,
-    my_files: Option<Uuid>,
 }
 
 pub(crate) fn is_workspace(block_type: Uuid) -> bool {
@@ -255,10 +254,6 @@ impl Tree {
             let loose = shared_with_me(listed, shared.read());
             watched.system = system.iter().map(|block| block.id).collect();
             watched.workspaces = sections.iter().map(|block| block.id).collect();
-            watched.my_files = sections
-                .first()
-                .filter(|block| is_my_files(block, host.account_id()))
-                .map(|block| block.id);
             let shown: HashSet<Uuid> = sections
                 .iter()
                 .map(|block| block.id)
@@ -365,11 +360,6 @@ impl Tree {
         self.rows
     }
 
-    pub(crate) fn keys(&self) -> Memo<Vec<RowKey>> {
-        let rows = self.rows;
-        create_memo(move || rows.with(|rows| rows.iter().map(|row| row.key.clone()).collect()))
-    }
-
     pub(crate) fn row(&self, key: RowKey) -> Memo<Option<Row>> {
         let rows = self.rows;
         create_memo(move || rows.with(|rows| rows.iter().find(|row| row.key == key).cloned()))
@@ -388,15 +378,6 @@ impl Tree {
 
     pub(crate) fn blocks(&self) -> Blocks {
         self.inner.with(|inner| inner.client.clone())
-    }
-
-    pub(crate) fn block_types(&self) -> HashMap<Uuid, Uuid> {
-        self.inner
-            .with(|inner| inner.watched.borrow().block_types.clone())
-    }
-
-    pub(crate) fn my_files(&self) -> Option<Uuid> {
-        self.inner.with(|inner| inner.watched.borrow().my_files)
     }
 
     pub(crate) fn workspaces(&self) -> HashSet<Uuid> {
