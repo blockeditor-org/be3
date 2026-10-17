@@ -596,14 +596,14 @@ impl Reference {
 
     fn reserve(&mut self, client: u64, start: u64, items: &[u8]) {
         let next = self.next.get(&client).copied().unwrap_or(0);
-        if start == next {
+        if client != LOADED && start == next {
             self.next.insert(client, next + items.len() as u64);
         }
     }
 
     fn add(&mut self, after: Option<Pos>, client: u64, start: u64, items: &[u8]) -> bool {
         let next = self.next.get(&client).copied().unwrap_or(0);
-        if items.is_empty() || start != next {
+        if client == LOADED || items.is_empty() || start != next {
             return false;
         }
         let index = match after {
@@ -651,7 +651,7 @@ impl Reference {
                 items,
             } => {
                 let next = self.next.get(client).copied().unwrap_or(0);
-                if *start != next {
+                if *client == LOADED || *start != next {
                     return false;
                 }
                 let Some(last) = spans.last().filter(|_| self.all(spans, true)) else {

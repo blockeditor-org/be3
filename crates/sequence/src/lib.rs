@@ -272,7 +272,7 @@ impl<T: Clone> Sequence<T> {
     }
 
     pub fn insert(&self, client: u64, index: usize, items: Vec<T>) -> Option<SeqOp<T>> {
-        if items.is_empty() || index > self.len() {
+        if client == LOADED || items.is_empty() || index > self.len() {
             return None;
         }
         Some(SeqOp::Insert {
@@ -284,6 +284,9 @@ impl<T: Clone> Sequence<T> {
     }
 
     pub fn replace(&self, client: u64, range: Range<usize>, items: Vec<T>) -> Option<SeqOp<T>> {
+        if client == LOADED {
+            return None;
+        }
         if range.is_empty() {
             return self.insert(client, range.start, items);
         }
@@ -519,7 +522,8 @@ impl<T> Sequence<T> {
                 start,
                 ..
             } => {
-                spans.last().is_some()
+                *client != LOADED
+                    && spans.last().is_some()
                     && self.all(spans, true)
                     && *start == self.next_offset(*client)
             }
@@ -685,14 +689,15 @@ impl<T> Sequence<T> {
         else {
             return;
         };
-        if *start == self.next_offset(*client) {
+        if *client != LOADED && *start == self.next_offset(*client) {
             self.next
                 .insert(*client, start.saturating_add(items.len() as u64));
         }
     }
 
     fn can_insert(&self, after: Option<Pos>, client: u64, start: u64) -> bool {
-        start == self.next_offset(client)
+        client != LOADED
+            && start == self.next_offset(client)
             && after.is_none_or(|anchor| self.locate(anchor).is_some())
     }
 
