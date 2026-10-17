@@ -134,10 +134,8 @@ pub(super) fn EditorTab(shared: Shared) -> NodeId {
                     </SettingsRow>
                 </SettingsSection>
             </Show>
-            <ForEach keys={groups}>
-                {move |group: usize| view! {
-                    <GroupCard edits={edits} group={group} />
-                }}
+            <ForEach keys={groups}>|group: usize|
+                <GroupCard edits={edits} group={group} />
             </ForEach>
             <SettingsSection>
                 <Show condition={empty}>
@@ -249,10 +247,8 @@ fn GroupCard(edits: Edits, group: usize) -> NodeId {
                 id={format!("input-remaps.group.{group}.title")}
                 on_change={set(GroupField::Title)}
             />
-            <ForEach keys={rules}>
-                {move |rule: usize| view! {
-                    <RuleRows edits={edits} group={group} rule={rule} />
-                }}
+            <ForEach keys={rules}>|rule: usize|
+                <RuleRows edits={edits} group={group} rule={rule} />
             </ForEach>
             <SettingsRow label="" separated=true compact=true>
                 <Button
@@ -389,10 +385,8 @@ fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
             </Show>
             <Show condition={stepping}>
                 <List spacing=0.0>
-                    <ForEach keys={steps}>
-                        {move |step: usize| view! {
-                            <StepRow edits={edits} group={group} rule={rule} step={step} />
-                        }}
+                    <ForEach keys={steps}>|step: usize|
+                        <StepRow edits={edits} group={group} rule={rule} step={step} />
                     </ForEach>
                     <SettingsRow label="" separated=true compact=true>
                         <Button

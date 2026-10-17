@@ -12,7 +12,6 @@ use crate::link::Link;
 use crate::scroll::Scroll;
 use crate::text::{Text, TextSize, TextStyle};
 use beui_components_unstyled as unstyled;
-use beui_core::geometry::Vec2;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -40,7 +39,7 @@ const LINK_INSET: f32 = 4.0;
 const SECTION_TITLE: TextStyle = TextStyle::BODY.bold();
 
 #[component]
-pub fn SettingsPage(children: Children<ListChild>) -> NodeId {
+pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background>
             <Scroll>
@@ -49,7 +48,9 @@ pub fn SettingsPage(children: Children<ListChild>) -> NodeId {
                     align={Align2::new(Align::Center, Align::Start)}
                 >
                     <Frame width={Extent::at_most(PAGE_MAX_WIDTH + 2.0 * SECTION_INSET)}>
-                        <List spacing=PAGE_SPACING>{children}</List>
+                        <unstyled::Container>|_size|
+                            <List spacing=PAGE_SPACING children={sections.call(())} />
+                        </unstyled::Container>
                     </Frame>
                 </Frame>
             </Scroll>
@@ -68,64 +69,51 @@ pub fn SettingsSection(
     let titled = create_memo(move || !title.get().is_empty());
     let described = create_memo(move || !description.get().is_empty());
     let headed = create_memo(move || titled.get() || described.get());
+    let edge = unstyled::narrower_than(EDGE_TO_EDGE_BELOW);
+    let inset = create_memo(move || match edge.get() {
+        true => Sides::ZERO,
+        false => Sides::horizontal(SECTION_INSET),
+    });
+    let header_inset = create_memo(move || match edge.get() {
+        true => Sides::horizontal(ROW_PADDING_HORIZONTAL),
+        false => Sides::horizontal(HEADER_INSET),
+    });
+    let border = create_memo(move || match edge.get() {
+        true => None,
+        false => Some(Border::DEFAULT),
+    });
+    let radius = create_memo(move || match edge.get() {
+        true => Radius::None,
+        false => Radius::Lg,
+    });
     view! {
-        <unstyled::Container>
-            {move |size: ReadSignal<Vec2>| {
-                let edge = create_memo(move || {
-                    let width = size.get().x;
-                    width > 0.0 && width < EDGE_TO_EDGE_BELOW
-                });
-                let inset = create_memo(move || match edge.get() {
-                    true => Sides::ZERO,
-                    false => Sides::horizontal(SECTION_INSET),
-                });
-                let header_inset = create_memo(move || match edge.get() {
-                    true => Sides::horizontal(ROW_PADDING_HORIZONTAL),
-                    false => Sides::horizontal(HEADER_INSET),
-                });
-                let border = create_memo(move || match edge.get() {
-                    true => None,
-                    false => Some(Border::DEFAULT),
-                });
-                let radius = create_memo(move || match edge.get() {
-                    true => Radius::None,
-                    false => Radius::Lg,
-                });
-                view! {
-                    <Frame padding={inset}>
-                        <List spacing=SECTION_SPACING>
-                            <Show condition={headed}>
-                                <Frame padding={header_inset}>
-                                    <List spacing=HEADER_SPACING>
-                                        <Show condition={titled}>
-                                            <Text style=SECTION_TITLE string={title} wrap=true />
-                                        </Show>
-                                        <Show condition={described}>
-                                            <Text
-                                                style=TextStyle::CAPTION
-                                                string={description}
-                                                wrap=true
-                                            />
-                                        </Show>
-                                    </List>
-                                </Frame>
+        <Frame padding={inset}>
+            <List spacing=SECTION_SPACING>
+                <Show condition={headed}>
+                    <Frame padding={header_inset}>
+                        <List spacing=HEADER_SPACING>
+                            <Show condition={titled}>
+                                <Text style=SECTION_TITLE string={title} wrap=true />
                             </Show>
-                            <List spacing=0.0>
-                                <Show condition={edge}>
-                                    <Separator />
-                                </Show>
-                                <Frame fill=ColorRole::Surface border={border} radius={radius}>
-                                    <List spacing=0.0>{children}</List>
-                                </Frame>
-                                <Show condition={edge}>
-                                    <Separator />
-                                </Show>
-                            </List>
+                            <Show condition={described}>
+                                <Text style=TextStyle::CAPTION string={description} wrap=true />
+                            </Show>
                         </List>
                     </Frame>
-                }
-            }}
-        </unstyled::Container>
+                </Show>
+                <List spacing=0.0>
+                    <Show condition={edge}>
+                        <Separator />
+                    </Show>
+                    <Frame fill=ColorRole::Surface border={border} radius={radius}>
+                        <List spacing=0.0>{children}</List>
+                    </Frame>
+                    <Show condition={edge}>
+                        <Separator />
+                    </Show>
+                </List>
+            </List>
+        </Frame>
     }
 }
 
@@ -160,6 +148,12 @@ pub fn SettingsRow(
             ItemSize::Percent(CONTROL_WEIGHT),
         ),
     };
+    let narrow = unstyled::narrower_than(STACK_BELOW + 2.0 * ROW_PADDING_HORIZONTAL);
+    let narrow = create_memo(move || !compact && narrow.get());
+    let spacing = create_memo(move || match narrow.get() {
+        true => STACKED_SPACING,
+        false => ROW_SPACING,
+    });
     view! {
         <List spacing=0.0>
             <Show condition={separated}>
@@ -175,63 +169,41 @@ pub fn SettingsRow(
                     @sizing=ItemSize::Percent(100.0)
                     padding={Sides::symmetric(ROW_PADDING_HORIZONTAL - MARKER_WIDTH, ROW_PADDING_VERTICAL)}
                 >
-                    <unstyled::Container>
-                        {move |size: ReadSignal<Vec2>| {
-                            let narrow = create_memo(move || {
-                                let width = size.get().x;
-                                !compact && width > 0.0 && width < STACK_BELOW
-                            });
-                            let spacing = create_memo(move || match narrow.get() {
-                                true => STACKED_SPACING,
-                                false => ROW_SPACING,
-                            });
-                            view! {
-                                <unstyled::Stack spacing={spacing} narrow={narrow}>
-                                    <List
-                                        @sizing={label_size}
-                                        justify=Justify::Center
-                                        spacing=LABEL_SPACING
-                                    >
-                                        <List
-                                            direction=Direction::Horizontal
-                                            align=Align::Center
-                                            spacing=RESET_SPACING
-                                        >
-                                            <Text
-                                                @sizing={Sizing::from(ItemSize::Intrinsic).shrink(1.0)}
-                                                string={label}
-                                                wrap=true
-                                            />
-                                            <Show condition={resettable}>
-                                                <Link
-                                                    label="Reset"
-                                                    size=TextSize::Xs
-                                                    @test_id={reset_test_id}
-                                                    on_click={on_reset}
-                                                />
-                                            </Show>
-                                        </List>
-                                        <Show condition={described}>
-                                            <Text
-                                                style=TextStyle::CAPTION
-                                                string={description}
-                                                wrap=true
-                                            />
-                                        </Show>
-                                    </List>
-                                    <List
-                                        @sizing={control_size}
-                                        direction=Direction::Horizontal
-                                        align=Align::Center
-                                        justify=Justify::End
-                                        spacing=CONTROL_SPACING
-                                    >
-                                        {children}
-                                    </List>
-                                </unstyled::Stack>
-                            }
-                        }}
-                    </unstyled::Container>
+                    <unstyled::Stack spacing={spacing} narrow={narrow}>
+                        <List @sizing={label_size} justify=Justify::Center spacing=LABEL_SPACING>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=RESET_SPACING
+                            >
+                                <Text
+                                    @sizing={Sizing::from(ItemSize::Intrinsic).shrink(1.0)}
+                                    string={label}
+                                    wrap=true
+                                />
+                                <Show condition={resettable}>
+                                    <Link
+                                        label="Reset"
+                                        size=TextSize::Xs
+                                        @test_id={reset_test_id}
+                                        on_click={on_reset}
+                                    />
+                                </Show>
+                            </List>
+                            <Show condition={described}>
+                                <Text style=TextStyle::CAPTION string={description} wrap=true />
+                            </Show>
+                        </List>
+                        <List
+                            @sizing={control_size}
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            justify=Justify::End
+                            spacing=CONTROL_SPACING
+                        >
+                            {children}
+                        </List>
+                    </unstyled::Stack>
                 </Frame>
             </List>
         </List>
@@ -292,14 +264,9 @@ pub fn SettingsLink(
                     @sizing=ItemSize::Percent(100.0)
                     padding={Sides::new(0.0, LINK_INSET, LINK_INSET, LINK_INSET)}
                 >
-                    <unstyled::Button
-                        label
-                        disabled
-                        on_click={on_click}
-                        content={move |handle| view! {
-                            <SettingsLinkFace handle look={face} on_reset={reset} />
-                        }}
-                    />
+                    <unstyled::Button label disabled on_click={on_click}>|handle|
+                        <SettingsLinkFace handle look={face} on_reset={reset} />
+                    </unstyled::Button>
                 </Frame>
             </List>
             <Dialog open={asking} title="Reset?" on_dismiss={move || set_asking.set(false)}>

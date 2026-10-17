@@ -43,21 +43,19 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
                     <SettingsRow label="No display is connected to this session." />
                 </SettingsSection>
             </Show>
-            <ForEach keys={ids}>
-                {move |id: String| {
-                    let (displays, read_only) = (displays, read_only);
-                    view! {
-                        <DisplaySection
-                            id={id}
-                            settings={settings}
-                            root={root}
-                            merged={merged}
-                            displays={displays}
-                            read_only={read_only}
-                        />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={ids}>|id: String| {
+                let (displays, read_only) = (displays, read_only);
+                view! {
+                    <DisplaySection
+                        id={id}
+                        settings={settings}
+                        root={root}
+                        merged={merged}
+                        displays={displays}
+                        read_only={read_only}
+                    />
+                }
+            }</ForEach>
         </SettingsPage>
     }
 }
@@ -160,10 +158,8 @@ fn DisplaySection(
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ForEach keys={size_list}>
-                            {|size: Size| view! {
-                                <ChoiceOption label={size_label(size)} />
-                            }}
+                        <ForEach keys={size_list}>|size: Size|
+                            <ChoiceOption label={size_label(size)} />
                         </ForEach>
                     }}
                     selected={size_selected}
@@ -193,10 +189,8 @@ fn DisplaySection(
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ForEach keys={rate_list}>
-                            {|mode: HostDisplayMode| view! {
-                                <ChoiceOption label={rate_label(mode.refresh_millihertz)} />
-                            }}
+                        <ForEach keys={rate_list}>|mode: HostDisplayMode|
+                            <ChoiceOption label={rate_label(mode.refresh_millihertz)} />
                         </ForEach>
                     }}
                     selected={rate_selected}
@@ -247,10 +241,8 @@ fn ScreenOffSection(
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ForEach keys={SCREEN_OFF.to_vec()}>
-                            {|screen_off: ScreenOff| view! {
-                                <ChoiceOption label={screen_off_label(screen_off)} />
-                            }}
+                        <ForEach keys={SCREEN_OFF.to_vec()}>|screen_off: ScreenOff|
+                            <ChoiceOption label={screen_off_label(screen_off)} />
                         </ForEach>
                     }}
                     selected={selected}
@@ -276,10 +268,8 @@ fn ScreenOffSection(
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ForEach keys={LOCK_AFTER.to_vec()}>
-                            {|lock_after: LockAfter| view! {
-                                <ChoiceOption label={lock_after_label(lock_after)} />
-                            }}
+                        <ForEach keys={LOCK_AFTER.to_vec()}>|lock_after: LockAfter|
+                            <ChoiceOption label={lock_after_label(lock_after)} />
                         </ForEach>
                     }}
                     selected={locks}

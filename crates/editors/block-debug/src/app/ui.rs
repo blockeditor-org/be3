@@ -61,21 +61,19 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
                             }
                         });
                     }}
-                >
-                    {move |face: TreeRowFace<String>| {
-                        let path = face.key;
-                        let label = create_memo(move || {
-                            rows.with(|rows| {
-                                rows.iter()
-                                    .find(|row| row.path == path)
-                                    .map_or_else(String::new, |row| row.label.clone())
-                            })
-                        });
-                        view! {
-                            <Text style=TextStyle::CODE string={label} />
-                        }
-                    }}
-                </Tree>
+                >|face: TreeRowFace<String>| {
+                    let path = face.key;
+                    let label = create_memo(move || {
+                        rows.with(|rows| {
+                            rows.iter()
+                                .find(|row| row.path == path)
+                                .map_or_else(String::new, |row| row.label.clone())
+                        })
+                    });
+                    view! {
+                        <Text style=TextStyle::CODE string={label} />
+                    }
+                }</Tree>
             </List>
         </Frame>
     }

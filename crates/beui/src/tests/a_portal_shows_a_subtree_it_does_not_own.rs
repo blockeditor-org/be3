@@ -21,11 +21,9 @@ fn a_portal_shows_a_subtree_it_does_not_own() {
                         <Portal node={first} />
                     </Frame>
                     <Show condition={kept}>
-                        {move || view! {
-                            <Frame @test_id="second" height=40.0>
-                                <Portal node={second} />
-                            </Frame>
-                        }}
+                        <Frame @test_id="second" height=40.0>
+                            <Portal node={second} />
+                        </Frame>
                     </Show>
                 </List>
             }

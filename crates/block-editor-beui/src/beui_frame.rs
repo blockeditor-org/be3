@@ -84,13 +84,11 @@ impl BeuiFrame {
                         on_exit={move || exit_writer.set(true)}
                     />
                     <CommandPalette open={palette} on_close={move || set_palette.set(false)} />
-                    <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>
-                        {move || {
-                            let content = view();
-                            content_slot_writer.set(Some(content));
-                            content
-                        }}
-                    </ChromeRoot>
+                    <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
+                        let content = view();
+                        content_slot_writer.set(Some(content));
+                        content
+                    }</ChromeRoot>
                 </List>
             }
         });

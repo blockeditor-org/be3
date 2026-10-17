@@ -32,12 +32,8 @@ pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
     view! {
         <Accordion title="Components" open={open} on_toggle={move |open| set_open.set(open)}>
             <List spacing=SPACING>
-                <ForEach keys={schemas}>
-                    {move |schema_id: Uuid| {
-                        view! {
-                            <ComponentRow state schema_id />
-                        }
-                    }}
+                <ForEach keys={schemas}>|schema_id: Uuid|
+                    <ComponentRow state schema_id />
                 </ForEach>
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Button
@@ -155,8 +151,8 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
     view! {
         <List spacing=6.0>
             <Text style=TextStyle::CAPTION string={named} />
-            <Show condition={partial}>
-                {move || { let add_id = add_id.clone(); view! {
+            <Show condition={partial}>|| {
+                let add_id = add_id.clone(); view! {
                     <List spacing=6.0>
                         <Text style=TextStyle::CAPTION string={coverage} />
                         <List direction=Direction::Horizontal spacing=4.0>
@@ -169,8 +165,8 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
                             <Spacer @sizing=ItemSize::Percent(100.0) />
                         </List>
                     </List>
-                } }}
-            </Show>
+                }
+            }</Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                 <Button
                     label="Open schema"

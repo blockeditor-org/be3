@@ -26,8 +26,7 @@ struct State {
 
 #[component]
 pub fn Button(
-    children: Option<Child>,
-    content: Option<Render<ButtonHandle>>,
+    #[prop(children)] content: Option<Render<ButtonHandle>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = Role::Button)] role: Role,
@@ -73,8 +72,8 @@ pub fn Button(
         node
     }));
 
-    let content_node = match content {
-        Some(build) => Some(build.call(ButtonHandle {
+    let content_node = content.map(|build| {
+        build.call(ButtonHandle {
             hovered,
             active,
             focused,
@@ -82,9 +81,8 @@ pub fn Button(
             label,
             glyph,
             tooltip,
-        })),
-        None => children,
-    };
+        })
+    });
 
     let click = {
         move || {

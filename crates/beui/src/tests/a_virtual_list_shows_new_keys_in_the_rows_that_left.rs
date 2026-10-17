@@ -16,19 +16,17 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
                             @node_ref=&list
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
-                        >
-                            {move |key: ReadSignal<usize>| {
-                                set_built.update(|built| *built += 1);
-                                let label = create_memo(move || format!("Row {}", key.get()));
-                                view! {
-                                    <Interactive focusable=true>
-                                        <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                            <Text string={label} />
-                                        </Frame>
-                                    </Interactive>
-                                }
-                            }}
-                        </VirtualList>
+                        >|key: ReadSignal<usize>| {
+                            set_built.update(|built| *built += 1);
+                            let label = create_memo(move || format!("Row {}", key.get()));
+                            view! {
+                                <Interactive focusable=true>
+                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                        <Text string={label} />
+                                    </Frame>
+                                </Interactive>
+                            }
+                        }</VirtualList>
                     </Offset>
                 </List>
             }

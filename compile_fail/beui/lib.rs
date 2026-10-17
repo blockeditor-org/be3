@@ -1,6 +1,8 @@
+mod a_closure_child_is_written_without_braces;
 mod a_frame_takes_one_child;
 mod a_render_block_takes_one_child;
 mod a_render_closure_returns_one_child;
+mod a_show_hands_its_children_no_value;
 mod a_show_is_not_a_frame_child;
 mod a_show_needs_a_child;
 mod a_span_is_kept_only_by_a_text;

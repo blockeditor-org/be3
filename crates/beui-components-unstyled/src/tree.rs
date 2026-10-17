@@ -150,30 +150,28 @@ where
 
     view! {
         <List spacing>
-            <ForEach keys>
-                {move |key: K| {
-                    let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
-                    let selected = selection.memo(Some(key.clone()));
-                    let marked = burial.memo(Some(key.clone()));
-                    let hover = on_hover_change;
-                    let dragging = on_drag_start;
-                    view! {
-                        <TreeRow
-                            row_key={key}
-                            item
-                            selected
-                            marked
-                            tab_stop={tab_stops}
-                            focused={focused}
-                            state={state}
-                            nodes={nodes}
-                            row={row}
-                            on_hover_change={hover}
-                            on_drag_start={dragging}
-                        />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys>|key: K| {
+                let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
+                let selected = selection.memo(Some(key.clone()));
+                let marked = burial.memo(Some(key.clone()));
+                let hover = on_hover_change;
+                let dragging = on_drag_start;
+                view! {
+                    <TreeRow
+                        row_key={key}
+                        item
+                        selected
+                        marked
+                        tab_stop={tab_stops}
+                        focused={focused}
+                        state={state}
+                        nodes={nodes}
+                        row={row}
+                        on_hover_change={hover}
+                        on_drag_start={dragging}
+                    />
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -280,8 +278,8 @@ pub fn TreeToggle(
     let expandable = create_memo(move || item.get().expandable);
     let expanded = create_memo(move || item.get().expanded);
     view! {
-        <Show condition={expandable}>
-            {move || { let button_test_id = button_test_id.clone(); {
+        <Show condition={expandable}>|| {
+            let button_test_id = button_test_id.clone(); {
                 let label = create_memo(move || match expanded.get() {
                     true => "Collapse".to_owned(),
                     false => "Expand".to_owned(),
@@ -305,8 +303,8 @@ pub fn TreeToggle(
                         })}
                     />
                 }
-            } }}
-        </Show>
+            }
+        }</Show>
     }
 }
 

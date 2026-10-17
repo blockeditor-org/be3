@@ -13,10 +13,8 @@ fn a_tap_beside_a_flinging_scroll_reaches_the_control_it_lands_on() {
             view! {
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Scroll @sizing=ItemSize::Percent(50.0) @node_ref=&scroll>
-                        <ForEach keys={indices(300)}>
-                            {move |index: usize| view! {
-                                <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
-                            }}
+                        <ForEach keys={indices(300)}>|index: usize|
+                            <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
                         </ForEach>
                     </Scroll>
                     <Interactive

@@ -306,10 +306,8 @@ fn Pointers(
                 <Select
                     options={view! {
                         <ChoiceOption label="All pointers" />
-                        <ForEach keys={keys}>
-                            {|key: DeviceKey| view! {
-                                <ChoiceOption label={key.0} />
-                            }}
+                        <ForEach keys={keys}>|key: DeviceKey|
+                            <ChoiceOption label={key.0} />
                         </ForEach>
                     }}
                     @sizing=ItemSize::Percent(100.0)

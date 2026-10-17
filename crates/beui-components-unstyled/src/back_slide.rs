@@ -283,20 +283,18 @@ pub fn BackSlide(
     };
     view! {
         <Layers>
-            <Show condition={revealing}>
-                {move || {
-                    let page = behind.call(());
-                    let shade = shade;
-                    view! {
-                        <Shift by={behind_shift}>
-                            <Layers>
-                                {page}
-                                <Frame fill=shade />
-                            </Layers>
-                        </Shift>
-                    }
-                }}
-            </Show>
+            <Show condition={revealing}>|| {
+                let page = behind.call(());
+                let shade = shade;
+                view! {
+                    <Shift by={behind_shift}>
+                        <Layers>
+                            {page}
+                            <Frame fill=shade />
+                        </Layers>
+                    </Shift>
+                }
+            }</Show>
             {page}
         </Layers>
     }

@@ -15,12 +15,8 @@ fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
                             @node_ref=&list
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
-                        >
-                            {move |index: ReadSignal<usize>| view! {
-                                <Text
-                                    string={create_memo(move || format!("Row {}", index.get()))}
-                                />
-                            }}
+                        >|index: ReadSignal<usize>|
+                            <Text string={create_memo(move || format!("Row {}", index.get()))} />
                         </VirtualList>
                     </Offset>
                 </List>

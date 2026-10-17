@@ -57,15 +57,13 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
             <Frame fill=ColorRole::Surface padding=BAR_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                     <Show condition={backward}>
-                        {move || view! {
-                            <IconButton
-                                @test_id={"dock.back"}
-                                glyph=ICON_ARROW_BACK
-                                label="Back"
-                                variant=ButtonVariant::Ghost
-                                on_click={back}
-                            />
-                        }}
+                        <IconButton
+                            @test_id={"dock.back"}
+                            glyph=ICON_ARROW_BACK
+                            label="Back"
+                            variant=ButtonVariant::Ghost
+                            on_click={back}
+                        />
                     </Show>
                     <Frame
                         @sizing=ItemSize::Percent(100.0)
@@ -92,13 +90,11 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     <Portal node={actions} />
                     <DockMenu menu size=IconButtonSize::Regular />
                     <Show condition={switchable}>
-                        {move || view! {
-                            <DockTabCount
-                                count={others}
-                                label={switch_label}
-                                on_click={open_switcher}
-                            />
-                        }}
+                        <DockTabCount
+                            count={others}
+                            label={switch_label}
+                            on_click={open_switcher}
+                        />
                     </Show>
                 </List>
             </Frame>
@@ -116,35 +112,34 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
             @test_id={"dock.switch"}
             label
             on_click={on_click}
-            content={move |handle: unstyled::ButtonHandle| {
-                let unstyled::ButtonHandle { hovered, focused, .. } = handle;
-                let theme = theme;
-                let fill = create_memo(move || match hovered.get() {
-                    true => theme.hover.get(),
-                    false => Color32::TRANSPARENT,
-                });
-                let shown = shown;
-                view! {
+        >|handle: unstyled::ButtonHandle| {
+            let unstyled::ButtonHandle { hovered, focused, .. } = handle;
+            let theme = theme;
+            let fill = create_memo(move || match hovered.get() {
+                true => theme.hover.get(),
+                false => Color32::TRANSPARENT,
+            });
+            let shown = shown;
+            view! {
+                <Frame
+                    width=COUNT_TARGET
+                    height=COUNT_TARGET
+                    fill={ColorRole::custom(fill)}
+                    radius={Radius::custom(COUNT_TARGET_RADIUS)}
+                    border={focus_border(focused, Border::FOCUS)}
+                    align=Align::Center
+                >
                     <Frame
-                        width=COUNT_TARGET
-                        height=COUNT_TARGET
-                        fill={ColorRole::custom(fill)}
-                        radius={Radius::custom(COUNT_TARGET_RADIUS)}
-                        border={focus_border(focused, Border::FOCUS)}
-                        align=Align::Center
+                        width=COUNT_SIDE
+                        height=COUNT_SIDE
+                        radius={Radius::custom(COUNT_RADIUS)}
+                        border={Border::new(ColorRole::Text).width(COUNT_OUTLINE)}
                     >
-                        <Frame
-                            width=COUNT_SIDE
-                            height=COUNT_SIDE
-                            radius={Radius::custom(COUNT_RADIUS)}
-                            border={Border::new(ColorRole::Text).width(COUNT_OUTLINE)}
-                        >
-                            <Text string={shown} size=TextSize::Sm align=TextAlign::Center />
-                        </Frame>
+                        <Text string={shown} size=TextSize::Sm align=TextAlign::Center />
                     </Frame>
-                }
-            }}
-        />
+                </Frame>
+            }
+        }</unstyled::Button>
     }
 }
 
@@ -175,10 +170,8 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                             column_spacing=CARD_SPACING
                             row_spacing=CARD_SPACING
                         >
-                            <ForEach keys={tabs}>
-                                {move |tab: TabId| view! {
-                                    <DockSwitcherCard handle={card.call(tab)} />
-                                }}
+                            <ForEach keys={tabs}>|tab: TabId|
+                                <DockSwitcherCard handle={card.call(tab)} />
                             </ForEach>
                         </Grid>
                     </List>
@@ -186,10 +179,8 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                 <Show condition={rowed}>
                     <Frame padding=SHEET_PADDING>
                         <List spacing=0.0>
-                            <ForEach keys={fixed}>
-                                {move |tab: TabId| view! {
-                                    <DockSwitcherRow handle={card.call(tab)} />
-                                }}
+                            <ForEach keys={fixed}>|tab: TabId|
+                                <DockSwitcherRow handle={card.call(tab)} />
                             </ForEach>
                         </List>
                     </Frame>
@@ -261,15 +252,13 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                     </Frame>
                 </ListRow>
                 <Show condition={closable}>
-                    {move || view! {
-                        <IconButton
-                            @test_id={format!("dock.switcher.close.{id}")}
-                            glyph=ICON_CLOSE
-                            label="Close tab"
-                            variant=ButtonVariant::Ghost
-                            on_click={close}
-                        />
-                    }}
+                    <IconButton
+                        @test_id={format!("dock.switcher.close.{id}")}
+                        glyph=ICON_CLOSE
+                        label="Close tab"
+                        variant=ButtonVariant::Ghost
+                        on_click={close}
+                    />
                 </Show>
             </List>
         </Frame>

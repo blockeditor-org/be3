@@ -522,26 +522,28 @@ pub fn Scroll(
         })
     });
     let scroll = view! {
-        <Scrolling direction fit tab_stop focus_color scrollbar marker on_change={on_change}>
-            {move |report: Callback<ScrollPosition>| {
-                view! {
-                    <Fade edges>
-                        <Offset
-                            offset
-                            direction={content_direction}
-                            fit
-                            on_change={move |position: ScrollPosition| {
-                                set_faded.set(Some(position));
-                                report.call(position);
-                            }}
-                        >
-                            <List @node_ref=&rows direction={rows_direction} spacing=0.0>
-                                {children}
-                            </List>
-                        </Offset>
-                    </Fade>
-                }
-            }}
+        <Scrolling
+            direction
+            fit
+            tab_stop
+            focus_color
+            scrollbar
+            marker
+            on_change={on_change}
+        >|report: Callback<ScrollPosition>|
+            <Fade edges>
+                <Offset
+                    offset
+                    direction={content_direction}
+                    fit
+                    on_change={move |position: ScrollPosition| {
+                        set_faded.set(Some(position));
+                        report.call(position);
+                    }}
+                >
+                    <List @node_ref=&rows direction={rows_direction} spacing=0.0>{children}</List>
+                </Offset>
+            </Fade>
         </Scrolling>
     };
     create_effect(move || {

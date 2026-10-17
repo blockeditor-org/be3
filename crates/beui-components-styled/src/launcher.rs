@@ -292,10 +292,8 @@ pub fn Launcher(
                                 reveal
                                 scrollbar={scrollbar_style()}
                             >
-                                <ForEach keys={rows}>
-                                    {move |row: Row| view! {
-                                        <LauncherRow state={state} items={items.clone()} row />
-                                    }}
+                                <ForEach keys={rows}>|row: Row|
+                                    <LauncherRow state={state} items={items.clone()} row />
                                 </ForEach>
                             </unstyled::Scroll>
                         </List>
@@ -377,25 +375,24 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
             accessibility
             tab_stop=false
             press_focus=false
-            content={move |handle: ButtonHandle| {
-                let hovered = handle.hovered;
-                create_effect(move || {
-                    if hovered.get() {
-                        state.set_highlighted.set(Some(hover_row.clone()));
-                    }
-                });
-                view! {
-                    <LauncherRowFace
-                        title={title}
-                        detail={detail}
-                        image={image}
-                        glyph={glyph.to_owned()}
-                        lit={lit}
-                    />
-                }
-            }}
             on_click={move || state.activate(click_row.clone())}
-        />
+        >|handle: ButtonHandle| {
+            let hovered = handle.hovered;
+            create_effect(move || {
+                if hovered.get() {
+                    state.set_highlighted.set(Some(hover_row.clone()));
+                }
+            });
+            view! {
+                <LauncherRowFace
+                    title={title}
+                    detail={detail}
+                    image={image}
+                    glyph={glyph.to_owned()}
+                    lit={lit}
+                />
+            }
+        }</unstyled::Button>
     }
 }
 

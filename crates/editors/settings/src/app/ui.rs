@@ -90,38 +90,36 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                 caption="Each device uses one, and starts with one of its own."
                             >
                                 <List spacing=ROW_SPACING>
-                                    <ForEach keys={profiles}>
-                                        {move |profile: Uuid| {
-                                            let label = create_memo(move || {
-                                                children
-                                                    .get()
-                                                    .into_iter()
-                                                    .flatten()
-                                                    .find(|info| info.id == profile)
-                                                    .and_then(|info| info.name())
-                                                    .unwrap_or_else(|| "Profile".to_owned())
-                                            });
-                                            let detail = create_memo(move || match used.get() == Some(profile) {
-                                                true => "Used on this device".to_owned(),
-                                                false => String::new(),
-                                            });
-                                            let selected = create_memo(move || shown.get() == Some(profile));
-                                            view! {
-                                                <SettingRow
-                                                    label={label}
-                                                    detail={detail}
-                                                    glyph={ICON_DEVICES.to_owned()}
-                                                    selected={selected}
-                                                    @test_id={format!("settings.profile.{profile}")}
-                                                    on_click={move || {
-                                                        editor
-                                                            .host()
-                                                            .open_block(profile, SettingsProfileContent::CONTENT_TYPE)
-                                                    }}
-                                                />
-                                            }
-                                        }}
-                                    </ForEach>
+                                    <ForEach keys={profiles}>|profile: Uuid| {
+                                        let label = create_memo(move || {
+                                            children
+                                                .get()
+                                                .into_iter()
+                                                .flatten()
+                                                .find(|info| info.id == profile)
+                                                .and_then(|info| info.name())
+                                                .unwrap_or_else(|| "Profile".to_owned())
+                                        });
+                                        let detail = create_memo(move || match used.get() == Some(profile) {
+                                            true => "Used on this device".to_owned(),
+                                            false => String::new(),
+                                        });
+                                        let selected = create_memo(move || shown.get() == Some(profile));
+                                        view! {
+                                            <SettingRow
+                                                label={label}
+                                                detail={detail}
+                                                glyph={ICON_DEVICES.to_owned()}
+                                                selected={selected}
+                                                @test_id={format!("settings.profile.{profile}")}
+                                                on_click={move || {
+                                                    editor
+                                                        .host()
+                                                        .open_block(profile, SettingsProfileContent::CONTENT_TYPE)
+                                                }}
+                                            />
+                                        }
+                                    }</ForEach>
                                     <Button
                                         label="New settings profile"
                                         glyph={ICON_ADD.to_owned()}

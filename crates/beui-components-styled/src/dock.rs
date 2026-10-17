@@ -261,17 +261,15 @@ fn DockTabChrome(
                 </Show>
                 <Text string={title} color={label} clip=true @sizing={title_size} />
                 <Show condition={closable}>
-                    {move || view! {
-                        <IconButton
-                            @test_id={close_test_id.clone()}
-                            glyph=ICON_CLOSE
-                            label="Close tab"
-                            size=IconButtonSize::Compact
-                            variant=ButtonVariant::Ghost
-                            capture_presses=true
-                            on_click={close}
-                        />
-                    }}
+                    <IconButton
+                        @test_id={close_test_id.clone()}
+                        glyph=ICON_CLOSE
+                        label="Close tab"
+                        size=IconButtonSize::Compact
+                        variant=ButtonVariant::Ghost
+                        capture_presses=true
+                        on_click={close}
+                    />
                 </Show>
             </List>
         </Frame>
@@ -364,17 +362,15 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
                         </Show>
                         <Text string={title} clip=true @sizing=ItemSize::Percent(100.0) />
                         <Show condition={closable}>
-                            {move || view! {
-                                <IconButton
-                                    @test_id={format!("dock.dialog.{}.close", tab.value())}
-                                    glyph=ICON_CLOSE
-                                    label="Close"
-                                    size=IconButtonSize::Compact
-                                    variant=ButtonVariant::Ghost
-                                    capture_presses=true
-                                    on_click={close}
-                                />
-                            }}
+                            <IconButton
+                                @test_id={format!("dock.dialog.{}.close", tab.value())}
+                                glyph=ICON_CLOSE
+                                label="Close"
+                                size=IconButtonSize::Compact
+                                variant=ButtonVariant::Ghost
+                                capture_presses=true
+                                on_click={close}
+                            />
                         </Show>
                     </List>
                 </Frame>
@@ -495,31 +491,27 @@ pub(crate) fn DockMenu(
         create_memo(move || menu.with(|items| items.iter().map(Action::key).collect::<Vec<u64>>()));
     view! {
         <Show condition={offered}>
-            {move || view! {
-                <IconMenuButton
-                    @test_id={"dock.menu"}
-                    label="More"
-                    glyph=ICON_MORE_VERT
-                    size
-                    items={view! {
-                        <ForEach keys={keys}>
-                            {move |key: u64| {
-                                let item = menu.with_untracked(|items| {
-                                    items.iter().find(|action| action.key() == key).cloned()
-                                });
-                                match item {
-                                    Some(action) => view! {
-                                        <MenuItem action />
-                                    },
-                                    None => view! {
-                                        <MenuItem label="" disabled=true />
-                                    },
-                                }
-                            }}
-                        </ForEach>
-                    }}
-                />
-            }}
+            <IconMenuButton
+                @test_id={"dock.menu"}
+                label="More"
+                glyph=ICON_MORE_VERT
+                size
+                items={view! {
+                    <ForEach keys={keys}>|key: u64| {
+                        let item = menu.with_untracked(|items| {
+                            items.iter().find(|action| action.key() == key).cloned()
+                        });
+                        match item {
+                            Some(action) => view! {
+                                <MenuItem action />
+                            },
+                            None => view! {
+                                <MenuItem label="" disabled=true />
+                            },
+                        }
+                    }</ForEach>
+                }}
+            />
         </Show>
     }
 }

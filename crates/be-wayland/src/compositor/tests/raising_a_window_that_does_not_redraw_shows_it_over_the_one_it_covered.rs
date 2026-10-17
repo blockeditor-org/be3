@@ -19,14 +19,10 @@ fn Stacked(windows: Windows) -> NodeId {
     ORDER.with(|held| *held.borrow_mut() = Some(set_order));
     view! {
         <Layers>
-            <ForEach keys={order}>
-                {move |id: WindowId| {
-                    view! {
-                        <Frame width={SHOWN.x} height={SHOWN.y}>
-                            <WindowView windows id />
-                        </Frame>
-                    }
-                }}
+            <ForEach keys={order}>|id: WindowId|
+                <Frame width={SHOWN.x} height={SHOWN.y}>
+                    <WindowView windows id />
+                </Frame>
             </ForEach>
         </Layers>
     }

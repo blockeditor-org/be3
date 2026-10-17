@@ -25,25 +25,23 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
             <beui::reactive::Show condition={empty}>
                 <Text style=TextStyle::CAPTION string="Nothing has been committed yet." />
             </beui::reactive::Show>
-            <ForEach keys={rows}>
-                {move |(id, message): ([u8; 32], String)| {
-                    let short = short_id(&id);
-                    let message = match message.is_empty() {
-                        true => "(no message)".to_owned(),
-                        false => message,
-                    };
-                    view! {
-                        <List
-                            direction=Direction::Horizontal
-                            spacing=8.0
-                            @test_id={format!("version.commit.{short}")}
-                        >
-                            <Text style=TextStyle::CAPTION string={short} />
-                            <Text string={message} />
-                        </List>
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={rows}>|(id, message): ([u8; 32], String)| {
+                let short = short_id(&id);
+                let message = match message.is_empty() {
+                    true => "(no message)".to_owned(),
+                    false => message,
+                };
+                view! {
+                    <List
+                        direction=Direction::Horizontal
+                        spacing=8.0
+                        @test_id={format!("version.commit.{short}")}
+                    >
+                        <Text style=TextStyle::CAPTION string={short} />
+                        <Text string={message} />
+                    </List>
+                }
+            }</ForEach>
         </List>
     }
 }

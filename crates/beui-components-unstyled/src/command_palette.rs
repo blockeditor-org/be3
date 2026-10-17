@@ -137,12 +137,8 @@ pub fn CommandPalette(
                         reveal
                         scrollbar={scrollbar}
                     >
-                        <ForEach keys={keys}>
-                            {move |key: u64| {
-                                view! {
-                                    <CommandRow state={state} key row={row} highlight={highlight} />
-                                }
-                            }}
+                        <ForEach keys={keys}>|key: u64|
+                            <CommandRow state={state} key row={row} highlight={highlight} />
                         </ForEach>
                     </unstyled::Scroll>
                 </List>
@@ -184,25 +180,24 @@ fn CommandRow(
             accessibility
             tab_stop=false
             press_focus=false
-            content={move |handle: ButtonHandle| {
-                let hovered = handle.hovered;
-                let hovering = move || {
-                    if hovered.get() && find(state, key).is_some_and(|action| action.is_enabled()) {
-                        state.set_highlighted.set(Some(key));
-                    }
-                };
-                create_effect(hovering);
-                row.call(CommandRowHandle {
-                    label: label.clone(),
-                    glyph: glyph.clone(),
-                    shortcut: shortcut.clone(),
-                    disabled: face_disabled,
-                    highlighted: highlight.memo(Some(key)),
-                    hovered: handle.hovered,
-                })
-            }}
             on_click={move || confirm(state, key)}
-        />
+        >|handle: ButtonHandle| {
+            let hovered = handle.hovered;
+            let hovering = move || {
+                if hovered.get() && find(state, key).is_some_and(|action| action.is_enabled()) {
+                    state.set_highlighted.set(Some(key));
+                }
+            };
+            create_effect(hovering);
+            row.call(CommandRowHandle {
+                label: label.clone(),
+                glyph: glyph.clone(),
+                shortcut: shortcut.clone(),
+                disabled: face_disabled,
+                highlighted: highlight.memo(Some(key)),
+                hovered: handle.hovered,
+            })
+        }</unstyled::Button>
     }
 }
 

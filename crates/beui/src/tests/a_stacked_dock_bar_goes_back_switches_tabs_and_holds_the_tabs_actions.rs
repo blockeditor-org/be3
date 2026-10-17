@@ -43,29 +43,27 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
                     <DockTab id=FIRST title="Tab 1">
                         <Frame @test_id="content.1" />
                     </DockTab>
-                    <ForEach keys={open}>
-                        {move |id: u64| view! {
-                            <DockTab
-                                id
-                                title={format!("Tab {id}")}
-                                on_close={move || {
-                                    set_closed.update(|closed| closed.push(TabId::new(id)));
-                                    set_open.update(|open| open.retain(|other| *other != id));
-                                }}
-                                content={move || {
-                                    dock_actions(move || view! {
-                                        <Frame
-                                            @test_id={format!("action.{id}")}
-                                            width=24.0
-                                            height=24.0
-                                        />
-                                    });
-                                    view! {
-                                        <Frame @test_id={format!("content.{id}")} />
-                                    }
-                                }}
-                            />
-                        }}
+                    <ForEach keys={open}>|id: u64|
+                        <DockTab
+                            id
+                            title={format!("Tab {id}")}
+                            on_close={move || {
+                                set_closed.update(|closed| closed.push(TabId::new(id)));
+                                set_open.update(|open| open.retain(|other| *other != id));
+                            }}
+                            content={move || {
+                                dock_actions(move || view! {
+                                    <Frame
+                                        @test_id={format!("action.{id}")}
+                                        width=24.0
+                                        height=24.0
+                                    />
+                                });
+                                view! {
+                                    <Frame @test_id={format!("content.{id}")} />
+                                }
+                            }}
+                        />
                     </ForEach>
                 </DockPane>
             </styled::Docking>

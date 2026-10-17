@@ -56,16 +56,16 @@ pub fn StaleNotice(
                         variant=ButtonVariant::Secondary
                         on_click={on_delete}
                     />
-                    <Show condition={create_memo(move || can_try.get())}>
-                        {move || { let try_id = try_id.clone(); view! {
+                    <Show condition={create_memo(move || can_try.get())}>|| {
+                        let try_id = try_id.clone(); view! {
                             <Button
                                 @test_id={try_id}
                                 label="Try anyway"
                                 variant=ButtonVariant::Ghost
                                 on_click={on_try}
                             />
-                        } }}
-                    </Show>
+                        }
+                    }</Show>
                 </List>
             </List>
         </Frame>

@@ -12,10 +12,8 @@ fn a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop() {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={indices(100)}>
-                        {|index: usize| view! {
-                            <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
-                        }}
+                    <ForEach keys={indices(100)}>|index: usize|
+                        <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
                     </ForEach>
                 </Scroll>
             </List>

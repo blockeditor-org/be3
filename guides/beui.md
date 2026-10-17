@@ -190,12 +190,10 @@ actually changed run.
 
 ```rust
 <List spacing=8.0>
-    <ForEach keys={items.keys()}>
-        {move |id: Uuid| {
-            let item = items.get(&id);
-            view! { <ItemRow item /> }
-        }}
-    </ForEach>
+    <ForEach keys={items.keys()}>|id: Uuid| {
+        let item = items.get(&id);
+        view! { <ItemRow item /> }
+    }</ForEach>
 </List>
 ```
 
@@ -761,8 +759,8 @@ beside plain siblings in one, or nested a few containers deep inside one.
 view! {
     <Scroll @sizing=ItemSize::Percent(100.0)>
         <Header />
-        <VirtualList keys={row_ids} item_size=ROW_HEIGHT>
-            {move |id: ReadSignal<RowId>| view! { <Row id /> }}
+        <VirtualList keys={row_ids} item_size=ROW_HEIGHT>|id: ReadSignal<RowId>|
+            <Row id />
         </VirtualList>
         <Footer />
     </Scroll>
@@ -1325,12 +1323,10 @@ view! {
                 <DockTab id=Key::Files title="Files"><FilesPanel /></DockTab>
             </DockPane>
             <DockPane id="editors" empty={move || view! { <Nothing /> }}>
-                <ForEach keys={open}>
-                    {move |key: Key| view! {
-                        <DockTab id=key title={title_of(key)} on_close={move || close(key)}>
-                            <Panel key />
-                        </DockTab>
-                    }}
+                <ForEach keys={open}>|key: Key|
+                    <DockTab id=key title={title_of(key)} on_close={move || close(key)}>
+                        <Panel key />
+                    </DockTab>
                 </ForEach>
             </DockPane>
         </DockSplit>
@@ -1630,11 +1626,11 @@ view! {
         payload={card_id}
         preview={move |card: CardId| view! { <CardGhost card /> }}
         on_click={select}
-    >
-        {move |handle: DragHandle| view! { <CardFace card_id dragging={handle.dragging} /> }}
+    >|handle: DragHandle|
+        <CardFace card_id dragging={handle.dragging} />
     </Draggable>
-    <DropTarget on_drop={move |(card, _): (CardId, DragPoint)| move_card(card, column)}>
-        {move |handle: DropHandle| view! { <ColumnFace column over={handle.over} /> }}
+    <DropTarget on_drop={move |(card, _): (CardId, DragPoint)| move_card(card, column)}>|handle: DropHandle|
+        <ColumnFace column over={handle.over} />
     </DropTarget>
 }
 ```
@@ -1693,16 +1689,14 @@ a scale - passes it in, and writes back what `on_change` reports:
 ```rust
 let (view, set_view) = create_signal(PanZoomView::IDENTITY);
 view! {
-    <PanZoom view on_change={move |view| set_view.set(view)}>
-        {move |handle: PanZoomHandle| {
-            let PanZoomHandle { view, scale, .. } = handle;
-            view! {
-                <Canvas view>
-                    <CanvasItem x=0.0 y=0.0 width=100.0 height=50.0 />
-                </Canvas>
-            }
-        }}
-    </PanZoom>
+    <PanZoom view on_change={move |view| set_view.set(view)}>|handle: PanZoomHandle| {
+        let PanZoomHandle { view, scale, .. } = handle;
+        view! {
+            <Canvas view>
+                <CanvasItem x=0.0 y=0.0 width=100.0 height=50.0 />
+            </Canvas>
+        }
+    }</PanZoom>
 }
 ```
 
@@ -1752,8 +1746,8 @@ view! {
         on_change={move |looking| set_looking.set(looking)}
         on_motion={move |motion: Vec2| camera.look(motion)}
         on_key={walk}
-    >
-        {move |handle: PointerLockHandle| view! { <Scene /> }}
+    >|handle: PointerLockHandle|
+        <Scene />
     </PointerLock>
 }
 ```
@@ -2259,8 +2253,8 @@ stay in one place:
 ```rust
 <List spacing=4.0>
     <Text style=TextStyle::HEADING string="Cards" />
-    <ForEach keys={card_ids()}>
-        {move |id: Uuid| view! { <CardRow id /> }}
+    <ForEach keys={card_ids()}>|id: Uuid|
+        <CardRow id />
     </ForEach>
 </List>
 ```
@@ -2574,12 +2568,8 @@ visual primitives:
 #[component]
 pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bool>) -> NodeId {
     view! {
-        <Toggle checked label on_change>
-            {move |handle: ToggleHandle| {
-                view! {
-                    <CheckboxFace handle />
-                }
-            }}
+        <Toggle checked label on_change>|handle: ToggleHandle|
+            <CheckboxFace handle />
         </Toggle>
     }
 }

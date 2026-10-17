@@ -57,10 +57,8 @@ pub fn Select(
             option={|handle| view! {
                 <SelectOption handle />
             }}
-        >
-            {|content| view! {
-                <SelectPopup>{content}</SelectPopup>
-            }}
+        >|content|
+            <SelectPopup>{content}</SelectPopup>
         </unstyled::Select>
     }
 }

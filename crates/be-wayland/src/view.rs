@@ -21,136 +21,134 @@ pub fn WindowView(
         };
     };
     view! {
-        <PlacementBuilder>
-            {move |rect: ReadSignal<Rect>| {
-                let catcher = NodeRef::new();
-                let popup_catcher = NodeRef::new();
-                create_effect(move || {
-                    windows.placed(id, rect.get());
-                    if let Some(node) = catcher.try_get() {
-                        windows.caught_by(id, node);
-                    }
-                    if let Some(node) = popup_catcher.try_get() {
-                        windows.popups_caught_by(id, node);
-                    }
+        <PlacementBuilder>|rect: ReadSignal<Rect>| {
+            let catcher = NodeRef::new();
+            let popup_catcher = NodeRef::new();
+            create_effect(move || {
+                windows.placed(id, rect.get());
+                if let Some(node) = catcher.try_get() {
+                    windows.caught_by(id, node);
+                }
+                if let Some(node) = popup_catcher.try_get() {
+                    windows.popups_caught_by(id, node);
+                }
+            });
+            let list = windows.list();
+            let inhibits = create_memo(move || {
+                list.with(|list| {
+                    list.iter()
+                        .any(|info| info.id == id && info.inhibits_shortcuts)
+                })
+            });
+            let dim = create_memo(move || {
+                let responding = list.with(|list| {
+                    list.iter()
+                        .find(|info| info.id == id)
+                        .is_none_or(|info| info.responding)
                 });
-                let list = windows.list();
-                let inhibits = create_memo(move || {
-                    list.with(|list| {
-                        list.iter()
-                            .any(|info| info.id == id && info.inhibits_shortcuts)
-                    })
-                });
-                let dim = create_memo(move || {
-                    let responding = list.with(|list| {
-                        list.iter()
-                            .find(|info| info.id == id)
-                            .is_none_or(|info| info.responding)
-                    });
-                    match responding {
-                        true => Color32::TRANSPARENT,
-                        false => FROZEN_DIM,
-                    }
-                });
-                let cursor = windows.cursor();
-                let takes = move |local: Pos2| {
-                    let position = local + rect.get_untracked().min.to_vec2();
-                    !occluders
-                        .peek()
-                        .iter()
-                        .any(|occluder| occluder.contains(position))
-                };
-                let popups = signals.popups;
-                let shown = create_memo(move || popups.with(|popups| {
-                    popups.as_ref().map(|popups| popups.rect)
-                }));
-                let open = create_memo(move || shown.get().is_some());
-                let anchor = create_memo(move || {
-                    let at = shown.get().unwrap_or(Rect::ZERO);
-                    OverlayAnchor::Rect(at.translate(rect.get().min.to_vec2()))
-                });
-                let width = create_memo(move || shown.get().map(|at| at.width()));
-                let height = create_memo(move || shown.get().map(|at| at.height()));
-                let into_window = move |mut input: ForwardedInput| {
-                    let at = shown.get_untracked().unwrap_or(Rect::ZERO);
-                    input.rect = input.rect.translate(-at.min.to_vec2());
-                    windows.forward(id, input);
-                };
-                let popup_cursor = windows.cursor();
-                let areas = signals.popups;
-                let on_popup = move |local: Pos2| {
-                    areas.with_untracked(|popups| {
-                        popups
-                            .as_ref()
-                            .is_some_and(|popups| popups.areas.iter().any(|area| area.contains(local)))
-                    })
-                };
-                on_cleanup(move || windows.unplaced(id));
-                let built = view! {
-                    <Layers>
-                        <Interactive
-                            @node_ref={&catcher}
-                            focusable=true
-                            @test_id={format!("wayland.window.{}", id.0)}
-                            on_focus_change={move |focused: bool| windows.focus(id, focused)}
-                            cursor
-                            on_forward={move |input: ForwardedInput| windows.forward(id, input)}
-                            inhibits_shortcuts={inhibits}
-                            hit_at={takes}
-                        >
-                            <Layers>
+                match responding {
+                    true => Color32::TRANSPARENT,
+                    false => FROZEN_DIM,
+                }
+            });
+            let cursor = windows.cursor();
+            let takes = move |local: Pos2| {
+                let position = local + rect.get_untracked().min.to_vec2();
+                !occluders
+                    .peek()
+                    .iter()
+                    .any(|occluder| occluder.contains(position))
+            };
+            let popups = signals.popups;
+            let shown = create_memo(move || popups.with(|popups| {
+                popups.as_ref().map(|popups| popups.rect)
+            }));
+            let open = create_memo(move || shown.get().is_some());
+            let anchor = create_memo(move || {
+                let at = shown.get().unwrap_or(Rect::ZERO);
+                OverlayAnchor::Rect(at.translate(rect.get().min.to_vec2()))
+            });
+            let width = create_memo(move || shown.get().map(|at| at.width()));
+            let height = create_memo(move || shown.get().map(|at| at.height()));
+            let into_window = move |mut input: ForwardedInput| {
+                let at = shown.get_untracked().unwrap_or(Rect::ZERO);
+                input.rect = input.rect.translate(-at.min.to_vec2());
+                windows.forward(id, input);
+            };
+            let popup_cursor = windows.cursor();
+            let areas = signals.popups;
+            let on_popup = move |local: Pos2| {
+                areas.with_untracked(|popups| {
+                    popups
+                        .as_ref()
+                        .is_some_and(|popups| popups.areas.iter().any(|area| area.contains(local)))
+                })
+            };
+            on_cleanup(move || windows.unplaced(id));
+            let built = view! {
+                <Layers>
+                    <Interactive
+                        @node_ref={&catcher}
+                        focusable=true
+                        @test_id={format!("wayland.window.{}", id.0)}
+                        on_focus_change={move |focused: bool| windows.focus(id, focused)}
+                        cursor
+                        on_forward={move |input: ForwardedInput| windows.forward(id, input)}
+                        inhibits_shortcuts={inhibits}
+                        hit_at={takes}
+                    >
+                        <Layers>
+                            <Drawing
+                                draw={Prop::dynamic(move || draw_gpu(signals.drawing.get()))}
+                            />
+                            <Frame fill={ColorRole::custom(dim)} />
+                        </Layers>
+                    </Interactive>
+                    <Overlay
+                        anchor={anchor}
+                        placement=Placement::At
+                        policy=LayerPolicy::Pass
+                        traps_focus=false
+                        open={open}
+                    >
+                        <Frame width=width height=height>
+                            <Interactive
+                                @node_ref={&popup_catcher}
+                                focusable=true
+                                press_focus=false
+                                tab_stop=false
+                                @test_id={format!("wayland.popups.{}", id.0)}
+                                cursor={popup_cursor}
+                                on_forward={into_window}
+                                hit_at={on_popup}
+                            >
                                 <Drawing
-                                    draw={Prop::dynamic(move || draw_gpu(signals.drawing.get()))}
+                                    draw={Prop::dynamic(move || {
+                                        draw_gpu(popups.with(|popups| {
+                                            popups.as_ref().map(|popups| popups.drawing.clone())
+                                        }))
+                                    })}
                                 />
-                                <Frame fill={ColorRole::custom(dim)} />
-                            </Layers>
-                        </Interactive>
-                        <Overlay
-                            anchor={anchor}
-                            placement=Placement::At
-                            policy=LayerPolicy::Pass
-                            traps_focus=false
-                            open={open}
-                        >
-                            <Frame width=width height=height>
-                                <Interactive
-                                    @node_ref={&popup_catcher}
-                                    focusable=true
-                                    press_focus=false
-                                    tab_stop=false
-                                    @test_id={format!("wayland.popups.{}", id.0)}
-                                    cursor={popup_cursor}
-                                    on_forward={into_window}
-                                    hit_at={on_popup}
-                                >
-                                    <Drawing
-                                        draw={Prop::dynamic(move || {
-                                            draw_gpu(popups.with(|popups| {
-                                                popups.as_ref().map(|popups| popups.drawing.clone())
-                                            }))
-                                        })}
-                                    />
-                                </Interactive>
-                            </Frame>
-                        </Overlay>
-                    </Layers>
+                            </Interactive>
+                        </Frame>
+                    </Overlay>
+                </Layers>
+            };
+            let asks = signals.asks;
+            let answered = signals.answered.clone();
+            create_effect(move || {
+                let asked = asks.get();
+                if answered.get() >= asked {
+                    return;
+                }
+                let Some(node) = catcher.try_get() else {
+                    return;
                 };
-                let asks = signals.asks;
-                let answered = signals.answered.clone();
-                create_effect(move || {
-                    let asked = asks.get();
-                    if answered.get() >= asked {
-                        return;
-                    }
-                    let Some(node) = catcher.try_get() else {
-                        return;
-                    };
-                    answered.set(asked);
-                    untrack(|| with_document(|document| document.focus_focusable(node)));
-                });
-                built
-            }}
-        </PlacementBuilder>
+                answered.set(asked);
+                untrack(|| with_document(|document| document.focus_focusable(node)));
+            });
+            built
+        }</PlacementBuilder>
     }
 }
 

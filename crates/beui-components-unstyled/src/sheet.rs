@@ -945,38 +945,36 @@ fn ModalSheetBody(
     children: Child,
 ) -> NodeId {
     view! {
-        <LayoutBuilder>
-            {move |size: ReadSignal<Vec2>| {
-                let extent = create_memo(move || size.get().y);
-                let highest = stops.iter().copied().fold(SHEET_STOPS[0], f32::max);
-                let room = create_memo(move || {
-                    ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
-                });
-                let outside = on_close;
-                let closing = on_close;
-                view! {
-                    <List spacing=0.0>
-                        <Interactive @sizing={room} @test_id={"sheet.outside"} on_click={outside}>
-                            <Spacer />
-                        </Interactive>
-                        <Sheet
-                            @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                            extent
-                            open
-                            rest
-                            stops
-                            fit
-                            grip
-                            panel
-                            on_presence={move |presence: f32| on_presence.call(presence)}
-                            on_gone={on_gone}
-                            on_close={closing}
-                        >
-                            {children}
-                        </Sheet>
-                    </List>
-                }
-            }}
-        </LayoutBuilder>
+        <LayoutBuilder>|size: ReadSignal<Vec2>| {
+            let extent = create_memo(move || size.get().y);
+            let highest = stops.iter().copied().fold(SHEET_STOPS[0], f32::max);
+            let room = create_memo(move || {
+                ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
+            });
+            let outside = on_close;
+            let closing = on_close;
+            view! {
+                <List spacing=0.0>
+                    <Interactive @sizing={room} @test_id={"sheet.outside"} on_click={outside}>
+                        <Spacer />
+                    </Interactive>
+                    <Sheet
+                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                        extent
+                        open
+                        rest
+                        stops
+                        fit
+                        grip
+                        panel
+                        on_presence={move |presence: f32| on_presence.call(presence)}
+                        on_gone={on_gone}
+                        on_close={closing}
+                    >
+                        {children}
+                    </Sheet>
+                </List>
+            }
+        }</LayoutBuilder>
     }
 }

@@ -51,26 +51,24 @@ pub fn DatabaseValueEditor(
     });
     view! {
         <List spacing=FIELD_SPACING>
-            <ForEach keys={keys}>
-                {move |id: Uuid| {
-                    let field = field_of(fields, id);
-                    let value = value_of(values, id);
-                    let test_id = format!("{}.field.{id}", prefix.get_untracked());
-                    view! {
-                        <DatabaseValueRow
-                            field={field}
-                            value={value}
-                            labels={labels}
-                            headings={headings}
-                            disabled={disabled}
-                            id={test_id}
-                            on_change={forward(on_change)}
-                            on_pick={forward(on_pick)}
-                            on_submit={forward(on_submit)}
-                        />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|id: Uuid| {
+                let field = field_of(fields, id);
+                let value = value_of(values, id);
+                let test_id = format!("{}.field.{id}", prefix.get_untracked());
+                view! {
+                    <DatabaseValueRow
+                        field={field}
+                        value={value}
+                        labels={labels}
+                        headings={headings}
+                        disabled={disabled}
+                        id={test_id}
+                        on_change={forward(on_change)}
+                        on_pick={forward(on_pick)}
+                        on_submit={forward(on_submit)}
+                    />
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -156,104 +154,102 @@ fn DatabaseValueControl(
     });
     view! {
         <List spacing=0.0>
-            <Dynamic value={kind}>
-                {move |kind: Option<Option<DatabaseFieldType>>| {
-                    let test_id = id.clone();
-                    let on_change = forward(on_change);
-                    let on_pick = forward(on_pick);
-                    let on_submit = forward(on_submit);
-                    match kind {
-                        None => view! {
-                            <Spacer />
-                        },
-                        Some(Some(DatabaseFieldType::String)) => view! {
-                            <StringValue
-                                field={field}
-                                value={value}
-                                disabled={disabled}
-                                id={test_id}
-                                on_change={on_change}
-                                on_submit={on_submit}
-                            />
-                        },
-                        Some(Some(DatabaseFieldType::Number)) => view! {
-                            <NumberValue
-                                field={field}
-                                value={value}
-                                disabled={disabled}
-                                id={test_id}
-                                on_change={on_change}
-                            />
-                        },
-                        Some(Some(DatabaseFieldType::Enum)) => view! {
-                            <EnumValue
-                                field={field}
-                                value={value}
-                                disabled={disabled}
-                                id={test_id}
-                                on_change={on_change}
-                            />
-                        },
-                        Some(Some(DatabaseFieldType::Boolean)) => view! {
-                            <BooleanValue
-                                field={field}
-                                value={value}
-                                disabled={disabled}
-                                id={test_id}
-                                on_change={on_change}
-                            />
-                        },
-                        Some(Some(DatabaseFieldType::Color)) => view! {
-                            <ColorValue
-                                field={field}
-                                value={value}
-                                disabled={disabled}
-                                id={test_id}
-                                on_change={on_change}
-                            />
-                        },
-                        Some(Some(DatabaseFieldType::Datetime)) => view! {
-                            <DatetimeValue
-                                field={field}
-                                value={value}
-                                disabled={disabled}
-                                id={test_id}
-                                on_change={on_change}
-                            />
-                        },
-                        Some(None) => view! {
-                            <LinksValue
-                                field={field}
-                                value={value}
-                                labels={labels}
-                                disabled={disabled}
-                                id={test_id}
-                                on_change={on_change}
-                            />
-                        },
-                        Some(Some(DatabaseFieldType::Relation)) => view! {
-                            <RelationValue
-                                field={field}
-                                value={value}
-                                labels={labels}
-                                disabled={disabled}
-                                id={test_id}
-                                on_change={on_change}
-                            />
-                        },
-                        Some(Some(DatabaseFieldType::Block)) => view! {
-                            <BlockValue
-                                field={field}
-                                value={value}
-                                labels={labels}
-                                disabled={disabled}
-                                id={test_id}
-                                on_pick={on_pick}
-                            />
-                        },
-                    }
-                }}
-            </Dynamic>
+            <Dynamic value={kind}>|kind: Option<Option<DatabaseFieldType>>| {
+                let test_id = id.clone();
+                let on_change = forward(on_change);
+                let on_pick = forward(on_pick);
+                let on_submit = forward(on_submit);
+                match kind {
+                    None => view! {
+                        <Spacer />
+                    },
+                    Some(Some(DatabaseFieldType::String)) => view! {
+                        <StringValue
+                            field={field}
+                            value={value}
+                            disabled={disabled}
+                            id={test_id}
+                            on_change={on_change}
+                            on_submit={on_submit}
+                        />
+                    },
+                    Some(Some(DatabaseFieldType::Number)) => view! {
+                        <NumberValue
+                            field={field}
+                            value={value}
+                            disabled={disabled}
+                            id={test_id}
+                            on_change={on_change}
+                        />
+                    },
+                    Some(Some(DatabaseFieldType::Enum)) => view! {
+                        <EnumValue
+                            field={field}
+                            value={value}
+                            disabled={disabled}
+                            id={test_id}
+                            on_change={on_change}
+                        />
+                    },
+                    Some(Some(DatabaseFieldType::Boolean)) => view! {
+                        <BooleanValue
+                            field={field}
+                            value={value}
+                            disabled={disabled}
+                            id={test_id}
+                            on_change={on_change}
+                        />
+                    },
+                    Some(Some(DatabaseFieldType::Color)) => view! {
+                        <ColorValue
+                            field={field}
+                            value={value}
+                            disabled={disabled}
+                            id={test_id}
+                            on_change={on_change}
+                        />
+                    },
+                    Some(Some(DatabaseFieldType::Datetime)) => view! {
+                        <DatetimeValue
+                            field={field}
+                            value={value}
+                            disabled={disabled}
+                            id={test_id}
+                            on_change={on_change}
+                        />
+                    },
+                    Some(None) => view! {
+                        <LinksValue
+                            field={field}
+                            value={value}
+                            labels={labels}
+                            disabled={disabled}
+                            id={test_id}
+                            on_change={on_change}
+                        />
+                    },
+                    Some(Some(DatabaseFieldType::Relation)) => view! {
+                        <RelationValue
+                            field={field}
+                            value={value}
+                            labels={labels}
+                            disabled={disabled}
+                            id={test_id}
+                            on_change={on_change}
+                        />
+                    },
+                    Some(Some(DatabaseFieldType::Block)) => view! {
+                        <BlockValue
+                            field={field}
+                            value={value}
+                            labels={labels}
+                            disabled={disabled}
+                            id={test_id}
+                            on_pick={on_pick}
+                        />
+                    },
+                }
+            }</Dynamic>
         </List>
     }
 }
@@ -379,21 +375,19 @@ fn EnumValue(
     view! {
         <Select
             options={view! {
-                <ForEach keys={keys}>
-                    {move |id: Uuid| {
-                        let label = create_memo(move || {
-                            names.with(|options| {
-                                options
-                                    .iter()
-                                    .find(|option| option.id == id)
-                                    .map_or_else(String::new, |option| option.name.clone())
-                            })
-                        });
-                        view! {
-                            <ChoiceOption label={label} />
-                        }
-                    }}
-                </ForEach>
+                <ForEach keys={keys}>|id: Uuid| {
+                    let label = create_memo(move || {
+                        names.with(|options| {
+                            options
+                                .iter()
+                                .find(|option| option.id == id)
+                                .map_or_else(String::new, |option| option.name.clone())
+                        })
+                    });
+                    view! {
+                        <ChoiceOption label={label} />
+                    }
+                }</ForEach>
             }}
             selected={selected}
             label="Value"
@@ -597,21 +591,19 @@ fn RelationValue(
             </Show>
             <Select
                 options={view! {
-                    <ForEach keys={keys}>
-                        {move |link: RowRef| {
-                            let label = create_memo(move || {
-                                names.with(|choices| {
-                                    choices
-                                        .iter()
-                                        .find(|(held, _)| *held == link)
-                                        .map_or_else(String::new, |(_, label)| label.clone())
-                                })
-                            });
-                            view! {
-                                <ChoiceOption label={label} />
-                            }
-                        }}
-                    </ForEach>
+                    <ForEach keys={keys}>|link: RowRef| {
+                        let label = create_memo(move || {
+                            names.with(|choices| {
+                                choices
+                                    .iter()
+                                    .find(|(held, _)| *held == link)
+                                    .map_or_else(String::new, |(_, label)| label.clone())
+                            })
+                        });
+                        view! {
+                            <ChoiceOption label={label} />
+                        }
+                    }</ForEach>
                 }}
                 selected={selected}
                 label="Row"
@@ -687,50 +679,46 @@ fn LinksValue(
     let add_off = disabled;
     view! {
         <List spacing=SPACING>
-            <ForEach keys={linked}>
-                {move |link: RowRef| {
-                    let remove_id = format!("{id}.remove.{}", link.row);
-                    let label = create_memo(move || {
-                        chip_labels.with(|labels| labels.row(&link))
-                    });
-                    let remove = move || {
-                        let links = linked
-                            .get_untracked()
-                            .into_iter()
-                            .filter(|held| *held != link)
-                            .collect();
-                        emit(links);
-                    };
-                    view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Text @sizing=ItemSize::Percent(100.0) string={label} />
-                            <IconButton
-                                glyph={ICON_CLEAR.to_owned()}
-                                label="Remove link"
-                                disabled={disabled}
-                                @test_id={remove_id}
-                                on_click={remove}
-                            />
-                        </List>
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={linked}>|link: RowRef| {
+                let remove_id = format!("{id}.remove.{}", link.row);
+                let label = create_memo(move || {
+                    chip_labels.with(|labels| labels.row(&link))
+                });
+                let remove = move || {
+                    let links = linked
+                        .get_untracked()
+                        .into_iter()
+                        .filter(|held| *held != link)
+                        .collect();
+                    emit(links);
+                };
+                view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <Text @sizing=ItemSize::Percent(100.0) string={label} />
+                        <IconButton
+                            glyph={ICON_CLEAR.to_owned()}
+                            label="Remove link"
+                            disabled={disabled}
+                            @test_id={remove_id}
+                            on_click={remove}
+                        />
+                    </List>
+                }
+            }</ForEach>
             <Select
                 options={view! {
-                    <ForEach keys={add_keys}>
-                        {move |link: RowRef| {
-                            let label = create_memo(move || {
-                                names.with(|rows| {
-                                    rows.iter()
-                                        .find(|(held, _)| *held == link)
-                                        .map_or_else(String::new, |(_, label)| label.clone())
-                                })
-                            });
-                            view! {
-                                <ChoiceOption label={label} />
-                            }
-                        }}
-                    </ForEach>
+                    <ForEach keys={add_keys}>|link: RowRef| {
+                        let label = create_memo(move || {
+                            names.with(|rows| {
+                                rows.iter()
+                                    .find(|(held, _)| *held == link)
+                                    .map_or_else(String::new, |(_, label)| label.clone())
+                            })
+                        });
+                        view! {
+                            <ChoiceOption label={label} />
+                        }
+                    }</ForEach>
                 }}
                 selected={None}
                 label="Add a link"

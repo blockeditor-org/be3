@@ -87,14 +87,12 @@ where
                         on_expand={on_expand}
                         on_hover_change={on_hover_change}
                         on_drag_start={on_drag_start}
-                    >
-                        {move |handle: TreeRowHandle<K>| {
-                            let named = row_test_id.call(handle.key.clone());
-                            view! {
-                                <TreeRowChrome handle named outline={outline} content={content} />
-                            }
-                        }}
-                    </unstyled::Tree>
+                    >|handle: TreeRowHandle<K>| {
+                        let named = row_test_id.call(handle.key.clone());
+                        view! {
+                            <TreeRowChrome handle named outline={outline} content={content} />
+                        }
+                    }</unstyled::Tree>
                 </Frame>
             </Scroll>
             <unstyled::TreeReveal
@@ -221,10 +219,12 @@ fn Chevron(
     view! {
         <Frame width=CHEVRON_WIDTH>
             <List spacing=0.0>
-                <unstyled::TreeToggle item toggle={toggle} button_test_id=named>
-                    {move |handle: TreeToggleHandle| view! {
-                        <ChevronFace handle marked={marked} />
-                    }}
+                <unstyled::TreeToggle
+                    item
+                    toggle={toggle}
+                    button_test_id=named
+                >|handle: TreeToggleHandle|
+                    <ChevronFace handle marked={marked} />
                 </unstyled::TreeToggle>
             </List>
         </Frame>

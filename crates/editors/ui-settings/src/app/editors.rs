@@ -43,20 +43,18 @@ pub fn DefaultEditorsView(editor: Editor) -> NodeId {
                 <Show condition={empty}>
                     <SettingsRow label="Every block type has one editor." />
                 </Show>
-                <ForEach keys={types}>
-                    {move |block_type: Uuid| {
-                        let separated = create_memo(move || {
-                            types.with(|types| types.first() != Some(&block_type))
-                        });
-                        view! {
-                            <DefaultEditor
-                                editor={editor}
-                                block_type={block_type}
-                                separated={separated}
-                            />
-                        }
-                    }}
-                </ForEach>
+                <ForEach keys={types}>|block_type: Uuid| {
+                    let separated = create_memo(move || {
+                        types.with(|types| types.first() != Some(&block_type))
+                    });
+                    view! {
+                        <DefaultEditor
+                            editor={editor}
+                            block_type={block_type}
+                            separated={separated}
+                        />
+                    }
+                }</ForEach>
             </SettingsSection>
         </SettingsPage>
     }
@@ -122,22 +120,20 @@ fn DefaultEditor(editor: Editor, block_type: Uuid, separated: Memo<bool>) -> Nod
                 width={Extent::fraction(1.0)}
                 options={view! {
                     <ChoiceOption label={inherited_label} />
-                    <ForEach keys={names}>
-                        {move |index: usize| {
-                            let label = create_memo(move || {
-                                choices.with(|choices| {
-                                    choices
-                                        .editors
-                                        .get(index)
-                                        .map(|(_, name)| name.clone())
-                                        .unwrap_or_default()
-                                })
-                            });
-                            view! {
-                                <ChoiceOption label={label} />
-                            }
-                        }}
-                    </ForEach>
+                    <ForEach keys={names}>|index: usize| {
+                        let label = create_memo(move || {
+                            choices.with(|choices| {
+                                choices
+                                    .editors
+                                    .get(index)
+                                    .map(|(_, name)| name.clone())
+                                    .unwrap_or_default()
+                            })
+                        });
+                        view! {
+                            <ChoiceOption label={label} />
+                        }
+                    }</ForEach>
                 }}
                 selected={selected}
                 label={name}
