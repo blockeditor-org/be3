@@ -7,9 +7,6 @@ use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::block_ui::BlockTypes;
 use uuid::Uuid;
 
-const PADDING: f32 = 20.0;
-const SPACING: f32 = 8.0;
-
 #[derive(Clone, PartialEq)]
 struct Choices {
     name: String,
@@ -38,37 +35,35 @@ pub fn DefaultEditorsView(editor: Editor) -> NodeId {
     });
     let empty = create_memo(move || types.with(Vec::is_empty));
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
-                <Scroll @sizing=ItemSize::Percent(100.0)>
-                    <Frame padding=PADDING>
-                        <List spacing=SPACING>
-                            <Text style=TextStyle::HEADING string="Default editors" />
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="The editor a block of each type opens in. Open with, in Files, opens one in another."
+        <SettingsPage>
+            <SettingsSection
+                title="Default editors"
+                description="The editor a block of each type opens in. Open with, in Files, opens one in another."
+            >
+                <Show condition={empty}>
+                    <SettingsRow label="Every block type has one editor." />
+                </Show>
+                <ForEach keys={types}>
+                    {move |block_type: Uuid| {
+                        let separated = create_memo(move || {
+                            types.with(|types| types.first() != Some(&block_type))
+                        });
+                        view! {
+                            <DefaultEditor
+                                editor={editor}
+                                block_type={block_type}
+                                separated={separated}
                             />
-                            <Show condition={empty}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    string="Every block type has one editor."
-                                />
-                            </Show>
-                            <ForEach keys={types}>
-                                {move |block_type: Uuid| view! {
-                                    <DefaultEditor editor={editor} block_type={block_type} />
-                                }}
-                            </ForEach>
-                        </List>
-                    </Frame>
-                </Scroll>
-            </List>
-        </Frame>
+                        }
+                    }}
+                </ForEach>
+            </SettingsSection>
+        </SettingsPage>
     }
 }
 
 #[component]
-fn DefaultEditor(editor: Editor, block_type: Uuid) -> NodeId {
+fn DefaultEditor(editor: Editor, block_type: Uuid, separated: Memo<bool>) -> NodeId {
     let settings = editor.block_content::<EditorSettingsContent>();
     let chosen = settings.project(move |content| content.root().default_editor(block_type));
     let inherited = editor.inherited_settings::<EditorSettings>();
@@ -94,7 +89,7 @@ fn DefaultEditor(editor: Editor, block_type: Uuid) -> NodeId {
                 .map(|(_, name)| name.clone())
                 .unwrap_or_default()
         });
-        format!("Inherited ({name})")
+        format!("Default ({name})")
     });
     let names = create_memo(move || {
         choices.with(|choices| (0..choices.editors.len()).collect::<Vec<usize>>())
@@ -112,10 +107,19 @@ fn DefaultEditor(editor: Editor, block_type: Uuid) -> NodeId {
     });
     let name = create_memo(move || choices.with(|choices| choices.name.clone()));
     let read_only = editor.read_only();
+    let modified = create_memo(move || chosen.get().is_some());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Text @sizing=ItemSize::Percent(100.0) string={name} />
+        <SettingsRow
+            label={name}
+            separated={separated}
+            modified={modified}
+            locked={read_only}
+            reset_test_id={format!("default-editors.{block_type}.reset")}
+            on_reset={move || settings.operate(EditorSettings::set_default_editor(block_type, None))}
+        >
             <Select
+                @sizing=ItemSize::Percent(100.0)
+                width={Extent::fraction(1.0)}
                 options={view! {
                     <ChoiceOption label={inherited_label} />
                     <ForEach keys={names}>
@@ -146,6 +150,6 @@ fn DefaultEditor(editor: Editor, block_type: Uuid) -> NodeId {
                     settings.operate(EditorSettings::set_default_editor(block_type, chosen));
                 }}
             />
-        </List>
+        </SettingsRow>
     }
 }

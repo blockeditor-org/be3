@@ -36,6 +36,7 @@ use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, Sc
 use beui_core::window::WindowState;
 use clipboard::Clipboard;
 
+const BUTTON_EVDEV_FIRST: u16 = 0x110;
 #[cfg(target_os = "linux")]
 const EVDEV_BACK: u32 = 158;
 const XKB_AUDIO_MIC_MUTE: u32 = 0x1008_ffb2;
@@ -565,6 +566,7 @@ fn pointer_button(button: MouseButton) -> Option<PointerButton> {
         MouseButton::Middle => Some(PointerButton::Middle),
         MouseButton::Back => Some(PointerButton::Back),
         MouseButton::Forward => Some(PointerButton::Forward),
+        MouseButton::Other(code) if code >= BUTTON_EVDEV_FIRST => Some(PointerButton::Other(code)),
         MouseButton::Other(_) => None,
     }
 }

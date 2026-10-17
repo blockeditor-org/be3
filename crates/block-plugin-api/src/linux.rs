@@ -129,6 +129,14 @@ impl PlayerCommand {
     pub const ALL: [Self; 4] = [Self::PlayPause, Self::Next, Self::Previous, Self::Stop];
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RemapState {
+    #[default]
+    Off,
+    On,
+    Stopped,
+}
+
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum MediaRequest {
     StepVolume(f32),
@@ -308,6 +316,13 @@ pub enum InputDevices {}
 impl HostValue for InputDevices {
     const KEY: &'static str = "input_devices";
     type Value = Vec<HostInputDevice>;
+}
+
+pub enum Remaps {}
+
+impl HostValue for Remaps {
+    const KEY: &'static str = "remaps";
+    type Value = RemapState;
 }
 
 pub enum Displays {}

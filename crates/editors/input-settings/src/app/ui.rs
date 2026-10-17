@@ -3,21 +3,17 @@ use block_editor_beui::be_block::input_settings::{
     MIN_REPEAT_DELAY, MIN_REPEAT_RATE, PointerSetting, PointerSettings, PointerSpeed,
 };
 use block_editor_beui::be_block::{InputSettings, InputSettingsContent, Layered};
-use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::ICON_RESET_SETTINGS;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{ContentProjection, Editor, HostInputDevice, InputDevices};
 
-const PADDING: f32 = 20.0;
-const VALUE_WIDTH: f32 = 72.0;
-const SECTION_SPACING: f32 = 18.0;
-const ROW_SPACING: f32 = 8.0;
-const LABEL_SPACING: f32 = 4.0;
-const COLUMN_SPACING: f32 = 12.0;
+use super::remapper::RemapperSetting;
 
-type Settings = ContentProjection<InputSettingsContent>;
+const VALUE_WIDTH: f32 = 64.0;
+
+pub(super) type Settings = ContentProjection<InputSettingsContent>;
 type DeviceKey = (String, u32, u32);
 type Apply = Callback<PointerSetting>;
 
@@ -58,102 +54,101 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
     let paste_unset = create_memo(move || paste.get().is_none());
     let paste_off = read_only;
     view! {
-        <Frame fill=ColorRole::Background>
-            <Scroll>
-                <Frame padding=PADDING>
-                    <List spacing=SECTION_SPACING>
-                        <List spacing=ROW_SPACING>
-                            <Text style=TextStyle::HEADING string="Keyboard" />
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="XKB names, like us, de or us,de."
-                            />
-                            <TextSetting
-                                label="Layout"
-                                value={create_memo(move || layout.get())}
-                                inherited={create_memo(move || inherited.get().keyboard_layout)}
-                                read_only={read_only}
-                                id="layout"
-                                on_change={move |layout: Option<String>| {
-                                    settings.operate(InputSettings::set_keyboard_layout(layout.as_deref()))
-                                }}
-                            />
-                            <TextSetting
-                                label="Variant"
-                                value={create_memo(move || variant.get())}
-                                inherited={create_memo(move || inherited.get().keyboard_variant)}
-                                read_only={read_only}
-                                id="variant"
-                                on_change={move |variant: Option<String>| {
-                                    settings.operate(InputSettings::set_keyboard_variant(variant.as_deref()))
-                                }}
-                            />
-                            <TextSetting
-                                label="Options"
-                                value={create_memo(move || options.get())}
-                                inherited={create_memo(move || inherited.get().keyboard_options)}
-                                read_only={read_only}
-                                id="options"
-                                on_change={move |options: Option<String>| {
-                                    settings.operate(InputSettings::set_keyboard_options(options.as_deref()))
-                                }}
-                            />
-                            <SliderSetting
-                                label="Repeat delay"
-                                value={delay_value}
-                                shown={delay_shown}
-                                unset={delay_unset}
-                                min={MIN_REPEAT_DELAY as f32}
-                                max={MAX_REPEAT_DELAY as f32}
-                                read_only={read_only}
-                                id={"repeat-delay".to_owned()}
-                                on_change={move |delay: Option<f32>| {
-                                    settings.operate(InputSettings::set_repeat_delay(delay.map(|delay| delay.round() as u32)))
-                                }}
-                            />
-                            <SliderSetting
-                                label="Repeat rate"
-                                value={rate_value}
-                                shown={rate_shown}
-                                unset={rate_unset}
-                                min={MIN_REPEAT_RATE as f32}
-                                max={MAX_REPEAT_RATE as f32}
-                                read_only={read_only}
-                                id={"repeat-rate".to_owned()}
-                                on_change={move |rate: Option<f32>| {
-                                    settings.operate(InputSettings::set_repeat_rate(rate.map(|rate| rate.round() as u32)))
-                                }}
-                            />
-                        </List>
-                        <Pointers
-                            settings={settings}
-                            root={root}
-                            effective={effective}
-                            devices={devices}
-                            read_only={pointers_off}
-                        />
-                        <List spacing=ROW_SPACING>
-                            <Text style=TextStyle::HEADING string="Programs" />
-                            <SwitchSetting
-                                label="Middle-click paste"
-                                on={paste_on}
-                                mixed={create_memo(|| false)}
-                                unset={paste_unset}
-                                read_only={paste_off}
-                                id={"middle-click-paste".to_owned()}
-                                on_change={move |on: Option<bool>| {
-                                    settings.operate(InputSettings::set_middle_click_paste(on))
-                                }}
-                            />
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="Lets programs paste the text last selected in them with the middle button."
-                            />
-                        </List>
-                    </List>
-                </Frame>
-            </Scroll>
-        </Frame>
+        <SettingsPage>
+            <SettingsSection title="Keyboard">
+                <TextSetting
+                    label="Layout"
+                    description="XKB names, like us, de or us,de."
+                    value={create_memo(move || layout.get())}
+                    inherited={create_memo(move || inherited.get().keyboard_layout)}
+                    read_only={read_only}
+                    id="layout"
+                    separated=false
+                    on_change={move |layout: Option<String>| {
+                        settings.operate(InputSettings::set_keyboard_layout(layout.as_deref()))
+                    }}
+                />
+                <TextSetting
+                    label="Variant"
+                    description="One for each layout, like dvorak."
+                    value={create_memo(move || variant.get())}
+                    inherited={create_memo(move || inherited.get().keyboard_variant)}
+                    read_only={read_only}
+                    id="variant"
+                    on_change={move |variant: Option<String>| {
+                        settings.operate(InputSettings::set_keyboard_variant(variant.as_deref()))
+                    }}
+                />
+                <TextSetting
+                    label="Options"
+                    description="XKB options, like caps:escape."
+                    value={create_memo(move || options.get())}
+                    inherited={create_memo(move || inherited.get().keyboard_options)}
+                    read_only={read_only}
+                    id="options"
+                    on_change={move |options: Option<String>| {
+                        settings.operate(InputSettings::set_keyboard_options(options.as_deref()))
+                    }}
+                />
+                <SliderSetting
+                    label="Repeat delay"
+                    description="How long a key is held before it repeats."
+                    value={delay_value}
+                    shown={delay_shown}
+                    unset={delay_unset}
+                    min={MIN_REPEAT_DELAY as f32}
+                    max={MAX_REPEAT_DELAY as f32}
+                    read_only={read_only}
+                    id={"repeat-delay".to_owned()}
+                    on_change={move |delay: Option<f32>| {
+                        settings.operate(InputSettings::set_repeat_delay(delay.map(|delay| delay.round() as u32)))
+                    }}
+                />
+                <SliderSetting
+                    label="Repeat rate"
+                    description="How many times a second a held key repeats."
+                    value={rate_value}
+                    shown={rate_shown}
+                    unset={rate_unset}
+                    min={MIN_REPEAT_RATE as f32}
+                    max={MAX_REPEAT_RATE as f32}
+                    read_only={read_only}
+                    id={"repeat-rate".to_owned()}
+                    on_change={move |rate: Option<f32>| {
+                        settings.operate(InputSettings::set_repeat_rate(rate.map(|rate| rate.round() as u32)))
+                    }}
+                />
+            </SettingsSection>
+            <Pointers
+                settings={settings}
+                root={root}
+                effective={effective}
+                devices={devices}
+                read_only={pointers_off}
+            />
+            <SettingsSection title="Programs">
+                <SwitchSetting
+                    label="Middle-click paste"
+                    description="Lets programs paste the text last selected in them with the middle button."
+                    on={paste_on}
+                    mixed={create_memo(|| false)}
+                    unset={paste_unset}
+                    read_only={paste_off}
+                    id={"middle-click-paste".to_owned()}
+                    separated=false
+                    on_change={move |on: Option<bool>| {
+                        settings.operate(InputSettings::set_middle_click_paste(on))
+                    }}
+                />
+            </SettingsSection>
+            <RemapperSetting
+                editor={editor}
+                settings={settings}
+                root={root}
+                effective={effective}
+                read_only={read_only}
+            />
+        </SettingsPage>
     }
 }
 
@@ -301,34 +296,39 @@ fn Pointers(
     let (tap_on, tap_mixed, tap_unset, has_tap) = switch_state(tap);
     let (natural_on, natural_mixed, natural_unset, has_natural) = switch_state(natural);
     let (speed_off, tap_off, natural_off) = (read_only, read_only, read_only);
+    let description = create_memo(move || match none.get() {
+        true => "No pointer is connected to this session.".to_owned(),
+        false => String::new(),
+    });
     view! {
-        <List spacing=ROW_SPACING>
-            <Text style=TextStyle::HEADING string="Pointers" />
-            <Show condition={none}>
-                <Text style=TextStyle::CAPTION string="No pointer is connected to this session." />
-            </Show>
-            <Select
-                options={view! {
-                    <ChoiceOption label="All pointers" />
-                    <ForEach keys={keys}>
-                        {|key: DeviceKey| view! {
-                            <ChoiceOption label={key.0} />
-                        }}
-                    </ForEach>
-                }}
-                selected={selected}
-                label="Pointer"
-                @test_id={"input-settings.pointer"}
-                on_change={move |index: Option<usize>| {
-                    let key = index
-                        .and_then(|index| index.checked_sub(1))
-                        .and_then(|index| picked.with_untracked(|keys| keys.get(index).cloned()));
-                    choose.set(key);
-                }}
-            />
+        <SettingsSection title="Pointers" description={description}>
+            <SettingsRow label="Change" description="Every pointer at once, or one on its own.">
+                <Select
+                    options={view! {
+                        <ChoiceOption label="All pointers" />
+                        <ForEach keys={keys}>
+                            {|key: DeviceKey| view! {
+                                <ChoiceOption label={key.0} />
+                            }}
+                        </ForEach>
+                    }}
+                    @sizing=ItemSize::Percent(100.0)
+                    width={Extent::fraction(1.0)}
+                    selected={selected}
+                    label="Pointer"
+                    @test_id={"input-settings.pointer"}
+                    on_change={move |index: Option<usize>| {
+                        let key = index
+                            .and_then(|index| index.checked_sub(1))
+                            .and_then(|index| picked.with_untracked(|keys| keys.get(index).cloned()));
+                        choose.set(key);
+                    }}
+                />
+            </SettingsRow>
             <Show condition={has_speed}>
                 <SliderSetting
                     label="Speed"
+                    description="How far the pointer moves for each movement of the device."
                     value={speed_value}
                     shown={speed_shown}
                     unset={speed_unset}
@@ -344,6 +344,7 @@ fn Pointers(
             <Show condition={has_tap}>
                 <SwitchSetting
                     label="Tap to click"
+                    description="A tap on a touchpad clicks."
                     on={tap_on}
                     mixed={tap_mixed}
                     unset={tap_unset}
@@ -357,6 +358,7 @@ fn Pointers(
             <Show condition={has_natural}>
                 <SwitchSetting
                     label="Natural scrolling"
+                    description="Content moves the way your fingers do."
                     on={natural_on}
                     mixed={natural_mixed}
                     unset={natural_unset}
@@ -367,7 +369,7 @@ fn Pointers(
                     }}
                 />
             </Show>
-        </List>
+        </SettingsSection>
     }
 }
 
@@ -381,45 +383,36 @@ fn switch_state(state: Memo<FieldState<bool>>) -> (Memo<bool>, Memo<bool>, Memo<
 }
 
 #[component]
-fn ResetButton(
-    unset: Memo<bool>,
-    read_only: Memo<bool>,
-    id: String,
-    on_reset: Callback<()>,
-) -> NodeId {
-    let disabled = create_memo(move || unset.get() || read_only.get());
-    view! {
-        <IconButton
-            glyph={ICON_RESET_SETTINGS.to_owned()}
-            label="Use the default"
-            disabled={disabled}
-            @test_id={format!("input-settings.{id}.reset")}
-            on_click={move || on_reset.call(())}
-        />
-    }
-}
-
-#[component]
 fn TextSetting(
     label: &'static str,
+    description: &'static str,
     value: Memo<Option<String>>,
     inherited: Memo<Option<String>>,
     read_only: Memo<bool>,
     id: &'static str,
+    #[prop(default = true)] separated: bool,
     on_change: Callback<Option<String>>,
 ) -> NodeId {
     let shown = create_memo(move || value.get().unwrap_or_default());
-    let unset = create_memo(move || value.get().is_none());
+    let set = create_memo(move || value.get().is_some());
     let typed = on_change;
     let echoed = shown;
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
+        <SettingsRow
+            label={label}
+            description={description}
+            separated={separated}
+            modified={set}
+            locked={read_only}
+            reset_test_id={format!("input-settings.{id}.reset")}
+            on_reset={move || on_change.call(None)}
+        >
             <TextInput
                 @sizing=ItemSize::Percent(100.0)
                 value={shown}
                 label={label}
                 placeholder={create_memo(move || {
-                    format!("{label}: {}", inherited.get().unwrap_or_else(|| "default".to_owned()))
+                    inherited.get().unwrap_or_else(|| "Default".to_owned())
                 })}
                 disabled={read_only}
                 @test_id={format!("input-settings.{id}")}
@@ -429,19 +422,14 @@ fn TextSetting(
                     }
                 }}
             />
-            <ResetButton
-                unset={unset}
-                read_only={read_only}
-                id={id.to_owned()}
-                on_reset={move |_: ()| on_change.call(None)}
-            />
-        </List>
+        </SettingsRow>
     }
 }
 
 #[component]
 fn SliderSetting(
     label: &'static str,
+    description: &'static str,
     value: Memo<f32>,
     shown: Memo<String>,
     unset: Memo<bool>,
@@ -449,49 +437,66 @@ fn SliderSetting(
     max: f32,
     read_only: Memo<bool>,
     id: String,
+    #[prop(default = true)] separated: bool,
     on_change: Callback<Option<f32>>,
 ) -> NodeId {
     let moved = on_change;
+    let set = create_memo(move || !unset.get());
     view! {
-        <List spacing=LABEL_SPACING>
-            <Text style=TextStyle::CAPTION string={label} />
-            <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
-                <Slider
-                    @sizing=ItemSize::Percent(100.0)
-                    value={value}
-                    min={min}
-                    max={max}
-                    label={label}
-                    disabled={read_only}
-                    @test_id={format!("input-settings.{id}")}
-                    on_change={move |value: f32| moved.call(Some(value))}
-                />
-                <Text @sizing=ItemSize::Fixed(VALUE_WIDTH) string={shown} />
-                <ResetButton
-                    unset={unset}
-                    read_only={read_only}
-                    id={id.clone()}
-                    on_reset={move |_: ()| on_change.call(None)}
-                />
-            </List>
-        </List>
+        <SettingsRow
+            label={label}
+            description={description}
+            separated={separated}
+            modified={set}
+            locked={read_only}
+            reset_test_id={format!("input-settings.{id}.reset")}
+            on_reset={move || on_change.call(None)}
+        >
+            <Slider
+                @sizing=ItemSize::Percent(100.0)
+                value={value}
+                min={min}
+                max={max}
+                label={label}
+                disabled={read_only}
+                @test_id={format!("input-settings.{id}")}
+                on_change={move |value: f32| moved.call(Some(value))}
+            />
+            <Text
+                @sizing=ItemSize::Fixed(VALUE_WIDTH)
+                string={shown}
+                color=TextColor::Muted
+                align=TextAlign::End
+            />
+        </SettingsRow>
     }
 }
 
 #[component]
 fn SwitchSetting(
     label: &'static str,
+    description: &'static str,
     on: Memo<bool>,
     mixed: Memo<bool>,
     unset: Memo<bool>,
     read_only: Memo<bool>,
     id: String,
+    #[prop(default = true)] separated: bool,
     on_change: Callback<Option<bool>>,
 ) -> NodeId {
     let switched = on_change;
+    let set = create_memo(move || !unset.get());
     view! {
-        <List direction=Direction::Horizontal align=Align::Center spacing=COLUMN_SPACING>
-            <Text @sizing=ItemSize::Percent(100.0) string={label} />
+        <SettingsRow
+            label={label}
+            description={description}
+            separated={separated}
+            compact=true
+            modified={set}
+            locked={read_only}
+            reset_test_id={format!("input-settings.{id}.reset")}
+            on_reset={move || on_change.call(None)}
+        >
             <Switch
                 on={on}
                 indeterminate={mixed}
@@ -500,12 +505,6 @@ fn SwitchSetting(
                 @test_id={format!("input-settings.{id}")}
                 on_change={move |on: bool| switched.call(Some(on))}
             />
-            <ResetButton
-                unset={unset}
-                read_only={read_only}
-                id={id.clone()}
-                on_reset={move |_: ()| on_change.call(None)}
-            />
-        </List>
+        </SettingsRow>
     }
 }

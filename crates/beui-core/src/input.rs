@@ -321,6 +321,7 @@ pub enum PointerButton {
     Middle,
     Back,
     Forward,
+    Other(u16),
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]

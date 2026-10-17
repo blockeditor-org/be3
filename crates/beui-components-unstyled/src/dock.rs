@@ -54,8 +54,8 @@ pub use fullscreen::DockAwayHandle;
 use modifier_drag::{Resized, modifier_resize};
 pub use state::{
     DockDrop, DockFullscreen, DockLayout, DockSplitter, DockState, DockSwitch, DockTree,
-    DockTreeEntry, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition, Tree,
-    layout_surface, layout_tree,
+    DockTreeEntry, DockVisit, Entry, GroupId, LeafId, Side, SplitId, SurfaceId, TabId, TabPosition,
+    Tree, layout_surface, layout_tree,
 };
 use state::{FLOATING_SIZE, MIN_WINDOW_SIZE, fraction_moved};
 pub use state::{MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH, SIDEBAR_WIDTH};
@@ -151,11 +151,12 @@ pub struct DockGripHandle {
 pub struct DockStackHandle {
     pub title: Memo<String>,
     pub icon: Memo<String>,
-    pub away: Memo<bool>,
+    pub backward: Memo<bool>,
     pub actions: Memo<Option<NodeId>>,
     pub menu: Memo<Vec<Action>>,
     pub back: ClickCallback,
     pub others: Memo<usize>,
+    pub switchable: Memo<bool>,
     pub switch_label: Memo<String>,
     pub open_switcher: ClickCallback,
 }
@@ -164,11 +165,8 @@ pub struct DockSwitcherHandle {
     pub open: ReadSignal<bool>,
     pub close: ClickCallback,
     pub tabs: Memo<Vec<TabId>>,
+    pub fixed: Memo<Vec<TabId>>,
     pub card: Func<TabId, DockSwitcherCardHandle>,
-    pub homed: Memo<bool>,
-    pub home_title: Memo<String>,
-    pub home_icon: Memo<String>,
-    pub go_home: ClickCallback,
 }
 
 pub struct DockSwitcherCardHandle {
@@ -385,7 +383,6 @@ struct State {
     picture: Func<TabId, Option<Image>>,
     closable: Func<TabId, bool>,
     menu: MenuStyle,
-    home: Memo<Option<TabId>>,
     drag_modifier: Memo<Option<Modifiers>>,
     actions: ReadSignal<HashMap<TabId, NodeId>>,
     set_actions: WriteSignal<HashMap<TabId, NodeId>>,
@@ -703,6 +700,22 @@ impl State {
 
     fn show(&self, tab: TabId) {
         self.edit(|state| state.show(tab));
+    }
+
+    fn closes_going_back(&self, visit: DockVisit) -> bool {
+        visit.opened && self.closable.call(visit.to)
+    }
+
+    fn go_back(&self) {
+        let Some(visit) = self.state.with_untracked(DockState::back) else {
+            return;
+        };
+        match self.closes_going_back(visit) {
+            true => self.close_tab(visit.to),
+            false => self.edit(|state| {
+                state.go_back();
+            }),
+        }
     }
 
     fn close_entry(&self, entry: Entry) {
@@ -1166,7 +1179,6 @@ pub(crate) struct DockConfig {
     pub(crate) closable: Func<TabId, bool>,
     pub(crate) menu: MenuStyle,
     pub(crate) mode: Prop<DockMode>,
-    pub(crate) home: Prop<Option<TabId>>,
     pub(crate) drag_modifier: Prop<Option<Modifiers>>,
     pub(crate) splitter_thickness: f32,
     pub(crate) group_inset: f32,
@@ -1203,7 +1215,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         closable,
         menu,
         mode,
-        home,
         drag_modifier,
         splitter_thickness,
         group_inset,
@@ -1256,7 +1267,6 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     picture,
                     closable,
                     menu,
-                    home: create_memo(move || home.get()),
                     drag_modifier: create_memo(move || drag_modifier.get()),
                     actions,
                     set_actions,
@@ -1455,26 +1465,13 @@ fn DockStack(dock: State) -> NodeId {
     });
     let vacant = create_memo(move || shown.get().is_none());
     let occupied = create_memo(move || shown.get().is_some());
-    let home = dock.home;
-    let away = create_memo(move || {
-        home.get()
-            .is_some_and(|home| shown.get().is_some_and(|shown| shown != home))
-    });
+    let backward = create_memo(move || state.with(|state| state.back().is_some()));
     let going = dock;
     let (switching, set_switching) = create_signal(false);
-    let tabs = create_memo(move || {
-        let home = home.get();
-        state.with(|state| {
-            state
-                .recent_tabs()
-                .into_iter()
-                .filter(|tab| Some(*tab) != home)
-                .collect::<Vec<_>>()
-        })
-    });
+    let tabs = create_memo(move || state.with(DockState::recent_tabs));
     let bar = dock
         .stack
-        .map(|stack| stack.call(stack_handle(dock, shown, away, tabs, set_switching)));
+        .map(|stack| stack.call(stack_handle(dock, shown, backward, tabs, set_switching)));
     let switcher = dock.switcher.map(|switcher| {
         switcher.call(switcher_handle(dock, shown, tabs, switching, set_switching))
     });
@@ -1483,22 +1480,17 @@ fn DockStack(dock: State) -> NodeId {
     let left = create_memo(move || gone.get().is_some());
     let here = create_memo(move || occupied.get() && gone.get().is_none());
     let empty = dock.empty;
-    let homeward = dock;
+    let returning = dock;
     view! {
         <BackSlide
-            enabled={away}
+            enabled={backward}
             behind={move || {
-                let (dock, tabs, set_switching) =
-                    (homeward, tabs, set_switching);
+                let (dock, set_switching) = (returning, set_switching);
                 view! {
-                    <HomePreview dock tabs set_switching />
+                    <BackPreview dock set_switching />
                 }
             }}
-            on_back={move || {
-                if let Some(home) = going.home.get_untracked() {
-                    going.show(home);
-                }
-            }}
+            on_back={move || going.go_back()}
         >
             <List spacing=0.0>
                 <Show condition={barred}>
@@ -1520,18 +1512,32 @@ fn DockStack(dock: State) -> NodeId {
 }
 
 #[component]
-fn HomePreview(dock: State, tabs: Memo<Vec<TabId>>, set_switching: WriteSignal<bool>) -> NodeId {
-    let Some(home) = dock.home.get_untracked() else {
+fn BackPreview(dock: State, set_switching: WriteSignal<bool>) -> NodeId {
+    let Some(visit) = dock.state.with_untracked(DockState::back) else {
         return view! {
             <Frame />
         };
     };
-    let shown = create_memo(move || Some(home));
-    let away = create_memo(|| false);
+    let closing = dock.closes_going_back(visit);
+    let mut after = dock.state.get_untracked();
+    match closing {
+        true => {
+            after.close(visit.to);
+        }
+        false => {
+            after.go_back();
+        }
+    }
+    let behind = visit.from;
+    let shown = create_memo(move || Some(behind));
+    let backward = after.back().is_some();
+    let backward = create_memo(move || backward);
+    let tabs = after.recent_tabs();
+    let tabs = create_memo(move || tabs.clone());
     let bar = dock
         .stack
-        .map(|stack| stack.call(stack_handle(dock, shown, away, tabs, set_switching)));
-    let panel = dock.panel(home);
+        .map(|stack| stack.call(stack_handle(dock, shown, backward, tabs, set_switching)));
+    let panel = dock.panel(behind);
     view! {
         <List spacing=0.0>
             {bar}
@@ -1543,7 +1549,7 @@ fn HomePreview(dock: State, tabs: Memo<Vec<TabId>>, set_switching: WriteSignal<b
 fn stack_handle(
     dock: State,
     shown: Memo<Option<TabId>>,
-    away: Memo<bool>,
+    backward: Memo<bool>,
     tabs: Memo<Vec<TabId>>,
     set_switching: WriteSignal<bool>,
 ) -> DockStackHandle {
@@ -1563,24 +1569,32 @@ fn stack_handle(
     });
     let menus = dock.menus;
     let menu = create_memo(move || dock_menu_items(menus, shown.get()));
-    let others = create_memo(move || tabs.with(Vec::len));
+    let closable = dock.closable;
+    let others = create_memo(move || {
+        let shown = shown.get();
+        tabs.with(|tabs| {
+            tabs.iter()
+                .filter(|tab| Some(**tab) != shown && closable.call(**tab))
+                .count()
+        })
+    });
+    let switchable = create_memo(move || {
+        let shown = shown.get();
+        tabs.with(|tabs| tabs.iter().any(|tab| Some(*tab) != shown))
+    });
     let switch_label = create_memo(move || match others.get() {
         1 => "1 other open tab".to_owned(),
         count => format!("{count} other open tabs"),
     });
-    let back = dock;
     DockStackHandle {
         title,
         icon,
-        away,
+        backward,
         actions: slot,
         menu,
-        back: ClickCallback::new(move || {
-            if let Some(home) = back.home.get_untracked() {
-                back.show(home);
-            }
-        }),
+        back: ClickCallback::new(move || dock.go_back()),
         others,
+        switchable,
         switch_label,
         open_switcher: ClickCallback::new(move || set_switching.set(true)),
     }
@@ -1593,26 +1607,31 @@ fn switcher_handle(
     switching: ReadSignal<bool>,
     set_switching: WriteSignal<bool>,
 ) -> DockSwitcherHandle {
-    let home = dock.home;
-    let homed = create_memo(move || home.get().is_some());
-    let titled = dock;
-    let home_title = create_memo(move || {
-        home.get()
-            .map(|home| titled.title(home))
-            .unwrap_or_default()
+    let closable = dock.closable;
+    let state = dock.state;
+    let open = create_memo(move || {
+        tabs.with(|tabs| {
+            tabs.iter()
+                .copied()
+                .filter(|tab| closable.call(*tab))
+                .collect::<Vec<_>>()
+        })
     });
-    let pictured = dock;
-    let home_icon = create_memo(move || {
-        home.get()
-            .map(|home| pictured.icon(home))
-            .unwrap_or_default()
+    let fixed = create_memo(move || {
+        state.with(|state| {
+            state
+                .all_tabs()
+                .into_iter()
+                .filter(|tab| !closable.call(*tab))
+                .collect::<Vec<_>>()
+        })
     });
-    let going = dock;
     let carded = dock;
     DockSwitcherHandle {
         open: switching,
         close: ClickCallback::new(move || set_switching.set(false)),
-        tabs,
+        tabs: open,
+        fixed,
         card: Func::new(move |tab: TabId| {
             let (titled, pictured, picked, closed) = (carded, carded, carded, carded);
             DockSwitcherCardHandle {
@@ -1626,15 +1645,6 @@ fn switcher_handle(
                     picked.show(tab);
                 }),
                 close: ClickCallback::new(move || closed.close_tab(tab)),
-            }
-        }),
-        homed,
-        home_title,
-        home_icon,
-        go_home: ClickCallback::new(move || {
-            set_switching.set(false);
-            if let Some(home) = going.home.get_untracked() {
-                going.show(home);
             }
         }),
     }

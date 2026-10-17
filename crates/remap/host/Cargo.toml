@@ -1,0 +1,16 @@
+[package]
+name = "be-remap-host"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+be-remap = { path = "../rules" }
+wasmi = { version = "1.1", default-features = false, features = ["std"] }
+
+[dev-dependencies]
+be-remap = { path = "../rules", features = ["text"] }
+wasmi = { version = "1.1", default-features = false, features = ["std", "wat"] }
+
+[lints]
+workspace = true

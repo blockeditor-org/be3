@@ -1180,7 +1180,7 @@ moving one for as long as the gesture lasts, shaded and coming in from the
 side, so `on_back` swaps in what was already showing and nothing slides in
 afterwards; the page that moves needs an opaque background, and a page that
 must keep its state (a scroll position) is built once and handed to a `Portal`
-in both places. The stacked dock shows its home tab behind the tab it leaves
+in both places. The stacked dock shows the tab back goes to behind the tab it leaves
 this way. A back with no gesture before it (a key, Escape, a press outside)
 carries the page off from where it rests in the same slide-away. `styled::Dialog` and
 `Fullscreen` slide away the same way and fade their scrim, and a `Sheet`
@@ -1319,7 +1319,7 @@ and restores:
 ```rust
 let layout = DockingLayout::new();
 view! {
-    <Docking layout home=Key::Files>
+    <Docking layout>
         <DockSplit id="root" direction=Direction::Horizontal fraction=0.25>
             <DockPane id="files">
                 <DockTab id=Key::Files title="Files"><FilesPanel /></DockTab>
@@ -1389,10 +1389,12 @@ Tiled, `Docking` keeps its panes inset from its own edges.
 fills the dock, edge to edge, with no tab bars, splitters or windows, and everything else in
 the state is kept, so switching back to `DockMode::Tiled` restores the layout.
 The dock draws the stacked screen's bar itself: the tab's icon and title, a
-square counting the open tabs other than home, which opens a sheet of cards to
-show or close them, and a back button when the caller names a `home` tab
-(`home={Some(FILES)}`), which the back gesture also follows and whose own screen
-has none. A tab's icon comes from the optional `icon` function, an icon-font
+square counting the other tabs that can be closed, shown while any other tab
+exists (so it can read 0), which opens a sheet to show or close them
+(a card for each tab with a close button, from the one shown last, and below
+them a row for each tab without one, such as the workspace's Files and
+Settings, in layout order), and a back button while `DockState::back` has somewhere to go, which
+the back gesture also follows. A tab's icon comes from the optional `icon` function, an icon-font
 glyph (empty for none) that the tab bars, the drag preview and the stacked bar
 all draw. The bar is the dock's, not the caller's; what a
 tab adds to it is only its own actions, which its panel hands over while it is
@@ -1411,6 +1413,16 @@ order is part of the state, so it is saved with the layout), and
 `stacked_tab` is the tab a stacked dock shows: the focused one, or the one
 shown last when the focused pane is empty. The workspace stacks its dock on a
 phone.
+
+Every change of the focused tab is a `DockVisit` in `DockState::history`,
+saved with the layout: the tab it came from, the tab it went to, and whether
+that tab was `opened` by it, which is its first time shown since it joined the
+dock. `back` is the last visit to the tab on show. Going back undoes it: a tab
+the visit opened is closed through its `on_close` when it has one, and closing
+the tab on show, in either mode, shows the tab its last visit came from;
+otherwise `go_back` shows that tab and drops the visit and every one after it.
+A tab that leaves the dock hands the visits that left it to the tab it was
+reached from.
 
 The dock's switcher walks `recent_tabs` across every pane and window, the way
 Alt+Tab walks a desktop's windows. `DockingLayout::begin_switch(backwards)`

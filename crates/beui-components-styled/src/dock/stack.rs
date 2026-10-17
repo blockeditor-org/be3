@@ -16,7 +16,7 @@ use beui_components_unstyled::{
 };
 use beui_core::base::{Align, Direction, ItemSize, TextAlign};
 use beui_core::color::Color32;
-use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE, ICON_HOME};
+use beui_core::icons::{ICON_ARROW_BACK, ICON_CLOSE};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -42,21 +42,21 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
     let DockStackHandle {
         title,
         icon,
-        away,
+        backward,
         actions,
         menu,
         back,
         others,
+        switchable,
         switch_label,
         open_switcher,
     } = handle;
-    let counted = create_memo(move || others.get() > 0);
     let pictured = create_memo(move || !icon.get().is_empty());
     view! {
         <List spacing=0.0>
             <Frame fill=ColorRole::Surface padding=BAR_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                    <Show condition={away}>
+                    <Show condition={backward}>
                         {move || view! {
                             <IconButton
                                 @test_id={"dock.back"}
@@ -91,7 +91,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     </Frame>
                     <Portal node={actions} />
                     <DockMenu menu size=IconButtonSize::Regular />
-                    <Show condition={counted}>
+                    <Show condition={switchable}>
                         {move || view! {
                             <DockTabCount
                                 count={others}
@@ -154,17 +154,11 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
         open,
         close,
         tabs,
+        fixed,
         card,
-        homed,
-        home_title,
-        home_icon,
-        go_home,
     } = handle;
     let none = create_memo(move || tabs.with(Vec::is_empty));
-    let home_glyph = create_memo(move || match home_icon.get() {
-        icon if icon.is_empty() => ICON_HOME.to_owned(),
-        icon => icon,
-    });
+    let rowed = create_memo(move || fixed.with(|fixed| !fixed.is_empty()));
     view! {
         <ModalSheet open rest={SHEET_STOPS[2]} on_close={close}>
             <List spacing=0.0>
@@ -189,20 +183,38 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
                         </Grid>
                     </List>
                 </Frame>
-                <Show condition={homed}>
-                    {move || view! {
-                        <Frame padding=SHEET_PADDING>
-                            <ActionRow
-                                @test_id={"dock.switcher.home"}
-                                label={home_title}
-                                glyph={home_glyph}
-                                on_click={go_home}
-                            />
-                        </Frame>
-                    }}
+                <Show condition={rowed}>
+                    <Frame padding=SHEET_PADDING>
+                        <List spacing=0.0>
+                            <ForEach keys={fixed}>
+                                {move |tab: TabId| view! {
+                                    <DockSwitcherRow handle={card.call(tab)} />
+                                }}
+                            </ForEach>
+                        </List>
+                    </Frame>
                 </Show>
             </List>
         </ModalSheet>
+    }
+}
+
+#[component]
+fn DockSwitcherRow(handle: DockSwitcherCardHandle) -> NodeId {
+    let DockSwitcherCardHandle {
+        tab,
+        title,
+        icon,
+        pick,
+        ..
+    } = handle;
+    view! {
+        <ActionRow
+            @test_id={format!("dock.switcher.tab.{}", tab.value())}
+            label={title}
+            glyph={icon}
+            on_click={pick}
+        />
     }
 }
 

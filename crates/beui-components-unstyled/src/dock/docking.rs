@@ -714,7 +714,6 @@ impl<K: 'static> Found<K> {
 pub fn Docking<K>(
     layout: DockingLayout<K>,
     #[prop(default = DockMode::Tiled)] mode: Prop<DockMode>,
-    #[prop(default = None)] home: Prop<Option<K>>,
     #[prop(default = None)] focus: Prop<Option<K>>,
     #[prop(default = None)] drag_modifier: Prop<Option<Modifiers>>,
     #[prop(default = MenuStyle::default())] menu: MenuStyle,
@@ -824,10 +823,6 @@ where
         let title = grouped.with(|found| found.group_title(&key))?;
         Some(title.get())
     });
-    let home = create_memo(move || {
-        found.with(|_| ());
-        home.get().and_then(|key| layout.tab_of(&key))
-    });
     let state = layout.state();
     view! {
         <Dock
@@ -844,7 +839,6 @@ where
                 closable,
                 menu,
                 mode,
-                home: home.into_prop(),
                 drag_modifier,
                 splitter_thickness,
                 group_inset,
