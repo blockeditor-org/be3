@@ -24,35 +24,23 @@ fn a_phone_walks_into_folders_and_opens_files() {
     my_files(&mut fixture, vec![projects, listed]);
     fixture.settle();
     assert!(fixture.says("My files"));
-    assert!(fixture.test.shown("file-tree.shared"));
+    assert!(fixture.test.shown("file-tree.shared.row"));
     assert!(
         !fixture.test.shown("file-tree.new"),
-        "the top level lists workspaces, so a new file is made from inside one"
+        "the top level holds workspaces, so a new file is made from inside one"
     );
     fixture
         .test
         .snapshot("a_phone_lists_the_top_level_of_the_files");
 
-    fixture.test.click(&format!("file-tree.{files}.open"));
-    fixture.settle();
-    assert!(fixture.says("Projects"));
-    assert!(
-        fixture.test.shown("file-tree.new"),
-        "a workspace the account may edit offers New"
-    );
-
-    fixture.test.click(&format!("file-tree.{folder}.open"));
+    fixture.test.click(&format!("file-tree.{folder}.chevron"));
     fixture.settle();
     assert!(
         fixture
             .host
             .watched_blocks()
             .contains(&BlockQuery::References(folder)),
-        "tapping a folder asks for what is in it"
-    );
-    assert!(
-        fixture.opened().is_empty(),
-        "a folder is walked into, not opened"
+        "the arrow side of a folder opens it where it is"
     );
     let mut roadmap = BlockInfo::new(inside, text_type, BlockParent::Block(folder));
     roadmap.set_intrinsic_name("Roadmap".to_owned());
@@ -60,28 +48,44 @@ fn a_phone_walks_into_folders_and_opens_files() {
         .host
         .set_blocks(BlockQuery::References(folder), vec![roadmap]);
     fixture.settle();
+    assert!(fixture.test.shown(&format!("file-tree.{inside}.row")));
+    assert!(
+        !fixture.test.shown("file-tree.back"),
+        "expanding a folder stays at the level it is on"
+    );
+
+    fixture.test.click(&format!("file-tree.{folder}.row"));
+    fixture.settle();
+    assert!(
+        fixture.opened().is_empty(),
+        "a folder is zoomed into, never opened"
+    );
     assert!(fixture.test.shown("file-tree.back"));
+    assert!(
+        !fixture.test.shown(&format!("file-tree.{notes}.row")),
+        "zooming in shows only what the folder holds"
+    );
+    assert!(
+        fixture.test.shown("file-tree.new"),
+        "a folder the account may edit offers New"
+    );
     fixture
         .test
         .snapshot("a_phone_shows_a_folder_it_walked_into");
 
-    fixture.test.click(&format!("file-tree.{inside}.open"));
+    fixture.test.click(&format!("file-tree.{inside}.row"));
     fixture.settle();
     assert_eq!(fixture.opened(), vec![inside], "tapping a file opens it");
 
     fixture.test.click("file-tree.back");
     fixture.settle();
-    assert!(fixture.test.shown(&format!("file-tree.{notes}.open")));
+    assert!(fixture.test.shown(&format!("file-tree.{notes}.row")));
+    assert!(
+        fixture.test.shown("file-tree.back"),
+        "back leaves for My files"
+    );
     fixture.test.click("file-tree.back");
     fixture.settle();
-    assert!(fixture.test.shown(&format!("file-tree.{files}.open")));
-
-    fixture.test.click("file-tree.search");
-    fixture.settle();
-    fixture.test.text("road");
-    fixture.settle();
-    assert!(
-        fixture.test.shown("file-tree.search.todo"),
-        "searching says it is not built yet"
-    );
+    assert!(fixture.test.shown("file-tree.shared.row"));
+    assert!(!fixture.test.shown("file-tree.back"));
 }

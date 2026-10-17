@@ -5,7 +5,7 @@ use std::rc::Rc;
 use block_editor_beui::be_block::{
     BlockContent, MY_FILES, SettingsContent, SettingsProfileContent, ViewState, WorkspaceContent,
 };
-use block_editor_beui::beui::icons::ICON_DATABASE;
+use block_editor_beui::beui::icons::{ICON_DATABASE, ICON_HISTORY, ICON_PEOPLE, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
@@ -128,7 +128,6 @@ struct Watched {
     block_types: HashMap<Uuid, Uuid>,
     workspaces: HashSet<Uuid>,
     system: HashSet<Uuid>,
-    my_files: Option<Uuid>,
 }
 
 pub(crate) fn is_workspace(block_type: Uuid) -> bool {
@@ -259,10 +258,6 @@ impl Tree {
             let loose = shared_with_me(listed, shared.read());
             watched.system = system.iter().map(|block| block.id).collect();
             watched.workspaces = sections.iter().map(|block| block.id).collect();
-            watched.my_files = sections
-                .first()
-                .filter(|block| is_my_files(block, host.account_id()))
-                .map(|block| block.id);
             let shown: HashSet<Uuid> = sections
                 .iter()
                 .map(|block| block.id)
@@ -369,11 +364,6 @@ impl Tree {
         self.rows
     }
 
-    pub(crate) fn keys(&self) -> Memo<Vec<RowKey>> {
-        let rows = self.rows;
-        create_memo(move || rows.with(|rows| rows.iter().map(|row| row.key.clone()).collect()))
-    }
-
     pub(crate) fn row(&self, key: RowKey) -> Memo<Option<Row>> {
         let rows = self.rows;
         create_memo(move || rows.with(|rows| rows.iter().find(|row| row.key == key).cloned()))
@@ -392,15 +382,6 @@ impl Tree {
 
     pub(crate) fn blocks(&self) -> Blocks {
         self.inner.with(|inner| inner.client.clone())
-    }
-
-    pub(crate) fn block_types(&self) -> HashMap<Uuid, Uuid> {
-        self.inner
-            .with(|inner| inner.watched.borrow().block_types.clone())
-    }
-
-    pub(crate) fn my_files(&self) -> Option<Uuid> {
-        self.inner.with(|inner| inner.watched.borrow().my_files)
     }
 
     pub(crate) fn workspaces(&self) -> HashSet<Uuid> {
@@ -503,6 +484,7 @@ impl Builder<'_> {
         self.rows.push(Row {
             key: RowKey::Orphans,
             label: "Recently Deleted".to_owned(),
+            glyph: ICON_HISTORY.to_owned(),
             section: true,
             expandable: true,
             expanded: open,
@@ -579,6 +561,9 @@ impl Builder<'_> {
             |id| id.to_string(),
         );
         row.section = true;
+        if row.glyph.is_empty() {
+            ICON_WORKSPACES.clone_into(&mut row.glyph);
+        }
         row.expandable = true;
         row.expanded = open;
         row.can_leave = section.author != Some(self.account);
@@ -610,6 +595,7 @@ impl Builder<'_> {
             section: true,
             expandable: true,
             expanded: open,
+            glyph: ICON_PEOPLE.to_owned(),
             ..Row::note_at(RowKey::Shared, 0, "Shared with me")
         });
         if !open {

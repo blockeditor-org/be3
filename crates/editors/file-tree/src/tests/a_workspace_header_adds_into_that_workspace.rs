@@ -76,9 +76,10 @@ fn a_workspace_header_adds_into_that_workspace() {
         "the picked block is placed in the workspace whose header was pressed: {placed:?}"
     );
 
-    fixture.test.click(&format!("file-tree.{files}.row"));
-    fixture.settle();
-    fixture.test.take_opens();
+    for _ in 0..2 {
+        fixture.test.click(&format!("file-tree.{files}.chevron"));
+        fixture.settle();
+    }
     fixture.test.key_press(Key::Tab);
     fixture.settle();
     fixture.test.key_press(Key::Enter);

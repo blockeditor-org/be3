@@ -17,17 +17,21 @@ fn a_phone_lists_what_is_shared_with_it() {
     given.access = AccessLevel::View;
     fixture.host.set_blocks(BlockQuery::Shared, vec![given]);
     fixture.settle();
-    assert!(!fixture.test.shown(&format!("file-tree.{plan}.open")));
 
-    fixture.test.click("file-tree.shared");
+    fixture.test.click("file-tree.shared.row");
     fixture.settle();
     assert!(fixture.says("Shared with me"));
-    assert!(fixture.test.shown(&format!("file-tree.{plan}.open")));
+    assert!(fixture.test.shown("file-tree.back"));
+    assert!(
+        !fixture.test.shown(&format!("file-tree.{MY_FILES}.row")),
+        "zooming into what is shared leaves the workspaces out"
+    );
+    assert!(fixture.test.shown(&format!("file-tree.{plan}.row")));
     fixture
         .test
         .snapshot("a_phone_lists_what_is_shared_with_it");
 
-    fixture.test.click(&format!("file-tree.{plan}.open"));
+    fixture.test.click(&format!("file-tree.{plan}.row"));
     fixture.settle();
     assert_eq!(
         fixture.opened(),

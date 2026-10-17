@@ -2540,10 +2540,17 @@ pub(crate) fn TreePage() -> NodeId {
 fn ProjectTree() -> NodeId {
     let (collapsed, set_collapsed) = create_signal(Vec::<usize>::new());
     let (selected, set_selected) = create_signal(None::<usize>);
+    let (chosen, set_chosen) = create_signal(None::<String>);
+    let (comfortable, set_comfortable) = create_signal(false);
+    provide_density(create_memo(move || match comfortable.get() {
+        true => Density::Comfortable,
+        false => Density::Compact,
+    }));
     let keys = create_memo(move || visible_tree_rows(&collapsed.get()));
-    let status_text = create_memo(move || match selected.get() {
-        Some(row) => format!("{} selected", TREE_NODES[row].0),
-        None => "Nothing selected".to_owned(),
+    let status_text = create_memo(move || match (chosen.get(), selected.get()) {
+        (Some(chosen), _) => chosen,
+        (None, Some(row)) => format!("{} selected", TREE_NODES[row].0),
+        (None, None) => "Nothing selected".to_owned(),
     });
     let expansion = collapsed;
     let reveal = set_collapsed;
@@ -2551,8 +2558,14 @@ fn ProjectTree() -> NodeId {
         <List spacing=SECTION_SPACING>
             <Text
                 style=TextStyle::CAPTION
-                string="Arrow keys walk the tree and Enter selects; a chevron or an arrow key opens and closes a folder"
+                string="Arrow keys walk the tree and Enter selects; the left of a row, or an arrow key, opens and closes a folder; a row's menu opens from its button, a right click or a long press"
                 wrap=true
+            />
+            <LabelledSwitch
+                @test_id="demo.tree.comfortable"
+                label="Comfortable rows"
+                on={comfortable}
+                on_change={move |on: bool| set_comfortable.set(on)}
             />
             <Tree
                 @sizing=ItemSize::Fixed(TREE_HEIGHT)
@@ -2560,12 +2573,33 @@ fn ProjectTree() -> NodeId {
                 item={move |row: usize| tree_item(row, &expansion.get())}
                 selected
                 ancestors={tree_ancestors}
+                row_test_id={|row: usize| format!("demo.tree.{row}")}
+                menu={move |row: usize| Some(TreeMenu {
+                    items: view! {
+                        <unstyled::MenuItem label="Rename" glyph={ICON_EDIT.to_owned()} />
+                        <unstyled::MenuItem
+                            label="Delete"
+                            glyph={ICON_DELETE.to_owned()}
+                            danger=true
+                        />
+                    },
+                    on_select: Callback::new(move |path: Vec<usize>| {
+                        let action = match path.as_slice() {
+                            [0] => "Rename",
+                            _ => "Delete",
+                        };
+                        set_chosen.set(Some(format!("{action} {}", TREE_NODES[row].0)));
+                    }),
+                })}
                 on_reveal={move |row: usize| {
                     reveal.update(|collapsed| {
                         collapsed.retain(|candidate| !tree_ancestors(row).contains(candidate));
                     });
                 }}
-                on_select={move |row: usize| set_selected.set(Some(row))}
+                on_select={move |row: usize| {
+                    set_chosen.set(None);
+                    set_selected.set(Some(row));
+                }}
                 on_expand={move |(row, expanded): (usize, bool)| {
                     set_collapsed.update(|collapsed| {
                         collapsed.retain(|candidate| *candidate != row);

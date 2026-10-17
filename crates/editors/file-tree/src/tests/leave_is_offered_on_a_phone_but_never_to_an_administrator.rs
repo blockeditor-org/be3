@@ -19,8 +19,6 @@ fn leave_is_offered_on_a_phone_but_never_to_an_administrator() {
     given.access = AccessLevel::View;
     fixture.host.set_blocks(BlockQuery::Shared, vec![given]);
     fixture.settle();
-    fixture.test.click("file-tree.shared");
-    fixture.settle();
 
     let more = format!("file-tree.{plan}.more");
     fixture.test.click(&more);

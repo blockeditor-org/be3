@@ -12,9 +12,19 @@ fn a_narrow_files_pane_on_a_desktop_keeps_the_tree() {
     fixture.host.set_blocks(BlockQuery::Roots, vec![listed]);
     fixture.settle();
 
-    assert!(fixture.test.shown("file-tree.new-workspace"));
+    assert!(fixture.test.shown("file-tree.desktop-app-menu"));
     assert!(
-        !fixture.test.shown("file-tree.search"),
-        "the phone page is only for a phone"
+        !fixture.test.shown("file-tree.app-menu"),
+        "the phone's title is only for a phone"
+    );
+    let compact = fixture.test.rect_of("file-tree.shared.row").height();
+
+    let mut phone = phone();
+    phone.host.set_blocks(BlockQuery::Roots, Vec::new());
+    phone.settle();
+    let comfortable = phone.test.rect_of("file-tree.shared.row").height();
+    assert!(
+        compact < comfortable,
+        "a narrow pane keeps the desktop's rows, {compact} high, rather than a phone's {comfortable}"
     );
 }

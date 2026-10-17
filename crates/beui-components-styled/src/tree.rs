@@ -1,31 +1,45 @@
-use crate::frame::{Border, ColorRole, Frame, Radius};
+use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use std::hash::Hash;
 
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
+use crate::context_menu::ContextMenu;
 use crate::scroll::Scroll;
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::{ThemeStore, use_theme};
+use crate::theme::{Density, ThemeStore, use_density, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    ButtonHandle, Edge, TreeItem, TreeRevealHandle, TreeRowHandle, TreeToggleHandle,
+    ButtonHandle, Edge, MenuItem, TreeItem, TreeRevealHandle, TreeRowHandle, TreeToggleHandle,
 };
 use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::font::TextAlign;
+use beui_core::geometry::{Pos2, pos2};
 use beui_core::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT,
+    ICON_MORE_HORIZ,
 };
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const INDENT: f32 = 12.0;
-const CHEVRON_WIDTH: f32 = 16.0;
+const COMPACT: Metrics = Metrics {
+    row: 22.0,
+    indent: 12.0,
+    chevron: 16.0,
+    menu: 20.0,
+    glyph: TextSize::Xs,
+};
+const COMFORTABLE: Metrics = Metrics {
+    row: 44.0,
+    indent: 20.0,
+    chevron: 36.0,
+    menu: 40.0,
+    glyph: TextSize::Lg,
+};
 const CHEVRON_RADIUS: f32 = 3.0;
-const ROW_HEIGHT: f32 = 22.0;
 const SPACING: f32 = 6.0;
 const PADDING_HORIZONTAL: f32 = 4.0;
 const OUTLINE_WIDTH: f32 = 1.0;
@@ -33,6 +47,27 @@ const REVEAL_PADDING: f32 = 8.0;
 
 struct Parts {
     rows: NodeRef,
+}
+
+#[derive(Clone, Copy, PartialEq)]
+struct Metrics {
+    row: f32,
+    indent: f32,
+    chevron: f32,
+    menu: f32,
+    glyph: TextSize,
+}
+
+fn metrics(density: Density) -> Metrics {
+    match density {
+        Density::Compact => COMPACT,
+        Density::Comfortable => COMFORTABLE,
+    }
+}
+
+pub struct TreeMenu {
+    pub items: Children<MenuItem>,
+    pub on_select: Callback<Vec<usize>>,
 }
 
 pub struct TreeRowFace<K> {
@@ -54,6 +89,7 @@ pub fn Tree<K>(
     #[prop(default = None)] row_test_id: Option<Func<K, String>>,
     #[prop(default = String::new())] reveal_test_id: String,
     #[prop(default = None)] outline: Option<Func<K, Option<Color32>>>,
+    #[prop(default = None)] menu: Option<Func<K, Option<TreeMenu>>>,
     on_select: Callback<K>,
     on_expand: Callback<(K, bool)>,
     on_reveal: Callback<K>,
@@ -72,6 +108,7 @@ where
     set_component_state(Parts { rows });
     let tracked = rows;
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
+    let menu = Func::new(move |key: K| menu.and_then(|menu| menu.call(key)));
     view! {
         <List spacing=0.0>
             <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
@@ -90,7 +127,7 @@ where
                     >|handle: TreeRowHandle<K>| {
                         let named = row_test_id.call(handle.key.clone());
                         view! {
-                            <TreeRowChrome handle named outline={outline} content={content} />
+                            <TreeRowChrome handle named outline={outline} content={content} menu />
                         }
                     }</unstyled::Tree>
                 </Frame>
@@ -155,6 +192,7 @@ fn TreeRowChrome<K>(
     named: String,
     outline: Func<K, Option<Color32>>,
     content: RenderFn<TreeRowFace<K>>,
+    menu: Func<K, Option<TreeMenu>>,
 ) -> NodeId
 where
     K: Clone + 'static,
@@ -172,7 +210,9 @@ where
         ..
     } = handle;
     let theme = use_theme();
-    let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * INDENT));
+    let density = use_density();
+    let sized = create_memo(move || metrics(density.get()));
+    let height = create_memo(move || Extent::px(sized.get().row));
     let fill = create_memo(move || background(&theme, selected.get(), hovered.get(), active.get()));
     let highlight = create_memo({
         let key = key.clone();
@@ -181,6 +221,7 @@ where
     let outline_color = create_memo(move || highlight.get().unwrap_or_else(|| theme.accent.get()));
     let ring = focus_ring(focused);
     let outlined = create_memo(move || highlight.get().is_some() || ring.get());
+    let menu = menu.call(key.clone());
     let face = TreeRowFace {
         key,
         item,
@@ -188,24 +229,120 @@ where
         focused,
         hovered,
     };
+    let area = view! {
+        <unstyled::TreeRowArea target>{content.call(face)}</unstyled::TreeRowArea>
+    };
+    let body = match menu {
+        None => area,
+        Some(TreeMenu { items, on_select }) => {
+            let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
+            let more = more_id(&named);
+            view! {
+                <ContextMenu
+                    child_size=ItemSize::Percent(100.0)
+                    items
+                    open_at={menu_at}
+                    on_close={move || set_menu_at.set(None)}
+                    on_select
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        {area} @sizing=ItemSize::Percent(100.0)
+                        <RowMenuButton
+                            named={more}
+                            sized={sized}
+                            on_open={move |at: Pos2| set_menu_at.set(Some(at))}
+                        />
+                    </List>
+                </ContextMenu>
+            }
+        }
+    };
     view! {
-        <Frame height=ROW_HEIGHT>
-            <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Spacer @sizing={indent} />
-                <Chevron item={item} marked={marked} toggle={toggle} named={chevron_id(&named)} />
+        <Frame height={height}>
+            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                <Chevron
+                    item={item}
+                    marked={marked}
+                    toggle={toggle}
+                    sized={sized}
+                    named={chevron_id(&named)}
+                />
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
                     @test_id={row_id(&named)}
-                    height=ROW_HEIGHT
+                    height={height}
                     fill={ColorRole::custom(fill)}
                     border={create_memo(move || outlined.get().then(|| Border::new(ColorRole::Custom(outline_color.get())).width(OUTLINE_WIDTH)))}
                     radius=Radius::Md
                     padding={Sides::horizontal(PADDING_HORIZONTAL)}
                 >
-                    <unstyled::TreeRowArea target>{content.call(face)}</unstyled::TreeRowArea>
+                    {body}
                 </Frame>
             </List>
         </Frame>
+    }
+}
+
+#[component]
+fn RowMenuButton(named: String, sized: Memo<Metrics>, on_open: Callback<Pos2>) -> NodeId {
+    let button = NodeRef::new();
+    let open = move || {
+        let placed =
+            with_document(|document| button.try_get().and_then(|node| document.node_rect(node)));
+        if let Some(rect) = placed {
+            on_open.call(pos2(rect.left(), rect.bottom()));
+        }
+    };
+    view! {
+        <unstyled::Button
+            @node_ref=&button
+            @test_id={named}
+            label="More actions"
+            tab_stop=false
+            capture_presses=true
+            on_click={open}
+            content={move |handle: ButtonHandle| view! {
+                <RowMenuFace handle sized={sized} />
+            }}
+        />
+    }
+}
+
+#[component]
+fn RowMenuFace(handle: ButtonHandle, sized: Memo<Metrics>) -> NodeId {
+    let ButtonHandle {
+        hovered,
+        active,
+        focused,
+        label,
+        ..
+    } = handle;
+    let theme = use_theme();
+    let fill = create_memo(move || match (active.get(), hovered.get()) {
+        (true, _) => theme.pressed.get(),
+        (false, true) => theme.hover.get(),
+        (false, false) => Color32::TRANSPARENT,
+    });
+    let color = create_memo(move || match hovered.get() || active.get() {
+        true => TextColor::Default,
+        false => TextColor::Muted,
+    });
+    let extent = create_memo(move || Extent::px(sized.get().menu));
+    let glyph_size = create_memo(move || sized.get().glyph);
+    view! {
+        <Tooltip label={label}>
+            <Frame
+                width={extent}
+                height={extent}
+                fill={ColorRole::custom(fill)}
+                border={focus_border(focused, Border::new(ColorRole::Accent).width(OUTLINE_WIDTH))}
+                radius={Radius::custom(CHEVRON_RADIUS)}
+            >
+                <Text size={glyph_size} color={color} align=TextAlign::Center>
+                    <Icon glyph={ICON_MORE_HORIZ.to_owned()} />
+                </Text>
+            </Frame>
+        </Tooltip>
     }
 }
 
@@ -214,25 +351,37 @@ fn Chevron(
     item: Memo<TreeItem>,
     marked: Memo<bool>,
     toggle: ClickCallback,
+    sized: Memo<Metrics>,
     named: String,
 ) -> NodeId {
+    let zone = create_memo(move || {
+        let sized = sized.get();
+        Extent::px(item.get().depth as f32 * sized.indent + sized.chevron + SPACING)
+    });
     view! {
-        <Frame width=CHEVRON_WIDTH>
+        <Frame width={zone}>
             <List spacing=0.0>
                 <unstyled::TreeToggle
                     item
                     toggle={toggle}
                     button_test_id=named
-                >|handle: TreeToggleHandle|
-                    <ChevronFace handle marked={marked} />
-                </unstyled::TreeToggle>
+                >|handle: TreeToggleHandle| {
+                    view! {
+                        <ChevronFace handle item marked={marked} sized={sized} />
+                    }
+                }</unstyled::TreeToggle>
             </List>
         </Frame>
     }
 }
 
 #[component]
-fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
+fn ChevronFace(
+    handle: TreeToggleHandle,
+    item: Memo<TreeItem>,
+    marked: Memo<bool>,
+    sized: Memo<Metrics>,
+) -> NodeId {
     let TreeToggleHandle {
         button:
             ButtonHandle {
@@ -261,19 +410,27 @@ fn ChevronFace(handle: TreeToggleHandle, marked: Memo<bool>) -> NodeId {
         true => ICON_KEYBOARD_ARROW_DOWN.to_owned(),
         false => ICON_KEYBOARD_ARROW_RIGHT.to_owned(),
     });
+    let indent = create_memo(move || ItemSize::Fixed(item.get().depth as f32 * sized.get().indent));
+    let width = create_memo(move || Extent::px(sized.get().chevron));
+    let height = create_memo(move || Extent::px(sized.get().row));
+    let glyph_size = create_memo(move || sized.get().glyph);
     view! {
         <Tooltip label={label}>
-            <Frame
-                width=CHEVRON_WIDTH
-                height=ROW_HEIGHT
-                fill={ColorRole::custom(fill)}
-                border={create_memo(move || outlined.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)))}
-                radius={Radius::custom(CHEVRON_RADIUS)}
-            >
-                <Text size=TextSize::Xs color={color} align=TextAlign::Center>
-                    <Icon glyph={glyph} />
-                </Text>
-            </Frame>
+            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                <Spacer @sizing={indent} />
+                <Frame
+                    width={width}
+                    height={height}
+                    fill={ColorRole::custom(fill)}
+                    border={create_memo(move || outlined.get().then_some(Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)))}
+                    radius={Radius::custom(CHEVRON_RADIUS)}
+                >
+                    <Text size={glyph_size} color={color} align=TextAlign::Center>
+                        <Icon glyph={glyph} />
+                    </Text>
+                </Frame>
+                <Spacer @sizing=ItemSize::Fixed(SPACING) />
+            </List>
         </Tooltip>
     }
 }
@@ -282,6 +439,13 @@ fn row_id(named: &str) -> String {
     match named.is_empty() {
         true => String::new(),
         false => format!("{named}.row"),
+    }
+}
+
+fn more_id(named: &str) -> String {
+    match named.is_empty() {
+        true => String::new(),
+        false => format!("{named}.more"),
     }
 }
 
