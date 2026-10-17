@@ -425,6 +425,17 @@ are session state (positions only: the receiver fills the visible bytes in from
 its own copy, and an undelete carries the bytes it brings back), and an offline
 merge is a line diff3. The text block is `Document<TextBlock>`, its body a
 `Text` (see `plans/text.md`).
+
+Client `0` (`sequence::LOADED`) belongs to the initial buffer; edits cannot
+allocate positions under it. The text editor anchors each boundary before one
+byte, including deleted bytes through their tombstones. Its end anchor is
+`Pos { client: 0, offset: sequence.next_offset(0) }`, the position just past the
+initial buffer. This virtual sentinel resolves to the current visible length
+without adding a byte to the sequence or its saved text. `Position` wraps only
+that `Pos`; construct the end through the document rather than a global constant.
+IME composition tracks its last byte separately so text inserted after that
+byte stays outside the composition.
+
 Anything else that is `Serialize + DeserializeOwned + Clone + PartialEq +
 Default` is a register: it is set as a whole, and setting it on both sides of an
 offline merge is a conflict. `Root` names the content type and, optionally, the

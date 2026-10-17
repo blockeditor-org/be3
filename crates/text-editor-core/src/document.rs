@@ -4,7 +4,7 @@ use std::{
     sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
-use sequence::{Pos, SeqOp, Sequence, Splice};
+use sequence::{LOADED, Pos, SeqOp, Sequence, Splice};
 
 use crate::{ChangeLog, CursorPosition, TextChange};
 
@@ -209,13 +209,26 @@ impl DocumentRead for DocumentView<'_> {
 }
 
 pub fn anchor_in(sequence: &Sequence<u8>, index: usize) -> Option<Pos> {
+    if index == sequence.len() {
+        return Some(end_anchor(sequence));
+    }
     sequence.pos(index)
 }
 
 pub fn anchor_index_in(sequence: &Sequence<u8>, anchor: Pos) -> Option<usize> {
+    if anchor == end_anchor(sequence) {
+        return Some(sequence.len());
+    }
     match sequence.place_of(anchor)? {
         (index, true) => Some(index),
         (_, false) => None,
+    }
+}
+
+fn end_anchor(sequence: &Sequence<u8>) -> Pos {
+    Pos {
+        client: LOADED,
+        offset: sequence.next_offset(LOADED),
     }
 }
 

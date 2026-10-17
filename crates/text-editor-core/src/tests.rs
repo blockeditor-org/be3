@@ -26,6 +26,7 @@ mod ime_a_composing_region_over_existing_text_is_recomposed;
 mod ime_any_other_command_ends_the_composition;
 mod ime_commit_replaces_the_composition_and_ends_it;
 mod ime_composing_text_is_written_into_the_document_and_replaced_as_it_changes;
+mod ime_composition_excludes_text_inserted_after_its_last_byte;
 mod ime_delete_surrounding_removes_text_beside_the_selection;
 mod ime_replace_text_swaps_a_typed_word_for_a_suggestion;
 mod ime_state_reports_the_text_around_the_selection;
@@ -46,6 +47,7 @@ mod markdown_styles_hold_across_style_windows;
 mod markdown_tables;
 mod markdown_windows_follow_edits_inside_them;
 mod positions_follow_edits_and_come_back_with_undo;
+mod positions_follow_their_byte_through_replacement_and_undo;
 mod positions_in_a_large_buffer_resolve_back_to_their_index;
 mod raw_bytes;
 mod replace_all_matches_does_nothing_when_there_are_no_matches;
@@ -65,6 +67,7 @@ mod toggle_collapse_at_leaves_a_cursor_outside_the_section_untouched;
 mod toggle_collapse_at_moves_the_cursor_out_of_a_newly_hidden_section;
 mod toml_syn_hl;
 mod up_arrow_skips_past_a_collapsed_section;
+mod virtual_end_anchors_follow_edits_without_adding_a_byte;
 mod zig_syn_hl;
 
 fn rendered_highlight(tester: &mut EditorTester, offset: usize) -> String {

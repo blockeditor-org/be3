@@ -4,7 +4,7 @@ use super::{
     Core, CursorPosition, Position, Selection, UndoClassification, insert_classification,
     resolve_selection,
 };
-use crate::document::{DocumentRead, DocumentView};
+use crate::document::DocumentView;
 
 const SURROUNDING: usize = 1024;
 
@@ -29,10 +29,13 @@ pub struct ImeState {
 
 impl Core {
     pub fn composition(&self) -> Option<Range<usize>> {
-        let (start, end) = self.composition?;
+        let (start, last) = self.composition?;
         let read = self.document.read()?;
         let start = start.resolve(&*read);
-        let end = end.resolve(&*read);
+        let end = read
+            .anchor_index(last)
+            .map(|index| index + 1)
+            .or_else(|| read.deleted_anchor_index(last))?;
         (start < end).then_some(start..end)
     }
 
@@ -117,23 +120,15 @@ impl Core {
     }
 
     fn compose(&mut self, range: Range<usize>) {
-        self.composition = (range.start < range.end)
-            .then(|| (self.position(range.start), self.end_position(range.end)));
-    }
-
-    fn end_position(&self, index: usize) -> Position {
-        let Some(read) = self.document.read() else {
-            return Position::END;
-        };
-        let document = DocumentView::new(&*read);
-        Position {
-            left: index
-                .checked_sub(1)
-                .and_then(|previous| document.anchor(previous)),
-            right: None,
-            fallback: index,
-            end: false,
-        }
+        self.composition = self.document.read().and_then(|read| {
+            (range.start < range.end).then(|| {
+                (
+                    Position::at(&*read, range.start),
+                    read.anchor(range.end - 1)
+                        .expect("a composition ends after a document byte"),
+                )
+            })
+        });
     }
 
     fn replace(

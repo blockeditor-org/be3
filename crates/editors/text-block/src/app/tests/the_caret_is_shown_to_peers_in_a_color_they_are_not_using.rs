@@ -10,7 +10,11 @@ fn the_caret_is_shown_to_peers_in_a_color_they_are_not_using() {
     let cursor = shown_cursor(&mut editor)
         .flatten()
         .expect("the editor shows its caret to its peers");
-    assert_eq!(cursor["focus"]["fallback"], 6, "{cursor}");
+    assert_eq!(
+        cursor["focus"],
+        serde_json::json!({ "client": 0, "offset": 6 }),
+        "{cursor}"
+    );
     assert_eq!(cursor["anchor"], cursor["focus"], "{cursor}");
     let color = cursor["color"].clone();
     assert_ne!(color, serde_json::json!(PresenceColor::Red));
@@ -26,8 +30,16 @@ fn the_caret_is_shown_to_peers_in_a_color_they_are_not_using() {
     let cursor = shown_cursor(&mut editor)
         .flatten()
         .expect("a new selection is shown to the peers");
-    assert_eq!(cursor["anchor"]["fallback"], 6, "{cursor}");
-    assert_eq!(cursor["focus"]["end"], true, "{cursor}");
+    assert_eq!(
+        cursor["anchor"],
+        serde_json::json!({ "client": 0, "offset": 6 }),
+        "{cursor}"
+    );
+    assert_eq!(
+        cursor["focus"],
+        serde_json::json!({ "client": 0, "offset": 11 }),
+        "{cursor}"
+    );
     assert_eq!(cursor["color"], color, "the color stays the same");
 
     editor.presence_visible(false);

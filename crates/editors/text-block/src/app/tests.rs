@@ -32,6 +32,7 @@ mod the_palette_and_the_shortcuts_run_the_format_actions;
 mod the_text_waits_for_its_content_and_typing_before_it_is_dropped;
 mod typing_continues_at_the_caret_after_a_peer_edits_around_it;
 mod typing_continues_where_a_peer_deleted_the_text_around_the_caret;
+mod typing_follows_a_replacement_of_the_carets_byte;
 mod typing_inserts_text_into_the_document;
 
 fn editor(text: &str) -> BeuiTest<TextApp> {
@@ -83,7 +84,7 @@ fn caret_at(editor: &mut BeuiTest<TextApp>, index: usize) {
 }
 
 fn peer(client: u64, anchor: usize, focus: usize, color: PresenceColor) -> PeerPresence {
-    let position = |index: usize| serde_json::json!({ "left": null, "right": null, "fallback": index, "end": false });
+    let position = |index: usize| serde_json::json!({ "client": 0, "offset": index });
     let cursor = serde_json::json!({
         "anchor": position(anchor),
         "focus": position(focus),
