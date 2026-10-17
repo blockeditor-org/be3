@@ -3,8 +3,10 @@ use accesskit::{Node, Role};
 use beui_core::layer::Dismiss;
 use beui_macros::{component, view};
 
+use crate::scroll::Scroll;
 use crate::text::{Text, TextStyle};
 use beui_components_unstyled::BackSlide;
+use beui_core::base::ItemSize;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
@@ -24,6 +26,7 @@ pub fn Dialog(
     open: Prop<bool>,
     #[prop(default = String::new())] title: Prop<String>,
     #[prop(default = 360.0)] width: Prop<f32>,
+    #[prop(default = true)] scrolls: bool,
     on_dismiss: ClickCallback,
     #[prop(children)] content: Render,
 ) -> NodeId {
@@ -42,7 +45,9 @@ pub fn Dialog(
                     on_back={on_dismiss}
                     on_presence={move |next: f32| presence.set(next)}
                 >
-                    <DialogSurface width={width} title={title}>{content.call(())}</DialogSurface>
+                    <DialogSurface width={width} title={title} scrolls>
+                        {content.call(())}
+                    </DialogSurface>
                 </BackSlide>
             }}
         />
@@ -50,7 +55,7 @@ pub fn Dialog(
 }
 
 #[component]
-fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> NodeId {
+fn DialogSurface(width: Prop<f32>, title: Prop<String>, scrolls: bool, children: Child) -> NodeId {
     let label = create_memo(move || title.get());
     let titled = create_memo(move || !label.get().is_empty());
     component_accessibility(create_memo(move || {
@@ -61,6 +66,12 @@ fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> Node
         }
         node
     }));
+    let body = match scrolls {
+        true => view! {
+            <Scroll fit=true tab_stop=false>{children}</Scroll>
+        },
+        false => children,
+    };
     view! {
         <Frame padding=MARGIN>
             <Frame
@@ -74,7 +85,7 @@ fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> Node
                     <Show condition={titled}>
                         <Text style=TextStyle::TITLE string={label} />
                     </Show>
-                    {children}
+                    {body} @sizing={ItemSize::Intrinsic.shrink(1.0)}
                 </List>
             </Frame>
         </Frame>

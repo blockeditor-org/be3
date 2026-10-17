@@ -75,6 +75,7 @@ pub fn Scroll(
     #[prop(default = false)] fit: bool,
     #[prop(default = None)] max_length: Option<f32>,
     #[prop(default = Bleed::NONE)] bleed: Bleed,
+    #[prop(default = true)] tab_stop: bool,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
@@ -86,6 +87,7 @@ pub fn Scroll(
             direction
             fit={fit || max_length.is_some()}
             bleed={bleed.reach}
+            tab_stop
             focus_color={theme.accent}
             scrollbar={scrollbar_style()}
             marker={|axis: Memo<Direction>| view! {

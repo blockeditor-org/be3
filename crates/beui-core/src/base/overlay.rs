@@ -176,6 +176,7 @@ fn resolve_rect(
         return viewport;
     }
     if placement == Placement::Center {
+        let content_size = content_size.min(viewport.size()).max(Vec2::ZERO);
         let origin = pos2(
             viewport.left() + (viewport.width() - content_size.x) / 2.0,
             viewport.top() + (viewport.height() - content_size.y) / 2.0,

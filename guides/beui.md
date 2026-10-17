@@ -1281,6 +1281,17 @@ sinks with the gesture and slides on down from where it was. On Android the
 runner passes `handles_back` to the activity's `setBackHandled`, and when
 nothing takes it the system's own back (to the home screen) plays instead.
 
+A `Center` overlay is never larger than its screen: content that measures taller
+or wider is laid out in the screen's size, so its bottom cannot fall off a short
+window. `styled::Dialog` keeps its title and puts its body in a fitted `Scroll`
+that gives up length when the screen is short, so any dialog scrolls rather than
+spilling over the edge. Content that should squeeze itself instead (the add-block
+picker shrinks its tile area and keeps its tabs and buttons in view) passes
+`scrolls=false`: the body is then laid out in what is left of the screen, and it
+hands that shortfall down by giving the part that can scroll an
+`ItemSize::Intrinsic.shrink(1.0)` sizing and an `Extent::at_most` height rather
+than a fixed one, at every list between it and the dialog.
+
 A layer at `LayerLevel::Lock` that blocks everything is a lock screen
 (`styled::LockScreen`): it is above every other layer, so anything opened while
 it is up opens beneath it; it is never dismissable; the focus cannot leave it,
