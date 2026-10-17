@@ -23,7 +23,6 @@ pub fn Scroll(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
     #[prop(default = None)] max_length: Option<f32>,
-    #[prop(default = ColorRole::Accent)] focus_color: Prop<ColorRole>,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
@@ -35,7 +34,7 @@ pub fn Scroll(
             reveal
             direction
             fit={fit || max_length.is_some()}
-            focus_color={create_memo(move || focus_color.get().resolve(&theme))}
+            focus_color={theme.accent}
             scrollbar={scrollbar_style()}
             marker={|axis: Memo<Direction>| view! {
                 <AutoscrollMarker axis />

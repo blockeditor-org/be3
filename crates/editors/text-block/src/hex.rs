@@ -399,7 +399,7 @@ pub(crate) fn HexView(state: State) -> NodeId {
                 };
                 view! {
                     <Frame fill={ColorRole::Custom(COLORS.surface)}>
-                        <Scroll focus_color=ColorRole::None>
+                        <Scroll>
                             <Interactive
                                 focusable=true
                                 on_key={move |press: KeyPress| key(state, press)}

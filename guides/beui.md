@@ -728,9 +728,10 @@ view! {
 }
 ```
 
-The focus ring follows the theme's accent unless `focus_color` names another
-role (`ColorRole::None` for a scroll whose content draws its own focus),
-and `on_change` still reports the position for anything else that wants it.
+The focus ring is always the theme's accent, with no way to turn it off; like
+`:focus-visible` it shows only when the keyboard brings the focus there, so a
+click or a tap never shows it. `on_change` still reports the position for
+anything else that wants it.
 With `fit` it measures as long as its content, so a box sized by what it holds
 can still scroll once it is squeezed.
 With `max_length` the scroll is as long as what it holds, up to that length, and
