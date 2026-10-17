@@ -72,6 +72,7 @@ mod word_selection_at_the_end;
 mod word_selection_before_a_space;
 mod word_selection_dragging_from_the_end_keeps_the_initial_word;
 mod word_selection_in_whitespace;
+mod word_selection_respects_atomic_units;
 mod zig_syn_hl;
 
 fn rendered_highlight(tester: &mut EditorTester, offset: usize) -> String {

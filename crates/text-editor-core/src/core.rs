@@ -216,7 +216,6 @@ pub(crate) struct CursorStops {
 }
 
 impl CursorStops {
-    #[cfg(test)]
     pub(crate) fn new(soft_tab_width: usize) -> Self {
         Self {
             soft_tab_width,
@@ -1851,17 +1850,8 @@ impl Core {
             }
         }
         let bounds = |index| {
-            if drag.selection_mode.select {
-                match drag.selection_mode.stop {
-                    CursorLeftRightStop::Word => return word_bounds(document.bytes(), index),
-                    CursorLeftRightStop::Line => {
-                        return (
-                            line_start(document.bytes(), index),
-                            next_line_start(document.bytes(), index),
-                        );
-                    }
-                    _ => {}
-                }
+            if drag.selection_mode.select && drag.selection_mode.stop == CursorLeftRightStop::Word {
+                return word_selection_bounds(document.bytes(), index, self.cursor_stops());
             }
             let left = to_boundary(
                 document.bytes(),
@@ -1869,7 +1859,10 @@ impl Core {
                 LRDirection::Left,
                 drag.selection_mode.stop,
                 BoundaryMode::Select,
-                true,
+                !(drag.selection_mode.select
+                    && drag.selection_mode.stop == CursorLeftRightStop::Line
+                    && index == document.len()
+                    && document.bytes().last().is_some_and(|byte| *byte != b'\n')),
                 self.cursor_stops(),
             );
             if !drag.selection_mode.select {
@@ -2152,6 +2145,7 @@ enum BetweenCharsStop {
 
 #[derive(Clone, Copy)]
 enum BoundaryMode {
+    WordSelection,
     Direction,
     Select,
 }
@@ -2256,48 +2250,58 @@ fn surrounding_inline_code_markers(
 }
 
 pub fn word_bounds(bytes: &[u8], index: usize) -> (usize, usize) {
+    word_selection_bounds(bytes, index, CursorStops::new(0))
+}
+
+fn character_at(bytes: &[u8], index: usize) -> Option<(char, usize)> {
+    let byte = *bytes.get(index)?;
+    let width = utf8_width(byte).max(1);
+    let character = bytes
+        .get(index..index + width)
+        .and_then(|slice| std::str::from_utf8(slice).ok())
+        .and_then(|text| text.chars().next());
+    Some((
+        character.unwrap_or('\u{fffd}'),
+        character.map_or(1, char::len_utf8),
+    ))
+}
+
+fn character_before(bytes: &[u8], index: usize) -> Option<char> {
+    (index.saturating_sub(4)..index).find_map(|start| {
+        let (character, width) = character_at(bytes, start)?;
+        (start + width == index).then_some(character)
+    })
+}
+
+fn is_word_character(character: char) -> bool {
+    character.is_alphanumeric() || character == '_' || character == '\''
+}
+
+fn word_selection_bounds(bytes: &[u8], index: usize, stops: CursorStops) -> (usize, usize) {
     let index = index.min(bytes.len());
-    let after = |at: usize| {
-        let byte = *bytes.get(at)?;
-        let width = utf8_width(byte).max(1);
-        let character = bytes
-            .get(at..at + width)
-            .and_then(|slice| std::str::from_utf8(slice).ok())
-            .and_then(|text| text.chars().next());
-        Some((
-            character.unwrap_or('\u{fffd}'),
-            character.map_or(1, char::len_utf8),
-        ))
+    let before = character_before(bytes, index).is_some_and(is_word_character);
+    let after = character_at(bytes, index).is_some_and(|(c, _)| is_word_character(c));
+    let boundary = |direction, may_stay| {
+        to_boundary(
+            bytes,
+            index,
+            direction,
+            CursorLeftRightStop::Word,
+            BoundaryMode::WordSelection,
+            may_stay,
+            stops,
+        )
     };
-    let before = |at: usize| {
-        (at.saturating_sub(4)..at).find_map(|start| {
-            let (character, width) = after(start)?;
-            (start + width == at).then_some((character, width))
-        })
-    };
-    let word =
-        |character: char| character.is_alphanumeric() || character == '_' || character == '\'';
-    if !after(index).is_some_and(|(c, _)| word(c)) && !before(index).is_some_and(|(c, _)| word(c)) {
-        return match after(index) {
-            Some((_, width)) => (index, index + width),
-            None => (index - before(index).map_or(0, |(_, width)| width), index),
-        };
+    if before || after {
+        (
+            boundary(LRDirection::Left, !before),
+            boundary(LRDirection::Right, !after),
+        )
+    } else if index < bytes.len() {
+        (index, boundary(LRDirection::Right, false))
+    } else {
+        (boundary(LRDirection::Left, false), index)
     }
-    let mut start = index;
-    while let Some((character, width)) = before(start) {
-        if !word(character) {
-            break;
-        }
-        start -= width;
-    }
-    let mut end = index;
-    while let Some((character, width)) = after(end) {
-        if !word(character) {
-            break;
-        }
-        end += width;
-    }
-    (start, end)
 }
 
 fn line_start(bytes: &[u8], index: usize) -> usize {
@@ -2564,10 +2568,23 @@ fn boundary_matches(
     mode: BoundaryMode,
     stops: CursorStops,
 ) -> bool {
+    if matches!(mode, BoundaryMode::WordSelection) {
+        if (stops.inside_atomic_unit)(bytes, index) {
+            return false;
+        }
+        if (index.saturating_sub(3)..index)
+            .any(|start| character_at(bytes, start).is_some_and(|(_, width)| start + width > index))
+        {
+            return false;
+        }
+        return !character_before(bytes, index).is_some_and(is_word_character)
+            || !character_at(bytes, index).is_some_and(|(c, _)| is_word_character(c));
+    }
     let Some(marker) = has_stop(bytes, index, stop, stops) else {
         return false;
     };
     match mode {
+        BoundaryMode::WordSelection => unreachable!(),
         BoundaryMode::Select => !matches!(marker, BetweenCharsStop::RightOnly),
         BoundaryMode::Direction => match direction {
             LRDirection::Left => {
@@ -2725,17 +2742,9 @@ fn grapheme_boundaries(bytes: &[u8]) -> Vec<bool> {
     let mut index = 0;
     while index < bytes.len() {
         character_boundaries.push((decoded.len(), index));
-        let width = utf8_width(bytes[index]);
-        if width > 0
-            && index + width <= bytes.len()
-            && let Ok(value) = std::str::from_utf8(&bytes[index..index + width])
-        {
-            decoded.push_str(value);
-            index += width;
-            continue;
-        }
-        decoded.push('\u{fffd}');
-        index += 1;
+        let (character, width) = character_at(bytes, index).unwrap();
+        decoded.push(character);
+        index += width;
     }
     character_boundaries.push((decoded.len(), bytes.len()));
     let mut result = vec![false; bytes.len() + 1];
