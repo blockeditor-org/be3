@@ -1,8 +1,8 @@
 use std::{cmp::Ordering, ops::Range, sync::Arc};
 
+use grapheme_segmentation::is_grapheme_boundary;
 use serde::{Deserialize, Serialize};
 use similar::{Algorithm, DiffTag, capture_diff_slices};
-use unicode_segmentation::UnicodeSegmentation;
 
 mod ime;
 
@@ -2622,67 +2622,6 @@ fn ascii_classification(byte: u8) -> AsciiClassification {
 
 fn is_utf8_leading_byte(byte: u8) -> bool {
     byte <= 0x7f || (0xc2..=0xf4).contains(&byte)
-}
-
-fn is_grapheme_boundary(bytes: &[u8], index: usize) -> bool {
-    if index == 0 || index >= bytes.len() {
-        return true;
-    }
-    let (left, right) = (bytes[index - 1], bytes[index]);
-    if right.is_ascii() {
-        return !(left == b'\r' && right == b'\n');
-    }
-    let start = bytes[..index]
-        .iter()
-        .rposition(|byte| *byte == b'\n')
-        .map_or(0, |newline| newline + 1);
-    let end = bytes[index..]
-        .iter()
-        .position(|byte| *byte == b'\n')
-        .map_or(bytes.len(), |newline| index + newline);
-    grapheme_boundaries(&bytes[start..end])[index - start]
-}
-
-fn grapheme_boundaries(bytes: &[u8]) -> Vec<bool> {
-    let mut decoded = String::new();
-    let mut character_boundaries = Vec::new();
-    let mut index = 0;
-    while index < bytes.len() {
-        character_boundaries.push((decoded.len(), index));
-        let width = utf8_width(bytes[index]);
-        if width > 0
-            && index + width <= bytes.len()
-            && let Ok(value) = std::str::from_utf8(&bytes[index..index + width])
-        {
-            decoded.push_str(value);
-            index += width;
-            continue;
-        }
-        decoded.push('\u{fffd}');
-        index += 1;
-    }
-    character_boundaries.push((decoded.len(), bytes.len()));
-    let mut result = vec![false; bytes.len() + 1];
-    result[0] = true;
-    result[bytes.len()] = true;
-    for (decoded_index, _) in decoded.grapheme_indices(true) {
-        if let Ok(boundary_index) =
-            character_boundaries.binary_search_by(|(candidate, _)| candidate.cmp(&decoded_index))
-        {
-            result[character_boundaries[boundary_index].1] = true;
-        }
-    }
-    result
-}
-
-fn utf8_width(byte: u8) -> usize {
-    match byte {
-        0x00..=0x7f => 1,
-        0xc2..=0xdf => 2,
-        0xe0..=0xef => 3,
-        0xf0..=0xf4 => 4,
-        _ => 0,
-    }
 }
 
 fn find_bytes(haystack: &[u8], needle: &[u8]) -> Option<usize> {

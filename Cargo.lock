@@ -3557,6 +3557,10 @@ dependencies = [
 ]
 
 [[package]]
+name = "grapheme-segmentation"
+version = "0.1.0"
+
+[[package]]
 name = "gtk"
 version = "0.18.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6980,6 +6984,7 @@ dependencies = [
 name = "text-editor-core"
 version = "0.1.0"
 dependencies = [
+ "grapheme-segmentation",
  "memchr",
  "sequence",
  "serde",
@@ -6988,7 +6993,6 @@ dependencies = [
  "tree-sitter-md",
  "tree-sitter-rust",
  "tree-sitter-zig",
- "unicode-segmentation",
 ]
 
 [[package]]

@@ -11003,6 +11003,93 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/grapheme-segmentation": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "grapheme_segmentation",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "grapheme-segmentation",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/local-tools": {
         "binaries": [
             {
@@ -13930,6 +14017,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -13938,7 +14026,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -13948,6 +14035,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -13956,7 +14044,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -13966,6 +14053,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -13974,7 +14062,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -13984,6 +14071,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -13992,7 +14080,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -14002,6 +14089,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -14010,7 +14098,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -14020,6 +14107,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -14028,7 +14116,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -14038,6 +14125,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -14046,7 +14134,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -14056,6 +14143,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -14064,7 +14152,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],
@@ -14074,6 +14161,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/grapheme-segmentation:grapheme-segmentation",
                     "//crates/sequence:sequence",
                     "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
@@ -14082,7 +14170,6 @@ crates = {
                     "//third-party/rust:tree-sitter-md-0.5.3",
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
-                    "//third-party/rust:unicode-segmentation-1.13.3",
                 ],
                 "examples": {},
                 "features": [],

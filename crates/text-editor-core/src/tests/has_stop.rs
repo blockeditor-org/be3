@@ -4,6 +4,21 @@ use super::*;
 #[test]
 fn has_stop() {
     let cases: &[(CursorLeftRightStop, usize, &[u8])] = &[
+        (
+            CursorLeftRightStop::UnicodeGraphemeCluster,
+            0,
+            "|\u{600}a|".as_bytes(),
+        ),
+        (
+            CursorLeftRightStop::UnicodeGraphemeCluster,
+            0,
+            "|क्‍क|".as_bytes(),
+        ),
+        (
+            CursorLeftRightStop::UnicodeGraphemeCluster,
+            0,
+            b"|\xff\xcc\x81|a|",
+        ),
         (CursorLeftRightStop::Byte, 0, b"|h|e|l|l|o|"),
         (CursorLeftRightStop::Byte, 0, b"|u|\xE2|\x80|\xA6|!|"),
         (CursorLeftRightStop::Codepoint, 0, b"|u|\xE2\x80\xA6|!|"),
