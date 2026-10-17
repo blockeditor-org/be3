@@ -5,7 +5,7 @@ use block_editor_beui::{EditorHost, HostInputDevice, InputDevices, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::InputSettingsApp;
+use crate::input_settings::InputSettingsApp;
 
 mod a_device_follows_its_default_until_it_is_overridden;
 mod a_narrow_page_stacks_each_control_under_its_label;
