@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn import_file_builds_kw_sample() {
-    let artifact = import_file("kw.qxc", include_str!("../../../samples/kw.qxc"))
+    let artifact = import_file("kw.qxc", include_str!("samples/kw.qxc"))
         .unwrap_or_else(|errors| panic!("kw.qxc failed to build: {errors:?}"));
 
     let ComptimeValueBuildArtifact::Folder(folder) = artifact else {

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn import_file_builds_reflect_sample() {
-    let artifact = import_file("reflect.qxc", include_str!("../../../samples/reflect.qxc"))
+    let artifact = import_file("reflect.qxc", include_str!("samples/reflect.qxc"))
         .unwrap_or_else(|errors| panic!("reflect.qxc failed to build: {errors:?}"));
 
     let ComptimeValueBuildArtifact::Folder(folder) = artifact else {

@@ -1,7 +1,7 @@
 use super::*;
 
 fn reflect_sample_with(target_fn: &str, extra: &str) -> Result<(), Vec<TokenizationError>> {
-    let source = include_str!("../../../samples/reflect.qxc").replace(
+    let source = include_str!("samples/reflect.qxc").replace(
         "std.reflect.function(toy, clamp)",
         &format!("std.reflect.function(toy, {target_fn})"),
     );
@@ -18,7 +18,7 @@ fn import_file_reflect_generator_rejects_unsupported_types() {
     assert_eq!(errors.len(), 1, "{errors:?}");
     let entries = &errors[0].entries;
     assert_eq!(entries[0].message, "toy doesn't support Word");
-    let len_line = include_str!("../../../samples/reflect.qxc").lines().count() + 4;
+    let len_line = include_str!("samples/reflect.qxc").lines().count() + 4;
     assert_eq!(entries[0].pos.as_ref().map(|p| p.lyn), Some(len_line));
     assert_eq!(entries[1].message, "reported here");
 

@@ -2,11 +2,8 @@ use super::*;
 
 #[test]
 fn import_file_builds_optional_sample() {
-    let artifact = import_file(
-        "optional.qxc",
-        include_str!("../../../samples/optional.qxc"),
-    )
-    .unwrap_or_else(|errors| panic!("optional.qxc failed to build: {errors:?}"));
+    let artifact = import_file("optional.qxc", include_str!("samples/optional.qxc"))
+        .unwrap_or_else(|errors| panic!("optional.qxc failed to build: {errors:?}"));
 
     let ComptimeValueBuildArtifact::Folder(folder) = artifact else {
         panic!("expected a folder");
