@@ -7193,6 +7193,7 @@ crates = {
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/remap/host:be-remap-host",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
                         "//third-party/rust:ashpd-0.11.1",
@@ -7238,6 +7239,7 @@ crates = {
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/remap/host:be-remap-host",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
                     "//third-party/rust:ashpd-0.11.1",
@@ -7299,6 +7301,7 @@ crates = {
                         "//crates/block-wasm-host:block-wasm-host",
                         "//crates/build-id:build-id",
                         "//crates/reactive:reactive",
+                        "//crates/remap/host:be-remap-host",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//crates/wasi-threads:wasi-threads",
                         "//third-party/rust:ashpd-0.11.1",
@@ -7344,6 +7347,7 @@ crates = {
                     "//crates/block-wasm-host:block-wasm-host",
                     "//crates/build-id:build-id",
                     "//crates/reactive:reactive",
+                    "//crates/remap/host:be-remap-host",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//crates/wasi-threads:wasi-threads",
                     "//third-party/rust:ashpd-0.11.1",
@@ -10184,6 +10188,37 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/editors/input-remaps": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "input_remaps",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "input_remaps",
+        "platforms": {
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/remap/rules:be-remap",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/editors/input-settings": {
         "binaries": [],
         "edition": "2024",
@@ -12294,6 +12329,357 @@ crates = {
                 "features": [],
                 "test_deps": [],
                 "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/remap/host": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_remap_host",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-remap-host",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                    "//third-party/rust:wasmi-1.1.0",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/remap/module": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_remap_module",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-remap-module",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/remap/rules:be-remap",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/remap/rules": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "be_remap",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "be-remap",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasm32": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:bincode-1.3.3",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:toml-0.9.12+spec-1.1.0",
+                    "//third-party/rust:toml_edit-0.25.12+spec-1.1.0",
+                ],
+                "examples": {},
+                "features": [
+                    "text",
+                ],
+                "test_deps": [],
+                "test_features": [
+                    "text",
+                ],
             },
         },
         "profile_flags": [],
@@ -25578,6 +25964,7 @@ third_party = {
             "macos-arm64": {},
             "macos-x86_64": {},
             "wasi": {},
+            "wasi-guest": {},
             "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
@@ -31193,6 +31580,7 @@ third_party = {
                 ],
             },
             "wasi": {},
+            "wasi-guest": {},
             "wasm32": {},
             "windows-arm64": {
                 "deps": [
@@ -33485,10 +33873,24 @@ third_party = {
                     ":hashbrown-0.17.1",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":equivalent-1.0.2",
+                    ":hashbrown-0.17.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
             "wasm32": {
                 "deps": [
                     ":equivalent-1.0.2",
                     ":hashbrown-0.17.1",
+                ],
+                "features": [
+                    "default",
+                    "std",
                 ],
             },
             "windows-arm64": {
@@ -47887,6 +48289,7 @@ third_party = {
             },
             "wasm32": {
                 "features": [
+                    "alloc",
                     "result",
                     "std",
                 ],
@@ -48226,6 +48629,26 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasm32": {
                 "deps": [
                     ":serde_core-1.0.228",
                 ],
@@ -54064,6 +54487,40 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                    ":serde_spanned-1.1.1",
+                    ":toml_datetime-0.7.5+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-0.7.15",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                    ":serde_spanned-1.1.1",
+                    ":toml_datetime-0.7.5+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-0.7.15",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                    "serde",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -54206,6 +54663,26 @@ third_party = {
                     "std",
                 ],
             },
+            "wasi-guest": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "deps": [
+                    ":serde_core-1.0.228",
+                ],
+                "features": [
+                    "alloc",
+                    "serde",
+                    "std",
+                ],
+            },
             "windows-arm64": {
                 "deps": [
                     ":serde_core-1.0.228",
@@ -54251,7 +54728,63 @@ third_party = {
         },
         "name": "toml_datetime",
         "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
             "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
                 "features": [
                     "alloc",
                     "default",
@@ -54393,14 +54926,129 @@ third_party = {
         },
         "name": "toml_edit",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
             "linux-x86_64": {
                 "deps": [
                     ":indexmap-2.14.0",
                     ":toml_datetime-1.1.1+spec-1.1.0",
                     ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
                     ":winnow-1.0.3",
                 ],
                 "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "wasm32": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
+                    "parse",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":indexmap-2.14.0",
+                    ":toml_datetime-1.1.1+spec-1.1.0",
+                    ":toml_parser-1.1.3+spec-1.1.0",
+                    ":toml_writer-1.1.2+spec-1.1.0",
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "default",
+                    "display",
                     "parse",
                 ],
             },
@@ -54435,6 +55083,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -54444,6 +55093,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -54463,6 +55113,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -54472,6 +55123,27 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "deps": [
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "deps": [
+                    ":winnow-1.0.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -54481,6 +55153,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -54490,6 +55163,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -54521,42 +55195,63 @@ third_party = {
             "android-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "linux-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "linux-x86_64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "macos-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "macos-x86_64": {
                 "features": [
                     "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "wasm32": {
+                "features": [
+                    "alloc",
+                    "default",
                     "std",
                 ],
             },
             "windows-arm64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
             "windows-x86_64": {
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -66224,6 +66919,8 @@ third_party = {
             },
             "macos-arm64": {},
             "macos-x86_64": {},
+            "wasi-guest": {},
+            "wasm32": {},
             "windows-arm64": {},
             "windows-x86_64": {},
         },
@@ -66292,6 +66989,26 @@ third_party = {
                 ],
             },
             "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "ascii",
+                    "binary",
+                    "default",
+                    "parser",
+                    "std",
+                ],
+            },
+            "wasi-guest": {
+                "features": [
+                    "alloc",
+                    "ascii",
+                    "binary",
+                    "default",
+                    "parser",
+                    "std",
+                ],
+            },
+            "wasm32": {
                 "features": [
                     "alloc",
                     "ascii",

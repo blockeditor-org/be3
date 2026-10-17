@@ -114,6 +114,12 @@ impl PointerSettings {
     }
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, PartialEq, Serialize)]
+pub struct RemapperChoice {
+    pub block: Uuid,
+    pub editor: Uuid,
+}
+
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct InputSettings {
     pub keyboard_layout: Option<String>,
@@ -124,6 +130,7 @@ pub struct InputSettings {
     pub every_pointer: PointerSettings,
     pub pointers: Map<InputDevice, PointerSettings>,
     pub middle_click_paste: Option<bool>,
+    pub remapper: Option<RemapperChoice>,
 }
 
 impl InputSettings {
@@ -143,6 +150,10 @@ impl InputSettings {
 
     pub fn set_middle_click_paste(on: Option<bool>) -> Edit {
         Self::MIDDLE_CLICK_PASTE.set(ObjectId::ROOT, &on).into()
+    }
+
+    pub fn set_remapper(choice: Option<RemapperChoice>) -> Edit {
+        Self::REMAPPER.set(ObjectId::ROOT, &choice).into()
     }
 
     pub fn device_pointer(&self, device: &InputDevice) -> PointerSettings {
@@ -243,6 +254,7 @@ impl Layered for InputSettings {
             every_pointer: self.every_pointer.or(lower.every_pointer),
             pointers,
             middle_click_paste: self.middle_click_paste.or(lower.middle_click_paste),
+            remapper: self.remapper.or(lower.remapper),
         }
     }
 }

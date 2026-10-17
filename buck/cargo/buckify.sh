@@ -63,7 +63,7 @@ done
 # (block-app with full, without the wasm-only crates), block-app and beui's
 # DOM demo for the web, the plugins and beui's demo, whose tests paint as a
 # plugin's do (a plan of their own: they want a different wgpu), the games and
-# the gpu shim, and the host again for each cross target. `cargo test` where
+# the gpu shim and the remap module, and the host again for each cross target. `cargo test` where
 # there are tests, so the plan has the dev-dependencies. Every plan names its
 # target, so what cargo builds for the machine running the build - proc
 # macros, build scripts and what they depend on - is told apart from the rest.
@@ -76,7 +76,7 @@ host_packages="--workspace $excluded --exclude block-editor-plugin --exclude blo
 plan test --target x86_64-unknown-linux-gnu $host_packages --features block-app/full > "$scratch/host.json"
 plan build --target wasm32-wasip1-threads -p block-app -p beui-web-demo --lib --features block-app/full > "$scratch/wasi.json"
 plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin -p block-editor-beui -p beui-demo > "$scratch/wasi-guest.json"
-plan build --target wasm32-unknown-unknown $games -p block-gpu-shim > "$scratch/wasm32.json"
+plan build --target wasm32-unknown-unknown $games -p block-gpu-shim -p be-remap-module > "$scratch/wasm32.json"
 cross=""
 for platform in "$@"; do
     name="${platform%%=*}"

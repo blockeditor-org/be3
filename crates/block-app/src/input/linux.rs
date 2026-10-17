@@ -20,6 +20,7 @@ pub(crate) fn start(setup: &beui::Setup) {
             );
         });
     }
+    crate::remap::start(control.clone());
     CONTROL.with(|slot| *slot.borrow_mut() = control);
 }
 
@@ -30,6 +31,7 @@ pub(crate) fn apply(settings: &InputSettings) {
         }
     });
     crate::wayland::set_primary_selection(settings.middle_click_paste());
+    crate::remap::configure(settings);
     if !crate::wayland::set_keyboard(&keyboard(settings)) {
         eprintln!(
             "block-app: the keymap {:?} could not be compiled for Wayland clients",
