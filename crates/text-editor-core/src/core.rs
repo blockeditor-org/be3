@@ -2273,14 +2273,14 @@ fn character_before(bytes: &[u8], index: usize) -> Option<char> {
     })
 }
 
-fn is_word_character(character: char) -> bool {
-    character.is_alphanumeric() || character == '_' || character == '\''
-}
-
 fn word_selection_bounds(bytes: &[u8], index: usize, stops: CursorStops) -> (usize, usize) {
     let index = index.min(bytes.len());
-    let before = character_before(bytes, index).is_some_and(is_word_character);
-    let after = character_at(bytes, index).is_some_and(|(c, _)| is_word_character(c));
+    let before = character_before(bytes, index).is_some_and(|c| {
+        classification(c, BoundaryMode::WordSelection) == CharacterClassification::Text
+    });
+    let after = character_at(bytes, index).is_some_and(|(c, _)| {
+        classification(c, BoundaryMode::WordSelection) == CharacterClassification::Text
+    });
     let boundary = |direction, may_stay| {
         to_boundary(
             bytes,
@@ -2577,8 +2577,11 @@ fn boundary_matches(
         {
             return false;
         }
-        return !character_before(bytes, index).is_some_and(is_word_character)
-            || !character_at(bytes, index).is_some_and(|(c, _)| is_word_character(c));
+        return !character_before(bytes, index).is_some_and(|c| {
+            classification(c, BoundaryMode::WordSelection) == CharacterClassification::Text
+        }) || !character_at(bytes, index).is_some_and(|(c, _)| {
+            classification(c, BoundaryMode::WordSelection) == CharacterClassification::Text
+        });
     }
     let Some(marker) = has_stop(bytes, index, stop, stops) else {
         return false;
@@ -2635,13 +2638,13 @@ fn has_stop(
             is_grapheme_boundary(bytes, index).then_some(BetweenCharsStop::Both)
         }
         CursorLeftRightStop::Word => {
-            let left = ascii_classification(left);
-            let right = ascii_classification(right);
+            let left = classification(char::from(left), BoundaryMode::Direction);
+            let right = classification(char::from(right), BoundaryMode::Direction);
             if left == right {
                 None
-            } else if left == AsciiClassification::Whitespace {
+            } else if left == CharacterClassification::Whitespace {
                 Some(BetweenCharsStop::LeftOrSelect)
-            } else if right == AsciiClassification::Whitespace {
+            } else if right == CharacterClassification::Whitespace {
                 Some(BetweenCharsStop::RightOrSelect)
             } else {
                 Some(BetweenCharsStop::Both)
@@ -2694,22 +2697,26 @@ pub(crate) fn render_stops(
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
-enum AsciiClassification {
+enum CharacterClassification {
     Whitespace,
     Symbols,
     Text,
     Unicode,
 }
 
-fn ascii_classification(byte: u8) -> AsciiClassification {
-    if byte.is_ascii_alphanumeric() || byte == b'_' {
-        AsciiClassification::Text
-    } else if byte.is_ascii_whitespace() {
-        AsciiClassification::Whitespace
-    } else if byte >= 0x80 {
-        AsciiClassification::Unicode
+fn classification(character: char, mode: BoundaryMode) -> CharacterClassification {
+    let selection = matches!(mode, BoundaryMode::WordSelection);
+    if character.is_ascii_alphanumeric()
+        || character == '_'
+        || selection && (character.is_alphanumeric() || character == '\'')
+    {
+        CharacterClassification::Text
+    } else if character.is_ascii_whitespace() || selection && character.is_whitespace() {
+        CharacterClassification::Whitespace
+    } else if !character.is_ascii() && !selection {
+        CharacterClassification::Unicode
     } else {
-        AsciiClassification::Symbols
+        CharacterClassification::Symbols
     }
 }
 
