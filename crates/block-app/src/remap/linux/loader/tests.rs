@@ -5,7 +5,7 @@ mod a_module_is_fetched_once_and_a_new_config_only_reconfigures_it;
 
 fn wanted(module: &str, config: &[u8]) -> Wanted {
     Wanted {
-        plugin: "be3.input-remaps".to_owned(),
+        plugin: "be3.linux-settings".to_owned(),
         module: module.to_owned(),
         config: config.to_vec(),
     }

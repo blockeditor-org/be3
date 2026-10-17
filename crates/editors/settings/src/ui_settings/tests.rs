@@ -7,7 +7,7 @@ use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
 
-use crate::app::UiSettingsApp;
+use crate::ui_settings::UiSettingsApp;
 
 mod a_profile_shows_the_theme_it_inherits;
 mod choosing_a_default_editor_stores_it;

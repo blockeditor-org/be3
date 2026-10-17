@@ -18,6 +18,22 @@
       "regions": [
         "Frame"
       ]
+    },
+    {
+      "block_type": "75692d73-6574-7469-6e67-732d626c6b32",
+      "display_name": "Appearance",
+      "icon": "\ueb97",
+      "regions": [
+        "Frame"
+      ]
+    },
+    {
+      "block_type": "65646974-6f72-2d64-6566-61756c747331",
+      "display_name": "Default editors",
+      "icon": "\ueb97",
+      "regions": [
+        "Frame"
+      ]
     }
   ],
   "entry_point": "settings.wasm"

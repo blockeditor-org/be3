@@ -4,22 +4,26 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 
-mod remapper;
+mod gui;
+mod raw;
 mod ui;
 
-use ui::InputSettingsView;
+use ui::InputRemapsView;
 
-const INTRINSIC_WIDTH: f32 = 420.0;
+const INTRINSIC_WIDTH: f32 = 520.0;
 const INTRINSIC_HEIGHT: f32 = 520.0;
 
-pub struct InputSettingsApp;
+pub const PLUGIN: &str = "be3.linux-settings";
+pub const MODULE: &str = "remapper.wasm";
 
-impl block_editor_beui::BeuiApp for InputSettingsApp {
+pub struct InputRemapsApp;
+
+impl block_editor_beui::BeuiApp for InputRemapsApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::InputSettingsContent>(&[]);
+        let loaded = editor.loaded::<block_editor_beui::be_block::InputRemapperContent>(&[]);
         view! {
             <Loaded loaded={loaded}>
-                <InputSettingsView editor={editor} />
+                <InputRemapsView editor={editor} />
             </Loaded>
         }
     }
@@ -28,3 +32,6 @@ impl block_editor_beui::BeuiApp for InputSettingsApp {
         Some(Vec2::new(INTRINSIC_WIDTH, INTRINSIC_HEIGHT))
     }
 }
+
+#[cfg(test)]
+mod tests;

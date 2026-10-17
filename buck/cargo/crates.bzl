@@ -10068,35 +10068,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/editors/display-settings": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "display_settings",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "display_settings",
-        "platforms": {
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
-                    "//third-party/rust:uuid-1.23.2",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/block-ui-test:block-ui-test",
-                ],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/editors/file-tree": {
         "binaries": [],
         "edition": "2024",
@@ -10188,66 +10159,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/editors/input-remaps": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "input_remaps",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "input_remaps",
-        "platforms": {
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
-                    "//crates/remap/rules:be-remap",
-                    "//crates/text-editor-core:text-editor-core",
-                    "//third-party/rust:uuid-1.23.2",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/block-ui-test:block-ui-test",
-                ],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/editors/input-settings": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "input_settings",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "input_settings",
-        "platforms": {
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
-                    "//third-party/rust:uuid-1.23.2",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/block-ui-test:block-ui-test",
-                ],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/editors/linux-desktop": {
         "binaries": [],
         "edition": "2024",
@@ -10271,6 +10182,37 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/block-plugin-api:block-plugin-api",
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/editors/linux-settings": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "linux_settings",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "linux_settings",
+        "platforms": {
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/remap/rules:be-remap",
+                    "//crates/text-editor-core:text-editor-core",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
                     "//crates/block-ui-test:block-ui-test",
                 ],
                 "test_features": [],
@@ -10636,35 +10578,6 @@ crates = {
                 "examples": {},
                 "features": [],
                 "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
-    "crates/editors/ui-settings": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "ui_settings",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "ui_settings",
-        "platforms": {
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
-                    "//third-party/rust:uuid-1.23.2",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/block-ui-test:block-ui-test",
-                ],
                 "test_features": [],
             },
         },
