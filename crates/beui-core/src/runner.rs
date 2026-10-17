@@ -579,6 +579,7 @@ impl Runner {
                 settled,
                 &output.unran_actions,
                 output.hits.as_deref(),
+                output.comps.as_deref(),
             );
             if let Some(after) = automation.wants_frame(self.context.now()) {
                 frame.repaint |= after.is_zero();

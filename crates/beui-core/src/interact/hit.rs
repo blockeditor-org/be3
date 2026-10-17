@@ -411,7 +411,7 @@ fn described(doc: &Document, rects: &Rects, id: NodeId, scale: f32) -> String {
         text.push_str(&format!(" #{test_id}"));
     }
     let made: Vec<&str> = std::iter::successors(Some(id), |id| doc.node_parent(*id))
-        .flat_map(|id| doc.component_names(id).iter().copied())
+        .flat_map(|id| doc.component_names(id).into_iter())
         .take(8)
         .collect();
     if !made.is_empty() {

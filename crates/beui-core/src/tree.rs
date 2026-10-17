@@ -86,7 +86,7 @@ impl ChildValue for NodeId {
     fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
         let root = *self;
         let Some(bindings) = component.find_extension::<NodeBindings>() else {
-            with_document(|document| document.name_component(root, component.name()));
+            with_document(|document| document.name_component(root, component.record()));
             return;
         };
         bindings.target.set(Some(root));
@@ -101,7 +101,7 @@ impl ChildValue for NodeId {
             scope.run(|| create_effect(move || write.set(watched.get())));
         }
         with_document(|document| {
-            document.name_component(root, component.name());
+            document.name_component(root, component.record());
             for state in states {
                 document.set_component_state_dyn(root, state);
             }

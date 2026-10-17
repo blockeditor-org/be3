@@ -4,6 +4,7 @@ pub mod base;
 pub mod callback;
 pub mod clipboard;
 pub mod color;
+pub mod component_tree;
 pub mod context;
 pub mod current;
 pub mod damage;
