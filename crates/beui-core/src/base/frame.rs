@@ -4,7 +4,7 @@ use crate::base::list::Align;
 use crate::color::{Color32, format_hex};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Outlined, Rects};
 use crate::painter::{Corners, Painter};
 use crate::pixel_grid::PixelGrid;
 use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal};
@@ -463,6 +463,17 @@ impl Element for FrameNode {
 
     fn kind(&self) -> &'static str {
         "frame"
+    }
+
+    fn outline(&self, grid: PixelGrid, rect: Rect) -> Option<Outlined> {
+        let outline = self.style.outline.filter(|outline| {
+            self.visible && outline.offset > 0.0 && outline.width > 0.0 && outline.color.alpha() > 0
+        })?;
+        let inner = self.box_rect(grid, rect);
+        Some(Outlined {
+            inner,
+            outer: inner.expand(outline.offset),
+        })
     }
 
     fn detail(&self) -> Option<String> {

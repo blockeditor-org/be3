@@ -728,7 +728,9 @@ view! {
 
 The focus ring is always the theme's accent, with no way to turn it off; like
 `:focus-visible` it shows only when the keyboard brings the focus there, so a
-click or a tap never shows it. `on_change` still reports the position for
+click or a tap never shows it. Moving the focus scrolls the control into view with
+its ring, but a ring drawn outside its control still needs room inside the scroll at the
+content's edges, which is why the padding goes inside a scroll. `on_change` still reports the position for
 anything else that wants it.
 With `fit` it measures as long as its content, so a box sized by what it holds
 can still scroll once it is squeezed.
