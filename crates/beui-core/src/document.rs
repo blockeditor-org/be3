@@ -1044,7 +1044,11 @@ impl Document {
     }
 
     pub fn hide(&mut self) {
-        self.viewport = None;
+        if self.viewport.take().is_some()
+            && let Some(root) = self.root
+        {
+            self.release_forgotten(root);
+        }
     }
 
     pub fn show_screen(&mut self, ctx: &Context, rect: Rect) {
