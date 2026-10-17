@@ -57,6 +57,11 @@ fn a_workspace_header_adds_into_that_workspace() {
         filter.excluded.contains(&files.into_bytes()),
         "a workspace is not offered as a block to add to itself"
     );
+    assert_eq!(
+        filter.place,
+        Some(BlockParent::Block(files).encode()),
+        "the picker makes what it creates or imports in the workspace itself"
+    );
     let picked = Uuid::from_u128(11);
     let text_type = Uuid::from_u128(7);
     fixture.test.reply(

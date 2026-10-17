@@ -3210,6 +3210,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:ciborium-0.2.2",
+                    "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -3225,6 +3226,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:ciborium-0.2.2",
+                    "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",
@@ -3240,6 +3242,7 @@ crates = {
                 "deps": [
                     "//third-party/rust:chacha20poly1305-0.10.1",
                     "//third-party/rust:ciborium-0.2.2",
+                    "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:rand-0.9.4",
                     "//third-party/rust:serde-1.0.228",
                     "//third-party/rust:sha2-0.10.9",

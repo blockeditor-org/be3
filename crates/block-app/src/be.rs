@@ -158,6 +158,7 @@ struct Kind {
     seed: worker::Seed,
     replace: worker::Seed,
     describe: fn(&[u8]) -> Option<be_block::Entries>,
+    preview: fn(&[u8]) -> Option<Content>,
     child: ChildOperations,
     merge: MergeContent,
     references: ContentReferences,
@@ -177,6 +178,7 @@ where
         seed: worker::seed::<C>,
         replace: worker::replace::<C>,
         describe: describe::<C>,
+        preview: preview::<C>,
         child: child_operations::<C>,
         merge: merge_content::<C>,
         references: content_references::<C>,
@@ -197,6 +199,7 @@ where
         seed: worker::seed::<C>,
         replace: worker::replace::<C>,
         describe: describe::<C>,
+        preview: preview::<C>,
         child: child_operations::<C>,
         merge: merge_content::<C>,
         references: content_references::<C>,
@@ -209,6 +212,16 @@ fn blank<C: be_block::BlockContent + Default>() -> Vec<u8> {
 
 fn describe<C: be_block::BlockContent>(bytes: &[u8]) -> Option<be_block::Entries> {
     Some(be_block::derived_metadata(&C::decode(bytes).ok()?))
+}
+
+fn preview<C: be_block::LiveEdit>(bytes: &[u8]) -> Option<Content> {
+    let content = C::decode(bytes).ok()?;
+    Some(Content::new(
+        C::CONTENT_TYPE,
+        bytes.to_vec(),
+        content.session_state(),
+        Some(be_block::derived_metadata(&content)),
+    ))
 }
 
 fn merge_content<C: be_block::Merge + Default>(
@@ -459,6 +472,7 @@ pub(crate) fn flush() {
 }
 
 pub(crate) fn open(block: Uuid, content_type: Uuid) {
+    show_staged(block);
     send(Command::Open {
         block,
         content_type,
@@ -487,6 +501,7 @@ pub(crate) fn hold(block: Uuid, content_type: Uuid) {
         .as_mut()
         .is_some_and(|stack| stack.held.insert(block));
     if fresh {
+        show_staged(block);
         send(Command::Open {
             block,
             content_type,
@@ -625,6 +640,22 @@ pub(crate) fn seed(block: Uuid, content_type: Uuid, bytes: Vec<u8>) {
     });
 }
 
+fn show_staged(block: Uuid) {
+    with_shared_mut(|shared| {
+        if shared.blocks.contains_key(&block) {
+            return;
+        }
+        let Some(content) = shared.staged.get(&block).and_then(|(content_type, bytes)| {
+            kind_of(*content_type).and_then(|kind| (kind.preview)(bytes))
+        }) else {
+            return;
+        };
+        shared.blocks.insert(block, content);
+        shared.previewed.insert(block);
+        shared.touch(block);
+    });
+}
+
 pub(crate) fn content(block: Uuid) -> Option<Content> {
     with_shared(|shared| shared.blocks.get(&block).cloned())?
 }
@@ -739,8 +770,10 @@ fn send(command: Command) {
 }
 
 pub(crate) fn busy() -> bool {
-    with_shared(|shared| shared.pending > 0 || shared.owing > 0 || !shared.graph.loaded)
-        .unwrap_or_default()
+    with_shared(|shared| {
+        shared.pending > 0 || shared.uploading > 0 || shared.owing > 0 || !shared.graph.loaded
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn seal_owed() {
@@ -904,7 +937,14 @@ pub(crate) fn placing(block: Uuid, placing: bool) {
 }
 
 pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
-    if let Some(node) = node(block)
+    let node = node(block);
+    if node
+        .as_ref()
+        .is_some_and(|node| node.parent == Some(parent))
+    {
+        return;
+    }
+    if let Some(node) = node
         && node.content_type
             != <be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
         && node.access.can_edit()
@@ -1059,13 +1099,18 @@ fn exported(graph: &Graph, block: Uuid) -> Option<(String, Vec<be_client::transf
 
 pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uuid, Uuid), String> {
     let blocks = be_client::transfer::renumber(be_client::transfer::decode(bytes)?);
-    let taken: std::collections::HashSet<String> = query(Query::All)
-        .iter()
-        .filter_map(|node| node.metadata.get(&be_block::ROW_PREFIX))
-        .filter(|prefix| !prefix.trim().is_empty())
-        .collect();
+    let taken: std::collections::HashSet<String> = with_shared(|shared| {
+        shared
+            .graph
+            .nodes()
+            .filter_map(|node| node.metadata.get(&be_block::ROW_PREFIX))
+            .filter(|prefix| !prefix.trim().is_empty())
+            .collect()
+    })
+    .unwrap_or_default();
     let author = account().ok_or("Sign in to import blocks.")?;
     let top = (blocks[0].id, blocks[0].block_type);
+    let mut imported = Vec::with_capacity(blocks.len());
     for mut block in blocks.iter().cloned() {
         if let Some(prefix) = block.metadata.get(&be_block::ROW_PREFIX)
             && taken.contains(&prefix)
@@ -1095,11 +1140,16 @@ pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uui
                 locked: false,
             });
         });
-        send(Command::Import {
-            block,
-            parent: placed,
-        });
+        if let Some(bytes) = &block.content {
+            with_shared_mut(|shared| {
+                shared
+                    .staged
+                    .insert(block.id, (block.block_type, bytes.clone()))
+            });
+        }
+        imported.push((block, placed));
     }
+    send(Command::Import(imported));
     Ok(top)
 }
 

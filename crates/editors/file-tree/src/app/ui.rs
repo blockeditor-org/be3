@@ -161,7 +161,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         else {
             return;
         };
-        picker.open_placed(
+        picker.open(
             editor,
             Some(id),
             [id].into_iter().collect::<HashSet<Uuid>>(),
@@ -854,19 +854,10 @@ impl Picker {
     }
 
     pub(crate) fn open(&self, editor: Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>) {
-        self.request(editor, parent, excluded, false);
+        self.request(editor, parent, excluded);
     }
 
-    pub(crate) fn open_placed(
-        &self,
-        editor: Editor,
-        parent: Option<Uuid>,
-        excluded: HashSet<Uuid>,
-    ) {
-        self.request(editor, parent, excluded, true);
-    }
-
-    fn request(&self, editor: Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>, placed: bool) {
+    fn request(&self, editor: Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>) {
         self.set_error.set(None);
         let inner = self.inner.get();
         inner.target.set(parent);
@@ -878,7 +869,7 @@ impl Picker {
                 block_types: Vec::new(),
                 excluded: excluded.into_iter().map(Uuid::into_bytes).collect(),
                 templates: false,
-                place: placed.then(|| place.encode()),
+                place: Some(place.encode()),
             },
         );
     }

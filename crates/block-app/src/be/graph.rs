@@ -50,6 +50,7 @@ pub(crate) struct Graph {
     floor: u64,
     pending: HashMap<Uuid, u32>,
     derived: HashMap<Uuid, Entries>,
+    referenced: HashMap<Uuid, Vec<Uuid>>,
     placing: std::collections::HashSet<Uuid>,
 }
 
@@ -68,6 +69,11 @@ impl Graph {
         for (block, derived) in &self.derived {
             if let Some(node) = loaded.get_mut(block) {
                 node.metadata.derived.clone_from(derived);
+            }
+        }
+        for (block, references) in &self.referenced {
+            if let Some(node) = loaded.get_mut(block) {
+                node.references.clone_from(references);
             }
         }
         self.nodes = loaded;
@@ -135,9 +141,26 @@ impl Graph {
         self.derived.remove(&block);
     }
 
+    pub(crate) fn refer(&mut self, block: Uuid, references: Vec<Uuid>) {
+        if let Some(node) = self.nodes.get_mut(&block)
+            && node.references != references
+        {
+            node.references.clone_from(&references);
+            self.revision += 1;
+        }
+        self.referenced.insert(block, references);
+    }
+
+    pub(crate) fn forget_references(&mut self, block: Uuid) {
+        self.referenced.remove(&block);
+    }
+
     fn insert(&mut self, mut node: Node) {
         if let Some(derived) = self.derived.get(&node.id) {
             node.metadata.derived.clone_from(derived);
+        }
+        if let Some(references) = self.referenced.get(&node.id) {
+            node.references.clone_from(references);
         }
         if self.nodes.get(&node.id) != Some(&node) {
             self.nodes.insert(node.id, node);
@@ -159,6 +182,10 @@ impl Graph {
         if self.nodes.remove(&block).is_some() {
             self.revision += 1;
         }
+    }
+
+    pub(crate) fn nodes(&self) -> impl Iterator<Item = &Node> {
+        self.nodes.values()
     }
 
     pub(crate) fn get(&self, block: Uuid) -> Option<&Node> {

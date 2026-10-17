@@ -18,6 +18,7 @@ use uuid::Uuid;
 use super::*;
 
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
+mod a_batch_answers_each_request_in_order;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
@@ -321,16 +322,17 @@ impl TestClient {
     }
 
     async fn upload(&mut self, store: &MemoryStore, hashes: &[Hash]) {
-        for hash in hashes {
-            let bytes = store.get(*hash).unwrap().unwrap();
-            let response = self
-                .send(|request| ClientMessage::PutObject { request, bytes })
-                .await;
-            assert!(
-                matches!(response, ServerMessage::Stored { hash: stored, .. } if stored == *hash),
-                "{response:?}"
-            );
-        }
+        let objects = hashes
+            .iter()
+            .map(|hash| be_protocol::ByteBuf::from(store.get(*hash).unwrap().unwrap()))
+            .collect();
+        let response = self
+            .send(|request| ClientMessage::PutObjects { request, objects })
+            .await;
+        assert!(
+            matches!(&response, ServerMessage::Stored { hashes: stored, .. } if stored == hashes),
+            "{response:?}"
+        );
     }
 
     async fn read_block(&mut self, block: Uuid) -> BlockSummary {

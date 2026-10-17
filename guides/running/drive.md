@@ -151,7 +151,7 @@ plugin is starting, owes a frame, holds unanswered input or has yet to answer a 
 an editor on screen waits for its block's content, while a plugin's change arrived after the
 frame's layout and is shown only by the next, while an account or organization request is
 pending, and while the block store has commands to carry out, edits it owes a seal (which a
-driven app asks for at once, rather than after the pause a person's edits wait for) or is
+driven app asks for at once unless `hurry` is off, below) or is
 still loading the organization's graph, and never while it shows its error screen. `drive --no-settle COMMAND` answers after the frame that took the input
 instead, to see the app part way through something, such as a plugin still loading. Work the
 app cannot see, such as a server push, is waited for with `drive wait TEXT` or `drive gone
@@ -163,6 +163,12 @@ own clock. Each command gives up after 30 seconds, or `drive --timeout=SECONDS`.
 a time, so an animation can be stopped at any point and a screenshot of it taken the same way
 every run, and an app that animates forever still settles. `drive clock run` starts it again.
 Anything else waiting on time, such as a plugin's frame timeout, waits for `pause` too.
+
+A driven app may take shortcuts a person never sees so that it settles sooner: block-app seals
+edits at once rather than after the pause a person's edits wait for. An app asks
+`Context::hurried` before taking one. `drive hurry off` turns them off until `drive hurry on`,
+so the app waits as it does in a window; time how long something takes to show with it off,
+such as `drive hurry off; drive --no-settle click TARGET; time drive wait TEXT`.
 
 `drive -` reads commands from standard input, one a line, quoted as a shell would, prints each
 before its answer and stops at the first that fails:

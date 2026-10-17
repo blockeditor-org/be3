@@ -817,14 +817,22 @@ impl ServerStore {
         Ok(())
     }
 
-    pub fn put_object(&self, bytes: &[u8]) -> Result<Hash, ServerError> {
-        if bytes.len() > MAX_OBJECT_BYTES {
+    pub fn put_objects(&self, objects: &[impl AsRef<[u8]>]) -> Result<Vec<Hash>, ServerError> {
+        if objects
+            .iter()
+            .any(|bytes| bytes.as_ref().len() > MAX_OBJECT_BYTES)
+        {
             return Err(ServerError::Refused(
                 ErrorCode::ObjectTooLarge,
                 format!("an object may not exceed {MAX_OBJECT_BYTES} bytes"),
             ));
         }
-        Ok(self.objects.put(bytes)?)
+        let hashes = objects
+            .iter()
+            .map(|bytes| self.objects.put(bytes.as_ref()))
+            .collect::<Result<Vec<Hash>, _>>()?;
+        self.objects.sync()?;
+        Ok(hashes)
     }
 
     pub fn get_object(&self, hash: Hash) -> Result<Option<Vec<u8>>, ServerError> {

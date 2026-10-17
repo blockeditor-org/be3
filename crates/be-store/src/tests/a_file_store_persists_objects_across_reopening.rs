@@ -7,7 +7,10 @@ fn a_file_store_persists_objects_across_reopening() {
     let manifest = {
         let vault =
             Vault::new(FileStore::open(&root).unwrap(), keys(8)).with_chunker(ChunkerConfig::SMALL);
-        vault.write(id(8), CONTENT, &data).unwrap()
+        let manifest = vault.write(id(8), CONTENT, &data).unwrap();
+        vault.store().sync().unwrap();
+        vault.store().sync().unwrap();
+        manifest
     };
 
     let reopened =

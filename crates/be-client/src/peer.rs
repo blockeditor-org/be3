@@ -18,7 +18,10 @@ use uuid::Uuid;
 
 use crate::{ClientError, connection::Connection, keys::KeyBook};
 
+mod import;
 mod rotation;
+
+pub use import::Imported;
 
 #[derive(Clone)]
 pub enum Credentials {
@@ -636,6 +639,7 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     pub async fn push(&self, hashes: &[Hash]) -> Result<(), ClientError> {
+        self.commits.vault().store().sync()?;
         let response = self
             .connection
             .request(|request| ClientMessage::MissingObjects {
@@ -649,24 +653,17 @@ impl<S: ObjectStore> Peer<S> {
         else {
             return Err(ClientError::Unexpected);
         };
-        for hash in missing {
-            let bytes = self
-                .commits
-                .vault()
-                .store()
-                .get(hash)?
-                .ok_or(ClientError::MissingObject(hash))?;
-            let response = self
-                .connection
-                .request(|request| ClientMessage::PutObject {
-                    request,
-                    bytes: bytes.clone(),
-                })
-                .await?;
-            match response {
-                ServerMessage::Stored { hash: stored, .. } if stored == hash => {}
-                _ => return Err(ClientError::Unexpected),
+        let mut pending = std::collections::VecDeque::new();
+        for group in self.object_groups(&missing)? {
+            if pending.len() >= import::IN_FLIGHT
+                && let Some(sent) = pending.pop_front()
+            {
+                sent.await?;
             }
+            pending.push_back(self.send_objects(group)?);
+        }
+        for sent in pending {
+            sent.await?;
         }
         Ok(())
     }
@@ -825,7 +822,7 @@ impl<S: ObjectStore> Peer<S> {
         extra_parents: Vec<CommitId>,
         defined: Option<Entries>,
     ) -> Result<Saved, ClientError> {
-        let references = self.resolve(block, content.references_in(self.organization()));
+        let references = self.references(block, content);
         let manifest = self
             .write_content(block, C::CONTENT_TYPE, &content.encode())
             .await?;
@@ -958,6 +955,10 @@ impl<S: ObjectStore> Peer<S> {
 
     pub fn set_resolver(&self, resolver: Resolver) {
         *self.resolver.lock().unwrap() = Some(resolver);
+    }
+
+    pub fn references<C: BlockContent>(&self, block: Uuid, content: &C) -> Vec<Uuid> {
+        self.resolve(block, content.references_in(self.organization()))
     }
 
     pub fn resolve(&self, block: Uuid, references: Vec<Uuid>) -> Vec<Uuid> {
@@ -1206,26 +1207,34 @@ impl<S: ObjectStore> Peer<S> {
         if moved.key.is_some_and(wrapped_under) {
             return Ok(keys);
         }
-        let mut pending = vec![moved];
-        while let Some(node) = pending.pop() {
-            if node.id != block && node.scope == Some(node.id) {
-                if let Some(nested) = self.keys.scope_key(node.id)
-                    && !wrapped_under(nested)
-                {
-                    keys.wrapped.push(self.keys.wrap(nested, under)?);
-                }
-                continue;
-            }
-            if !node.key.is_some_and(wrapped_under) {
-                for row in self.keys.keys_of(node.id, KeyKind::Data) {
-                    if self.keys.trusted(row.id) && !wrapped_under(row.id) {
-                        keys.wrapped.push(self.keys.wrap(row.id, under)?);
+        let mut level = vec![moved];
+        while !level.is_empty() {
+            let mut below = Vec::new();
+            for node in level {
+                if node.id != block && node.scope == Some(node.id) {
+                    if let Some(nested) = self.keys.scope_key(node.id)
+                        && !wrapped_under(nested)
+                    {
+                        keys.wrapped.push(self.keys.wrap(nested, under)?);
                     }
+                    continue;
                 }
-                let (_, fresh) = self.keys.mint_data(node.id, under)?;
-                keys.extend(fresh);
+                if !node.key.is_some_and(wrapped_under) {
+                    for row in self.keys.keys_of(node.id, KeyKind::Data) {
+                        if self.keys.trusted(row.id) && !wrapped_under(row.id) {
+                            keys.wrapped.push(self.keys.wrap(row.id, under)?);
+                        }
+                    }
+                    let (_, fresh) = self.keys.mint_data(node.id, under)?;
+                    keys.extend(fresh);
+                }
+                below.push(self.children(BlockParent::Block(node.id)));
             }
-            pending.extend(self.children(BlockParent::Block(node.id)).await?);
+            level = futures_util::future::try_join_all(below)
+                .await?
+                .into_iter()
+                .flatten()
+                .collect();
         }
         Ok(keys)
     }

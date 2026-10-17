@@ -85,6 +85,12 @@ Content-addressed, encrypted object storage.
   `chunks_in_range` are the streaming primitives.
 - `ObjectStore` is `MemoryStore` or `FileStore`. It is synchronous on purpose;
   network fetching is explicit (see `Peer::fetch`), so nothing blocks inside it.
+  `FileStore::put` writes atomically (a temporary file renamed into place) but
+  does not wait for the disk; `sync` makes everything put so far durable at
+  once (one `syncfs` on Linux and Android). Call it before telling anyone else
+  an object exists: `Peer::push` syncs before it uploads, and the server syncs
+  a `PutObjects` before it answers. A torn object left by a crash fails its
+  hash on reading and is dropped.
 - `Vault::put_value` stores a value (a commit, a version-control tree) as a
   CBOR map by field name (`encode_value`), so a later build can add a field to
   one, with `#[serde(default)]`, without a migration. Commits are encrypted, so
@@ -338,7 +344,8 @@ polling either.
 
 - `open` reads the head commit, fetches its chunks and decodes.
 - `save` chunks the content, uploads only what `MissingObjects` says the server
-  lacks, and publishes against the head it read.
+  lacks, in `PutObjects` of up to 2 MiB each, and publishes against the head it
+  read.
 - `fetch` verifies that bytes the server returns hash to the hash that was asked
   for. The server is not trusted with content, so do not drop this check.
 - `fetch_history` walks a commit's parents into the local store. Anything that
@@ -725,7 +732,9 @@ the next frame, and counts as pending for that block. While a block has a
 pending change the mirror ignores the server's echoes for it, which would
 otherwise show a state older than the one on screen; the worker settles the
 change when the server has answered, and refreshes the block from the server
-once nothing is pending.
+once nothing is pending. An open block's references come from its session's
+content rather than the server, so a child added to a folder is listed before
+the edit is sealed.
 
 ### Metadata
 
@@ -903,7 +912,20 @@ else its head, so it works for content types the app does not know.
 it: every block gets a new id, old ids in the content bytes and references are
 swapped for the new ones, a database whose row id prefix is taken here loses
 it, and each block is created and given its bytes as its first commit. The
-reply, `BlocksImported`, names the outermost block.
+reply, `BlocksImported`, names the outermost block. The tree is in the mirror
+at once and uploads in the background, as a task beside the worker's loop
+(`worker/uploads.rs`), so commands for other blocks are not held up.
+`Peer::import_blocks` mints every block's keys and writes its commit locally,
+needing the server only for the scope of the folder it goes into, then sends
+the objects as `PutObjects` and the creates and publishes as `Batch`es, one
+after another without waiting, since the server answers a connection's
+requests in order: a tree costs a few round trips, not a few per block. A
+command that needs a block still uploading waits for it, and one that rekeys
+everything below a block (moving, sharing or leaving it) waits until all of
+that has uploaded. Opening an imported block
+shows the bytes from the file (`Kind::preview`) until its session joins, so it
+needs no round trip to show. The picker imports straight into the folder it
+places in, since moving a tree into another workspace rekeys every block in it.
 
 ### Children, duplication and undo
 

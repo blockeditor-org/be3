@@ -85,6 +85,8 @@ Waiting:
   gone TEXT|#TEST_ID        wait until it is not
   pause MILLISECONDS        let that much time pass, by the app's clock
   clock stop / clock run    stop the app's clock, so time passes only with pause, frame by frame
+  hurry off / hurry on      stop or start the app's shortcuts for a driven run, such as saving at once,
+                            so it waits as it does for a person
 A TARGET is #TEST_ID, X,Y or X,Y,WIDTH,HEIGHT in the tree's pixels, or text found in one line of the tree.
 Every command that gives input waits for the app to settle and answers with what changed in the tree,
 at most 60 lines of it; before the command, --changes=N|all changes that, and --no-settle answers
@@ -182,6 +184,7 @@ pub struct Automation {
     ime: bool,
     back: Option<f32>,
     clock_stopped: bool,
+    unhurried: bool,
     closing: bool,
     focused: bool,
     picks: Vec<(FilePickRequest, FilePickAnswer)>,
@@ -202,6 +205,7 @@ impl Automation {
             ime: false,
             back: None,
             clock_stopped: false,
+            unhurried: false,
             closing: false,
             focused: true,
             picks: Vec::new(),
@@ -1110,6 +1114,15 @@ impl Automation {
                 self.clock_stopped = argument(0)? == "stop";
                 Ok(Started::Phase(Phase::Settling { before: None }))
             }
+            "hurry" => {
+                self.unhurried = match argument(0)? {
+                    "on" => false,
+                    "off" => true,
+                    other => return Err(format!("hurry takes on or off, not {other}")),
+                };
+                world.context.set_hurried(!self.unhurried);
+                Ok(Started::Phase(Phase::Settling { before: None }))
+            }
             "wait" | "gone" => Ok(Started::Phase(Phase::Waiting {
                 text: arguments.join(" "),
                 present: command == "wait",
@@ -1230,6 +1243,9 @@ impl Automation {
         }
         if self.clock_stopped {
             text.push_str("clock stopped: time passes only with pause\n");
+        }
+        if self.unhurried {
+            text.push_str("hurry off: the app waits as it does for a person\n");
         }
         if let Some(progress) = self.back {
             text.push_str(&format!("back gesture at {progress}\n"));
