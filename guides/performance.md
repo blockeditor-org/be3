@@ -78,8 +78,8 @@ or dump stacks to fold them yourself:
   The block store's worker is the thread `block-app-be`, and `:dev`'s embedded server runs on
   `tokio-rt-worker` threads.
 - Time block-app's waits as well as its work: an import or a create that uses little CPU but
-  takes long is waiting on round trips to the server, one after another. A driven app seals edits
-  at once (`seal_owed`) rather than after the pause a person's edits wait for, so anything shown
+  takes long is waiting on round trips to the server, one after another. Run `drive hurry off`
+  first (guides/running/drive.md): otherwise the app seals edits at once, and anything shown
   only once an edit is sealed looks faster under `drive` than in a window.
 - To fill an organization with data, create a company organization on the dev app's
   Organizations screen (the personal one has no agents), add an agent from its app menu

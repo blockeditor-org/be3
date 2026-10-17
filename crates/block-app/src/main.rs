@@ -320,7 +320,7 @@ impl beui::App for Shell {
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
         host::begin(context, &self.document);
-        if context.automated() {
+        if context.hurried() {
             be::seal_owed();
         }
         wayland::before(context, rect, &mut self.document);
