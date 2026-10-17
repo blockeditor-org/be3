@@ -74,7 +74,10 @@ use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
 use uuid::Uuid;
 
 #[cfg(not(target_arch = "wasm32"))]
-const APP_ID: &str = "Block";
+const APP_ID: &str = match option_env!("BE3_APP_ID") {
+    Some(id) => id,
+    None => "BlockDev",
+};
 
 pub(crate) fn build() -> &'static str {
     build_id::current().unwrap_or("no build id")

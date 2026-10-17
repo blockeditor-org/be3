@@ -16,6 +16,9 @@ guide is for what that does not cover.
   (guides/linux_desktop.md).
 
 `./scripts/buck run //crates/block-app:native` runs it in a window, with every plugin beside it.
+It keeps its data under the app id `BlockDev` (`~/.local/share/blockdev` on Linux), and what
+`./scripts/deploy` ships (`-c be3.app_id=Block`) under `Block`, so the two run side by side
+without sharing accounts or workspaces; a `-m release` build here is still `BlockDev`.
 
 ## In a window
 
