@@ -128,7 +128,7 @@ pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHan
                     }
                     PointerPhase::Move => engine.moved(event.pointer, event.pos, now),
                     PointerPhase::Up(PointerButton::Primary) => engine.released(event.pointer, now),
-                    PointerPhase::Cancel => engine.cancelled(event.pointer),
+                    PointerPhase::Cancel | PointerPhase::Gone => engine.cancelled(event.pointer),
                     _ => {}
                 }
             }
@@ -285,6 +285,7 @@ fn KeyCell(handle: KeyCapHandle, cap: RenderFn<KeyCapHandle>) -> NodeId {
 pub struct Face {
     pub glyph: &'static str,
     pub text: String,
+    pub after: String,
 }
 
 impl Face {
@@ -292,6 +293,7 @@ impl Face {
         Self {
             glyph: "",
             text: text.into(),
+            after: String::new(),
         }
     }
 
@@ -299,6 +301,15 @@ impl Face {
         Self {
             glyph,
             text: String::new(),
+            after: String::new(),
+        }
+    }
+
+    fn around(text: &str, glyph: &'static str, after: &str) -> Self {
+        Self {
+            glyph,
+            text: text.to_owned(),
+            after: after.to_owned(),
         }
     }
 }
@@ -319,7 +330,7 @@ pub fn face(value: Value) -> Face {
             Key::Tab => Face::glyph(ICON_KEYBOARD_TAB),
             Key::Enter => Face::glyph(ICON_KEYBOARD_RETURN),
             Key::Backspace => Face::glyph(ICON_BACKSPACE),
-            Key::Delete => Face::text("Del"),
+            Key::Delete => Face::text("»"),
             Key::Insert => Face::text("Ins"),
             Key::Home => Face::text("Home"),
             Key::End => Face::text("End"),
@@ -341,6 +352,8 @@ pub fn face(value: Value) -> Face {
             Modifier::Subscript => Face::glyph(ICON_SUBSCRIPT),
         },
         Value::CapsLock => Face::glyph(ICON_KEYBOARD_CAPSLOCK),
+        Value::Action(Action::DeleteWordLeft) => Face::around("«", ICON_MATCH_WORD, ""),
+        Value::Action(Action::DeleteWordRight) => Face::around("", ICON_MATCH_WORD, "»"),
         Value::Action(action) => Face::glyph(match action {
             Action::Copy => ICON_CONTENT_COPY,
             Action::Paste => ICON_CONTENT_PASTE,
@@ -348,8 +361,7 @@ pub fn face(value: Value) -> Face {
             Action::SelectAll => ICON_SELECT_ALL,
             Action::Undo => ICON_UNDO,
             Action::Redo => ICON_REDO,
-            Action::DeleteWordLeft => ICON_KEYBOARD_DOUBLE_ARROW_LEFT,
-            Action::DeleteWordRight => ICON_KEYBOARD_DOUBLE_ARROW_RIGHT,
+            Action::DeleteWordLeft | Action::DeleteWordRight => "",
         }),
         Value::Layer(layer) => match layer {
             Layer::Text => Face::text("ABC"),
@@ -357,8 +369,11 @@ pub fn face(value: Value) -> Face {
             Layer::Numpad => Face::text("123"),
             Layer::Emoji => Face::glyph(ICON_EMOJI_EMOTIONS),
         },
-        Value::Compose => Face::text("Comp"),
-        Value::Slider(_) => Face::default(),
+        Value::Compose => Face::glyph(ICON_GLYPHS),
+        Value::Slider(Slider::CursorLeft | Slider::SelectWords) => {
+            Face::glyph(ICON_KEYBOARD_ARROW_LEFT)
+        }
+        Value::Slider(Slider::CursorRight) => Face::glyph(ICON_KEYBOARD_ARROW_RIGHT),
     }
 }
 
@@ -388,7 +403,7 @@ pub fn description(value: Value) -> String {
         }
         .to_owned(),
         Value::Compose => "Compose".to_owned(),
-        Value::Slider(Slider::Cursor) => "Move the cursor".to_owned(),
+        Value::Slider(Slider::CursorLeft | Slider::CursorRight) => "Move the cursor".to_owned(),
         Value::Slider(Slider::SelectWords) => "Select words to delete".to_owned(),
     }
 }

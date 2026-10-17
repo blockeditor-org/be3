@@ -507,13 +507,13 @@ impl Engine {
             }
         };
         let step = match sliding.slider {
-            Slider::Cursor => self.step,
+            Slider::CursorLeft | Slider::CursorRight => self.step,
             Slider::SelectWords => self.step * WORD_STEPS,
         };
         let moved = ((pos.x - start) / step).trunc() as i32;
         let mods = pointer.mods;
         match sliding.slider {
-            Slider::Cursor => {
+            Slider::CursorLeft | Slider::CursorRight => {
                 let difference = moved - sliding.steps;
                 let key = match difference > 0 {
                     true => Key::ArrowRight,
@@ -568,7 +568,7 @@ impl Engine {
                 (Slider::SelectWords, None) => {
                     self.emit(Value::Key(Key::Backspace), pointer.mods, now)
                 }
-                (Slider::Cursor, _) => {}
+                (Slider::CursorLeft | Slider::CursorRight, _) => {}
             }
             return;
         }

@@ -35,7 +35,8 @@ pub enum Layer {
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum Slider {
-    Cursor,
+    CursorLeft,
+    CursorRight,
     SelectWords,
 }
 
@@ -281,8 +282,8 @@ const BACKSPACE: KeyDef = KeyDef::new(k(Key::Backspace))
     .action();
 
 const SPACE: KeyDef = KeyDef::new(c(' '))
-    .at(Slot::W, Value::Slider(Slider::Cursor))
-    .at(Slot::E, Value::Slider(Slider::Cursor))
+    .at(Slot::W, Value::Slider(Slider::CursorLeft))
+    .at(Slot::E, Value::Slider(Slider::CursorRight))
     .space();
 
 const COMPOSE: KeyDef = KeyDef::new(Value::Compose)
@@ -320,7 +321,7 @@ pub const QWERTY: Layout = Layout {
                 key('s').ne(c('§')).sw(c('ß')).se(SUPERSCRIPT),
                 key('d').se(SUBSCRIPT),
                 key('f').se(PASTE_PLAIN),
-                key('g').ne(c('-')).sw(c('_')).se(c('\u{20d7}')),
+                key('g').ne(c('-')).sw(c('_')),
                 key('h').ne(c('=')).sw(c('+')),
                 key('j').sw(c('{')).se(c('}')),
                 key('k').sw(c('[')).se(c(']')),

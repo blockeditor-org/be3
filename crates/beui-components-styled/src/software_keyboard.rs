@@ -180,6 +180,7 @@ fn Label(handle: KeyCapHandle, slot: Slot, locked: Memo<bool>, align: Align2) ->
     let label = create_memo(move || shown.get().map(face).unwrap_or_default());
     let glyph = create_memo(move || label.with(|face: &Face| face.glyph.to_owned()));
     let text = create_memo(move || label.with(|face: &Face| face.text.clone()));
+    let after = create_memo(move || label.with(|face: &Face| face.after.clone()));
     let chosen =
         create_memo(move || !center && shown.get().is_some() && pressed.get() == Some(shown.get()));
     let color = create_memo(move || match (locked.get(), chosen.get(), center) {
@@ -203,6 +204,7 @@ fn Label(handle: KeyCapHandle, slot: Slot, locked: Memo<bool>, align: Align2) ->
         <Frame align padding>
             <Text string={text} size color ellipsis={!center}>
                 <Icon glyph={glyph} size color />
+                {after}
             </Text>
         </Frame>
     }
@@ -350,7 +352,7 @@ fn PanelKey(keyboard: KeyboardHandle, value: Value) -> NodeId {
                     true => ColorRole::Pressed,
                     false => ColorRole::Surface,
                 });
-                let Face { glyph, text } = shown.clone();
+                let Face { glyph, text, .. } = shown.clone();
                 view! {
                     <Frame padding=Sides::all(GAP)>
                         <Frame fill radius=Radius::Sm align=Align2::CENTER>

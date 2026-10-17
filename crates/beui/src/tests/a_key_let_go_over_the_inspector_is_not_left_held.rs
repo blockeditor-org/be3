@@ -1,0 +1,41 @@
+use super::*;
+use crate::reactive::*;
+use crate::styled::software_keyboard::key_center;
+use crate::styled::*;
+use crate::unstyled::software_keyboard::{Layer, Value};
+
+#[test]
+fn a_key_let_go_over_the_inspector_is_not_left_held() {
+    let typed = Rc::new(RefCell::new(String::new()));
+    let seen = Rc::clone(&typed);
+    let document = build(move || {
+        view! {
+            <TextInput
+                @test_id="field"
+                value=String::new()
+                on_change={move |next: String| *seen.borrow_mut() = next}
+            />
+        }
+    });
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
+    harness.context().enable_keyboard();
+    harness.toggle_inspector();
+    harness.frame(Vec::new());
+    let field = harness.find("field");
+    harness.click(harness.center(field));
+    harness.context().toggle_keyboard();
+    harness.frame(Vec::new());
+    let keyboard = harness.context().keyboard_rect().expect("the keyboard is open");
+    let panel = harness.inspector_panel_rect();
+
+    let key = key_center(keyboard, Layer::Text, Value::Char('w')).expect("a w key");
+    harness.drag(key, panel.center());
+    harness.advance(Duration::from_secs(2));
+    harness.frame(Vec::new());
+    harness.frame(Vec::new());
+    assert_eq!(
+        *typed.borrow(),
+        "2",
+        "a drag up and right from w let go over the inspector types its corner once and is not left held to repeat"
+    );
+}

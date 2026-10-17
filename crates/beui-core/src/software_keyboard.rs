@@ -160,17 +160,25 @@ impl KeyboardState {
     }
 
     fn track(&mut self, input: &InputState, keyboard: Rect) -> bool {
+        let mut held = !self.pressed.is_empty();
+        let mut away = !self.elsewhere.is_empty();
         for event in &input.pointer_events {
             match event.phase {
                 PointerPhase::Down(_) => {
-                    let held = self.pressed.contains(&event.pointer)
+                    let known = self.pressed.contains(&event.pointer)
                         || self.elsewhere.contains(&event.pointer);
-                    if held {
+                    if known {
                         continue;
                     }
                     match self.elsewhere.is_empty() && keyboard.contains(event.pos) {
-                        true => self.pressed.push(event.pointer),
-                        false => self.elsewhere.push(event.pointer),
+                        true => {
+                            held = true;
+                            self.pressed.push(event.pointer);
+                        }
+                        false => {
+                            away = true;
+                            self.elsewhere.push(event.pointer);
+                        }
                     }
                 }
                 PointerPhase::Up(_) | PointerPhase::Cancel | PointerPhase::Gone => {
@@ -181,7 +189,7 @@ impl KeyboardState {
             }
         }
         let over = input.pointer.pos.is_some_and(|pos| keyboard.contains(pos));
-        !self.pressed.is_empty() || (self.elsewhere.is_empty() && over)
+        held || (!away && over)
     }
 }
 
