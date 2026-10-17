@@ -1679,8 +1679,13 @@ pub(crate) fn stacked_panels() -> StackedPanels {
     }
 }
 
+pub(crate) fn layers_of(document: &Document, scroll: NodeId) -> NodeId {
+    document.children(scroll)[0]
+}
+
 pub(crate) fn scrollbar_of(harness: &Harness, scroll: NodeId) -> NodeId {
-    let over = harness.document().children(scroll)[1];
+    let layers = layers_of(harness.document(), scroll);
+    let over = harness.document().children(layers)[1];
     harness.document().children(over)[0]
 }
 

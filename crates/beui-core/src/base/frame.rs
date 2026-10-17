@@ -4,7 +4,7 @@ use crate::base::list::Align;
 use crate::color::{Color32, format_hex};
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
-use crate::node::{Element, NodeId, NodeOf, Rects};
+use crate::node::{Element, NodeId, NodeOf, Outlined, Rects};
 use crate::painter::{Corners, Painter};
 use crate::pixel_grid::PixelGrid;
 use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal};
@@ -90,6 +90,14 @@ pub struct Sides {
     pub top: f32,
     pub right: f32,
     pub bottom: f32,
+}
+
+impl std::ops::Neg for Sides {
+    type Output = Sides;
+
+    fn neg(self) -> Sides {
+        Sides::new(-self.left, -self.top, -self.right, -self.bottom)
+    }
 }
 
 impl Sides {
@@ -366,7 +374,7 @@ impl Element for FrameNode {
             }
             None => Vec2::ZERO,
         };
-        let padded = inner + padding;
+        let padded = (inner + padding).max(Vec2::ZERO);
         let size = grid.snap_vec(vec2(
             self.width.within(available.x, padded.x),
             self.height.within(available.y, padded.y),
@@ -463,6 +471,17 @@ impl Element for FrameNode {
 
     fn kind(&self) -> &'static str {
         "frame"
+    }
+
+    fn outline(&self, grid: PixelGrid, rect: Rect) -> Option<Outlined> {
+        let outline = self.style.outline.filter(|outline| {
+            self.visible && outline.offset > 0.0 && outline.width > 0.0 && outline.color.alpha() > 0
+        })?;
+        let inner = self.box_rect(grid, rect);
+        Some(Outlined {
+            inner,
+            outer: inner.expand(outline.offset),
+        })
     }
 
     fn detail(&self) -> Option<String> {

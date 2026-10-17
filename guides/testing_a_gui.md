@@ -199,9 +199,13 @@ way for the test to fail.
 - snapshot(name), and every record() before it, also fails on what the frame shows out of
   bounds (beui-core's `Document::overflows`): a node cut off by a clip that no scroll or
   pannable canvas can move it out from under - the region's edge, a sidebar too narrow for a
-  row of controls - and text drawn outside its own box. Each line names the node, its nearest
-  ancestor with a test id, and the two rectangles. Fix the layout - wrap or ellipsize the text,
-  let the row shrink (`ItemSize::Intrinsic.shrink(1.0)`), scroll it - rather than the test.
+  row of controls - text drawn outside its own box, and an outline drawn outside a frame (a
+  focus ring) that a clip cuts while the frame itself shows whole. Each line names the node, its
+  nearest ancestor with a test id, and the two rectangles. Fix the layout - wrap or ellipsize the
+  text, let the row shrink (`ItemSize::Intrinsic.shrink(1.0)`), scroll it, put the padding
+  inside a scroll around its content, or give a scroll inside a padded surface `bleed`, so a ring at its edge has room - rather than the test.
+  beui-demo's `tabbing_through_every_page_shows_each_focus_ring_whole` tabs through every
+  catalog page and fails on any such ring, since a painting rarely has the focus showing.
 - ./scripts/buck run //crates/paint-snapshot:example-rasterize -- snapshots/<crate>.<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write.

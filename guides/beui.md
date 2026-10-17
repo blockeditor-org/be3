@@ -740,8 +740,16 @@ view! {
 
 The focus ring is always the theme's accent, with no way to turn it off; like
 `:focus-visible` it shows only when the keyboard brings the focus there, so a
-click or a tap never shows it. `on_change` still reports the position for
-anything else that wants it.
+click or a tap never shows it. Moving the focus scrolls the control into view with
+its ring, but a ring drawn outside its control still needs room inside the scroll at the
+content's edges, which is why the padding goes inside a scroll. A scroll that is one part of
+a padded surface, its content lined up with what sits beside it, takes `bleed` instead
+(`Bleed::POPOVER`, `Bleed::CARD`, with `.top(false)` and its siblings to keep a side in): the
+scroll and its scrollbar reach out into the surface's padding up to its border, and the content
+is padded back in by as much, so it lines up as before and its rings have the padding to draw
+in. The unstyled `Scroll` takes the same as `Sides`, which it builds from a `Frame` with that much
+negative padding around it; a negative side of a `Frame`'s padding lays its child out that far
+past the frame. `on_change` still reports the position for anything else that wants it.
 With `fit` it measures as long as its content, so a box sized by what it holds
 can still scroll once it is squeezed.
 With `max_length` the scroll is as long as what it holds, up to that length, and

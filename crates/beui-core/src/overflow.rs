@@ -5,14 +5,17 @@ use crate::base::list::Direction;
 use crate::base::offset::OffsetNode;
 use crate::document::Document;
 use crate::geometry::Rect;
-use crate::node::{NodeId, SpaceId};
+use crate::node::{NodeId, Rects, SpaceId};
 
 const TOLERANCE: f32 = 1.0;
+const EXACT: f32 = 0.01;
+const OUTLINE_SEARCH: usize = 64;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
 pub enum OverflowKind {
     CutOff,
     Spills,
+    RingCut,
 }
 
 #[derive(Clone, Debug)]
@@ -29,6 +32,7 @@ impl fmt::Display for Overflow {
         let what = match self.kind {
             OverflowKind::CutOff => "is cut off by a clip nothing scrolls",
             OverflowKind::Spills => "draws outside its own box",
+            OverflowKind::RingCut => "has its outline cut by a clip while all of its box shows",
         };
         let rect = self.rect;
         let bounds = self.bounds;
@@ -67,6 +71,12 @@ impl Document {
             if cut && !parent_cut {
                 found.push(self.overflow(id, OverflowKind::CutOff, rect, bounds));
             }
+            if let Some(outlined) = self.arena.get(id).outline(self.pixel_grid(), rect) {
+                let shown = self.shown_area(id);
+                if contains(shown, outlined.inner) && !contains(shown, outlined.outer) {
+                    found.push(self.overflow(id, OverflowKind::RingCut, outlined.outer, shown));
+                }
+            }
             if let Some(ink) = self.arena.get(id).ink() {
                 let ink = ink.translate(rect.min.to_vec2());
                 if ink.is_positive() && !within(ink, rect) {
@@ -78,6 +88,35 @@ impl Document {
             }
         }
         found
+    }
+
+    fn shown_area(&self, id: NodeId) -> Rect {
+        self.rects
+            .clips_above(&id)
+            .into_iter()
+            .fold(Rect::EVERYTHING, |shown, (_, clip)| shown.intersect(clip))
+    }
+
+    pub(crate) fn outlined_extent(&self, rects: &Rects, id: NodeId) -> Option<Rect> {
+        let mut extent = rects.get(&id)?;
+        let grid = self.pixel_grid();
+        let mut pending = vec![id];
+        let mut visited = 0;
+        while let Some(node) = pending.pop() {
+            visited += 1;
+            if visited > OUTLINE_SEARCH || !self.arena.contains(node) {
+                break;
+            }
+            let element = self.arena.get(node);
+            if let Some(outlined) = rects
+                .get(&node)
+                .and_then(|rect| element.outline(grid, rect))
+            {
+                extent = extent.union(outlined.outer);
+            }
+            pending.extend(element.live_children());
+        }
+        Some(extent)
     }
 
     fn reachable(&self, id: NodeId) -> Rect {
@@ -165,6 +204,14 @@ impl Document {
 
 fn within(inner: Rect, outer: Rect) -> bool {
     let outer = outer.expand(TOLERANCE);
+    inner.min.x >= outer.min.x
+        && inner.min.y >= outer.min.y
+        && inner.max.x <= outer.max.x
+        && inner.max.y <= outer.max.y
+}
+
+fn contains(outer: Rect, inner: Rect) -> bool {
+    let outer = outer.expand(EXACT);
     inner.min.x >= outer.min.x
         && inner.min.y >= outer.min.y
         && inner.max.x <= outer.max.x

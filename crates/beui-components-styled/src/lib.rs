@@ -96,7 +96,7 @@ pub use number_input::{NumberInput, number_input_field, number_input_text};
 pub use popover::Popover;
 pub use progress::Progress;
 pub use responsive_tabs::{ResponsiveTabs, responsive_tabs_selected};
-pub use scroll::Scroll;
+pub use scroll::{Bleed, Scroll};
 pub use scrollbar::Scrollbar;
 pub use select::{Select, select_open, select_selected};
 pub use selectable_text::SelectableText;

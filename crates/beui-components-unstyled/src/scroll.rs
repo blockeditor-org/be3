@@ -441,6 +441,7 @@ impl Motion {
 fn Scrolling(
     direction: Prop<Direction>,
     fit: bool,
+    bleed: Prop<Sides>,
     tab_stop: bool,
     focus_color: Prop<Color32>,
     scrollbar: ScrollbarStyle,
@@ -535,65 +536,68 @@ fn Scrolling(
             .press()
             .is_some_and(|press| navigates(press.key) && motion.get().key(press))
     });
+    let outset = create_memo(move || -bleed.get());
     view! {
-        <Layers>
-            <Interactive
-                focusable=true
-                tab_stop
-                on_focus_change={move |focused: bool| set_focused.set(focused)}
-                on_key={move |press: KeyPress| motion.get().key(press)}
-                scroll_axis={axis}
-                @node_ref=&catcher
-                claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                    motion.get().flinging() && under(&catcher_rect, pos)
-                }}
-                on_press={move |_: PointerPress| motion.get().stop_fling()}
-                on_hover_move={move |press: PointerPress| {
-                    let at_edge = bar_width > 0.0
-                        && untrack(|| position.get()).max_offset() > 0.0
-                        && near_edge(untrack(|| edge_axis.get()), press, bar_width);
-                    if untrack(|| near.get()) != at_edge {
-                        set_near.set(at_edge);
-                    }
-                }}
-                on_hover_change={move |inside: bool| {
-                    if !inside && untrack(|| near.get()) {
-                        set_near.set(false);
-                    }
-                }}
-                on_scroll={move |gesture: ScrollGesture| motion.get().wheel(gesture)}
-                on_scroll_drag={move |gesture: DragGesture| motion.get().drag(gesture)}
-                on_autoscroll={move |gesture: AutoscrollGesture| {
-                        let marking = (!gesture.ended).then_some(gesture.origin);
-                        if untrack(|| origin.get()) != marking {
-                            set_origin.set(marking);
-                        }
-                        motion.get().autoscroll(gesture);
+        <Frame padding={outset}>
+            <Layers>
+                <Interactive
+                    focusable=true
+                    tab_stop
+                    on_focus_change={move |focused: bool| set_focused.set(focused)}
+                    on_key={move |press: KeyPress| motion.get().key(press)}
+                    scroll_axis={axis}
+                    @node_ref=&catcher
+                    claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
+                        motion.get().flinging() && under(&catcher_rect, pos)
                     }}
-            >
-                <Frame
-                    outline={focus_outline(focused, focus_color, FOCUS_RING_WIDTH, FOCUS_RING_INSET)}
+                    on_press={move |_: PointerPress| motion.get().stop_fling()}
+                    on_hover_move={move |press: PointerPress| {
+                        let at_edge = bar_width > 0.0
+                            && untrack(|| position.get()).max_offset() > 0.0
+                            && near_edge(untrack(|| edge_axis.get()), press, bar_width);
+                        if untrack(|| near.get()) != at_edge {
+                            set_near.set(at_edge);
+                        }
+                    }}
+                    on_hover_change={move |inside: bool| {
+                        if !inside && untrack(|| near.get()) {
+                            set_near.set(false);
+                        }
+                    }}
+                    on_scroll={move |gesture: ScrollGesture| motion.get().wheel(gesture)}
+                    on_scroll_drag={move |gesture: DragGesture| motion.get().drag(gesture)}
+                    on_autoscroll={move |gesture: AutoscrollGesture| {
+                            let marking = (!gesture.ended).then_some(gesture.origin);
+                            if untrack(|| origin.get()) != marking {
+                                set_origin.set(marking);
+                            }
+                            motion.get().autoscroll(gesture);
+                        }}
                 >
-                    <List direction={content_axis} spacing=0.0>
-                        {node} @sizing={content_sizing(fit)}
-                        <ShowKeepAlive condition={marked}>
-                            <Overlay
-                                anchor
-                                placement=Placement::Around
-                                policy=LayerPolicy::Inert
-                                traps_focus=false
-                                open={marked}
-                            >
-                                {marker.call(marker_axis)}
-                            </Overlay>
-                        </ShowKeepAlive>
-                    </List>
-                </Frame>
-            </Interactive>
-            <List direction={across} justify=Justify::End spacing=0.0>
-                {scrollbar.over(bar)}
-            </List>
-        </Layers>
+                    <Frame
+                        outline={focus_outline(focused, focus_color, FOCUS_RING_WIDTH, FOCUS_RING_INSET)}
+                    >
+                        <List direction={content_axis} spacing=0.0>
+                            {node} @sizing={content_sizing(fit)}
+                            <ShowKeepAlive condition={marked}>
+                                <Overlay
+                                    anchor
+                                    placement=Placement::Around
+                                    policy=LayerPolicy::Inert
+                                    traps_focus=false
+                                    open={marked}
+                                >
+                                    {marker.call(marker_axis)}
+                                </Overlay>
+                            </ShowKeepAlive>
+                        </List>
+                    </Frame>
+                </Interactive>
+                <List direction={across} justify=Justify::End spacing=0.0>
+                    {scrollbar.over(bar)}
+                </List>
+            </Layers>
+        </Frame>
     }
 }
 
@@ -603,6 +607,7 @@ pub fn Scroll(
     #[prop(default = None)] reveal: Prop<Option<usize>>,
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
+    #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
     #[prop(default = true)] tab_stop: bool,
     #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
@@ -628,6 +633,7 @@ pub fn Scroll(
         <Scrolling
             direction
             fit
+            bleed
             tab_stop
             focus_color
             scrollbar
@@ -644,7 +650,11 @@ pub fn Scroll(
                         report.call(position);
                     }}
                 >
-                    <List @node_ref=&rows direction={rows_direction} spacing=0.0>{children}</List>
+                    <Frame padding={bleed}>
+                        <List @node_ref=&rows direction={rows_direction} spacing=0.0>
+                            {children}
+                        </List>
+                    </Frame>
                 </Offset>
             </Fade>
         </Scrolling>

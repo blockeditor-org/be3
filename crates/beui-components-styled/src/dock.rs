@@ -243,7 +243,7 @@ fn DockTabChrome(
             radius=Radius::Md
             height=TAB_HEIGHT
             padding={Sides::horizontal(TAB_PADDING_HORIZONTAL)}
-            border={focus_border(focused, Border::FOCUS.offset(1.0))}
+            border={focus_border(focused, Border::FOCUS)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
