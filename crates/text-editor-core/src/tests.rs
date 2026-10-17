@@ -30,6 +30,7 @@ mod ime_delete_surrounding_removes_text_beside_the_selection;
 mod ime_replace_text_swaps_a_typed_word_for_a_suggestion;
 mod ime_state_reports_the_text_around_the_selection;
 mod indentation_width_is_configured_through_operations;
+mod line_selection_at_the_end;
 mod markdown_block_styles;
 mod markdown_checkbox_toggle;
 mod markdown_formatting;
@@ -65,6 +66,12 @@ mod toggle_collapse_at_leaves_a_cursor_outside_the_section_untouched;
 mod toggle_collapse_at_moves_the_cursor_out_of_a_newly_hidden_section;
 mod toml_syn_hl;
 mod up_arrow_skips_past_a_collapsed_section;
+mod word_bounds_preserve_character_byte_offsets;
+mod word_selection_after_a_space;
+mod word_selection_at_the_end;
+mod word_selection_before_a_space;
+mod word_selection_dragging_from_the_end_keeps_the_initial_word;
+mod word_selection_in_whitespace;
 mod zig_syn_hl;
 
 fn rendered_highlight(tester: &mut EditorTester, offset: usize) -> String {

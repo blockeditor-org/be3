@@ -104,6 +104,11 @@ impl DocumentTest {
         self.click_at(rect.center());
     }
 
+    pub fn double_click_at(&mut self, pos: Pos2) {
+        self.click_at(pos);
+        self.click_at(pos);
+    }
+
     pub fn click_at(&mut self, pos: Pos2) {
         self.frame(vec![beui::Event::PointerMoved(pos)]);
         for pressed in [true, false] {

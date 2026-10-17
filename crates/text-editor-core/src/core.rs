@@ -1850,43 +1850,45 @@ impl Core {
                 return;
             }
         }
-        let anchor_left = to_boundary(
-            document.bytes(),
-            anchor,
-            LRDirection::Left,
-            drag.selection_mode.stop,
-            BoundaryMode::Select,
-            true,
-            self.cursor_stops(),
-        );
-        let focus_left = to_boundary(
-            document.bytes(),
-            focus,
-            LRDirection::Left,
-            drag.selection_mode.stop,
-            BoundaryMode::Select,
-            true,
-            self.cursor_stops(),
-        );
+        let bounds = |index| {
+            if drag.selection_mode.select {
+                match drag.selection_mode.stop {
+                    CursorLeftRightStop::Word => return word_bounds(document.bytes(), index),
+                    CursorLeftRightStop::Line => {
+                        return (
+                            line_start(document.bytes(), index),
+                            next_line_start(document.bytes(), index),
+                        );
+                    }
+                    _ => {}
+                }
+            }
+            let left = to_boundary(
+                document.bytes(),
+                index,
+                LRDirection::Left,
+                drag.selection_mode.stop,
+                BoundaryMode::Select,
+                true,
+                self.cursor_stops(),
+            );
+            if !drag.selection_mode.select {
+                return (left, left);
+            }
+            let right = to_boundary(
+                document.bytes(),
+                index,
+                LRDirection::Right,
+                drag.selection_mode.stop,
+                BoundaryMode::Select,
+                false,
+                self.cursor_stops(),
+            );
+            (left, right)
+        };
+        let (anchor_left, anchor_right) = bounds(anchor);
+        let (focus_left, focus_right) = bounds(focus);
         let selection = if drag.selection_mode.select {
-            let anchor_right = to_boundary(
-                document.bytes(),
-                anchor,
-                LRDirection::Right,
-                drag.selection_mode.stop,
-                BoundaryMode::Select,
-                false,
-                self.cursor_stops(),
-            );
-            let focus_right = to_boundary(
-                document.bytes(),
-                focus,
-                LRDirection::Right,
-                drag.selection_mode.stop,
-                BoundaryMode::Select,
-                false,
-                self.cursor_stops(),
-            );
             let minimum = anchor_left
                 .min(anchor_right)
                 .min(focus_left)
@@ -2251,6 +2253,51 @@ fn surrounding_inline_code_markers(
     } else {
         None
     }
+}
+
+pub fn word_bounds(bytes: &[u8], index: usize) -> (usize, usize) {
+    let index = index.min(bytes.len());
+    let after = |at: usize| {
+        let byte = *bytes.get(at)?;
+        let width = utf8_width(byte).max(1);
+        let character = bytes
+            .get(at..at + width)
+            .and_then(|slice| std::str::from_utf8(slice).ok())
+            .and_then(|text| text.chars().next());
+        Some((
+            character.unwrap_or('\u{fffd}'),
+            character.map_or(1, char::len_utf8),
+        ))
+    };
+    let before = |at: usize| {
+        (at.saturating_sub(4)..at).find_map(|start| {
+            let (character, width) = after(start)?;
+            (start + width == at).then_some((character, width))
+        })
+    };
+    let word =
+        |character: char| character.is_alphanumeric() || character == '_' || character == '\'';
+    if !after(index).is_some_and(|(c, _)| word(c)) && !before(index).is_some_and(|(c, _)| word(c)) {
+        return match after(index) {
+            Some((_, width)) => (index, index + width),
+            None => (index - before(index).map_or(0, |(_, width)| width), index),
+        };
+    }
+    let mut start = index;
+    while let Some((character, width)) = before(start) {
+        if !word(character) {
+            break;
+        }
+        start -= width;
+    }
+    let mut end = index;
+    while let Some((character, width)) = after(end) {
+        if !word(character) {
+            break;
+        }
+        end += width;
+    }
+    (start, end)
 }
 
 fn line_start(bytes: &[u8], index: usize) -> usize {

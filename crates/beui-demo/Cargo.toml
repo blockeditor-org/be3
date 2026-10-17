@@ -17,10 +17,10 @@ text-editor-core = { path = "../text-editor-core" }
 beui = { path = "../beui" }
 
 [dev-dependencies]
+beui-core = { path = "../beui-core" }
 block-ui-test = { path = "../block-ui-test" }
 
 [target.'cfg(not(target_arch = "wasm32"))'.dev-dependencies]
-beui-core = { path = "../beui-core" }
 beui-renderer-wgpu = { path = "../beui-renderer-wgpu" }
 pollster = "0.4"
 
