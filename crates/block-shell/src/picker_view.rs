@@ -78,10 +78,17 @@ fn ChooseDialog(
                 open={wide}
                 title="Add block"
                 width=PICKER_WIDTH
+                scrolls=false
                 on_dismiss={move || act.call(PickAction::Close)}
             >
                 <List spacing=10.0>
-                    <ChooseBody workspace held act phone=false />
+                    <ChooseBody
+                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                        workspace={workspace}
+                        held={held}
+                        act={act}
+                        phone=false
+                    />
                     <Separator />
                     <List direction=Direction::Horizontal justify=Justify::End spacing=8.0>
                         <Button
@@ -186,8 +193,8 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
         })
     });
     let height = match phone {
-        true => None,
-        false => Some(PICKER_HEIGHT),
+        true => Extent::INTRINSIC,
+        false => Extent::at_most(PICKER_HEIGHT),
     };
     let (tab_act, search_act, tile_act, link_act, import_act) = (act, act, act, act, act);
     view! {
@@ -211,7 +218,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                     <ChoiceOption label="Import" />
                 }}
             />
-            <Frame height=height>
+            <Frame @sizing={ItemSize::Intrinsic.shrink(1.0)} height=height>
                 <List spacing=8.0>
                     <Show condition={tiling}>
                         <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
