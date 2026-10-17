@@ -155,8 +155,7 @@ pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHan
                         </Interactive>
                     },
                 }
-            }
-            </Dynamic>
+            }</Dynamic>
         </List>
     }
 }
@@ -187,8 +186,7 @@ fn KeyRows(
                         cap
                     />
                 }
-            }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }
@@ -261,8 +259,7 @@ fn KeyRow(
                         }
                     }
                 }
-            }
-            </ForEach>
+            }</ForEach>
         </List>
     }
 }
