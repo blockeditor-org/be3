@@ -277,7 +277,7 @@ impl State {
 
     fn select_row(&self, key: Key) {
         self.select(key.node());
-        if let Key::Component(..) = key {
+        if matches!(key, Key::Component(..) | Key::Internals(..) | Key::Text(..)) {
             self.selected_component.set(Some(key));
         }
     }
@@ -1054,12 +1054,7 @@ impl Inspector {
         match self.state().tab.get() {
             InspectorTab::Beui => tree::path(target, id),
             InspectorTab::Components => {
-                let mut path = tree::component_path(target, id);
-                let chosen = self.state().selected_component.get();
-                if let Some(end) = path.iter().position(|key| Some(*key) == chosen) {
-                    path.truncate(end + 1);
-                }
-                path
+                tree::component_path(target, id, self.state().selected_component.get())
             }
             InspectorTab::AccessKit => tree::accesskit_path(target, id),
             InspectorTab::Performance | InspectorTab::Simulation => Vec::new(),

@@ -71,6 +71,9 @@ pub fn interact(document: &mut Document, ctx: &Context, rects: &Rects, root: Nod
     }
     run_in(document, |doc| {
         pointer::end_frame(doc, &frame);
+        if let Some(internals) = ctx.comps_query() {
+            ctx.answer_comps(doc.component_tree().text(doc, internals));
+        }
         if let Some(pos) = ctx.hit_query()
             && rects.visible(&root).is_some_and(|rect| rect.contains(pos))
         {

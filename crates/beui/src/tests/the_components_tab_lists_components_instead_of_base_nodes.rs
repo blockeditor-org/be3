@@ -18,6 +18,13 @@ fn the_components_tab_lists_components_instead_of_base_nodes() {
 
     assert_eq!(
         harness.tree(),
-        ["List", "  ButtonFace", "    Frame", "      Text"]
+        [
+            "primitives::List",
+            "  beui::tests::ButtonFace",
+            "    internals",
+            "      primitives::Frame",
+            "        primitives::Text",
+            "          \"Save\""
+        ]
     );
 }

@@ -8,7 +8,7 @@ fn picking_a_node_in_the_components_tab_selects_the_component_that_built_it() {
             <ButtonFace label="Save" />
         }]
     });
-    let mut harness = Harness::new(document);
+    let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.toggle_inspector();
     harness.click(harness.components_tab_center());
     harness.frame(Vec::new());
@@ -22,11 +22,14 @@ fn picking_a_node_in_the_components_tab_selects_the_component_that_built_it() {
     harness.frame(Vec::new());
 
     assert_eq!(harness.inspector().state().selected.get(), Some(face));
-    assert_eq!(harness.selected_row().as_deref(), Some("Frame"));
+    assert_eq!(
+        harness.selected_row().as_deref(),
+        Some("beui::tests::ButtonFace")
+    );
 
-    harness.click(harness.row_center(1));
+    harness.click(harness.row_center(3));
     harness.frame(Vec::new());
 
     assert_eq!(harness.inspector().state().selected.get(), Some(face));
-    assert_eq!(harness.selected_row().as_deref(), Some("ButtonFace"));
+    assert_eq!(harness.selected_row().as_deref(), Some("primitives::Frame"));
 }

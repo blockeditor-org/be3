@@ -85,6 +85,12 @@ so dialogs, the file tree and every editor read like the host's own controls.
   made in and what it handles, then what forwarded input goes to and which overlays the press
   would dismiss. Use it when a press goes to the wrong place or nowhere. It sees the host's own
   document only; in block-app a press over a plugin ends at that plugin region's catcher.
+- `drive comps` prints the host document's component tree with module-qualified names, text
+  leaves and `#test_id`s. Caller-supplied children appear beneath the component; components
+  built by its body are hidden under `internals`. `drive comps --internals` includes those
+  implementation trees too. This is the same tree as the inspector's Comp tab; the inspector
+  initially collapses internals of components defined in `beui_*` crates and expands others.
+  Like `hit`, this sees the host document, not plugin documents.
 - `drive state` is what the tree does not say: the window's size, scale and focus, whether it is
   fullscreen, the cursor's shape, the pointer and the fingers down, held keys, an input
   method's composition, a back gesture under way, files being dragged in, and any open file
