@@ -1,6 +1,6 @@
 use beui::{
-    Color32, Document, Event, Key, KeyChord, KeyPress, Modifiers, PointerButton, Pos2, Rect,
-    TouchId, TouchPhase, Vec2,
+    Color32, Document, Event, Key, KeyChord, KeyPress, Modifiers, Pen, PenPhase, PointerButton,
+    Pos2, Rect, TouchId, TouchPhase, Vec2,
 };
 use block_editor_beui::be_block::LiveEdit;
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
@@ -1293,6 +1293,15 @@ impl<A: BeuiApp> BeuiTest<A> {
             phase,
             pos,
             force: None,
+        });
+    }
+
+    pub fn pen(&mut self, phase: PenPhase, pos: Pos2, pressure: f32) {
+        self.push(Event::Pen {
+            phase,
+            pos,
+            pressure,
+            pen: Pen::default(),
         });
     }
 

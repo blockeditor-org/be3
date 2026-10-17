@@ -231,6 +231,8 @@ pub fn press_at(
         clicks,
         modifiers,
         touch,
+        pressure: None,
+        pen: None,
     }
 }
 

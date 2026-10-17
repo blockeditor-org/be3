@@ -7,6 +7,9 @@ use wayland_protocols::wp::keyboard_shortcuts_inhibit::zv1::client::{
     zwp_keyboard_shortcuts_inhibit_manager_v1, zwp_keyboard_shortcuts_inhibitor_v1,
 };
 use wayland_protocols::wp::single_pixel_buffer::v1::client::wp_single_pixel_buffer_manager_v1;
+use wayland_protocols::wp::tablet::zv2::client::{
+    zwp_tablet_manager_v2, zwp_tablet_seat_v2, zwp_tablet_tool_v2, zwp_tablet_v2,
+};
 use wayland_protocols::wp::tearing_control::v1::client::{
     wp_tearing_control_manager_v1, wp_tearing_control_v1,
 };
@@ -31,6 +34,20 @@ pub(crate) struct Protocols {
     pub(crate) icon_sizes: Vec<i32>,
     pub(crate) text_entered: bool,
     pub(crate) text_committed: Vec<String>,
+    pub(crate) pen: Vec<PenSeen>,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum PenSeen {
+    Eraser(bool),
+    In,
+    Down,
+    Motion(f64, f64),
+    Pressure(u32),
+    Tilt(f64, f64),
+    Button(u32, bool),
+    Up,
+    Out,
 }
 
 impl TestClient {
@@ -78,6 +95,12 @@ impl TestClient {
         let manager: wp_tearing_control_manager_v1::WpTearingControlManagerV1 =
             self.bind("wp_tearing_control_manager_v1", 1);
         manager.get_tearing_control(surface, &self.handle, ())
+    }
+
+    pub(crate) fn tablet_seat(&self) -> zwp_tablet_seat_v2::ZwpTabletSeatV2 {
+        let manager: zwp_tablet_manager_v2::ZwpTabletManagerV2 =
+            self.bind("zwp_tablet_manager_v2", 1);
+        manager.get_tablet_seat(self.seat.as_ref().unwrap(), &self.handle, ())
     }
 
     pub(crate) fn viewport(&self, surface: &wl_surface::WlSurface) -> wp_viewport::WpViewport {
@@ -225,3 +248,56 @@ wayland_client::delegate_noop!(Received: ignore wl_subcompositor::WlSubcomposito
 wayland_client::delegate_noop!(Received: ignore wl_subsurface::WlSubsurface);
 wayland_client::delegate_noop!(Received: ignore wp_viewporter::WpViewporter);
 wayland_client::delegate_noop!(Received: ignore wp_viewport::WpViewport);
+
+impl Dispatch<zwp_tablet_seat_v2::ZwpTabletSeatV2, ()> for Received {
+    fn event(
+        _: &mut Self,
+        _: &zwp_tablet_seat_v2::ZwpTabletSeatV2,
+        _: zwp_tablet_seat_v2::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+    }
+
+    wayland_client::event_created_child!(Received, zwp_tablet_seat_v2::ZwpTabletSeatV2, [
+        zwp_tablet_seat_v2::EVT_TABLET_ADDED_OPCODE => (zwp_tablet_v2::ZwpTabletV2, ()),
+        zwp_tablet_seat_v2::EVT_TOOL_ADDED_OPCODE => (zwp_tablet_tool_v2::ZwpTabletToolV2, ()),
+    ]);
+}
+
+impl Dispatch<zwp_tablet_tool_v2::ZwpTabletToolV2, ()> for Received {
+    fn event(
+        state: &mut Self,
+        _: &zwp_tablet_tool_v2::ZwpTabletToolV2,
+        event: zwp_tablet_tool_v2::Event,
+        _: &(),
+        _: &Connection,
+        _: &QueueHandle<Self>,
+    ) {
+        use wayland_client::WEnum;
+        use zwp_tablet_tool_v2::{ButtonState, Event, Type};
+        let seen = match event {
+            Event::Type {
+                tool_type: WEnum::Value(tool_type),
+            } => PenSeen::Eraser(tool_type == Type::Eraser),
+            Event::ProximityIn { .. } => PenSeen::In,
+            Event::Down { .. } => PenSeen::Down,
+            Event::Motion { x, y } => PenSeen::Motion(x, y),
+            Event::Pressure { pressure } => PenSeen::Pressure(pressure),
+            Event::Tilt { tilt_x, tilt_y } => PenSeen::Tilt(tilt_x, tilt_y),
+            Event::Button {
+                button,
+                state: WEnum::Value(pressed),
+                ..
+            } => PenSeen::Button(button, pressed == ButtonState::Pressed),
+            Event::Up => PenSeen::Up,
+            Event::ProximityOut => PenSeen::Out,
+            _ => return,
+        };
+        state.protocols.pen.push(seen);
+    }
+}
+
+wayland_client::delegate_noop!(Received: ignore zwp_tablet_manager_v2::ZwpTabletManagerV2);
+wayland_client::delegate_noop!(Received: ignore zwp_tablet_v2::ZwpTabletV2);

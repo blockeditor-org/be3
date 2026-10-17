@@ -17,6 +17,7 @@ mod server;
 mod shortcuts_inhibit;
 mod single_pixel;
 mod state;
+mod tablet;
 mod tearing;
 mod text_input;
 mod toplevel_icon;

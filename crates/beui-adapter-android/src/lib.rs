@@ -31,8 +31,8 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Vec2, pos2, vec2};
 use beui_core::input::{
-    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Keyboard, Modifiers, TouchId,
-    TouchPhase,
+    BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Keyboard, Modifiers, Pen,
+    PenPhase, PointerButton, TouchId, TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Keystroke, Launch, Platform, Running, ScrollDelta};
@@ -90,6 +90,13 @@ enum Message {
         x: f32,
         y: f32,
         force: f32,
+    },
+    Pen {
+        phase: PenPhase,
+        x: f32,
+        y: f32,
+        pressure: f32,
+        pen: Pen,
     },
     Scroll(Vec2),
     Key {
@@ -522,6 +529,18 @@ impl Runner {
                     force: Some(force),
                 });
             }
+            Message::Pen {
+                phase,
+                x,
+                y,
+                pressure,
+                pen,
+            } => self.runner.push(Event::Pen {
+                phase,
+                pos: pos2(x, y),
+                pressure,
+                pen,
+            }),
             Message::Scroll(delta) => self.runner.push(ScrollDelta::Lines(delta)),
             Message::Key {
                 key,
@@ -971,6 +990,37 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeTouch<'local>(
             force: pressure,
         });
     }
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_be3_beui_BeuiView_nativePen<'local>(
+    _env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    phase: jint,
+    x: jfloat,
+    y: jfloat,
+    pressure: jfloat,
+    tilt_x: jfloat,
+    tilt_y: jfloat,
+    eraser: jboolean,
+) {
+    let phase = match phase {
+        0 => PenPhase::Move,
+        1 => PenPhase::Down(PointerButton::Primary),
+        2 => PenPhase::Up(PointerButton::Primary),
+        3 => PenPhase::Gone,
+        _ => return,
+    };
+    send(Message::Pen {
+        phase,
+        x,
+        y,
+        pressure,
+        pen: Pen {
+            tilt: vec2(tilt_x, tilt_y),
+            eraser,
+        },
+    });
 }
 
 #[unsafe(no_mangle)]

@@ -670,6 +670,18 @@ gesture in progress is dropped rather than committed. A finger dragged across a
 or `touch_drag_axis`, which keeps finger drags along one direction only and
 leaves the other to the scroll around it, as a dock tab in a scrolling tab bar
 does.
+A pen is `Event::Pen`: a `PenPhase` (`Move` in range, whether or not the tip is down, `Down`
+and `Up` of the tip, which is `Primary`, and of its barrel buttons, and `Gone` when it leaves
+range), its pressure from 0 to 1 and a `Pen` with its tilt in degrees and whether it is the
+eraser end. It is `PointerId::Pen` and behaves as the mouse does: it hovers, moves the pointer,
+presses and drags without a slop or a long press and never scrolls what it is dragged across,
+so every control works with it unchanged (`PointerId::hovers` is true for both). Its
+`PointerEvent`s carry the pressure as `force` and the `Pen`, and the `PointerPress` a catcher
+hears carries them too, as `pressure` and `pen`, sampled when it was pressed and at each drag;
+a finger's press carries its `force` as `pressure` where the platform reports one. The DRM
+adapter reads libinput's tablet tools, the web adapter pointer events whose `pointerType` is
+`pen`, Android a stylus or eraser `MotionEvent`, and drive's `pen` commands make one; winit 0.30
+reports none, so a native window sees a pen only as the mouse its platform makes of it.
 A finger that lands on no control is taken to the nearest `Interactive` that
 takes presses within `TOUCH_REACH` of it, for the whole touch, so every control's
 touch zone is bigger than it looks without anything growing; a direct hit always

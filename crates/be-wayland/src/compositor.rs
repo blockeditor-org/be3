@@ -686,10 +686,38 @@ impl Compositor {
                         _ => {}
                     }
                 }
-                Forwarded::Left
-                    if !hovered && !state.buttons_held() && state.pointer_window() == Some(id) =>
-                {
-                    state.pointer_motion(None);
+                Forwarded::Pointer { event, over } if event.pointer == PointerId::Pen => {
+                    let pen = event.pen.unwrap_or_default();
+                    let target = at(*over, event.pos);
+                    state.pen_motion(
+                        target,
+                        f64::from(event.force.unwrap_or(0.0)),
+                        (f64::from(pen.tilt.x), f64::from(pen.tilt.y)),
+                        pen.eraser,
+                    );
+                    match event.phase {
+                        PointerPhase::Down(button) | PointerPhase::Up(button) => {
+                            let pressed = matches!(event.phase, PointerPhase::Down(_));
+                            if pressed {
+                                state.ping(id, now);
+                                if let Some((target, _)) = target {
+                                    windows.pressed(target);
+                                }
+                            }
+                            match button {
+                                PointerButton::Primary => state.pen_tip(pressed),
+                                button => state.pen_button(button_code(button), pressed),
+                            }
+                        }
+                        PointerPhase::Cancel | PointerPhase::Gone => state.pen_gone(),
+                        _ => {}
+                    }
+                }
+                Forwarded::Left => {
+                    state.pen_left(id);
+                    if !hovered && !state.buttons_held() && state.pointer_window() == Some(id) {
+                        state.pointer_motion(None);
+                    }
                 }
                 _ => {}
             }

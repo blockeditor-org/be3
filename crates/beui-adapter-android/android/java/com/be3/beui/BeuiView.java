@@ -25,6 +25,10 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     private static final int TOUCH_MOVE = 1;
     private static final int TOUCH_END = 2;
     private static final int TOUCH_CANCEL = 3;
+    private static final int PEN_MOVE = 0;
+    private static final int PEN_DOWN = 1;
+    private static final int PEN_UP = 2;
+    private static final int PEN_GONE = 3;
 
     private final InputMethodManager input;
     private boolean keyboard;
@@ -107,12 +111,45 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     }
 
     private static void touch(MotionEvent event, int index, int phase) {
+        if (isPen(event, index)) {
+            pen(event, index, PEN_PHASES[phase]);
+            return;
+        }
         nativeTouch(event.getDeviceId(), event.getPointerId(index), phase, event.getX(index),
                 event.getY(index), event.getPressure(index));
     }
 
+    private static final int[] PEN_PHASES = {PEN_DOWN, PEN_MOVE, PEN_UP, PEN_GONE};
+
+    private static boolean isPen(MotionEvent event, int index) {
+        int tool = event.getToolType(index);
+        return tool == MotionEvent.TOOL_TYPE_STYLUS || tool == MotionEvent.TOOL_TYPE_ERASER;
+    }
+
+    private static void pen(MotionEvent event, int index, int phase) {
+        double tilt = event.getAxisValue(MotionEvent.AXIS_TILT, index);
+        double orientation = event.getAxisValue(MotionEvent.AXIS_ORIENTATION, index);
+        float tiltX = (float) Math.toDegrees(Math.atan(Math.sin(-orientation) * Math.tan(tilt)));
+        float tiltY = (float) Math.toDegrees(Math.atan(Math.cos(-orientation) * Math.tan(tilt)));
+        nativePen(phase, event.getX(index), event.getY(index), event.getPressure(index), tiltX,
+                tiltY, event.getToolType(index) == MotionEvent.TOOL_TYPE_ERASER);
+    }
+
     @Override
     public boolean onGenericMotionEvent(MotionEvent event) {
+        if (isPen(event, 0)) {
+            switch (event.getActionMasked()) {
+                case MotionEvent.ACTION_HOVER_ENTER:
+                case MotionEvent.ACTION_HOVER_MOVE:
+                    pen(event, 0, PEN_MOVE);
+                    return true;
+                case MotionEvent.ACTION_HOVER_EXIT:
+                    pen(event, 0, PEN_GONE);
+                    return true;
+                default:
+                    break;
+            }
+        }
         if (event.getActionMasked() == MotionEvent.ACTION_SCROLL) {
             nativeScroll(-event.getAxisValue(MotionEvent.AXIS_HSCROLL),
                     event.getAxisValue(MotionEvent.AXIS_VSCROLL));
@@ -276,6 +313,9 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
 
     private static native void nativeTouch(int device, int id, int phase, float x, float y,
             float pressure);
+
+    private static native void nativePen(int phase, float x, float y, float pressure, float tiltX,
+            float tiltY, boolean eraser);
 
     private static native void nativeScroll(float x, float y);
 

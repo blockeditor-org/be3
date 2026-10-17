@@ -21,8 +21,8 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use beui_core::geometry::{Pos2, Rect, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, PointerButton, TouchId,
-    TouchPhase,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, Pen, PenPhase,
+    PointerButton, TouchId, TouchPhase,
 };
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
@@ -611,6 +611,12 @@ fn listen(
                 push_logical(touch(&event, TouchPhase::Start, pos));
                 return;
             }
+            if event.pointer_type() == "pen" {
+                if let Some(button) = pen_button(event.button()) {
+                    push_logical(pen(&event, PenPhase::Down(button), pos));
+                }
+                return;
+            }
             if let Some(button) = pointer_button(event.button()) {
                 push_logical(button_event(pos, button, true));
             }
@@ -629,6 +635,10 @@ fn listen(
             let pos = position(&surface, &event);
             if event.pointer_type() == "touch" {
                 push_logical(touch(&event, TouchPhase::Move, pos));
+                return;
+            }
+            if event.pointer_type() == "pen" {
+                push_logical(pen(&event, PenPhase::Move, pos));
                 return;
             }
             push_logical(Event::PointerMoved(pos));
@@ -654,21 +664,32 @@ fn listen(
                     push_logical(touch(&event, phase, pos));
                     return;
                 }
+                if event.pointer_type() == "pen" {
+                    let phase = match (cancelled, pen_button(event.button())) {
+                        (false, Some(button)) => PenPhase::Up(button),
+                        (false, None) => return,
+                        (true, _) => PenPhase::Gone,
+                    };
+                    push_logical(pen(&event, phase, pos));
+                    return;
+                }
                 if let Some(button) = pointer_button(event.button()) {
                     push_logical(button_event(pos, button, false));
                 }
             }
         })?;
     }
-    on(
-        surface_target,
-        "pointerleave",
-        |event: web_sys::PointerEvent| {
-            if event.pointer_type() != "touch" {
-                push(Event::PointerGone);
+    on(surface_target, "pointerleave", {
+        let surface = surface.clone();
+        move |event: web_sys::PointerEvent| match event.pointer_type().as_str() {
+            "touch" => {}
+            "pen" => {
+                let pos = position(&surface, &event);
+                push_logical(pen(&event, PenPhase::Gone, pos));
             }
-        },
-    )?;
+            _ => push(Event::PointerGone),
+        }
+    })?;
     on(surface_target, "wheel", |event: web_sys::WheelEvent| {
         event.prevent_default();
         let delta = -vec2(event.delta_x() as f32, event.delta_y() as f32);
@@ -885,6 +906,27 @@ fn touch(event: &web_sys::PointerEvent, phase: TouchPhase, pos: Pos2) -> Event {
         phase,
         pos,
         force: Some(event.pressure()),
+    }
+}
+
+fn pen(event: &web_sys::PointerEvent, phase: PenPhase, pos: Pos2) -> Event {
+    Event::Pen {
+        phase,
+        pos,
+        pressure: event.pressure(),
+        pen: Pen {
+            tilt: vec2(event.tilt_x() as f32, event.tilt_y() as f32),
+            eraser: event.buttons() & PEN_ERASER != 0 || event.button() == 5,
+        },
+    }
+}
+
+const PEN_ERASER: u16 = 32;
+
+fn pen_button(button: i16) -> Option<PointerButton> {
+    match button {
+        5 => Some(PointerButton::Primary),
+        button => pointer_button(button),
     }
 }
 

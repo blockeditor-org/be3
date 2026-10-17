@@ -2088,6 +2088,23 @@ pub enum InputEvent {
     InterceptedTap {
         key: Key,
     },
+    Pen {
+        phase: PenPhase,
+        x: f32,
+        y: f32,
+        pressure: f32,
+        tilt_x: f32,
+        tilt_y: f32,
+        eraser: bool,
+    },
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PenPhase {
+    Move,
+    Down(PointerButton),
+    Up(PointerButton),
+    Gone,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]

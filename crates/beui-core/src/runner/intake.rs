@@ -189,6 +189,17 @@ impl Intake {
                 pos: points(pos),
                 force,
             }),
+            Event::Pen {
+                phase,
+                pos,
+                pressure,
+                pen,
+            } => events.push(Event::Pen {
+                phase,
+                pos: points(pos),
+                pressure,
+                pen,
+            }),
             Event::Focus(false) => {
                 self.held = 0;
                 self.left = false;

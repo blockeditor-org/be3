@@ -1,7 +1,7 @@
 use beui::{Event, Forwarded, PointerEvent, PointerId, PointerPhase, Pos2, Rect, Vec2};
 use block_plugin_api::{
-    DroppedFile, InputBatch, InputEvent, Message, Modifiers, Monitor, ScreenId, TouchPhase,
-    ViewportMetrics, WheelUnit,
+    DroppedFile, InputBatch, InputEvent, Message, Modifiers, Monitor, PenPhase, ScreenId,
+    TouchPhase, ViewportMetrics, WheelUnit,
 };
 use uuid::Uuid;
 
@@ -142,6 +142,31 @@ impl InputAdapter {
                 x,
                 y,
                 force: event.force,
+            });
+            return;
+        }
+        if event.pointer == PointerId::Pen {
+            let phase = match event.phase {
+                PointerPhase::Move => PenPhase::Move,
+                PointerPhase::Down(button) => {
+                    PenPhase::Down(beui_plugin_input::pointer_button(button))
+                }
+                PointerPhase::Up(button) => PenPhase::Up(beui_plugin_input::pointer_button(button)),
+                PointerPhase::Cancel | PointerPhase::Gone => PenPhase::Gone,
+                _ => return,
+            };
+            if matches!(phase, PenPhase::Down(_) | PenPhase::Up(_)) {
+                push_modifiers(&mut self.modifiers, event.modifiers, output);
+            }
+            let pen = event.pen.unwrap_or_default();
+            output.push(InputEvent::Pen {
+                phase,
+                x,
+                y,
+                pressure: event.force.unwrap_or(0.0),
+                tilt_x: pen.tilt.x,
+                tilt_y: pen.tilt.y,
+                eraser: pen.eraser,
             });
             return;
         }

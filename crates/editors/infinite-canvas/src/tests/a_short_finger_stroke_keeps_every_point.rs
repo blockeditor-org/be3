@@ -17,7 +17,7 @@ fn a_short_finger_stroke_keeps_every_point() {
 
     let entities = entities(&editor);
     assert_eq!(entities.len(), 1, "the stroke adds one entity");
-    let CanvasEntityKind::Pen { points } = &entities[0].kind else {
+    let CanvasEntityKind::Pen { points, .. } = &entities[0].kind else {
         panic!("the stroke is a pen entity");
     };
     let drawn: Vec<CanvasPoint> = points
