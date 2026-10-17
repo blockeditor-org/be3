@@ -107,7 +107,9 @@ impl EntityPaint {
             CanvasEntityKind::Line => self.draw_line(painter, color, width),
             CanvasEntityKind::Rectangle => self.draw_rectangle(painter, color, width, opacity),
             CanvasEntityKind::Text { .. } => {}
-            CanvasEntityKind::Pen { points } => self.draw_pen(painter, color, width, points),
+            CanvasEntityKind::Pen { points, pressures } => {
+                self.draw_pen(painter, color, width, points, pressures)
+            }
             CanvasEntityKind::Block { .. } => self.draw_block(painter, color, opacity),
             CanvasEntityKind::DirectEditor { scale, .. } => {
                 self.draw_direct_editor(painter, color, opacity, *scale)
@@ -169,12 +171,19 @@ impl EntityPaint {
         painter.rect_stroke(rect, radius, width, color);
     }
 
-    fn draw_pen(&self, painter: &Painter, color: Color32, width: f32, points: &[CanvasPoint]) {
+    fn draw_pen(
+        &self,
+        painter: &Painter,
+        color: Color32,
+        width: f32,
+        points: &[CanvasPoint],
+        pressures: &[f32],
+    ) {
         let points: Vec<Pos2> = points
             .iter()
             .map(|point| self.at(local_to_world(self.entity.transform, *point)))
             .collect();
-        stroke(painter, &points, width, color);
+        stroke(painter, &points, width, pressures, color);
     }
 
     fn fill_uncovered(&self, painter: &Painter, rect: Rect, opacity: f32) {
@@ -392,15 +401,33 @@ pub(crate) fn handle(painter: &Painter, at: Pos2, color: Color32) {
     painter.rect_filled(rect, HANDLE_RADIUS, color);
 }
 
-pub(crate) fn stroke(painter: &Painter, points: &[Pos2], width: f32, color: Color32) {
-    if let [dot] = points {
+pub(crate) fn stroke(
+    painter: &Painter,
+    points: &[Pos2],
+    width: f32,
+    pressures: &[f32],
+    color: Color32,
+) {
+    let width_at = |index: usize| {
+        pressures
+            .get(index)
+            .map_or(width, |pressure| pressed_width(width, *pressure))
+    };
+    let dot = |at: Pos2, width: f32| {
         painter.rect_filled(
-            Rect::from_center_size(*dot, Vec2::splat(width)),
+            Rect::from_center_size(at, Vec2::splat(width)),
             width / 2.0,
             color,
         );
+    };
+    if let [only] = points {
+        dot(*only, width_at(0));
     }
-    for window in points.windows(2) {
-        painter.line(window[0], window[1], width, color);
+    for (index, window) in points.windows(2).enumerate() {
+        let segment = (width_at(index) + width_at(index + 1)) / 2.0;
+        painter.line(window[0], window[1], segment, color);
+        if index > 0 && !pressures.is_empty() {
+            dot(window[0], width_at(index));
+        }
     }
 }

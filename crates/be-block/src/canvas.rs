@@ -53,6 +53,8 @@ pub enum CanvasEntityKind {
     Pen {
         #[serde(default)]
         points: Vec<CanvasPoint>,
+        #[serde(default)]
+        pressures: Vec<f32>,
     },
     Block {
         #[serde(with = "be_model::references::block_ref")]

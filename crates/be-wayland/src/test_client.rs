@@ -34,6 +34,7 @@ use wayland_protocols::wp::idle_inhibit::zv1::client::{
 };
 
 mod protocols;
+pub(crate) use protocols::PenSeen;
 use wayland_protocols::wp::presentation_time::client::{wp_presentation, wp_presentation_feedback};
 use wayland_protocols::xdg::activation::v1::client::{xdg_activation_token_v1, xdg_activation_v1};
 

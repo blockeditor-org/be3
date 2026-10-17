@@ -124,6 +124,7 @@ impl CanvasState {
             }
             Tool::Pen => self.begin_gesture(Some(Gesture::Pen {
                 points: vec![world],
+                pressures: pen_pressure(press).into_iter().collect(),
             })),
         }
     }
@@ -346,12 +347,15 @@ impl CanvasState {
                     || *force_preserve_aspect_ratio
                     || *default_preserve_aspect_ratio != modifiers.shift;
             }
-            Gesture::Pen { points } => {
+            Gesture::Pen { points, pressures } => {
                 if points
                     .last()
                     .is_none_or(|last| distance(*last, world) > pen_step)
                 {
                     points.push(world);
+                    if !pressures.is_empty() {
+                        pressures.push(pen_pressure(press).unwrap_or(PEN_PRESSURE));
+                    }
                 }
             }
         });
@@ -474,4 +478,9 @@ fn selection_frame_of(state: &CanvasState) -> Option<SelectionFrame> {
         &state.entities.get_untracked(),
         &state.selection.get_untracked(),
     )
+}
+
+fn pen_pressure(press: PointerPress) -> Option<f32> {
+    press.pen?;
+    Some(press.pressure.unwrap_or(PEN_PRESSURE).clamp(0.0, 1.0))
 }

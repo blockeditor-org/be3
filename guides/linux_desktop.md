@@ -420,6 +420,15 @@ reads from libinput and the window gets unchanged (`drive down TARGET button:0x1
 window (a floating window's tab, say) the window takes nothing (`occluders`, from the region's
 occlusion), and a press keeps going to the window or plugin it began on until it is let go.
 
+A pen (a drawing tablet's tool or a screen's stylus, `Event::Pen` in guides/beui.md) reaches a
+window as a `zwp_tablet_tool_v2` of one tablet be-wayland makes when a pen is first used
+(`src/tablet.rs`), with its pressure and tilt; the tip is the tool's `down` and the barrel buttons
+are `BTN_STYLUS` and `BTN_STYLUS2`. A program that never asked for a tablet seat
+(`zwp_tablet_manager_v2.get_tablet_seat`) gets the pen as its pointer instead, the tip a left
+click, decided when the pen comes over it and kept while the tip is down. Under `--session` the
+DRM adapter reads libinput's tablet tools over the area of every display, as it does an absolute
+pointer, and moves the cursor with them.
+
 A window's tab shows the icon its program set with `xdg-toplevel-icon-v1`: be-wayland
 reads the pixels it was handed (the smallest at least 64 pixels, shrunk to 64) or looks the
 name up in the icon theme, and it reaches the shell as `HostWindow::icon` beside the title,

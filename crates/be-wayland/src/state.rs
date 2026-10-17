@@ -159,7 +159,7 @@ pub struct State {
     pub(crate) next_window: u64,
     pub(crate) events: Vec<ServerEvent>,
     committed: Vec<WlSurface>,
-    cursor: CursorImageStatus,
+    pub(crate) cursor: CursorImageStatus,
     pub(crate) scale: i32,
     size: Size<i32, Logical>,
     screens: Vec<Rectangle<i32, Logical>>,
@@ -170,7 +170,10 @@ pub struct State {
     unresponsive: Vec<ClientId>,
     disconnected: Vec<ClientId>,
     pub(crate) xwayland: XWaylandState,
+    pub(crate) tablet: crate::tablet::Tablet,
 }
+
+pub(crate) type SurfaceAt = (WlSurface, Point<f64, Logical>);
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct KeyboardConfig {
@@ -270,6 +273,7 @@ impl State {
             unresponsive: Vec::new(),
             disconnected: Vec::new(),
             xwayland,
+            tablet: crate::tablet::Tablet::new(handle),
         };
         state.set_output(state.size, state.scale);
         state
@@ -879,7 +883,7 @@ impl State {
         self.send_overlay_frames(id, time);
     }
 
-    fn time(&self) -> u32 {
+    pub(crate) fn time(&self) -> u32 {
         self.start.elapsed().as_millis() as u32
     }
 
@@ -899,18 +903,24 @@ impl State {
         self.pointer_window
     }
 
-    pub fn pointer_motion(&mut self, target: Option<(WindowId, Point<f64, Logical>)>) {
-        let focus = target.and_then(|(id, position)| {
-            let window = self.find(id)?;
-            let location = position + window.window.geometry().loc.to_f64();
-            let under = self.overlay_under(id, location).or_else(|| {
-                window
-                    .window
-                    .surface_under(location, WindowSurfaceType::ALL)
-                    .map(|(surface, origin)| (surface, origin.to_f64()))
-            });
-            Some((id, location, under))
+    pub(crate) fn under(
+        &self,
+        target: Option<(WindowId, Point<f64, Logical>)>,
+    ) -> Option<(WindowId, Point<f64, Logical>, Option<SurfaceAt>)> {
+        let (id, position) = target?;
+        let window = self.find(id)?;
+        let location = position + window.window.geometry().loc.to_f64();
+        let under = self.overlay_under(id, location).or_else(|| {
+            window
+                .window
+                .surface_under(location, WindowSurfaceType::ALL)
+                .map(|(surface, origin)| (surface, origin.to_f64()))
         });
+        Some((id, location, under))
+    }
+
+    pub fn pointer_motion(&mut self, target: Option<(WindowId, Point<f64, Logical>)>) {
+        let focus = self.under(target);
         let pointer = self.pointer();
         let serial = SERIAL_COUNTER.next_serial();
         let time = self.time();
@@ -1507,8 +1517,6 @@ impl State {
 impl ServerDndGrabHandler for State {}
 
 impl OutputHandler for State {}
-
-impl smithay::wayland::tablet_manager::TabletSeatHandler for State {}
 
 delegate_compositor!(State);
 delegate_xdg_shell!(State);

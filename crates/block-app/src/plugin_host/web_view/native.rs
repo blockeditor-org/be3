@@ -42,10 +42,10 @@ const HISTORY_SCRIPT: &str = r#"
 "#;
 
 thread_local! {
-    static PARENT: RefCell<Option<Arc<Window>>> = const { RefCell::new(None) };
+    static PARENT: RefCell<Option<Arc<dyn Window>>> = const { RefCell::new(None) };
 }
 
-pub(crate) fn install(window: Arc<Window>) {
+pub(crate) fn install(window: Arc<dyn Window>) {
     PARENT.with(|parent| *parent.borrow_mut() = Some(window));
 }
 
@@ -94,7 +94,7 @@ impl WebView {
                 let _ = new_window_events.send(WebViewEvent::NewWindow(url));
                 NewWindowResponse::Deny
             })
-            .build_as_child(&*parent)
+            .build_as_child(&parent)
             .map(|webview| Self { webview })
             .map_err(|error| error.to_string())
     }

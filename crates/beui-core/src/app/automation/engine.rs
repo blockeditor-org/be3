@@ -12,8 +12,8 @@ use crate::context::{ActionGroup, Context};
 use crate::file_picker::{FilePickAnswer, FilePickRequest, PickedFile};
 use crate::geometry::{Pos2, Rect, Vec2, vec2};
 use crate::input::{
-    BackEdge, BackGesture, DroppedFile, Event, ImeEvent, Key, Modifiers, PointerButton, TouchId,
-    TouchPhase,
+    BackEdge, BackGesture, DroppedFile, Event, ImeEvent, Key, Modifiers, Pen, PenPhase,
+    PointerButton, TouchId, TouchPhase,
 };
 use crate::runner::Platform;
 use crate::window::WindowState;
@@ -55,6 +55,13 @@ Touch:
   pinch TARGET FACTOR       two fingers spreading (FACTOR > 1) or closing around TARGET
   touch down|move|up [FINGER=]TARGET...   fingers 0, 1, ... step by step, all in one frame
   touch up                  lift every finger
+Pen:
+  pen move TARGET [PRESSURE]   the pen hovers over TARGET, or moves there pressed down with PRESSURE
+  pen down TARGET [PRESSURE]   the tip touches TARGET, PRESSURE from 0 to 1 (0.5)
+  pen up [TARGET]           the tip lifts; the pen stays in range
+  pen draw FROM TO [STEPS]  the tip down at FROM, along in STEPS (8) with the pressure rising and
+                            falling, and up at TO
+  pen leave                 the pen goes out of range
   back                      the system back gesture, whole
   back [left|right] / back PROGRESS / back commit|cancel   step by step, PROGRESS from 0 to 1
 Keyboard:
@@ -178,6 +185,7 @@ pub struct Automation {
     pointer: Pos2,
     buttons: Vec<PointerButton>,
     fingers: Vec<(u64, Pos2)>,
+    pen: Option<(Pos2, bool)>,
     keys: Vec<Key>,
     grabbed: Vec<DroppedFile>,
     composing: Option<String>,
@@ -199,6 +207,7 @@ impl Automation {
             pointer: Pos2::ZERO,
             buttons: Vec::new(),
             fingers: Vec::new(),
+            pen: None,
             keys: Vec::new(),
             grabbed: Vec::new(),
             composing: None,
@@ -770,6 +779,100 @@ impl Automation {
                     .collect();
                 input(steps)
             }
+            "pen" => {
+                let pressure = |index: usize, default: f32| {
+                    arguments.get(index).map_or(Ok(default), |text| {
+                        text.parse::<f32>()
+                            .ok()
+                            .filter(|pressure| (0.0..=1.0).contains(pressure))
+                            .ok_or_else(|| format!("{text} is not a pressure from 0 to 1"))
+                    })
+                };
+                let held = self.pen;
+                let mut frames = Vec::new();
+                match argument(0)? {
+                    "move" => {
+                        let to = at(argument(1)?)?;
+                        let down = held.is_some_and(|(_, down)| down);
+                        let pressure = pressure(2, if down { 0.5 } else { 0.0 })?;
+                        frames.push(vec![pen(PenPhase::Move, to, pressure)]);
+                        self.pen = Some((to, down));
+                    }
+                    "down" => {
+                        let to = at(argument(1)?)?;
+                        if held.is_some_and(|(_, down)| down) {
+                            return Err("the pen is already down".to_owned());
+                        }
+                        let pressure = pressure(2, 0.5)?;
+                        frames.push(vec![
+                            pen(PenPhase::Move, to, 0.0),
+                            pen(PenPhase::Down(PointerButton::Primary), to, pressure),
+                        ]);
+                        self.pen = Some((to, true));
+                    }
+                    "up" => {
+                        let Some((last, true)) = held else {
+                            return Err("the pen is not down".to_owned());
+                        };
+                        let to = match arguments.get(1) {
+                            Some(target) => at(target)?,
+                            None => last,
+                        };
+                        frames.push(vec![
+                            pen(PenPhase::Move, to, 0.5),
+                            pen(PenPhase::Up(PointerButton::Primary), to, 0.0),
+                        ]);
+                        self.pen = Some((to, false));
+                    }
+                    "draw" => {
+                        let from = at(argument(1)?)?;
+                        let to = at(argument(2)?)?;
+                        let steps: usize = match arguments.get(3) {
+                            Some(steps) => steps
+                                .parse()
+                                .map_err(|_| format!("{steps} is not a number of steps"))?,
+                            None => 8,
+                        };
+                        if held.is_some_and(|(_, down)| down) {
+                            return Err("the pen is already down".to_owned());
+                        }
+                        let steps = steps.max(1);
+                        let along = |step: usize| {
+                            let fraction = step as f32 / steps as f32;
+                            let pressure = 0.2 + 0.8 * (fraction * std::f32::consts::PI).sin();
+                            (from + (to - from) * fraction, pressure)
+                        };
+                        frames.push(vec![
+                            pen(PenPhase::Move, from, 0.0),
+                            pen(PenPhase::Down(PointerButton::Primary), from, 0.2),
+                        ]);
+                        for step in 1..=steps {
+                            let (at, pressure) = along(step);
+                            frames.push(vec![pen(PenPhase::Move, at, pressure)]);
+                        }
+                        frames.push(vec![pen(PenPhase::Up(PointerButton::Primary), to, 0.0)]);
+                        self.pen = Some((to, false));
+                    }
+                    "leave" => {
+                        let Some((last, _)) = held else {
+                            return Err("the pen is not in range".to_owned());
+                        };
+                        let mut frame = Vec::new();
+                        if held.is_some_and(|(_, down)| down) {
+                            frame.push(pen(PenPhase::Up(PointerButton::Primary), last, 0.0));
+                        }
+                        frame.push(pen(PenPhase::Gone, last, 0.0));
+                        frames.push(frame);
+                        self.pen = None;
+                    }
+                    other => {
+                        return Err(format!(
+                            "pen takes move, down, up, draw or leave, not {other}"
+                        ));
+                    }
+                }
+                input(frames)
+            }
             "touch" => {
                 let phase = match argument(0)? {
                     "down" => TouchPhase::Start,
@@ -1198,6 +1301,14 @@ impl Automation {
                     (pos.y * scale).round()
                 )
             }))
+            .chain(self.pen.map(|(pos, down)| {
+                format!(
+                    "the pen {} at {},{}",
+                    if down { "down" } else { "in range" },
+                    (pos.x * scale).round(),
+                    (pos.y * scale).round()
+                )
+            }))
             .collect();
         text.push_str(&format!(
             "pointer {},{}{}\n",
@@ -1373,6 +1484,15 @@ fn finger(argument: Option<&String>) -> Result<u64, String> {
             .parse()
             .map_err(|_| format!("{finger} is not a finger number"))
     })
+}
+
+fn pen(phase: PenPhase, pos: Pos2, pressure: f32) -> Event {
+    Event::Pen {
+        phase,
+        pos,
+        pressure,
+        pen: Pen::default(),
+    }
 }
 
 fn touch(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {

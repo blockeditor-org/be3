@@ -9,8 +9,8 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use beui::{
-    Event, Launch, Modifiers, Platform, PointerButton, Pos2, ScrollDelta, Setup, TouchId,
-    TouchPhase, Waker, vec2,
+    Event, Launch, Modifiers, Pen, PenPhase, Platform, PointerButton, Pos2, ScrollDelta, Setup,
+    TouchId, TouchPhase, Waker, vec2,
 };
 use beui_core::app::SafeArea;
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
@@ -24,7 +24,9 @@ use smithay::backend::drm::{
 use smithay::backend::input::Event as _;
 use smithay::backend::input::{
     AbsolutePositionEvent, Axis, ButtonState, InputEvent, KeyState, KeyboardKeyEvent,
-    PointerAxisEvent, PointerButtonEvent, PointerMotionEvent, TouchEvent,
+    PointerAxisEvent, PointerButtonEvent, PointerMotionEvent, ProximityState,
+    TabletToolButtonEvent, TabletToolEvent, TabletToolProximityEvent, TabletToolTipEvent,
+    TabletToolTipState, TabletToolType, TouchEvent,
 };
 use smithay::backend::libinput::{LibinputInputBackend, LibinputSessionInterface};
 use smithay::backend::session::libseat::LibSeatSession;
@@ -806,16 +808,21 @@ impl Session {
                     let position = self.absolute_position(event);
                     self.place_pointer(position);
                 }
+                InputEvent::TabletToolAxis { event } => {
+                    let position = self.absolute_position(event);
+                    self.place_pointer(position);
+                }
+                InputEvent::TabletToolProximity { event } => {
+                    let position = self.absolute_position(event);
+                    self.place_pointer(position);
+                }
                 _ => {}
             }
         }
         pass.deliver
     }
 
-    fn absolute_position(
-        &self,
-        event: &<LibinputInputBackend as smithay::backend::input::InputBackend>::PointerMotionAbsoluteEvent,
-    ) -> Pos2 {
+    fn absolute_position<E: AbsolutePositionEvent<LibinputInputBackend>>(&self, event: &E) -> Pos2 {
         let area = bounds(&self.rects());
         let position =
             event.position_transformed((area.width() as i32, area.height() as i32).into());
@@ -950,6 +957,29 @@ impl Session {
                 self.escape_touch(event.slot(), false);
                 self.touch(event.slot(), TouchPhase::Cancel, self.pointer());
             }
+            InputEvent::TabletToolProximity { event } => {
+                let phase = match event.state() {
+                    ProximityState::In => PenPhase::Move,
+                    ProximityState::Out => PenPhase::Gone,
+                };
+                self.pen(phase, &event);
+            }
+            InputEvent::TabletToolAxis { event } => self.pen(PenPhase::Move, &event),
+            InputEvent::TabletToolTip { event } => {
+                let phase = match TabletToolTipEvent::tip_state(&event) {
+                    TabletToolTipState::Down => PenPhase::Down(PointerButton::Primary),
+                    TabletToolTipState::Up => PenPhase::Up(PointerButton::Primary),
+                };
+                self.pen(phase, &event);
+            }
+            InputEvent::TabletToolButton { event } => {
+                let button = stylus_button(TabletToolButtonEvent::button(&event));
+                let phase = match TabletToolButtonEvent::button_state(&event) {
+                    ButtonState::Pressed => PenPhase::Down(button),
+                    ButtonState::Released => PenPhase::Up(button),
+                };
+                self.pen(phase, &event);
+            }
             _ => {}
         }
     }
@@ -976,6 +1006,21 @@ impl Session {
             }
             None => {}
         }
+    }
+
+    fn pen<E: TabletToolEvent<LibinputInputBackend>>(&mut self, phase: PenPhase, event: &E) {
+        let position = self.absolute_position(event);
+        self.place_pointer(position);
+        let tool = event.tool();
+        self.push(Event::Pen {
+            phase,
+            pos: self.physical(position),
+            pressure: event.pressure() as f32,
+            pen: Pen {
+                tilt: vec2(event.tilt_x() as f32, event.tilt_y() as f32),
+                eraser: tool.tool_type == TabletToolType::Eraser,
+            },
+        });
     }
 
     fn touch_position<E: AbsolutePositionEvent<LibinputInputBackend>>(&self, event: &E) -> Pos2 {
@@ -1232,6 +1277,22 @@ fn gate_input(event: &InputEvent<LibinputInputBackend>) -> Option<(Input, u64)> 
         InputEvent::TouchCancel { event } => {
             (Input::Release(touch_held(event.slot())), event.time())
         }
+        InputEvent::TabletToolTip { event } => (
+            pressed(
+                Held::Button(BTN_TOUCH),
+                TabletToolTipEvent::tip_state(event) == TabletToolTipState::Down,
+            ),
+            event.time(),
+        ),
+        InputEvent::TabletToolButton { event } => (
+            pressed(
+                Held::Button(TabletToolButtonEvent::button(event)),
+                TabletToolButtonEvent::button_state(event) == ButtonState::Pressed,
+            ),
+            event.time(),
+        ),
+        InputEvent::TabletToolAxis { event } => (Input::Other, event.time()),
+        InputEvent::TabletToolProximity { event } => (Input::Other, event.time()),
         _ => return None,
     })
 }
@@ -1273,6 +1334,16 @@ fn configure_device(device: &mut InputDevice, config: &InputConfig) {
     if let Some(default) = defaults.natural_scroll {
         let _ = device
             .config_scroll_set_natural_scroll_enabled(wanted.natural_scroll.unwrap_or(default));
+    }
+}
+
+const BTN_TOUCH: u32 = 0x14a;
+
+fn stylus_button(code: u32) -> PointerButton {
+    match code {
+        0x14b => PointerButton::Secondary,
+        0x14c => PointerButton::Middle,
+        code => pointer_button(code).unwrap_or(PointerButton::Other(0)),
     }
 }
 

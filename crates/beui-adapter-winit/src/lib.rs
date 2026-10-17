@@ -1,5 +1,6 @@
 #![cfg(not(any(target_os = "android", target_arch = "wasm32")))]
 
+mod accessibility;
 mod clipboard;
 mod file_picker;
 #[cfg(test)]
@@ -7,29 +8,41 @@ mod tests;
 
 pub use winit;
 
+use std::cell::RefCell;
 use std::error::Error;
 use std::hash::{DefaultHasher, Hash, Hasher};
+use std::rc::Rc;
 use std::sync::Arc;
 use std::time::Instant;
 
-use accesskit_winit::{Adapter as AccessKitAdapter, Event as AccessKitEvent};
 use winit::application::ApplicationHandler;
+use winit::cursor::{CustomCursor, CustomCursorSource};
+use winit::data_transfer::TypeHint;
 use winit::dpi::{LogicalPosition, LogicalSize, PhysicalPosition};
 use winit::event::{
-    DeviceEvent, DeviceId, ElementState, Ime, MouseButton, MouseScrollDelta, WindowEvent,
+    ButtonSource, DeviceEvent, DeviceId, ElementState, FingerId, Force, Ime, MouseButton,
+    MouseScrollDelta, PointerKind, PointerSource, TabletToolButton, TabletToolData, TabletToolKind,
+    WindowEvent,
 };
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop, EventLoopProxy};
+use winit::event_loop::{
+    ActiveEventLoop, AsyncRequestSerial, ControlFlow, DndAction, EventLoop, EventLoopProxy,
+};
 use winit::keyboard::{NamedKey, PhysicalKey};
-use winit::platform::modifier_supplement::KeyEventExtModifierSupplement;
-use winit::window::{CursorGrabMode, CustomCursor, Fullscreen, Window, WindowId};
+use winit::monitor::Fullscreen;
+use winit::window::{
+    CursorGrabMode, ImeCapabilities, ImeEnableRequest, ImeRequest, ImeRequestData, Window,
+    WindowAttributes, WindowId,
+};
 
+use accessibility::{Accessibility, Request};
 use accesskit::TreeUpdate;
 use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeEvent, Key, Modifiers, PointerButton, TouchId, TouchPhase,
+    CursorIcon, DroppedFile, Event, ImeEvent, Key, Modifiers, Pen, PenPhase, PointerButton,
+    TouchId, TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
@@ -41,18 +54,9 @@ const BUTTON_EVDEV_FIRST: u16 = 0x110;
 const EVDEV_BACK: u32 = 158;
 const XKB_AUDIO_MIC_MUTE: u32 = 0x1008_ffb2;
 
-enum UserEvent {
-    AccessKit(AccessKitEvent),
-    Wake,
-}
-
-impl From<AccessKitEvent> for UserEvent {
-    fn from(event: AccessKitEvent) -> Self {
-        Self::AccessKit(event)
-    }
-}
-
 type Load = Box<dyn FnOnce(Arc<dyn WindowHandle>) -> Result<Vec<Loaded>, Box<dyn Error>>>;
+
+type Outcome = Rc<RefCell<Option<Result<(), String>>>>;
 
 pub struct Winit {
     load: Load,
@@ -79,12 +83,13 @@ impl Adapter for Winit {
 }
 
 fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
-    let event_loop = EventLoop::<UserEvent>::with_user_event().build()?;
+    let event_loop = EventLoop::new()?;
     event_loop.set_control_flow(ControlFlow::Wait);
     let size = launch.options.size;
     #[cfg(all(unix, not(target_os = "macos")))]
     let app_id = launch.options.app_id.clone();
-    let mut runner = Runner {
+    let outcome = Outcome::default();
+    let runner = Runner {
         runner: beui_core::runner::Runner::new(launch),
         size,
         #[cfg(all(unix, not(target_os = "macos")))]
@@ -92,24 +97,25 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
         load: Some(load),
         surface: None,
         pointer: Pos2::ZERO,
+        fingers: Vec::new(),
+        dropping: None,
         error: None,
         next_update: None,
         prepared: false,
         clipboard: Clipboard::new(),
         proxy: event_loop.create_proxy(),
+        outcome: outcome.clone(),
     };
-    event_loop.run_app(&mut runner)?;
-    match runner.error {
-        Some(error) => Err(error.into()),
-        None => runner.runner.finish(),
-    }
+    event_loop.run_app(runner)?;
+    let finished = outcome.borrow_mut().take();
+    Ok(finished.unwrap_or(Ok(()))?)
 }
 
 struct Surface {
-    window: Arc<Window>,
-    touch_cursor: CustomCursor,
+    window: Arc<dyn Window>,
+    touch_cursor: Option<CustomCursor>,
     fullscreen: bool,
-    accessibility: AccessKitAdapter,
+    accessibility: Accessibility,
 }
 
 struct Runner {
@@ -120,11 +126,24 @@ struct Runner {
     load: Option<Load>,
     surface: Option<Surface>,
     pointer: Pos2,
+    fingers: Vec<TouchId>,
+    dropping: Option<AsyncRequestSerial>,
     error: Option<String>,
     next_update: Option<Instant>,
     prepared: bool,
     clipboard: Clipboard,
-    proxy: EventLoopProxy<UserEvent>,
+    proxy: EventLoopProxy,
+    outcome: Outcome,
+}
+
+impl Drop for Runner {
+    fn drop(&mut self) {
+        let finished = self.runner.outcome();
+        *self.outcome.borrow_mut() = Some(match self.error.take() {
+            Some(error) => Err(error),
+            None => finished,
+        });
+    }
 }
 
 struct WinitPlatform<'a> {
@@ -157,21 +176,36 @@ impl Platform for WinitPlatform<'_> {
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
         let surface = &*self.surface;
         if window.pointer_locked != shown.pointer_locked {
-            lock_pointer(&surface.window, window.pointer_locked);
+            lock_pointer(&*surface.window, window.pointer_locked);
         }
         if (window.cursor, window.pointer_locked) != (shown.cursor, shown.pointer_locked) {
             show_cursor(surface, window);
         }
         if window.ime != shown.ime {
-            if window.ime.is_some() != shown.ime.is_some() {
-                surface.window.set_ime_allowed(window.ime.is_some());
-            }
-            if let Some(area) = &window.ime {
-                surface.window.set_ime_cursor_area(
-                    LogicalPosition::new(area.cursor.min.x, area.cursor.min.y),
-                    LogicalSize::new(area.cursor.width().max(1.0), area.cursor.height().max(1.0)),
-                );
-            }
+            let request = match &window.ime {
+                None => ImeRequest::Disable,
+                Some(area) => {
+                    let data = ImeRequestData::default().with_cursor_area(
+                        LogicalPosition::new(area.cursor.min.x, area.cursor.min.y).into(),
+                        LogicalSize::new(
+                            area.cursor.width().max(1.0),
+                            area.cursor.height().max(1.0),
+                        )
+                        .into(),
+                    );
+                    match shown.ime.is_some() {
+                        true => ImeRequest::Update(data),
+                        false => match ImeEnableRequest::new(
+                            ImeCapabilities::new().with_cursor_area(),
+                            data,
+                        ) {
+                            Some(enable) => ImeRequest::Enable(enable),
+                            None => return,
+                        },
+                    }
+                }
+            };
+            let _ = surface.window.request_ime_update(request);
         }
     }
 
@@ -187,12 +221,12 @@ impl Platform for WinitPlatform<'_> {
 }
 
 impl Runner {
-    fn fail(&mut self, event_loop: &ActiveEventLoop, error: impl ToString) {
+    fn fail(&mut self, event_loop: &dyn ActiveEventLoop, error: impl ToString) {
         self.error = Some(error.to_string());
         self.exit(event_loop);
     }
 
-    fn exit(&mut self, event_loop: &ActiveEventLoop) {
+    fn exit(&mut self, event_loop: &dyn ActiveEventLoop) {
         self.runner.exit();
         event_loop.exit();
     }
@@ -207,7 +241,7 @@ impl Runner {
         }
     }
 
-    fn update(&mut self, event_loop: &ActiveEventLoop) -> bool {
+    fn update(&mut self, event_loop: &dyn ActiveEventLoop) -> bool {
         let Some(surface) = &mut self.surface else {
             return false;
         };
@@ -228,7 +262,7 @@ impl Runner {
         frame.pending
     }
 
-    fn redraw(&mut self, event_loop: &ActiveEventLoop) {
+    fn redraw(&mut self, event_loop: &dyn ActiveEventLoop) {
         if !std::mem::take(&mut self.prepared) || self.runner.has_events() {
             self.update(event_loop);
         }
@@ -244,15 +278,169 @@ impl Runner {
         if renderers.attached() {
             return Ok(());
         }
-        let size = surface.window.inner_size();
-        renderers.attach(surface.window.clone(), size.width, size.height)?;
+        let size = surface.window.surface_size();
+        renderers.attach(Arc::new(surface.window.clone()), size.width, size.height)?;
         surface.window.request_redraw();
         Ok(())
     }
+
+    fn touch(
+        &mut self,
+        device: Option<DeviceId>,
+        finger: FingerId,
+        phase: TouchPhase,
+        position: Option<PhysicalPosition<f64>>,
+        force: Option<Force>,
+    ) {
+        let id = TouchId {
+            device: hash(device),
+            finger: finger.into_raw() as u64,
+        };
+        let held = self.fingers.contains(&id);
+        match phase {
+            TouchPhase::Start if !held => self.fingers.push(id),
+            TouchPhase::Start => return,
+            TouchPhase::End | TouchPhase::Cancel if held => {
+                self.fingers.retain(|finger| *finger != id);
+            }
+            TouchPhase::Move if held => {}
+            _ => return,
+        }
+        let pos = position.map_or(self.pointer, physical);
+        self.push(Event::Touch {
+            id,
+            phase,
+            pos,
+            force: force.map(|force| force.normalized(None) as f32),
+        });
+    }
+
+    fn pen(
+        &mut self,
+        phase: PenPhase,
+        position: Option<PhysicalPosition<f64>>,
+        kind: TabletToolKind,
+        data: TabletToolData,
+    ) {
+        if let Some(position) = position {
+            self.pointer = physical(position);
+        }
+        let pressure = data
+            .force
+            .map_or(0.0, |force| force.normalized(None) as f32);
+        let tilt = data.tilt().map_or(Vec2::ZERO, |tilt| {
+            vec2(f32::from(tilt.x), f32::from(tilt.y))
+        });
+        self.push(Event::Pen {
+            phase,
+            pos: self.pointer,
+            pressure,
+            pen: Pen {
+                tilt,
+                eraser: kind == TabletToolKind::Eraser,
+            },
+        });
+    }
+
+    fn pointer_event(&mut self, event: WindowEvent) {
+        match event {
+            WindowEvent::PointerEntered { position, kind, .. } => match kind {
+                PointerKind::TabletTool(kind) => {
+                    self.pen(
+                        PenPhase::Move,
+                        Some(position),
+                        kind,
+                        TabletToolData::default(),
+                    );
+                }
+                PointerKind::Touch(_) => {}
+                _ => {
+                    self.pointer = physical(position);
+                    self.push(Event::PointerMoved(self.pointer));
+                }
+            },
+            WindowEvent::PointerMoved {
+                device_id,
+                position,
+                source,
+                ..
+            } => match source {
+                PointerSource::Touch { finger_id, force } => {
+                    self.touch(
+                        device_id,
+                        finger_id,
+                        TouchPhase::Move,
+                        Some(position),
+                        force,
+                    );
+                }
+                PointerSource::TabletTool { kind, data } => {
+                    self.pen(PenPhase::Move, Some(position), kind, data);
+                }
+                _ => {
+                    self.pointer = physical(position);
+                    self.push(Event::PointerMoved(self.pointer));
+                }
+            },
+            WindowEvent::PointerLeft {
+                device_id,
+                position,
+                kind,
+                ..
+            } => match kind {
+                PointerKind::Touch(finger) => {
+                    self.touch(device_id, finger, TouchPhase::Cancel, position, None);
+                }
+                PointerKind::TabletTool(kind) => {
+                    self.pen(PenPhase::Gone, position, kind, TabletToolData::default());
+                }
+                _ => self.push(Event::PointerGone),
+            },
+            WindowEvent::PointerButton {
+                device_id,
+                state,
+                position,
+                button,
+                ..
+            } => {
+                let pressed = state == ElementState::Pressed;
+                match button {
+                    ButtonSource::Touch { finger_id, force } => {
+                        let phase = match pressed {
+                            true => TouchPhase::Start,
+                            false => TouchPhase::End,
+                        };
+                        self.touch(device_id, finger_id, phase, Some(position), force);
+                    }
+                    ButtonSource::TabletTool { kind, button, data } => {
+                        let button = pen_button(button);
+                        let phase = match pressed {
+                            true => PenPhase::Down(button),
+                            false => PenPhase::Up(button),
+                        };
+                        self.pen(phase, Some(position), kind, data);
+                    }
+                    ButtonSource::Mouse(button) => {
+                        self.pointer = physical(position);
+                        if let Some(button) = pointer_button(button) {
+                            self.runner.pointer_button(self.pointer, button, pressed);
+                        }
+                    }
+                    ButtonSource::Unknown(code) if code >= BUTTON_EVDEV_FIRST => {
+                        self.pointer = physical(position);
+                        let button = PointerButton::Other(code);
+                        self.runner.pointer_button(self.pointer, button, pressed);
+                    }
+                    _ => {}
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
-impl ApplicationHandler<UserEvent> for Runner {
-    fn about_to_wait(&mut self, event_loop: &ActiveEventLoop) {
+impl ApplicationHandler for Runner {
+    fn about_to_wait(&mut self, event_loop: &dyn ActiveEventLoop) {
         if (self.runner.has_events()
             || self
                 .next_update
@@ -268,55 +456,51 @@ impl ApplicationHandler<UserEvent> for Runner {
         });
     }
 
-    fn resumed(&mut self, event_loop: &ActiveEventLoop) {
+    fn can_create_surfaces(&mut self, event_loop: &dyn ActiveEventLoop) {
         if self.surface.is_some() {
             if let Err(error) = self.attach() {
                 self.fail(event_loop, error);
             }
             return;
         }
-        let attributes = Window::default_attributes()
+        let attributes = WindowAttributes::default()
             .with_title(self.runner.title().to_owned())
             .with_visible(false)
-            .with_inner_size(LogicalSize::new(self.size.x, self.size.y));
+            .with_surface_size(LogicalSize::new(self.size.x, self.size.y));
         #[cfg(all(unix, not(target_os = "macos")))]
         let attributes = match &self.app_id {
-            Some(app_id) => {
-                use winit::platform::wayland::WindowAttributesExtWayland;
-                WindowAttributesExtWayland::with_name(attributes, app_id, app_id)
-            }
+            Some(app_id) => attributes.with_platform_attributes(Box::new(
+                winit::platform::wayland::WindowAttributesWayland::default()
+                    .with_name(app_id, app_id),
+            )),
             None => attributes,
         };
-        let window = match event_loop.create_window(attributes) {
-            Ok(window) => Arc::new(window),
+        let window: Arc<dyn Window> = match event_loop.create_window(attributes) {
+            Ok(window) => Arc::from(window),
             Err(error) => return self.fail(event_loop, error),
         };
-        let proxy = self.proxy.clone();
-        let accessibility =
-            AccessKitAdapter::with_event_loop_proxy(event_loop, &window, proxy.clone());
+        let accessibility = Accessibility::new(&*window, self.proxy.clone());
         let touch = beui_core::touch_cursor::image(window.scale_factor() as f32);
-        let touch_cursor = event_loop.create_custom_cursor(
-            CustomCursor::from_rgba(
-                touch.rgba,
-                touch.width as u16,
-                touch.height as u16,
-                touch.hotspot.0 as u16,
-                touch.hotspot.1 as u16,
-            )
-            .expect("the touch cursor's image matches its size"),
-        );
+        let touch_cursor = CustomCursorSource::from_rgba(
+            touch.rgba,
+            touch.width as u16,
+            touch.height as u16,
+            touch.hotspot.0 as u16,
+            touch.hotspot.1 as u16,
+        )
+        .ok()
+        .and_then(|source| event_loop.create_custom_cursor(source).ok());
         window.set_visible(true);
         let Some(load) = self.load.take() else {
             return;
         };
-        let loaded = match load(window.clone()) {
+        let loaded = match load(Arc::new(window.clone())) {
             Ok(loaded) => loaded,
             Err(error) => return self.fail(event_loop, error),
         };
         self.runner.reports().scaled(window.scale_factor() as f32);
-        let mut setup = Setup::new(Waker::new(move || {
-            let _ = proxy.send_event(UserEvent::Wake);
-        }));
+        let proxy = self.proxy.clone();
+        let mut setup = Setup::new(Waker::new(move || proxy.wake_up()));
         setup.provide(window.clone());
         self.surface = Some(Surface {
             window,
@@ -332,45 +516,30 @@ impl ApplicationHandler<UserEvent> for Runner {
         }
     }
 
-    fn suspended(&mut self, _event_loop: &ActiveEventLoop) {
+    fn destroy_surfaces(&mut self, _event_loop: &dyn ActiveEventLoop) {
         if let Some(renderers) = self.runner.renderers() {
             renderers.detach();
         }
     }
 
-    fn user_event(&mut self, _event_loop: &ActiveEventLoop, event: UserEvent) {
+    fn proxy_wake_up(&mut self, _event_loop: &dyn ActiveEventLoop) {
         self.prepared = false;
-        let event = match event {
-            UserEvent::Wake => {
-                self.request_redraw();
-                return;
-            }
-            UserEvent::AccessKit(event) => event,
-        };
+        self.request_redraw();
         let Some(surface) = &self.surface else {
             return;
         };
-        if event.window_id != surface.window.id() {
-            return;
-        }
-        match event.window_event {
-            accesskit_winit::WindowEvent::InitialTreeRequested => {
-                self.runner.accessibility_requested();
-                surface.window.request_redraw();
-            }
-            accesskit_winit::WindowEvent::ActionRequested(request) => {
-                self.runner.accessibility_action(request);
-                surface.window.request_redraw();
-            }
-            accesskit_winit::WindowEvent::AccessibilityDeactivated => {
-                self.runner.accessibility_deactivated();
+        for request in surface.accessibility.take_requests() {
+            match request {
+                Request::InitialTree => self.runner.accessibility_requested(),
+                Request::Action(request) => self.runner.accessibility_action(request),
+                Request::Deactivated => self.runner.accessibility_deactivated(),
             }
         }
     }
 
     fn window_event(
         &mut self,
-        event_loop: &ActiveEventLoop,
+        event_loop: &dyn ActiveEventLoop,
         window_id: WindowId,
         event: WindowEvent,
     ) {
@@ -379,7 +548,7 @@ impl ApplicationHandler<UserEvent> for Runner {
             return;
         }
         if let Some(surface) = &mut self.surface {
-            surface.accessibility.process_event(&surface.window, &event);
+            surface.accessibility.window_event(&*surface.window, &event);
         }
         if !matches!(event, WindowEvent::RedrawRequested) {
             self.prepared = false;
@@ -390,7 +559,7 @@ impl ApplicationHandler<UserEvent> for Runner {
                 false => self.request_redraw(),
             },
             WindowEvent::Destroyed => self.exit(event_loop),
-            WindowEvent::Resized(size) => {
+            WindowEvent::SurfaceResized(size) => {
                 if let Some(surface) = &mut self.surface {
                     let reports = self.runner.reports();
                     let fullscreen = surface.window.fullscreen().is_some();
@@ -412,41 +581,21 @@ impl ApplicationHandler<UserEvent> for Runner {
                     state.alt_key(),
                     state.control_key(),
                     state.shift_key(),
-                    state.super_key(),
+                    state.meta_key(),
                     cfg!(target_os = "macos"),
                 )));
             }
-            WindowEvent::CursorMoved { position, .. } => {
-                self.pointer = physical(position);
-                self.push(Event::PointerMoved(self.pointer));
-            }
-            WindowEvent::CursorLeft { .. } => self.push(Event::PointerGone),
-            WindowEvent::MouseInput { state, button, .. } => {
-                if let Some(button) = pointer_button(button) {
-                    self.runner.pointer_button(
-                        self.pointer,
-                        button,
-                        state == ElementState::Pressed,
-                    );
-                }
-            }
-            WindowEvent::Touch(touch) => {
-                self.push(Event::Touch {
-                    id: TouchId {
-                        device: hash(touch.device_id),
-                        finger: touch.id,
-                    },
-                    phase: touch_phase(touch.phase),
-                    pos: physical(touch.location),
-                    force: touch.force.map(touch_force),
-                });
-            }
+            WindowEvent::PointerEntered { .. }
+            | WindowEvent::PointerMoved { .. }
+            | WindowEvent::PointerLeft { .. }
+            | WindowEvent::PointerButton { .. } => self.pointer_event(event),
             WindowEvent::MouseWheel { delta, phase, .. } => {
                 self.push(match delta {
                     MouseScrollDelta::LineDelta(x, y) => ScrollDelta::Lines(vec2(x, y)),
                     MouseScrollDelta::PixelDelta(position) => {
                         ScrollDelta::Pixels(physical(position).to_vec2())
                     }
+                    _ => return,
                 });
                 if cfg!(target_os = "linux") && phase == winit::event::TouchPhase::Ended {
                     self.push(Event::ScrollEnded);
@@ -463,7 +612,7 @@ impl ApplicationHandler<UserEvent> for Runner {
                 };
                 #[cfg(not(target_os = "linux"))]
                 let code = None;
-                let key = match logical_key(&event.key_without_modifiers()) {
+                let key = match logical_key(&event.key_without_modifiers) {
                     Logical::Key(key) => Some(key),
                     Logical::Ignored => None,
                     Logical::Unknown => match event.physical_key {
@@ -490,19 +639,48 @@ impl ApplicationHandler<UserEvent> for Runner {
                 self.push(Event::Ime(ImeEvent::SetComposingText(String::new())));
                 self.push(Event::Ime(ImeEvent::Disabled));
             }
-            WindowEvent::HoveredFile(_) => self.push(Event::FileHovered),
-            WindowEvent::HoveredFileCancelled => self.push(Event::FileHoverCancelled),
-            WindowEvent::DroppedFile(path) => {
-                let name = path
-                    .file_name()
-                    .and_then(|name| name.to_str())
-                    .unwrap_or_default()
-                    .to_owned();
-                self.push(Event::FileDropped(DroppedFile {
-                    name,
-                    path: Some(path),
-                    bytes: None,
-                }));
+            WindowEvent::DragEntered { id, .. } => {
+                let files = event_loop
+                    .data_transfer(id)
+                    .is_ok_and(|transfer| transfer.has_type(&TypeHint::UriList));
+                if files
+                    && event_loop
+                        .set_valid_dnd_actions(id, &[DndAction::Copy])
+                        .is_ok()
+                {
+                    self.push(Event::FileHovered);
+                }
+            }
+            WindowEvent::DragLeft { .. } => {
+                self.dropping = None;
+                self.push(Event::FileHoverCancelled);
+            }
+            WindowEvent::DragDropped { id, .. } => {
+                self.dropping = event_loop.fetch_data_transfer(id, &TypeHint::UriList).ok();
+                if self.dropping.is_none() {
+                    self.push(Event::FileHoverCancelled);
+                }
+            }
+            WindowEvent::DataTransferReceived { serial, value, .. }
+                if self.dropping == Some(serial) =>
+            {
+                self.dropping = None;
+                let paths = value.try_as_file_paths().unwrap_or_default();
+                if paths.is_empty() {
+                    self.push(Event::FileHoverCancelled);
+                }
+                for path in paths {
+                    let name = path
+                        .file_name()
+                        .and_then(|name| name.to_str())
+                        .unwrap_or_default()
+                        .to_owned();
+                    self.push(Event::FileDropped(DroppedFile {
+                        name,
+                        path: Some(path),
+                        bytes: None,
+                    }));
+                }
             }
             WindowEvent::RedrawRequested => self.redraw(event_loop),
             _ => {}
@@ -511,21 +689,17 @@ impl ApplicationHandler<UserEvent> for Runner {
 
     fn device_event(
         &mut self,
-        _event_loop: &ActiveEventLoop,
-        _device: DeviceId,
+        _event_loop: &dyn ActiveEventLoop,
+        _device: Option<DeviceId>,
         event: DeviceEvent,
     ) {
-        let DeviceEvent::MouseMotion { delta } = event else {
+        let DeviceEvent::PointerMotion { delta } = event else {
             return;
         };
         if !self.runner.window().pointer_locked {
             return;
         }
         self.push(Event::PointerMotion(vec2(delta.0 as f32, delta.1 as f32)));
-    }
-
-    fn exiting(&mut self, event_loop: &ActiveEventLoop) {
-        self.exit(event_loop);
     }
 }
 
@@ -539,23 +713,13 @@ fn physical(position: PhysicalPosition<f64>) -> Pos2 {
     pos2(position.x as f32, position.y as f32)
 }
 
-fn touch_phase(phase: winit::event::TouchPhase) -> TouchPhase {
-    match phase {
-        winit::event::TouchPhase::Started => TouchPhase::Start,
-        winit::event::TouchPhase::Moved => TouchPhase::Move,
-        winit::event::TouchPhase::Ended => TouchPhase::End,
-        winit::event::TouchPhase::Cancelled => TouchPhase::Cancel,
-    }
-}
-
-fn touch_force(force: winit::event::Force) -> f32 {
-    match force {
-        winit::event::Force::Normalized(force) => force as f32,
-        winit::event::Force::Calibrated {
-            force,
-            max_possible_force,
-            ..
-        } => (force / max_possible_force) as f32,
+fn pen_button(button: TabletToolButton) -> PointerButton {
+    match button {
+        TabletToolButton::Contact => PointerButton::Primary,
+        TabletToolButton::Barrel => PointerButton::Secondary,
+        TabletToolButton::Other(code) => Option::<MouseButton>::from(button)
+            .and_then(pointer_button)
+            .unwrap_or(PointerButton::Other(code)),
     }
 }
 
@@ -566,47 +730,46 @@ fn pointer_button(button: MouseButton) -> Option<PointerButton> {
         MouseButton::Middle => Some(PointerButton::Middle),
         MouseButton::Back => Some(PointerButton::Back),
         MouseButton::Forward => Some(PointerButton::Forward),
-        MouseButton::Other(code) if code >= BUTTON_EVDEV_FIRST => Some(PointerButton::Other(code)),
-        MouseButton::Other(_) => None,
+        button => Some(PointerButton::Other(BUTTON_EVDEV_FIRST + button as u16)),
     }
 }
 
-fn cursor(icon: CursorIcon) -> Option<winit::window::CursorIcon> {
+fn cursor(icon: CursorIcon) -> Option<winit::cursor::CursorIcon> {
     Some(match icon {
-        CursorIcon::Default => winit::window::CursorIcon::Default,
-        CursorIcon::Crosshair | CursorIcon::Touch => winit::window::CursorIcon::Crosshair,
-        CursorIcon::Grab => winit::window::CursorIcon::Grab,
-        CursorIcon::Grabbing => winit::window::CursorIcon::Grabbing,
-        CursorIcon::NotAllowed => winit::window::CursorIcon::NotAllowed,
-        CursorIcon::PointingHand => winit::window::CursorIcon::Pointer,
-        CursorIcon::ResizeHorizontal => winit::window::CursorIcon::EwResize,
-        CursorIcon::ResizeVertical => winit::window::CursorIcon::NsResize,
-        CursorIcon::ResizeNeSw => winit::window::CursorIcon::NeswResize,
-        CursorIcon::ResizeNwSe => winit::window::CursorIcon::NwseResize,
-        CursorIcon::Text => winit::window::CursorIcon::Text,
-        CursorIcon::Wait => winit::window::CursorIcon::Wait,
-        CursorIcon::Move => winit::window::CursorIcon::Move,
-        CursorIcon::Progress => winit::window::CursorIcon::Progress,
-        CursorIcon::Help => winit::window::CursorIcon::Help,
-        CursorIcon::Alias => winit::window::CursorIcon::Alias,
-        CursorIcon::ContextMenu => winit::window::CursorIcon::ContextMenu,
-        CursorIcon::Cell => winit::window::CursorIcon::Cell,
-        CursorIcon::VerticalText => winit::window::CursorIcon::VerticalText,
-        CursorIcon::Copy => winit::window::CursorIcon::Copy,
-        CursorIcon::NoDrop => winit::window::CursorIcon::NoDrop,
-        CursorIcon::AllScroll => winit::window::CursorIcon::AllScroll,
-        CursorIcon::ZoomIn => winit::window::CursorIcon::ZoomIn,
-        CursorIcon::ZoomOut => winit::window::CursorIcon::ZoomOut,
-        CursorIcon::ResizeColumn => winit::window::CursorIcon::ColResize,
-        CursorIcon::ResizeRow => winit::window::CursorIcon::RowResize,
-        CursorIcon::ResizeNorth => winit::window::CursorIcon::NResize,
-        CursorIcon::ResizeEast => winit::window::CursorIcon::EResize,
-        CursorIcon::ResizeSouth => winit::window::CursorIcon::SResize,
-        CursorIcon::ResizeWest => winit::window::CursorIcon::WResize,
-        CursorIcon::ResizeNorthEast => winit::window::CursorIcon::NeResize,
-        CursorIcon::ResizeNorthWest => winit::window::CursorIcon::NwResize,
-        CursorIcon::ResizeSouthEast => winit::window::CursorIcon::SeResize,
-        CursorIcon::ResizeSouthWest => winit::window::CursorIcon::SwResize,
+        CursorIcon::Default => winit::cursor::CursorIcon::Default,
+        CursorIcon::Crosshair | CursorIcon::Touch => winit::cursor::CursorIcon::Crosshair,
+        CursorIcon::Grab => winit::cursor::CursorIcon::Grab,
+        CursorIcon::Grabbing => winit::cursor::CursorIcon::Grabbing,
+        CursorIcon::NotAllowed => winit::cursor::CursorIcon::NotAllowed,
+        CursorIcon::PointingHand => winit::cursor::CursorIcon::Pointer,
+        CursorIcon::ResizeHorizontal => winit::cursor::CursorIcon::EwResize,
+        CursorIcon::ResizeVertical => winit::cursor::CursorIcon::NsResize,
+        CursorIcon::ResizeNeSw => winit::cursor::CursorIcon::NeswResize,
+        CursorIcon::ResizeNwSe => winit::cursor::CursorIcon::NwseResize,
+        CursorIcon::Text => winit::cursor::CursorIcon::Text,
+        CursorIcon::Wait => winit::cursor::CursorIcon::Wait,
+        CursorIcon::Move => winit::cursor::CursorIcon::Move,
+        CursorIcon::Progress => winit::cursor::CursorIcon::Progress,
+        CursorIcon::Help => winit::cursor::CursorIcon::Help,
+        CursorIcon::Alias => winit::cursor::CursorIcon::Alias,
+        CursorIcon::ContextMenu => winit::cursor::CursorIcon::ContextMenu,
+        CursorIcon::Cell => winit::cursor::CursorIcon::Cell,
+        CursorIcon::VerticalText => winit::cursor::CursorIcon::VerticalText,
+        CursorIcon::Copy => winit::cursor::CursorIcon::Copy,
+        CursorIcon::NoDrop => winit::cursor::CursorIcon::NoDrop,
+        CursorIcon::AllScroll => winit::cursor::CursorIcon::AllScroll,
+        CursorIcon::ZoomIn => winit::cursor::CursorIcon::ZoomIn,
+        CursorIcon::ZoomOut => winit::cursor::CursorIcon::ZoomOut,
+        CursorIcon::ResizeColumn => winit::cursor::CursorIcon::ColResize,
+        CursorIcon::ResizeRow => winit::cursor::CursorIcon::RowResize,
+        CursorIcon::ResizeNorth => winit::cursor::CursorIcon::NResize,
+        CursorIcon::ResizeEast => winit::cursor::CursorIcon::EResize,
+        CursorIcon::ResizeSouth => winit::cursor::CursorIcon::SResize,
+        CursorIcon::ResizeWest => winit::cursor::CursorIcon::WResize,
+        CursorIcon::ResizeNorthEast => winit::cursor::CursorIcon::NeResize,
+        CursorIcon::ResizeNorthWest => winit::cursor::CursorIcon::NwResize,
+        CursorIcon::ResizeSouthEast => winit::cursor::CursorIcon::SeResize,
+        CursorIcon::ResizeSouthWest => winit::cursor::CursorIcon::SwResize,
         CursorIcon::None => return None,
     })
 }
@@ -668,7 +831,6 @@ fn named_key(named: NamedKey) -> Option<Key> {
         NamedKey::Home => Key::Home,
         NamedKey::PageDown => Key::PageDown,
         NamedKey::PageUp => Key::PageUp,
-        NamedKey::Space => Key::Space,
         NamedKey::Tab => Key::Tab,
         NamedKey::Insert => Key::Insert,
         NamedKey::BrowserBack => Key::BrowserBack,
@@ -711,7 +873,7 @@ fn named_key(named: NamedKey) -> Option<Key> {
         NamedKey::Shift => Key::Shift,
         NamedKey::Control => Key::Ctrl,
         NamedKey::Alt => Key::Alt,
-        NamedKey::Super => Key::meta(cfg!(target_os = "macos")),
+        NamedKey::Meta => Key::meta(cfg!(target_os = "macos")),
         _ => return None,
     };
     Some(key)
@@ -719,21 +881,23 @@ fn named_key(named: NamedKey) -> Option<Key> {
 
 fn show_cursor(surface: &Surface, state: &WindowState) {
     let window = &surface.window;
-    if state.cursor == CursorIcon::Touch {
-        window.set_cursor(surface.touch_cursor.clone());
+    if state.cursor == CursorIcon::Touch
+        && let Some(touch) = &surface.touch_cursor
+    {
+        window.set_cursor(touch.clone().into());
         window.set_cursor_visible(!state.pointer_locked);
         return;
     }
     match cursor(state.cursor) {
         Some(icon) => {
-            window.set_cursor(icon);
+            window.set_cursor(icon.into());
             window.set_cursor_visible(!state.pointer_locked);
         }
         None => window.set_cursor_visible(false),
     }
 }
 
-fn lock_pointer(window: &Window, locked: bool) {
+fn lock_pointer(window: &dyn Window, locked: bool) {
     let grab = match locked {
         true => CursorGrabMode::Locked,
         false => CursorGrabMode::None,

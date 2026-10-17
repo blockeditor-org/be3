@@ -412,7 +412,11 @@ fn reference_of(entity: &CanvasEntity) -> Option<Uuid> {
 
 fn item_bounds(entity: &CanvasEntity) -> Rect {
     let bounds = entity_bounds(entity);
-    let margin = entity.style.line_width.max(0.0) + ITEM_MARGIN;
+    let widest = match entity.kind {
+        CanvasEntityKind::Pen { .. } => MOST_PRESSED_WIDTH,
+        _ => 1.0,
+    };
+    let margin = entity.style.line_width.max(0.0) * widest + ITEM_MARGIN;
     Rect::from_min_max(
         pos2(bounds.min.x - margin, bounds.min.y - margin),
         pos2(bounds.max.x + margin, bounds.max.y + margin),
