@@ -30,6 +30,7 @@ impl Theme {
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct UiSettings {
     pub theme: Option<Theme>,
+    pub scale_percent: Option<u32>,
 }
 
 impl UiSettings {
@@ -40,12 +41,30 @@ impl UiSettings {
     pub fn set_theme(theme: Option<Theme>) -> Edit {
         Self::THEME.set(ObjectId::ROOT, &theme).into()
     }
+
+    pub const SCALES: [u32; 9] = [75, 90, 100, 110, 125, 150, 175, 200, 250];
+    pub const DEFAULT_SCALE: u32 = 100;
+
+    pub fn scale_percent(&self) -> u32 {
+        self.scale_percent
+            .filter(|percent| *percent > 0)
+            .unwrap_or(Self::DEFAULT_SCALE)
+    }
+
+    pub fn scale(&self) -> f32 {
+        self.scale_percent() as f32 / 100.0
+    }
+
+    pub fn set_scale_percent(percent: Option<u32>) -> Edit {
+        Self::SCALE_PERCENT.set(ObjectId::ROOT, &percent).into()
+    }
 }
 
 impl Layered for UiSettings {
     fn over(&self, lower: &Self) -> Self {
         Self {
             theme: self.theme.or(lower.theme),
+            scale_percent: self.scale_percent.or(lower.scale_percent),
         }
     }
 }

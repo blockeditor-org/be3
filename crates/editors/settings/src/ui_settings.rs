@@ -11,7 +11,7 @@ use editors::DefaultEditorsView;
 use ui::UiSettingsView;
 
 const INTRINSIC_WIDTH: f32 = 360.0;
-const INTRINSIC_HEIGHT: f32 = 120.0;
+const INTRINSIC_HEIGHT: f32 = 220.0;
 const EDITORS_HEIGHT: f32 = 360.0;
 
 pub struct UiSettingsApp;
