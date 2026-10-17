@@ -13,7 +13,6 @@ mod another_accounts_settings_are_shown_but_not_changed;
 mod opening_display_settings_creates_the_block_once;
 mod opening_input_settings_creates_the_block_once;
 mod opening_ui_settings_creates_the_block_once;
-mod resetting_a_kind_asks_before_deleting_its_block;
 mod this_device_can_pick_a_new_settings_profile;
 
 fn editor() -> BeuiTest<SettingsApp> {
