@@ -24,7 +24,7 @@ Everything the desktop gets from the host is a host value, and linux-desktop sho
 only while the host offers what backs it (`editor.host_offers::<T>()`, true once the host has
 published `T`): the Programs button, the Super tap and placeholders' Open need `Programs`, the
 bell `Notifications`, the power menu `Power`, the media keys `Media` (the volume item, its
-`output`), and the tray its items. block-app publishes each as soon as the service behind it
+`output`), the Wi-Fi item `Wifi` (its `available`), and the tray its items. block-app publishes each as soon as the service behind it
 runs, even empty, and off Linux its `host_values.rs` tables list none of them, so a plugin
 watching one gets nothing and its actions are refused. The web and Android apps have no
 `--desktop`: a desktop with none of these is only a dock of block windows, which their own
@@ -246,6 +246,29 @@ with `XDG_RUNTIME_DIR` and `DBUS_SESSION_BUS_ADDRESS` set for the app, and press
 `pactl load-module module-null-sink sink_name=speakers sink_properties=device.description=Speakers`,
 and change them from outside the app with `pactl set-sink-volume`, `set-sink-mute` and
 `set-default-sink`.
+
+## Wi-Fi
+
+The bar's Wi-Fi item (linux-desktop's `app/wifi.rs`) shows while the host reports a Wi-Fi
+device (`WifiStatus::available` in the `Wifi` host value): its glyph is the joined network's
+strength, and its popup turns Wi-Fi on and off, lists the networks in range and joins or leaves
+one with `WifiRequest`s. Opening the popup asks for a scan. A saved or open network is joined at
+once; a protected one asks for its password first, and asks again when the host reports that
+joining it `failed`. Enterprise and WEP networks (`WifiSecurity::Unsupported`) can only be joined
+from a connection saved elsewhere.
+
+block-app's `src/wifi/` starts once a plugin watches `Wifi` and talks to NetworkManager on the
+system bus (`network_manager.rs`, a task on the D-Bus thread). It reads the first Wi-Fi device,
+its access points and the saved Wi-Fi connections again after every signal NetworkManager sends,
+so a change made elsewhere (`nmcli`, another program) shows at once. A saved network is joined
+with `ActivateConnection`; anything else with `AddAndActivateConnection`, which saves it. A new
+connection that fails to come up is deleted again, and one made with a new password replaces the
+saved ones for that network once it is up. `model.rs` is the pure part and where to test it:
+security from the access point's flags, the list (hidden networks left out, each name once at its
+strongest), how a network is joined, and when an attempt has connected or failed. The test
+`wifi_on_a_private_bus_lists_networks_and_connects` runs a fake NetworkManager on a private bus.
+
+The VM has no Wi-Fi device, so under `:dev -- --desktop` the item does not show.
 
 ## The on-screen keyboard
 

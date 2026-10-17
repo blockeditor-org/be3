@@ -38,6 +38,8 @@ mod surfaces;
 mod tray;
 mod ui;
 mod wayland;
+#[cfg(target_os = "linux")]
+mod wifi;
 
 use beui::styled::*;
 use std::{
@@ -502,6 +504,8 @@ struct BlockApp {
     notifications: Option<notifications::Notifications>,
     #[cfg(target_os = "linux")]
     tray: Option<tray::Tray>,
+    #[cfg(target_os = "linux")]
+    wifi: Option<wifi::Wifi>,
 }
 
 type Account = SavedAccount;
@@ -745,6 +749,8 @@ impl BlockApp {
             notifications: None,
             #[cfg(target_os = "linux")]
             tray: None,
+            #[cfg(target_os = "linux")]
+            wifi: None,
         })
     }
 
@@ -784,6 +790,7 @@ impl BlockApp {
             self.request_power(action, session::Trigger::Menu);
         }
         self.run_media();
+        self.run_wifi();
     }
 
     #[cfg(target_os = "linux")]
@@ -881,6 +888,26 @@ impl BlockApp {
         }
         if let Some(levels) = media.frame() {
             plugin_host::publish::<block_plugin_api::Media>(&levels);
+        }
+    }
+
+    #[cfg(target_os = "linux")]
+    fn run_wifi(&mut self) {
+        let requests = plugin_host::take_actions::<block_plugin_api::WifiRequest>();
+        if self.wifi.is_none()
+            && (!requests.is_empty() || plugin_host::watched::<block_plugin_api::Wifi>())
+        {
+            self.wifi = Some(wifi::Wifi::start());
+            plugin_host::publish::<block_plugin_api::Wifi>(&block_plugin_api::WifiStatus::default());
+        }
+        let Some(wifi) = &mut self.wifi else {
+            return;
+        };
+        for request in requests {
+            wifi.request(request);
+        }
+        if let Some(status) = wifi.frame() {
+            plugin_host::publish::<block_plugin_api::Wifi>(&status);
         }
     }
 
@@ -3005,6 +3032,7 @@ impl BlockApp {
                     fresh.desktop = self.desktop.take();
                     fresh.screen_lock = self.screen_lock.take();
                     fresh.media = self.media.take();
+                    fresh.wifi = self.wifi.take();
                     fresh.notifications = self.notifications.take();
                 }
                 *self = fresh;

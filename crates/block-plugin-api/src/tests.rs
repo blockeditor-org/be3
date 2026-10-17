@@ -135,6 +135,7 @@ mod tray_messages_round_trip;
 mod version_control_messages_round_trip;
 mod view_messages_round_trip;
 mod web_view_messages_round_trip;
+mod wifi_messages_round_trip;
 mod window_requests_round_trip;
 mod zoom_gesture_round_trips;
 
