@@ -7,7 +7,8 @@ plugin instead of workspace-ui. These flags start it that way:
   `beui-adapter-drm` instead of in a window, from a virtual terminal with no other display
   server on it, as the desktop: the shell is linux-desktop instead of workspace-ui, on a
   session of its own. The bar's power menu logs out (see below), Ctrl+Alt+Backspace quits at
-  once and Ctrl+Alt+F<n> switches terminals.
+  once, as does holding four fingers on a touchscreen for three seconds, and Ctrl+Alt+F<n>
+  switches terminals. guides/pinenote.md covers an e-paper tablet.
   `BEUI_SCALE` sets its scale.
 - `--desktop` (every native platform): the desktop shell, linux-desktop on its own session as
   under `--session`, in a normal window, with programs opening as windows inside it as they
@@ -63,7 +64,9 @@ LightDM all read that directory, and LightDM (Mint's slick-greeter) never reads
 lists; `X-LightDM-Session-Type=wayland` makes LightDM run it as Wayland from any directory. The
 login screen then offers Block on its session menu, where it can be picked and remembered as
 the default. Running it again replaces the install, and removes an entry an older install left
-in `PREFIX/share/wayland-sessions`.
+in `PREFIX/share/wayland-sessions`. greetd's greeters (gtkgreet, regreet) list the commands in
+`/etc/greetd/environments` instead, so when that file exists the installed link with
+`--session` is added to it once.
 
 In session mode stdout and stderr, and so every `eprintln!`, every panic with its backtrace
 and the output of every program the app starts, go to `$XDG_STATE_HOME/block/session.log`

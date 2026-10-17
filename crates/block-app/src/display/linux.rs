@@ -2,13 +2,14 @@ use std::cell::RefCell;
 
 use be_block::DisplaySettings;
 use be_block::display_settings::DisplayMode as SavedMode;
-use beui_adapter_drm::{DisplayConfig, DisplayControl, DisplayMode, Monitor};
-use block_plugin_api::{HostDisplay, HostDisplayMode};
+use beui_adapter_drm::{DisplayConfig, DisplayControl, DisplayMode, Epaper, Monitor};
+use block_plugin_api::{EpaperRequest, HostDisplay, HostDisplayMode};
 
 use super::Screen;
 
 thread_local! {
     static CONTROL: RefCell<Option<DisplayControl>> = const { RefCell::new(None) };
+    static EPAPER: RefCell<Option<Epaper>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn start(setup: &beui::Setup) {
@@ -23,11 +24,30 @@ pub(crate) fn start(setup: &beui::Setup) {
         });
     }
     CONTROL.with(|slot| *slot.borrow_mut() = control);
+    let epaper = setup.get::<Epaper>().cloned();
+    if epaper.is_some() {
+        crate::plugin_host::publish::<block_plugin_api::Epaper>(&true);
+    }
+    EPAPER.with(|slot| *slot.borrow_mut() = epaper);
 }
 
 pub(crate) fn stop() {
     let control = CONTROL.with(|slot| slot.borrow_mut().take());
     drop(control);
+    let epaper = EPAPER.with(|slot| slot.borrow_mut().take());
+    drop(epaper);
+}
+
+pub(crate) fn run_epaper() {
+    let requests = crate::plugin_host::take_actions::<EpaperRequest>();
+    if requests.is_empty() {
+        return;
+    }
+    EPAPER.with(|epaper| {
+        if let Some(epaper) = epaper.borrow().as_ref() {
+            epaper.refresh();
+        }
+    });
 }
 
 pub(crate) fn apply(settings: &DisplaySettings) {

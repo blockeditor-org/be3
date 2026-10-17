@@ -6,9 +6,9 @@ use block_plugin_api::{
 };
 #[cfg(target_os = "linux")]
 use block_plugin_api::{
-    Displays, InputDevices, Media, MediaRequest, NotificationReport, Notifications, Power,
-    PowerAction, ProgramAction, Programs, Remaps, ScreenLocked, Tray, TrayRequest, Wifi,
-    WifiRequest,
+    Displays, Epaper, EpaperRequest, InputDevices, Media, MediaRequest, NotificationReport,
+    Notifications, Power, PowerAction, ProgramAction, Programs, Remaps, ScreenLocked, Tray,
+    TrayRequest, Wifi, WifiRequest,
 };
 
 pub(super) const MAX_ACTIONS: usize = 64;
@@ -28,6 +28,7 @@ const VALUES: &[(&str, Access)] = &[
     (Power::KEY, Access::Anyone),
     (Media::KEY, Access::Anyone),
     (Wifi::KEY, Access::Shell),
+    (Epaper::KEY, Access::Anyone),
     (Notifications::KEY, Access::Shell),
     (ScreenLocked::KEY, Access::Anyone),
     (Programs::KEY, Access::Shell),
@@ -51,6 +52,7 @@ const ACTIONS: &[(&str, Access)] = &[
     (PowerAction::KEY, Access::Shell),
     (MediaRequest::KEY, Access::Shell),
     (WifiRequest::KEY, Access::Shell),
+    (EpaperRequest::KEY, Access::Shell),
     (NotificationReport::KEY, Access::Shell),
     (ProgramAction::KEY, Access::Shell),
     (TrayRequest::KEY, Access::Shell),
