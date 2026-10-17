@@ -25,7 +25,10 @@ fn a_key_let_go_over_the_inspector_is_not_left_held() {
     harness.click(harness.center(field));
     harness.context().toggle_keyboard();
     harness.frame(Vec::new());
-    let keyboard = harness.context().keyboard_rect().expect("the keyboard is open");
+    let keyboard = harness
+        .context()
+        .keyboard_rect()
+        .expect("the keyboard is open");
     let panel = harness.inspector_panel_rect();
 
     let key = key_center(keyboard, Layer::Text, Value::Char('w')).expect("a w key");
