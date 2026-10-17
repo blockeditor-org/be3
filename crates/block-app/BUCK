@@ -8,8 +8,6 @@ load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 # The app, with its full features (the embedded browser), which buckify.bxl
 # turns on for every platform.
 
-app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "src/**/*.desktop", "src/**/*.pam", "assets/**/*"])
-
 # On Android the app is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
 cargo_library(
@@ -18,7 +16,6 @@ cargo_library(
         "root//buck/platforms:wasi_setting": wasi_app_flags,
     }),
     soname = "libblock_app_lib.so",
-    srcs = app_srcs,
 )
 
 # The app links system libraries the worker's image does not have - ALSA, and
@@ -34,10 +31,9 @@ cargo_test(
         "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
         "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
     },
-    srcs = app_srcs,
 )
 
-cargo_binary(srcs = app_srcs)
+cargo_binary()
 
 # The app with every plugin beside it: `./scripts/buck run //crates/block-app:native`
 # runs it. buck/app says how it is laid out.

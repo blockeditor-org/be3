@@ -16,7 +16,7 @@ fn flatten(prefix: &str, artifact: &ComptimeValueBuildArtifact, out: &mut Vec<(S
 
 #[test]
 fn import_file_builds_demo_sample() {
-    let artifact = import_file("demo.qxc", include_str!("../../../samples/demo.qxc"))
+    let artifact = import_file("demo.qxc", include_str!("samples/demo.qxc"))
         .unwrap_or_else(|errors| panic!("demo.qxc failed to build: {errors:?}"));
 
     let mut files = Vec::new();
