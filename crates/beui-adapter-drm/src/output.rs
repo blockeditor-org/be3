@@ -12,7 +12,7 @@ use smithay::reexports::drm::control::{
 };
 use smithay::reexports::drm::{Device as _, DriverCapability};
 
-use super::screen::{Frame, Screen};
+use super::screen::{Damage, Frame, Screen};
 use be_dmabuf::{Usage, Vulkan};
 
 use crate::display::{DisplayConfig, DisplayMode, Monitor};
@@ -49,6 +49,7 @@ pub struct Output {
     connector_name: String,
     fencing: bool,
     state: State,
+    damage: Damage,
     generation: u64,
     frame: u64,
     failure: Option<String>,
@@ -220,6 +221,7 @@ impl Output {
             connector_name,
             fencing,
             state: State::Idle,
+            damage: None,
             generation,
             frame: 0,
             failure: None,
@@ -381,7 +383,7 @@ impl Output {
     }
 
     fn queue(&mut self, sync: Option<SyncPoint>) {
-        match self.swapchain.queue_buffer(sync) {
+        match self.swapchain.queue_buffer(sync, self.damage.take()) {
             Ok(()) => self.state = State::Flipping,
             Err(error) => {
                 self.state = State::Idle;
@@ -406,7 +408,8 @@ impl Output {
                 imported.texture
             }
         };
-        let commands = self.screen.draw(gpu, &frame, &target);
+        let (commands, damage) = self.screen.draw(gpu, &frame, &target);
+        self.damage = damage;
         self.frame += 1;
         match gpu.submit(commands) {
             Submitted::Fence(Some(fence)) if self.fencing => {

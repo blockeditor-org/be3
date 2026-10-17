@@ -1,11 +1,15 @@
 use smithay::backend::allocator::dmabuf::{AsDmabuf, Dmabuf};
 use smithay::backend::allocator::gbm::{GbmAllocator, GbmBuffer};
 use smithay::backend::allocator::{Buffer, Format, Fourcc, Modifier, Slot, Swapchain as Slots};
-use smithay::backend::drm::{DrmDeviceFd, DrmSurface, GbmBufferedSurface, PlaneConfig, PlaneState};
+use smithay::backend::drm::{
+    DrmDeviceFd, DrmSurface, GbmBufferedSurface, PlaneConfig, PlaneDamageClips, PlaneState,
+};
 use smithay::backend::renderer::sync::SyncPoint;
 use smithay::reexports::drm::buffer::{self, DrmFourcc, DrmModifier, PlanarBuffer};
 use smithay::reexports::drm::control::{Device as _, FbCmd2Flags, Mode, framebuffer};
 use smithay::utils::{Rectangle, Transform};
+
+use crate::screen::Damage;
 
 const COLOR_FORMATS: [Fourcc; 2] = [Fourcc::Xrgb8888, Fourcc::Argb8888];
 
@@ -74,12 +78,12 @@ impl Swapchain {
         }
     }
 
-    pub fn queue_buffer(&mut self, sync: Option<SyncPoint>) -> Result<(), String> {
+    pub fn queue_buffer(&mut self, sync: Option<SyncPoint>, damage: Damage) -> Result<(), String> {
         match self {
             Self::Shared(swapchain) => swapchain
-                .queue_buffer(sync, None, ())
+                .queue_buffer(sync, damage, ())
                 .map_err(|error| error.to_string()),
-            Self::Imported(imported) => imported.queue_buffer(sync),
+            Self::Imported(imported) => imported.queue_buffer(sync, damage),
         }
     }
 }
@@ -193,7 +197,7 @@ impl Imported {
         };
         imported.next_buffer()?;
         let slot = imported.next.as_ref().ok_or("no buffer was allocated")?;
-        let state = imported.plane_state(slot);
+        let state = imported.plane_state(slot, None);
         imported
             .surface
             .test_state([state], true)
@@ -272,7 +276,11 @@ impl Imported {
         }
     }
 
-    fn plane_state<'a>(&self, slot: &'a Slot<GbmBuffer>) -> PlaneState<'a> {
+    fn plane_state<'a>(
+        &self,
+        slot: &'a Slot<GbmBuffer>,
+        damage: Option<&'a PlaneDamageClips>,
+    ) -> PlaneState<'a> {
         let mode = self.surface.pending_mode();
         let size = (i32::from(mode.size().0), i32::from(mode.size().1));
         let fb = slot
@@ -287,20 +295,32 @@ impl Imported {
                 dst: Rectangle::from_size(size.into()),
                 transform: Transform::Normal,
                 alpha: 1.0,
-                damage_clips: None,
+                damage_clips: damage.map(PlaneDamageClips::blob),
                 fb,
                 fence: None,
             }),
         }
     }
 
-    fn queue_buffer(&mut self, sync: Option<SyncPoint>) -> Result<(), String> {
+    fn queue_buffer(&mut self, sync: Option<SyncPoint>, damage: Damage) -> Result<(), String> {
         if let Some(sync) = sync {
             let _ = sync.wait();
         }
         let slot = self.next.take().ok_or("no buffer was drawn")?;
         self.slots.submitted(&slot);
-        let state = self.plane_state(&slot);
+        let mode = self.surface.pending_mode();
+        let size = (i32::from(mode.size().0), i32::from(mode.size().1));
+        let clips = damage.and_then(|damage| {
+            PlaneDamageClips::from_damage(
+                self.surface.device_fd(),
+                Rectangle::from_size(size.into()).to_f64(),
+                Rectangle::from_size(size.into()),
+                damage,
+            )
+            .ok()
+            .flatten()
+        });
+        let state = self.plane_state(&slot, clips.as_ref());
         let shown = match self.surface.commit_pending() {
             true => self.surface.commit([state], true),
             false => self.surface.page_flip([state], true),

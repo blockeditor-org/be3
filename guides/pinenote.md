@@ -17,7 +17,9 @@ is not the display device's own (`buffers` in `runner.rs`), it allocates each ou
 with GBM on that render node and imports them into the display device by PRIME
 (`swapchain.rs`'s `Imported`, which is what wlroots does for sway here); otherwise it uses
 smithay's `GbmBufferedSurface` on the display device. simpledrm and evdi displays take the same
-path. The adapter sends no damage clips yet, so the driver reads the whole frame each time.
+path. Each frame carries `FB_DAMAGE_CLIPS` (both paths): the renderer's scissors for a partial
+repaint plus where the pointer was and is (`Screen::draw`), so the driver reads only what
+changed; a full repaint sends none, which means the whole plane.
 
 ## The e-paper panel
 
