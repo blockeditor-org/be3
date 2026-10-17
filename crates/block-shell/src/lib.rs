@@ -1,5 +1,6 @@
 mod access;
 mod artifact;
+mod deleted;
 mod dialogs;
 mod host_panel;
 mod kept;

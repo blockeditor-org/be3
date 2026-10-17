@@ -134,6 +134,7 @@ impl EditorMessage {
                     | BlockCommand::Artifact { .. }
                     | BlockCommand::SimulateAccess { .. }
                     | BlockCommand::CloseEditor
+                    | BlockCommand::Restore
                     | BlockCommand::AppMenu => {}
                 }
             }

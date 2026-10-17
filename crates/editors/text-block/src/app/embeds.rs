@@ -23,6 +23,7 @@ pub(crate) struct ResolvedEmbed {
     pub automatic: bool,
     pub large: bool,
     pub available: bool,
+    pub deleted: bool,
     pub frame_size: Option<Vec2>,
 }
 
@@ -86,6 +87,7 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
                 name: "Broken link".to_owned(),
                 automatic: true,
                 reach: Reach::Open,
+                deleted: false,
             });
             ResolvedEmbed {
                 range: embed.range,
@@ -96,6 +98,7 @@ pub(crate) fn resolve_embeds(state: &State) -> Vec<ResolvedEmbed> {
                 automatic: label.automatic,
                 large: embed.large,
                 available,
+                deleted: label.deleted,
                 frame_size,
             }
         })

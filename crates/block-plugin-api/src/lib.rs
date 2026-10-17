@@ -1398,6 +1398,7 @@ pub struct BlockInfo {
     pub access: AccessLevel,
     pub metadata: BlockMetadata,
     pub locked: bool,
+    pub deleted: bool,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
@@ -1509,6 +1510,7 @@ pub enum BlockCommand {
         parent: [u8; 16],
         linked: bool,
     },
+    Restore,
     AppMenu,
 }
 

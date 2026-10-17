@@ -7,8 +7,8 @@ use block_editor_beui::beui::icons::ICON_WORKSPACES;
 use block_editor_beui::beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_DATABASE, ICON_DELETE,
     ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_HISTORY, ICON_INFO, ICON_LINK_OFF, ICON_LOGOUT,
-    ICON_MORE_VERT, ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_PEOPLE, ICON_SEARCH,
-    ICON_SEARCH_OFF, ICON_SHARE,
+    ICON_MORE_VERT, ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_PEOPLE, ICON_RESTORE,
+    ICON_SEARCH, ICON_SEARCH_OFF, ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -500,6 +500,15 @@ fn LevelRows(
         };
         let container = described_level.container().map(|crumb| crumb.id);
         let entry = matches!(described_level, Level::Root | Level::Shared);
+        let trashed = match &described_level {
+            Level::Deleted => true,
+            Level::Folder(crumbs) => crumbs.iter().any(|crumb| {
+                tree.blocks()
+                    .info(crumb.id)
+                    .is_some_and(|info| info.deleted)
+            }),
+            Level::Root | Level::Shared | Level::System => false,
+        };
         Some(
             listed
                 .iter()
@@ -516,6 +525,7 @@ fn LevelRows(
                             depth: 0,
                             container,
                             expanded: false,
+                            trashed,
                         },
                         |id| id.to_string(),
                     );
@@ -644,7 +654,10 @@ fn PhoneRow(
                 .to_owned(),
         }
     });
-    let muted = create_memo(move || row.get().is_none_or(|row| row.automatic));
+    let muted = create_memo(move || {
+        row.get()
+            .is_none_or(|row| row.automatic || row.marked_deleted)
+    });
     let color = create_memo(move || match muted.get() {
         true => TextColor::Muted,
         false => TextColor::Default,
@@ -793,6 +806,12 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
         }
     };
     let uninspectable = off(|row| row.inspection.is_some());
+    let restorable = create_memo(move || row.get().is_some_and(|row| row.deleted && row.can_edit));
+    let restore = move || {
+        if let Some(id) = row.get_untracked().and_then(|row| row.id) {
+            editor.host().restore_block(id);
+        }
+    };
     let delete_label = create_memo(
         move || match row.get().is_some_and(|row| row.is_reference) {
             true => "Remove link".to_owned(),
@@ -886,6 +905,14 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
                     danger=true
                     separated=true
                 />
+                <Show condition={restorable}>
+                    <MenuItem
+                        row_test_id={"file-tree.actions.restore".to_owned()}
+                        label="Restore"
+                        glyph={ICON_RESTORE.to_owned()}
+                        on_click={restore}
+                    />
+                </Show>
                 <Show condition={can_leave}>
                     <MenuItem
                         row_test_id={"file-tree.actions.leave".to_owned()}

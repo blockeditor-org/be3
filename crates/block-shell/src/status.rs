@@ -79,10 +79,25 @@ pub(crate) fn ReferenceMenu(
     containing: Memo<Option<Uuid>>,
     named: String,
 ) -> NodeId {
+    let refs = create_memo(move || {
+        let mut sorted = refs.get();
+        sorted.list.sort_by_key(|reference| reference.deleted);
+        sorted
+    });
     let label = create_memo(move || {
-        refs.with(|refs| match refs.loaded {
-            true => format!("{name}: {}", refs.list.len()),
-            false => format!("{name}: …"),
+        refs.with(|refs| {
+            let deleted = refs
+                .list
+                .iter()
+                .filter(|reference| reference.deleted)
+                .count();
+            match (refs.loaded, deleted) {
+                (false, _) => format!("{name}: …"),
+                (true, 0) => format!("{name}: {}", refs.list.len()),
+                (true, deleted) => {
+                    format!("{name}: {} (+{deleted} deleted)", refs.list.len() - deleted)
+                }
+            }
         })
     });
     let indices = create_memo(move || refs.with(|refs| (0..refs.list.len()).collect::<Vec<_>>()));

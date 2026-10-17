@@ -50,6 +50,7 @@ pub(crate) struct Graph {
     floor: u64,
     pending: HashMap<Uuid, u32>,
     derived: HashMap<Uuid, Entries>,
+    placing: std::collections::HashSet<Uuid>,
 }
 
 impl Graph {
@@ -257,6 +258,29 @@ impl Graph {
             }
         }
         found
+    }
+
+    pub(crate) fn placing(&mut self, block: Uuid, placing: bool) {
+        let changed = match placing {
+            true => self.placing.insert(block),
+            false => self.placing.remove(&block),
+        };
+        if changed {
+            self.revision += 1;
+        }
+    }
+
+    pub(crate) fn deleted_root(&self, block: Uuid) -> Option<Uuid> {
+        let mut current = block;
+        for _ in 0..=self.nodes.len() {
+            match self.nodes.get(&current)?.parent? {
+                BlockParent::Detached if self.placing.contains(&current) => return None,
+                BlockParent::Detached => return Some(current),
+                BlockParent::Root => return None,
+                BlockParent::Block(parent) => current = parent,
+            }
+        }
+        None
     }
 
     fn entered_from_outside(&self, node: &Node) -> bool {

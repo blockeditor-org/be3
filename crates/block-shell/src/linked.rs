@@ -140,7 +140,7 @@ fn places(backrefs: &Refs) -> Refs {
         list: backrefs
             .list
             .iter()
-            .filter(|block| block.block_type != EditorViewContent::CONTENT_TYPE)
+            .filter(|block| block.block_type != EditorViewContent::CONTENT_TYPE && !block.deleted)
             .cloned()
             .collect(),
     }

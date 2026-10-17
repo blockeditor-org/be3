@@ -77,7 +77,7 @@ pub(crate) fn level_of(access: be_graph::Access) -> AccessLevel {
     }
 }
 
-pub(crate) fn info_of(node: &Node) -> BlockInfo {
+pub(crate) fn info_of(node: &Node, deleted: bool) -> BlockInfo {
     BlockInfo {
         block_id: node.id.into_bytes(),
         block_type: node.content_type.into_bytes(),
@@ -90,15 +90,20 @@ pub(crate) fn info_of(node: &Node) -> BlockInfo {
             derived: wire_entries(&node.metadata.derived),
         },
         locked: node.locked,
+        deleted,
     }
 }
 
 pub(crate) fn answer(query: BlockQuery) -> Vec<BlockInfo> {
-    crate::be::query(query_of(query))
-        .iter()
-        .filter(|node| node.access.can_know_exists())
-        .map(info_of)
-        .collect()
+    crate::be::with_graph(|graph| {
+        graph
+            .query(query_of(query))
+            .iter()
+            .filter(|node| node.access.can_know_exists())
+            .map(|node| info_of(node, graph.deleted_root(node.id).is_some()))
+            .collect()
+    })
+    .unwrap_or_default()
 }
 
 pub(crate) fn wire_entries(entries: &be_block::Entries) -> MetadataEntries {
