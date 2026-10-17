@@ -78,6 +78,10 @@ pub trait Platform {
         false
     }
 
+    fn shows_keyboard(&self) -> bool {
+        false
+    }
+
     fn show_window(&mut self, _window: &WindowState, _shown: &WindowState) {}
 
     fn resize(&mut self, _resize: Resize) -> Result<(), String> {
@@ -132,6 +136,8 @@ pub struct Runner {
     intake: Intake,
     picks: (Sender<Answered>, Receiver<Answered>),
     pastes: (Sender<Pasted>, Receiver<Pasted>),
+    typed_pastes: (Sender<Pasted>, Receiver<Pasted>),
+    keyboard_chosen: bool,
     publishing_accessibility: bool,
     automation: Option<Automation>,
     actions: Vec<ActionGroup>,
@@ -146,6 +152,14 @@ pub struct Runner {
     reports_screens: bool,
     exited: bool,
     failure: Option<String>,
+}
+
+fn type_pastes(pastes: &Receiver<Pasted>, held: crate::input::Modifiers, events: &mut Vec<Event>) {
+    while let Ok(pasted) = pastes.try_recv() {
+        if let Pasted::Text(text) = pasted {
+            crate::app::automation::keys::typed(&text, held, events);
+        }
+    }
 }
 
 impl Runner {
@@ -170,6 +184,8 @@ impl Runner {
             intake: Intake::default(),
             picks: mpsc::channel(),
             pastes: mpsc::channel(),
+            typed_pastes: mpsc::channel(),
+            keyboard_chosen: false,
             publishing_accessibility: false,
             automation,
             actions: Vec::new(),
@@ -361,6 +377,14 @@ impl Runner {
         while let Ok(pasted) = self.pastes.1.try_recv() {
             self.events.push(Event::Paste(pasted));
         }
+        type_pastes(
+            &self.typed_pastes.1,
+            self.intake.modifiers(),
+            &mut self.events,
+        );
+        if !std::mem::replace(&mut self.keyboard_chosen, true) && !platform.shows_keyboard() {
+            self.context.enable_keyboard();
+        }
         if let Err(error) = renderers.follow_choice(&self.context) {
             eprintln!("beui: could not switch renderers: {error}");
         }
@@ -406,6 +430,9 @@ impl Runner {
         }
         if let Some(scale) = self.reports.take_scale() {
             self.native = scale;
+        }
+        if let Some(attached) = self.reports.take_keyboard() {
+            self.context.set_keyboard_attached(attached);
         }
         let pixels_per_point = self.native;
         let Some(physical) = renderers.physical() else {
@@ -468,9 +495,24 @@ impl Runner {
                 None => platform.pick_file(request, answer),
             }
         }
+        self.events.append(&mut output.typed);
+        if output.paste == Some(PasteRequest::Typed) {
+            let answer = PasteAnswer::new(self.typed_pastes.0.clone(), self.waker.clone());
+            platform.paste(&[crate::clipboard::PasteKind::Text], answer);
+            type_pastes(
+                &self.typed_pastes.1,
+                self.intake.modifiers(),
+                &mut self.events,
+            );
+        }
         let delivered =
             output.paste == Some(PasteRequest::Shortcut) && platform.delivers_paste_shortcut();
-        if output.paste.is_some() && !delivered && !output.window.paste_kinds.is_empty() {
+        if output
+            .paste
+            .is_some_and(|paste| paste != PasteRequest::Typed)
+            && !delivered
+            && !output.window.paste_kinds.is_empty()
+        {
             let answer = PasteAnswer::new(self.pastes.0.clone(), self.waker.clone());
             platform.paste(&output.window.paste_kinds, answer);
             while let Ok(pasted) = self.pastes.1.try_recv() {

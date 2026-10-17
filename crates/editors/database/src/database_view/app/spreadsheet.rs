@@ -82,19 +82,17 @@ fn Grid(
                                 keys={keys}
                                 item_size=ROW_HEIGHT
                                 overscan={ROW_HEIGHT * 2.0}
-                            >
-                                {move |index: ReadSignal<usize>| {
-                                    let (display, positions) = (display, positions);
-                                    view! {
-                                        <Row
-                                            data={data}
-                                            display={display}
-                                            positions={positions}
-                                            index={index}
-                                        />
-                                    }
-                                }}
-                            </VirtualList>
+                            >|index: ReadSignal<usize>| {
+                                let (display, positions) = (display, positions);
+                                view! {
+                                    <Row
+                                        data={data}
+                                        display={display}
+                                        positions={positions}
+                                        index={index}
+                                    />
+                                }
+                            }</VirtualList>
                         </List>
                     </Interactive>
                 </Scroll>
@@ -117,45 +115,43 @@ fn HeaderRow(data: Data) -> NodeId {
                 fill=ColorRole::Surface
                 border={Border::new(ColorRole::Border).width(BORDER)}
             />
-            <ForEach keys={keys}>
-                {move |id: Uuid| {
-                    let fields = fields;
-                    let field = create_memo(move || {
-                        fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
+            <ForEach keys={keys}>|id: Uuid| {
+                let fields = fields;
+                let field = create_memo(move || {
+                    fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
+                });
+                let position = create_memo(move || {
+                    fields.with(|fields| fields.iter().position(|field| field.id == id))
+                });
+                let label = create_memo(move || {
+                    let name = field.with(|field| {
+                        field.as_ref().map_or_else(String::new, |field| field.name.clone())
                     });
-                    let position = create_memo(move || {
-                        fields.with(|fields| fields.iter().position(|field| field.id == id))
-                    });
-                    let label = create_memo(move || {
-                        let name = field.with(|field| {
-                            field.as_ref().map_or_else(String::new, |field| field.name.clone())
-                        });
-                        match position.get() {
-                            Some(position) => format!("{}  {name}", column_name(position)),
-                            None => name,
-                        }
-                    });
-                    let width = create_memo(move || {
-                        field.with(|field| {
-                            field.as_ref().map_or(0.0, |field| column_width(field.field_type))
-                        })
-                    });
-                    let sorted = sorted_direction(data.sort, id);
-                    let resort = move || {
-                        let sort = next_sort(data.sort.get_untracked(), id);
-                        data.operate_view(DatabaseView::set_sort(sort));
-                    };
-                    view! {
-                        <HeaderCell
-                            label={label}
-                            width={width}
-                            sorted={sorted}
-                            @test_id={format!("database-view.column.{id}")}
-                            on_click={resort}
-                        />
+                    match position.get() {
+                        Some(position) => format!("{}  {name}", column_name(position)),
+                        None => name,
                     }
-                }}
-            </ForEach>
+                });
+                let width = create_memo(move || {
+                    field.with(|field| {
+                        field.as_ref().map_or(0.0, |field| column_width(field.field_type))
+                    })
+                });
+                let sorted = sorted_direction(data.sort, id);
+                let resort = move || {
+                    let sort = next_sort(data.sort.get_untracked(), id);
+                    data.operate_view(DatabaseView::set_sort(sort));
+                };
+                view! {
+                    <HeaderCell
+                        label={label}
+                        width={width}
+                        sorted={sorted}
+                        @test_id={format!("database-view.column.{id}")}
+                        on_click={resort}
+                    />
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -240,18 +236,16 @@ fn Row(
             >
                 <Text style=TextStyle::CAPTION string={number} align=TextAlign::Center />
             </Frame>
-            <ForEach keys={keys}>
-                {move |id: Uuid| {
-                    let entry = entry;
-                    let fields = fields;
-                    let field = create_memo(move || {
-                        fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
-                    });
-                    view! {
-                        <Cell data={data} entry={entry} field={field} row={index} />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|id: Uuid| {
+                let entry = entry;
+                let fields = fields;
+                let field = create_memo(move || {
+                    fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
+                });
+                view! {
+                    <Cell data={data} entry={entry} field={field} row={index} />
+                }
+            }</ForEach>
         </List>
     }
 }

@@ -20,6 +20,8 @@ const CAPTION_SPACING: f32 = 2.0;
 const ROW_SPACING: f32 = 2.0;
 const ROW_PADDING: f32 = 4.0;
 const ROW_GAP: f32 = 12.0;
+const CARD_PADDING: f32 = 6.0;
+const NOTICE_INSET: f32 = 24.0;
 
 const NOT_OURS: &str = "These settings belong to another account. This device never uses them, and they stay as they are.";
 
@@ -88,38 +90,36 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                 caption="Each device uses one, and starts with one of its own."
                             >
                                 <List spacing=ROW_SPACING>
-                                    <ForEach keys={profiles}>
-                                        {move |profile: Uuid| {
-                                            let label = create_memo(move || {
-                                                children
-                                                    .get()
-                                                    .into_iter()
-                                                    .flatten()
-                                                    .find(|info| info.id == profile)
-                                                    .and_then(|info| info.name())
-                                                    .unwrap_or_else(|| "Profile".to_owned())
-                                            });
-                                            let detail = create_memo(move || match used.get() == Some(profile) {
-                                                true => "Used on this device".to_owned(),
-                                                false => String::new(),
-                                            });
-                                            let selected = create_memo(move || shown.get() == Some(profile));
-                                            view! {
-                                                <SettingRow
-                                                    label={label}
-                                                    detail={detail}
-                                                    glyph={ICON_DEVICES.to_owned()}
-                                                    selected={selected}
-                                                    @test_id={format!("settings.profile.{profile}")}
-                                                    on_click={move || {
-                                                        editor
-                                                            .host()
-                                                            .open_block(profile, SettingsProfileContent::CONTENT_TYPE)
-                                                    }}
-                                                />
-                                            }
-                                        }}
-                                    </ForEach>
+                                    <ForEach keys={profiles}>|profile: Uuid| {
+                                        let label = create_memo(move || {
+                                            children
+                                                .get()
+                                                .into_iter()
+                                                .flatten()
+                                                .find(|info| info.id == profile)
+                                                .and_then(|info| info.name())
+                                                .unwrap_or_else(|| "Profile".to_owned())
+                                        });
+                                        let detail = create_memo(move || match used.get() == Some(profile) {
+                                            true => "Used on this device".to_owned(),
+                                            false => String::new(),
+                                        });
+                                        let selected = create_memo(move || shown.get() == Some(profile));
+                                        view! {
+                                            <SettingRow
+                                                label={label}
+                                                detail={detail}
+                                                glyph={ICON_DEVICES.to_owned()}
+                                                selected={selected}
+                                                @test_id={format!("settings.profile.{profile}")}
+                                                on_click={move || {
+                                                    editor
+                                                        .host()
+                                                        .open_block(profile, SettingsProfileContent::CONTENT_TYPE)
+                                                }}
+                                            />
+                                        }
+                                    }</ForEach>
                                     <Button
                                         label="New settings profile"
                                         glyph={ICON_ADD.to_owned()}
@@ -178,56 +178,45 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     });
     let unused = create_memo(move || !used.get() && !blocked.get());
     let shown = shown_block(editor);
+    let status = create_memo(move || match used.get() {
+        true => "Used on this device".to_owned(),
+        false => "Not used on this device".to_owned(),
+    });
     view! {
         <Loaded loaded={loaded}>
-            <Frame fill=ColorRole::Background>
-                <Scroll>
-                    <Frame padding=PADDING>
-                        <List spacing=SECTION_SPACING>
-                            <List spacing=SPACING>
-                                <Text style=TextStyle::HEADING string="Settings profile" />
-                                <Show condition={others}>
-                                    <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
-                                </Show>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    string="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
-                                    wrap=true
-                                />
-                                <Show condition={used}>
-                                    <Text
-                                        style=TextStyle::CAPTION
-                                        string="This device uses this profile."
-                                        wrap=true
-                                    />
-                                </Show>
-                                <Show condition={unused}>
-                                    <Button
-                                        label="Use on this device"
-                                        variant=ButtonVariant::Primary
-                                        @test_id={"settings-profile.use"}
-                                        on_click={move || {
-                                            if let Some(settings) = parent.get_untracked() {
-                                                editor
-                                                    .content_of::<SettingsContent>(settings)
-                                                    .operate(Settings::add_profile(client, block));
-                                            }
-                                        }}
-                                    />
-                                </Show>
-                            </List>
-                            <Section title="In this profile" caption="">
-                                <Kinds
-                                    editor={editor}
-                                    layer={profile}
-                                    blocked={blocked}
-                                    shown={shown}
-                                />
-                            </Section>
-                        </List>
+            <SettingsPage>
+                <Show condition={others}>
+                    <Frame padding={Sides::horizontal(NOTICE_INSET)}>
+                        <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
                     </Frame>
-                </Scroll>
-            </Frame>
+                </Show>
+                <SettingsSection
+                    title="Settings profile"
+                    description="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
+                >
+                    <SettingsRow label={status}>
+                        <Show condition={unused}>
+                            <Button
+                                label="Use on this device"
+                                variant=ButtonVariant::Primary
+                                @test_id={"settings-profile.use"}
+                                on_click={move || {
+                                    if let Some(settings) = parent.get_untracked() {
+                                        editor
+                                            .content_of::<SettingsContent>(settings)
+                                            .operate(Settings::add_profile(client, block));
+                                    }
+                                }}
+                            />
+                        </Show>
+                    </SettingsRow>
+                </SettingsSection>
+                <SettingsSection title="In this profile">
+                    <Frame padding=CARD_PADDING>
+                        <Kinds editor={editor} layer={profile} blocked={blocked} shown={shown} />
+                    </Frame>
+                </SettingsSection>
+            </SettingsPage>
         </Loaded>
     }
 }

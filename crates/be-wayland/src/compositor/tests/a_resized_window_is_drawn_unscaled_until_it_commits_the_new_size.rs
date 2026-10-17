@@ -17,16 +17,14 @@ fn Pane(windows: Windows) -> NodeId {
     let height = create_memo(move || Some(size.get().y));
     view! {
         <List spacing=0.0>
-            <ForEach keys={ids}>
-                {move |id: WindowId| {
-                    let (width, height) = (width, height);
-                    view! {
-                        <Frame width=width height=height>
-                            <WindowView windows id />
-                        </Frame>
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={ids}>|id: WindowId| {
+                let (width, height) = (width, height);
+                view! {
+                    <Frame width=width height=height>
+                        <WindowView windows id />
+                    </Frame>
+                }
+            }</ForEach>
         </List>
     }
 }

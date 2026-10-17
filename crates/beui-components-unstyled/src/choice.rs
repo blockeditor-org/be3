@@ -132,16 +132,6 @@ pub fn Choice(
                     focused={focused.memo(Some(index))}
                     accessibility
                     on_focus_change={move |has_focus: bool| track_focus(state, index, has_focus)}
-                    content={move |button: ButtonHandle| {
-                        option.call(ChoiceOptionHandle {
-                            index,
-                            label: label.into_prop(),
-                            selected: is_selected,
-                            hovered: button.hovered,
-                            active: button.active,
-                            focused: button.focused,
-                        })
-                    }}
                     on_click={move || select(state, Some(index))}
                     on_key={move |press: KeyPress| key(state, index, press)}
                     on_text={move |typed: String| {
@@ -149,7 +139,16 @@ pub fn Choice(
                             typeahead(state, index, &typed);
                         }
                     }}
-                />
+                >|button: ButtonHandle| {
+                    option.call(ChoiceOptionHandle {
+                        index,
+                        label: label.into_prop(),
+                        selected: is_selected,
+                        hovered: button.hovered,
+                        active: button.active,
+                        focused: button.focused,
+                    })
+                }</unstyled::Button>
             }
         },
     );

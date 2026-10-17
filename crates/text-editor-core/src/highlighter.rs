@@ -8,6 +8,7 @@ use crate::document::{Document, DocumentView, TextLanguage};
 
 mod markdown;
 mod rust;
+mod toml;
 mod zig;
 
 pub use markdown::{MarkdownTable, MarkdownTableAlignment, MarkdownTableRow};
@@ -16,6 +17,7 @@ pub use markdown::{MarkdownTable, MarkdownTableAlignment, MarkdownTableRow};
 pub enum Language {
     Markdown,
     Rust,
+    Toml,
     Zig,
 }
 
@@ -25,13 +27,14 @@ impl Language {
             TextLanguage::PlainText => None,
             TextLanguage::Markdown => Some(Self::Markdown),
             TextLanguage::Rust => Some(Self::Rust),
+            TextLanguage::Toml => Some(Self::Toml),
             TextLanguage::Zig => Some(Self::Zig),
         }
     }
 
     fn chain_start_offset(self, kind: &str, source: &[u8]) -> usize {
         match self {
-            Self::Markdown => 0,
+            Self::Markdown | Self::Toml => 0,
             Self::Rust => rust::chain_start_offset(kind, source),
             Self::Zig => zig::chain_start_offset(kind, source),
         }
@@ -375,6 +378,7 @@ impl SyntaxHighlight {
 enum ParserBackend {
     TreeSitter { parser: Parser, tree: Option<Tree> },
     Markdown,
+    Lexed,
 }
 
 impl ParserBackend {
@@ -402,6 +406,7 @@ impl Highlighter {
             Language::Markdown => ParserBackend::Markdown,
             Language::Rust => ParserBackend::tree_sitter(&tree_sitter_rust::LANGUAGE.into()),
             Language::Zig => ParserBackend::tree_sitter(&tree_sitter_zig::LANGUAGE.into()),
+            Language::Toml => ParserBackend::Lexed,
         };
         Self {
             markdown: None,
@@ -417,7 +422,7 @@ impl Highlighter {
         let revision = self.document.revision();
         let has_tree = match &self.backend {
             ParserBackend::TreeSitter { tree, .. } => tree.is_some(),
-            ParserBackend::Markdown => return Some(()),
+            ParserBackend::Markdown | ParserBackend::Lexed => return Some(()),
         };
         if self.parsed_revision == Some(revision) && has_tree {
             return Some(());
@@ -473,7 +478,7 @@ impl Highlighter {
                 }
                 *tree = parser.parse(bytes, tree.as_ref());
             }
-            ParserBackend::Markdown => {}
+            ParserBackend::Markdown | ParserBackend::Lexed => {}
         }
         self.parsed_bytes.clear();
         self.parsed_bytes.extend_from_slice(bytes);
@@ -514,6 +519,7 @@ impl Highlighter {
         match self.language {
             Language::Rust => SyntaxHighlight::from_scopes(rust::scopes(bytes), bytes),
             Language::Zig => SyntaxHighlight::from_scopes(zig::scopes(bytes), bytes),
+            Language::Toml => SyntaxHighlight::from_scopes(toml::scopes(bytes), bytes),
             Language::Markdown => SyntaxHighlight::plaintext(bytes.len()),
         }
     }

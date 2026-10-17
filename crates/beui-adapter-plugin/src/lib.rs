@@ -312,6 +312,7 @@ fn frame_for(
                 .iter()
                 .map(|kind| beui_plugin_input::protocol_paste_kind(*kind))
                 .collect(),
+            keyboard_toggles: window.keyboard_toggles,
         },
         description,
         stopped: None,

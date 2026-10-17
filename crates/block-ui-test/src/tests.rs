@@ -41,10 +41,12 @@ fn Slide(editor: Editor) -> NodeId {
     let target = Some(ChildTarget::new(SLIDE, SLIDE_TYPE));
     view! {
         <Frame width=320.0 height=180.0>
-            <ChildBlock editor={editor} block={target} mode=ChildMode::Preview>
-                {move |handle: ChildBlockHandle| view! {
-                    <Status state={handle.state} />
-                }}
+            <ChildBlock
+                editor={editor}
+                block={target}
+                mode=ChildMode::Preview
+            >|handle: ChildBlockHandle|
+                <Status state={handle.state} />
             </ChildBlock>
         </Frame>
     }

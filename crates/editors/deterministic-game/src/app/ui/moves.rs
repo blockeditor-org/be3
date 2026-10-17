@@ -116,36 +116,26 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     color={muted}
                     @sizing=ItemSize::Fixed(NUMBER_WIDTH)
                 />
-                <ForEach keys={header_keys}>
-                    {move |column: usize| {
-                        let name = create_memo(move || {
-                            columns.with(|columns| columns.get(column).cloned().unwrap_or_default())
-                        });
-                        view! {
-                            <Text
-                                string={name}
-                                size=TextSize::Sm
-                                color={muted}
-                                @sizing=ItemSize::Percent(100.0)
-                            />
-                        }
-                    }}
-                </ForEach>
+                <ForEach keys={header_keys}>|column: usize| {
+                    let name = create_memo(move || {
+                        columns.with(|columns| columns.get(column).cloned().unwrap_or_default())
+                    });
+                    view! {
+                        <Text
+                            string={name}
+                            size=TextSize::Sm
+                            color={muted}
+                            @sizing=ItemSize::Percent(100.0)
+                        />
+                    }
+                }</ForEach>
             </List>
             <Show condition={empty}>
                 <Text style=TextStyle::CAPTION string="No moves yet" />
             </Show>
             <List spacing=1.0>
-                <ForEach keys>
-                    {move |row: usize| view! {
-                        <MoveRow
-                            row
-                            rows={rows}
-                            columns={column_keys}
-                            shown={shown}
-                            steps={steps}
-                        />
-                    }}
+                <ForEach keys>|row: usize|
+                    <MoveRow row rows={rows} columns={column_keys} shown={shown} steps={steps} />
                 </ForEach>
             </List>
             <Show condition={ended}>
@@ -172,17 +162,15 @@ fn MoveRow(
                 color={muted}
                 @sizing=ItemSize::Fixed(NUMBER_WIDTH)
             />
-            <ForEach keys={columns}>
-                {move |column: usize| view! {
-                    <MoveCell
-                        row
-                        column
-                        rows={rows}
-                        shown={shown}
-                        steps={steps}
-                        @sizing=ItemSize::Percent(100.0)
-                    />
-                }}
+            <ForEach keys={columns}>|column: usize|
+                <MoveCell
+                    row
+                    column
+                    rows={rows}
+                    shown={shown}
+                    steps={steps}
+                    @sizing=ItemSize::Percent(100.0)
+                />
             </ForEach>
         </List>
     }
@@ -232,16 +220,15 @@ fn MoveCell(
         <unstyled::Button
             @test_id={format!("game.history.{row}.{column}")}
             on_click={open}
-            content={move |_: unstyled::ButtonHandle| view! {
-                <Frame
-                    fill={ColorRole::custom(fill)}
-                    radius=Radius::Sm
-                    padding={Sides::symmetric(6.0, 3.0)}
-                >
-                    <Text string={text} size=TextSize::Sm color={color} />
-                </Frame>
-            }}
-        />
+        >|_: unstyled::ButtonHandle|
+            <Frame
+                fill={ColorRole::custom(fill)}
+                radius=Radius::Sm
+                padding={Sides::symmetric(6.0, 3.0)}
+            >
+                <Text string={text} size=TextSize::Sm color={color} />
+            </Frame>
+        </unstyled::Button>
     }
 }
 

@@ -61,36 +61,28 @@ pub(crate) fn Launcher(model: Model) -> NodeId {
                 <Portal @sizing=ItemSize::Percent(100.0) node={Some(sidebar)} />
             </Show>
             <Show condition={reading}>
-                {move || view! {
-                    <BackSlide
-                        @sizing=ItemSize::Percent(100.0)
-                        on_back={back}
-                        behind={move || view! {
-                            <Portal node={Some(sidebar)} />
-                        }}
-                    >
-                        <Frame fill={ColorRole::custom(page)}>
-                            <List spacing=0.0>
-                                <Frame padding={Sides::symmetric(8.0, 4.0)}>
-                                    <IconButton
-                                        glyph=ICON_ARROW_BACK
-                                        label="Back to the pull requests"
-                                        on_click={back}
-                                    />
-                                </Frame>
-                                <ForEach keys={opened}>
-                                    {move |number: u64| view! {
-                                        <Detail
-                                            @sizing=ItemSize::Percent(100.0)
-                                            model={model}
-                                            number
-                                        />
-                                    }}
-                                </ForEach>
-                            </List>
-                        </Frame>
-                    </BackSlide>
-                }}
+                <BackSlide
+                    @sizing=ItemSize::Percent(100.0)
+                    on_back={back}
+                    behind={move || view! {
+                        <Portal node={Some(sidebar)} />
+                    }}
+                >
+                    <Frame fill={ColorRole::custom(page)}>
+                        <List spacing=0.0>
+                            <Frame padding={Sides::symmetric(8.0, 4.0)}>
+                                <IconButton
+                                    glyph=ICON_ARROW_BACK
+                                    label="Back to the pull requests"
+                                    on_click={back}
+                                />
+                            </Frame>
+                            <ForEach keys={opened}>|number: u64|
+                                <Detail @sizing=ItemSize::Percent(100.0) model={model} number />
+                            </ForEach>
+                        </List>
+                    </Frame>
+                </BackSlide>
             </Show>
             <ImageViewer model={model} />
         </List>
@@ -219,15 +211,13 @@ fn Sidebar(model: Model) -> NodeId {
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Frame padding={Sides::horizontal(PADDING).bottom(PADDING)}>
                     <List spacing=0.0>
-                        <ForEach keys={visible}>
-                            {move |number: u64| {
-                                let pull_request = model.pull_requests.get(&number);
-                                let pull_request = create_memo(move || pull_request.get());
-                                view! {
-                                    <PullRequestRow model={model} pull_request />
-                                }
-                            }}
-                        </ForEach>
+                        <ForEach keys={visible}>|number: u64| {
+                            let pull_request = model.pull_requests.get(&number);
+                            let pull_request = create_memo(move || pull_request.get());
+                            view! {
+                                <PullRequestRow model={model} pull_request />
+                            }
+                        }</ForEach>
                     </List>
                 </Frame>
             </Scroll>
@@ -320,16 +310,14 @@ pub(crate) fn Labels(labels: Memo<Vec<Label>>, checked_out: Memo<bool>) -> NodeI
             <Show condition={checked_out}>
                 <Chip text=CURRENT color={theme.accent} />
             </Show>
-            <ForEach keys>
-                {move |index: usize| {
-                    let label = create_memo(move || labels.get().get(index).cloned());
-                    let text = create_memo(move || label.get().map(|label| label.name).unwrap_or_default());
-                    let color = create_memo(move || label.get().map_or(Color32::from_gray(128), |label| label.color));
-                    view! {
-                        <Chip text color />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys>|index: usize| {
+                let label = create_memo(move || labels.get().get(index).cloned());
+                let text = create_memo(move || label.get().map(|label| label.name).unwrap_or_default());
+                let color = create_memo(move || label.get().map_or(Color32::from_gray(128), |label| label.color));
+                view! {
+                    <Chip text color />
+                }
+            }</ForEach>
             <Spacer @sizing=ItemSize::Percent(100.0) />
         </List>
     }

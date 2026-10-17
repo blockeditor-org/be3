@@ -39,18 +39,16 @@ pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
             }}
         >
             <List spacing=0.0>
-                <Dynamic value={shown}>
-                    {move |tab: Option<TabId>| {
-                        match tab {
-                            Some(tab) => view! {
-                                <DetailsBody @sizing=ItemSize::Percent(100.0) workspace tab />
-                            },
-                            None => view! {
-                                <Frame @sizing=ItemSize::Percent(100.0) />
-                            },
-                        }
-                    }}
-                </Dynamic>
+                <Dynamic value={shown}>|tab: Option<TabId>| {
+                    match tab {
+                        Some(tab) => view! {
+                            <DetailsBody @sizing=ItemSize::Percent(100.0) workspace tab />
+                        },
+                        None => view! {
+                            <Frame @sizing=ItemSize::Percent(100.0) />
+                        },
+                    }
+                }</Dynamic>
             </List>
         </ModalSheet>
     }
@@ -177,14 +175,12 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                     on_click={move || act(Action::Share)}
                 />
                 <Show condition={unlinkable}>
-                    {move || view! {
-                        <ActionRow
-                            @test_id={"workspace.details.unlink"}
-                            label="Unlink"
-                            glyph={ICON_LINK_OFF.to_owned()}
-                            on_click={move || act(Action::Unlink)}
-                        />
-                    }}
+                    <ActionRow
+                        @test_id={"workspace.details.unlink"}
+                        label="Unlink"
+                        glyph={ICON_LINK_OFF.to_owned()}
+                        on_click={move || act(Action::Unlink)}
+                    />
                 </Show>
                 <ActionRow
                     @test_id={"workspace.details.delete"}
@@ -214,29 +210,34 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
 #[component]
 fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: String) -> NodeId {
     let ids = create_memo(move || {
-        refs.with(|refs| refs.list.iter().map(|info| info.id).collect::<Vec<Uuid>>())
+        refs.with(|refs| {
+            let mut listed = refs.list.iter().collect::<Vec<_>>();
+            listed.sort_by_key(|info| info.deleted);
+            listed
+                .into_iter()
+                .map(|info| info.id)
+                .collect::<Vec<Uuid>>()
+        })
     });
     let some = create_memo(move || !ids.get().is_empty());
     view! {
         <List spacing=0.0>
-            <Show condition={some}>
-                {move || { let title = title.clone(); view! {
+            <Show condition={some}>|| {
+                let title = title.clone(); view! {
                     <Frame padding={Sides::symmetric(SHEET_PADDING, SECTION_PADDING)}>
                         <Text style=TextStyle::CAPTION string={title} />
                     </Frame>
-                } }}
-            </Show>
-            <ForEach keys={ids}>
-                {move |id: Uuid| {
-                    let reference = create_memo(move || {
-                        refs.with(|refs| refs.list.iter().find(|info| info.id == id).cloned())
-                    });
-                    let named = format!("{named}.{id}");
-                    view! {
-                        <RelatedRow workspace reference named />
-                    }
-                }}
-            </ForEach>
+                }
+            }</Show>
+            <ForEach keys={ids}>|id: Uuid| {
+                let reference = create_memo(move || {
+                    refs.with(|refs| refs.list.iter().find(|info| info.id == id).cloned())
+                });
+                let named = format!("{named}.{id}");
+                view! {
+                    <RelatedRow workspace reference named />
+                }
+            }</ForEach>
         </List>
     }
 }
@@ -259,6 +260,16 @@ fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: S
             .unwrap_or_default()
             .to_owned()
     });
+    let detail = create_memo(move || {
+        match reference.with(|reference| {
+            reference
+                .as_ref()
+                .is_some_and(|reference| reference.deleted)
+        }) {
+            true => "In Recently Deleted".to_owned(),
+            false => String::new(),
+        }
+    });
     let opening = move || {
         let Some(reference) = reference.get_untracked() else {
             return;
@@ -268,6 +279,6 @@ fn RelatedRow(workspace: Workspace, reference: Memo<Option<BlockInfo>>, named: S
         workspace.open(TabItem::new(reference.id, reference.block_type), via);
     };
     view! {
-        <ActionRow @test_id={named} label={name} glyph on_click={opening} />
+        <ActionRow @test_id={named} label={name} glyph detail on_click={opening} />
     }
 }

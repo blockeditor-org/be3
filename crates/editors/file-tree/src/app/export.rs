@@ -116,6 +116,7 @@ fn file_of(editor: Editor, export: &Export) -> Option<SavedFile> {
                     TextLanguage::PlainText => ("txt", "text/plain"),
                     TextLanguage::Rust => ("rs", "text/x-rust"),
                     TextLanguage::Zig => ("zig", "text/x-zig"),
+                    TextLanguage::Toml => ("toml", "application/toml"),
                 };
                 SavedFile {
                     name: named(extension),

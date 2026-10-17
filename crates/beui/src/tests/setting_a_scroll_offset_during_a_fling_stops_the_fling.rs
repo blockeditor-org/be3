@@ -11,12 +11,10 @@ fn setting_a_scroll_offset_during_a_fling_stops_the_fling() {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <ForEach keys={indices(400)}>
-                        {|_: usize| view! {
-                            <Frame padding={Sides::symmetric(0.0, 20.0)}>
-                                <Spacer />
-                            </Frame>
-                        }}
+                    <ForEach keys={indices(400)}>|_: usize|
+                        <Frame padding={Sides::symmetric(0.0, 20.0)}>
+                            <Spacer />
+                        </Frame>
                     </ForEach>
                 </Scroll>
             </List>

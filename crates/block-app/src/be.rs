@@ -268,6 +268,7 @@ const KINDS: &[Kind] = &[
     kind::<be_block::UiSettingsContent>(),
     kind::<be_block::EditorSettingsContent>(),
     kind::<be_block::InputSettingsContent>(),
+    kind::<be_block::InputRemapperContent>(),
     kind::<be_block::DisplaySettingsContent>(),
     kind::<be_block::BrowserTabContent>(),
     kind_with_history::<be_block::SettingsContent>(),
@@ -898,7 +899,33 @@ pub(crate) fn create(
     });
 }
 
+pub(crate) fn placing(block: Uuid, placing: bool) {
+    with_shared_mut(|shared| shared.graph.placing(block, placing));
+}
+
 pub(crate) fn set_parent(block: Uuid, parent: be_graph::BlockParent) {
+    if let Some(node) = node(block)
+        && node.content_type
+            != <be_block::EditorViewContent as be_block::BlockContent>::CONTENT_TYPE
+        && node.access.can_edit()
+    {
+        let from = match (node.parent, parent) {
+            (Some(be_graph::BlockParent::Root), be_graph::BlockParent::Detached) => {
+                Some(be_block::DeletedFrom::Root)
+            }
+            (Some(be_graph::BlockParent::Block(old)), be_graph::BlockParent::Detached) => {
+                Some(be_block::DeletedFrom::Block(old))
+            }
+            _ => None,
+        };
+        let restored = parent != be_graph::BlockParent::Detached;
+        if from.is_some() || (restored && node.metadata.contains(&be_block::DELETED_FROM)) {
+            define(
+                block,
+                vec![be_block::DELETED_FROM.definition(from.as_ref())],
+            );
+        }
+    }
     with_shared_mut(|shared| {
         shared
             .graph

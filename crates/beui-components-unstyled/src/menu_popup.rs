@@ -146,25 +146,23 @@ pub(crate) fn MenuPopup(
                     />
                 })}
             />
-            <Show condition={sheet_built}>
-                {move || {
-                    let (row, sheet) = sheet.unwrap_or_else(|| unreachable!());
-                    let (choose, dismiss) = (sheet_choose, sheet_dismiss);
-                    sheet.call(MenuSheetHandle {
-                        open: raised,
-                        on_close: ClickCallback::new(move || dismiss.call()),
-                        menu: view! {
-                            <MenuList
-                                items={sheet_items.clone()}
-                                row
-                                panel={sheet_panel}
-                                active={raised}
-                                on_select={choose}
-                            />
-                        },
-                    })
-                }}
-            </Show>
+            <Show condition={sheet_built}>|| {
+                let (row, sheet) = sheet.unwrap_or_else(|| unreachable!());
+                let (choose, dismiss) = (sheet_choose, sheet_dismiss);
+                sheet.call(MenuSheetHandle {
+                    open: raised,
+                    on_close: ClickCallback::new(move || dismiss.call()),
+                    menu: view! {
+                        <MenuList
+                            items={sheet_items.clone()}
+                            row
+                            panel={sheet_panel}
+                            active={raised}
+                            on_select={choose}
+                        />
+                    },
+                })
+            }</Show>
         </List>
     }
 }

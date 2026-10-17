@@ -7,8 +7,8 @@ use block_editor_beui::beui::icons::ICON_WORKSPACES;
 use block_editor_beui::beui::icons::{
     ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_DATABASE, ICON_DELETE,
     ICON_DRIVE_FILE_RENAME_OUTLINE, ICON_HISTORY, ICON_INFO, ICON_LINK_OFF, ICON_LOGOUT,
-    ICON_MORE_VERT, ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_PEOPLE, ICON_SEARCH,
-    ICON_SEARCH_OFF, ICON_SHARE,
+    ICON_MORE_VERT, ICON_MOVE_UP, ICON_NOTE_ADD, ICON_OPEN_IN_NEW, ICON_PEOPLE, ICON_RESTORE,
+    ICON_SEARCH, ICON_SEARCH_OFF, ICON_SHARE,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -202,9 +202,7 @@ pub(crate) fn PhoneFiles(
                                 <SearchSoon @sizing=ItemSize::Percent(100.0) />
                             </Show>
                             <Show condition={browsing}>
-                                {move || view! {
-                                    <Folder @sizing=ItemSize::Percent(100.0) shelf level at_root />
-                                }}
+                                <Folder @sizing=ItemSize::Percent(100.0) shelf level at_root />
                             </Show>
                         </List>
                     </Frame>
@@ -243,24 +241,22 @@ fn Folder(shelf: Shelf, level: ReadSignal<Level>, at_root: Memo<bool>) -> NodeId
                     <Show condition={at_root}>
                         <Recents editor={recents_editor} />
                     </Show>
-                    <Dynamic value={level}>
-                        {move |level: Level| {
-                            let editor = shelf.editor;
-                            let tree = shelf.tree;
-                            let set_level = shelf.set_level;
-                            let tools = shelf.tools;
-                            view! {
-                                <LevelRows
-                                    @sizing=ItemSize::Intrinsic
-                                    editor
-                                    tree
-                                    level
-                                    set_level
-                                    tools
-                                />
-                            }
-                        }}
-                    </Dynamic>
+                    <Dynamic value={level}>|level: Level| {
+                        let editor = shelf.editor;
+                        let tree = shelf.tree;
+                        let set_level = shelf.set_level;
+                        let tools = shelf.tools;
+                        view! {
+                            <LevelRows
+                                @sizing=ItemSize::Intrinsic
+                                editor
+                                tree
+                                level
+                                set_level
+                                tools
+                            />
+                        }
+                    }</Dynamic>
                     <Frame height=DOCK_ROOM />
                 </List>
             </Frame>
@@ -324,22 +320,18 @@ fn Header(
                         </Frame>
                     </Show>
                     <Show condition={named}>
-                        {move || view! {
-                            <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                                <Text style=TextStyle::CAPTION string={path} ellipsis=true />
-                                <Text style=TextStyle::HEADING string={name} />
-                            </List>
-                        }}
+                        <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                            <Text style=TextStyle::CAPTION string={path} ellipsis=true />
+                            <Text style=TextStyle::HEADING string={name} />
+                        </List>
                     </Show>
                     <Show condition={top}>
-                        {move || view! {
-                            <IconButton
-                                @test_id={"file-tree.app-menu"}
-                                glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
-                                label="Account and settings"
-                                on_click={on_menu}
-                            />
-                        }}
+                        <IconButton
+                            @test_id={"file-tree.app-menu"}
+                            glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
+                            label="Account and settings"
+                            on_click={on_menu}
+                        />
                     </Show>
                 </List>
                 <TextInput
@@ -407,31 +399,27 @@ fn Recents(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={any}>
-                {move || view! {
-                    <List spacing=6.0>
-                        <Frame padding={Sides::symmetric(PADDING, 4.0)}>
-                            <Text style=TextStyle::CAPTION string="Recent" />
-                        </Frame>
-                        <Scroll direction=Direction::Horizontal>
-                            <ForEach keys={keys}>
-                                {move |id: Uuid| {
-                                    let block_type = recents.with_untracked(|recents| {
-                                        recents
-                                            .iter()
-                                            .find(|(other, _)| *other == id)
-                                            .map_or_else(Uuid::nil, |(_, block_type)| *block_type)
-                                    });
-                                    view! {
-                                        <RecentCard editor id block_type />
-                                    }
-                                }}
-                            </ForEach>
-                        </Scroll>
-                        <Frame padding={Sides::symmetric(PADDING, 4.0)}>
-                            <Text style=TextStyle::CAPTION string="All files" />
-                        </Frame>
-                    </List>
-                }}
+                <List spacing=6.0>
+                    <Frame padding={Sides::symmetric(PADDING, 4.0)}>
+                        <Text style=TextStyle::CAPTION string="Recent" />
+                    </Frame>
+                    <Scroll direction=Direction::Horizontal>
+                        <ForEach keys={keys}>|id: Uuid| {
+                            let block_type = recents.with_untracked(|recents| {
+                                recents
+                                    .iter()
+                                    .find(|(other, _)| *other == id)
+                                    .map_or_else(Uuid::nil, |(_, block_type)| *block_type)
+                            });
+                            view! {
+                                <RecentCard editor id block_type />
+                            }
+                        }</ForEach>
+                    </Scroll>
+                    <Frame padding={Sides::symmetric(PADDING, 4.0)}>
+                        <Text style=TextStyle::CAPTION string="All files" />
+                    </Frame>
+                </List>
             </Show>
         </List>
     }
@@ -512,6 +500,15 @@ fn LevelRows(
         };
         let container = described_level.container().map(|crumb| crumb.id);
         let entry = matches!(described_level, Level::Root | Level::Shared);
+        let trashed = match &described_level {
+            Level::Deleted => true,
+            Level::Folder(crumbs) => crumbs.iter().any(|crumb| {
+                tree.blocks()
+                    .info(crumb.id)
+                    .is_some_and(|info| info.deleted)
+            }),
+            Level::Root | Level::Shared | Level::System => false,
+        };
         Some(
             listed
                 .iter()
@@ -528,6 +525,7 @@ fn LevelRows(
                             depth: 0,
                             container,
                             expanded: false,
+                            trashed,
                         },
                         |id| id.to_string(),
                     );
@@ -568,60 +566,50 @@ fn LevelRows(
                     <Text style=TextStyle::CAPTION string={empty_text} wrap=true />
                 </Frame>
             </Show>
-            <ForEach keys={keys}>
-                {move |id: Uuid| {
-                    let row = create_memo(move || {
-                        rows.with(|rows| {
-                            rows.iter().flatten().find(|row| row.id == Some(id)).cloned()
-                        })
-                    });
-                    let level = level.clone();
-                    let set_level = set_level;
-                    let tools = tools;
-                    view! {
-                        <PhoneRow editor row level set_level tools />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|id: Uuid| {
+                let row = create_memo(move || {
+                    rows.with(|rows| {
+                        rows.iter().flatten().find(|row| row.id == Some(id)).cloned()
+                    })
+                });
+                let level = level.clone();
+                let set_level = set_level;
+                let tools = tools;
+                view! {
+                    <PhoneRow editor row level set_level tools />
+                }
+            }</ForEach>
             <Show condition={at_root}>
-                {move || view! {
-                    <ActionRow
-                        @test_id={"file-tree.new-workspace"}
-                        label="New workspace"
-                        glyph={ICON_WORKSPACES.to_owned()}
-                        on_click={move || new_workspace(editor)}
-                    />
-                }}
+                <ActionRow
+                    @test_id={"file-tree.new-workspace"}
+                    label="New workspace"
+                    glyph={ICON_WORKSPACES.to_owned()}
+                    on_click={move || new_workspace(editor)}
+                />
             </Show>
             <Show condition={at_root}>
-                {move || view! {
-                    <ActionRow
-                        @test_id={"file-tree.shared"}
-                        label="Shared with me"
-                        glyph={ICON_PEOPLE.to_owned()}
-                        on_click={move || deleting.set(Level::Shared)}
-                    />
-                }}
+                <ActionRow
+                    @test_id={"file-tree.shared"}
+                    label="Shared with me"
+                    glyph={ICON_PEOPLE.to_owned()}
+                    on_click={move || deleting.set(Level::Shared)}
+                />
             </Show>
             <Show condition={at_root}>
-                {move || view! {
-                    <ActionRow
-                        @test_id={"file-tree.deleted"}
-                        label="Recently deleted"
-                        glyph={ICON_HISTORY.to_owned()}
-                        on_click={move || deleting.set(Level::Deleted)}
-                    />
-                }}
+                <ActionRow
+                    @test_id={"file-tree.deleted"}
+                    label="Recently deleted"
+                    glyph={ICON_HISTORY.to_owned()}
+                    on_click={move || deleting.set(Level::Deleted)}
+                />
             </Show>
             <Show condition={at_root}>
-                {move || view! {
-                    <ActionRow
-                        @test_id={"file-tree.system"}
-                        label="System"
-                        glyph={ICON_DATABASE.to_owned()}
-                        on_click={move || deleting.set(Level::System)}
-                    />
-                }}
+                <ActionRow
+                    @test_id={"file-tree.system"}
+                    label="System"
+                    glyph={ICON_DATABASE.to_owned()}
+                    on_click={move || deleting.set(Level::System)}
+                />
             </Show>
         </List>
     }
@@ -666,7 +654,10 @@ fn PhoneRow(
                 .to_owned(),
         }
     });
-    let muted = create_memo(move || row.get().is_none_or(|row| row.automatic));
+    let muted = create_memo(move || {
+        row.get()
+            .is_none_or(|row| row.automatic || row.marked_deleted)
+    });
     let color = create_memo(move || match muted.get() {
         true => TextColor::Muted,
         false => TextColor::Default,
@@ -815,6 +806,12 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
         }
     };
     let uninspectable = off(|row| row.inspection.is_some());
+    let restorable = create_memo(move || row.get().is_some_and(|row| row.deleted && row.can_edit));
+    let restore = move || {
+        if let Some(id) = row.get_untracked().and_then(|row| row.id) {
+            editor.host().restore_block(id);
+        }
+    };
     let delete_label = create_memo(
         move || match row.get().is_some_and(|row| row.is_reference) {
             true => "Remove link".to_owned(),
@@ -908,6 +905,14 @@ fn RowMenu(tools: RowTools, row: Memo<Option<Row>>) -> NodeId {
                     danger=true
                     separated=true
                 />
+                <Show condition={restorable}>
+                    <MenuItem
+                        row_test_id={"file-tree.actions.restore".to_owned()}
+                        label="Restore"
+                        glyph={ICON_RESTORE.to_owned()}
+                        on_click={restore}
+                    />
+                </Show>
                 <Show condition={can_leave}>
                     <MenuItem
                         row_test_id={"file-tree.actions.leave".to_owned()}

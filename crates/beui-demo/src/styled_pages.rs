@@ -15,6 +15,7 @@ const ZOOM_MIN: f32 = 0.5;
 const ZOOM_MAX: f32 = 3.0;
 const ZOOM_MIDPOINT: f32 = 1.0;
 const TREE_HEIGHT: f32 = 240.0;
+const DEFAULT_VOLUME: f32 = 0.6;
 const NESTED_SCROLL_HEIGHT: f32 = 160.0;
 const NESTED_SCROLL_ROWS: usize = 30;
 const SWATCH_HEIGHT: f32 = 28.0;
@@ -425,13 +426,11 @@ fn TypeScale() -> NodeId {
 fn TextSizes() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <ForEach keys={TextSize::ALL.to_vec()}>
-                {|size: TextSize| view! {
-                    <Text size wrap=true>
-                        <Icon glyph=ICON_TEXT_FIELDS />
-                        {format!("{} {}", size.name(), size.px())}
-                    </Text>
-                }}
+            <ForEach keys={TextSize::ALL.to_vec()}>|size: TextSize|
+                <Text size wrap=true>
+                    <Icon glyph=ICON_TEXT_FIELDS />
+                    {format!("{} {}", size.name(), size.px())}
+                </Text>
             </ForEach>
         </List>
     }
@@ -442,10 +441,8 @@ fn TextSizes() -> NodeId {
 fn TextColors() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
-            <ForEach keys={TextColor::ROLES.to_vec()}>
-                {|color: TextColor| view! {
-                    <Text color>{format!("The {} role", color.name())}</Text>
-                }}
+            <ForEach keys={TextColor::ROLES.to_vec()}>|color: TextColor|
+                <Text color>{format!("The {} role", color.name())}</Text>
             </ForEach>
             <Text>
                 "Regular, "
@@ -613,18 +610,17 @@ fn FocusedTile() -> NodeId {
                 <beui::unstyled::Button
                     label="Open the album"
                     on_click={move || set_opened.set("Opened the album".to_owned())}
-                    content={move |handle: beui::unstyled::ButtonHandle| view! {
-                        <FocusRing
-                            focused={handle.focused}
-                            radius={Radius::custom(Radius::Lg.px() + 3.0)}
-                            offset=3.0
-                        >
-                            <Card>
-                                <Text string={handle.label} />
-                            </Card>
-                        </FocusRing>
-                    }}
-                />
+                >|handle: beui::unstyled::ButtonHandle|
+                    <FocusRing
+                        focused={handle.focused}
+                        radius={Radius::custom(Radius::Lg.px() + 3.0)}
+                        offset=3.0
+                    >
+                        <Card>
+                            <Text string={handle.label} />
+                        </Card>
+                    </FocusRing>
+                </beui::unstyled::Button>
             </List>
             <Text style=TextStyle::CAPTION string={opened} />
         </List>
@@ -750,6 +746,9 @@ pub(crate) fn InputsPage() -> NodeId {
             <Sample title="Text input" code={vec![NameInput::SOURCE, greeting_label::SOURCE]}>
                 <NameInput />
             </Sample>
+            <Sample title="On-screen keyboard" code={vec![KeyboardInput::SOURCE]}>
+                <KeyboardInput />
+            </Sample>
             <Sample title="Number input" code={vec![SeatsInput::SOURCE]}>
                 <SeatsInput />
             </Sample>
@@ -787,6 +786,29 @@ fn NameInput() -> NodeId {
                 value=String::new()
                 placeholder="A note, over several lines"
                 multiline=true
+            />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn KeyboardInput() -> NodeId {
+    view! {
+        <List spacing=SECTION_SPACING>
+            <TextInput value=String::new() placeholder="Type with the keys below" />
+            <Frame height={keyboard_height(480.0)}>
+                <SoftwareKeyboard />
+            </Frame>
+            <Text
+                style=TextStyle::CAPTION
+                string="Tap a key, or drag toward a corner for what it shows there. Circle up, right and down for a capital."
+                wrap=true
+            />
+            <Button
+                label="Open the on-screen keyboard"
+                variant=ButtonVariant::Secondary
+                on_click={toggle_keyboard}
             />
         </List>
     }
@@ -1003,10 +1025,8 @@ fn FruitSelect() -> NodeId {
         <List spacing=SECTION_SPACING>
             <Select
                 options={view! {
-                    <ForEach keys={FRUITS.to_vec()}>
-                        {|label: &'static str| view! {
-                            <ChoiceOption label />
-                        }}
+                    <ForEach keys={FRUITS.to_vec()}>|label: &'static str|
+                        <ChoiceOption label />
                     </ForEach>
                 }}
                 selected=Some(0)
@@ -1024,10 +1044,8 @@ fn FruitSelect() -> NodeId {
             <Text style=TextStyle::CAPTION string={fruit_text} />
             <Select
                 options={view! {
-                    <ForEach keys={FRUITS.to_vec()}>
-                        {|label: &'static str| view! {
-                            <ChoiceOption label />
-                        }}
+                    <ForEach keys={FRUITS.to_vec()}>|label: &'static str|
+                        <ChoiceOption label />
                     </ForEach>
                 }}
                 selected=None
@@ -1709,10 +1727,8 @@ fn StaleBlock() -> NodeId {
 fn FiltersButton() -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <Popover label="Filters">
-                {move |handle: PopoverHandle| view! {
-                    <FilterPopover handle />
-                }}
+            <Popover label="Filters">|handle: PopoverHandle|
+                <FilterPopover handle />
             </Popover>
         </List>
     }
@@ -2002,21 +2018,19 @@ fn LongSheet() -> NodeId {
             <Text style=TextStyle::CAPTION string={picked} />
             <ModalSheet open={sheet} rest=0.5 on_close={move || dismiss_sheet.set(false)}>
                 <List spacing=0.0>
-                    <ForEach keys={(1..=60).collect::<Vec<usize>>()}>
-                        {move |row: usize| {
-                            let (picked, closing) = (set_picked, set_sheet);
-                            view! {
-                                <ActionRow
-                                    label={format!("Row {row}")}
-                                    glyph=ICON_EDIT
-                                    on_click={move || {
-                                        picked.set(format!("Picked row {row}"));
-                                        closing.set(false);
-                                    }}
-                                />
-                            }
-                        }}
-                    </ForEach>
+                    <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize| {
+                        let (picked, closing) = (set_picked, set_sheet);
+                        view! {
+                            <ActionRow
+                                label={format!("Row {row}")}
+                                glyph=ICON_EDIT
+                                on_click={move || {
+                                    picked.set(format!("Picked row {row}"));
+                                    closing.set(false);
+                                }}
+                            />
+                        }
+                    }</ForEach>
                 </List>
             </ModalSheet>
         </List>
@@ -2305,10 +2319,8 @@ fn CardStrip() -> NodeId {
                     direction=Direction::Horizontal
                     keys={(0..STRIP_COUNT).collect::<Vec<usize>>()}
                     item_size=STRIP_ITEM_WIDTH
-                >
-                    {move |index: ReadSignal<usize>| view! {
-                        <StripCard index />
-                    }}
+                >|index: ReadSignal<usize>|
+                    <StripCard index />
                 </VirtualList>
             </Scroll>
         </List>
@@ -2343,14 +2355,12 @@ fn FittedScroll() -> NodeId {
             </List>
             <Frame border={Border::new(ColorRole::Border).width(1.0)} radius=Radius::Md>
                 <Scroll max_length=FITTED_SCROLL_HEIGHT>
-                    <ForEach keys={rows}>
-                        {move |index: usize| view! {
-                            <Frame
-                                padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
-                            >
-                                <Text string={format!("Row {}", index + 1)} />
-                            </Frame>
-                        }}
+                    <ForEach keys={rows}>|index: usize|
+                        <Frame
+                            padding={Sides::symmetric(ROW_PADDING_HORIZONTAL, ROW_PADDING_VERTICAL)}
+                        >
+                            <Text string={format!("Row {}", index + 1)} />
+                        </Frame>
                     </ForEach>
                 </Scroll>
             </Frame>
@@ -2410,25 +2420,26 @@ fn ThousandsOfRows() -> NodeId {
             </List>
             <Separator />
             <Scroll @sizing=ItemSize::Fixed(ROWS_HEIGHT)>
-                <VirtualList keys={(0..ROW_COUNT).collect::<Vec<usize>>()} item_size={row_height}>
-                    {move |index: ReadSignal<usize>| {
-                        let set_selected = set_selected;
-                        let set_status = set_status;
-                        view! {
-                            <ScrollRow
-                                index
-                                selection={selection}
-                                timings={timings}
-                                compact={compact}
-                                on_click={move || {
-                                    let index = index.get_untracked();
-                                    set_selected.set(Some(index));
-                                    set_status.set(format!("Row {index} selected"));
-                                }}
-                            />
-                        }
-                    }}
-                </VirtualList>
+                <VirtualList
+                    keys={(0..ROW_COUNT).collect::<Vec<usize>>()}
+                    item_size={row_height}
+                >|index: ReadSignal<usize>| {
+                    let set_selected = set_selected;
+                    let set_status = set_status;
+                    view! {
+                        <ScrollRow
+                            index
+                            selection={selection}
+                            timings={timings}
+                            compact={compact}
+                            on_click={move || {
+                                let index = index.get_untracked();
+                                set_selected.set(Some(index));
+                                set_status.set(format!("Row {index} selected"));
+                            }}
+                        />
+                    }
+                }</VirtualList>
             </Scroll>
         </List>
     }
@@ -2445,12 +2456,9 @@ fn ScrollRow(
 ) -> NodeId {
     let selected = create_memo(move || selection.is_selected(&Some(index.get())));
     view! {
-        <unstyled::Button
-            on_click={on_click}
-            content={move |handle| view! {
-                <ScrollRowFace index handle selected timings compact />
-            }}
-        />
+        <unstyled::Button on_click={on_click}>|handle|
+            <ScrollRowFace index handle selected timings compact />
+        </unstyled::Button>
     }
 }
 
@@ -2566,10 +2574,8 @@ fn ProjectTree() -> NodeId {
                         }
                     });
                 }}
-            >
-                {move |row: TreeRowFace<usize>| view! {
-                    <Text string={TREE_NODES[row.key].0} />
-                }}
+            >|row: TreeRowFace<usize>|
+                <Text string={TREE_NODES[row.key].0} />
             </Tree>
             <Text style=TextStyle::CAPTION string={status_text} />
         </List>
@@ -2638,6 +2644,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Accordions" code={vec![Accordions::SOURCE]}>
                 <Accordions />
             </Sample>
+            <Sample title="Settings sections" code={vec![SettingsSections::SOURCE]}>
+                <SettingsSections />
+            </Sample>
             <Sample title="Separators and borders" code={vec![Separators::SOURCE]}>
                 <Separators />
             </Sample>
@@ -2663,50 +2672,44 @@ fn FrameTokens() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-                <ForEach keys={ColorRole::ROLES.to_vec()}>
-                    {|role: ColorRole| view! {
-                        <List spacing=4.0>
-                            <Frame
-                                width=88.0
-                                height=32.0
-                                fill=role
-                                border=Border::DEFAULT
-                                radius=Radius::Sm
-                            />
-                            <Text style=TextStyle::CAPTION string={role.name()} />
-                        </List>
-                    }}
+                <ForEach keys={ColorRole::ROLES.to_vec()}>|role: ColorRole|
+                    <List spacing=4.0>
+                        <Frame
+                            width=88.0
+                            height=32.0
+                            fill=role
+                            border=Border::DEFAULT
+                            radius=Radius::Sm
+                        />
+                        <Text style=TextStyle::CAPTION string={role.name()} />
+                    </List>
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-                <ForEach keys={(0..Radius::ALL.len()).collect::<Vec<_>>()}>
-                    {|index: usize| view! {
-                        <List spacing=4.0>
-                            <Frame
-                                width=48.0
-                                height=48.0
-                                fill=ColorRole::AccentSoft
-                                radius={Radius::ALL[index]}
-                            />
-                            <Text style=TextStyle::CAPTION string={Radius::ALL[index].name()} />
-                        </List>
-                    }}
+                <ForEach keys={(0..Radius::ALL.len()).collect::<Vec<_>>()}>|index: usize|
+                    <List spacing=4.0>
+                        <Frame
+                            width=48.0
+                            height=48.0
+                            fill=ColorRole::AccentSoft
+                            radius={Radius::ALL[index]}
+                        />
+                        <Text style=TextStyle::CAPTION string={Radius::ALL[index].name()} />
+                    </List>
                 </ForEach>
             </List>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
-                <ForEach keys={(0..BORDERS.len()).collect::<Vec<_>>()}>
-                    {|index: usize| view! {
-                        <List spacing=4.0>
-                            <Frame
-                                width=88.0
-                                height=48.0
-                                fill=ColorRole::Surface
-                                border={Some(BORDERS[index].1)}
-                                radius=Radius::Md
-                            />
-                            <Text style=TextStyle::CAPTION string={BORDERS[index].0} />
-                        </List>
-                    }}
+                <ForEach keys={(0..BORDERS.len()).collect::<Vec<_>>()}>|index: usize|
+                    <List spacing=4.0>
+                        <Frame
+                            width=88.0
+                            height=48.0
+                            fill=ColorRole::Surface
+                            border={Some(BORDERS[index].1)}
+                            radius=Radius::Md
+                        />
+                        <Text style=TextStyle::CAPTION string={BORDERS[index].0} />
+                    </List>
                 </ForEach>
             </List>
         </List>
@@ -2772,6 +2775,76 @@ fn Accordions() -> NodeId {
 
 #[sample]
 #[component]
+fn SettingsSections() -> NodeId {
+    let (sounds, set_sounds) = create_signal(true);
+    let (volume, set_volume) = create_signal(DEFAULT_VOLUME);
+    let (size, set_size) = create_signal(Some(1));
+    let (effects, set_effects) = create_signal(true);
+    let volume_changed = create_memo(move || volume.get() != DEFAULT_VOLUME);
+    let size_changed = create_memo(move || size.get() != Some(1));
+    view! {
+        <List spacing=SECTION_SPACING>
+            <SettingsSection
+                title="Sound"
+                description="A row lays its label beside its control, and stacks them once narrow. A changed setting is marked, and its reset brings back the default."
+            >
+                <SettingsRow
+                    label="Sounds"
+                    description="Play a sound when something finishes."
+                    compact=true
+                >
+                    <Switch label="Sounds" on={sounds} on_change={move |on| set_sounds.set(on)} />
+                </SettingsRow>
+                <SettingsRow
+                    label="Volume"
+                    separated=true
+                    modified={volume_changed}
+                    on_reset={move || set_volume.set(DEFAULT_VOLUME)}
+                >
+                    <Slider
+                        @sizing=ItemSize::Percent(100.0)
+                        value={volume}
+                        min=0.0
+                        max=1.0
+                        label="Volume"
+                        on_change={move |value| set_volume.set(value)}
+                    />
+                </SettingsRow>
+                <SettingsRow
+                    label="Text size"
+                    separated=true
+                    modified={size_changed}
+                    on_reset={move || set_size.set(Some(1))}
+                >
+                    <Select
+                        @sizing=ItemSize::Percent(100.0)
+                        width={Extent::fraction(1.0)}
+                        options={view! {
+                            <ChoiceOption label="Small" />
+                            <ChoiceOption label="Medium" />
+                            <ChoiceOption label="Large" />
+                        }}
+                        selected={size}
+                        label="Text size"
+                        on_change={move |index| set_size.set(index)}
+                    />
+                </SettingsRow>
+                <SettingsLink
+                    label="Sound effects"
+                    description="A link row opens a page of its own; its reset can ask first."
+                    separated=true
+                    modified={effects}
+                    reset_confirm="Resetting deletes the sound effects page."
+                    on_reset={move || set_effects.set(false)}
+                    on_click={|| {}}
+                />
+            </SettingsSection>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
 fn Separators() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
@@ -2800,10 +2873,10 @@ fn NestedScroll() -> NodeId {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Fixed(NESTED_SCROLL_HEIGHT)>
                     <List spacing=4.0>
-                        <ForEach keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}>
-                            {move |line: usize| view! {
-                                <Text string={format!("Line {line}")} />
-                            }}
+                        <ForEach
+                            keys={(1..=NESTED_SCROLL_ROWS).collect::<Vec<usize>>()}
+                        >|line: usize|
+                            <Text string={format!("Line {line}")} />
                         </ForEach>
                     </List>
                 </Scroll>
@@ -2934,14 +3007,12 @@ fn scale_in(view: &mut PanZoomView) {
 #[component]
 fn CanvasStage(view: ReadSignal<PanZoomView>, on_change: Callback<PanZoomView>) -> NodeId {
     view! {
-        <PanZoom view on_change={on_change}>
-            {move |handle: PanZoomHandle| {
-                let PanZoomHandle { view, scale, focused, .. } = handle;
-                view! {
-                    <CanvasBoard view scale focused />
-                }
-            }}
-        </PanZoom>
+        <PanZoom view on_change={on_change}>|handle: PanZoomHandle| {
+            let PanZoomHandle { view, scale, focused, .. } = handle;
+            view! {
+                <CanvasBoard view scale focused />
+            }
+        }</PanZoom>
     }
 }
 

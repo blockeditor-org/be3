@@ -25,10 +25,8 @@ pub fn Tabs(
                     on_change.call(selected);
                 }
             }}
-        >
-            {|handle| view! {
-                <OptionFace kind=Kind::Tabs handle />
-            }}
+        >|handle|
+            <OptionFace kind=Kind::Tabs handle />
         </Choice>
     }
 }

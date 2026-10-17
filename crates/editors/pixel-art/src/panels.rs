@@ -166,25 +166,23 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Text style=TextStyle::HEADING string="Tools" />
-            <ForEach keys={rows}>
-                {move |row: usize| {
-                    let (left, right) = (TOOLS[row * 2], TOOLS[row * 2 + 1]);
-                    view! {
-                        <List direction=Direction::Horizontal spacing=4.0>
-                            <ToolButton
-                                @sizing=ItemSize::Fixed(TOOL_WIDTH)
-                                tools={tools}
-                                entry={left}
-                            />
-                            <ToolButton
-                                @sizing=ItemSize::Fixed(TOOL_WIDTH)
-                                tools={tools}
-                                entry={right}
-                            />
-                        </List>
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={rows}>|row: usize| {
+                let (left, right) = (TOOLS[row * 2], TOOLS[row * 2 + 1]);
+                view! {
+                    <List direction=Direction::Horizontal spacing=4.0>
+                        <ToolButton
+                            @sizing=ItemSize::Fixed(TOOL_WIDTH)
+                            tools={tools}
+                            entry={left}
+                        />
+                        <ToolButton
+                            @sizing=ItemSize::Fixed(TOOL_WIDTH)
+                            tools={tools}
+                            entry={right}
+                        />
+                    </List>
+                }
+            }</ForEach>
             <Text string="Tool options" />
             <NumberInput
                 value={size_value}
@@ -306,25 +304,19 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                     on_change={typing}
                 />
             </List>
-            <ForEach keys={channels}>
-                {move |channel: &'static str| {
-                    view! {
-                        <Channel tools={tools} channel={channel} />
-                    }
-                }}
+            <ForEach keys={channels}>|channel: &'static str|
+                <Channel tools={tools} channel={channel} />
             </ForEach>
             <Text string="Palette" />
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
-                <ForEach keys={palette}>
-                    {move |swatch: PixelColor| {
-                        let active = palette_color;
-                        let chosen = create_memo(move || active.get() == swatch);
-                        let pick = move || tools.set_active_color(swatch, true);
-                        view! {
-                            <Swatch color={swatch} selected={chosen} on_click={pick} />
-                        }
-                    }}
-                </ForEach>
+                <ForEach keys={palette}>|swatch: PixelColor| {
+                    let active = palette_color;
+                    let chosen = create_memo(move || active.get() == swatch);
+                    let pick = move || tools.set_active_color(swatch, true);
+                    view! {
+                        <Swatch color={swatch} selected={chosen} on_click={pick} />
+                    }
+                }</ForEach>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <IconButton
@@ -345,12 +337,8 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
             </List>
             <Text string="Recent" />
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
-                <ForEach keys={recent_colors}>
-                    {move |swatch: PixelColor| {
-                        view! {
-                            <Swatch color={swatch} selected=false on_click={move || {}} />
-                        }
-                    }}
+                <ForEach keys={recent_colors}>|swatch: PixelColor|
+                    <Swatch color={swatch} selected=false on_click={move || {}} />
                 </ForEach>
             </List>
         </List>
@@ -463,12 +451,8 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                         />
                     </List>
                     <Text style=TextStyle::CAPTION string="Anchor" />
-                    <ForEach keys={anchors}>
-                        {move |row: usize| {
-                            view! {
-                                <AnchorRow tools={tools} row={row} />
-                            }
-                        }}
+                    <ForEach keys={anchors}>|row: usize|
+                        <AnchorRow tools={tools} row={row} />
                     </ForEach>
                     <Show condition={cropping}>
                         <Text
@@ -533,23 +517,21 @@ fn AnchorRow(tools: Tools, row: usize) -> NodeId {
     let entries = create_memo(move || (0..3).map(|column| row * 3 + column).collect::<Vec<_>>());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-            <ForEach keys={entries}>
-                {move |index: usize| {
-                    let (anchor, glyph, label) = ANCHORS[index];
-                    let chosen = tools.resize_anchor;
-                    let pressed = create_memo(move || chosen.get() == anchor);
-                    let set = tools.set_resize_anchor;
-                    view! {
-                        <ToggleButton
-                            glyph={glyph.to_owned()}
-                            label={label}
-                            icon_only=true
-                            pressed={pressed}
-                            on_change={move |_| set.set(anchor)}
-                        />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={entries}>|index: usize| {
+                let (anchor, glyph, label) = ANCHORS[index];
+                let chosen = tools.resize_anchor;
+                let pressed = create_memo(move || chosen.get() == anchor);
+                let set = tools.set_resize_anchor;
+                view! {
+                    <ToggleButton
+                        glyph={glyph.to_owned()}
+                        label={label}
+                        icon_only=true
+                        pressed={pressed}
+                        on_change={move |_| set.set(anchor)}
+                    />
+                }
+            }</ForEach>
             <Spacer @sizing=ItemSize::Percent(100.0) />
         </List>
     }

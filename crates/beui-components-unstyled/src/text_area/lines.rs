@@ -70,10 +70,8 @@ pub(super) fn Lines(cx: Context) -> NodeId {
         >
             <List spacing=0.0>
                 <Frame height=top />
-                <VirtualList @node_ref=&list keys item_size=estimate>
-                    {move |line: ReadSignal<usize>| view! {
-                        <AreaRow cx={cx} line />
-                    }}
+                <VirtualList @node_ref=&list keys item_size=estimate>|line: ReadSignal<usize>|
+                    <AreaRow cx={cx} line />
                 </VirtualList>
                 <Frame height=bottom />
             </List>
@@ -147,11 +145,9 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
         <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Show condition={numbered}>
-                    {move || view! {
-                        <Frame width=gutter>
-                            <Gutter cx={cx} model={gutter_model} />
-                        </Frame>
-                    }}
+                    <Frame width=gutter>
+                        <Gutter cx={cx} model={gutter_model} />
+                    </Frame>
                 </Show>
                 <Frame
                     @sizing=ItemSize::Percent(100.0)
@@ -160,8 +156,8 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                     <Frame fill=code padding={create_memo(move || Sides::horizontal(inset.get()))}>
                         <List spacing=0.0>
                             <RowText cx model text wrap=true />
-                            <Dynamic value={shown_block}>
-                                {move |index: Option<usize>| match (index, cx.block) {
+                            <Dynamic value={shown_block}>|index: Option<usize>| {
+                                match (index, cx.block) {
                                     (Some(index), Some(render)) => {
                                         let size = block.get_untracked().unwrap_or_default().1;
                                         let node = block_node;
@@ -172,8 +168,8 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                                     _ => view! {
                                         <Frame />
                                     },
-                                }}
-                            </Dynamic>
+                                }
+                            }</Dynamic>
                         </List>
                     </Frame>
                 </Frame>
@@ -528,17 +524,13 @@ fn RowText(
             marks={marks}
             carets={carets}
         >
-            <ForEach keys={keys}>
-                {move |(key, _): (PieceKey, usize)| {
-                    row_piece(cx, item_model, cursors, layer, key)
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|(key, _): (PieceKey, usize)| {
+                row_piece(cx, item_model, cursors, layer, key)
+            }</ForEach>
             <Show condition={anchored}>
-                {move || view! {
-                    <TextItem at={anchor_position}>
-                        <Portal node={anchor_node} />
-                    </TextItem>
-                }}
+                <TextItem at={anchor_position}>
+                    <Portal node={anchor_node} />
+                </TextItem>
             </Show>
         </Text>
     }
@@ -676,19 +668,13 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
-                {move || view! {
-                    <InlineCheckbox cx={cx} item={checkbox_item} />
-                }}
+                <InlineCheckbox cx={cx} item={checkbox_item} />
             </Show>
             <Show condition={widget}>
-                {move || view! {
-                    <WidgetPill cx={cx} item={widget_item} />
-                }}
+                <WidgetPill cx={cx} item={widget_item} />
             </Show>
             <Show condition={run}>
-                {move || view! {
-                    <RunChip cx={cx} item={run_item} />
-                }}
+                <RunChip cx={cx} item={run_item} />
             </Show>
         </List>
     }
@@ -749,10 +735,8 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             tab_stop=false
             press_focus=false
             on_change={on_change}
-        >
-            {move |handle: ToggleHandle| view! {
-                <CheckboxBox cx handle />
-            }}
+        >|handle: ToggleHandle|
+            <CheckboxBox cx handle />
         </Toggle>
     }
 }
@@ -776,15 +760,13 @@ fn CheckboxBox(cx: Context, handle: ToggleHandle) -> NodeId {
         >
             <List spacing=0.0>
                 <Show condition={checked}>
-                    {move || view! {
-                        <Text
-                            @sizing=ItemSize::Percent(100.0)
-                            color={Color32::WHITE}
-                            align=TextAlign::Center
-                        >
-                            <Icon glyph={ICON_CHECK.to_owned()} />
-                        </Text>
-                    }}
+                    <Text
+                        @sizing=ItemSize::Percent(100.0)
+                        color={Color32::WHITE}
+                        align=TextAlign::Center
+                    >
+                        <Icon glyph={ICON_CHECK.to_owned()} />
+                    </Text>
                 </Show>
             </List>
         </Frame>
@@ -849,35 +831,31 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             radius=INLINE_WIDGET_RADIUS
         >
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-                <Show condition={has_icon}>
-                    {move || {
-                        let icon = icon;
-                        view! {
-                            <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
-                                <Text
-                                    font={FontId::proportional(16.0)}
-                                    color={Color32::WHITE}
-                                    align=TextAlign::Center
-                                >
-                                    <Icon glyph={icon} />
-                                </Text>
-                            </Frame>
-                        }
-                    }}
-                </Show>
+                <Show condition={has_icon}>|| {
+                    let icon = icon;
+                    view! {
+                        <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
+                            <Text
+                                font={FontId::proportional(16.0)}
+                                color={Color32::WHITE}
+                                align=TextAlign::Center
+                            >
+                                <Icon glyph={icon} />
+                            </Text>
+                        </Frame>
+                    }
+                }</Show>
                 <Text string={label} font={font} color={color} vertical_align=TextAlign::Center />
-                <Show condition={selected}>
-                    {move || {
-                        let anchor = overlay_anchor;
-                        let render = cx
-                            .selected_widget
-                            .expect("a widget only offers a popup when the area was given one");
-                        let index = popup_index.get_untracked().unwrap_or_default();
-                        view! {
-                            <WidgetPopup anchor render index />
-                        }
-                    }}
-                </Show>
+                <Show condition={selected}>|| {
+                    let anchor = overlay_anchor;
+                    let render = cx
+                        .selected_widget
+                        .expect("a widget only offers a popup when the area was given one");
+                    let index = popup_index.get_untracked().unwrap_or_default();
+                    view! {
+                        <WidgetPopup anchor render index />
+                    }
+                }</Show>
             </List>
         </Frame>
     }

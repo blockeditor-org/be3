@@ -16,6 +16,7 @@ fn info(block: Uuid, parent: Uuid, references: Vec<Uuid>) -> BlockInfo {
         access: block_plugin_api::AccessLevel::Edit,
         metadata: block_plugin_api::BlockMetadata::default(),
         locked: false,
+        deleted: false,
     }
 }
 

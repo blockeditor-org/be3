@@ -51,7 +51,13 @@ enum Child {
 struct Element {
     tag: String,
     attributes: Vec<Attribute>,
+    head: Option<Head>,
     children: Option<Vec<Child>>,
+}
+
+struct Head {
+    pattern: Option<Range<usize>>,
+    block: Option<Range<usize>>,
 }
 
 struct Attribute {
@@ -273,11 +279,17 @@ impl Parser<'_> {
             return Some(Element {
                 tag,
                 attributes,
+                head: None,
                 children: None,
             });
         }
         self.expect(">")?;
-        let children = self.children()?;
+        let head = self.head()?;
+        let children = if head.as_ref().is_some_and(|head| head.block.is_some()) {
+            Vec::new()
+        } else {
+            self.children()?
+        };
         self.expect("<")?;
         self.expect("/")?;
         if self.tag_path()? != tag {
@@ -287,8 +299,52 @@ impl Parser<'_> {
         Some(Element {
             tag,
             attributes,
+            head,
             children: Some(children),
         })
+    }
+
+    fn head(&mut self) -> Option<Option<Head>> {
+        let pattern = if self.eat("||") || (self.at(0, "|") && self.at(1, "|")) {
+            if self.at(0, "|") {
+                self.index += 2;
+            }
+            None
+        } else if self.eat("|") {
+            let start = self.index;
+            while !self.at(0, "|") {
+                let token = self.tokens.get(self.index)?;
+                if matches!(
+                    token.kind,
+                    SyntaxKind::L_CURLY | SyntaxKind::L_PAREN | SyntaxKind::L_BRACK
+                ) {
+                    self.index = matching(self.tokens, self.index)? + 1;
+                } else {
+                    self.index += 1;
+                }
+            }
+            if self.index == start {
+                return None;
+            }
+            let pattern = self.tokens[start].range.start..self.tokens[self.index - 1].range.end;
+            self.expect("|")?;
+            Some(pattern)
+        } else {
+            return Some(None);
+        };
+        let mut block = None;
+        if self.at(0, "{") {
+            let close = matching(self.tokens, self.index)?;
+            let ends = |offset: usize, expected: &str| {
+                self.tokens
+                    .get(close + offset)
+                    .is_some_and(|token| token.text == expected)
+            };
+            if ends(1, "<") && ends(2, "/") {
+                block = Some(self.group()?);
+            }
+        }
+        Some(Some(Head { pattern, block }))
     }
 }
 
@@ -340,13 +396,18 @@ impl Formatter<'_> {
         {
             return vec![single];
         }
+        let open = match &element.head {
+            Some(head) if head.block.is_some() => format!(">{} {{", self.head_text(head)),
+            Some(head) => format!(">{}", self.head_text(head)),
+            None => ">".to_owned(),
+        };
         let (inline_close, broken_close) = match element.children.as_deref() {
             None => (" />".to_owned(), "/>".to_owned()),
-            Some([]) => {
+            Some([]) if element.head.is_none() => {
                 let empty = format!("></{}>", element.tag);
                 (empty.clone(), empty)
             }
-            Some(_) => (">".to_owned(), ">".to_owned()),
+            Some(_) => (open.clone(), open),
         };
         let mut lines = Vec::new();
         let inline = self
@@ -364,8 +425,15 @@ impl Formatter<'_> {
                 lines.push(format!("{}{broken_close}", spaces(indent)));
             }
         }
+        if let Some(range) = element.head.as_ref().and_then(|head| head.block.as_ref()) {
+            let parts = self.expr_lines(range, indent + INDENT, indent + INDENT);
+            push_block(&mut lines, indent + INDENT, parts);
+            lines.push(format!("{}}}</{}>", spaces(indent), element.tag));
+            return lines;
+        }
         match element.children.as_deref() {
-            None | Some([]) => {}
+            None => {}
+            Some([]) if element.head.is_none() => {}
             Some(children) => {
                 for child in children {
                     let parts = self.child_lines(child, indent + INDENT, indent + INDENT);
@@ -406,6 +474,16 @@ impl Formatter<'_> {
             return Some(format!("{head} />"));
         };
         let mut text = format!("{head}>");
+        if let Some(head) = &element.head {
+            text.push_str(&self.head_text(head));
+            if let Some(range) = &head.block {
+                let body = self.expr_text(range)?;
+                return Some(format!("{text} {{ {body} }}</{}>", element.tag));
+            }
+            if !children.is_empty() {
+                text.push(' ');
+            }
+        }
         for child in children {
             if matches!(child, Child::Element(_)) {
                 return None;
@@ -414,6 +492,16 @@ impl Formatter<'_> {
         }
         text.push_str(&format!("</{}>", element.tag));
         Some(text)
+    }
+
+    fn head_text(&self, head: &Head) -> String {
+        let pattern = head.pattern.as_ref().map_or(String::new(), |range| {
+            text(self.source, range.clone())
+                .split_whitespace()
+                .collect::<Vec<_>>()
+                .join(" ")
+        });
+        format!("|{pattern}|")
     }
 
     fn attributes_text(&self, element: &Element) -> Option<String> {

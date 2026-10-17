@@ -16,12 +16,10 @@ fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
             let keys = create_memo(move || (0..rows.get()).collect::<Vec<usize>>());
             view! {
                 <Scroll @node_ref=&scroll>
-                    <ForEach keys>
-                        {|_: usize| view! {
-                            <Frame height=40.0>
-                                <Spacer />
-                            </Frame>
-                        }}
+                    <ForEach keys>|_: usize|
+                        <Frame height=40.0>
+                            <Spacer />
+                        </Frame>
                     </ForEach>
                 </Scroll>
             }

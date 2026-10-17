@@ -105,20 +105,18 @@ pub fn PanZoom(editor: Editor) -> NodeId {
 
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <Show condition={panel_shown}>
-                {move || {
-                    let (editor, selected, set_selected, set_open) = panel;
-                    view! {
-                        <Sidebar
-                            @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
-                            editor
-                            selected
-                            set_selected
-                            set_open
-                        />
-                    }
-                }}
-            </Show>
+            <Show condition={panel_shown}>|| {
+                let (editor, selected, set_selected, set_open) = panel;
+                view! {
+                    <Sidebar
+                        @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
+                        editor
+                        selected
+                        set_selected
+                        set_open
+                    />
+                }
+            }</Show>
             <Show condition={rail_shown}>
                 <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) set_open={rail_open} />
             </Show>
@@ -188,10 +186,8 @@ fn Sidebar(
                     @test_id={"pan_zoom.selected"}
                 />
                 <List spacing=4.0>
-                    <ForEach keys={card_indices()}>
-                        {move |index: usize| view! {
-                            <FocusRow index editor={editor} set_selected={set_selected} />
-                        }}
+                    <ForEach keys={card_indices()}>|index: usize|
+                        <FocusRow index editor={editor} set_selected={set_selected} />
                     </ForEach>
                 </List>
                 <Separator />
@@ -250,10 +246,8 @@ fn Stage(
     let scale = editor.scale();
     view! {
         <Canvas view={editor.canvas()}>
-            <ForEach keys={card_indices()}>
-                {move |index: usize| view! {
-                    <CardView index scale={scale} selected={selected} set_selected={set_selected} />
-                }}
+            <ForEach keys={card_indices()}>|index: usize|
+                <CardView index scale={scale} selected={selected} set_selected={set_selected} />
             </ForEach>
         </Canvas>
     }

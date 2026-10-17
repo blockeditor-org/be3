@@ -264,6 +264,7 @@ pub(crate) fn PluginRegion(
     });
     let catcher = NodeRef::new();
     take_keyboard(state, &catcher);
+    toggle_keyboard_when_asked(state);
     focus_when_asked(revision, plugin_id, instance, region, &catcher);
     let anchor = NodeRef::new();
     let ime = create_memo(move || state.with(|view| view.ime.is_some()));
@@ -381,41 +382,39 @@ pub(crate) fn PluginRegion(
         !passive.peek() && state.with_untracked(|view| view.claims(position, held))
     };
     view! {
-        <DropTarget on_over={over} on_drop={dropped}>
-            {move |_: DropHandle| view! {
-                <Layers>
-                    <RegionChildren state={state} rect={rect} child_view below=true />
-                    <BackHandler enabled={handles_back} on_gesture={back}>
-                        <Interactive
-                            @node_ref={&catcher}
-                            focusable=true
-                            cursor={cursor}
-                            ime={ime}
-                            ime_keyboard={ime_keyboard}
-                            keyboard_asks={keyboard_asks}
-                            ime_cursor={ime_cursor}
-                            ime_text={ime_text}
-                            pastes={pastes}
-                            on_forward={forward}
-                            hit_at={takes}
-                            claim_at={claims}
-                            on_press_outside={pressed_outside}
-                            on_focus_change={move |focused: bool| {
-                                if focused {
-                                    on_focus.call(());
-                                }
-                            }}
-                        >
-                            <Embed slot={slot} punch=false @node_ref={&anchor}>
-                                <Drawing draw={base} />
-                            </Embed>
-                        </Interactive>
-                    </BackHandler>
-                    <Notices loading failure id={crash_id.clone()} />
-                    <RegionChildren state rect child_view below=false />
-                    <Drawing draw={floating} />
-                </Layers>
-            }}
+        <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
+            <Layers>
+                <RegionChildren state={state} rect={rect} child_view below=true />
+                <BackHandler enabled={handles_back} on_gesture={back}>
+                    <Interactive
+                        @node_ref={&catcher}
+                        focusable=true
+                        cursor={cursor}
+                        ime={ime}
+                        ime_keyboard={ime_keyboard}
+                        keyboard_asks={keyboard_asks}
+                        ime_cursor={ime_cursor}
+                        ime_text={ime_text}
+                        pastes={pastes}
+                        on_forward={forward}
+                        hit_at={takes}
+                        claim_at={claims}
+                        on_press_outside={pressed_outside}
+                        on_focus_change={move |focused: bool| {
+                            if focused {
+                                on_focus.call(());
+                            }
+                        }}
+                    >
+                        <Embed slot={slot} punch=false @node_ref={&anchor}>
+                            <Drawing draw={base} />
+                        </Embed>
+                    </Interactive>
+                </BackHandler>
+                <Notices loading failure id={crash_id.clone()} />
+                <RegionChildren state rect child_view below=false />
+                <Drawing draw={floating} />
+            </Layers>
         </DropTarget>
     }
 }
@@ -451,6 +450,18 @@ fn focus_when_asked(
                 try_with_document(|document| document.focus_focusable(node));
             }
         });
+    });
+}
+
+fn toggle_keyboard_when_asked(state: Memo<RegionView>) {
+    let toggles = create_memo(move || state.with(|view| view.keyboard_toggles));
+    let seen = StoredCell::new(0u32);
+    create_effect(move || {
+        let toggles = toggles.get();
+        if toggles != seen.get() {
+            seen.set(toggles);
+            untrack(toggle_keyboard);
+        }
     });
 }
 
@@ -541,29 +552,27 @@ fn RegionChildren(
     });
     view! {
         <Canvas>
-            <ForEach keys={keys}>
-                {move |key: ChildId| {
-                    let child = create_memo(move || {
-                        state.with(|view| {
-                            view.children.iter().find(|child| child.child == key).cloned()
-                        })
-                    });
-                    let clip = create_memo(move || {
-                        let origin = rect.get().min;
-                        child
-                            .get()
-                            .map_or(Rect::ZERO, |child| child.clip.translate(-origin.to_vec2()))
-                    });
-                    let x = create_memo(move || clip.get().min.x);
-                    let y = create_memo(move || clip.get().min.y);
-                    let width = create_memo(move || clip.get().width());
-                    let height = create_memo(move || clip.get().height());
-                    let built = child_view.with(|view| view(key, child, rect));
-                    view! {
-                        <CanvasItem x={x} y={y} width={width} height={height}>{built}</CanvasItem>
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|key: ChildId| {
+                let child = create_memo(move || {
+                    state.with(|view| {
+                        view.children.iter().find(|child| child.child == key).cloned()
+                    })
+                });
+                let clip = create_memo(move || {
+                    let origin = rect.get().min;
+                    child
+                        .get()
+                        .map_or(Rect::ZERO, |child| child.clip.translate(-origin.to_vec2()))
+                });
+                let x = create_memo(move || clip.get().min.x);
+                let y = create_memo(move || clip.get().min.y);
+                let width = create_memo(move || clip.get().width());
+                let height = create_memo(move || clip.get().height());
+                let built = child_view.with(|view| view(key, child, rect));
+                view! {
+                    <CanvasItem x={x} y={y} width={width} height={height}>{built}</CanvasItem>
+                }
+            }</ForEach>
         </Canvas>
     }
 }

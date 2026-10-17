@@ -33,12 +33,8 @@ pub fn Scrollbar(
                 shown
                 on_scroll_to={move |offset: f32| on_scroll_to.call(offset)}
                 on_engage={move |engaged: bool| on_engage.call(engaged)}
-            >
-                {move |handle: ScrollbarHandle| {
-                    view! {
-                        <ScrollbarTrack handle visibility />
-                    }
-                }}
+            >|handle: ScrollbarHandle|
+                <ScrollbarTrack handle visibility />
             </unstyled::Scrollbar>
         </Frame>
     }

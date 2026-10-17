@@ -82,18 +82,16 @@ fn ViewLinks(editor: Editor, rows: Memo<Vec<BlockInfo>>) -> NodeId {
         create_memo(move || rows.with(|rows| rows.iter().map(|row| row.id).collect::<Vec<Uuid>>()));
     view! {
         <List spacing=4.0>
-            <ForEach keys={keys}>
-                {move |id: Uuid| {
-                    let target = Some(ChildTarget::new(id, DatabaseViewContent::CONTENT_TYPE));
-                    view! {
-                        <BlockLink
-                            editor={editor}
-                            block={target}
-                            @test_id={format!("database.view.{id}")}
-                        />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|id: Uuid| {
+                let target = Some(ChildTarget::new(id, DatabaseViewContent::CONTENT_TYPE));
+                view! {
+                    <BlockLink
+                        editor={editor}
+                        block={target}
+                        @test_id={format!("database.view.{id}")}
+                    />
+                }
+            }</ForEach>
         </List>
     }
 }

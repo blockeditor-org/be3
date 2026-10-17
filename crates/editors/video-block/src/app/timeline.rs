@@ -21,208 +21,193 @@ const CLIP_RADIUS: f32 = 4.0;
 #[component]
 pub(crate) fn Timeline(state: VideoState) -> NodeId {
     view! {
-        <PlacementBuilder>
-            {move |placed: ReadSignal<Rect>| {
-                let fitted = placed;
-                create_effect(move || state.fit_timeline(fitted.get().width().max(1.0)));
+        <PlacementBuilder>|placed: ReadSignal<Rect>| {
+            let fitted = placed;
+            create_effect(move || state.fit_timeline(fitted.get().width().max(1.0)));
 
-                let clips = state.clips;
-                let rows = create_memo(move || {
-                    let _ = clips.get();
-                    state
-                        .video()
-                        .map(|video| {
-                            timeline::lane_rows(&video)
-                                .into_iter()
-                                .map(|row| Lane {
-                                    id: row.timing.id,
-                                    lane: row.lane,
-                                    start: row.timing.start,
-                                    length: row.timing.length,
-                                    depth: row.timing.depth,
-                                })
-                                .collect::<Vec<Lane>>()
-                        })
-                        .unwrap_or_default()
-                });
-                let lanes = create_memo(move || {
-                    rows.get().iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1
-                });
+            let clips = state.clips;
+            let rows = create_memo(move || {
+                let _ = clips.get();
+                state
+                    .video()
+                    .map(|video| {
+                        timeline::lane_rows(&video)
+                            .into_iter()
+                            .map(|row| Lane {
+                                id: row.timing.id,
+                                lane: row.lane,
+                                start: row.timing.start,
+                                length: row.timing.length,
+                                depth: row.timing.depth,
+                            })
+                            .collect::<Vec<Lane>>()
+                    })
+                    .unwrap_or_default()
+            });
+            let lanes = create_memo(move || {
+                rows.get().iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1
+            });
 
-                let (offset, set_offset) = create_signal(Vec2::ZERO);
-                let camera = create_memo(move || {
-                    Some(CanvasView::new(placed.get().min - offset.get(), 1.0))
-                });
+            let (offset, set_offset) = create_signal(Vec2::ZERO);
+            let camera = create_memo(move || {
+                Some(CanvasView::new(placed.get().min - offset.get(), 1.0))
+            });
 
-                let pixels_per_frame = state.pixels_per_frame;
-                let duration = state.duration;
-                let content = create_memo(move || {
-                    let viewport = placed.get().size().max(Vec2::new(1.0, 1.0));
-                    Rect::from_min_size(
-                        Pos2::ZERO,
-                        Vec2::new(
-                            (duration.get() as f32 * pixels_per_frame.get() + TAIL_PADDING).max(viewport.x),
-                            (RULER_HEIGHT + lanes.get() as f32 * (LANE_HEIGHT + LANE_GAP)).max(viewport.y),
-                        ),
-                    )
-                });
+            let pixels_per_frame = state.pixels_per_frame;
+            let duration = state.duration;
+            let content = create_memo(move || {
+                let viewport = placed.get().size().max(Vec2::new(1.0, 1.0));
+                Rect::from_min_size(
+                    Pos2::ZERO,
+                    Vec2::new(
+                        (duration.get() as f32 * pixels_per_frame.get() + TAIL_PADDING).max(viewport.x),
+                        (RULER_HEIGHT + lanes.get() as f32 * (LANE_HEIGHT + LANE_GAP)).max(viewport.y),
+                    ),
+                )
+            });
 
-                let scrolled = content;
-                let scroll_placed = placed;
-                let scroll_offset = offset;
-                let on_scroll = move |gesture: ScrollGesture| {
-                    let content = scrolled.get_untracked().size();
-                    let viewport = scroll_placed.get_untracked().size();
-                    let room = (content - viewport).max(Vec2::ZERO);
-                    let next = scroll_offset.get_untracked() - gesture.delta;
-                    set_offset.set(Vec2::new(
-                        next.x.clamp(0.0, room.x),
-                        next.y.clamp(0.0, room.y),
-                    ));
-                };
+            let scrolled = content;
+            let scroll_placed = placed;
+            let scroll_offset = offset;
+            let on_scroll = move |gesture: ScrollGesture| {
+                let content = scrolled.get_untracked().size();
+                let viewport = scroll_placed.get_untracked().size();
+                let room = (content - viewport).max(Vec2::ZERO);
+                let next = scroll_offset.get_untracked() - gesture.delta;
+                set_offset.set(Vec2::new(
+                    next.x.clamp(0.0, room.x),
+                    next.y.clamp(0.0, room.y),
+                ));
+            };
 
-                let (pointer, set_pointer) = create_signal(None::<Pos2>);
-                let hover_offset = offset;
-                let hover_pointer = set_pointer;
-                let on_hover = move |press: PointerPress| {
-                    hover_pointer.set(Some(press.local + hover_offset.get_untracked()));
-                };
+            let (pointer, set_pointer) = create_signal(None::<Pos2>);
+            let hover_offset = offset;
+            let hover_pointer = set_pointer;
+            let on_hover = move |press: PointerPress| {
+                hover_pointer.set(Some(press.local + hover_offset.get_untracked()));
+            };
 
-                let target_rows = rows;
-                let target_scale = pixels_per_frame;
-                let target_pointer = pointer;
-                let target_drag = state.drag;
-                let target_offset = offset;
-                let target_placed = placed;
-                let host_drag = state.editor().drag();
-                let content_rect = content;
-                let target = create_memo(move || {
-                        let _ = target_rows.get();
-                        let video = state.video()?;
-                        let rows: Vec<ClipRow> = timeline::lane_rows(&video);
-                        let content = content_rect.get();
-                        let scale = target_scale.get();
-                        if let Some(drag) = target_drag.get() {
-                            let at = target_pointer.get()?;
-                            return timeline::drop_target_at(&video, &rows, content, scale, at, Some(&drag));
-                        }
-                        let dragged = host_drag.get().filter(|drag| drag.block_id != state.block_id())?;
-                        let at = dragged.position - target_placed.get_untracked().min.to_vec2()
-                            + target_offset.get_untracked();
-                        timeline::drop_target_at(&video, &rows, content, scale, at, None)
-                    });
-
-                let landing_target = target;
-                let landing_drag = state.editor().drag();
-                create_effect(move || {
-                    let dragged = landing_drag.get();
-                    untrack(|| land(state, landing_target, dragged));
-                });
-
-                let dropped_target = target;
-                let on_drop = move |_: (Uuid, DragPoint)| {
-                    let Some(drag) = state.drag.get_untracked() else {
-                        return;
-                    };
-                    let (Some(video), Some(target)) = (state.video(), dropped_target.get_untracked()) else {
-                        return;
-                    };
-                    let mut operations = Vec::new();
-                    timeline::apply_clip_drop(&video, drag.clip, target, &mut operations);
-                    for operation in operations {
-                        state.operate(operation);
+            let target_rows = rows;
+            let target_scale = pixels_per_frame;
+            let target_pointer = pointer;
+            let target_drag = state.drag;
+            let target_offset = offset;
+            let target_placed = placed;
+            let host_drag = state.editor().drag();
+            let content_rect = content;
+            let target = create_memo(move || {
+                    let _ = target_rows.get();
+                    let video = state.video()?;
+                    let rows: Vec<ClipRow> = timeline::lane_rows(&video);
+                    let content = content_rect.get();
+                    let scale = target_scale.get();
+                    if let Some(drag) = target_drag.get() {
+                        let at = target_pointer.get()?;
+                        return timeline::drop_target_at(&video, &rows, content, scale, at, Some(&drag));
                     }
-                };
-
-                let drag_offset = offset;
-                let drag_pointer = set_pointer;
-                let on_over = move |over: Option<(Uuid, DragPoint)>| {
-                    if let Some((_, point)) = over {
-                        drag_pointer.set(Some(point.local + drag_offset.get_untracked()));
-                    }
-                };
-
-                let seek_offset = offset;
-                let seek_scale = pixels_per_frame;
-                let on_press = move |press: PointerPress| {
-                    let x = press.local.x + seek_offset.get_untracked().x;
-                    state.seek((x / seek_scale.get_untracked()).max(0.0) as u64);
-                    state.select(None);
-                };
-
-                let ticks = create_memo(move || {
-                    let rate = state.frame_rate.get();
-                    let step = timeline::tick_seconds(rate, pixels_per_frame.get());
-                    let per_second = (rate.frames_per_second() * f64::from(pixels_per_frame.get())) as f32;
-                    let spacing = (step as f32 * per_second).max(1.0);
-                    let count = (content.get().width() / spacing).ceil() as u32;
-                    (0..=count)
-                        .map(|tick| Tick {
-                            index: tick,
-                            x: tick as f32 * spacing,
-                            seconds: (f64::from(tick) * step) as u64,
-                        })
-                        .collect::<Vec<Tick>>()
+                    let dragged = host_drag.get().filter(|drag| drag.block_id != state.block_id())?;
+                    let at = dragged.position - target_placed.get_untracked().min.to_vec2()
+                        + target_offset.get_untracked();
+                    timeline::drop_target_at(&video, &rows, content, scale, at, None)
                 });
 
-                let lane_keys = create_memo(move || (0..lanes.get()).collect::<Vec<usize>>());
-                let selection = create_selector(move || state.selected.get());
-                let row_scale = pixels_per_frame;
-                let playhead = state.playhead;
-                let playhead_x = create_memo(move || {
-                    playhead.get() as f32 * pixels_per_frame.get()
-                });
-                let playhead_height = create_memo(move || content.get().height());
+            let landing_target = target;
+            let landing_drag = state.editor().drag();
+            create_effect(move || {
+                let dragged = landing_drag.get();
+                untrack(|| land(state, landing_target, dragged));
+            });
 
-                view! {
-                    <DropTarget on_over={on_over} on_drop={on_drop}>
-                        {move |_: DropHandle| view! {
-                            <Interactive
-                                cursor=CursorIcon::Default
-                                on_press={on_press}
-                                on_scroll={on_scroll}
-                                on_hover_move={on_hover}
-                                @test_id={"video.timeline"}
-                            >
-                                <Canvas view={camera}>
-                                    <ForEach keys={lane_keys}>
-                                        {move |lane: usize| {
-                                            let content = content;
-                                            view! {
-                                                <LaneStrip lane content />
-                                            }
-                                        }}
-                                    </ForEach>
-                                    <ForEach keys={ticks}>
-                                        {move |tick: Tick| view! {
-                                            <RulerTick tick />
-                                        }}
-                                    </ForEach>
-                                    <ForEach keys={rows}>
-                                        {move |row: Lane| {
-                                            let selected = selection.memo(Some(row.id));
-                                            let scale = row_scale;
-                                            view! {
-                                                <Clip state row selected scale />
-                                            }
-                                        }}
-                                    </ForEach>
-                                    <DropMarker target={target} scale={pixels_per_frame} />
-                                    <CanvasItem
-                                        x={playhead_x}
-                                        y=0.0
-                                        width=1.5
-                                        height={playhead_height}
-                                    >
-                                        <Frame fill=ColorRole::Accent />
-                                    </CanvasItem>
-                                </Canvas>
-                            </Interactive>
-                        }}
-                    </DropTarget>
+            let dropped_target = target;
+            let on_drop = move |_: (Uuid, DragPoint)| {
+                let Some(drag) = state.drag.get_untracked() else {
+                    return;
+                };
+                let (Some(video), Some(target)) = (state.video(), dropped_target.get_untracked()) else {
+                    return;
+                };
+                let mut operations = Vec::new();
+                timeline::apply_clip_drop(&video, drag.clip, target, &mut operations);
+                for operation in operations {
+                    state.operate(operation);
                 }
-            }}
-        </PlacementBuilder>
+            };
+
+            let drag_offset = offset;
+            let drag_pointer = set_pointer;
+            let on_over = move |over: Option<(Uuid, DragPoint)>| {
+                if let Some((_, point)) = over {
+                    drag_pointer.set(Some(point.local + drag_offset.get_untracked()));
+                }
+            };
+
+            let seek_offset = offset;
+            let seek_scale = pixels_per_frame;
+            let on_press = move |press: PointerPress| {
+                let x = press.local.x + seek_offset.get_untracked().x;
+                state.seek((x / seek_scale.get_untracked()).max(0.0) as u64);
+                state.select(None);
+            };
+
+            let ticks = create_memo(move || {
+                let rate = state.frame_rate.get();
+                let step = timeline::tick_seconds(rate, pixels_per_frame.get());
+                let per_second = (rate.frames_per_second() * f64::from(pixels_per_frame.get())) as f32;
+                let spacing = (step as f32 * per_second).max(1.0);
+                let count = (content.get().width() / spacing).ceil() as u32;
+                (0..=count)
+                    .map(|tick| Tick {
+                        index: tick,
+                        x: tick as f32 * spacing,
+                        seconds: (f64::from(tick) * step) as u64,
+                    })
+                    .collect::<Vec<Tick>>()
+            });
+
+            let lane_keys = create_memo(move || (0..lanes.get()).collect::<Vec<usize>>());
+            let selection = create_selector(move || state.selected.get());
+            let row_scale = pixels_per_frame;
+            let playhead = state.playhead;
+            let playhead_x = create_memo(move || {
+                playhead.get() as f32 * pixels_per_frame.get()
+            });
+            let playhead_height = create_memo(move || content.get().height());
+
+            view! {
+                <DropTarget on_over={on_over} on_drop={on_drop}>|_: DropHandle|
+                    <Interactive
+                        cursor=CursorIcon::Default
+                        on_press={on_press}
+                        on_scroll={on_scroll}
+                        on_hover_move={on_hover}
+                        @test_id={"video.timeline"}
+                    >
+                        <Canvas view={camera}>
+                            <ForEach keys={lane_keys}>|lane: usize| {
+                                let content = content;
+                                view! {
+                                    <LaneStrip lane content />
+                                }
+                            }</ForEach>
+                            <ForEach keys={ticks}>|tick: Tick|
+                                <RulerTick tick />
+                            </ForEach>
+                            <ForEach keys={rows}>|row: Lane| {
+                                let selected = selection.memo(Some(row.id));
+                                let scale = row_scale;
+                                view! {
+                                    <Clip state row selected scale />
+                                }
+                            }</ForEach>
+                            <DropMarker target={target} scale={pixels_per_frame} />
+                            <CanvasItem x={playhead_x} y=0.0 width=1.5 height={playhead_height}>
+                                <Frame fill=ColorRole::Accent />
+                            </CanvasItem>
+                        </Canvas>
+                    </Interactive>
+                </DropTarget>
+            }
+        }</PlacementBuilder>
     }
 }
 
@@ -332,35 +317,31 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                         grab: offset.max(0.0) as u64,
                     }));
                 }}
-            >
-                {move |_: DragHandle| view! {
-                    <Interactive
-                        on_press={move |press: PointerPress| grabbing.set(Some(press.local))}
+            >|_: DragHandle|
+                <Interactive on_press={move |press: PointerPress| grabbing.set(Some(press.local))}>
+                    <Frame
+                        fill={ColorRole::custom(fill)}
+                        radius={Radius::custom(CLIP_RADIUS)}
+                        border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
+                        padding=THUMBNAIL_MARGIN
                     >
-                        <Frame
-                            fill={ColorRole::custom(fill)}
-                            radius={Radius::custom(CLIP_RADIUS)}
-                            border={create_memo(move || selected.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
-                            padding=THUMBNAIL_MARGIN
-                        >
-                            <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
-                                <Frame
-                                    width={(LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0) * 1.4}
-                                    height={LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0}
-                                >
-                                    <ChildBlock
-                                        editor={editor}
-                                        block={block}
-                                        mode=ChildMode::Preview
-                                        on_state={move |_| {}}
-                                    />
-                                </Frame>
-                                <Text @sizing=ItemSize::Percent(100.0) string={name} />
-                                <TrimHandle state={state} row={row} scale={trim_edge_scale} />
-                            </List>
-                        </Frame>
-                    </Interactive>
-                }}
+                        <List direction=Direction::Horizontal align=Align::Center spacing=5.0>
+                            <Frame
+                                width={(LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0) * 1.4}
+                                height={LANE_HEIGHT - THUMBNAIL_MARGIN * 2.0}
+                            >
+                                <ChildBlock
+                                    editor={editor}
+                                    block={block}
+                                    mode=ChildMode::Preview
+                                    on_state={move |_| {}}
+                                />
+                            </Frame>
+                            <Text @sizing=ItemSize::Percent(100.0) string={name} />
+                            <TrimHandle state={state} row={row} scale={trim_edge_scale} />
+                        </List>
+                    </Frame>
+                </Interactive>
             </Draggable>
         </CanvasItem>
     }

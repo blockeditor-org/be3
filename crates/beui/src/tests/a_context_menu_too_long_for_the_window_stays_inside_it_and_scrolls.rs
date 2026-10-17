@@ -10,14 +10,12 @@ fn a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls() {
     let (document, [menu]) = toolbar_of({
         move || {
             let items = view! {
-                <ForEach keys={(0..40).collect::<Vec<usize>>()}>
-                    {move |index: usize| {
-                        let label = format!("Item {index}");
-                        view! {
-                            <unstyled::MenuItem label />
-                        }
-                    }}
-                </ForEach>
+                <ForEach keys={(0..40).collect::<Vec<usize>>()}>|index: usize| {
+                    let label = format!("Item {index}");
+                    view! {
+                        <unstyled::MenuItem label />
+                    }
+                }</ForEach>
             };
             [view! {
                 <ContextMenu items>

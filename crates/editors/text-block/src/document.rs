@@ -392,6 +392,7 @@ pub const fn block_language(language: TextLanguage) -> be_block::TextLanguage {
         TextLanguage::PlainText => be_block::TextLanguage::PlainText,
         TextLanguage::Rust => be_block::TextLanguage::Rust,
         TextLanguage::Zig => be_block::TextLanguage::Zig,
+        TextLanguage::Toml => be_block::TextLanguage::Toml,
     }
 }
 
@@ -401,6 +402,7 @@ pub const fn editor_language(language: be_block::TextLanguage) -> TextLanguage {
         be_block::TextLanguage::PlainText => TextLanguage::PlainText,
         be_block::TextLanguage::Rust => TextLanguage::Rust,
         be_block::TextLanguage::Zig => TextLanguage::Zig,
+        be_block::TextLanguage::Toml => TextLanguage::Toml,
     }
 }
 

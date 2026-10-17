@@ -13,18 +13,14 @@ fn a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again()
         view! {
             <List spacing=0.0>
                 <Frame height=height fill=Color32::WHITE radius=0.0 />
-                <ForEach keys={(0..ROWS).collect::<Vec<_>>()}>
-                    {|row: usize| view! {
-                        <Frame height=30.0 fill=Color32::WHITE radius=0.0>
-                            <List direction=Direction::Horizontal spacing=4.0>
-                                <ForEach keys={(0..LABELS).collect::<Vec<_>>()}>
-                                    {move |label: usize| view! {
-                                        <Text string={format!("{row}.{label}")} />
-                                    }}
-                                </ForEach>
-                            </List>
-                        </Frame>
-                    }}
+                <ForEach keys={(0..ROWS).collect::<Vec<_>>()}>|row: usize|
+                    <Frame height=30.0 fill=Color32::WHITE radius=0.0>
+                        <List direction=Direction::Horizontal spacing=4.0>
+                            <ForEach keys={(0..LABELS).collect::<Vec<_>>()}>|label: usize|
+                                <Text string={format!("{row}.{label}")} />
+                            </ForEach>
+                        </List>
+                    </Frame>
                 </ForEach>
             </List>
         }

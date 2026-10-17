@@ -401,6 +401,7 @@ impl ContentStore {
                         ..block_plugin_api::BlockMetadata::default()
                     },
                     locked: false,
+                    deleted: false,
                 });
                 {
                     let mut inner = self.0.borrow_mut();
@@ -575,6 +576,28 @@ impl ContentStore {
             }
             BlockQuery::Block(block) => known(&block).into_iter().collect(),
         };
-        listed.into_iter().map(with_references).collect()
+        listed
+            .into_iter()
+            .map(with_references)
+            .map(|mut info| {
+                info.deleted = info.deleted || deleted(&nodes, info.id);
+                info
+            })
+            .collect()
     }
+}
+
+fn deleted(nodes: &[BlockInfo], block: Uuid) -> bool {
+    let mut current = block;
+    for _ in 0..=nodes.len() {
+        let Some(node) = nodes.iter().find(|node| node.id == current) else {
+            return false;
+        };
+        match node.parent {
+            Some(BlockParent::Detached) => return true,
+            Some(BlockParent::Block(parent)) => current = parent,
+            Some(BlockParent::Root) | None => return false,
+        }
+    }
+    false
 }

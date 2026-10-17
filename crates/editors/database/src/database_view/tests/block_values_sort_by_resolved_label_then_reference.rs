@@ -13,6 +13,7 @@ fn block_values_sort_by_resolved_label_then_reference() {
                 name: "Zulu".into(),
                 automatic: false,
                 reach: Default::default(),
+                deleted: false,
             },
         ),
         (
@@ -23,6 +24,7 @@ fn block_values_sort_by_resolved_label_then_reference() {
                 name: "Alpha".into(),
                 automatic: false,
                 reach: Default::default(),
+                deleted: false,
             },
         ),
     ]);

@@ -83,54 +83,50 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                 </Text>
                 <Text string="Linked block" />
                 <Show condition={via_reference}>
-                    {move || view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Text style=TextStyle::CAPTION string={elsewhere} />
-                            <Button
-                                @test_id={"workspace.linked.original"}
-                                label="Go to original"
-                                variant=ButtonVariant::Secondary
-                                on_click={move || {
-                                    let Some(id) = original_info
-                                        .with(|info| info.as_ref().map(|info| info.item.id))
-                                    else {
-                                        return;
-                                    };
-                                    workspace.forget_container(id);
-                                }}
-                            />
-                            <Button
-                                @test_id={"workspace.linked.unlink"}
-                                label="Unlink"
-                                glyph={ICON_LINK_OFF.to_owned()}
-                                variant=ButtonVariant::Secondary
-                                disabled={unlink_off}
-                                on_click={move || {
-                                    let Some(info) = unlinking_info.get_untracked() else {
-                                        return;
-                                    };
-                                    if let Some(container) = info.container {
-                                        workspace.host().unlink_block(info.item.id, container);
-                                    }
-                                }}
-                            />
-                        </List>
-                    }}
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <Text style=TextStyle::CAPTION string={elsewhere} />
+                        <Button
+                            @test_id={"workspace.linked.original"}
+                            label="Go to original"
+                            variant=ButtonVariant::Secondary
+                            on_click={move || {
+                                let Some(id) = original_info
+                                    .with(|info| info.as_ref().map(|info| info.item.id))
+                                else {
+                                    return;
+                                };
+                                workspace.forget_container(id);
+                            }}
+                        />
+                        <Button
+                            @test_id={"workspace.linked.unlink"}
+                            label="Unlink"
+                            glyph={ICON_LINK_OFF.to_owned()}
+                            variant=ButtonVariant::Secondary
+                            disabled={unlink_off}
+                            on_click={move || {
+                                let Some(info) = unlinking_info.get_untracked() else {
+                                    return;
+                                };
+                                if let Some(container) = info.container {
+                                    workspace.host().unlink_block(info.item.id, container);
+                                }
+                            }}
+                        />
+                    </List>
                 </Show>
                 <Show condition={original}>
-                    {move || view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Text style=TextStyle::CAPTION string={everywhere} />
-                            <ReferenceMenu
-                                workspace={workspace}
-                                name="Show references"
-                                empty="No backrefs"
-                                refs={backrefs}
-                                containing={nowhere}
-                                named="workspace.linked.references"
-                            />
-                        </List>
-                    }}
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <Text style=TextStyle::CAPTION string={everywhere} />
+                        <ReferenceMenu
+                            workspace={workspace}
+                            name="Show references"
+                            empty="No backrefs"
+                            refs={backrefs}
+                            containing={nowhere}
+                            named="workspace.linked.references"
+                        />
+                    </List>
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -144,7 +140,7 @@ fn places(backrefs: &Refs) -> Refs {
         list: backrefs
             .list
             .iter()
-            .filter(|block| block.block_type != EditorViewContent::CONTENT_TYPE)
+            .filter(|block| block.block_type != EditorViewContent::CONTENT_TYPE && !block.deleted)
             .cloned()
             .collect(),
     }

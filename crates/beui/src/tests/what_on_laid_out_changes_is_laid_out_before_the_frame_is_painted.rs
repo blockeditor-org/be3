@@ -15,16 +15,14 @@ fn what_on_laid_out_changes_is_laid_out_before_the_frame_is_painted() {
                 <Frame height=50.0>
                     <Embed slot={first} />
                 </Frame>
-                <Dynamic value={height}>
-                    {move |height: f32| {
-                        let slot = second;
-                        view! {
-                            <Frame height=height>
-                                <Embed slot={slot} />
-                            </Frame>
-                        }
-                    }}
-                </Dynamic>
+                <Dynamic value={height}>|height: f32| {
+                    let slot = second;
+                    view! {
+                        <Frame height=height>
+                            <Embed slot={slot} />
+                        </Frame>
+                    }
+                }</Dynamic>
             </List>
         }
     });

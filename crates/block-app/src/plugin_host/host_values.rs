@@ -7,7 +7,7 @@ use block_plugin_api::{
 #[cfg(target_os = "linux")]
 use block_plugin_api::{
     Displays, InputDevices, Media, MediaRequest, NotificationReport, Notifications, Power,
-    PowerAction, ProgramAction, Programs, ScreenLocked, Tray, TrayRequest,
+    PowerAction, ProgramAction, Programs, Remaps, ScreenLocked, Tray, TrayRequest,
 };
 
 pub(super) const MAX_ACTIONS: usize = 64;
@@ -22,6 +22,7 @@ enum Access {
 const VALUES: &[(&str, Access)] = &[
     (HostWindows::KEY, Access::Shell),
     (InputDevices::KEY, Access::Anyone),
+    (Remaps::KEY, Access::Anyone),
     (Displays::KEY, Access::Anyone),
     (Power::KEY, Access::Anyone),
     (Media::KEY, Access::Anyone),

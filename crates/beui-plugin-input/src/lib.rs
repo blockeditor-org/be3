@@ -44,6 +44,7 @@ pub fn pointer_button(button: beui::PointerButton) -> PointerButton {
         beui::PointerButton::Middle => PointerButton::Middle,
         beui::PointerButton::Back => PointerButton::Back,
         beui::PointerButton::Forward => PointerButton::Forward,
+        beui::PointerButton::Other(code) => PointerButton::Other(code),
     }
 }
 
@@ -385,7 +386,7 @@ pub fn beui_button(button: PointerButton) -> Option<beui::PointerButton> {
         PointerButton::Middle => Some(beui::PointerButton::Middle),
         PointerButton::Back => Some(beui::PointerButton::Back),
         PointerButton::Forward => Some(beui::PointerButton::Forward),
-        PointerButton::Other(_) => None,
+        PointerButton::Other(code) => Some(beui::PointerButton::Other(code)),
     }
 }
 

@@ -13,10 +13,8 @@ fn a_sheet_is_never_taller_than_what_it_holds() {
                     <Frame @sizing=ItemSize::Percent(100.0) />
                     <styled::Sheet @node_ref=&sheet extent=600.0 rest=0.9 on_close={|| ()}>
                         <List @node_ref=&rows spacing=0.0>
-                            <ForEach keys={indices(3)}>
-                                {|_: usize| view! {
-                                    <Frame height=SHEET_ROW_HEIGHT />
-                                }}
+                            <ForEach keys={indices(3)}>|_: usize|
+                                <Frame height=SHEET_ROW_HEIGHT />
                             </ForEach>
                         </List>
                     </styled::Sheet>

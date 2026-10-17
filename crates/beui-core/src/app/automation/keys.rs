@@ -36,24 +36,42 @@ pub fn chord(chord: &str, held: Modifiers, events: &mut Vec<Event>) -> Result<()
         .filter(|(name, _)| !name.is_empty())
         .ok_or_else(|| format!("{chord:?} names no key"))?;
     let key = named(name).ok_or_else(|| format!("{name:?} is not a key beui knows"))?;
-    let mut pressed = Vec::new();
-    let mut state = held;
+    let mut wanted = Modifiers::NONE;
     for name in modifiers {
         let modifier = modifier(name)
             .ok_or_else(|| format!("{name:?} in {chord:?} is not shift, ctrl, alt or super"))?;
-        set_modifier(&mut state, modifier, true);
-        modifier_event(modifier, true, state, events);
-        pressed.push(modifier);
+        set_modifier(&mut wanted, modifier, true);
+    }
+    press_chord(key, wanted, held, events);
+    Ok(())
+}
+
+pub fn press_chord(key: Key, wanted: Modifiers, held: Modifiers, events: &mut Vec<Event>) {
+    let mut pressed = Vec::new();
+    let mut state = held;
+    for (modifier, on) in [
+        (Key::Ctrl, wanted.ctrl),
+        (Key::Alt, wanted.alt),
+        (Key::Shift, wanted.shift),
+        (Key::Logo, wanted.logo),
+    ] {
+        if on && !held_by(held, modifier) {
+            set_modifier(&mut state, modifier, true);
+            modifier_event(modifier, true, state, events);
+            pressed.push(modifier);
+        }
     }
     let typed = text(key, state.shift).filter(|_| !(state.ctrl || state.alt || state.logo));
     events.push(stroke(key, true, false, state, typed));
     events.push(stroke(key, false, false, state, None));
     for modifier in pressed.into_iter().rev() {
         set_modifier(&mut state, modifier, false);
-        set_modifier(&mut state, modifier, held_by(held, modifier));
         modifier_event(modifier, false, state, events);
     }
-    Ok(())
+}
+
+pub fn keyable(character: char) -> Option<(Key, bool)> {
+    typeable(character)
 }
 
 fn held_by(held: Modifiers, key: Key) -> bool {

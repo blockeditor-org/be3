@@ -14,6 +14,7 @@ use block_editor_beui::{
 use uuid::Uuid;
 
 use super::artifact::ArtifactBar;
+use super::deleted::DeletedBar;
 use super::linked::LinkedBar;
 use super::phone::DetailsSheet;
 use super::status::StatusBar;
@@ -45,6 +46,13 @@ pub(crate) struct Info {
     pub(crate) references: Refs,
     pub(crate) backrefs: Refs,
     pub(crate) artifact: Option<ArtifactState>,
+    pub(crate) deleted: Option<Deleted>,
+}
+
+#[derive(Clone, PartialEq)]
+pub(crate) struct Deleted {
+    pub(crate) root: Uuid,
+    pub(crate) inside: Option<String>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -91,7 +99,8 @@ pub(crate) fn read_info(
     watched.follow(&workspace.blocks(), item.id);
     let access = workspace.access(item.id);
     let ceiling = workspace.ceiling(item.id);
-    let parent = workspace.info(item.id).and_then(|info| info.parent);
+    let own = workspace.info(item.id);
+    let parent = own.as_ref().and_then(|info| info.parent);
     let parents = refs(watched.parents.as_ref());
     let references = refs(watched.references.as_ref());
     let backrefs = refs(watched.backrefs.as_ref());
@@ -104,6 +113,24 @@ pub(crate) fn read_info(
         workspace.record_reference_types(reference);
     }
     let types = workspace.types();
+    let deleted =
+        own.filter(|info| info.deleted)
+            .map(|info| match parent == Some(BlockParent::Detached) {
+                true => Deleted {
+                    root: info.id,
+                    inside: None,
+                },
+                false => {
+                    let root = parents
+                        .list
+                        .iter()
+                        .find(|above| above.parent == Some(BlockParent::Detached));
+                    Deleted {
+                        root: root.map_or(info.id, |root| root.id),
+                        inside: root.map(|root| root.label(types.as_ref()).name),
+                    }
+                }
+            });
     let type_name = types
         .display_name(item.block_type)
         .map_or_else(|| item.block_type.to_string(), str::to_owned);
@@ -127,6 +154,7 @@ pub(crate) fn read_info(
             workspace.editor().artifacts().get();
             workspace.host().artifact(item.id)
         },
+        deleted,
     })
 }
 
@@ -158,30 +186,31 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                     <ArtifactBar workspace={workspace} info={info} />
                 </Show>
                 <Show condition={!session}>
+                    <DeletedBar workspace={workspace} info={info} />
+                </Show>
+                <Show condition={!session}>
                     <LinkedBar workspace={workspace} info={info} />
                 </Show>
-                <Dynamic value={content}>
-                    {move |content: Content| {
-                        match content {
-                            Content::Denied => view! {
-                                <AccessDenied @sizing=ItemSize::Percent(100.0) info={info} />
-                            },
-                            Content::Block => view! {
-                                <BlockChild
-                                    @sizing=ItemSize::Percent(100.0)
-                                    editor={editor}
-                                    info={info}
-                                    top_bar={top_bar}
-                                    on_bar={move |action: BarAction| match action {
-                                        BarAction::Details => {
-                                            workspace.set_sheet(PhoneSheet::Details(tab))
-                                        }
-                                    }}
-                                />
-                            },
-                        }
-                    }}
-                </Dynamic>
+                <Dynamic value={content}>|content: Content| {
+                    match content {
+                        Content::Denied => view! {
+                            <AccessDenied @sizing=ItemSize::Percent(100.0) info={info} />
+                        },
+                        Content::Block => view! {
+                            <BlockChild
+                                @sizing=ItemSize::Percent(100.0)
+                                editor={editor}
+                                info={info}
+                                top_bar={top_bar}
+                                on_bar={move |action: BarAction| match action {
+                                    BarAction::Details => {
+                                        workspace.set_sheet(PhoneSheet::Details(tab))
+                                    }
+                                }}
+                            />
+                        },
+                    }
+                }</Dynamic>
                 <Show condition={desktop}>
                     <StatusBar workspace={workspace} info={info} />
                 </Show>
@@ -221,14 +250,12 @@ fn BlockChild(
             on_bar={on_bar}
             on_focus={move |()| tab.iter().for_each(|tab| tab.show())}
             @test_id={"workspace.block"}
-        >
-            {move |handle: ChildBlockHandle| {
-                dock_menu(handle.menu);
-                view! {
-                    <PanelStatus state={handle.state} loading="This block is loading…" />
-                }
-            }}
-        </ChildBlock>
+        >|handle: ChildBlockHandle| {
+            dock_menu(handle.menu);
+            view! {
+                <PanelStatus state={handle.state} loading="This block is loading…" />
+            }
+        }</ChildBlock>
     }
 }
 

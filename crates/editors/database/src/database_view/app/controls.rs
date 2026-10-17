@@ -85,28 +85,26 @@ pub fn ChoicePicker(
                 menu={menu_style()}
                 @test_id={picker_id.clone()}
                 items={view! {
-                    <ForEach keys={keys}>
-                        {move |id: Uuid| {
-                            let shown = create_memo(move || {
-                                options.with(|field| field.as_ref()?.option(id).cloned())
-                            });
-                            let name = create_memo(move || {
-                                shown.with(|shown| shown.as_ref().map(|shown| shown.name.clone()).unwrap_or_default())
-                            });
-                            let glyph = create_memo(move || {
-                                shown.with(|shown| shown.as_ref().map(|shown| choice_glyph(shown.icon)).unwrap_or_default()).to_owned()
-                            });
-                            let pick = on_pick;
-                            view! {
-                                <MenuItem
-                                    label={name}
-                                    glyph={glyph}
-                                    row_test_id={format!("{option_id}.option.{id}")}
-                                    on_click={move || pick.call(Some(id))}
-                                />
-                            }
-                        }}
-                    </ForEach>
+                    <ForEach keys={keys}>|id: Uuid| {
+                        let shown = create_memo(move || {
+                            options.with(|field| field.as_ref()?.option(id).cloned())
+                        });
+                        let name = create_memo(move || {
+                            shown.with(|shown| shown.as_ref().map(|shown| shown.name.clone()).unwrap_or_default())
+                        });
+                        let glyph = create_memo(move || {
+                            shown.with(|shown| shown.as_ref().map(|shown| choice_glyph(shown.icon)).unwrap_or_default()).to_owned()
+                        });
+                        let pick = on_pick;
+                        view! {
+                            <MenuItem
+                                label={name}
+                                glyph={glyph}
+                                row_test_id={format!("{option_id}.option.{id}")}
+                                on_click={move || pick.call(Some(id))}
+                            />
+                        }
+                    }</ForEach>
                     <MenuItem
                         label="Clear"
                         separated=true

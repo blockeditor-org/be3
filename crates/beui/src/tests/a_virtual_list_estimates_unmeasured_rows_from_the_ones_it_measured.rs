@@ -16,14 +16,10 @@ fn a_virtual_list_estimates_unmeasured_rows_from_the_ones_it_measured() {
                                 @node_ref=&list
                                 keys={indices(VIRTUAL_ITEM_COUNT)}
                                 item_size={VIRTUAL_ITEM_HEIGHT * 3.0}
-                            >
-                                {move |_: ReadSignal<usize>| {
-                                    view! {
-                                        <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                            <Spacer />
-                                        </Frame>
-                                    }
-                                }}
+                            >|_: ReadSignal<usize>|
+                                <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                    <Spacer />
+                                </Frame>
                             </VirtualList>
                         </List>
                     </Offset>

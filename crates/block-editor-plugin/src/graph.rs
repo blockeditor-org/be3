@@ -96,6 +96,7 @@ pub struct BlockInfo {
     pub access: AccessLevel,
     pub metadata: BlockMetadata,
     pub locked: bool,
+    pub deleted: bool,
 }
 
 impl BlockInfo {
@@ -109,6 +110,7 @@ impl BlockInfo {
             access: AccessLevel::Edit,
             metadata: BlockMetadata::default(),
             locked: false,
+            deleted: false,
         }
     }
 
@@ -165,6 +167,7 @@ impl BlockInfo {
             self.named_by_hand(),
         )
         .reached(self.reach())
+        .deleted(self.deleted)
     }
 
     pub fn encode(&self) -> block_plugin_api::BlockInfo {
@@ -180,6 +183,7 @@ impl BlockInfo {
                 derived: wire_entries(&self.metadata.derived),
             },
             locked: self.locked,
+            deleted: self.deleted,
         }
     }
 
@@ -196,6 +200,7 @@ impl BlockInfo {
                 derived: entries_of(info.metadata.derived),
             },
             locked: info.locked,
+            deleted: info.deleted,
         }
     }
 }

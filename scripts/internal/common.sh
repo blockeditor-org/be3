@@ -355,13 +355,13 @@ be_path() {
 # wakes the remote execution cluster and names its hosts
 # (guides/build_server.md). Its archives are checked against these hashes, by
 # the platform upstream names them after.
-nsc_version='0.0.586'
-nsc_sha256_linux_amd64='57ba36c1b8dc02689c7d4f630ed9767d26f0eb98acaa56a50c15f30fe45f8f73'
-nsc_sha256_linux_arm64='aa69e23a88df9ceb588bcbbe8781c08971d2b3ef40dbd89a3e68d6bdd361493c'
-nsc_sha256_darwin_amd64='62814ca37432d7727928c2d5b0beeebc4cc012bdf474c122418146805688c7f6'
-nsc_sha256_darwin_arm64='1e05852ce241508f4ced204688be434fe205a4d6bc382fddad114b95ac37abe9'
-nsc_sha256_windows_amd64='6fb562526757d7cf4ad43d64980cded6b875bbf55667d7bfbb96a142127027e9'
-nsc_sha256_windows_arm64='3b1b7d0fedd0ea07662bb6ea2894d3feb5bce747270694af563b5f8d9349c952'
+nsc_version='0.0.587'
+nsc_sha256_linux_amd64='f47a9eff06f41d0f342277ba097e04a215bd88019f184271042f8eb5ec94018f'
+nsc_sha256_linux_arm64='fc121a4fda8083f9e2815a2ecb4e75d06649b98316d4c793434d03fc443a1516'
+nsc_sha256_darwin_amd64='c8864ca1dd7e99a91b4e28d481be6eeafa74f5bbed89e66e731d47dd63e9565f'
+nsc_sha256_darwin_arm64='b06697f6c2848e4f9e95d6dd0a790894c36fef672b9a31a5f45fb674c425b3f5'
+nsc_sha256_windows_amd64='41ba7e3d49ff281de85474d6d309ade24ba14a3c36a4480706e02199a2b391b9'
+nsc_sha256_windows_arm64='e89059e3173b6c1c108a9f9828f3cbbba4af9537d6108c9f378e81f368c7691e'
 
 nsc_platform() {
     local os architecture

@@ -178,6 +178,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
             clipboard: Clipboard::new(),
             ime_serial: 0,
             sent_ime: None,
+            keyboard_shown: std::cell::Cell::new(false),
         },
         load: Some(load),
         window: None,
@@ -211,6 +212,7 @@ struct AndroidPlatform {
     clipboard: Clipboard,
     ime_serial: u64,
     sent_ime: Option<(Option<ImeText>, u64)>,
+    keyboard_shown: std::cell::Cell<bool>,
 }
 
 impl Platform for AndroidPlatform {
@@ -243,6 +245,13 @@ impl Platform for AndroidPlatform {
             _ if asked.is_some_and(Keyboard::shown) => self.set_keyboard(false),
             _ => {}
         }
+        if window.keyboard_toggles != shown.keyboard_toggles {
+            self.set_keyboard(!self.keyboard_shown.get());
+        }
+    }
+
+    fn shows_keyboard(&self) -> bool {
+        true
     }
 
     fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
@@ -262,6 +271,7 @@ impl AndroidPlatform {
     }
 
     fn set_keyboard(&self, shown: bool) {
+        self.keyboard_shown.set(shown);
         let Some(view) = &self.view else {
             return;
         };

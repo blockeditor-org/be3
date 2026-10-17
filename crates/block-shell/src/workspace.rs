@@ -1255,8 +1255,8 @@ pub fn WindowTab(
     view! {
         <DockTab id={tab} title icon=ICON_WEB_ASSET picture on_close={move || workspace.close(tab)}>
             <Layers>
-                <Dynamic value={bound}>
-                    {move |bound: Option<HostWindowId>| match (bound, placeholder) {
+                <Dynamic value={bound}>|bound: Option<HostWindowId>| {
+                    match (bound, placeholder) {
                         (Some(window), _) => view! {
                             <WindowPanel
                                 editor={editor}
@@ -1273,8 +1273,8 @@ pub fn WindowTab(
                         (None, None) => view! {
                             <Frame />
                         },
-                    }}
-                </Dynamic>
+                    }
+                }</Dynamic>
             </Layers>
         </DockTab>
     }

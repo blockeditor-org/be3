@@ -17,7 +17,7 @@ fn a_direct_editor_entity_draws_the_frame_it_reserves() {
         &[BlockInfo::new(
             counter,
             CounterContent::CONTENT_TYPE,
-            BlockParent::Detached,
+            BlockParent::Root,
         )],
     );
     editor.available_children();

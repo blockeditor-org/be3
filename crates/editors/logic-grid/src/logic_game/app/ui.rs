@@ -80,27 +80,25 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                     </List>
                     <Scroll @sizing=ItemSize::Percent(100.0)>
                         <List spacing=4.0>
-                            <ForEach keys={keys}>
-                                {move |challenge: ChallengeId| {
-                                    let level = level_of(levels, challenge);
-                                    let here = open.memo(Some(challenge));
-                                    let toggle = move || {
-                                        let shown = expanded.get_untracked() == Some(challenge);
-                                        set_expanded.set((!shown).then_some(challenge));
-                                    };
-                                    view! {
-                                        <LevelRow
-                                            editor={editor}
-                                            block={block}
-                                            game={game}
-                                            challenge={challenge}
-                                            level={level}
-                                            expanded={here}
-                                            on_toggle={toggle}
-                                        />
-                                    }
-                                }}
-                            </ForEach>
+                            <ForEach keys={keys}>|challenge: ChallengeId| {
+                                let level = level_of(levels, challenge);
+                                let here = open.memo(Some(challenge));
+                                let toggle = move || {
+                                    let shown = expanded.get_untracked() == Some(challenge);
+                                    set_expanded.set((!shown).then_some(challenge));
+                                };
+                                view! {
+                                    <LevelRow
+                                        editor={editor}
+                                        block={block}
+                                        game={game}
+                                        challenge={challenge}
+                                        level={level}
+                                        expanded={here}
+                                        on_toggle={toggle}
+                                    />
+                                }
+                            }</ForEach>
                         </List>
                     </Scroll>
                 </List>
@@ -147,8 +145,8 @@ fn LevelRow(
                     <Text style=TextStyle::CAPTION string={attempts} />
                 </List>
             </ListRow>
-            <Show condition={expanded}>
-                {move || { let goal = goal.clone(); view! {
+            <Show condition={expanded}>|| {
+                let goal = goal.clone(); view! {
                     <Frame padding={Sides::new(INDENT, 0.0, 0.0, 0.0)}>
                         <List spacing=ROW_SPACING>
                             <Text style=TextStyle::CAPTION string={goal} wrap=true />
@@ -165,8 +163,8 @@ fn LevelRow(
                             </Show>
                         </List>
                     </Frame>
-                } }}
-            </Show>
+                }
+            }</Show>
         </List>
     }
 }
@@ -196,19 +194,17 @@ fn Solutions(
     };
     view! {
         <List spacing=4.0>
-            <ForEach keys={keys}>
-                {move |reference: Uuid| {
-                    let solution = solution_of(level, reference);
-                    view! {
-                        <SolutionRow
-                            game={game}
-                            challenge={challenge}
-                            reference={reference}
-                            solution={solution}
-                        />
-                    }
-                }}
-            </ForEach>
+            <ForEach keys={keys}>|reference: Uuid| {
+                let solution = solution_of(level, reference);
+                view! {
+                    <SolutionRow
+                        game={game}
+                        challenge={challenge}
+                        reference={reference}
+                        solution={solution}
+                    />
+                }
+            }</ForEach>
             <List direction=Direction::Horizontal spacing=0.0>
                 <Button
                     glyph={ICON_ADD.to_owned()}

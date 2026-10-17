@@ -43,8 +43,8 @@ pub fn CrashNotice(
                         wrap=true
                     />
                 </Show>
-                <Show condition={reloadable}>
-                    {move || { let reload_label = reload_label.clone(); let reload_id = reload_id.clone(); view! {
+                <Show condition={reloadable}>|| {
+                    let reload_label = reload_label.clone(); let reload_id = reload_id.clone(); view! {
                         <Button
                             @test_id={reload_id}
                             label={reload_label}
@@ -52,8 +52,8 @@ pub fn CrashNotice(
                             variant=ButtonVariant::Secondary
                             on_click={on_reload}
                         />
-                    } }}
-                </Show>
+                    }
+                }</Show>
             </List>
         </Frame>
     }

@@ -79,34 +79,32 @@ pub fn LevelOsd(
     let places = create_memo(move || (0..screens.with(Vec::len)).collect::<Vec<usize>>());
     view! {
         <List spacing=0.0>
-            <ForEach keys={places}>
-                {move |index: usize| {
-                    let anchored = create_memo(move || {
-                        let screen = screens.with(|screens| {
-                            screens.get(index).map_or(Rect::ZERO, |screen| screen.rect)
-                        });
-                        OverlayAnchor::Point(pos2(
-                            screen.center().x,
-                            screen.top() + screen.height() * SCREEN_HEIGHT_FRACTION,
-                        ))
+            <ForEach keys={places}>|index: usize| {
+                let anchored = create_memo(move || {
+                    let screen = screens.with(|screens| {
+                        screens.get(index).map_or(Rect::ZERO, |screen| screen.rect)
                     });
-                    let (open, level, opacity) = (open, level, opacity);
-                    let id = format!("{id}.{index}");
-                    view! {
-                        <Overlay
-                            anchor={anchored}
-                            placement=Placement::Around
-                            policy=LayerPolicy::Inert
-                            level=LayerLevel::Top
-                            traps_focus=false
-                            open={open}
-                            content={move || view! {
-                                <OsdCard level opacity id />
-                            }}
-                        />
-                    }
-                }}
-            </ForEach>
+                    OverlayAnchor::Point(pos2(
+                        screen.center().x,
+                        screen.top() + screen.height() * SCREEN_HEIGHT_FRACTION,
+                    ))
+                });
+                let (open, level, opacity) = (open, level, opacity);
+                let id = format!("{id}.{index}");
+                view! {
+                    <Overlay
+                        anchor={anchored}
+                        placement=Placement::Around
+                        policy=LayerPolicy::Inert
+                        level=LayerLevel::Top
+                        traps_focus=false
+                        open={open}
+                        content={move || view! {
+                            <OsdCard level opacity id />
+                        }}
+                    />
+                }
+            }</ForEach>
         </List>
     }
 }
