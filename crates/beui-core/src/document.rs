@@ -126,6 +126,8 @@ pub struct Document {
     anchor_shift: f32,
     pub(crate) reveals: NodeMap<NodeId>,
     viewport: Option<(Context, Rect, f32)>,
+    pub(crate) hidden: bool,
+    pub(crate) embeds: Vec<std::rc::Weak<crate::base::embed::EmbedState>>,
     fonts_generation: u64,
     painting: Vec<(Rc<Display>, Vec2)>,
     pub paint_cache: RefCell<PaintCache>,
@@ -331,6 +333,8 @@ impl Document {
             anchor_shift: 0.0,
             reveals: NodeMap::default(),
             viewport: None,
+            hidden: false,
+            embeds: Vec::new(),
             fonts_generation: 0,
             painting: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
@@ -1044,11 +1048,19 @@ impl Document {
     }
 
     pub fn hide(&mut self) {
-        if self.viewport.take().is_some()
-            && let Some(root) = self.root
-        {
-            self.release_forgotten(root);
+        if !std::mem::replace(&mut self.hidden, true) {
+            self.conceal_embeds(true);
         }
+    }
+
+    fn conceal_embeds(&mut self, concealed: bool) {
+        self.embeds.retain(|embed| match embed.upgrade() {
+            Some(embed) => {
+                embed.conceal(concealed);
+                true
+            }
+            None => false,
+        });
     }
 
     pub fn show_screen(&mut self, ctx: &Context, rect: Rect) {
@@ -1111,6 +1123,10 @@ impl Document {
 
     pub fn show_content(&mut self, ctx: &Context, rect: Rect) {
         self.now = ctx.now();
+        if std::mem::take(&mut self.hidden) {
+            ctx.report_damage(rect);
+            self.conceal_embeds(false);
+        }
         let mut measurement = FrameMeasurement::new();
         self.work.reset();
         let scale = ctx.pixels_per_point();

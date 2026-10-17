@@ -17,17 +17,30 @@ fn a_narrow_inspector_covering_the_app_unplaces_its_embeds() {
 
     harness.toggle_inspector();
     harness.frame(Vec::new());
+    harness.click(harness.bar_option_rect(0).center());
+    harness.frame(Vec::new());
+    let placed = slot.placement();
+    assert!(placed.is_some());
+
+    harness.click(harness.bar_option_rect(1).center());
+    harness.frame(Vec::new());
     assert!(!harness.inspector().state().app_visible());
     assert!(
         slot.placement().is_none(),
         "an embed under an inspector that fills the window claims no place"
     );
 
-    harness.toggle_picking();
+    harness.click(harness.bar_option_rect(0).center());
     harness.frame(Vec::new());
     assert!(harness.inspector().state().app_visible());
-    assert!(
-        slot.placement().is_some(),
-        "the embed is placed again once the app shows"
+    assert_eq!(
+        slot.placement(),
+        placed,
+        "the embed is placed where it was once the app shows again"
+    );
+    assert_eq!(
+        harness.document().performance().latest.work.placed,
+        0,
+        "showing the app again keeps the layout it had while hidden"
     );
 }
