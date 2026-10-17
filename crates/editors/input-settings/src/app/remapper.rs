@@ -95,6 +95,17 @@ pub(super) fn RemapperSetting(
             .host()
             .open_block_with(choice.block, InputRemapper::CONTENT_TYPE, choice.editor);
     };
+    let reset = move || {
+        if let Some(choice) = root.get_untracked().remapper {
+            editor.host().delete_block(
+                choice.block,
+                InputRemapper::CONTENT_TYPE,
+                BlockParent::Block(editor.block_id()),
+                false,
+            );
+            settings.operate(InputSettings::set_remapper(None));
+        }
+    };
     view! {
         <SettingsSection title="Remaps">
             <SettingsRow
@@ -102,8 +113,6 @@ pub(super) fn RemapperSetting(
                 description="The plugin that changes keys, buttons and wheel turns in a Linux session."
                 modified={set_here}
                 locked={read_only}
-                reset_test_id={"input-settings.remapper.reset".to_owned()}
-                on_reset={move || settings.operate(InputSettings::set_remapper(None))}
             >
                 <Select
                     @sizing=ItemSize::Percent(100.0)
@@ -138,7 +147,12 @@ pub(super) fn RemapperSetting(
                 description={detail}
                 separated=true
                 disabled={link_off}
+                modified={set_here}
+                locked={read_only}
+                reset_test_id={"input-settings.remaps.reset".to_owned()}
+                reset_confirm="Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
                 @test_id={"input-settings.remaps"}
+                on_reset={reset}
                 on_click={open}
             />
         </SettingsSection>

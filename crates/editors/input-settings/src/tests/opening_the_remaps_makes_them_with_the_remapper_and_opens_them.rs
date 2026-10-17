@@ -49,4 +49,21 @@ fn opening_the_remaps_makes_them_with_the_remapper_and_opens_them() {
         "opening them again opens the same block"
     );
     assert_eq!(editor.seeded().len(), 1);
+
+    editor.click("input-settings.remaps.reset");
+    editor.run();
+    assert!(
+        content(&editor).root().remapper.is_some(),
+        "resetting asks first"
+    );
+    editor.snapshot("resetting_the_remaps_asks_before_deleting_them");
+    editor.click("input-settings.remaps.reset.confirm");
+    editor.run();
+    assert_eq!(content(&editor).root().remapper, None);
+    let deleted = editor.take_block_commands();
+    assert!(
+        deleted.iter().any(|(block, command)| *block == choice.block
+            && matches!(command, block_editor_beui::BlockCommand::Delete { .. })),
+        "the remaps' block is deleted: {deleted:?}"
+    );
 }

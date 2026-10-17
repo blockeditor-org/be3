@@ -1001,7 +1001,9 @@ stacked once the row is narrow, and a section runs edge to edge once it is. A
 `modified` row has an accent bar at its edge and, given `on_reset`, a small
 Reset link after its label. A `SettingsLink` is a row that opens a page of its own (a block,
 in a tab): its label and description, a chevron where a control would be, and the
-hover a button has.
+hover a button has, inset and rounded so it stays inside the card. It takes `modified`
+and `on_reset` as a row does, and with `reset_confirm` its Reset asks in a dialog
+first, for a reset that deletes the block it opens.
 
 Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
 `EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:
