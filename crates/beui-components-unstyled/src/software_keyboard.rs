@@ -332,7 +332,7 @@ pub fn face(value: Value) -> Face {
             Key::Backspace => Face::glyph(ICON_BACKSPACE),
             Key::Delete => Face::text("»"),
             Key::Insert => Face::text("Ins"),
-            Key::Home => Face::text("Home"),
+            Key::Home => Face::glyph(ICON_FIRST_PAGE),
             Key::End => Face::text("End"),
             Key::PageUp => Face::text("PgUp"),
             Key::PageDown => Face::text("PgDn"),
