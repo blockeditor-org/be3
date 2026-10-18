@@ -189,6 +189,7 @@ if ! $help; then
 fi
 
 export BE3_APP_ID=Block
+export BE3_DEPLOY_DEFAULT_SERVER=true
 
 exec "$repository/scripts/buck" run -m release \
     -c "be3.deploy_downloads=$downloads" -c "be3.deploy_android=$android" \

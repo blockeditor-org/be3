@@ -100,6 +100,20 @@ pub(crate) async fn route(
         return Ok(None);
     }
     let head = Head::parse(&buffer)?;
+    if head.path.split('?').next() == Some("/auth") {
+        serve_auth(stream, buffer, services).await?;
+        return Ok(None);
+    }
+    if services.config.local_profiles && head.origin.is_some() {
+        respond(
+            &mut stream,
+            403,
+            None,
+            b"browser access to local profiles is unavailable",
+        )
+        .await?;
+        return Ok(None);
+    }
     if head.method == "POST"
         && head
             .path
@@ -116,6 +130,88 @@ pub(crate) async fn route(
         position: 0,
         stream,
     }))
+}
+
+async fn serve_auth(
+    mut stream: TcpStream,
+    mut buffer: Vec<u8>,
+    services: &Services,
+) -> Result<(), ServerError> {
+    let head = Head::parse(&buffer)?;
+    if head.length > 16 * 1024 {
+        return respond(&mut stream, 413, None, b"the form is too large").await;
+    }
+    let query = head
+        .path
+        .split_once('?')
+        .map(|(_, query)| query)
+        .unwrap_or_default();
+    let query = crate::browser_auth::fields(query);
+    let code = query.get("code").map(String::as_str).unwrap_or_default();
+    let (status, html) = match head.method.as_str() {
+        "GET" => (200, crate::browser_auth::page(services, code, "")?),
+        "POST" => {
+            let same_origin = head
+                .origin
+                .as_deref()
+                .zip(head.host.as_deref())
+                .is_some_and(|(origin, host)| {
+                    origin == format!("https://{host}") || origin == format!("http://{host}")
+                });
+            if !same_origin {
+                return respond(
+                    &mut stream,
+                    403,
+                    None,
+                    b"submit this form from the server's sign-in page",
+                )
+                .await;
+            }
+            let mut body = buffer.split_off(head.size);
+            tokio::time::timeout(HANDSHAKE_TIMEOUT, async {
+                while body.len() < head.length {
+                    let mut chunk = vec![0; head.length - body.len()];
+                    let count = stream.read(&mut chunk).await?;
+                    if count == 0 {
+                        return Err(ServerError::Socket("incomplete form".into()));
+                    }
+                    body.extend_from_slice(&chunk[..count]);
+                }
+                Ok(())
+            })
+            .await
+            .map_err(|_| ServerError::Socket("the form timed out".into()))??;
+            let body = std::str::from_utf8(&body[..head.length]).unwrap_or_default();
+            let fields = crate::browser_auth::fields(body);
+            match crate::browser_auth::submit(services, &fields).await {
+                Ok(()) => (
+                    200,
+                    crate::browser_auth::shell(
+                        "<h1>Done</h1><p>Return to Block. You can close this page.</p>",
+                    ),
+                ),
+                Err(error) => (
+                    400,
+                    crate::browser_auth::page(
+                        services,
+                        fields.get("code").map(String::as_str).unwrap_or_default(),
+                        &error.to_string(),
+                    )?,
+                ),
+            }
+        }
+        _ => (
+            405,
+            crate::browser_auth::shell("<h1>Method not allowed</h1>"),
+        ),
+    };
+    let response = format!(
+        "HTTP/1.1 {status} Response\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nContent-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: same-origin\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{html}",
+        html.len()
+    );
+    stream.write_all(response.as_bytes()).await?;
+    stream.shutdown().await?;
+    Ok(())
 }
 
 async fn serve(
@@ -309,6 +405,8 @@ struct Head {
     session: Option<String>,
     close: bool,
     authorization: Option<String>,
+    origin: Option<String>,
+    host: Option<String>,
 }
 
 impl Head {
@@ -343,6 +441,8 @@ impl Head {
             session,
             close,
             authorization: header("authorization").map(str::to_owned),
+            origin: header("origin").map(str::to_owned),
+            host: header("host").map(str::to_owned),
         })
     }
 }

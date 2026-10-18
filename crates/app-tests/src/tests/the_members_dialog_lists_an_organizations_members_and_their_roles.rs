@@ -12,7 +12,7 @@ fn the_members_dialog_lists_an_organizations_members_and_their_roles() {
     app.click("#file-tree.desktop-app-menu");
     app.click("#app.menu.members");
     app.wait("Dialog \"Members\"");
-    app.wait("Label value=\"dev@localhost, Administrator\"");
+    app.wait("Label value=\"Administrator\"");
     app.crop("Dialog \"Members\"");
     app.snapshot("the_members_dialog_lists_an_organizations_members_and_their_roles");
     app.close();

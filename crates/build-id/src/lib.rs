@@ -6,6 +6,16 @@ pub const FILE: &str = "build-info.json";
 pub struct Metadata {
     pub id: String,
     pub app_id: String,
+    #[serde(default)]
+    pub default_server: Option<DefaultServer>,
+}
+
+#[derive(Clone, Debug, serde::Deserialize, PartialEq)]
+pub struct DefaultServer {
+    pub name: String,
+    pub api_url: String,
+    pub auth_url: String,
+    pub gateway_required: bool,
 }
 
 impl Metadata {
@@ -36,6 +46,7 @@ pub fn install(id: &str) {
     let _ = CURRENT.set(Ok(Metadata {
         id: id.to_owned(),
         app_id: "BlockDev".to_owned(),
+        default_server: None,
     }));
 }
 

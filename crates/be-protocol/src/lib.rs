@@ -318,6 +318,17 @@ impl fmt::Display for ErrorCode {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ClientMessage {
+    BeginBrowserLogin {
+        request: u64,
+    },
+    FinishBrowserLogin {
+        request: u64,
+        code: String,
+    },
+    CreateLocalProfile {
+        request: u64,
+        display_name: String,
+    },
     Register {
         request: u64,
         email: String,
@@ -658,7 +669,10 @@ pub struct SealedKey {
 impl ClientMessage {
     pub fn request(&self) -> u64 {
         match self {
-            Self::Register { request, .. }
+            Self::BeginBrowserLogin { request }
+            | Self::FinishBrowserLogin { request, .. }
+            | Self::CreateLocalProfile { request, .. }
+            | Self::Register { request, .. }
             | Self::Login { request, .. }
             | Self::Authenticate { request, .. }
             | Self::AuthenticateHeader { request }
@@ -734,6 +748,14 @@ pub struct HistoryEntry {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ServerMessage {
+    BrowserLogin {
+        request: u64,
+        code: String,
+    },
+    BrowserLoginFinished {
+        approved: bool,
+        message: String,
+    },
     Ok {
         request: u64,
     },
@@ -894,7 +916,8 @@ pub enum ServerMessage {
 impl ServerMessage {
     pub fn request(&self) -> Option<u64> {
         match self {
-            Self::Ok { request }
+            Self::BrowserLogin { request, .. }
+            | Self::Ok { request }
             | Self::Failed { request, .. }
             | Self::Authenticated { request, .. }
             | Self::Organizations { request, .. }
@@ -929,6 +952,7 @@ impl ServerMessage {
             | Self::Relayed { .. }
             | Self::Paired { .. }
             | Self::ContactsChanged
+            | Self::BrowserLoginFinished { .. }
             | Self::KeyWorkChanged => None,
         }
     }

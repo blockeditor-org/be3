@@ -83,6 +83,45 @@ impl ServerStore {
         })
     }
 
+    pub async fn create_local_profile(
+        &self,
+        display_name: &str,
+    ) -> Result<(Profile, String), ServerError> {
+        let display_name = display_name.trim();
+        if display_name.is_empty() {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "a display name is required".into(),
+            ));
+        }
+        let account = Uuid::new_v4();
+        let database = self.database.lock().await;
+        let transaction = database.unchecked_transaction()?;
+        transaction.execute(
+            "INSERT INTO accounts (id, email, display_name, password_hash, local_profile) VALUES (?1, ?2, ?3, '', 1)",
+            params![
+                account.to_string(),
+                format!("{account}@local.invalid"),
+                display_name
+            ],
+        )?;
+        let personal = personal_organization(&transaction)?;
+        transaction.execute(
+            "INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'editor')",
+            params![personal.to_string(), account.to_string()],
+        )?;
+        let token = issue_token(&transaction, account)?;
+        transaction.commit()?;
+        Ok((
+            Profile {
+                account,
+                email: String::new(),
+                display_name: display_name.to_owned(),
+            },
+            token,
+        ))
+    }
+
     pub async fn register(
         &self,
         email: &str,
@@ -248,7 +287,7 @@ impl ServerStore {
         let database = self.database.lock().await;
         let row: Option<(String, String, String)> = database
             .query_row(
-                "SELECT accounts.id, accounts.email, accounts.display_name FROM sessions
+                "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name FROM sessions
                  JOIN accounts ON accounts.id = sessions.account_id
                  WHERE sessions.token_hash = ?1",
                 [hash_token(token)],
@@ -271,7 +310,7 @@ impl ServerStore {
     pub async fn profile(&self, account: Uuid) -> Result<Profile, ServerError> {
         let database = self.database.lock().await;
         let (email, display_name): (String, String) = database.query_row(
-            "SELECT email, display_name FROM accounts WHERE id = ?1",
+            "SELECT CASE WHEN local_profile THEN '' ELSE email END, display_name FROM accounts WHERE id = ?1",
             [account.to_string()],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
@@ -663,7 +702,7 @@ impl ServerStore {
         let database = self.database.lock().await;
         let contacts = crate::contacts::contacts_of(&database, identity.account)?;
         let mut statement = database.prepare(
-            "SELECT accounts.id, accounts.email, accounts.display_name, memberships.role,
+            "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name, memberships.role,
                     agents.account_id IS NOT NULL
              FROM memberships
              JOIN accounts ON accounts.id = memberships.account_id

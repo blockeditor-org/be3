@@ -1,3 +1,4 @@
+mod browser_auth;
 use std::{
     collections::BTreeSet,
     error::Error,
@@ -120,12 +121,14 @@ impl From<tokio_tungstenite::tungstenite::Error> for ServerError {
 pub struct ServerConfig {
     pub allow_registration: bool,
     pub allow_login: bool,
+    pub local_profiles: bool,
 }
 
 impl ServerConfig {
     pub const OPEN: Self = Self {
         allow_registration: true,
         allow_login: true,
+        local_profiles: false,
     };
 }
 
@@ -148,6 +151,7 @@ pub async fn serve_with_config(
         registry: Arc::new(SessionRegistry::new()),
         config,
         http: Arc::new(http::Sessions::default()),
+        browser_auth: Arc::new(browser_auth::Sessions::default()),
     };
     let slots = Arc::new(Semaphore::new(MAX_CONNECTIONS));
     tokio::pin!(shutdown);
@@ -191,9 +195,11 @@ pub(crate) struct Services {
     registry: Arc<SessionRegistry>,
     config: ServerConfig,
     http: Arc<http::Sessions>,
+    browser_auth: Arc<browser_auth::Sessions>,
 }
 
 struct Connection {
+    browser_auth: Arc<browser_auth::Sessions>,
     store: Arc<ServerStore>,
     hub: Arc<WatchHub>,
     registry: Arc<SessionRegistry>,
@@ -216,6 +222,7 @@ impl Client {
         let client = services.hub.register(sender).await;
         Self {
             connection: Connection {
+                browser_auth: Arc::clone(&services.browser_auth),
                 store: Arc::clone(&services.store),
                 hub: Arc::clone(&services.hub),
                 registry: Arc::clone(&services.registry),
@@ -263,6 +270,7 @@ impl Client {
     }
 
     pub(crate) async fn close(self) {
+        self.connection.browser_auth.cancel(self.connection.client);
         let Connection {
             hub,
             registry,
@@ -481,6 +489,31 @@ impl Connection {
             self.identity = self.hub.identity(self.client).await;
         }
         match message {
+            ClientMessage::BeginBrowserLogin { request } => {
+                let code = self
+                    .browser_auth
+                    .begin(self.client, Arc::clone(&self.hub))?;
+                Ok(ServerMessage::BrowserLogin { request, code })
+            }
+            ClientMessage::FinishBrowserLogin { request, code } => {
+                let account = self.browser_auth.finish(self.client, &code)?;
+                let token = self.store.issue_session(account).await?;
+                let profile = self.store.resolve_token(&token).await?;
+                Ok(self.authenticated(request, profile, token).await)
+            }
+            ClientMessage::CreateLocalProfile {
+                request,
+                display_name,
+            } => {
+                if !self.config.local_profiles {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "local profiles are unavailable on this server".into(),
+                    ));
+                }
+                let (profile, token) = self.store.create_local_profile(&display_name).await?;
+                Ok(self.authenticated(request, profile, token).await)
+            }
             ClientMessage::Register {
                 request,
                 email,

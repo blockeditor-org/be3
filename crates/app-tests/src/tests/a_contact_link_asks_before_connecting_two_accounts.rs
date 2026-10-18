@@ -23,16 +23,10 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
     app.click("#file-tree.desktop-app-menu");
     app.click("#app.menu.accounts");
     app.click("Button \"Add account\"");
-    app.click("Tab \"Register\"");
-    for (field, value) in [
-        ("Email address", "ada@example.com"),
-        ("Display name", "Ada"),
-        ("Password", "correct horse battery"),
-    ] {
-        app.click(&format!("TextInput \"{field}\""));
-        app.type_text(value);
-    }
-    app.click("Button \"Register\"");
+    app.click("#account.local");
+    app.click("#account.name");
+    app.type_text("Ada");
+    app.click("#account.continue");
     app.wait("Label value=\"Check that you saved them\"");
     confirm_phrase(&mut app);
     app.click("Button \"Personal\"");
@@ -46,7 +40,7 @@ fn a_contact_link_asks_before_connecting_two_accounts() {
     app.crop("Dialog \"Contacts\"");
     app.snapshot("a_contact_link_asks_before_connecting_two_accounts");
     app.click("#app.contacts.accept");
-    app.wait("Label value=\"dev@localhost\"");
+    app.wait("Label value=\"Dev\"");
     app.snapshot("a_contact_link_asks_before_connecting_two_accounts_and_lists_the_contact");
     app.close();
 }

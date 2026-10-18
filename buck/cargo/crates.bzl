@@ -7183,6 +7183,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [
@@ -7290,6 +7291,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
@@ -7396,6 +7398,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
@@ -7484,6 +7487,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
@@ -7572,6 +7576,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
@@ -7697,6 +7702,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
@@ -7783,6 +7789,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
