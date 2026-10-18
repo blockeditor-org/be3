@@ -86,3 +86,29 @@ One touch moves TalkBack's focus to the node under it, and two in a row within o
 `adb shell` are a double tap, which activates the focused node. The double tap's timing
 through `adb` is not reliable, so run it a few times before concluding it is broken, and
 compare against main with `--apk`.
+
+## Trying local signing with WASI
+
+`./scripts/buck run //buck/android:sign-wasm -- --in INPUT.apk --out OUTPUT.apk --keystore KEYSTORE`
+tries apksig-go v1.1.0 on this machine through local-tools' embedded Wasmtime.
+The key is a binary JKS or PKCS12 file, with password `android` unless
+`--password-file FILE` supplies another. APKs, keys and passwords are runtime
+arguments, never Buck action inputs. The worker builds the WASI CLI from
+hash-pinned source and Go dependencies with network dependency resolution
+disabled; no Go, Java or Android SDK installation is needed locally.
+The published upstream WASM bundle targets JavaScript, so this target builds
+`cmd/apksign` for `wasip1` instead. The host sizes Wasmtime's per-call transfer
+budget from the APK size; its default 128 MB limit rejects large v1 signing
+reads.
+
+`--build-info FILE` appends `assets/build-info.json` before signing, preserving
+existing entry offsets, including the native libraries' 16 KB alignment. It
+requires an APK without that entry. The regular APK targets still include
+metadata and keep their existing signing paths; this target is a separate
+trial. It signs with v1 (the launcher supports API 23), v2 and v3, leaving
+upstream's 4-byte realignment disabled. A source patch aligns only newly
+added v1 signature entries to four bytes, preserving the existing entries;
+unpatched v1.1.0 produces unaligned `META-INF` entries. Validate output with Google's
+`apksigner verify --verbose --print-certs` and `zipalign -c -P 16 4` before
+using it for distribution. Upstream v1.1.0 produces a verifier warning about
+missing v1 anti-stripping protection.

@@ -11,6 +11,9 @@ paint-snapshot = { path = "../paint-snapshot" }
 image = { version = "0.25", default-features = false, features = ["png"] }
 sha2 = "0.10"
 ureq = "2"
+zip = { version = "8", default-features = false, features = ["deflate-flate2"] }
+wasmtime = { version = "48", default-features = false, features = ["cache", "cranelift", "runtime", "std"] }
+wasmtime-wasi = { version = "48", default-features = false, features = ["p1"] }
 
 [target.'cfg(unix)'.dependencies]
 libc = "0.2"

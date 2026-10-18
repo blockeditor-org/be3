@@ -1,0 +1,24 @@
+--- a/cmd/apksign/main.go
++++ b/cmd/apksign/main.go
+@@ -325,7 +325,8 @@
+ func makeRawZipEntry(name string, data []byte, lfhOffset uint32) (lfh []byte, cdEntry []byte) {
+ 	crc := crc32.ChecksumIEEE(data)
+ 	nb := []byte(name)
+-	lfh = make([]byte, 30+len(nb)+len(data))
++	extraLen := 4 + (4-(int(lfhOffset)+30+len(nb)+4)%4)%4
++	lfh = make([]byte, 30+len(nb)+extraLen+len(data))
+ 	binary.LittleEndian.PutUint32(lfh[0:4], 0x04034b50)
+ 	binary.LittleEndian.PutUint16(lfh[4:6], 20)
+ 	binary.LittleEndian.PutUint16(lfh[8:10], 0)
+@@ -334,7 +335,10 @@
+ 	binary.LittleEndian.PutUint32(lfh[22:26], uint32(len(data)))
+ 	binary.LittleEndian.PutUint16(lfh[26:28], uint16(len(nb)))
+ 	copy(lfh[30:], nb)
+-	copy(lfh[30+len(nb):], data)
++	binary.LittleEndian.PutUint16(lfh[28:30], uint16(extraLen))
++	binary.LittleEndian.PutUint16(lfh[30+len(nb):], 0xffff)
++	binary.LittleEndian.PutUint16(lfh[32+len(nb):], uint16(extraLen-4))
++	copy(lfh[30+len(nb)+extraLen:], data)
+ 
+ 	cdEntry = make([]byte, 46+len(nb))
+ 	binary.LittleEndian.PutUint32(cdEntry[0:4], 0x02014b50)

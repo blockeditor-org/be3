@@ -1,3 +1,5 @@
+load(":sign-wasm.bzl", "signing_trial", "wasm_signer")
+
 # What an APK is made with, pinned by hash and size: a JDK (javac, d8,
 # apksigner), the SDK build tools (aapt2, zipalign), the platform (android.jar)
 # and the platform tools (adb, for installing).
@@ -67,4 +69,64 @@ filegroup(
     name = "release-keystore",
     srcs = glob(["release-keystore.base64"]),
     visibility = ["PUBLIC"],
+)
+
+http_archive(
+    name = "signer-go",
+    sha256 = "68097bd680839cbc9d464a0edce4f7c333975e27a90246890e9f1078c7e702ad",
+    size_bytes = 78516109,
+    strip_prefix = "go",
+    urls = ["https://go.dev/dl/go1.24.2.linux-amd64.tar.gz"],
+)
+
+http_archive(
+    name = "signer-source",
+    sha256 = "7cc89df53d1564169e70a095b3153b1dcf0a62f31c12b8b030d185cfa23ea620",
+    size_bytes = 98548,
+    strip_prefix = "apksig-go-1.1.0",
+    urls = ["https://codeload.github.com/agusibrahim/apksig-go/tar.gz/refs/tags/v1.1.0"],
+    visibility = ["//crates/local-tools:"],
+)
+
+http_archive(
+    name = "signer-keystore",
+    sha256 = "0dfa036fe73a85a8a0c4cdbbf7bdbe31cabaac172565ca644c52ffff282b119e",
+    size_bytes = 22084,
+    strip_prefix = "github.com/pavlo-v-chernykh/keystore-go/v4@v4.5.0",
+    urls = ["https://proxy.golang.org/github.com/pavlo-v-chernykh/keystore-go/v4/@v/v4.5.0.zip"],
+)
+
+http_archive(
+    name = "signer-pkcs12",
+    sha256 = "46697244141879cc9d9ee728fdf4158d486da082e54b6117f0701c44b0ce9eb7",
+    size_bytes = 66837,
+    strip_prefix = "software.sslmate.com/src/go-pkcs12@v0.7.1",
+    urls = ["https://proxy.golang.org/software.sslmate.com/src/go-pkcs12/@v/v0.7.1.zip"],
+)
+
+http_archive(
+    name = "signer-crypto",
+    sha256 = "30422b3532687af0627ced0f8a48550044467db066fd01c40edc82a91b2be3f6",
+    size_bytes = 1784008,
+    strip_prefix = "golang.org/x/crypto@v0.11.0",
+    urls = ["https://proxy.golang.org/golang.org/x/crypto/@v/v0.11.0.zip"],
+)
+
+export_file(name = "build-sign-wasm.sh")
+export_file(name = "sign-wasm.patch")
+
+wasm_signer(
+    name = "apksign-wasm",
+    crypto = ":signer-crypto",
+    go = ":signer-go",
+    keystore = ":signer-keystore",
+    pkcs12 = ":signer-pkcs12",
+    source = ":signer-source",
+    visibility = ["//crates/local-tools:"],
+)
+
+signing_trial(
+    name = "sign-wasm",
+    signer = ":apksign-wasm",
+    tool = "//crates/local-tools:bin",
 )

@@ -4443,6 +4443,9 @@ dependencies = [
  "paint-snapshot",
  "sha2",
  "ureq",
+ "wasmtime",
+ "wasmtime-wasi",
+ "zip",
 ]
 
 [[package]]
