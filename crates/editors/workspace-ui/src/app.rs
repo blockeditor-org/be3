@@ -2,12 +2,11 @@ use std::cell::Cell;
 
 use block_editor_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_SETTINGS};
+use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_HISTORY, ICON_SETTINGS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
-    Container, DockMode, DockPane, DockSplit, DockTab, TabId, container_size, narrower_than,
-    use_dock_tab,
+    Container, DockMode, DockPane, DockSplit, DockTab, TabId, narrower_than, use_dock_tab,
 };
 use block_editor_beui::root_settings::own_settings_blocks;
 use block_editor_beui::{
@@ -20,7 +19,6 @@ use block_shell::{
 };
 
 const FILES_SHARE: f32 = 0.22;
-const FILES_MIN_WIDTH: f32 = 300.0;
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
 
@@ -51,12 +49,6 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
 #[component]
 fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let narrow = narrower_than(NARROW_WIDTH);
-    let size = container_size().expect("the workspace has a container");
-    let files_share = create_memo(move || {
-        FILES_SHARE
-            .max(FILES_MIN_WIDTH / size.get().x.max(1.0))
-            .min(0.5)
-    });
     let was_narrow = Cell::new(false);
     create_effect(move || {
         let now = narrow.get();
@@ -84,7 +76,7 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout mode>
-                    <DockSplit id="workspace" fraction={files_share}>
+                    <DockSplit id="workspace" fraction=FILES_SHARE>
                         <DockPane id="files">
                             <DockTab id=FILES title="Files" icon=ICON_FOLDER>
                                 <FilesPanel workspace />
@@ -92,7 +84,7 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
                             <DockTab id=SETTINGS title="Settings" icon=ICON_SETTINGS>
                                 <SettingsPanel workspace />
                             </DockTab>
-                            <DockTab id=REVISIONS title="History">
+                            <DockTab id=REVISIONS title="History" icon=ICON_HISTORY>
                                 <RevisionHistoryPanel workspace />
                             </DockTab>
                         </DockPane>

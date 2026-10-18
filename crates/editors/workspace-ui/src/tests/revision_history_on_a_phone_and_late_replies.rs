@@ -22,7 +22,7 @@ fn revision_history_on_a_phone_and_late_replies() {
         }])),
     );
     fixture.settle();
-    fixture.click_text("History");
+    fixture.show_history();
     fixture
         .test
         .click(&format!("workspace.revision.{}", "03".repeat(32)));

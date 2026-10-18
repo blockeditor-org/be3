@@ -100,6 +100,26 @@ impl Fixture {
         self.settle();
     }
 
+    fn show_history(&mut self) {
+        let document = self.test.document();
+        let settings = document
+            .root()
+            .and_then(|root| text_within(document, root, "Settings"))
+            .expect("the sidebar has a Settings tab");
+        let at = document
+            .node_rect(settings)
+            .expect("the tab is laid out")
+            .center();
+        self.test.step(vec![
+            block_editor_beui::beui::Event::PointerMoved(at),
+            block_editor_beui::beui::Event::Scroll(Vec2::new(-200.0, 0.0)),
+        ]);
+        self.test
+            .step(vec![block_editor_beui::beui::Event::ScrollEnded]);
+        self.settle();
+        self.click_text("History");
+    }
+
     fn open_tabs(&self) -> usize {
         self.tab_closes().len()
     }

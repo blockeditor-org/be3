@@ -34,7 +34,7 @@ fn revision_history_follows_the_active_file_and_previews_it() {
         ])),
     );
     fixture.settle();
-    fixture.click_text("History");
+    fixture.show_history();
     assert!(fixture.says("Current"));
     fixture
         .test

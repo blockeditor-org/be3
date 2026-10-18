@@ -8,10 +8,10 @@ fn revision_history_has_no_file_for_a_native_window() {
         .host
         .set_host_value::<HostWindows>(&vec![window(7, "Terminal", None)]);
     fixture.settle();
-    fixture.click_text("History");
+    fixture.show_history();
     assert!(fixture.says("Open a file to see its revision history."));
     fixture.click_text("Untitled");
-    fixture.click_text("History");
+    fixture.show_history();
     assert!(!fixture.says("Open a file to see its revision history."));
     fixture.close_active_tab();
     assert!(fixture.says("Open a file to see its revision history."));
