@@ -1,4 +1,4 @@
-use crate::session::Settings;
+use super::*;
 
 #[test]
 fn agent_credentials_are_read_as_one_json_bundle() {

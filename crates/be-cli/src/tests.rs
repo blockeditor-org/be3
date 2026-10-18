@@ -12,6 +12,7 @@ use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
 use crate::cli::{self, Invocation, Outcome};
+use crate::session::Settings;
 use crate::tracker::{Assignment, Body, RowView, Tracker};
 
 mod a_choice_option_takes_a_colour_an_icon_and_closes_rows;
@@ -32,6 +33,7 @@ mod an_import_links_rows_to_each_other_by_their_old_ids;
 mod arguments_parse_into_commands;
 mod blocks_are_listed_and_found_by_short_id_or_name;
 mod malformed_agent_credentials_do_not_disclose_secrets;
+mod proxy_credentials_do_not_need_an_account_token;
 mod rows_are_added_filtered_changed_and_given_pages;
 mod two_databases_with_one_prefix_are_refused;
 

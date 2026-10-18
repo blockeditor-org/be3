@@ -254,7 +254,7 @@ time, so notifications wait for the next post.
   checks run off the database lock, a few at a time, and an email with five
   failed sign-ins in a row is locked out for a time that doubles with each
   further failure.
-  The server never reads `Authorization`, which is left to a gateway in front
+  The server never reads `Be3-Gateway-Authorization`, which is left to a gateway in front
   of it. A member's `CreateAgent` makes an agent in either organization kind: an
   editor account with no password, with the recovery public key the caller made
   for it, and a token, answered once (guides/tracker.md); the agent and its
@@ -337,7 +337,7 @@ tokio-tungstenite natively, the browser's own `WebSocket` in `web.rs` - plus the
 `spawn` each one's executor wants. Natively, an `http(s)://` URL (`http_url`)
 takes the server's HTTP posts instead of a websocket (`transport/native/http.rs`),
 and both go through `HTTPS_PROXY`. `be_client::authorize` registers an
-`Authorization` header for a server's origin, which every native connection to
+`Be3-Gateway-Authorization` header for a server's origin, which every native connection to
 it sends; a browser cannot add one to a websocket. `Connection` above it is the same code
 everywhere, and it waits on its command channel and its socket rather than
 polling either.

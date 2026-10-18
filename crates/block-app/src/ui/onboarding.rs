@@ -358,8 +358,8 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
                         <Show condition={platform::SENDS_HEADERS}>
                             <TextInput
                                 value={authorization}
-                                placeholder="Authorization header (optional)"
-                                label="Authorization header"
+                                placeholder="Gateway authorization header (optional)"
+                                label="Gateway authorization header"
                                 password=true
                                 on_change={move |value: String| set_authorization.set(value)}
                             />

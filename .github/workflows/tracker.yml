@@ -5,7 +5,7 @@ name: Tracker
 # links it on each row's page, and merging it sets them to Done. It is the be
 # command line tool's `be pull-request` (crates/be-cli), signed in as the agent
 # whose credentials are the BE3_TRACKER_CREDENTIALS JSON secret. A
-# gateway in front of the server that wants an Authorization header gets the
+# gateway in front of the server that wants a Be3-Gateway-Authorization header gets the
 # BE3_TRACKER_AUTHORIZATION secret.
 #
 # be is the release ./scripts/be pins on the default branch, built from the
