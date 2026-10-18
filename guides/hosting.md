@@ -16,7 +16,7 @@ How the server runs on a VPS for real notes. The files referred to are in
   which Caddy accepts as well, and the key never goes in a URL.
 - Caddy terminates TLS at `api.be3.pfg.pw` and passes `/api*` to be-server.
   It allows browser requests from `https://be3.pfg.pw`; native clients send no
-  Origin header. Its root redirects to `https://be3.pfg.pw` after the gateway
+  Origin header. Its root redirects to `https://be3.pfg.pw/web` after the gateway
   cookie is established. The templates are `Caddyfile` and `Caddyfile.gated`.
 - Bunny's `be-app` storage zone (Los Angeles primary, New York replica) and
   `be-app` pull zone serve deployment artifacts at `https://be3.pfg.pw`.
@@ -57,32 +57,32 @@ How the server runs on a VPS for real notes. The files referred to are in
 (local-tools deploy, in crates/local-tools) and then, from that build:
 
 - uploads each `be` bundle (Linux x86_64 and arm64) to the storage zone as
-  `be/BUILD/be-TRIPLE/` (`BUNNY_STORAGE_KEY`), reads it back from
+  `data/BUILD/be-TRIPLE/` (`BUNNY_STORAGE_KEY`), reads it back from
   `be3.pfg.pw` to check the hash, and pins it in `scripts/internal/common.sh`,
   which `./scripts/be` must match the server by (guides/tracker.md);
-- uploads the app's downloads to `app/BUILD/` in the same zone, each read
+- uploads the app's downloads to `data/BUILD/app/` in the same zone, each read
   back the same way: `:native` with its plugins for Linux, macOS and Windows on
   x86_64 and arm64 and the web bundle, each zipped on a worker by
   `buck-tools archive` into a folder of its own name, and `:android-release`,
   signed on a worker with the release keystore under the id and label
   `--android-id` and `--android-label` give (`com.be3.block` and `Block`, so
   it installs beside CI's `com.be3.block.ci`), with
-  `app/BUILD/index.html` linking them. Once the server runs the build (not
-  under `--skip-server`), it writes the same page to `app/index.html`, the one
-  people are sent to (`be3.pfg.pw/app/`), without reading it back
+  `data/BUILD/app/index.html` linking them. Once the server runs the build (not
+  under `--skip-server`), it writes the same page to `index.html`, the one
+  people are sent to (`be3.pfg.pw/`), without reading it back
   through the CDN, and purges it from the CDN when `BUNNY_API_KEY` is set. A
   download connects only to a server of its build. `--skip-downloads` leaves
   the downloads out of the build, and `--skip-android` only the APK, so that
   neither needs the keystore;
-- uploads the unpacked web bundle and plugins to `web/BUILD/` and archives the
-  server executable and its build ID to `server/BUILD/` in the same zone;
+- uploads the unpacked web bundle and plugins to `data/BUILD/web/` and archives the
+  server executable and its build ID to `data/BUILD/server/` in the same zone;
 - copies only `be-server` and its `build-id` to the VPS over SSH, stops
   be-server, swaps the files and starts it again. Caddy stays running;
-- after that succeeds, publishes root `index.html`, the matching app HTML with a
-  `<base href="/web/BUILD/">` before its import map and scripts. The browser
-  stays at the root URL, keeping query parameters and fragments, so refreshing
+- after that succeeds, publishes `/web`, the matching app HTML with a
+  `<base href="/data/BUILD/web/">` before its import map and scripts. The browser
+  stays at `/web`, keeping query parameters and fragments, so refreshing
   gets the currently deployed build.
-  Purges the root entry point when `BUNNY_API_KEY` is set. `--skip-server`
+  Purges the web entry point when `BUNNY_API_KEY` is set. `--skip-server`
   uploads versioned files but leaves both live entry points unchanged.
 
 Versioned directories use the Git tree hash that identifies the build. Existing
@@ -93,7 +93,7 @@ All versioned artifacts are read back and SHA-256 checked before publishing
 live pages. The web entry point must also return the isolation headers below;
 deployment stops before swapping the server if they are missing. The CLI pin includes its mirror URL, so the existing pinned CLI
 continues to use its existing location until a successful deployment writes
-both the new build and `https://be3.pfg.pw`. Third-party tool mirrors remain
+both the new build and `https://be3.pfg.pw/data`. Third-party tool mirrors remain
 on `lfs.pfg.pw`; they are independent of BE3 deployments.
 
 Configure these response headers in the Bunny pull zone before serving the web
@@ -101,13 +101,11 @@ app (they are CDN settings, not files that the uploader can set in storage):
 
 | Paths | Headers / caching |
 | --- | --- |
-| `/web/*`, `/`, `/index.html` | `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp` |
-| `/web/HASH/*`, `/app/HASH/*`, `/be/HASH/*`, `/server/HASH/*` | CDN cache TTL one year; `Cache-Control: public, max-age=31536000, immutable` |
-| `/`, `/index.html`, `/app/`, `/app/index.html` | Disable CDN caching and send `Cache-Control: no-cache` to browsers |
+| `/data/*`, `/web` | `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp` |
+| `/data/*` | CDN cache TTL one year; `Cache-Control: public, max-age=31536000, immutable` |
+| `/`, `/index.html`, `/web` | Disable CDN caching and send `Cache-Control: no-store` to browsers |
 
-Use prefix rules for `/web/*`, `/app/*`, `/be/*` and `/server/*`, then
-exact-path overrides for the mutable entry points, so every later build
-inherits the cache policy. Enable directory index resolution to `index.html`. Preserve uploaded content
+Use a prefix rule for `/data/*` and exact-path rules for the three mutable entry points, so every later build inherits the cache policy. Enable directory index resolution to `index.html`. Preserve uploaded content
 types, especially `application/wasm` and JavaScript MIME types. Uploading an
 HTML entry point last avoids incomplete releases; long-lived versioned paths
 avoid mixing modules and plugins from different builds. The public web bundle

@@ -51,11 +51,9 @@ the launcher's browser.
 
 ## Hosted web build
 
-The deployed bundle lives at `https://be3.pfg.pw/web/BUILD/index.html`; the
-root entry point selects the build that matches the deployed server, loading
-versioned assets while keeping the address at the root so reloads update. On that
-origin, Add account defaults to `https://api.be3.pfg.pw`. Self-hosted web builds
-default to their own origin. The web-dev launcher's explicit development-server
+The deployed bundle lives at `https://be3.pfg.pw/data/BUILD/web/index.html`; the
+`/web` entry point selects the build that matches the deployed server, loading
+versioned assets while keeping the address at `/web` so reloads update. Add account uses the bundled `app-config.json` default on both native and web builds; self-hosted builds should change that file. The web-dev launcher's explicit development-server
 selection stays local. Bunny's headers, caching and gateway setup are described
 in guides/hosting.md. Relative asset URLs resolve against the document base,
 which points at the build directory; page navigation and fragment cleanup must

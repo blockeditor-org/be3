@@ -21,8 +21,8 @@ The downloads are the app with its plugins for Linux, macOS and Windows on
 x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
 release keystore under the id and label --android-id and --android-label give
 (com.be3.block and Block), so it installs beside CI's com.be3.block.ci. They go
-to app/BUILD/ beside a page linking them, and once the server runs the build,
-app/index.html is that page (https://be3.pfg.pw/app/). It is not
+to data/BUILD/app/ beside a page linking them, and once the server runs the build,
+index.html is that page (https://be3.pfg.pw/). It is not
 read back from the mirror, whose CDN may hold the last one until it is purged.
 
   --dry-run      print what it would do, uploading and changing nothing
@@ -46,7 +46,7 @@ Environment:
   BE3_DEPLOY_HOST     the server, for ssh and scp (ubuntu@blocks.pfg.pw)
   BE3_DEPLOY_DIR      the directory there that holds be-server (be-server)
   BE3_DEPLOY_UNITS    the units stopped around the swap (be-server)
-  Web files are uploaded under web/BUILD/; index.html selects the live build.";
+  Web files are uploaded under data/BUILD/web/; /web selects the live build.";
 
 struct Options {
     repository: PathBuf,
@@ -196,7 +196,7 @@ fn run(options: &Options) -> Result<(), String> {
     let mut pins = Vec::new();
     if !options.skip_be {
         for (triple, bundle) in &options.be {
-            let directory = format!("be/{build}/be-{triple}");
+            let directory = format!("data/{build}/be-{triple}");
             for name in ["be", "build-id"] {
                 let bytes = std::fs::read(bundle.join(name)).map_err(|error| {
                     format!("cannot read {}: {error}", bundle.join(name).display())
@@ -225,7 +225,7 @@ fn run(options: &Options) -> Result<(), String> {
                 .map_err(|error| format!("cannot read {}: {error}", file.display()))?;
             let sha256 = store.put(
                 &file.display().to_string(),
-                &format!("app/{build}/{name}"),
+                &format!("data/{build}/app/{name}"),
                 &bytes,
                 "application/octet-stream",
                 true,
@@ -239,30 +239,34 @@ fn run(options: &Options) -> Result<(), String> {
         }
         store.put(
             "the download page",
-            &format!("app/{build}/index.html"),
+            &format!("data/{build}/app/index.html"),
             download_page(&build, &listed, "").as_bytes(),
             "text/html; charset=utf-8",
             true,
         )?;
-        page = Some(download_page(&build, &listed, &format!("{build}/")));
+        page = Some(download_page(
+            &build,
+            &listed,
+            &format!("/data/{build}/app/"),
+        ));
     }
 
     if let Some(web) = web {
-        upload_web(&store, web, web, &format!("web/{build}"))?;
+        upload_web(&store, web, web, &format!("data/{build}/web"))?;
     }
     if !options.skip_server {
         let bytes = std::fs::read(&options.server)
             .map_err(|error| format!("cannot read server: {error}"))?;
         store.put(
             "be-server",
-            &format!("server/{build}/be-server"),
+            &format!("data/{build}/server/be-server"),
             &bytes,
             "application/octet-stream",
             true,
         )?;
         store.put(
             "server build-id",
-            &format!("server/{build}/build-id"),
+            &format!("data/{build}/server/build-id"),
             build.as_bytes(),
             "text/plain; charset=utf-8",
             true,
@@ -317,29 +321,29 @@ fn run(options: &Options) -> Result<(), String> {
     if let Some(launch) = web_entry.filter(|_| !options.skip_server) {
         store.put(
             "the web app entry point",
-            "index.html",
+            "web",
             launch.as_bytes(),
             "text/html; charset=utf-8",
             false,
         )?;
-        purge_pages(options, &agents, &mirror, &["index.html", ""])?;
+        purge_pages(options, &agents, &mirror, &["web"])?;
     }
 
     if page.is_some() && options.skip_server {
         println!(
-            "the server still runs its last build, so {mirror}/app/ still offers that one's \
-             downloads; this build's are at {mirror}/app/{build}/"
+            "the server still runs its last build, so {mirror}/ still offers that one's \
+             downloads; this build's are at {mirror}/data/{build}/app/"
         );
     } else if let Some(page) = page {
         store.put(
             "the latest download page",
-            "app/index.html",
+            "index.html",
             page.as_bytes(),
             "text/html; charset=utf-8",
             false,
         )?;
-        purge_pages(options, &agents, &mirror, &["app/index.html", "app/"])?;
-        println!("the downloads for build {build} are at {mirror}/app/");
+        purge_pages(options, &agents, &mirror, &["index.html", ""])?;
+        println!("the downloads for build {build} are at {mirror}/");
     }
 
     if !pins.is_empty() {
@@ -417,7 +421,7 @@ impl Store<'_> {
         let read = download(
             self.agents.to(&source),
             &source,
-            path.starts_with("web/") && path.ends_with("/index.html"),
+            path.starts_with("data/") && path.ends_with("/web/index.html"),
         )?;
         if hex(&Sha256::digest(&read)) != sha256 {
             return Err(format!(
@@ -485,7 +489,7 @@ code {{ font-size: 0.75rem; word-break: break-all; }}
 <table>
 <tr><th>Platform</th><th>Download</th><th>Size</th><th>SHA-256</th></tr>
 {rows}</table>
-<p>Each zip holds the app in a folder of its own: run <code>block-app</code> (<code>block-app.exe</code> on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; <code>xattr -dr com.apple.quarantine block-app-macos-*</code> lets them open. The web bundle is also available to serve yourself. <a href=\"https://be3.pfg.pw/\">Open the hosted web app</a>.</p>
+<p>Each zip holds the app in a folder of its own: run <code>block-app</code> (<code>block-app.exe</code> on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; <code>xattr -dr com.apple.quarantine block-app-macos-*</code> lets them open. The web bundle is also available to serve yourself. <a href=\"https://be3.pfg.pw/web\">Open the hosted web app</a>.</p>
 </body>
 </html>
 "
@@ -532,7 +536,7 @@ fn web_entry_point(html: &str, build: &str) -> Result<String, String> {
         .split_once("<head>")
         .ok_or("the web entry point has no head element")?;
     Ok(format!(
-        "{before}<head><base href=\"/web/{build}/\">{after}"
+        "{before}<head><base href=\"/data/{build}/web/\">{after}"
     ))
 }
 
@@ -734,7 +738,7 @@ fn pin(common: &Path, build: &str, pins: &[(String, String)], mirror: &str) -> R
         Ok(())
     };
     set("be_release", build)?;
-    set("be_mirror", mirror)?;
+    set("be_mirror", &format!("{mirror}/data"))?;
     for (triple, sha256) in pins {
         set(&format!("be_sha256_{}", triple.replace('-', "_")), sha256)?;
     }

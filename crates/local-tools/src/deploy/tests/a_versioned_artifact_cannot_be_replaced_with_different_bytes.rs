@@ -13,7 +13,7 @@ fn a_versioned_artifact_cannot_be_replaced_with_different_bytes() {
             stream.read_exact(&mut byte).unwrap();
             buffer.push(byte[0]);
         }
-        assert!(buffer.starts_with(b"GET /web/hash/app.wasm HTTP/1.1"));
+        assert!(buffer.starts_with(b"GET /data/hash/web/app.wasm HTTP/1.1"));
         stream
             .write_all(b"HTTP/1.1 200 OK\r\nContent-Length: 3\r\nConnection: close\r\n\r\nold")
             .unwrap();
@@ -35,7 +35,7 @@ fn a_versioned_artifact_cannot_be_replaced_with_different_bytes() {
     let error = store
         .put(
             "wasm",
-            "web/hash/app.wasm",
+            "data/hash/web/app.wasm",
             b"new",
             "application/wasm",
             true,
