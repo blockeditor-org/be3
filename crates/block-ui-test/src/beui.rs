@@ -575,6 +575,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 states: states
                     .into_iter()
                     .map(|(block, history)| block_plugin_api::HistoryState {
+                        head: None,
                         block_id: block.into_bytes(),
                         can_undo: history.can_undo,
                         can_redo: history.can_redo,

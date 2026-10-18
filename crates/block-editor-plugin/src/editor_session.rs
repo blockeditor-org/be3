@@ -218,6 +218,7 @@ impl EditorSession {
             (
                 Uuid::from_bytes(state.block_id),
                 crate::host::BlockHistory {
+                    head: state.head,
                     can_undo: state.can_undo,
                     can_redo: state.can_redo,
                 },

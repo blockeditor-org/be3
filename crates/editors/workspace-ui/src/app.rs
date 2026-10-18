@@ -2,7 +2,7 @@ use std::cell::Cell;
 
 use block_editor_beui::be_block::{BlockContent, FILES_EDITOR, SettingsContent};
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_SETTINGS};
+use block_editor_beui::beui::icons::{ICON_FOLDER, ICON_HISTORY, ICON_SETTINGS};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
@@ -14,8 +14,8 @@ use block_editor_beui::{
     NARROW_WIDTH, TopBar,
 };
 use block_shell::{
-    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, SETTINGS,
-    WindowTab, Workspace, WorkspaceDialogs,
+    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, REVISIONS,
+    RevisionHistoryPanel, SETTINGS, WindowTab, Workspace, WorkspaceDialogs,
 };
 
 const FILES_SHARE: f32 = 0.22;
@@ -83,6 +83,9 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
                             </DockTab>
                             <DockTab id=SETTINGS title="Settings" icon=ICON_SETTINGS>
                                 <SettingsPanel workspace />
+                            </DockTab>
+                            <DockTab id=REVISIONS title="History" icon=ICON_HISTORY>
+                                <RevisionHistoryPanel workspace />
                             </DockTab>
                         </DockPane>
                         <DockPane

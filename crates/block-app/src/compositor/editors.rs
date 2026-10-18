@@ -74,6 +74,21 @@ thread_local! {
     static EDITORS: Cell<Option<Editors>> = const { Cell::new(None) };
 }
 
+pub(crate) fn release_revisions(ids: &[Uuid]) {
+    if let Some(editors) = EDITORS.get() {
+        let removed = editors.with(|open| {
+            ids.iter()
+                .filter_map(|id| open.remove(id))
+                .collect::<Vec<_>>()
+        });
+        for id in ids {
+            editors.forget_parent(*id);
+        }
+        drop(removed);
+        super::changed();
+    }
+}
+
 pub(crate) fn editors() -> Editors {
     EDITORS
         .get()
@@ -1351,6 +1366,9 @@ fn HostedChild(
                 editor,
             }) => (block_id, block_type, view_block, editor),
         };
+        if crate::be::revisions::released(id) {
+            return Kind::Unavailable;
+        }
         if nesting.above.with(|above| above.contains(&id)) {
             return Kind::Unavailable;
         }
@@ -1626,7 +1644,8 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
         interaction,
         capabilities,
         resize,
-        error: (!available).then(|| CHILD_UNAVAILABLE.to_owned()),
+        error: crate::be::revisions::error(block)
+            .or_else(|| (!available).then(|| CHILD_UNAVAILABLE.to_owned())),
         creation: None,
         settings: None,
         menu: match available && child.frame_owner {

@@ -9,6 +9,7 @@ fn tapping_with_two_fingers_undoes_and_three_redoes() {
     test.set_histories([(
         block,
         block_editor_beui::BlockHistory {
+            head: None,
             can_undo: true,
             can_redo: true,
         },

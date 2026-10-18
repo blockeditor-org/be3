@@ -1473,6 +1473,7 @@ pub struct ContentOperation {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
 pub struct HistoryState {
+    pub head: Option<[u8; 32]>,
     pub block_id: [u8; 16],
     pub can_undo: bool,
     pub can_redo: bool,
@@ -1592,7 +1593,24 @@ pub struct VersionCommit {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Revision {
+    pub commit: [u8; 32],
+    pub time: i64,
+    pub current: bool,
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostRequest {
+    ListRevisions([u8; 16]),
+    PreviewRevision {
+        block_id: [u8; 16],
+        commit: [u8; 32],
+    },
+    RestoreRevision {
+        block_id: [u8; 16],
+        commit: [u8; 32],
+    },
+    ReleaseRevision([u8; 16]),
     PickFile(FileFilter),
     SaveFile(SavedFile),
     PickBlock(BlockFilter),
@@ -1610,6 +1628,11 @@ pub enum HostRequest {
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum HostReply {
+    RevisionsListed(Result<Vec<Revision>, String>),
+    RevisionPreviewed(Result<[u8; 16], String>),
+    RevisionRestored(Result<(), String>),
+    RevisionReleased,
+
     FilePicked(FilePick),
     FileSaved(FileSave),
     BlockPicked(BlockPick),
@@ -2881,7 +2904,11 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
             blob(&file.data)
         }
         HostRequest::PickBlock(filter) => block_filter(filter),
-        HostRequest::ListAccess(_) => Ok(()),
+        HostRequest::ListAccess(_)
+        | HostRequest::ListRevisions(_)
+        | HostRequest::PreviewRevision { .. }
+        | HostRequest::RestoreRevision { .. }
+        | HostRequest::ReleaseRevision(_) => Ok(()),
         HostRequest::ListData => Ok(()),
         HostRequest::Fetch(url) => string(url),
         HostRequest::ReadData(path) => string(path),
@@ -2893,6 +2920,13 @@ fn validate_request(request: &HostRequest) -> Result<(), DecodeError> {
 
 fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
     match reply {
+        HostReply::RevisionsListed(Ok(revisions)) => collection(revisions.len()),
+        HostReply::RevisionsListed(Err(error))
+        | HostReply::RevisionPreviewed(Err(error))
+        | HostReply::RevisionRestored(Err(error)) => string(error),
+        HostReply::RevisionPreviewed(Ok(_))
+        | HostReply::RevisionRestored(Ok(()))
+        | HostReply::RevisionReleased => Ok(()),
         HostReply::FilePicked(FilePick::Chosen { name, data }) => {
             string(name).and_then(|()| blob(data))
         }

@@ -19,6 +19,7 @@ fn undo_in_the_menu_asks_the_host_for_a_block_it_cannot_open() {
     test.set_histories([(
         block,
         BlockHistory {
+            head: None,
             can_undo: true,
             can_redo: false,
         },

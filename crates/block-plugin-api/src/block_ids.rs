@@ -158,7 +158,11 @@ impl EditorMessage {
                         location(place, &mut existing);
                     }
                 }
-                HostRequest::ListAccess(block_id)
+                HostRequest::ListRevisions(block_id)
+                | HostRequest::PreviewRevision { block_id, .. }
+                | HostRequest::RestoreRevision { block_id, .. }
+                | HostRequest::ReleaseRevision(block_id)
+                | HostRequest::ListAccess(block_id)
                 | HostRequest::ExportBlock(block_id)
                 | HostRequest::ContactLink { block_id, .. } => existing(block_id),
                 HostRequest::ImportBlocks(parent) => location(parent, &mut existing),
@@ -169,11 +173,16 @@ impl EditorMessage {
                 | HostRequest::ReadData(_) => {}
             },
             Self::Replied { reply, .. } => match reply {
-                HostReply::BlockPicked(BlockPick::Chosen { block_id, .. })
+                HostReply::RevisionPreviewed(Ok(block_id))
+                | HostReply::BlockPicked(BlockPick::Chosen { block_id, .. })
                 | HostReply::BlocksImported(BlockImport::Imported { block_id, .. }) => {
                     existing(block_id)
                 }
                 HostReply::BlockPicked(BlockPick::Cancelled | BlockPick::Failed(_))
+                | HostReply::RevisionsListed(_)
+                | HostReply::RevisionPreviewed(Err(_))
+                | HostReply::RevisionRestored(_)
+                | HostReply::RevisionReleased
                 | HostReply::FilePicked(_)
                 | HostReply::FileSaved(_)
                 | HostReply::Fetched(_)

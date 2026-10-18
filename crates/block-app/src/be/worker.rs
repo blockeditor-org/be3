@@ -31,6 +31,16 @@ type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
 type ExportReply = Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>;
 
 pub(super) enum Command {
+    PreviewChild {
+        alias: Uuid,
+        source: Uuid,
+        content_type: Uuid,
+    },
+    Revision {
+        block: Uuid,
+        request: block_plugin_api::HostRequest,
+        reply: Box<dyn FnOnce(block_plugin_api::HostReply) + Send>,
+    },
     Open {
         block: Uuid,
         content_type: Uuid,
@@ -125,7 +135,9 @@ impl Command {
 
     fn subject(&self) -> Option<Uuid> {
         match self {
-            Command::Open { block, .. }
+            Command::PreviewChild { source, .. } => Some(*source),
+            Command::Revision { block, .. }
+            | Command::Open { block, .. }
             | Command::Close(block)
             | Command::Operate(block, ..)
             | Command::Seed { block, .. }
@@ -215,6 +227,9 @@ const PAIRING_REQUEST_LIMIT: usize = 4;
 
 #[derive(Default)]
 pub(crate) struct Shared {
+    pub(crate) revision_previews: HashMap<Uuid, super::revisions::Preview>,
+    pub(crate) preview_aliases: HashMap<(Uuid, Uuid), Uuid>,
+    pub(crate) released_previews: Vec<Uuid>,
     pub(crate) graph: Graph,
     pub(crate) blocks: HashMap<Uuid, Content>,
     pub(crate) histories: HashMap<Uuid, History>,
@@ -533,7 +548,10 @@ where
             drain(&mut self.live, &mut self.log, None);
             let replaced = self.live.replace(content).await;
             drain(&mut self.live, &mut self.log, None);
-            replaced.map(|_| ())
+            match replaced? {
+                true => Ok(()),
+                false => Err(ClientError::Unexpected),
+            }
         })
     }
 
@@ -723,7 +741,10 @@ where
             drain(&mut self.live, &mut self.log, None);
             let replaced = self.live.replace(content).await;
             drain(&mut self.live, &mut self.log, None);
-            replaced.map(|_| ())
+            match replaced? {
+                true => Ok(()),
+                false => Err(ClientError::Unexpected),
+            }
         })
     }
 
@@ -1527,6 +1548,24 @@ async fn apply(
             set_busy(shared, block, false, outcome.err());
             true
         }
+        Command::PreviewChild {
+            alias,
+            source,
+            content_type,
+        } => {
+            super::revisions::load_child(peer, shared, alias, source, content_type).await;
+            true
+        }
+        Command::Revision {
+            block,
+            request,
+            reply,
+        } => {
+            let result = super::revisions::run(peer, sessions, shared, block, request).await;
+            publish(sessions, shared);
+            reply(result);
+            true
+        }
         Command::Open {
             block,
             content_type,
@@ -1995,6 +2034,10 @@ fn publish(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Sh
                 .entry(block)
                 .or_default()
                 .extend(published.conflicts);
+            changed = true;
+        }
+        if held.graph.get(block).and_then(|node| node.head) != published.head {
+            held.touch(block);
             changed = true;
         }
         held.graph.set_head(block, published.head);

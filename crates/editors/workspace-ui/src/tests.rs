@@ -39,6 +39,10 @@ mod crossing_the_phone_width_keeps_the_block_on_show;
 mod importing_a_block_file_in_the_picker_answers_the_pick;
 mod linking_a_block_in_the_picker_answers_the_pick;
 mod renaming_a_block_the_host_asks_about_saves_its_name;
+mod revision_history_follows_the_active_file_and_previews_it;
+mod revision_history_has_no_file_for_a_native_window;
+mod revision_history_on_a_phone_and_late_replies;
+mod revision_history_previews_a_file_on_a_phone;
 mod sharing_a_block_grants_the_people_added_and_lists_them_again;
 mod showing_a_block_with_another_editor_switches_its_tab;
 mod switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show;
@@ -94,6 +98,26 @@ impl Fixture {
             .center();
         self.test.click_at(center);
         self.settle();
+    }
+
+    fn show_history(&mut self) {
+        let document = self.test.document();
+        let settings = document
+            .root()
+            .and_then(|root| text_within(document, root, "Settings"))
+            .expect("the sidebar has a Settings tab");
+        let at = document
+            .node_rect(settings)
+            .expect("the tab is laid out")
+            .center();
+        self.test.step(vec![
+            block_editor_beui::beui::Event::PointerMoved(at),
+            block_editor_beui::beui::Event::Scroll(Vec2::new(-200.0, 0.0)),
+        ]);
+        self.test
+            .step(vec![block_editor_beui::beui::Event::ScrollEnded]);
+        self.settle();
+        self.click_text("History");
     }
 
     fn open_tabs(&self) -> usize {

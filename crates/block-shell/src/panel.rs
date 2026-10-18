@@ -17,6 +17,7 @@ use super::artifact::ArtifactBar;
 use super::deleted::DeletedBar;
 use super::linked::LinkedBar;
 use super::phone::DetailsSheet;
+use super::revisions::RevisionPreviewBar;
 use super::status::StatusBar;
 use super::tab::TabItem;
 use super::workspace::{PanelStatus, PhoneSheet, Workspace};
@@ -179,6 +180,9 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
         .tab(tab)
         .is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
     let desktop = create_memo(move || !phone.get() && !session);
+    let preview = create_memo(move || workspace.revisions.preview_for(workspace.tab(tab)));
+    let previewing = create_memo(move || preview.get().is_some());
+    let live = create_memo(move || !previewing.get());
     view! {
         <Frame>
             <List spacing=0.0>
@@ -191,26 +195,44 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                 <Show condition={!session}>
                     <LinkedBar workspace={workspace} info={info} />
                 </Show>
-                <Dynamic value={content}>|content: Content| {
-                    match content {
-                        Content::Denied => view! {
-                            <AccessDenied @sizing=ItemSize::Percent(100.0) info={info} />
-                        },
-                        Content::Block => view! {
-                            <BlockChild
-                                @sizing=ItemSize::Percent(100.0)
-                                editor={editor}
-                                info={info}
-                                top_bar={top_bar}
-                                on_bar={move |action: BarAction| match action {
-                                    BarAction::Details => {
-                                        workspace.set_sheet(PhoneSheet::Details(tab))
-                                    }
-                                }}
-                            />
-                        },
-                    }
-                }</Dynamic>
+                <RevisionPreviewBar history={workspace.revisions} tab={tab} workspace />
+                <ShowKeepAlive condition={live}>
+                    <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
+                        <Dynamic value={content}>|content: Content| {
+                            match content {
+                                Content::Denied => view! {
+                                    <AccessDenied @sizing=ItemSize::Percent(100.0) info={info} />
+                                },
+                                Content::Block => view! {
+                                    <BlockChild
+                                        @sizing=ItemSize::Percent(100.0)
+                                        editor={editor}
+                                        info={info}
+                                        top_bar={top_bar}
+                                        on_bar={move |action: BarAction| match action {
+                                            BarAction::Details => {
+                                                workspace.set_sheet(PhoneSheet::Details(tab))
+                                            }
+                                        }}
+                                    />
+                                },
+                            }
+                        }</Dynamic>
+                    </List>
+                </ShowKeepAlive>
+                <Show condition={previewing}>
+                    <ChildBlock
+                        @sizing=ItemSize::Percent(100.0)
+                        editor
+                        block={preview}
+                        mode=ChildMode::Live
+                        own_frame=true
+                        top_bar=TopBar::Hidden
+                        @test_id={"workspace.revision.preview"}
+                    >|handle: ChildBlockHandle|
+                        <PanelStatus state={handle.state} loading="Loading revision…" />
+                    </ChildBlock>
+                </Show>
                 <Show condition={desktop}>
                     <StatusBar workspace={workspace} info={info} />
                 </Show>

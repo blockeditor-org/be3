@@ -95,9 +95,9 @@ pub(crate) fn info_of(node: &Node, deleted: bool) -> BlockInfo {
 }
 
 pub(crate) fn answer(query: BlockQuery) -> Vec<BlockInfo> {
+    let nodes = crate::be::query(query_of(query));
     crate::be::with_graph(|graph| {
-        graph
-            .query(query_of(query))
+        nodes
             .iter()
             .filter(|node| node.access.can_know_exists())
             .map(|node| info_of(node, graph.deleted_root(node.id).is_some()))
