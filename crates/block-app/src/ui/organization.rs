@@ -119,14 +119,12 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                         on_click={|| pick(UiCommand::OpenMembers)}
                     />
                 </Show>
-                <Show condition={company}>
-                    <MenuItem
-                        row_test_id={"app.menu.agents".to_owned()}
-                        label="Agents"
-                        glyph={ICON_SMART_TOY.to_owned()}
-                        on_click={|| pick(UiCommand::OpenAgents)}
-                    />
-                </Show>
+                <MenuItem
+                    row_test_id={"app.menu.agents".to_owned()}
+                    label="Agents"
+                    glyph={ICON_SMART_TOY.to_owned()}
+                    on_click={|| pick(UiCommand::OpenAgents)}
+                />
                 <MenuItem
                     row_test_id={"app.menu.switch-session".to_owned()}
                     label="Sessions and profiles"

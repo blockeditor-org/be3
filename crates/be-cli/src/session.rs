@@ -19,16 +19,55 @@ pub struct Settings {
 
 impl Settings {
     pub fn from_env() -> Result<Self, String> {
-        let read = |name: &str| {
-            std::env::var(name)
-                .ok()
+        Self::from_values(|name| std::env::var(name).ok())
+    }
+
+    pub(crate) fn from_values(
+        environment: impl Fn(&str) -> Option<String>,
+    ) -> Result<Self, String> {
+        let env = |name: &str| {
+            environment(name)
                 .map(|value| value.trim().to_owned())
                 .filter(|value| !value.is_empty())
+        };
+        let bundle = env("BE3_AGENT_CREDENTIALS")
+            .map(|text| {
+                let value: serde_json::Value = serde_json::from_str(&text)
+                    .map_err(|_| "BE3_AGENT_CREDENTIALS must be a JSON object".to_owned())?;
+                if !value.is_object() {
+                    return Err("BE3_AGENT_CREDENTIALS must be a JSON object".to_owned());
+                }
+                for key in ["server", "organization", "token", "recovery_phrase"] {
+                    if value
+                        .get(key)
+                        .and_then(|value| value.as_str())
+                        .is_none_or(|value| value.trim().is_empty())
+                    {
+                        return Err(format!(
+                            "BE3_AGENT_CREDENTIALS needs a nonempty {key} string"
+                        ));
+                    }
+                }
+                Ok(value)
+            })
+            .transpose()?;
+        let read = |name: &str| {
+            let key = match name {
+                "BE3_SERVER" => Some("server"),
+                "BE3_ORGANIZATION" => Some("organization"),
+                "BE3_TOKEN" => Some("token"),
+                "BE3_RECOVERY_PHRASE" => Some("recovery_phrase"),
+                _ => None,
+            };
+            if let (Some(bundle), Some(key)) = (&bundle, key) {
+                return bundle[key].as_str().map(|value| value.trim().to_owned());
+            }
+            env(name)
         };
         let organization = match read("BE3_ORGANIZATION") {
             Some(text) => Some(
                 Uuid::parse_str(&text)
-                    .map_err(|_| format!("BE3_ORGANIZATION is not an organization id: {text}"))?,
+                    .map_err(|_| "BE3_ORGANIZATION must be an organization id".to_owned())?,
             ),
             None => None,
         };
