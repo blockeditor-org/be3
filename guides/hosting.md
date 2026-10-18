@@ -180,3 +180,5 @@ decryption. `BE3_AUTHORIZATION` and the native app's gateway field now send
 `Be3-Gateway-Authorization`; existing Caddy configuration and proxy rules must
 switch together. Browsers use the gateway cookie because their WebSocket API
 cannot set request headers.
+
+The app embeds `crates/block-app/src/app-config.json` in both native and web builds. Its `account_server` prefills the server address when adding an account; self-hosted builds should set it to their API URL. Saved accounts keep their own server address. This configuration is independent of the `build-id` compatibility stamp.
