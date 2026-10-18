@@ -1,6 +1,6 @@
 use beui::icons::{
-    ICON_ADD, ICON_CHECK, ICON_CLOUD, ICON_COMPUTER, ICON_GROUP_ADD, ICON_KEYBOARD_ARROW_DOWN,
-    ICON_MORE_HORIZ, ICON_REFRESH, ICON_SWITCH_ACCOUNT, ICON_WORKSPACES,
+    ICON_ADD, ICON_CHECK, ICON_CLOUD, ICON_COMPUTER, ICON_CONTENT_COPY, ICON_GROUP_ADD,
+    ICON_KEYBOARD_ARROW_DOWN, ICON_MORE_HORIZ, ICON_REFRESH, ICON_SWITCH_ACCOUNT, ICON_WORKSPACES,
 };
 use beui::reactive::*;
 use beui::styled::*;
@@ -345,7 +345,7 @@ pub(super) fn AddAccountDialog(
         if local.get() {
             "Create account"
         } else {
-            "Continue in browser"
+            "Continue"
         }
         .to_owned()
     });
@@ -366,63 +366,113 @@ pub(super) fn AddAccountDialog(
             }));
         }
     };
+    let title = create_memo(move || {
+        if pending.get() {
+            "Sign in with your browser"
+        } else {
+            match selection.get() {
+                Some(1) => "Create local account",
+                Some(_) => "Connect to server",
+                None => "Add account",
+            }
+        }
+        .to_owned()
+    });
+    let show_footer_primary = create_memo(move || editing.get() || waiting.get());
+    let footer_primary = create_memo(move || {
+        if waiting.get() {
+            "Open browser".to_owned()
+        } else {
+            submit_label.get()
+        }
+    });
+    let primary_disabled = create_memo(move || !waiting.get() && not_ready.get());
+    let default_address = create_memo(move || {
+        default
+            .get()
+            .map(|server| server.api_url)
+            .unwrap_or_default()
+    });
+    let is_default = create_memo(move || selection.get() == Some(0));
+    let show_gateway = create_memo(move || remote.get() && platform::SENDS_HEADERS);
+    let connecting = create_memo(move || pending.get() && !waiting.get());
     view! {
         <Dialog
             open={open}
-            title="Add account"
-            width=380.0
+            title={title}
+            width=460.0
             on_dismiss={|| send(UiCommand::CloseAddAccount)}
         >
-            <List spacing=10.0>
+            <List spacing=20.0>
                 <Show condition={choosing}>
-                    <List spacing=10.0>
+                    <List spacing=14.0>
                         <Text
                             style=TextStyle::PARAGRAPH
-                            string="Where should this account live?"
+                            string="Choose where to keep your account."
                             wrap=true
                         />
-                        <Show condition={has_default}>
-                            <Button
-                                label={default_name}
-                                @test_id="account.default"
-                                on_click={move || set_selection.set(Some(0))}
-                                variant=ButtonVariant::Secondary
-                            />
-                        </Show>
-                        <Show condition={platform::HAS_EMBEDDED_SERVER}>
-                            <Button
-                                label="On this device"
-                                @test_id="account.local"
-                                on_click={move || set_selection.set(Some(1))}
-                                variant=ButtonVariant::Secondary
-                            />
-                        </Show>
-                        <Button
-                            label="Another server…"
-                            @test_id="account.custom"
-                            on_click={move || set_selection.set(Some(2))}
-                            variant=ButtonVariant::Secondary
-                        />
+                        <Frame
+                            fill=ColorRole::Surface
+                            border={Border::DEFAULT}
+                            radius=Radius::Md
+                            padding=6.0
+                        >
+                            <List spacing=4.0>
+                                <Show condition={has_default}>
+                                    <ActionRow
+                                        label={default_name}
+                                        detail={default_address}
+                                        glyph={ICON_CLOUD.to_owned()}
+                                        @test_id="account.default"
+                                        on_click={move || set_selection.set(Some(0))}
+                                    />
+                                </Show>
+                                <Show condition={platform::HAS_EMBEDDED_SERVER}>
+                                    <ActionRow
+                                        label="On this device"
+                                        detail="A local account, stored on this device"
+                                        glyph={ICON_COMPUTER.to_owned()}
+                                        @test_id="account.local"
+                                        on_click={move || set_selection.set(Some(1))}
+                                    />
+                                </Show>
+                                <ActionRow
+                                    label="Another server"
+                                    detail="Connect using a server address"
+                                    glyph={ICON_ADD.to_owned()}
+                                    @test_id="account.custom"
+                                    on_click={move || set_selection.set(Some(2))}
+                                />
+                            </List>
+                        </Frame>
                     </List>
                 </Show>
                 <Show condition={editing}>
-                    <List spacing=10.0>
-                        <Text style=TextStyle::HEADING string={server_name} wrap=true />
+                    <List spacing=18.0>
                         <Show condition={local}>
-                            <List spacing=10.0>
+                            <List spacing=16.0>
                                 <Text
                                     style=TextStyle::PARAGRAPH
-                                    string="Stored on this device. No email or password needed."
+                                    string="Your data stays on this device. You only need a display name."
                                     wrap=true
                                 />
-                                <Text style=TextStyle::CAPTION string="Display name" />
-                                <TextInput
-                                    value={display_name}
-                                    label="Display name"
-                                    @test_id="account.name"
-                                    on_change={move |value: String| set_display_name.set(value)}
-                                    on_submit={move |_| submit()}
-                                />
+                                <List spacing=6.0>
+                                    <Text style=TextStyle::CAPTION string="Display name" />
+                                    <TextInput
+                                        value={display_name}
+                                        label="Display name"
+                                        placeholder="Your name"
+                                        @test_id="account.name"
+                                        on_change={move |value: String| set_display_name.set(value)}
+                                        on_submit={move |_| submit()}
+                                    />
+                                </List>
+                            </List>
+                        </Show>
+                        <Show condition={is_default}>
+                            <List spacing=4.0>
+                                <Text style=TextStyle::HEADING string={default_name} />
+                                <Text style=TextStyle::CAPTION string={server_name} wrap=true />
                             </List>
                         </Show>
                         <Show condition={custom}>
@@ -434,12 +484,11 @@ pub(super) fn AddAccountDialog(
                                     placeholder="https://example.com"
                                     @test_id="account.server"
                                     on_change={move |value: String| set_remote_url.set(value)}
+                                    on_submit={move |_| submit()}
                                 />
                             </List>
                         </Show>
-                        <Show
-                            condition={create_memo(move || remote.get() && platform::SENDS_HEADERS)}
-                        >
+                        <Show condition={show_gateway}>
                             <List spacing=6.0>
                                 <Text style=TextStyle::CAPTION string={gateway_label} />
                                 <TextInput
@@ -448,73 +497,122 @@ pub(super) fn AddAccountDialog(
                                     password=true
                                     @test_id="account.gateway"
                                     on_change={move |value: String| set_authorization.set(value)}
+                                    on_submit={move |_| submit()}
                                 />
                             </List>
                         </Show>
-                        <Button
-                            label={submit_label}
-                            variant=ButtonVariant::Primary
-                            disabled={not_ready}
-                            @test_id="account.continue"
-                            on_click={submit}
-                        />
-                        <Button
-                            label="Back"
-                            on_click={move || { set_selection.set(None); send(UiCommand::RetryAccount); }}
-                            variant=ButtonVariant::Secondary
-                        />
+                        <Show condition={remote}>
+                            <Text
+                                style=TextStyle::CAPTION
+                                string="Next, you’ll sign in or create an account in your browser."
+                                wrap=true
+                            />
+                        </Show>
                     </List>
                 </Show>
                 <Show condition={waiting}>
-                    <List spacing=10.0>
-                        <Text style=TextStyle::HEADING string="Continue in your browser" />
+                    <List spacing=16.0>
                         <Text
                             style=TextStyle::PARAGRAPH
-                            string="Open this link on this or another device, sign in, and approve the matching code."
+                            string="Sign in and approve this code in your browser. You can also use a browser on another device."
                             wrap=true
                         />
+                        <Card>
+                            <List spacing=16.0>
+                                <List spacing=6.0>
+                                    <Text style=TextStyle::CAPTION string="Device code" />
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=12.0
+                                    >
+                                        <SelectableText
+                                            @sizing=ItemSize::Percent(100.0)
+                                            child_size=ItemSize::Percent(100.0)
+                                        >
+                                            <Text
+                                                style=TextStyle::TITLE
+                                                string={browser_code}
+                                                @test_id="account.browser-code"
+                                            />
+                                        </SelectableText>
+                                        <IconButton
+                                            label="Copy code"
+                                            glyph={ICON_CONTENT_COPY.to_owned()}
+                                            variant=ButtonVariant::Ghost
+                                            @test_id="account.copy-code"
+                                            on_click={move || copy_text(browser_code.get_untracked())}
+                                        />
+                                    </List>
+                                </List>
+                                <Separator />
+                                <List spacing=6.0>
+                                    <Text style=TextStyle::CAPTION string="Sign-in link" />
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=12.0
+                                    >
+                                        <SelectableText
+                                            @sizing=ItemSize::Percent(100.0)
+                                            child_size=ItemSize::Percent(100.0)
+                                        >
+                                            <Text
+                                                style=TextStyle::CAPTION
+                                                string={browser_url}
+                                                wrap=true
+                                                @test_id="account.browser-url"
+                                            />
+                                        </SelectableText>
+                                        <IconButton
+                                            label="Copy link"
+                                            glyph={ICON_CONTENT_COPY.to_owned()}
+                                            variant=ButtonVariant::Ghost
+                                            @test_id="account.copy-link"
+                                            on_click={move || copy_text(browser_url.get_untracked())}
+                                        />
+                                    </List>
+                                </List>
+                            </List>
+                        </Card>
                         <Text
-                            style=TextStyle::PARAGRAPH
-                            string={browser_url}
+                            style=TextStyle::CAPTION
+                            string="Waiting for approval. This window will continue automatically."
                             wrap=true
-                            @test_id="account.browser-url"
-                        />
-                        <Text
-                            style=TextStyle::HEADING
-                            string={browser_code}
-                            @test_id="account.browser-code"
-                        />
-                        <Button
-                            label="Open browser"
-                            on_click={|| send(UiCommand::OpenLoginBrowser)}
-                            variant=ButtonVariant::Secondary
-                        />
-                        <Button
-                            label="Copy link"
-                            on_click={move || copy_text(browser_url.get_untracked())}
-                            variant=ButtonVariant::Secondary
-                        />
-                        <Button
-                            label="Copy code"
-                            on_click={move || copy_text(browser_code.get_untracked())}
-                            variant=ButtonVariant::Secondary
-                        />
-                        <Button
-                            label="Start again"
-                            on_click={|| send(UiCommand::RetryAccount)}
-                            variant=ButtonVariant::Secondary
                         />
                     </List>
                 </Show>
-                <Show condition={create_memo(move || pending.get() && !waiting.get())}>
-                    <Text style=TextStyle::CAPTION string="Contacting server…" />
+                <Show condition={connecting}>
+                    <Text style=TextStyle::PARAGRAPH string="Connecting to the server…" />
                 </Show>
-                <ErrorText text={error} />
-                <Button
-                    label="Cancel"
-                    variant=ButtonVariant::Secondary
-                    on_click={|| send(UiCommand::CloseAddAccount)}
-                />
+                <Show condition={create_memo(move || error.get().is_some())}>
+                    <ErrorText text={error} />
+                </Show>
+                <Separator />
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <Show condition={editing}>
+                        <Button
+                            label="Back"
+                            variant=ButtonVariant::Ghost
+                            on_click={move || { set_selection.set(None); send(UiCommand::RetryAccount); }}
+                        />
+                    </Show>
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Button
+                        label="Cancel"
+                        variant=ButtonVariant::Ghost
+                        on_click={|| send(UiCommand::CloseAddAccount)}
+                    />
+                    <Show condition={show_footer_primary}>
+                        <Button
+                            label={footer_primary}
+                            variant=ButtonVariant::Primary
+                            disabled={primary_disabled}
+                            @test_id="account.continue"
+                            on_click={move || { if waiting.get_untracked() { send(UiCommand::OpenLoginBrowser); } else { submit(); } }}
+                        />
+                    </Show>
+                </List>
             </List>
         </Dialog>
     }
@@ -935,23 +1033,25 @@ pub(super) fn ReauthDialog(view: AppViewStore) -> NodeId {
         <Dialog
             open={open}
             title="Session expired"
-            width=380.0
+            width=460.0
             on_dismiss={|| send(UiCommand::ReauthClose)}
         >
-            <List spacing=10.0>
+            <List spacing=20.0>
                 <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
-                <ErrorText text={error} />
-                <Button
-                    label="Continue in browser"
-                    variant=ButtonVariant::Primary
-                    disabled={busy}
-                    on_click={|| send(UiCommand::ReauthSubmit)}
-                />
-                <Button
-                    label="Log out"
-                    variant=ButtonVariant::Secondary
-                    on_click={|| send(UiCommand::ReauthLogOut)}
-                />
+                <Show condition={create_memo(move || error.get().is_some())}>
+                    <ErrorText text={error} />
+                </Show>
+                <Separator />
+                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                    <Link label="Log out" on_click={|| send(UiCommand::ReauthLogOut)} />
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
+                    <Button
+                        label="Continue in browser"
+                        variant=ButtonVariant::Primary
+                        disabled={busy}
+                        on_click={|| send(UiCommand::ReauthSubmit)}
+                    />
+                </List>
             </List>
         </Dialog>
     }

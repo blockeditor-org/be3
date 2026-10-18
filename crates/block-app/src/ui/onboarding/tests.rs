@@ -10,6 +10,16 @@ fn painting(
     error: Option<String>,
     select_default: bool,
 ) {
+    painting_sized(name, browser, error, select_default, vec2(1100.0, 720.0));
+}
+
+fn painting_sized(
+    name: &str,
+    browser: Option<crate::accounts::BrowserLogin>,
+    error: Option<String>,
+    select_default: bool,
+    size: beui::Vec2,
+) {
     let document = build(move || {
         let view = AppViewStore::new(crate::ui::AppView {
             add_account: crate::ui::AddAccountView {
@@ -32,13 +42,21 @@ fn painting(
             </Frame>
         }
     });
-    painting_of(name, document, select_default);
+    painting_of_sized(name, document, select_default, size);
 }
 
-fn painting_of(name: &str, mut document: beui::Document, select_default: bool) {
+fn painting_of(name: &str, document: beui::Document, select_default: bool) {
+    painting_of_sized(name, document, select_default, vec2(1100.0, 720.0));
+}
+
+fn painting_of_sized(
+    name: &str,
+    mut document: beui::Document,
+    select_default: bool,
+    size: beui::Vec2,
+) {
     let context = Context::new(FreetypeFonts::default());
     context.stop_clock();
-    let size = vec2(1100.0, 720.0);
     {
         let mut frame = |events| {
             context.advance_clock(Duration::from_millis(300));
@@ -88,4 +106,6 @@ fn painting_of(name: &str, mut document: beui::Document, select_default: bool) {
 mod a_deployed_default_server_asks_for_its_gateway_token;
 mod an_expired_session_signs_in_through_the_browser;
 mod browser_authorization_always_offers_the_link_and_code;
+mod browser_authorization_on_a_narrow_screen;
 mod browser_launch_failure_keeps_the_fallback_visible;
+mod the_gateway_form_on_a_narrow_screen;

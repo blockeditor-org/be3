@@ -12,6 +12,7 @@ fn adding_an_account_chooses_a_local_or_custom_server() {
     app.click("#account.custom");
     app.wait("#account.server");
     assert!(!app.tree().contains("https://api.be3.pfg.pw"));
+    app.crop("Dialog \"Connect to server\"");
     app.snapshot("adding_a_remote_account_asks_for_server_and_gateway");
     app.close();
 }
