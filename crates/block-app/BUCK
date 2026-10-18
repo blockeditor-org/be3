@@ -202,7 +202,7 @@ app(
         visibility = ["//crates/local-tools:"],
     )
     for name, application_id, label, keystore in [
-        ("android", "com.be3.block", "Block", None),
+        ("android", "com.be3.block.dev", "Block (Dev)", None),
         ("android-dist", "com.be3.block.ci", "Block (CI)", "//buck/android:ci-keystore"),
         (
             "android-release",

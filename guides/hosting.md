@@ -50,7 +50,7 @@ stop the server and run its executable with the same `--data-dir` and
   `buck-tools archive` into a folder of its own name, and `:android-release`,
   signed on a worker with the release keystore under the id and label
   `--android-id` and `--android-label` give (`com.be3.block` and `Block`, so
-  it installs beside CI's `com.be3.block.ci`), with
+  it installs beside dev's `com.be3.block.dev` and CI's `com.be3.block.ci`), with
   `data/BUILD/app/index.html` linking them. Once the server runs the build (not
   under `--skip-server`), it writes the same page to `index.html`, the one
   people are sent to (`be3.pfg.pw/`), without reading it back

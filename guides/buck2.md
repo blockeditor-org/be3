@@ -301,7 +301,7 @@ A native target depends on a wasm one through a transition in
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is
   the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
-  platform alone: the APK carries no libraries. `:android` is it unsigned, and
+  platform alone: the APK carries no libraries. `:android` is the unsigned dev APK (`com.be3.block.dev`, `Block (Dev)`), and
   `buck2 run` on it signs it locally with `target/android-debug.keystore`,
   made on first use. `:android-dist` signs on a worker with CI's keystore,
   `buck/android/ci-keystore.base64` (guides/build_server.md), with its
