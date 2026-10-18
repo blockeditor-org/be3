@@ -1733,6 +1733,7 @@ pub enum Message {
     Hello(Hello),
     HelloAccepted(HelloAccepted),
     Theme(Theme),
+    Motion(Motion),
     UtcOffset(i32),
     Fonts(Fonts),
     MissingCharacters(Vec<char>),
@@ -1798,6 +1799,7 @@ impl Message {
     pub fn direction(&self) -> Direction {
         match self {
             Self::HelloAccepted(_)
+            | Self::Motion(_)
             | Self::Theme(_)
             | Self::UtcOffset(_)
             | Self::Fonts(_)
@@ -1926,6 +1928,14 @@ pub struct HelloAccepted {
     pub host_name: String,
     pub surface: Option<SurfaceSpec>,
     pub theme: Theme,
+    pub motion: Motion,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum Motion {
+    #[default]
+    Animated,
+    Instant,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]

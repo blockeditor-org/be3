@@ -73,6 +73,7 @@ struct Host {
     pixels_per_point: f32,
     screen_scale: f32,
     theme: block_plugin_api::Theme,
+    motion: block_plugin_api::Motion,
     commands: Vec<HostCommand>,
     waiting_picks: Vec<(FilePickId, PickSlot)>,
     output: Output,
@@ -88,6 +89,7 @@ impl Default for Host {
             pixels_per_point: 1.0,
             screen_scale: 1.0,
             theme: block_plugin_api::Theme::Dark,
+            motion: block_plugin_api::Motion::default(),
             commands: Vec::new(),
             waiting_picks: Vec::new(),
             output: Output::default(),
@@ -103,6 +105,7 @@ struct Frame {
     now: Option<Instant>,
     seen: bool,
     theme: block_plugin_api::Theme,
+    motion: block_plugin_api::Motion,
     pixels_per_point: f32,
     screen_scale: f32,
 }
@@ -113,6 +116,7 @@ impl Default for Frame {
             now: None,
             seen: true,
             theme: block_plugin_api::Theme::Dark,
+            motion: block_plugin_api::Motion::default(),
             pixels_per_point: 1.0,
             screen_scale: 1.0,
         }
@@ -140,6 +144,10 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
         ..Frame::default()
     };
     frame.theme = plugin_theme(document.theme());
+    frame.motion = match context.motion() {
+        beui::reactive::Motion::Animated => block_plugin_api::Motion::Animated,
+        beui::reactive::Motion::Instant => block_plugin_api::Motion::Instant,
+    };
     frame.screen_scale = context.screen_scale();
     frame.pixels_per_point = context.pixels_per_point() * frame.screen_scale;
     start(frame);
@@ -148,6 +156,7 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
 fn start(frame: Frame) {
     with(|host| {
         host.theme = frame.theme;
+        host.motion = frame.motion;
         host.pass += 1;
         host.seen = frame.seen;
         if let Some(now) = frame.now {
@@ -208,6 +217,10 @@ pub(crate) fn milliseconds() -> u64 {
 
 pub(crate) fn pixels_per_point() -> f32 {
     with(|host| host.pixels_per_point)
+}
+
+pub(crate) fn motion() -> block_plugin_api::Motion {
+    with(|host| host.motion)
 }
 
 pub(crate) fn theme() -> block_plugin_api::Theme {

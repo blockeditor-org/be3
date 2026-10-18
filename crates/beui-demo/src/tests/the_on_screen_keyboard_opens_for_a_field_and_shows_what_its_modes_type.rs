@@ -1,6 +1,4 @@
-use beui::reactive::*;
 use beui::styled::software_keyboard::{BAR_HEIGHT, PADDING, key_center};
-use beui::styled::*;
 use beui::unstyled::software_keyboard::{Layer, Modifier, Value};
 use beui::vec2;
 

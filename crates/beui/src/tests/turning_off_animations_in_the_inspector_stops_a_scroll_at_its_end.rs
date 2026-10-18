@@ -4,7 +4,7 @@ use crate::reactive::*;
 use crate::unstyled::Scroll;
 
 #[test]
-fn turning_off_rubber_banding_in_the_inspector_stops_a_scroll_at_its_end() {
+fn turning_off_animations_in_the_inspector_stops_a_scroll_at_its_end() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
     let document = build(move || {
@@ -23,16 +23,16 @@ fn turning_off_rubber_banding_in_the_inspector_stops_a_scroll_at_its_end() {
     let scroll = scroll.get();
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    assert!(harness.document().rubber_banding());
+    assert!(harness.document().motion().animates());
 
     harness.toggle_inspector();
     harness.click(harness.simulation_tab_center());
     harness.frame(Vec::new());
-    harness.click(harness.rubber_band_toggle_center());
+    harness.click(harness.animation_toggle_center());
     harness.frame(Vec::new());
     harness.toggle_inspector();
     harness.frame(Vec::new());
-    assert!(!harness.document().rubber_banding());
+    assert!(!harness.document().motion().animates());
 
     let x = harness.rect(scroll).center().x;
     let top = harness.rect(scroll).top();

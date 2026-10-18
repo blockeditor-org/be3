@@ -6,9 +6,7 @@ use accesskit::{Action, Node, Role};
 use beui_macros::{component, view};
 
 use super::fling::Fling;
-use super::rubber_band::{
-    MAX_ANIMATION_STEP, MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband,
-};
+use super::rubber_band::{MINIMUM_VELOCITY, SCROLL_SPRING, rubber_band, spring_back, unband};
 use beui_core::base::Sides;
 use beui_core::base::offset::OffsetNode;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -84,6 +82,7 @@ struct Reveal {
     visibility: (ReadSignal<f32>, WriteSignal<f32>),
     poked: Cell<Instant>,
     timer: Cell<Option<Timer>>,
+    animation: Cell<Option<Animation>>,
 }
 
 impl Reveal {
@@ -100,6 +99,9 @@ impl Reveal {
 
     fn poke(&self) {
         self.poked.set(beui_core::timer::now());
+        if let Some(animation) = self.animation.get() {
+            animation.stop();
+        }
         self.show();
         if let Some(timer) = self.timer.get() {
             timer.restart(SCROLLBAR_LINGER);
@@ -130,7 +132,6 @@ struct Momentum {
     velocity: f32,
     fling: Option<Fling>,
     autoscroll: f32,
-    stepped: Instant,
 }
 
 impl Momentum {
@@ -142,7 +143,6 @@ impl Momentum {
             velocity: 0.0,
             fling: None,
             autoscroll: 0.0,
-            stepped: beui_core::timer::now(),
         }
     }
 
@@ -206,7 +206,6 @@ impl Momentum {
     }
 
     fn animate(&mut self, position: &mut ScrollPosition, elapsed: f32, banding: bool) {
-        let elapsed = elapsed.min(MAX_ANIMATION_STEP);
         if elapsed <= 0.0 {
             return;
         }
@@ -253,7 +252,7 @@ fn autoscroll_speed(distance: f32) -> f32 {
 }
 
 fn rubber_banding() -> bool {
-    with_document(|document| document.rubber_banding())
+    with_document(|document| document.motion().animates())
 }
 
 struct Motion {
@@ -261,7 +260,9 @@ struct Motion {
     reported: ReadSignal<Option<ScrollPosition>>,
     direction: Prop<Direction>,
     momentum: RefCell<Momentum>,
-    animation: Cell<Option<Timer>>,
+    animation: Cell<Option<Animation>>,
+    autoscrolling: Cell<Option<Timer>>,
+    autoscrolled: Cell<Instant>,
 }
 
 impl Motion {
@@ -295,6 +296,9 @@ impl Motion {
     }
 
     fn wheel(&self, gesture: ScrollGesture) {
+        if let Some(animation) = self.animation.get() {
+            animation.stop();
+        }
         let wheel = self.axis().main(gesture.delta);
         let fling = self.axis().main(gesture.fling);
         let Some(position) = self.placed().filter(|_| wheel != 0.0 || fling != 0.0) else {
@@ -304,13 +308,18 @@ impl Motion {
         momentum.rest();
         let offset = (position.offset - wheel).clamp(0.0, position.max_offset());
         self.publish(&momentum, offset);
-        if fling != 0.0 {
+        if fling != 0.0 && rubber_banding() {
             momentum.release(-fling);
             self.animate(&mut momentum);
         }
     }
 
     fn drag(&self, gesture: DragGesture) {
+        if gesture.started
+            && let Some(animation) = self.animation.get()
+        {
+            animation.stop();
+        }
         let Some(mut position) = self.placed() else {
             return;
         };
@@ -324,15 +333,24 @@ impl Motion {
             momentum.drag(&mut position, dragged, rubber_banding());
         }
         if gesture.ended {
-            momentum.release(-self.axis().main(gesture.velocity));
+            momentum.release(if rubber_banding() {
+                -self.axis().main(gesture.velocity)
+            } else {
+                0.0
+            });
         } else if gesture.cancelled {
             momentum.release(0.0);
         }
         self.publish(&momentum, position.offset);
-        self.animate(&mut momentum);
+        if gesture.ended || gesture.cancelled {
+            self.animate(&mut momentum);
+        }
     }
 
     fn autoscroll(&self, gesture: AutoscrollGesture) {
+        if let Some(animation) = self.animation.get() {
+            animation.stop();
+        }
         let mut momentum = self.momentum.borrow_mut();
         if gesture.ended {
             momentum.autoscroll = 0.0;
@@ -348,17 +366,18 @@ impl Motion {
         momentum.velocity = 0.0;
         momentum.fling = None;
         momentum.autoscroll = autoscroll_speed(self.axis().main(gesture.pos - gesture.origin));
-        self.animate(&mut momentum);
+        drop(momentum);
+        self.autoscrolled.set(now());
+        self.autoscrolling.get().unwrap().start(Duration::ZERO);
     }
 
     fn animate(&self, momentum: &mut Momentum) {
         let Some(animation) = self.animation.get() else {
             return;
         };
-        if !animation.running() {
-            momentum.stepped = beui_core::timer::now();
+        if rubber_banding() && momentum.moving() {
+            animation.start();
         }
-        animation.start(Duration::ZERO);
     }
 
     fn scroll_to(&self, offset: f32) {
@@ -414,15 +433,23 @@ impl Motion {
         });
     }
 
-    fn step(&self) -> Option<Duration> {
+    fn finish(&self) {
+        let Some(position) = self.placed() else {
+            return;
+        };
+        let mut momentum = self.momentum.borrow_mut();
+        let autoscroll = momentum.autoscroll;
+        momentum.rest();
+        momentum.autoscroll = autoscroll;
+        self.publish(&momentum, position.offset);
+    }
+
+    fn step(&self, elapsed: f32) -> Option<Duration> {
         let node = self.node?;
         if !with_document(|document| document.contains(node)) {
             return None;
         }
         let mut momentum = self.momentum.borrow_mut();
-        let now = beui_core::timer::now();
-        let elapsed = now.duration_since(momentum.stepped).as_secs_f32();
-        momentum.stepped = now;
         if std::mem::take(&mut momentum.dragging) {
             return Some(Duration::ZERO);
         }
@@ -460,9 +487,29 @@ fn Scrolling(
         direction,
         momentum: RefCell::new(Momentum::new()),
         animation: Cell::default(),
+        autoscrolling: Cell::default(),
+        autoscrolled: Cell::new(now()),
     });
-    let animation = create_timer(move || motion.get().step());
+    let animation = create_animation(
+        move |frame| motion.get().step(frame.delta.as_secs_f32()).is_some(),
+        move || motion.get().finish(),
+    );
+    let autoscrolling = create_timer(move || {
+        let state = motion.get();
+        if state.momentum.borrow().autoscroll == 0.0 {
+            return None;
+        }
+        let elapsed = now().saturating_duration_since(state.autoscrolled.replace(now()));
+        state.step(elapsed.as_secs_f32())
+    });
+    motion.with(|motion| motion.autoscrolling.set(Some(autoscrolling)));
     motion.with(|motion| motion.animation.set(Some(animation)));
+    let preference = with_document(|document| document.watch_motion());
+    create_effect(move || {
+        if !preference.get().animates() {
+            motion.get().finish();
+        }
+    });
     if let Some(offset) = motion.with(|motion| motion.node) {
         with_document(|document| {
             document.set_offset_on_steer(offset, move |()| motion.get().steer());
@@ -480,8 +527,26 @@ fn Scrolling(
         visibility: create_signal(0.0),
         poked: Cell::new(beui_core::timer::now()),
         timer: Cell::default(),
+        animation: Cell::default(),
     });
-    let fading = create_timer(move || reveal.get().step());
+    let animation = create_animation(
+        move |_| reveal.get().step().is_some(),
+        move || {
+            if !reveal.get().held.get_untracked() {
+                reveal.get().fade_to(0.0);
+            }
+        },
+    );
+    reveal.with(|reveal| reveal.animation.set(Some(animation)));
+    let fading = create_timer(move || {
+        if !reveal.get().held.get_untracked() {
+            animation.start();
+            if animation.running() && reveal.get().step().is_none() {
+                animation.finish();
+            }
+        }
+        None
+    });
     reveal.with(|reveal| reveal.timer.set(Some(fading)));
     let moved = Cell::new(None::<(f32, f32)>);
     create_effect(move || {
@@ -499,6 +564,7 @@ fn Scrolling(
             true => {
                 reveal.get().show();
                 fading.stop();
+                animation.stop();
             }
             false => {
                 if untrack(|| reveal.with(|reveal| reveal.visibility.0.get())) > 0.0 {

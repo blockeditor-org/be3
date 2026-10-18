@@ -140,6 +140,7 @@ pub(super) struct Runtime {
     error: Option<String>,
     pacing: Pacing,
     theme: Theme,
+    motion: block_plugin_api::Motion,
     utc_offset: Option<i32>,
     fonts_sent: bool,
     described: bool,
@@ -258,6 +259,7 @@ impl Runtime {
             error: None,
             pacing: Pacing::default(),
             theme: theme(),
+            motion: host::motion(),
             utc_offset: None,
             fonts_sent: false,
             described: false,
@@ -288,6 +290,7 @@ impl Runtime {
         self.sent.clear();
         self.pacing.reset();
         self.theme = theme();
+        self.motion = host::motion();
         self.utc_offset = None;
         self.fonts_sent = false;
         self.described = false;
@@ -314,6 +317,11 @@ impl Runtime {
         if *self.session.state() == SessionState::Running && self.described != describing {
             self.described = describing;
             messages.push(Message::Describe(describing));
+        }
+        let motion = host::motion();
+        if self.motion != motion {
+            self.motion = motion;
+            messages.push(Message::Motion(motion));
         }
         let theme = theme();
         if self.theme != theme {
@@ -1516,7 +1524,9 @@ pub(crate) fn running() -> Vec<RuntimeStatus> {
 }
 
 fn session() -> HostSession {
-    HostSession::new(HOST_NAME, Some(SURFACE), theme())
+    let mut session = HostSession::new(HOST_NAME, Some(SURFACE), theme());
+    session.set_motion(host::motion());
+    session
 }
 
 fn theme() -> Theme {

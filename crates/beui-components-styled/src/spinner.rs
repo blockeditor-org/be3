@@ -1,5 +1,4 @@
 use crate::frame::{ColorRole, Frame, Radius};
-use std::time::Duration;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
@@ -12,14 +11,12 @@ const HEIGHT: f32 = 4.0;
 const RADIUS: f32 = 2.0;
 const SEGMENT: f32 = 0.35;
 const PERIOD: f32 = 1.2;
-const FRAME: Duration = Duration::from_millis(16);
 
 #[component]
 pub fn Spinner(
     #[prop(default = 40.0)] width: Prop<f32>,
     #[prop(default = String::new())] label: Prop<String>,
 ) -> NodeId {
-    let started = now();
     let (phase, set_phase) = create_signal(0.0_f32);
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::ProgressIndicator);
@@ -36,16 +33,25 @@ pub fn Spinner(
         ItemSize::Percent((1.0 - phase.get()) * (1.0 - SEGMENT) * 100.0 + 0.001)
     });
     let placed = component_placed();
-    let ticking = create_timer(move || {
-        if !placed.get_untracked() {
-            return None;
+    let ticking = create_animation(
+        move |frame| {
+            if !placed.get_untracked() {
+                return false;
+            }
+            set_phase.set((frame.elapsed.as_secs_f32() / PERIOD).fract());
+            true
+        },
+        move || set_phase.set(0.5),
+    );
+    let preference = with_document(|document| document.watch_motion());
+    create_effect(move || {
+        let animate = preference.get().animates();
+        if placed.get() && animate {
+            ticking.start();
+        } else {
+            ticking.stop();
+            set_phase.set(0.5);
         }
-        set_phase.set((now().saturating_duration_since(started).as_secs_f32() / PERIOD).fract());
-        Some(FRAME)
-    });
-    create_effect(move || match placed.get() {
-        true => ticking.start(Duration::ZERO),
-        false => ticking.stop(),
     });
     let width = create_memo(move || Some(width.get()));
     view! {

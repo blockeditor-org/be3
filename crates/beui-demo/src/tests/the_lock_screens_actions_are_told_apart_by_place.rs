@@ -2,8 +2,6 @@ use std::cell::RefCell;
 use std::rc::Rc;
 
 use beui::icons::ICON_BEDTIME;
-use beui::reactive::*;
-use beui::styled::*;
 
 use super::*;
 

@@ -21,6 +21,7 @@ fn a_character_is_asked_for_once_and_only_after_the_hosts_fonts_arrive() {
         host_name: "test host".into(),
         surface: None,
         theme: Theme::Dark,
+        motion: block_plugin_api::Motion::default(),
     }));
 
     report_missing(['a', '\u{4e2d}']);

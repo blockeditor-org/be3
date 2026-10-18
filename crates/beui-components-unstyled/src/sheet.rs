@@ -1,15 +1,13 @@
 use beui_core::layer::Dismiss;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use beui_macros::{component, view};
 
 use super::back_slide::BACK_DRAG_SHARE;
 use super::fling::Fling;
-use super::rubber_band::{
-    MAX_ANIMATION_STEP, SCROLL_SPRING, WINDOW_SPRING, rubber_band, spring_back, unband,
-};
+use super::rubber_band::{SCROLL_SPRING, WINDOW_SPRING, rubber_band, spring_back, unband};
 use beui_core::base::Direction;
 use beui_core::base::offset::{OffsetNode, ScrollPosition};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -93,7 +91,6 @@ struct Held {
     slide: Slide,
     flung: f32,
     backing: bool,
-    stepped: Instant,
 }
 
 struct Motion {
@@ -109,7 +106,7 @@ struct Motion {
     set_dragging: WriteSignal<bool>,
     content: NodeRef,
     held: RefCell<Held>,
-    animation: Cell<Option<Timer>>,
+    animation: Cell<Option<Animation>>,
     open: Prop<bool>,
     set_shift: WriteSignal<f32>,
     set_gone: WriteSignal<bool>,
@@ -119,7 +116,7 @@ struct Motion {
 }
 
 fn banding() -> bool {
-    with_document(|document| document.rubber_banding())
+    with_document(|document| document.motion().animates())
 }
 
 impl Motion {
@@ -302,7 +299,9 @@ impl Motion {
         } else if offset > 0.0
             || (height >= shape.top - EPSILON && velocity > 0.0 && shape.max_offset > 0.0)
         {
-            Fling::new(velocity).map_or(Phase::Still, Phase::Fling)
+            Fling::new(velocity)
+                .filter(|_| banding())
+                .map_or(Phase::Still, Phase::Fling)
         } else {
             self.snap_phase(height, velocity, &shape)
         };
@@ -439,10 +438,7 @@ impl Motion {
         let Some(animation) = self.animation.get() else {
             return;
         };
-        if !animation.running() {
-            self.held.borrow_mut().stepped = beui_core::timer::now();
-        }
-        animation.start(Duration::ZERO);
+        animation.start();
     }
 
     fn step_slide(&self, elapsed: f32) -> bool {
@@ -485,8 +481,8 @@ impl Motion {
                 waited,
             } => {
                 let elapsed = before + elapsed;
-                let progress = (elapsed / ENTER_SECONDS).min(1.0);
-                let eased = 1.0 - (1.0 - progress).powi(3);
+                let progress = tween(elapsed, ENTER_SECONDS, Easing::Linear);
+                let eased = Easing::OutCubic.sample(progress);
                 let next = match progress >= 1.0 {
                     true => Slide::Shown,
                     false => Slide::Entering { elapsed, waited },
@@ -519,8 +515,8 @@ impl Motion {
                 from,
             } => {
                 let elapsed = before + elapsed;
-                let progress = (elapsed / RETURN_SECONDS).min(1.0);
-                let eased = 1.0 - (1.0 - progress).powi(3);
+                let progress = tween(elapsed, RETURN_SECONDS, Easing::Linear);
+                let eased = Easing::OutCubic.sample(progress);
                 let next = match progress >= 1.0 {
                     true => Slide::Shown,
                     false => Slide::Returning { elapsed, from },
@@ -577,10 +573,8 @@ impl Motion {
         let Some(animation) = self.animation.get() else {
             return;
         };
-        if !animation.running() {
-            held.stepped = beui_core::timer::now();
-        }
-        animation.start(Duration::ZERO);
+        drop(held);
+        animation.start();
     }
 
     fn flinging(&self) -> bool {
@@ -628,7 +622,7 @@ impl Motion {
         self.held.borrow_mut().phase = Phase::Still;
         let (offset, _) = self.content();
         self.place_content((offset - wheel).clamp(0.0, shape.max_offset), 0.0);
-        if fling != 0.0 {
+        if fling != 0.0 && banding() {
             self.start(Fling::new(-fling).map_or(Phase::Still, Phase::Fling));
         }
     }
@@ -669,15 +663,42 @@ impl Motion {
         self.place_content(0.0, 0.0);
     }
 
-    fn step(&self) -> Option<Duration> {
-        let now = beui_core::timer::now();
-        let mut held = self.held.borrow_mut();
-        let elapsed = now
-            .duration_since(held.stepped)
-            .as_secs_f32()
-            .min(MAX_ANIMATION_STEP);
-        held.stepped = now;
-        drop(held);
+    fn finish(&self) {
+        let (slide, phase) = {
+            let mut held = self.held.borrow_mut();
+            let slide = held.slide;
+            held.slide = match slide {
+                Slide::Leaving { .. } => Slide::Gone,
+                Slide::Gone => Slide::Gone,
+                _ => Slide::Shown,
+            };
+            (slide, std::mem::replace(&mut held.phase, Phase::Still))
+        };
+        match phase {
+            Phase::Snap { target, .. } => self.place_height(target),
+            Phase::Bounce { .. } | Phase::Fling(_) => {
+                let (offset, _) = self.content();
+                self.place_content(offset, 0.0);
+            }
+            Phase::Still => {}
+        }
+        match slide {
+            Slide::Leaving { .. } => {
+                self.on_presence.call(0.0);
+                self.set_gone.set(true);
+                self.on_gone.call();
+            }
+            Slide::Entering { .. } | Slide::Returning { .. } => {
+                self.shifted.set(0.0);
+                self.set_shift.set(0.0);
+                self.on_presence.call(1.0);
+            }
+            _ => {}
+        }
+    }
+
+    fn step(&self, frame: AnimationFrame) -> Option<Duration> {
+        let elapsed = frame.delta.as_secs_f32();
         let sliding = self.step_slide(elapsed);
         let moving = self.step_phase(elapsed);
         (sliding || moving).then_some(Duration::ZERO)
@@ -805,7 +826,6 @@ pub fn Sheet(
             slide: Slide::Gone,
             flung: 0.0,
             backing: false,
-            stepped: beui_core::timer::now(),
         }),
         animation: Cell::default(),
         open,
@@ -815,8 +835,19 @@ pub fn Sheet(
         on_gone,
         on_close,
     });
-    let animation = create_timer(move || motion.get().step());
+    let animation = create_animation(
+        move |frame| motion.get().step(frame).is_some(),
+        move || motion.get().finish(),
+    );
     motion.with(|motion| motion.animation.set(Some(animation)));
+    let preference = with_document(|document| document.watch_motion());
+    create_effect(move || {
+        if !preference.get().animates() {
+            let motion = motion.get();
+            let (offset, _) = motion.content();
+            motion.place_content(offset, 0.0);
+        }
+    });
     let shown = open;
     let was_open = Cell::new(false);
     create_effect(move || {

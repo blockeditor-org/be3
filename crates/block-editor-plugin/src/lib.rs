@@ -9,6 +9,7 @@ pub mod fonts;
 mod graph;
 pub mod headless;
 mod host;
+mod motion;
 #[cfg(target_arch = "wasm32")]
 mod panes;
 mod plugin;
@@ -18,6 +19,7 @@ mod runtime;
 mod screens;
 pub mod session;
 mod theme;
+pub use motion::{Motion, motion};
 #[cfg(target_arch = "wasm32")]
 mod wasm;
 
