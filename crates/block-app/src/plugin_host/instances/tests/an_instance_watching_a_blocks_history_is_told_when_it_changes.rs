@@ -28,6 +28,7 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
         blocks: vec![block.into_bytes()],
     }));
     let nothing = HistoryState {
+        head: None,
         block_id: block.into_bytes(),
         can_undo: false,
         can_redo: false,
@@ -55,6 +56,9 @@ fn an_instance_watching_a_blocks_history_is_told_when_it_changes() {
     assert_eq!(
         history_states(&mut instances),
         [vec![HistoryState {
+            head: crate::be::node(block)
+                .and_then(|node| node.head)
+                .map(|head| *head.hash().as_bytes()),
             can_undo: true,
             ..nothing
         }]]

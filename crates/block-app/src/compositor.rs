@@ -103,7 +103,12 @@ pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
     read
 }
 
+pub(crate) fn release_revision_editors(ids: &[uuid::Uuid]) {
+    editors::release_revisions(ids);
+}
+
 pub(crate) fn notify() {
+    crate::be::revisions::collect_released();
     OWED.with(|owed| owed.set(false));
     apply_shell();
     crate::surfaces::apply();

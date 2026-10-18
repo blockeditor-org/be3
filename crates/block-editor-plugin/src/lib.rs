@@ -37,11 +37,12 @@ pub use block_plugin_api::{
     NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
     NotificationUrgency, Notifications, Occluder, PenPhase, PlayerCommand, PointerButton, Power,
     PowerAction, PowerAvailability, ProgramAction, Programs, RemapState, Remaps, ResizeMode,
-    ScreenLocked, ScreenPlacement, SettingsProgress, ShellDialog, Size, Stopped, SurfaceRect,
-    TemplateCategory, TemplateDescriptor, TopBar, TouchPhase, Tray, TrayMenuEntry, TrayRequest,
-    TrayStatus, TrayToggle, VersionBranch, VersionChange, VersionChangeKind, VersionCommand,
-    VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent, WebViewId, WheelUnit,
-    Wifi, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
+    Revision, ScreenLocked, ScreenPlacement, SettingsProgress, ShellDialog, Size, Stopped,
+    SurfaceRect, TemplateCategory, TemplateDescriptor, TopBar, TouchPhase, Tray, TrayMenuEntry,
+    TrayRequest, TrayStatus, TrayToggle, VersionBranch, VersionChange, VersionChangeKind,
+    VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand, WebViewEvent,
+    WebViewId, WheelUnit, Wifi, WifiLink, WifiNetwork, WifiRequest, WifiSecurity, WifiStatus,
+    WindowAction, WindowOrigin,
 };
 pub use block_ui;
 pub use clock::{frame_time, pin_wall_clock, utc_offset, wall_clock};

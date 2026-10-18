@@ -10,7 +10,9 @@ mod panel;
 mod phone;
 mod picker;
 mod picker_view;
+mod revisions;
 mod saved;
+pub use revisions::RevisionHistoryPanel;
 mod share;
 mod status;
 mod tab;
@@ -23,6 +25,6 @@ pub use picker_view::PickerDialogs;
 pub use saved::saved_windows;
 pub use window::{window_tab, window_title};
 pub use workspace::{
-    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, SETTINGS,
-    WindowTab, Workspace,
+    AttachedWindow, BlockTab, FILES, Failure, FloatingWindow, PanelStatus, PanelWindow, REVISIONS,
+    SETTINGS, WindowTab, Workspace,
 };

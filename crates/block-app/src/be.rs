@@ -7,6 +7,7 @@ use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
 mod graph;
+pub(crate) mod revisions;
 mod version;
 mod worker;
 
@@ -472,6 +473,10 @@ pub(crate) fn flush() {
 }
 
 pub(crate) fn open(block: Uuid, content_type: Uuid) {
+    if let Some(source) = revisions::source(block) {
+        revisions::load(block, source, content_type);
+        return;
+    }
     show_staged(block);
     send(Command::Open {
         block,
@@ -481,6 +486,9 @@ pub(crate) fn open(block: Uuid, content_type: Uuid) {
 }
 
 pub(crate) fn close(block: Uuid) {
+    if revisions::source(block).is_some() {
+        return;
+    }
     let held = stack()
         .lock()
         .unwrap_or_else(PoisonError::into_inner)
@@ -565,7 +573,7 @@ pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {
 
 pub(crate) fn update_since(block: Uuid, origin: u64, sent: Option<u64>) -> Option<(u64, Update)> {
     with_shared(|shared| {
-        let content = shared.blocks.get(&block)?;
+        let content = shared_content(shared, block)?;
         (sent != Some(content.revision)).then(|| (content.revision, content.since(origin, sent)))
     })?
 }
@@ -656,12 +664,28 @@ fn show_staged(block: Uuid) {
     });
 }
 
+fn shared_content(shared: &Shared, block: Uuid) -> Option<&Content> {
+    match shared.revision_previews.get(&block) {
+        Some(preview)
+            if !preview.released
+                && shared
+                    .graph
+                    .get(preview.source)
+                    .is_some_and(|node| node.access.can_view()) =>
+        {
+            preview.content.as_ref()
+        }
+        Some(_) => None,
+        None => shared.blocks.get(&block),
+    }
+}
+
 pub(crate) fn content(block: Uuid) -> Option<Content> {
-    with_shared(|shared| shared.blocks.get(&block).cloned())?
+    with_shared(|shared| shared_content(shared, block).cloned())?
 }
 
 pub(crate) fn content_revision(block: Uuid) -> Option<u64> {
-    with_shared(|shared| shared.blocks.get(&block).map(|content| content.revision))?
+    with_shared(|shared| shared_content(shared, block).map(|content| content.revision))?
 }
 
 pub(crate) fn describe_block(block: Uuid) -> Option<be_block::Entries> {
@@ -854,6 +878,18 @@ pub(crate) fn with_graph<T>(read: impl FnOnce(&Graph) -> T) -> Option<T> {
 }
 
 pub(crate) fn query(query: Query) -> Vec<Node> {
+    if let Query::Block(id) = query
+        && revisions::source(id).is_some()
+    {
+        return node(id).into_iter().collect();
+    }
+    let query = match query {
+        Query::Children(id) => Query::Children(revisions::source(id).unwrap_or(id)),
+        Query::References(id) => Query::References(revisions::source(id).unwrap_or(id)),
+        Query::Backrefs(id) => Query::Backrefs(revisions::source(id).unwrap_or(id)),
+        Query::Parents(id) => Query::Parents(revisions::source(id).unwrap_or(id)),
+        other => other,
+    };
     with_shared(|shared| shared.graph.query(query)).unwrap_or_default()
 }
 
@@ -868,7 +904,19 @@ pub(crate) fn has_head(block: Uuid) -> bool {
 }
 
 pub(crate) fn node(block: Uuid) -> Option<Node> {
-    with_shared(|shared| shared.graph.get(block).cloned())?
+    with_shared(|shared| {
+        if let Some(preview) = shared.revision_previews.get(&block) {
+            let mut node = shared.graph.get(preview.source)?.clone();
+            node.id = block;
+            node.access = if preview.released {
+                be_graph::Access::None
+            } else {
+                node.access.min(be_graph::Access::View)
+            };
+            return Some(node);
+        }
+        shared.graph.get(block).cloned()
+    })?
 }
 
 pub(crate) fn may_load(block: Uuid) -> bool {

@@ -12,6 +12,7 @@ fn ctrl_z_undoes_a_block_that_owns_its_frame_without_a_top_bar() {
     test.set_histories([(
         block,
         block_editor_beui::BlockHistory {
+            head: None,
             can_undo: true,
             can_redo: false,
         },

@@ -92,6 +92,7 @@ fn undoable_editor() -> (BeuiTest<ChildApp>, Uuid) {
     test.set_histories([(
         block,
         block_editor_beui::BlockHistory {
+            head: None,
             can_undo: true,
             can_redo: false,
         },
