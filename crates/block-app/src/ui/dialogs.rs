@@ -402,7 +402,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                 <Text style=TextStyle::CAPTION string={organization} />
                 <Text
                     style=TextStyle::CAPTION
-                    string="An agent is an account for a program, such as a coding agent, that reads and edits this organization through the be command line tool. It sees only the blocks you share with it, and only this device knows its key, so share them from here."
+                    string="An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
                     wrap=true
                 />
                 <Show condition={none}>
@@ -466,29 +466,38 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
     };
     let heading = field(|created| {
         format!(
-            "Give {} these as environment variables. They are shown only once: the token and the recovery phrase are not kept anywhere you can read them again.",
+            "Copy these secret credentials for {}. They are shown only once. Set BE3_AGENT_CREDENTIALS to this value, then share a workspace or blocks with the agent.",
             created.name
         )
     });
-    let server = field(|created| created.server.clone());
-    let organization = field(|created| created.organization.clone());
-    let token = field(|created| created.token.clone());
-    let phrase = field(|created| created.phrase.clone());
+    let credentials = field(|created| {
+        serde_json::json!({
+            "server": created.server,
+            "organization": created.organization,
+            "token": created.token,
+            "recovery_phrase": created.phrase,
+        })
+        .to_string()
+    });
     view! {
         <List spacing=6.0>
-            <Text style=TextStyle::PARAGRAPH string={heading} wrap=true />
-            <Text style=TextStyle::CODE string="BE3_SERVER" />
-            <TextInput value={server} label="BE3_SERVER" @test_id={"app.agents.server"} />
-            <Text style=TextStyle::CODE string="BE3_ORGANIZATION" />
-            <TextInput
-                value={organization}
-                label="BE3_ORGANIZATION"
-                @test_id={"app.agents.organization"}
+            <Text
+                style=TextStyle::PARAGRAPH
+                string={heading}
+                wrap=true
+                @test_id={"app.agents.credentials-help"}
             />
-            <Text style=TextStyle::CODE string="BE3_TOKEN" />
-            <TextInput value={token} label="BE3_TOKEN" @test_id={"app.agents.token"} />
-            <Text style=TextStyle::CODE string="BE3_RECOVERY_PHRASE" />
-            <TextInput value={phrase} label="BE3_RECOVERY_PHRASE" @test_id={"app.agents.phrase"} />
+            <TextInput
+                value={credentials}
+                label="Agent credentials"
+                @test_id={"app.agents.credentials"}
+            />
+            <Button
+                label="Copy credentials"
+                variant=ButtonVariant::Secondary
+                @test_id={"app.agents.copy"}
+                on_click={move || copy_text(credentials.get_untracked())}
+            />
         </List>
     }
 }

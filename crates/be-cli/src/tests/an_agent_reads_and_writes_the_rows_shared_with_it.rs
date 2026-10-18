@@ -60,14 +60,20 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
         .await
         .unwrap();
 
-    let settings = Settings {
-        server: harness.url.clone(),
-        organization: None,
-        token,
-        phrase: phrase.to_string(),
-        authorization: None,
-        cache: std::env::temp_dir().join(format!("be-cli-cache-{}", Uuid::new_v4())),
-    };
+    let credentials = serde_json::json!({
+        "server": harness.url,
+        "organization": owner.peer().organization(),
+        "token": token,
+        "recovery_phrase": phrase.to_string(),
+    })
+    .to_string();
+    let cache = std::env::temp_dir().join(format!("be-cli-cache-{}", Uuid::new_v4()));
+    let settings = Settings::from_values(|name| match name {
+        "BE3_AGENT_CREDENTIALS" => Some(credentials.clone()),
+        "BE3_CACHE" => Some(cache.to_string_lossy().into_owned()),
+        _ => None,
+    })
+    .unwrap();
     let agent = Tracker::new(connect(&settings).await.unwrap());
     let seen = agent.databases().await.unwrap();
     assert_eq!(

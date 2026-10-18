@@ -70,6 +70,7 @@ A text block:
 TEXT given as - is read from standard input. --json prints JSON.
 
 Environment:
+  BE3_AGENT_CREDENTIALS JSON credentials copied from the app (replaces the four fields below)
   BE3_RECOVERY_PHRASE   The recovery phrase the app showed when it added this agent
   BE3_TOKEN             The agent's token
   BE3_ORGANIZATION      The organization, when the account is in more than one

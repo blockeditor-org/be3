@@ -93,7 +93,8 @@ pub async fn create_offscreen(
     format: wgpu::TextureFormat,
     open_device: Option<OpenDevice>,
 ) -> Result<Gpu, Box<dyn Error>> {
-    let instance = wgpu::Instance::default();
+    let instance =
+        wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
     let opened = open(&instance, None, open_device.as_ref()).await?;
     Ok(Gpu::assemble(instance, opened, format, open_device))
 }
@@ -163,11 +164,21 @@ impl Gpu {
 }
 
 pub fn surface_format(formats: &[wgpu::TextureFormat]) -> Option<wgpu::TextureFormat> {
-    formats
-        .iter()
-        .copied()
-        .find(|format| !format.is_srgb())
-        .or_else(|| formats.first().copied())
+    let supported = || {
+        formats
+            .iter()
+            .copied()
+            .filter(|format| format.required_features().is_empty())
+    };
+    supported()
+        .find(|format| {
+            matches!(
+                format,
+                wgpu::TextureFormat::Bgra8Unorm | wgpu::TextureFormat::Rgba8Unorm
+            )
+        })
+        .or_else(|| supported().find(|format| !format.is_srgb()))
+        .or_else(|| supported().next())
 }
 
 pub enum Presented {

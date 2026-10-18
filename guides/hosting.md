@@ -10,7 +10,7 @@ How the server runs on a VPS for real notes. The files referred to are in
   at `/api/be/http` for clients behind a proxy that refuses websockets (`be`).
 - It never reads `Authorization`, so Caddy can gate the site on that header;
   the app (Authorization header when adding an account on a remote server) and
-  `be` (`authorization=` in `external/.tracker-credentials`) send one.  `Caddyfile.gated`
+  `be` (`BE3_AUTHORIZATION`) send one.  `Caddyfile.gated`
   is the site behind such a key: a browser cannot put a header on a websocket,
   so anyone else gets a page that asks for the key and keeps it in a cookie,
   which Caddy accepts as well, and the key never goes in a URL.

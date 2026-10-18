@@ -2,7 +2,7 @@
 
 The project's issues are meant to live in block-app, as databases: an Issues
 database whose rows are issues, with Relation columns to a Projects database and
-a Milestones database, kept in a workspace of a company organization and
+a Milestones database, kept in a workspace and
 shared with the agents that work on them. Agents read and change them with `be`, the command line tool in
 `crates/be-cli`, and GitHub moves them as pull requests open and merge.
 
@@ -11,23 +11,23 @@ shared with the agents that work on them. Agents read and change them with `be`,
 Run it as `./scripts/be ARGS`; `./scripts/be help` lists everything. That
 script runs the `be` release pinned in `scripts/internal/common.sh`, with a
 `build-id` file beside it naming the server's build, so the server refuses it
-once it is deployed from another build and the pin has to move with it. It reads the agent's credentials from
-`external/.tracker-credentials`, which git ignores and `./scripts/setup`
-fetches from `https://blocks.pfg.pw/authorized-storage/tracker-credentials`
-(behind the gateway, so only where the proxy adds its header), and
-passes them to `be` as the `BE3_*` variables:
+once it is deployed from another build and the pin has to move with it. Set
+`BE3_AGENT_CREDENTIALS` to the JSON copied from the app's Agents dialog, or save
+that JSON in `external/.tracker-credentials`. The file is ignored by git and
+`./scripts/setup` fetches it from
+`https://blocks.pfg.pw/authorized-storage/tracker-credentials` behind the gateway.
+The wrapper passes it to `be` as `BE3_AGENT_CREDENTIALS`; `be` reads environment
+variables, never that file.
 
-```text
-server=https://blocks.pfg.pw
-organization=<the tracker organization, when the agent is in more than one>
-token=<the agent's token>
-recovery_phrase=<the agent's identity: opens the keys sealed to it>
-authorization=<an Authorization header a gateway in front of the server wants, if any>
+```json
+{"server":"https://blocks.pfg.pw","organization":"<organization UUID>","token":"<agent token>","recovery_phrase":"<agent recovery phrase>"}
 ```
 
-The script also accepts the line under its old name, `workspace=`, and sets
-`BE3_WORKSPACE` beside `BE3_ORGANIZATION`, since the pinned release may predate
-the rename. `be` itself reads only the variables, never that file. A `be` built from the
+The bundle supplies all four connection fields together and takes precedence over
+the individual `BE3_SERVER`, `BE3_ORGANIZATION`, `BE3_TOKEN` and
+`BE3_RECOVERY_PHRASE` variables, which a directly invoked CLI also accepts.
+`BE3_AUTHORIZATION` supplies a separate gateway header if needed. Treat the whole
+bundle as secret. A `be` built from the
 checkout (`./scripts/buck run //crates/be-cli:native -- ARGS`) carries that
 checkout's build id, so it talks to the dev app built from the same tree, and
 the real server refuses it. `BE3_SERVER` is `https://blocks.pfg.pw` unless
@@ -133,12 +133,14 @@ them in the handoff.
   (`Root::FROZEN`): be-block's tests hold the format the first tracker build
   saved (`tests/frozen_database*.rs`) and check it still loads, so a change to
   these types only adds fields, variants and kinds (guides/frozen_formats.md).
-- **Agents.** An administrator adds one from the app menu (Agents, in a
-  company organization). The app makes a recovery phrase for it, the server
+- **Agents.** Any member adds one from the app menu (Agents, in either a
+  personal or company organization). Listing and removal are scoped to the
+  creator; other members cannot list or remove the agent. The app makes a recovery phrase for it, the server
   makes an editor account with no password and a token (`CreateAgent`) and
   records the agent and its creator as contacts, and the app writes the agent's
   public key into its contact row, so every device of the creator can share
-  with it; the dialog shows the token and phrase once. Share a workspace with
+  with it; the dialog shows the JSON credentials once in a selectable text box, with a
+  Copy credentials button. Share a workspace with
   it to write in (the files pane's New workspace, then Share), which is where
   `be` puts what it makes. An agent sees and opens
   only what is shared with it: sharing a block with it (`Peer::share`) makes the block a scope of its own and seals that scope's key
@@ -157,14 +159,14 @@ them in the handoff.
   review) when the pull request opens, with a link on the page, and to
   `BE3_DONE_STATUS` when it merges, or, when that is unset, to the status
   column's first closed option (Done if it has none). It reads the
-  `BE3_TRACKER_TOKEN`, `BE3_TRACKER_RECOVERY_PHRASE` and (for a gateway)
-  `BE3_TRACKER_AUTHORIZATION` secrets and the
-  `BE3_SERVER`, `BE3_WORKSPACE` (written as `workspace=`) and status variables, writes them to
-  `external/.tracker-credentials` and runs `./scripts/be` from the default branch.
+  `BE3_TRACKER_CREDENTIALS` JSON secret and (for a gateway)
+  `BE3_TRACKER_AUTHORIZATION`. It passes them as environment variables to
+  `./scripts/be` from the default branch, alongside the status variables. The
+  pinned CLI must support the bundle format; deploy the CLI and server together
+  before configuring the new secret. The workflow never executes PR-head code.
 - **Releases.** `./scripts/deploy` (guides/hosting.md) uploads `be` with the
   server it deploys and pins it in `scripts/internal/common.sh`.
 - **Proxies.** `be-client` tunnels `https` and `wss` through `HTTPS_PROXY` and
   trusts the certificates in `SSL_CERT_FILE` as well as the usual roots, which
   is what a cloud environment's proxy needs. That proxy may add the gateway's
-  `Authorization` header itself, so `authorization=` can stay out of the file
-  there.
+  `Authorization` header itself, so `BE3_AUTHORIZATION` can stay unset there.

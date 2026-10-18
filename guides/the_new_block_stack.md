@@ -255,10 +255,10 @@ time, so notifications wait for the next post.
   failed sign-ins in a row is locked out for a time that doubles with each
   further failure.
   The server never reads `Authorization`, which is left to a gateway in front
-  of it. An administrator's `CreateAgent` makes an agent: an
+  of it. A member's `CreateAgent` makes an agent in either organization kind: an
   editor account with no password, with the recovery public key the caller made
   for it, and a token, answered once (guides/tracker.md); the agent and its
-  creator become contacts.
+  creator become contacts. Only the creator can list or remove that agent.
 - An object is served only to a member who can view a block that holds it, by
   a commit (`commit_objects`) or by `HoldObjects`; anything else reads as
   missing. A merge commit holds its extra parents' objects, so a `stash` that

@@ -4,8 +4,7 @@ name: Tracker
 # BE-7K3Q2M in its branch, title or body: opening it sets them to In review and
 # links it on each row's page, and merging it sets them to Done. It is the be
 # command line tool's `be pull-request` (crates/be-cli), signed in as the agent
-# whose token and recovery phrase are the repository's BE3_TRACKER_TOKEN and
-# BE3_TRACKER_RECOVERY_PHRASE secrets; without them the job does nothing. A
+# whose credentials are the BE3_TRACKER_CREDENTIALS JSON secret. A
 # gateway in front of the server that wants an Authorization header gets the
 # BE3_TRACKER_AUTHORIZATION secret.
 #
@@ -29,10 +28,9 @@ jobs:
       - name: Check for the tracker's credentials
         id: credentials
         env:
-          BE3_TOKEN: ${{ secrets.BE3_TRACKER_TOKEN }}
-          BE3_RECOVERY_PHRASE: ${{ secrets.BE3_TRACKER_RECOVERY_PHRASE }}
+          BE3_AGENT_CREDENTIALS: ${{ secrets.BE3_TRACKER_CREDENTIALS }}
         run: |
-          if [ -n "$BE3_TOKEN" ] && [ -n "$BE3_RECOVERY_PHRASE" ]; then
+          if [ -n "$BE3_AGENT_CREDENTIALS" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
             echo "The tracker's credentials are not set, so no rows are moved."
@@ -44,28 +42,11 @@ jobs:
           ref: ${{ github.event.repository.default_branch }}
           persist-credentials: false
 
-      - name: Write the tracker's credentials
-        if: ${{ steps.credentials.outputs.present == 'true' }}
-        env:
-          BE3_SERVER: ${{ vars.BE3_SERVER }}
-          BE3_WORKSPACE: ${{ vars.BE3_WORKSPACE }}
-          BE3_TOKEN: ${{ secrets.BE3_TRACKER_TOKEN }}
-          BE3_RECOVERY_PHRASE: ${{ secrets.BE3_TRACKER_RECOVERY_PHRASE }}
-          BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
-        run: |
-          umask 077
-          mkdir -p external
-          {
-            if [ -n "$BE3_SERVER" ]; then echo "server=$BE3_SERVER"; fi
-            if [ -n "$BE3_WORKSPACE" ]; then echo "workspace=$BE3_WORKSPACE"; fi
-            echo "token=$BE3_TOKEN"
-            echo "recovery_phrase=$BE3_RECOVERY_PHRASE"
-            if [ -n "$BE3_AUTHORIZATION" ]; then echo "authorization=$BE3_AUTHORIZATION"; fi
-          } > external/.tracker-credentials
-
       - name: Move the rows the pull request names
         if: ${{ steps.credentials.outputs.present == 'true' }}
         env:
+          BE3_AGENT_CREDENTIALS: ${{ secrets.BE3_TRACKER_CREDENTIALS }}
+          BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
           BE3_STATUS_FIELD: ${{ vars.BE3_STATUS_FIELD }}
           BE3_REVIEW_STATUS: ${{ vars.BE3_REVIEW_STATUS }}
           BE3_DONE_STATUS: ${{ vars.BE3_DONE_STATUS }}

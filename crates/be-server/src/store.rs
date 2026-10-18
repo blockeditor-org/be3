@@ -531,12 +531,7 @@ impl ServerStore {
         contact: Vec<u8>,
         escrow: Vec<u8>,
     ) -> Result<(Agent, String), ServerError> {
-        if self.membership(caller, organization).await? != OrganizationRole::Administrator {
-            return Err(ServerError::Refused(
-                ErrorCode::PermissionDenied,
-                "only an organization administrator can add an agent".into(),
-            ));
-        }
+        self.membership(caller, organization).await?;
         let name = name.trim().to_owned();
         if name.is_empty() {
             return Err(ServerError::Refused(
@@ -598,16 +593,19 @@ impl ServerStore {
         let mut statement = database.prepare(
             "SELECT accounts.id, accounts.display_name, accounts.email FROM agents
              JOIN accounts ON accounts.id = agents.account_id
-             WHERE agents.organization_id = ?1
+             WHERE agents.organization_id = ?1 AND agents.created_by = ?2
              ORDER BY accounts.display_name, accounts.id",
         )?;
-        let rows = statement.query_map([organization.to_string()], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-            ))
-        })?;
+        let rows = statement.query_map(
+            params![organization.to_string(), caller.to_string()],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )?;
         let mut agents = Vec::new();
         for row in rows {
             let (account, name, email) = row?;
@@ -626,17 +624,12 @@ impl ServerStore {
         organization: Uuid,
         agent: Uuid,
     ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
-        if self.membership(caller, organization).await? != OrganizationRole::Administrator {
-            return Err(ServerError::Refused(
-                ErrorCode::PermissionDenied,
-                "only an organization administrator can remove an agent".into(),
-            ));
-        }
+        self.membership(caller, organization).await?;
         self.with_graph(organization, move |graph, database| {
             let is_agent = database
                 .query_row(
-                    "SELECT 1 FROM agents WHERE account_id = ?1 AND organization_id = ?2",
-                    params![agent.to_string(), organization.to_string()],
+                    "SELECT 1 FROM agents WHERE account_id = ?1 AND organization_id = ?2 AND created_by = ?3",
+                    params![agent.to_string(), organization.to_string(), caller.to_string()],
                     |_| Ok(()),
                 )
                 .optional()?
