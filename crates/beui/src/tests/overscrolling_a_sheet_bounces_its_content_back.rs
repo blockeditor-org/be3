@@ -33,6 +33,7 @@ fn overscrolling_a_sheet_bounces_its_content_back() {
     );
 
     harness.touch(TouchPhase::End, pos2(200.0, -320.0));
+    harness.advance(Duration::from_millis(100));
     harness.frame(Vec::new());
     assert!(
         harness.document().scroll_overscroll(sheet) < stretched,

@@ -35,6 +35,7 @@ pub struct HostSession {
     state: SessionState,
     host_name: String,
     theme: Theme,
+    motion: crate::Motion,
     surface: Option<SurfaceSpec>,
     granted: Option<SurfaceSpec>,
     queue: VecDeque<Message>,
@@ -48,12 +49,17 @@ impl HostSession {
             state: SessionState::Idle,
             host_name: host_name.into(),
             theme,
+            motion: crate::Motion::default(),
             surface,
             granted: None,
             queue: VecDeque::new(),
             requests: HashMap::new(),
             lifecycle_deadline: None,
         }
+    }
+
+    pub fn set_motion(&mut self, motion: crate::Motion) {
+        self.motion = motion;
     }
 
     pub fn state(&self) -> &SessionState {
@@ -99,6 +105,7 @@ impl HostSession {
                     host_name: self.host_name.clone(),
                     surface: granted,
                     theme: self.theme,
+                    motion: self.motion,
                 }));
                 self.state = SessionState::Running;
                 self.lifecycle_deadline = None;

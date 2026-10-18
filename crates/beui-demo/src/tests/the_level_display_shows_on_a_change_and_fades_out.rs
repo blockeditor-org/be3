@@ -1,36 +1,4 @@
-use std::time::Duration;
-
-use beui::icons::ICON_VOLUME_UP;
-use beui::reactive::*;
-use beui::styled::*;
-
 use super::*;
-
-fn level_display() -> DocumentTest {
-    let document = build(move || {
-        let (shown, set_shown) = create_signal(0_u64);
-        let level = Some(OsdLevel {
-            glyph: ICON_VOLUME_UP.to_owned(),
-            label: "Volume".to_owned(),
-            level: 0.65,
-            muted: false,
-        });
-        view! {
-            <Frame fill=ColorRole::Background>
-                <List spacing=0.0>
-                    <Button
-                        @test_id={"test.show"}
-                        label="Turn it up"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || set_shown.update(|shown| *shown += 1)}
-                    />
-                    <LevelOsd level={level} shown={shown} />
-                </List>
-            </Frame>
-        }
-    });
-    DocumentTest::new(document, Vec2::new(1100.0, 480.0))
-}
 
 #[test]
 fn the_level_display_shows_on_a_change_and_fades_out() {

@@ -51,11 +51,11 @@ pub(crate) struct Flight {
 impl Flight {
     fn progress(&self, now: Instant) -> f32 {
         let elapsed = now.saturating_duration_since(self.start).as_secs_f32();
-        (elapsed / FLIGHT.as_secs_f32()).clamp(0.0, 1.0)
+        tween(elapsed, FLIGHT.as_secs_f32(), Easing::Linear)
     }
 
     pub(crate) fn rect(&self, now: Instant) -> Rect {
-        let along = 1.0 - (1.0 - self.progress(now)).powi(3);
+        let along = Easing::OutCubic.sample(self.progress(now));
         let between = |from: Pos2, to: Pos2| from + (to - from) * along;
         Rect::from_min_max(
             between(self.from.min, self.to.min),
@@ -111,23 +111,29 @@ pub(crate) struct Motion {
     pub(crate) clock: ReadSignal<Instant>,
     set_clock: WriteSignal<Instant>,
     pub(crate) flying: Memo<Vec<ItemId>>,
-    timer: Timer,
+    timer: Animation,
 }
 
 impl Motion {
     pub(crate) fn new() -> Self {
         let (flights, set_flights) = create_signal(Vec::<Flight>::new());
         let (clock, set_clock) = create_signal(now());
-        let timer = create_timer(move || {
-            let now = now();
-            set_clock.set(now);
-            let mut flying = false;
-            set_flights.update(|flights| {
-                flights.retain(|flight| !flight.landed(now));
-                flying = !flights.is_empty();
-            });
-            flying.then_some(Duration::ZERO)
-        });
+        let timer = create_animation(
+            move |frame| {
+                let now = frame.now;
+                set_clock.set(now);
+                let mut flying = false;
+                set_flights.update(|flights| {
+                    flights.retain(|flight| !flight.landed(now));
+                    flying = !flights.is_empty();
+                });
+                flying
+            },
+            move || {
+                set_clock.set(now());
+                set_flights.set(Vec::new());
+            },
+        );
         let flying = create_memo(move || {
             flights.with(|flights| flights.iter().map(|flight| flight.id).collect::<Vec<_>>())
         });
@@ -152,6 +158,6 @@ impl Motion {
             flights.extend(launched);
             flights.sort_by(|one, other| one.distance().total_cmp(&other.distance()));
         });
-        self.timer.start(Duration::ZERO);
+        self.timer.start();
     }
 }

@@ -1,6 +1,4 @@
 use beui::icons::ICON_VOLUME_OFF;
-use beui::reactive::*;
-use beui::styled::*;
 use beui::{Rect, Screen};
 
 use super::*;

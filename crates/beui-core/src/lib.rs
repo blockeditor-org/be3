@@ -1,4 +1,5 @@
 pub mod accessibility;
+pub mod animation;
 pub mod app;
 pub mod base;
 pub mod callback;

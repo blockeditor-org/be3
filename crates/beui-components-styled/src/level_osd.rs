@@ -19,7 +19,6 @@ use beui_view::reactive::*;
 pub const OSD_DURATION: Duration = Duration::from_millis(1500);
 
 const FADE: Duration = Duration::from_millis(250);
-const FRAME: Duration = Duration::from_millis(16);
 const SCREEN_HEIGHT_FRACTION: f32 = 0.85;
 const MARGIN: f32 = 48.0;
 const BOTTOM_MARGIN: f32 = 96.0;
@@ -47,20 +46,33 @@ pub fn LevelOsd(
 ) -> NodeId {
     let since = StoredCell::new(None::<Instant>);
     let (opacity, set_opacity) = create_signal(0.0_f32);
-    let ticking = create_timer(move || {
-        let started = since.get()?;
-        let elapsed = now().saturating_duration_since(started);
-        if elapsed < duration {
-            return Some(duration - elapsed);
-        }
-        let faded = (elapsed - duration).as_secs_f32() / FADE.as_secs_f32();
-        if faded >= 1.0 {
+    let step = move |at: Instant| {
+        let Some(started) = since.get() else {
+            return false;
+        };
+        let progress = tween(
+            at.saturating_duration_since(started)
+                .saturating_sub(duration)
+                .as_secs_f32(),
+            FADE.as_secs_f32(),
+            Easing::Linear,
+        );
+        set_opacity.set(1.0 - progress);
+        progress < 1.0
+    };
+    let fade = create_animation(
+        move |frame| step(frame.now),
+        move || {
             since.set(None);
             set_opacity.set(0.0);
-            return None;
+        },
+    );
+    let ticking = create_timer(move || {
+        fade.start();
+        if fade.running() && !step(now()) {
+            fade.finish();
         }
-        set_opacity.set(1.0 - faded);
-        Some(FRAME)
+        None
     });
     create_effect(move || {
         let shown = shown.get();
@@ -68,6 +80,7 @@ pub fn LevelOsd(
             if shown == 0 {
                 return;
             }
+            fade.stop();
             since.set(Some(now()));
             set_opacity.set(1.0);
             ticking.restart(duration);

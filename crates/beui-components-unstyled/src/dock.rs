@@ -12,7 +12,6 @@ use beui_core::layer::LayerPolicy;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::rc::Rc;
-use std::time::Duration;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
@@ -2598,27 +2597,40 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
     });
     let origin = create_memo(move || area.get().min + placed.get().min.to_vec2() + overshoot.get());
     let band = store(RefCell::new(Band::new(WINDOW_SPRING)));
-    let bounce = create_timer(move || {
-        let band = band.get();
-        let mut band = band.borrow_mut();
-        let window = placed.get_untracked();
-        let bounds = area.get_untracked().size();
-        let reach = reach();
-        let limit = |origin: Pos2| {
-            reachable_origin(Rect::from_min_size(origin, window.size()), bounds, reach)
-        };
-        let banding = with_document(|document| document.rubber_banding());
-        let mut origin = window.min;
-        if !band.step(beui_core::timer::now(), &mut origin, limit, banding) {
-            return None;
+    let bounce = create_animation(
+        move |frame| {
+            let band = band.get();
+            let mut band = band.borrow_mut();
+            let window = placed.get_untracked();
+            let bounds = area.get_untracked().size();
+            let reach = reach();
+            let limit = |origin: Pos2| {
+                reachable_origin(Rect::from_min_size(origin, window.size()), bounds, reach)
+            };
+            let banding = with_document(|document| document.motion().animates());
+            let mut origin = window.min;
+            if !band.step(frame.now, &mut origin, limit, banding) {
+                return false;
+            }
+            if origin != window.min {
+                dock.edit(|state| {
+                    state.set_window_rect(surface, Rect::from_min_size(origin, window.size()));
+                });
+            }
+            set_overshoot.set(band.offset);
+            band.moving()
+        },
+        move || {
+            band.get().borrow_mut().settle();
+            set_overshoot.set(Vec2::ZERO);
+        },
+    );
+    let preference = with_document(|document| document.watch_motion());
+    create_effect(move || {
+        if !preference.get().animates() {
+            band.get().borrow_mut().settle();
+            set_overshoot.set(Vec2::ZERO);
         }
-        if origin != window.min {
-            dock.edit(|state| {
-                state.set_window_rect(surface, Rect::from_min_size(origin, window.size()));
-            });
-        }
-        set_overshoot.set(band.offset);
-        band.moving().then_some(Duration::ZERO)
     });
     let outset = vec2(HANDLE_REACH, HANDLE_REACH);
     let anchor = create_memo(move || origin.get() - outset)
@@ -2712,6 +2724,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                         on_press={move |press: PointerPress| {
                                             let carried = pressed.modifier_held(press.modifiers);
                                             let bar = carried || pressed.over_window_bar(surface, press.pos);
+                                            if bar { bounce.stop(); }
                                             grabbed.set(bar.then(|| {
                                                 let window = bar_rect.get_untracked();
                                                 let dimensions = pressed.rect.get_untracked().size();
@@ -2745,7 +2758,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                 Rect::from_min_size(start.min + (press.pos - from), start.size());
                                             let bounds = moved.rect.get_untracked().size();
                                             let origin = reachable_origin(placed, bounds, reach());
-                                            let banding = with_document(|document| document.rubber_banding());
+                                            let banding = with_document(|document| document.motion().animates());
                                             let band = band.get();
                                             let mut band = band.borrow_mut();
                                             band.stretch(origin, placed.min - origin, bounds, banding, beui_core::timer::now());
@@ -2762,7 +2775,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                 return;
                                             }
                                             band.get().borrow_mut().release(beui_core::timer::now());
-                                            bounce.start(Duration::ZERO);
+                                            bounce.start();
                                         }}
                                     >
                                         <List spacing=0.0>

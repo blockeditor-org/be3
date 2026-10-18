@@ -21,6 +21,7 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
             format: SurfaceFormat::Rgba8Unorm,
         }),
         theme: Theme::Dark,
+        motion: block_plugin_api::Motion::default(),
     }));
 
     let opened = next_screens(&mut instances).opened;

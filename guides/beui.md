@@ -1091,6 +1091,35 @@ which is what lets a scroll fling or a spinner stop costing frames. Start a
 timer from the event or effect that begins the motion rather than leaving one
 running.
 
+UI motion uses `create_animation(step, finish)`, not a repeating timer. Its scope-owned,
+copyable `Animation` handle has `start()`, `stop()`, `finish()` and `running()`; starting
+an active animation keeps its clock, stopping cancels without completion, and finishing
+applies its terminal state exactly once. The step receives `AnimationFrame` (`now`,
+`elapsed` since start, and `delta` since the previous step) and returns whether another
+frame is needed. Returning false finishes it. A callback may start another animation;
+disposing the scope cancels without completing it. Publish values through signals.
+
+Use `tween(elapsed_seconds, duration_seconds, Easing)` for duration-based progress and
+`Spring::advance` for a displacement and velocity relative to a target. Tweens catch up
+to the frame clock after stalls; springs solve damped motion analytically rather than
+clamping away elapsed time. Retarget a spring by changing its target while keeping its
+current value and velocity. `Fling` supplies the shared inertia curve. Components keep
+interaction decisions and semantic completion actions, not their own frame scheduling.
+
+`Context::set_motion(Motion::Instant)` finishes active animations and completes new ones
+without scheduling animation frames. The default is `Animated`. Each document exposes
+`motion()` and the reactive `watch_motion()` preference; the inspector Simulation tab's
+Disable animations checkbox changes the context preference. Instant mode disables inertia
+and rubber-banding, keeps carets visible and spinners static, and leaves held gestures
+following input normally. Functional timers (expiry, key repeat, media and clocks) still
+run; keep visibility delays separate from the fade that follows them. Switching back does
+not replay completed transitions; repeating indicators explicitly resume. Appearance and
+motion are independent, including the EInk theme.
+
+The host supplies the framework-independent motion preference in plugin acceptance and
+live `Message::Motion` updates. The plugin adapter applies it to every surface context
+before running a frame. Plugin tests can send it with `BeuiTest::set_motion`.
+
 `pixels_per_point()` is the document's scale as a signal, for layout that
 depends on it.
 

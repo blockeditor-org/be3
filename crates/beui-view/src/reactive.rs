@@ -14,6 +14,9 @@ use beui_core::document::Document;
 use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 
+pub use beui_core::animation::{
+    Animation, AnimationFrame, Easing, Fling, Motion, Spring, create_animation, motion, tween,
+};
 pub use beui_core::callback::NodeRef;
 pub use beui_core::timer::{Timer, create_timer, now, pin_wall_clock, wall_clock};
 
