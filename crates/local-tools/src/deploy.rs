@@ -1,5 +1,5 @@
 use std::{
-    io::Read,
+    io::{IsTerminal, Read, Write},
     path::{Path, PathBuf},
     process::{Command, ExitCode},
     time::Duration,
@@ -128,6 +128,110 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
     Ok(options)
 }
 
+fn secret(variable: &str, name: &str, description: &str) -> Result<String, String> {
+    if let Ok(value) = std::env::var(variable)
+        && !value.is_empty()
+    {
+        let value = value.trim();
+        if value.is_empty() {
+            return Err(format!("{variable} is needed."));
+        }
+        return Ok(value.to_owned());
+    }
+    let config = std::env::var_os("XDG_CONFIG_HOME")
+        .filter(|path| !path.is_empty())
+        .map(PathBuf::from)
+        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
+        .ok_or("cannot find the configuration directory")?
+        .join("be3");
+    let saved = config.join(name);
+    match std::fs::read_to_string(&saved) {
+        Ok(value) => {
+            let value: String = value.chars().filter(|c| !c.is_whitespace()).collect();
+            if value.is_empty() {
+                return Err(format!(
+                    "{variable} is needed; set it or replace the empty file at {}",
+                    saved.display()
+                ));
+            }
+            return Ok(value);
+        }
+        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
+        Err(error) => return Err(format!("cannot read {}: {error}", saved.display())),
+    }
+    if !std::io::stdin().is_terminal() || !std::io::stderr().is_terminal() {
+        return Err(format!(
+            "set {variable}, or write {description} to {}, or run ./scripts/deploy at a terminal to be asked for it.",
+            saved.display()
+        ));
+    }
+    eprintln!("./scripts/deploy needs {description} (guides/hosting.md).");
+    eprint!("{variable}: ");
+    std::io::stderr()
+        .flush()
+        .map_err(|error| error.to_string())?;
+    let terminal = HiddenInput::new()?;
+    let mut value = String::new();
+    let result = std::io::stdin().read_line(&mut value);
+    drop(terminal);
+    eprintln!();
+    result.map_err(|error| error.to_string())?;
+    let value: String = value.chars().filter(|c| !c.is_whitespace()).collect();
+    if value.is_empty() {
+        return Err(format!("{variable} is needed."));
+    }
+    std::fs::create_dir_all(&config).map_err(|error| error.to_string())?;
+    let mut file = std::fs::OpenOptions::new();
+    file.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        file.mode(0o600);
+    }
+    writeln!(
+        file.open(&saved).map_err(|error| error.to_string())?,
+        "{value}"
+    )
+    .map_err(|error| error.to_string())?;
+    eprintln!("Saved it to {}.", saved.display());
+    Ok(value)
+}
+
+struct HiddenInput(String);
+
+impl HiddenInput {
+    fn new() -> Result<Self, String> {
+        let output = Command::new("stty")
+            .arg("-g")
+            .stdin(std::process::Stdio::inherit())
+            .output()
+            .map_err(|error| format!("cannot read terminal settings: {error}"))?;
+        if !output.status.success() {
+            return Err("cannot read terminal settings".to_owned());
+        }
+        let terminal = Self(
+            String::from_utf8(output.stdout)
+                .map_err(|error| error.to_string())?
+                .trim()
+                .to_owned(),
+        );
+        let status = Command::new("stty")
+            .arg("-echo")
+            .status()
+            .map_err(|error| error.to_string())?;
+        if !status.success() {
+            return Err("cannot hide terminal input".to_owned());
+        }
+        Ok(terminal)
+    }
+}
+
+impl Drop for HiddenInput {
+    fn drop(&mut self) {
+        let _ = Command::new("stty").arg(&self.0).status();
+    }
+}
+
 fn setting(name: &str, default: &str) -> String {
     std::env::var(name)
         .ok()
@@ -159,29 +263,32 @@ fn run(options: &Options) -> Result<(), String> {
         "https://la.storage.bunnycdn.com/be-app",
     );
     let mirror = setting("BE3_DEPLOY_MIRROR", "https://be3.pfg.pw");
-    let key = std::env::var("BUNNY_STORAGE_KEY").unwrap_or_default();
-    let key = key.trim();
-    if key.is_empty()
-        && !options.dry_run
+    let needs_storage = !options.dry_run
         && (!options.skip_be
             || !options.skip_downloads
             || !options.skip_web
-            || !options.skip_server)
-    {
-        return Err("set BUNNY_STORAGE_KEY to the storage zone's password".to_owned());
-    }
+            || !options.skip_server);
+    let key = if needs_storage {
+        secret(
+            "BUNNY_STORAGE_KEY",
+            "be-app-storage-key",
+            "the Bunny storage zone's password",
+        )?
+    } else {
+        String::new()
+    };
     let web = options.web.as_ref().filter(|_| !options.skip_web);
     let publishes_pages = !options.skip_server
         && (web.is_some() || (!options.skip_downloads && !options.downloads.is_empty()));
-    if publishes_pages
-        && !options.dry_run
-        && std::env::var("BUNNY_API_KEY")
-            .unwrap_or_default()
-            .trim()
-            .is_empty()
-    {
-        return Err("set BUNNY_API_KEY to purge the CDN before publishing live pages".to_owned());
-    }
+    let api_key = if publishes_pages && !options.dry_run {
+        secret(
+            "BUNNY_API_KEY",
+            "bunny-api-key",
+            "the Bunny account's API key, to purge mutable entry points from the CDN",
+        )?
+    } else {
+        String::new()
+    };
 
     if let Some(web) = web {
         let id = read_build(&web.join("build-info.json"))?;
@@ -202,7 +309,7 @@ fn run(options: &Options) -> Result<(), String> {
         agents: &agents,
         storage: &storage,
         mirror: &mirror,
-        key,
+        key: &key,
     };
 
     let mut pins = Vec::new();
@@ -342,7 +449,7 @@ fn run(options: &Options) -> Result<(), String> {
             "text/html; charset=utf-8",
             false,
         )?;
-        purge_pages(options, &agents, &mirror, &["web"])?;
+        purge_pages(options, &agents, &api_key, &mirror, &["web"])?;
     }
 
     if page.is_some() && options.skip_server {
@@ -358,7 +465,7 @@ fn run(options: &Options) -> Result<(), String> {
             "text/html; charset=utf-8",
             false,
         )?;
-        purge_pages(options, &agents, &mirror, &["index.html", ""])?;
+        purge_pages(options, &agents, &api_key, &mirror, &["index.html", ""])?;
         println!("the downloads for build {build} are at {mirror}/");
     }
 
@@ -610,10 +717,10 @@ fn web_content_type(path: &Path) -> &'static str {
 fn purge_pages(
     options: &Options,
     agents: &Agents,
+    key: &str,
     mirror: &str,
     paths: &[&str],
 ) -> Result<(), String> {
-    let key = std::env::var("BUNNY_API_KEY").unwrap_or_default();
     for path in paths {
         let url = format!("{mirror}/{path}");
         if options.dry_run {
