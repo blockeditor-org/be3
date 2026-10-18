@@ -70,7 +70,7 @@ How the server runs on a VPS for real notes. The files referred to are in
   `data/BUILD/app/index.html` linking them. Once the server runs the build (not
   under `--skip-server`), it writes the same page to `index.html`, the one
   people are sent to (`be3.pfg.pw/`), without reading it back
-  through the CDN, and purges it from the CDN when `BUNNY_API_KEY` is set. A
+  through the CDN, and purges it from the CDN using the required `BUNNY_API_KEY`. A
   download connects only to a server of its build. `--skip-downloads` leaves
   the downloads out of the build, and `--skip-android` only the APK, so that
   neither needs the keystore;
@@ -82,7 +82,7 @@ How the server runs on a VPS for real notes. The files referred to are in
   `<base href="/data/BUILD/web/">` before its import map and scripts. The browser
   stays at `/web`, keeping query parameters and fragments, so refreshing
   gets the currently deployed build.
-  Purges the web entry point when `BUNNY_API_KEY` is set. `--skip-server`
+  Purges the web entry point using the required `BUNNY_API_KEY`. `--skip-server`
   uploads versioned files but leaves both live entry points unchanged.
 
 Versioned directories use the Git tree hash that identifies the build. Existing
@@ -103,7 +103,9 @@ app (they are CDN settings, not files that the uploader can set in storage):
 | --- | --- |
 | `/data/*`, `/web` | `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp` |
 | `/data/*` | CDN cache TTL one year; `Cache-Control: public, max-age=31536000, immutable` |
-| `/`, `/index.html`, `/web` | Disable CDN caching and send `Cache-Control: no-store` to browsers |
+| `/`, `/index.html`, `/web` | Override CDN cache TTL to one hour; send `Cache-Control: no-cache` to browsers |
+
+The mutable pages stay cached at the edge until deployment purges their exact URLs after uploading replacements. Configure the CDN TTL independently of the browser header, so browsers revalidate while Bunny can serve its cached copy. Deployment checks for the purge key before uploading or swapping the server and fails if a purge fails. Dry runs and `--skip-server` do not require the purge key.
 
 Use a prefix rule for `/data/*` and exact-path rules for the three mutable entry points, so every later build inherits the cache policy. Enable directory index resolution to `index.html`. Preserve uploaded content
 types, especially `application/wasm` and JavaScript MIME types. Uploading an
@@ -117,8 +119,7 @@ there; the old host's cookie does not move between hosts.
 Before building it finds the keys it needs besides the build server's,
 asking at a terminal for any it lacks and saving them in `~/.config/be3`:
 the storage zone's password (`BUNNY_STORAGE_KEY`, `be-app-storage-key`), the
-account's API key for the purge (`BUNNY_API_KEY`, `bunny-api-key`, which may
-be left empty), and the release keystore (`android-release-keystore.base64`),
+account's API key for the purge (`BUNNY_API_KEY`, `bunny-api-key`, required when publishing live pages), and the release keystore (`android-release-keystore.base64`),
 which it can make anew and copies to `buck/android/release-keystore.base64`
 for the signing action. Android installs an update only when it is signed
 with the same key, so keep a copy of the keystore off the machine: a new one

@@ -13,7 +13,7 @@
 # at a terminal for whatever is missing and saving it in ~/.config/be3:
 # Bunny's be-app storage zone password (BUNNY_STORAGE_KEY, or be-app-storage-key), its
 # API key for purging the download page (BUNNY_API_KEY, or bunny-api-key,
-# which may be left empty), and the keystore the APK is signed with
+# required when publishing live pages), and the keystore the APK is signed with
 # (android-release-keystore.base64), which it can make anew and copies to
 # buck/android/release-keystore.base64 for the build. --skip-downloads and
 # --skip-android leave the downloads, or only the APK and so the keystore, out
@@ -101,6 +101,10 @@ secret() {
         echo "Saved it to $saved." >&2
     fi
     value="$(tr -d '[:space:]' < "$saved")"
+    if [[ -z "$value" ]] && ! $optional; then
+        echo "deploy: $variable is needed; set it or replace the empty file at $saved." >&2
+        exit 1
+    fi
     [[ -z "$value" ]] || export "$variable=$value"
 }
 
@@ -176,8 +180,8 @@ if ! $help; then
     if ! $dry_run && { ! $skip_be || $downloads || ! $skip_web || ! $skip_server; }; then
         secret BUNNY_STORAGE_KEY be-app-storage-key "the Bunny storage zone's password" false
     fi
-    if ! $dry_run && { $downloads || ! $skip_web; }; then
-        secret BUNNY_API_KEY bunny-api-key "the Bunny account's API key, to purge mutable entry points from the CDN" true
+    if ! $dry_run && ! $skip_server && { $downloads || ! $skip_web; }; then
+        secret BUNNY_API_KEY bunny-api-key "the Bunny account's API key, to purge mutable entry points from the CDN" false
     fi
     if $android; then
         keystore

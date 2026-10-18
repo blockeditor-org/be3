@@ -35,7 +35,7 @@ read back from the mirror, whose CDN may hold the last one until it is purged.
 
 ./scripts/deploy asks at a terminal for any key it lacks and saves it in
 ~/.config/be3: the storage zone's password (be-app-storage-key), the API
-key (bunny-api-key, which may be empty) and the release keystore
+key (bunny-api-key, required when publishing live pages) and the release keystore
 (android-release-keystore.base64), which it can make anew.
 
 Environment:
@@ -171,6 +171,18 @@ fn run(options: &Options) -> Result<(), String> {
         return Err("set BUNNY_STORAGE_KEY to the storage zone's password".to_owned());
     }
     let web = options.web.as_ref().filter(|_| !options.skip_web);
+    let publishes_pages = !options.skip_server
+        && (web.is_some() || (!options.skip_downloads && !options.downloads.is_empty()));
+    if publishes_pages
+        && !options.dry_run
+        && std::env::var("BUNNY_API_KEY")
+            .unwrap_or_default()
+            .trim()
+            .is_empty()
+    {
+        return Err("set BUNNY_API_KEY to purge the CDN before publishing live pages".to_owned());
+    }
+
     if let Some(web) = web {
         let id = read_build(&web.join("build-id"))?;
         if id != build {
@@ -602,12 +614,8 @@ fn purge_pages(
         let url = format!("{mirror}/{path}");
         if options.dry_run {
             println!("purge {url}");
-        } else if !key.trim().is_empty() {
-            purge(agents, key.trim(), &url)?;
         } else {
-            println!(
-                "BUNNY_API_KEY is not set; the CDN entry point at {url} may remain cached until expiry"
-            );
+            purge(agents, key.trim(), &url)?;
         }
     }
     Ok(())
