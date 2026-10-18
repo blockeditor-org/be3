@@ -14,7 +14,7 @@ usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] 
 
 Builds be-server, the web bundle, be and the app for every platform in
 release, uploads each be and each of the app's downloads to the mirror, swaps
-the server and the web bundle on the VPS, points the mirror's download page at
+the server on the VPS and publishes the web bundle through Bunny, points the mirror's download page at
 the new build, and pins the uploaded be in scripts/internal/common.sh.
 
 The downloads are the app with its plugins for Linux, macOS and Windows on
@@ -22,31 +22,31 @@ x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
 release keystore under the id and label --android-id and --android-label give
 (com.be3.block and Block), so it installs beside CI's com.be3.block.ci. They go
 to app/BUILD/ beside a page linking them, and once the server runs the build,
-app/index.html is that page (https://lfs.pfg.pw/by-name/be3/app/). It is not
+app/index.html is that page (https://be3.pfg.pw/app/). It is not
 read back from the mirror, whose CDN may hold the last one until it is purged.
 
   --dry-run      print what it would do, uploading and changing nothing
   --allow-dirty  deploy a working tree that differs from its commit
-  --skip-server  only upload be and pin it
+  --skip-server  upload versioned artifacts without changing the server or live pages
   --skip-be      leave be as it is
   --skip-web     leave the web bundle as it is
   --skip-downloads  build and upload none of the app's downloads
   --skip-android    build and upload every download but the APK, which needs no keystore
 
 ./scripts/deploy asks at a terminal for any key it lacks and saves it in
-~/.config/be3: the storage zone's password (bunny-storage-key), the API
+~/.config/be3: the storage zone's password (be-app-storage-key), the API
 key (bunny-api-key, which may be empty) and the release keystore
 (android-release-keystore.base64), which it can make anew.
 
 Environment:
-  BUNNY_STORAGE_KEY   the storage zone's password (needed to upload be and the downloads)
-  BUNNY_API_KEY       the account's API key, to purge the download page from the CDN
-  BE3_DEPLOY_STORAGE  where be and the downloads go (https://la.storage.bunnycdn.com/clfs/by-name/be3)
-  BE3_DEPLOY_MIRROR   where it is read back from (https://lfs.pfg.pw/by-name/be3)
+  BUNNY_STORAGE_KEY   the storage zone's password (be-app zone password for deployment artifacts)
+  BUNNY_API_KEY       the account's API key, to purge mutable entry points from the CDN
+  BE3_DEPLOY_STORAGE  where be and the downloads go (https://la.storage.bunnycdn.com/be-app)
+  BE3_DEPLOY_MIRROR   where it is read back from (https://be3.pfg.pw)
   BE3_DEPLOY_HOST     the server, for ssh and scp (ubuntu@blocks.pfg.pw)
   BE3_DEPLOY_DIR      the directory there that holds be-server (be-server)
-  BE3_DEPLOY_UNITS    the units stopped around the swap (caddy be-server)
-  BE3_DEPLOY_WEB      where Caddy serves the web bundle from (/srv/be3-web)";
+  BE3_DEPLOY_UNITS    the units stopped around the swap (be-server)
+  Web files are uploaded under web/BUILD/; index.html selects the live build.";
 
 struct Options {
     repository: PathBuf,
@@ -156,14 +156,34 @@ fn run(options: &Options) -> Result<(), String> {
 
     let storage = setting(
         "BE3_DEPLOY_STORAGE",
-        "https://la.storage.bunnycdn.com/clfs/by-name/be3",
+        "https://la.storage.bunnycdn.com/be-app",
     );
-    let mirror = setting("BE3_DEPLOY_MIRROR", "https://lfs.pfg.pw/by-name/be3");
+    let mirror = setting("BE3_DEPLOY_MIRROR", "https://be3.pfg.pw");
     let key = std::env::var("BUNNY_STORAGE_KEY").unwrap_or_default();
     let key = key.trim();
-    if key.is_empty() && !options.dry_run && !(options.skip_be && options.skip_downloads) {
+    if key.is_empty()
+        && !options.dry_run
+        && (!options.skip_be
+            || !options.skip_downloads
+            || !options.skip_web
+            || !options.skip_server)
+    {
         return Err("set BUNNY_STORAGE_KEY to the storage zone's password".to_owned());
     }
+    let web = options.web.as_ref().filter(|_| !options.skip_web);
+    if let Some(web) = web {
+        let id = read_build(&web.join("build-id"))?;
+        if id != build {
+            return Err(format!("the web bundle is build {id}, not {build}"));
+        }
+    }
+    let web_entry = web
+        .map(|web| {
+            let html = std::fs::read_to_string(web.join("index.html"))
+                .map_err(|error| format!("cannot read web index: {error}"))?;
+            web_entry_point(&html, &build)
+        })
+        .transpose()?;
     let agents = Agents::new();
     let store = Store {
         options,
@@ -227,10 +247,32 @@ fn run(options: &Options) -> Result<(), String> {
         page = Some(download_page(&build, &listed, &format!("{build}/")));
     }
 
+    if let Some(web) = web {
+        upload_web(&store, web, web, &format!("web/{build}"))?;
+    }
+    if !options.skip_server {
+        let bytes = std::fs::read(&options.server)
+            .map_err(|error| format!("cannot read server: {error}"))?;
+        store.put(
+            "be-server",
+            &format!("server/{build}/be-server"),
+            &bytes,
+            "application/octet-stream",
+            true,
+        )?;
+        store.put(
+            "server build-id",
+            &format!("server/{build}/build-id"),
+            build.as_bytes(),
+            "text/plain; charset=utf-8",
+            true,
+        )?;
+    }
+
     if !options.skip_server {
         let host = setting("BE3_DEPLOY_HOST", "ubuntu@blocks.pfg.pw");
         let directory = setting("BE3_DEPLOY_DIR", "be-server");
-        let units = setting("BE3_DEPLOY_UNITS", "caddy be-server");
+        let units = setting("BE3_DEPLOY_UNITS", "be-server");
         let build_id = options
             .be
             .first()
@@ -238,22 +280,6 @@ fn run(options: &Options) -> Result<(), String> {
             .ok_or("no build-id to send")?;
         let server = options.server.display().to_string();
         let build_id = build_id.display().to_string();
-        let web = options.web.as_ref().filter(|_| !options.skip_web);
-        let served = setting("BE3_DEPLOY_WEB", "/srv/be3-web");
-        if let Some(web) = web {
-            let id = read_build(&web.join("build-id"))?;
-            if id != build {
-                return Err(format!("the web bundle is build {id}, not {build}"));
-            }
-            send_tree(
-                options,
-                web,
-                &host,
-                &format!(
-                    "rm -rf {directory}/web.new && mkdir -p {directory}/web.new && tar -xzf - -C {directory}/web.new"
-                ),
-            )?;
-        }
         shell(
             options,
             "scp",
@@ -274,18 +300,9 @@ fn run(options: &Options) -> Result<(), String> {
             "ssh",
             &[
                 &host,
-                &[
-                    format!(
-                        "chmod +x {directory}/be-server.new && mv {directory}/be-server.new {directory}/be-server && mv {directory}/build-id.new {directory}/build-id"
-                    ),
-                    web.map(|_| {
-                        format!(
-                            " && sudo rm -rf {served}.old && {{ [ ! -e {served} ] || sudo mv {served} {served}.old; }} && sudo mv {directory}/web.new {served} && sudo chmod -R a+rX {served}"
-                        )
-                    })
-                    .unwrap_or_default(),
-                ]
-                .concat(),
+                &format!(
+                    "chmod +x {directory}/be-server.new && mv {directory}/be-server.new {directory}/be-server && mv {directory}/build-id.new {directory}/build-id"
+                ),
             ],
         );
         let started = shell(
@@ -295,6 +312,17 @@ fn run(options: &Options) -> Result<(), String> {
         );
         moved?;
         started?;
+    }
+
+    if let Some(launch) = web_entry.filter(|_| !options.skip_server) {
+        store.put(
+            "the web app entry point",
+            "index.html",
+            launch.as_bytes(),
+            "text/html; charset=utf-8",
+            false,
+        )?;
+        purge_pages(options, &agents, &mirror, &["index.html", ""])?;
     }
 
     if page.is_some() && options.skip_server {
@@ -310,29 +338,16 @@ fn run(options: &Options) -> Result<(), String> {
             "text/html; charset=utf-8",
             false,
         )?;
-        let url = format!("{mirror}/app/index.html");
-        let api_key = std::env::var("BUNNY_API_KEY").unwrap_or_default();
-        if options.dry_run {
-            println!("purge {url} and {mirror}/app/");
-        } else if api_key.trim().is_empty() {
-            println!(
-                "BUNNY_API_KEY is not set, so the CDN may serve the last download page at \
-                 {mirror}/app/ until its copy expires"
-            );
-        } else {
-            for url in [url, format!("{mirror}/app/")] {
-                purge(&agents, api_key.trim(), &url)?;
-            }
-        }
+        purge_pages(options, &agents, &mirror, &["app/index.html", "app/"])?;
         println!("the downloads for build {build} are at {mirror}/app/");
     }
 
     if !pins.is_empty() {
         let common = options.repository.join("scripts/internal/common.sh");
         if options.dry_run {
-            println!("pin be {build} in {}", common.display());
+            println!("pin be {build} from {mirror} in {}", common.display());
         } else {
-            pin(&common, &build, &pins)?;
+            pin(&common, &build, &pins, &mirror)?;
             println!(
                 "pinned be {build} in {}; commit it so ./scripts/be runs this build",
                 common.display()
@@ -368,19 +383,42 @@ impl Store<'_> {
         if self.options.dry_run {
             return Ok(sha256);
         }
-        upload(
-            self.agents.to(&target),
-            &target,
-            self.key,
-            bytes,
-            &sha256,
-            content_type,
-        )?;
+        if read_back {
+            match stored_sha256(self.agents.to(&target), &target, self.key)? {
+                Some(existing) if existing != sha256 => {
+                    return Err(format!(
+                        "refusing to overwrite immutable artifact {target} with different bytes; build a new release"
+                    ));
+                }
+                Some(_) => println!("  identical immutable artifact already exists"),
+                None => upload(
+                    self.agents.to(&target),
+                    &target,
+                    self.key,
+                    bytes,
+                    &sha256,
+                    content_type,
+                )?,
+            }
+        } else {
+            upload(
+                self.agents.to(&target),
+                &target,
+                self.key,
+                bytes,
+                &sha256,
+                content_type,
+            )?;
+        }
         if !read_back {
             return Ok(sha256);
         }
         let source = format!("{}/{path}", self.mirror);
-        let read = download(self.agents.to(&source), &source)?;
+        let read = download(
+            self.agents.to(&source),
+            &source,
+            path.starts_with("web/") && path.ends_with("/index.html"),
+        )?;
         if hex(&Sha256::digest(&read)) != sha256 {
             return Err(format!(
                 "{source} is not what was uploaded to {target}; check \
@@ -447,7 +485,7 @@ code {{ font-size: 0.75rem; word-break: break-all; }}
 <table>
 <tr><th>Platform</th><th>Download</th><th>Size</th><th>SHA-256</th></tr>
 {rows}</table>
-<p>Each zip holds the app in a folder of its own: run <code>block-app</code> (<code>block-app.exe</code> on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; <code>xattr -dr com.apple.quarantine block-app-macos-*</code> lets them open. The web bundle is what <code>./scripts/deploy</code> serves, to put behind a server of your own.</p>
+<p>Each zip holds the app in a folder of its own: run <code>block-app</code> (<code>block-app.exe</code> on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; <code>xattr -dr com.apple.quarantine block-app-macos-*</code> lets them open. The web bundle is also available to serve yourself. <a href=\"https://be3.pfg.pw/\">Open the hosted web app</a>.</p>
 </body>
 </html>
 "
@@ -489,29 +527,86 @@ impl Agents {
     }
 }
 
-fn send_tree(options: &Options, tree: &Path, host: &str, unpack: &str) -> Result<(), String> {
-    println!("tar -czf - -C {} . | ssh {host} {unpack}", tree.display());
-    if options.dry_run {
-        return Ok(());
+fn web_entry_point(html: &str, build: &str) -> Result<String, String> {
+    let (before, after) = html
+        .split_once("<head>")
+        .ok_or("the web entry point has no head element")?;
+    Ok(format!(
+        "{before}<head><base href=\"/web/{build}/\">{after}"
+    ))
+}
+
+fn upload_web(
+    store: &Store<'_>,
+    root: &Path,
+    directory: &Path,
+    prefix: &str,
+) -> Result<(), String> {
+    let entries = std::fs::read_dir(directory)
+        .map_err(|error| format!("cannot read {}: {error}", directory.display()))?;
+    let mut paths = entries
+        .map(|entry| entry.map(|entry| entry.path()))
+        .collect::<Result<Vec<_>, _>>()
+        .map_err(|error| format!("cannot list {}: {error}", directory.display()))?;
+    paths.sort();
+    for path in paths {
+        if path.is_dir() {
+            upload_web(store, root, &path, prefix)?;
+        } else {
+            let relative = path
+                .strip_prefix(root)
+                .map_err(|error| error.to_string())?
+                .to_str()
+                .ok_or("a web filename is not UTF-8")?
+                .replace('\\', "/");
+            let bytes = std::fs::read(&path)
+                .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
+            store.put(
+                &path.display().to_string(),
+                &format!("{prefix}/{relative}"),
+                &bytes,
+                web_content_type(&path),
+                true,
+            )?;
+        }
     }
-    let mut tar = Command::new("tar")
-        .args(["-czf", "-", "-C"])
-        .arg(tree)
-        .arg(".")
-        .stdout(std::process::Stdio::piped())
-        .spawn()
-        .map_err(|error| format!("could not run tar: {error}"))?;
-    let packed = tar.stdout.take().ok_or("tar gave no output")?;
-    let unpacked = Command::new("ssh")
-        .args([host, unpack])
-        .stdin(packed)
-        .status()
-        .map_err(|error| format!("could not run ssh: {error}"))?;
-    let packed = tar.wait().map_err(|error| format!("tar failed: {error}"))?;
-    match (packed.success(), unpacked.success()) {
-        (true, true) => Ok(()),
-        _ => Err(format!("sending {} to {host} failed", tree.display())),
+    Ok(())
+}
+
+fn web_content_type(path: &Path) -> &'static str {
+    match path.extension().and_then(|extension| extension.to_str()) {
+        Some("html") => "text/html; charset=utf-8",
+        Some("js" | "mjs") => "text/javascript; charset=utf-8",
+        Some("wasm") => "application/wasm",
+        Some("css") => "text/css; charset=utf-8",
+        Some("json") => "application/json",
+        Some("svg") => "image/svg+xml",
+        Some("png") => "image/png",
+        Some("woff2") => "font/woff2",
+        _ => "application/octet-stream",
     }
+}
+
+fn purge_pages(
+    options: &Options,
+    agents: &Agents,
+    mirror: &str,
+    paths: &[&str],
+) -> Result<(), String> {
+    let key = std::env::var("BUNNY_API_KEY").unwrap_or_default();
+    for path in paths {
+        let url = format!("{mirror}/{path}");
+        if options.dry_run {
+            println!("purge {url}");
+        } else if !key.trim().is_empty() {
+            purge(agents, key.trim(), &url)?;
+        } else {
+            println!(
+                "BUNNY_API_KEY is not set; the CDN entry point at {url} may remain cached until expiry"
+            );
+        }
+    }
+    Ok(())
 }
 
 fn head_tree(repository: &Path) -> Result<String, String> {
@@ -544,6 +639,27 @@ fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
 
+fn stored_sha256(agent: &ureq::Agent, url: &str, key: &str) -> Result<Option<String>, String> {
+    let response = match agent.get(url).set("AccessKey", key).call() {
+        Ok(response) => response,
+        Err(ureq::Error::Status(404, _)) => return Ok(None),
+        Err(error) => return Err(format!("checking immutable artifact {url} failed: {error}")),
+    };
+    let mut reader = response.into_reader();
+    let mut hash = Sha256::new();
+    let mut buffer = [0u8; 65536];
+    loop {
+        let read = reader
+            .read(&mut buffer)
+            .map_err(|error| format!("reading immutable artifact {url} failed: {error}"))?;
+        if read == 0 {
+            break;
+        }
+        hash.update(&buffer[..read]);
+    }
+    Ok(Some(hex(&hash.finalize())))
+}
+
 fn upload(
     agent: &ureq::Agent,
     url: &str,
@@ -562,11 +678,23 @@ fn upload(
     Ok(())
 }
 
-fn download(agent: &ureq::Agent, url: &str) -> Result<Vec<u8>, String> {
+fn download(agent: &ureq::Agent, url: &str, web_entry: bool) -> Result<Vec<u8>, String> {
     let response = agent
         .get(url)
         .call()
         .map_err(|error| format!("reading {url} back failed: {error}"))?;
+    if web_entry {
+        for (name, expected) in [
+            ("Cross-Origin-Opener-Policy", "same-origin"),
+            ("Cross-Origin-Embedder-Policy", "require-corp"),
+        ] {
+            if response.header(name) != Some(expected) {
+                return Err(format!(
+                    "{url} needs {name}: {expected}; configure the Bunny pull-zone response headers before deployment"
+                ));
+            }
+        }
+    }
     let mut bytes = Vec::new();
     response
         .into_reader()
@@ -593,7 +721,7 @@ fn shell(options: &Options, program: &str, arguments: &[&str]) -> Result<(), Str
     }
 }
 
-fn pin(common: &Path, build: &str, pins: &[(String, String)]) -> Result<(), String> {
+fn pin(common: &Path, build: &str, pins: &[(String, String)], mirror: &str) -> Result<(), String> {
     let text = std::fs::read_to_string(common)
         .map_err(|error| format!("cannot read {}: {error}", common.display()))?;
     let mut lines: Vec<String> = text.lines().map(str::to_owned).collect();
@@ -606,6 +734,7 @@ fn pin(common: &Path, build: &str, pins: &[(String, String)]) -> Result<(), Stri
         Ok(())
     };
     set("be_release", build)?;
+    set("be_mirror", mirror)?;
     for (triple, sha256) in pins {
         set(&format!("be_sha256_{}", triple.replace('-', "_")), sha256)?;
     }
@@ -616,3 +745,6 @@ fn pin(common: &Path, build: &str, pins: &[(String, String)]) -> Result<(), Stri
     std::fs::write(common, written)
         .map_err(|error| format!("cannot write {}: {error}", common.display()))
 }
+
+#[cfg(test)]
+mod tests;

@@ -48,3 +48,15 @@ commands take their place (`drive` with no command lists them):
 
 The tree's coordinates are the page's CSS pixels when the device pixel ratio is 1, as it is in
 the launcher's browser.
+
+## Hosted web build
+
+The deployed bundle lives at `https://be3.pfg.pw/web/BUILD/index.html`; the
+root entry point selects the build that matches the deployed server, loading
+versioned assets while keeping the address at the root so reloads update. On that
+origin, Add account defaults to `https://api.be3.pfg.pw`. Self-hosted web builds
+default to their own origin. The web-dev launcher's explicit development-server
+selection stays local. Bunny's headers, caching and gateway setup are described
+in guides/hosting.md. Relative asset URLs resolve against the document base,
+which points at the build directory; page navigation and fragment cleanup must
+use the current page URL instead.

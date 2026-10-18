@@ -4,14 +4,14 @@
 # checkout, in one buck2 command: it builds them in release for the platforms
 # they run on (the app for Linux, macOS and Windows on x86_64 and arm64, Android
 # and the web), then runs local-tools deploy, which uploads each be and each
-# download to the mirror and reads it back, stops the server's units, copies
-# be-server and its build-id over with scp, starts them again, points the
+# download and unpacked web bundle to be3.pfg.pw and reads them back, copies
+# be-server and its build-id over with scp, swaps the running server, points the
 # mirror's download page at the build, and pins the uploaded be in
 # scripts/internal/common.sh to commit.
 #
 # Before building, it finds what it needs beyond the build server's key, asking
 # at a terminal for whatever is missing and saving it in ~/.config/be3:
-# Bunny's storage zone password (BUNNY_STORAGE_KEY, or bunny-storage-key), its
+# Bunny's be-app storage zone password (BUNNY_STORAGE_KEY, or be-app-storage-key), its
 # API key for purging the download page (BUNNY_API_KEY, or bunny-api-key,
 # which may be left empty), and the keystore the APK is signed with
 # (android-release-keystore.base64), which it can make anew and copies to
@@ -36,6 +36,8 @@ android_id='com.be3.block'
 android_label='Block'
 dry_run=false
 skip_be=false
+skip_web=false
+skip_server=false
 downloads=true
 android=true
 help=false
@@ -58,6 +60,8 @@ while [[ $# -gt 0 ]]; do
             ;;
         --dry-run) dry_run=true ;;
         --skip-be) skip_be=true ;;
+        --skip-web) skip_web=true ;;
+        --skip-server) skip_server=true ;;
         --skip-downloads) downloads=false ;;
         --help | -h) help=true ;;
     esac
@@ -169,11 +173,11 @@ keystore() {
 
 $downloads || android=false
 if ! $help; then
-    if ! $dry_run && { ! $skip_be || $downloads; }; then
-        secret BUNNY_STORAGE_KEY bunny-storage-key "the Bunny storage zone's password" false
+    if ! $dry_run && { ! $skip_be || $downloads || ! $skip_web || ! $skip_server; }; then
+        secret BUNNY_STORAGE_KEY be-app-storage-key "the Bunny storage zone's password" false
     fi
-    if ! $dry_run && $downloads; then
-        secret BUNNY_API_KEY bunny-api-key "the Bunny account's API key, to purge the download page from the CDN" true
+    if ! $dry_run && { $downloads || ! $skip_web; }; then
+        secret BUNNY_API_KEY bunny-api-key "the Bunny account's API key, to purge mutable entry points from the CDN" true
     fi
     if $android; then
         keystore

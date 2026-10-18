@@ -164,11 +164,13 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     }
     if location.hash()?.starts_with("#invite/") {
         app.open_invite(&location.href()?);
-        location.replace("#")?;
+        page.set_hash("");
+        location.replace(&page.href())?;
     }
     if location.hash()?.starts_with("#contact/") {
         app.contacts.open_from_address(&location.href()?);
-        location.replace("#")?;
+        page.set_hash("");
+        location.replace(&page.href())?;
     }
     if page.search_params().has("automation") {
         let inbox = beui::automation::Inbox::default();

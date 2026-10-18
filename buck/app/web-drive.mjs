@@ -59,7 +59,7 @@ if (!page) {
 const automate = (words) =>
     page.evaluate(
         async ({ words, timeout }) => {
-            const app = await import(new URL("block_app_lib.js", location.href).href);
+            const app = await import(new URL("block_app_lib.js", document.baseURI).href);
             try {
                 return { text: await app.automate(words, Math.round(timeout * 1000)) };
             } catch (error) {

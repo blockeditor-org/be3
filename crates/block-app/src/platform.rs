@@ -50,3 +50,19 @@ impl<T> Drop for Deliver<T> {
         }
     }
 }
+
+pub(crate) fn default_account_server() -> String {
+    #[cfg(target_arch = "wasm32")]
+    {
+        let origin = web_sys::window()
+            .and_then(|window| window.location().origin().ok())
+            .unwrap_or_default();
+        if origin == "https://be3.pfg.pw" {
+            "https://api.be3.pfg.pw".to_owned()
+        } else {
+            origin
+        }
+    }
+    #[cfg(not(target_arch = "wasm32"))]
+    String::new()
+}
