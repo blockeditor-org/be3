@@ -9,11 +9,8 @@
 # mirror's download page at the build, and pins the uploaded be in
 # scripts/internal/common.sh to commit.
 #
-# Before building, it finds what it needs beyond the build server's key, asking
-# at a terminal for whatever is missing and saving it in ~/.config/be3:
-# Bunny's be-app storage zone password (BUNNY_STORAGE_KEY, or be-app-storage-key), its
-# API key for purging the download page (BUNNY_API_KEY, or bunny-api-key,
-# required when publishing live pages), and the keystore the APK is signed with
+# After building, Rust asks for missing Bunny credentials and saves them in
+# ~/.config/be3. Before building, Bash prepares the APK signing keystore
 # (android-release-keystore.base64), which it can make anew and copies to
 # buck/android/release-keystore.base64 for the build. --skip-downloads and
 # --skip-android leave the downloads, or only the APK and so the keystore, out
@@ -34,10 +31,6 @@ source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 config="${XDG_CONFIG_HOME:-$HOME/.config}/be3"
 android_id='com.be3.block'
 android_label='Block'
-dry_run=false
-skip_be=false
-skip_web=false
-skip_server=false
 downloads=true
 android=true
 help=false
@@ -58,10 +51,6 @@ while [[ $# -gt 0 ]]; do
             shift
             continue
             ;;
-        --dry-run) dry_run=true ;;
-        --skip-be) skip_be=true ;;
-        --skip-web) skip_web=true ;;
-        --skip-server) skip_server=true ;;
         --skip-downloads) downloads=false ;;
         --help | -h) help=true ;;
     esac
@@ -72,41 +61,6 @@ if [[ ! "$android_id" =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$ ]]; t
     echo "deploy: --android-id takes an Android application id such as com.be3.block, not '$android_id'" >&2
     exit 1
 fi
-
-# A secret from the environment or the file saved under ~/.config/be3, or else
-# asked for at a terminal and saved there. An empty answer is saved too when
-# the secret is optional, so it is not asked for again.
-secret() {
-    local variable="$1" name="$2" what="$3" optional="$4" saved="$config/$2" value
-    if [[ -n "${!variable:-}" ]]; then
-        return 0
-    fi
-    if [[ ! -f "$saved" ]]; then
-        if [[ ! -t 0 || ! -t 2 ]]; then
-            $optional && return 0
-            echo "deploy: set $variable, or write $what to $saved, or run ./scripts/deploy at a terminal to be asked for it." >&2
-            exit 1
-        fi
-        echo "./scripts/deploy needs $what (guides/hosting.md)." >&2
-        $optional && echo 'Leave it empty to go without; delete the file below to be asked again.' >&2
-        read -r -s -p "$variable: " value
-        echo '' >&2
-        value="$(printf '%s' "$value" | tr -d '[:space:]')"
-        if [[ -z "$value" ]] && ! $optional; then
-            echo "deploy: $variable is needed." >&2
-            exit 1
-        fi
-        mkdir -p "$config"
-        (umask 077 && printf '%s\n' "$value" > "$saved")
-        echo "Saved it to $saved." >&2
-    fi
-    value="$(tr -d '[:space:]' < "$saved")"
-    if [[ -z "$value" ]] && ! $optional; then
-        echo "deploy: $variable is needed; set it or replace the empty file at $saved." >&2
-        exit 1
-    fi
-    [[ -z "$value" ]] || export "$variable=$value"
-}
 
 # A new keystore, base64, signed the way the build's signing expects:
 # store and key password `android`. keytool where there is one, else openssl.
@@ -177,12 +131,6 @@ keystore() {
 
 $downloads || android=false
 if ! $help; then
-    if ! $dry_run && { ! $skip_be || $downloads || ! $skip_web || ! $skip_server; }; then
-        secret BUNNY_STORAGE_KEY be-app-storage-key "the Bunny storage zone's password" false
-    fi
-    if ! $dry_run && ! $skip_server && { $downloads || ! $skip_web; }; then
-        secret BUNNY_API_KEY bunny-api-key "the Bunny account's API key, to purge mutable entry points from the CDN" false
-    fi
     if $android; then
         keystore
     fi

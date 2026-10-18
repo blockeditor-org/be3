@@ -100,12 +100,13 @@ after setting its host-only cookie it redirects to the web app. Keep the same
 gateway secret when adding the new API hostname, and establish a new cookie
 there; the old host's cookie does not move between hosts.
 
-Before building it finds the keys it needs besides the build server's,
-asking at a terminal for any it lacks and saving them in `~/.config/be3`:
-the storage zone's password (`BUNNY_STORAGE_KEY`, `be-app-storage-key`), the
-account's API key for the purge (`BUNNY_API_KEY`, `bunny-api-key`, required when publishing live pages), and the release keystore (`android-release-keystore.base64`),
+After the build, Rust loads the storage zone's password (`BUNNY_STORAGE_KEY`,
+`be-app-storage-key`) and the account's API key for the purge (`BUNNY_API_KEY`,
+`bunny-api-key`, required when publishing live pages), asking at a terminal
+for missing keys and saving them in `~/.config/be3`. Before the single buck2
+invocation, Bash prepares the release keystore (`android-release-keystore.base64`),
 which it can make anew and copies to `buck/android/release-keystore.base64`
-for the signing action. Android installs an update only when it is signed
+for the signing action. Bash also handles options that configure the build. Android installs an update only when it is signed
 with the same key, so keep a copy of the keystore off the machine: a new one
 means every device uninstalls the app once. Like CI's, it is an input of the
 signing action, so it is in the build server's CAS.
