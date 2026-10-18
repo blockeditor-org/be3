@@ -6,6 +6,8 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+paint-snapshot = { path = "../paint-snapshot" }
+image = { version = "0.25", default-features = false, features = ["png"] }
 sha2 = "0.10"
 ureq = "2"
 

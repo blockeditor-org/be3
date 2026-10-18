@@ -2,8 +2,7 @@ use std::path::{Path, PathBuf};
 
 use paint_snapshot::Snapshot;
 
-fn main() {
-    let arguments: Vec<String> = std::env::args().skip(1).collect();
+pub fn main(arguments: Vec<String>) -> std::process::ExitCode {
     let (input, output, wanted) = match arguments.as_slice() {
         [input, output] => (input, output, Wanted::Frame(0)),
         [input, output, frame] if frame == "all" => (input, output, Wanted::All),
@@ -40,6 +39,7 @@ fn main() {
             .unwrap_or_else(|error| fail(&format!("could not write {}: {error}", path.display())));
         println!("{} is {}x{}", path.display(), image.width(), image.height());
     }
+    std::process::ExitCode::SUCCESS
 }
 
 enum Wanted {
@@ -54,7 +54,7 @@ fn numbered_path(output: &Path, index: usize) -> PathBuf {
 }
 
 fn usage() -> ! {
-    eprintln!("usage: rasterize SNAPSHOT.paint OUTPUT.png [FRAME|all]");
+    eprintln!("usage: local-tools rasterize SNAPSHOT.paint OUTPUT.png [FRAME|all]");
     std::process::exit(2)
 }
 

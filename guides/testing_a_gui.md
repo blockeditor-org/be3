@@ -206,7 +206,7 @@ way for the test to fail.
   inside a scroll around its content, or give a scroll inside a padded surface `bleed`, so a ring at its edge has room - rather than the test.
   beui-demo's `tabbing_through_every_page_shows_each_focus_ring_whole` tabs through every
   catalog page and fails on any such ring, since a painting rarely has the focus showing.
-- ./scripts/buck run //crates/paint-snapshot:example-rasterize -- snapshots/<crate>.<name>.paint out.png
+- ./scripts/buck run //crates/local-tools:bin -- rasterize snapshots/<crate>.<name>.paint out.png
   turns one into a PNG, and a trailing frame number or all picks which frames of a recording
   to write.
 - Regenerating them is cheap and mechanical - a change to beui's renderer rewrites every one - so
