@@ -11018,6 +11018,8 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
@@ -11032,6 +11034,8 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
@@ -11046,6 +11050,8 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
@@ -11060,6 +11066,8 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
@@ -11074,6 +11082,8 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
@@ -11088,6 +11098,8 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
                     ],
@@ -11101,6 +11113,8 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
                     ],
@@ -11387,14 +11401,6 @@ crates = {
                 "crate_root": "examples/dump.rs",
                 "name": "dump",
             },
-            {
-                "crate_root": "examples/preview.rs",
-                "name": "preview",
-            },
-            {
-                "crate_root": "examples/rasterize.rs",
-                "name": "rasterize",
-            },
         ],
         "library": {
             "crate": "paint_snapshot",
@@ -11426,28 +11432,6 @@ crates = {
                         "features": [],
                     },
                     "dump": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
                         "deps": [
                             "//crates/paint-format:paint-format",
                             "//third-party/rust:bincode-1.3.3",
@@ -11496,28 +11480,6 @@ crates = {
                         ],
                         "features": [],
                     },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
                 },
                 "features": [],
                 "test_deps": [],
@@ -11546,28 +11508,6 @@ crates = {
                         "features": [],
                     },
                     "dump": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
                         "deps": [
                             "//crates/paint-format:paint-format",
                             "//third-party/rust:bincode-1.3.3",
@@ -11616,28 +11556,6 @@ crates = {
                         ],
                         "features": [],
                     },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
                 },
                 "features": [],
                 "test_deps": [],
@@ -11666,28 +11584,6 @@ crates = {
                         "features": [],
                     },
                     "dump": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
                         "deps": [
                             "//crates/paint-format:paint-format",
                             "//third-party/rust:bincode-1.3.3",
@@ -11751,28 +11647,6 @@ crates = {
                         ],
                         "features": [],
                     },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
                 },
                 "features": [],
                 "test_deps": [],
@@ -11801,28 +11675,6 @@ crates = {
                         "features": [],
                     },
                     "dump": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
                         "deps": [
                             "//crates/paint-format:paint-format",
                             "//third-party/rust:bincode-1.3.3",

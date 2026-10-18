@@ -8,20 +8,10 @@ use sha2::{Digest as _, Sha256};
 const ROOT: &str = "PREVIEW_ROOT";
 const MAX_ROWS: usize = 30;
 
-fn main() {
-    let arguments: Vec<String> = std::env::args().skip(1).collect();
-    let [before, after, output, added, removed, files] = arguments.as_slice() else {
-        eprintln!("usage: preview BEFORE_DIR AFTER_DIR OUTPUT_DIR ADDED REMOVED FILES");
-        std::process::exit(2)
-    };
-    let (before, after, output) = (Path::new(before), Path::new(after), Path::new(output));
-    let count = |text: &str| -> u64 {
-        text.parse()
-            .unwrap_or_else(|_| fail(&format!("{text} is not a line count")))
-    };
-    let (added_lines, removed_lines, files) = (count(added), count(removed), count(files));
+pub fn generate(before: &Path, after: &Path, output: &Path) -> Result<String, String> {
+    let mut comment = "## Paintings\n\n".to_owned();
 
-    std::fs::create_dir_all(output).unwrap_or_else(|error| fail(&error.to_string()));
+    std::fs::create_dir_all(output).map_err(|error| error.to_string())?;
 
     let names: BTreeSet<String> = [before, after].into_iter().flat_map(paintings).collect();
 
@@ -57,7 +47,7 @@ fn main() {
             unshown.push(format!("- `{name}` {}", escaped(&summary)));
             continue;
         }
-        let table = table(old.as_ref(), new.as_ref(), output, &mut rows);
+        let table = table(old.as_ref(), new.as_ref(), output, &mut rows)?;
         let (headline, detail) = summary.split_once(": ").unwrap_or((&summary, ""));
         sections.push(format!(
             "<details{{open}}>\n<summary><code>{name}</code> {}</summary>\n\n{}{table}\n</details>\n",
@@ -70,13 +60,6 @@ fn main() {
     }
 
     let total = added + removed + changed;
-    let mut comment = format!(
-        "## Lines of code\n\n**+{added_lines} -{removed_lines}** of Rust in {}, not counting tests.\n\n## Paintings\n\n",
-        match files {
-            1 => "1 file".to_owned(),
-            count => format!("{count} files"),
-        }
-    );
     if total == 0 {
         comment.push_str("No paintings changed.\n");
     } else {
@@ -101,9 +84,8 @@ fn main() {
             }
         }
     }
-    std::fs::write(output.join("comment.md"), comment)
-        .unwrap_or_else(|error| fail(&format!("could not write the comment: {error}")));
     println!("{total} paintings differ");
+    Ok(comment)
 }
 
 fn table(
@@ -111,7 +93,7 @@ fn table(
     new: Option<&Snapshot>,
     output: &Path,
     rows: &mut usize,
-) -> String {
+) -> Result<String, String> {
     let count = |snapshot: Option<&Snapshot>| snapshot.map_or(0, |snapshot| snapshot.frames.len());
     let frames = count(old).max(count(new));
     let mut table = "| Frame | Before | After | Changes |\n|---|---|---|---|\n".to_owned();
@@ -131,7 +113,7 @@ fn table(
         let changes = match (&old_image, &new_image) {
             (Some(old), Some(new)) => {
                 let highlight = paint_snapshot::highlight(old, new);
-                let cell = image("changes", &highlight.image, output);
+                let cell = image("changes", &highlight.image, output)?;
                 match highlight.changed {
                     0 => format!("{cell}<br>no visible difference"),
                     1 => format!("{cell}<br>1 pixel"),
@@ -142,17 +124,17 @@ fn table(
         };
         let cell = |rendered: &Option<image::RgbaImage>, kind: &str| match rendered {
             Some(rendered) => image(kind, rendered, output),
-            None => String::new(),
+            None => Ok(String::new()),
         };
         let _ = writeln!(
             table,
             "| {} | {} | {} | {changes} |",
             index + 1,
-            cell(&old_image, "before"),
-            cell(&new_image, "after"),
+            cell(&old_image, "before")?,
+            cell(&new_image, "after")?,
         );
     }
-    table
+    Ok(table)
 }
 
 fn render(snapshot: &Snapshot, index: usize) -> Option<image::RgbaImage> {
@@ -161,11 +143,11 @@ fn render(snapshot: &Snapshot, index: usize) -> Option<image::RgbaImage> {
         .ok()
 }
 
-fn image(kind: &str, image: &image::RgbaImage, output: &Path) -> String {
+fn image(kind: &str, image: &image::RgbaImage, output: &Path) -> Result<String, String> {
     let mut png = Vec::new();
     image
         .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
-        .unwrap_or_else(|error| fail(&format!("could not encode a {kind} image: {error}")));
+        .map_err(|error| format!("could not encode a {kind} image: {error}"))?;
     let hash: String = Sha256::digest(&png)
         .iter()
         .map(|byte| format!("{byte:02x}"))
@@ -173,8 +155,8 @@ fn image(kind: &str, image: &image::RgbaImage, output: &Path) -> String {
     let file = format!("{hash}.png");
     let path = output.join(&file);
     std::fs::write(&path, png)
-        .unwrap_or_else(|error| fail(&format!("could not write {}: {error}", path.display())));
-    format!("![{kind}]({ROOT}/{file})")
+        .map_err(|error| format!("could not write {}: {error}", path.display()))?;
+    Ok(format!("![{kind}]({ROOT}/{file})"))
 }
 
 fn paintings(directory: &Path) -> Vec<String> {
@@ -203,9 +185,4 @@ fn escaped(text: &str) -> String {
     text.replace('&', "&amp;")
         .replace('<', "&lt;")
         .replace('>', "&gt;")
-}
-
-fn fail(message: &str) -> ! {
-    eprintln!("{message}");
-    std::process::exit(1)
 }

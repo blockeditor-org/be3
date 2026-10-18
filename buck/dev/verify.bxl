@@ -123,8 +123,6 @@ def _impl(ctx: bxl.Context):
     if args.android:
         printed.append(("block-app.apk", _output(ctx, "root//crates/block-app:android-dist")))
         printed.append(("be-launcher.apk", _output(ctx, "root//crates/be-launcher:android-dist")))
-    if args.previews:
-        printed.append(("previews", _output(ctx, "root//crates/paint-snapshot:example-preview")))
     paths = ctx.output.ensure_multiple([artifact for _, artifact in printed])
     ctx.output.ensure_multiple(built)
     for (kind, _), path in zip(printed, paths):

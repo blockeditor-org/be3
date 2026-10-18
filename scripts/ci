@@ -4,7 +4,7 @@
 # with --android the Android app and launcher CI ships, signed, written into
 # DIR, and with --previews every painting that changed between BASE's merge
 # base and HEAD, as committed, drawn into OUT with the comment
-# crates/paint-snapshot's preview example writes. --check is ./scripts/verify's.
+# local-tools writes. --check is ./scripts/verify's.
 #
 # Usage:
 #   ./scripts/ci [--check] [--android DIR] [--previews BASE OUT]
