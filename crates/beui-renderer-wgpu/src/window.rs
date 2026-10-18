@@ -20,7 +20,8 @@ impl WindowSurface {
         window: Arc<dyn WindowHandle>,
         open_device: Option<OpenDevice>,
     ) -> Result<Self, Box<dyn Error>> {
-        let instance = wgpu::Instance::default();
+        let instance =
+            wgpu::Instance::new(wgpu::InstanceDescriptor::new_without_display_handle_from_env());
         let probe = instance.create_surface(window.clone())?;
         let gpu = create_gpu(instance, &probe, open_device).await?;
         drop(probe);
