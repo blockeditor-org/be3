@@ -200,6 +200,7 @@ struct Connection {
     client: u64,
     account: Option<Uuid>,
     token: Option<String>,
+    header_token: Option<String>,
     identity: Option<Identity>,
     config: ServerConfig,
 }
@@ -221,6 +222,7 @@ impl Client {
                 client,
                 account: None,
                 token: None,
+                header_token: None,
                 identity: None,
                 config: services.config,
             },
@@ -283,6 +285,7 @@ impl Client {
 #[derive(Default)]
 struct Handshake {
     forwarded: Option<String>,
+    authorization: Option<String>,
 }
 
 struct Forwarded(Arc<std::sync::Mutex<Handshake>>);
@@ -295,6 +298,11 @@ impl Callback for Forwarded {
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.split(',').next())
             .map(|value| value.trim().to_owned());
+        self.0.lock().unwrap().authorization = request
+            .headers()
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
         Ok(response)
     }
 }
@@ -320,10 +328,13 @@ async fn handle_connection(
     let socket = tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake)
         .await
         .map_err(|_| ServerError::Socket("the websocket handshake timed out".into()))??;
-    let Handshake { forwarded } = std::mem::take(&mut *held.lock().unwrap());
+    let Handshake {
+        forwarded,
+        authorization,
+    } = std::mem::take(&mut *held.lock().unwrap());
     let client = forwarded.unwrap_or_else(|| peer.ip().to_string());
     tracing::debug!(%client, "connected");
-    serve_socket(socket, &services).await
+    serve_socket(socket, &services, authorization).await
 }
 
 pub(crate) fn greeting(theirs: Option<&str>) -> Result<(Vec<u8>, bool), ServerError> {
@@ -371,6 +382,7 @@ where
 async fn serve_socket<S>(
     socket: tokio_tungstenite::WebSocketStream<S>,
     services: &Services,
+    authorization: Option<String>,
 ) -> Result<(), ServerError>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
@@ -382,6 +394,7 @@ where
     let mut pings = tokio::time::interval(PING_INTERVAL);
     let mut heard = Instant::now();
     let mut client = Client::open(services).await;
+    client.connection.header_token = bearer(authorization.as_deref());
 
     let outcome = async {
         loop {
@@ -506,6 +519,20 @@ impl Connection {
                     .await
                     .inspect_err(|error| tracing::warn!(email, %error, "a sign-in failed"))?;
                 Ok(self.authenticated(request, profile, token).await)
+            }
+            ClientMessage::AuthenticateHeader { request } => {
+                let token = self.header_token.clone().ok_or_else(|| {
+                    ServerError::Refused(
+                        ErrorCode::NotAuthenticated,
+                        "no Bearer account token was supplied in Authorization".into(),
+                    )
+                })?;
+                let profile = self.store.resolve_token(&token).await?;
+                let mut response = self.authenticated(request, profile, token).await;
+                if let ServerMessage::Authenticated { token, .. } = &mut response {
+                    token.clear();
+                }
+                Ok(response)
             }
             ClientMessage::Authenticate { request, token } => {
                 let profile = self.store.resolve_token(&token).await?;
@@ -1328,3 +1355,11 @@ pub async fn add_account(
 
 #[cfg(test)]
 mod tests;
+
+fn bearer(header: Option<&str>) -> Option<String> {
+    let (scheme, token) = header?.split_once(' ')?;
+    (scheme.eq_ignore_ascii_case("Bearer")
+        && !token.is_empty()
+        && !token.chars().any(char::is_whitespace))
+    .then(|| token.to_owned())
+}

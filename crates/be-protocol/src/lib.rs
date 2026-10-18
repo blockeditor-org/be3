@@ -333,6 +333,9 @@ pub enum ClientMessage {
         request: u64,
         token: String,
     },
+    AuthenticateHeader {
+        request: u64,
+    },
     Logout {
         request: u64,
     },
@@ -658,6 +661,7 @@ impl ClientMessage {
             Self::Register { request, .. }
             | Self::Login { request, .. }
             | Self::Authenticate { request, .. }
+            | Self::AuthenticateHeader { request }
             | Self::Logout { request }
             | Self::Invite { request, .. }
             | Self::GetInvitation { request, .. }

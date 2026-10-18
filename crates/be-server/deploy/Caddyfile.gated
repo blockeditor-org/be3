@@ -1,12 +1,12 @@
 # Caddyfile with the whole site behind a key: requests carrying
-# `Authorization: Bearer KEY` (the native app, be, the build server's clients)
+# `Be3-Gateway-Authorization: Bearer KEY` (the native app, be, the build server's clients)
 # or the `be3_gate` cookie holding KEY get through. A browser cannot put a
 # header on a websocket, so anything else is answered with a page that asks for
 # the key and keeps it in that cookie, which the browser then sends with every
 # request, the web app's websocket included; the key never goes in a URL.
 # Replace notes.example.com and KEY.
 notes.example.com {
-	@authorized expression `{http.request.header.Authorization} == "Bearer KEY" || {http.request.cookie.be3_gate} == "KEY"`
+	@authorized expression `{http.request.header.Be3-Gateway-Authorization} == "Bearer KEY" || {http.request.cookie.be3_gate} == "KEY"`
 
 	handle @authorized {
 		handle /api* {

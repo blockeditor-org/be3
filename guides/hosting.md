@@ -8,8 +8,8 @@ How the server runs on a VPS for real notes. The files referred to are in
 - be-server listens on `127.0.0.1:9090` and is never exposed directly: it
   speaks plain websockets with no TLS, and the same protocol over HTTP posts
   at `/api/be/http` for clients behind a proxy that refuses websockets (`be`).
-- It never reads `Authorization`, so Caddy can gate the site on that header;
-  the app (Authorization header when adding an account on a remote server) and
+- Caddy can gate the site on `Be3-Gateway-Authorization`;
+  the app (Gateway authorization header when adding an account on a remote server) and
   `be` (`BE3_AUTHORIZATION`) send one.  `Caddyfile.gated`
   is the site behind such a key: a browser cannot put a header on a websocket,
   so anyone else gets a page that asks for the key and keeps it in a cookie,
@@ -122,3 +122,20 @@ it. `be-server --help` describes what a backup holds and keeps.
 
 - Never run `CollectDetached` or `PruneHistory` against the server. The app
   never sends them, and the backups never delete objects either.
+
+## Proxy account credentials
+
+`Authorization: Bearer <account token>` is reserved for be-server account
+sessions. Native and browser clients can keep sending their account token in
+protocol messages. A proxy can instead inject the header into WebSocket upgrades
+or every HTTP POST; clients send `AuthenticateHeader` to use it. The server
+validates the same session tokens and returns an empty token field for this
+request, keeping the injected secret outside the client. HTTP sessions require
+the same account header on every request.
+
+The agent dialog's proxy checkbox omits the token from its JSON bundle and sets
+`authentication` to `proxy`. The recovery phrase stays in the bundle for local
+decryption. `BE3_AUTHORIZATION` and the native app's gateway field now send
+`Be3-Gateway-Authorization`; existing Caddy configuration and proxy rules must
+switch together. Browsers use the gateway cookie because their WebSocket API
+cannot set request headers.

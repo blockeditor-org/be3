@@ -35,6 +35,7 @@ pub enum Credentials {
         password: String,
     },
     Token(String),
+    Header,
 }
 
 impl Credentials {
@@ -55,6 +56,7 @@ impl Credentials {
                 email,
                 password,
             },
+            Self::Header => ClientMessage::AuthenticateHeader { request },
             Self::Token(token) => ClientMessage::Authenticate { request, token },
         }
     }

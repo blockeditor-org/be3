@@ -33,5 +33,21 @@ fn a_personal_organization_can_create_an_agent() {
     app.click("#app.agents.name");
     app.crop("Dialog \"Agents\"");
     app.snapshot("agent_credentials_are_copied_as_one_secret");
+    app.click("#app.agents.proxy");
+    app.click("#app.agents.copy");
+    let proxy = app.run(&["clipboard"]);
+    assert!(proxy.contains("\"authentication\":\"proxy\""));
+    assert!(!proxy.contains("\"token\":"));
+    app.click("#app.agents.header");
+    app.key("ctrl+a");
+    app.type_text("Bearer example-agent-token");
+    app.key("Home");
+    app.click("#app.agents.credentials");
+    app.key("ctrl+a");
+    app.type_text(r#"{"server":"https://blocks.example","organization":"00000000-0000-0000-0000-000000000001","authentication":"proxy","recovery_phrase":"example agent recovery phrase"}"#);
+    app.key("Home");
+    app.click("#app.agents.name");
+    app.crop("Dialog \"Agents\"");
+    app.snapshot("agent_account_token_is_supplied_by_proxy");
     app.close();
 }

@@ -26,7 +26,11 @@ variables, never that file.
 The bundle supplies all four connection fields together and takes precedence over
 the individual `BE3_SERVER`, `BE3_ORGANIZATION`, `BE3_TOKEN` and
 `BE3_RECOVERY_PHRASE` variables, which a directly invoked CLI also accepts.
-`BE3_AUTHORIZATION` supplies a separate gateway header if needed. Treat the whole
+`BE3_AUTHORIZATION` supplies a separate `Be3-Gateway-Authorization` header if needed.
+Select “Account token supplied by proxy” in the agent dialog to copy a bundle
+without the account token. Configure the proxy to inject the shown
+`Authorization: Bearer ...` value on every request to the server; the bundle’s
+`authentication: "proxy"` selects header authentication in `be`. Treat the whole
 bundle as secret. A `be` built from the
 checkout (`./scripts/buck run //crates/be-cli:native -- ARGS`) carries that
 checkout's build id, so it talks to the dev app built from the same tree, and
@@ -169,4 +173,4 @@ them in the handoff.
 - **Proxies.** `be-client` tunnels `https` and `wss` through `HTTPS_PROXY` and
   trusts the certificates in `SSL_CERT_FILE` as well as the usual roots, which
   is what a cloud environment's proxy needs. That proxy may add the gateway's
-  `Authorization` header itself, so `BE3_AUTHORIZATION` can stay unset there.
+  `Be3-Gateway-Authorization` header itself, so `BE3_AUTHORIZATION` can stay unset there.

@@ -470,15 +470,24 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
             created.name
         )
     });
-    let credentials = field(|created| {
-        serde_json::json!({
+    let (proxy, set_proxy) = create_signal(false);
+    let credentials = create_memo(move || {
+        let Some(created) = created.get() else {
+            return String::new();
+        };
+        let mut bundle = serde_json::json!({
             "server": created.server,
             "organization": created.organization,
-            "token": created.token,
             "recovery_phrase": created.phrase,
-        })
-        .to_string()
+        });
+        if proxy.get() {
+            bundle["authentication"] = "proxy".into();
+        } else {
+            bundle["token"] = created.token.into();
+        }
+        bundle.to_string()
     });
+    let header = field(|created| format!("Bearer {}", created.token));
     view! {
         <List spacing=6.0>
             <Text
@@ -487,6 +496,31 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                 wrap=true
                 @test_id={"app.agents.credentials-help"}
             />
+            <Checkbox
+                label="Account token supplied by proxy"
+                checked={proxy}
+                on_change={move |on: bool| set_proxy.set(on)}
+                @test_id={"app.agents.proxy"}
+            />
+            <Show condition={proxy}>
+                <List spacing=6.0>
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="Add a proxy rule for the server in these credentials (blocks.pfg.pw for the hosted service). Set its Authorization header to the value below and keep it outside the agent container. If a gateway secret is required, add Be3-Gateway-Authorization: Bearer <gateway secret> as a separate rule."
+                        wrap=true
+                    />
+                    <TextInput
+                        value={header}
+                        label="Proxy Authorization header"
+                        @test_id={"app.agents.header"}
+                    />
+                    <Button
+                        label="Copy authorization header"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || copy_text(header.get_untracked())}
+                    />
+                </List>
+            </Show>
             <TextInput
                 value={credentials}
                 label="Agent credentials"

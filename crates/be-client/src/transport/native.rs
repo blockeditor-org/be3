@@ -50,7 +50,7 @@ pub(crate) async fn connect(url: &str) -> Result<(Writer, Reader), String> {
         .map_err(|error| error.to_string())?;
     if let Some(header) = crate::authorization(url) {
         request.headers_mut().insert(
-            "authorization",
+            "be3-gateway-authorization",
             header
                 .parse()
                 .map_err(|_| "the Authorization header is not valid".to_owned())?,

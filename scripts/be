@@ -6,7 +6,7 @@
 #
 # BE3_AGENT_CREDENTIALS holds the JSON copied from the app's Agents dialog.
 # Otherwise read that JSON from external/.tracker-credentials, fetched by setup.
-# BE3_AUTHORIZATION can supply a separate gateway Authorization header.
+# BE3_AUTHORIZATION can supply a separate gateway Be3-Gateway-Authorization header.
 #
 # Usage:
 #   ./scripts/be ls

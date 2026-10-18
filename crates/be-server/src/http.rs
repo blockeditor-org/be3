@@ -139,7 +139,13 @@ async fn serve(
         }
         buffer = body.split_off(head.length);
         services.http.sweep().await;
-        let answer = answer(head.session.as_deref(), &body, services).await?;
+        let answer = answer(
+            head.session.as_deref(),
+            head.authorization.as_deref(),
+            &body,
+            services,
+        )
+        .await?;
         respond(
             &mut stream,
             answer.status,
@@ -167,6 +173,7 @@ struct Answer {
 
 async fn answer(
     session: Option<&str>,
+    authorization: Option<&str>,
     body: &[u8],
     services: &Services,
 ) -> Result<Answer, ServerError> {
@@ -182,7 +189,11 @@ async fn answer(
         let theirs = frames.first().and_then(|frame| read_hello(frame));
         let (ours, compatible) = greeting(theirs.as_deref())?;
         let session = match compatible {
-            true => Some(services.http.insert(Client::open(services).await)),
+            true => {
+                let mut client = Client::open(services).await;
+                client.connection.header_token = crate::bearer(authorization);
+                Some(services.http.insert(client))
+            }
             false => None,
         };
         return Ok(Answer {
@@ -206,6 +217,14 @@ async fn answer(
     let Some(client) = held.client.as_mut() else {
         return Ok(gone);
     };
+    if client.connection.header_token != crate::bearer(authorization) {
+        return Ok(Answer {
+            status: 401,
+            session: None,
+            body: b"account authorization changed".to_vec(),
+            keep: false,
+        });
+    }
     let mut answers = Vec::new();
     for frame in frames {
         for message in client.answer(frame).await {
@@ -289,6 +308,7 @@ struct Head {
     length: usize,
     session: Option<String>,
     close: bool,
+    authorization: Option<String>,
 }
 
 impl Head {
@@ -322,6 +342,7 @@ impl Head {
             length,
             session,
             close,
+            authorization: header("authorization").map(str::to_owned),
         })
     }
 }

@@ -75,7 +75,7 @@ Environment:
   BE3_TOKEN             The agent's token
   BE3_ORGANIZATION      The organization, when the account is in more than one
   BE3_SERVER            The server (default: https://blocks.pfg.pw)
-  BE3_AUTHORIZATION     An Authorization header a gateway in front of the server wants
+  BE3_AUTHORIZATION     A Be3-Gateway-Authorization header a gateway in front of the server wants
   BE3_CACHE             Where it keeps the objects it reads (default: ~/.cache/be3/be)";
 
 #[derive(Clone, Debug, Default, PartialEq, Eq)]
