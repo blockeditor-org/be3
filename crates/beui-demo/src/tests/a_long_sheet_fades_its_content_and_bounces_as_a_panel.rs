@@ -9,7 +9,7 @@ use beui_macros::view;
 fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
     let document = build(move || {
         view! {
-            <ModalSheet open=true rest=0.9 on_close={|| ()}>
+            <ModalSheet open=true rest=0.5 on_close={|| ()}>
                 <List spacing=0.0>
                     <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize| {
                         view! {
@@ -33,6 +33,13 @@ fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
         }]);
     };
     test.settle();
+    let from = test.rect_of("sheet.outside").center();
+    touch(&mut test, TouchPhase::Start, from);
+    touch(&mut test, TouchPhase::Move, from - vec2(0.0, 230.0));
+    test.snapshot("half_open_sheet_expands_from_the_backdrop");
+    touch(&mut test, TouchPhase::End, from - vec2(0.0, 230.0));
+    test.settle();
+    assert_eq!(test.rect_of("sheet.handle").top(), 60.0);
     test.snapshot("sheet_fades_at_the_start");
     test.scroll_at(pos2(200.0, 300.0), vec2(0.0, -300.0));
     test.settle();

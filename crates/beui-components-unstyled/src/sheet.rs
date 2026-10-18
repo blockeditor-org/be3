@@ -93,6 +93,7 @@ enum Slide {
 struct Held {
     travel: Option<f32>,
     handle: Option<f32>,
+    dismiss_drag: bool,
     phase: Phase,
     slide: Slide,
     flung: f32,
@@ -271,10 +272,14 @@ impl Motion {
                 || matches!(held.slide, Slide::Returning { .. })
         };
         if displaced {
-            let height = self.height();
-            self.place_height(Rest::Free((height - self.shifted.get()).max(0.0)));
-            self.place_shift(0.0, height);
             self.held.borrow_mut().slide = Slide::Shown;
+            if self.content().0 > 0.0 {
+                self.return_back();
+            } else {
+                let height = self.height();
+                self.place_height(Rest::Free((height - self.shifted.get()).max(0.0)));
+                self.place_shift(0.0, height);
+            }
         }
         let travel = self.travel(&shape);
         let mut held = self.held.borrow_mut();
@@ -339,7 +344,11 @@ impl Motion {
         if untrack(|| self.open.get()) {
             self.held.borrow_mut().flung = 0.0;
             self.start(Phase::Snap {
-                target: self.resting,
+                target: if self.content().0 > 0.0 {
+                    self.top_rest()
+                } else {
+                    self.resting
+                },
                 velocity: 0.0,
                 closes: false,
             });
@@ -435,6 +444,7 @@ impl Motion {
             let mut held = self.held.borrow_mut();
             held.travel = None;
             held.handle = None;
+            held.dismiss_drag = false;
             held.phase = Phase::Still;
             let from = self.shifted.get().min(height);
             let velocity = std::mem::take(&mut held.flung);
@@ -660,9 +670,25 @@ impl Motion {
         }
     }
 
+    fn grab_handle(&self) {
+        if self.content().0 > 0.0 {
+            self.place_height(self.top_rest());
+            let mut held = self.held.borrow_mut();
+            held.phase = Phase::Still;
+            held.slide = Slide::Shown;
+            held.dismiss_drag = true;
+            held.travel = Some(self.shifted.get());
+            self.set_dragging.set(true);
+        } else {
+            self.grab();
+            let mut held = self.held.borrow_mut();
+            held.dismiss_drag = false;
+            held.travel = Some(self.height());
+        }
+    }
+
     fn handle_press(&self, press: PointerPress) {
-        self.grab();
-        self.held.borrow_mut().travel = Some(self.height());
+        self.grab_handle();
         self.held.borrow_mut().handle = Some(press.pos.y);
     }
 
@@ -674,6 +700,19 @@ impl Motion {
     }
 
     fn pull_handle(&self, delta: f32) {
+        if self.held.borrow().dismiss_drag {
+            let height = self.height();
+            let shift = {
+                let mut held = self.held.borrow_mut();
+                let Some(travel) = held.travel.as_mut() else {
+                    return;
+                };
+                *travel = (*travel + delta).clamp(0.0, height);
+                *travel
+            };
+            self.place_shift(shift, height);
+            return;
+        }
         let shape = self.shape();
         let height = {
             let mut held = self.held.borrow_mut();
@@ -695,6 +734,16 @@ impl Motion {
             return;
         }
         self.set_dragging.set(false);
+        if std::mem::take(&mut self.held.borrow_mut().dismiss_drag) {
+            if self.shifted.get() - velocity * PROJECTION > self.height() * CLOSE_SHARE {
+                self.close((-velocity).max(0.0));
+            } else {
+                self.start(Phase::SheetBounce {
+                    velocity: -velocity,
+                });
+            }
+            return;
+        }
         let phase = self.snap_phase(self.height(), velocity, &self.shape());
         if let Phase::Snap {
             velocity,
@@ -710,20 +759,32 @@ impl Motion {
 
     fn outside_drag(&self, gesture: DragGesture) {
         if self.held.borrow().travel.is_none() {
-            self.grab();
-            self.held.borrow_mut().travel = Some(self.height());
+            self.grab_handle();
         }
         self.pull_handle(gesture.delta.y);
         if gesture.ended {
             self.release_handle(-gesture.velocity.y);
         } else if gesture.cancelled {
+            self.cancel_handle();
+        }
+    }
+
+    fn cancel_handle(&self) {
+        if self.held.borrow().dismiss_drag {
+            let mut held = self.held.borrow_mut();
+            held.travel = None;
+            held.dismiss_drag = false;
+            drop(held);
+            self.set_dragging.set(false);
+            self.start(Phase::SheetBounce { velocity: 0.0 });
+        } else {
             self.release_handle(0.0);
         }
     }
 
     fn handle_cancel(&self) {
         if self.held.borrow_mut().handle.take().is_some() {
-            self.release_handle(0.0);
+            self.cancel_handle();
         }
     }
 
@@ -738,6 +799,7 @@ impl Motion {
         let mut held = self.held.borrow_mut();
         held.travel = None;
         held.handle = None;
+        held.dismiss_drag = false;
         held.phase = Phase::Still;
         drop(held);
         self.set_dragging.set(false);
@@ -898,6 +960,7 @@ pub fn Sheet(
         held: RefCell::new(Held {
             travel: None,
             handle: None,
+            dismiss_drag: false,
             phase: Phase::Still,
             slide: Slide::Gone,
             flung: 0.0,

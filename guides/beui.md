@@ -705,7 +705,10 @@ stop nearest where the flick was heading, or closed below the lowest one, and
 its content flings and bounces at its bottom end as a `Scroll` does. A fling
 reaching the content's start bounces the whole sheet down and back without
 changing its stop or dismissing it. Dragging the handle, or the backdrop above
-a modal sheet, lowers the sheet independently of its scroll position. The
+a modal sheet, resizes an unscrolled sheet between its stops without scrolling
+its content. When the content is scrolled, the same drag translates the whole
+sheet without resizing it or changing its scroll position: release returns it
+to fully open or dismisses it, with no intermediate stop. The
 handle also works with a mouse, and going back closes the sheet. Styled sheets
 fade the content at edges with more to scroll, using the same opacity mask as
 styled scrollers; unstyled sheets take a concrete `fade` length.
