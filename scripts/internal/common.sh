@@ -339,6 +339,7 @@ buck2_release_sha256() {
 # mirror as be/<release>/be-<triple>/, by the same triple buck2's releases are
 # named after, and its be is checked against these hashes. An empty hash is a platform with no
 # release uploaded yet.
+be_mirror='https://lfs.pfg.pw/by-name/be3/be'
 be_release='073e378a994d27dba6edd5e564c09a42ce1a860a'
 be_sha256_x86_64_unknown_linux_gnu='2fbed783cb39bbf59e5afa14d43e7b4a73834900261c163500d2105dd35e27b5'
 be_sha256_aarch64_unknown_linux_gnu='f6701a88da6a1660be6a151ec3292be5a5d7feb3183fcd8a4b97ad458c913d96'

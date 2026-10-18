@@ -20,7 +20,7 @@ The wrapper passes it to `be` as `BE3_AGENT_CREDENTIALS`; `be` reads environment
 variables, never that file.
 
 ```json
-{"server":"https://blocks.pfg.pw","organization":"<organization UUID>","token":"<agent token>","recovery_phrase":"<agent recovery phrase>"}
+{"server":"https://api.be3.pfg.pw","organization":"<organization UUID>","token":"<agent token>","recovery_phrase":"<agent recovery phrase>"}
 ```
 
 The bundle supplies all four connection fields together and takes precedence over
@@ -34,7 +34,7 @@ without the account token. Configure the proxy to inject the shown
 bundle as secret. A `be` built from the
 checkout (`./scripts/buck run //crates/be-cli:native -- ARGS`) carries that
 checkout's build id, so it talks to the dev app built from the same tree, and
-the real server refuses it. `BE3_SERVER` is `https://blocks.pfg.pw` unless
+the real server refuses it. `BE3_SERVER` is `https://api.be3.pfg.pw` unless
 set. `be` speaks to the server over HTTP posts (`/api/be/http`), since a cloud
 environment's proxy refuses websockets; requests made together share one post.
 It keeps the objects it reads in `~/.cache/be3/be/ORGANIZATION` (`BE3_CACHE`),

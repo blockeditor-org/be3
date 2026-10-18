@@ -1,15 +1,10 @@
-notes.example.com {
+api.be3.pfg.pw {
+	@foreignOrigin expression `{http.request.header.Origin} != "" && {http.request.header.Origin} != "https://be3.pfg.pw"`
 	handle /api* {
+		respond @foreignOrigin "This web origin is not allowed" 403
 		reverse_proxy 127.0.0.1:9090
 	}
 	handle {
-		header {
-			Cross-Origin-Opener-Policy same-origin
-			Cross-Origin-Embedder-Policy require-corp
-			Cache-Control no-cache
-		}
-		file_server {
-			root /srv/be3-web
-		}
+		redir https://be3.pfg.pw/web?{query} 302
 	}
 }

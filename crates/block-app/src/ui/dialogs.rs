@@ -506,7 +506,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                 <List spacing=6.0>
                     <Text
                         style=TextStyle::PARAGRAPH
-                        string="Add a proxy rule for the server in these credentials (blocks.pfg.pw for the hosted service). Set its Authorization header to the value below and keep it outside the agent container. If a gateway secret is required, add Be3-Gateway-Authorization: Bearer <gateway secret> as a separate rule."
+                        string="Add a proxy rule for the server in these credentials (api.be3.pfg.pw for the hosted service). Set its Authorization header to the value below and keep it outside the agent container. If a gateway secret is required, add Be3-Gateway-Authorization: Bearer <gateway secret> as a separate rule."
                         wrap=true
                     />
                     <TextInput

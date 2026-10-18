@@ -5,7 +5,7 @@ use be_protocol::{ClientMessage, ServerMessage};
 use be_store::FileStore;
 use uuid::Uuid;
 
-pub const DEFAULT_SERVER: &str = "https://blocks.pfg.pw";
+pub const DEFAULT_SERVER: &str = "https://api.be3.pfg.pw";
 
 #[derive(Clone, Debug)]
 pub struct Settings {

@@ -275,7 +275,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
     let error = create_memo(move || view.add_account.get().error);
     let (register, set_register) = create_signal(false);
     let (remote, set_remote) = create_signal(!platform::HAS_EMBEDDED_SERVER);
-    let (remote_url, set_remote_url) = create_signal(String::new());
+    let (remote_url, set_remote_url) = create_signal(platform::default_account_server());
     let (authorization, set_authorization) = create_signal(String::new());
     let (email, set_email) = create_signal(String::new());
     let (display_name, set_display_name) = create_signal(String::new());
@@ -285,7 +285,7 @@ fn AddAccountDialog(view: AppViewStore) -> NodeId {
         untrack(|| {
             set_register.set(false);
             set_remote.set(!platform::HAS_EMBEDDED_SERVER);
-            set_remote_url.set(String::new());
+            set_remote_url.set(platform::default_account_server());
             set_authorization.set(String::new());
             set_email.set(String::new());
             set_display_name.set(String::new());

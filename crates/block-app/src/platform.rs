@@ -50,3 +50,13 @@ impl<T> Drop for Deliver<T> {
         }
     }
 }
+
+pub(crate) fn default_account_server() -> String {
+    #[derive(serde::Deserialize)]
+    struct AppConfig {
+        account_server: String,
+    }
+    serde_json::from_str::<AppConfig>(include_str!("app-config.json"))
+        .expect("valid bundled app configuration")
+        .account_server
+}
