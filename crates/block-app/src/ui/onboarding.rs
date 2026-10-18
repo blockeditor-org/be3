@@ -593,14 +593,14 @@ pub(super) fn AddAccountDialog(
                     <Show condition={editing}>
                         <Button
                             label="Back"
-                            variant=ButtonVariant::Ghost
+                            variant=ButtonVariant::Secondary
                             on_click={move || { set_selection.set(None); send(UiCommand::RetryAccount); }}
                         />
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Button
                         label="Cancel"
-                        variant=ButtonVariant::Ghost
+                        variant=ButtonVariant::Secondary
                         on_click={|| send(UiCommand::CloseAddAccount)}
                     />
                     <Show condition={show_footer_primary}>
@@ -1043,7 +1043,11 @@ pub(super) fn ReauthDialog(view: AppViewStore) -> NodeId {
                 </Show>
                 <Separator />
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Link label="Log out" on_click={|| send(UiCommand::ReauthLogOut)} />
+                    <Button
+                        label="Log out"
+                        variant=ButtonVariant::Secondary
+                        on_click={|| send(UiCommand::ReauthLogOut)}
+                    />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Button
                         label="Continue in browser"
