@@ -45,8 +45,14 @@ fn InviteDialog(view: AppViewStore) -> NodeId {
 fn AgentsDialog(view: AppViewStore) -> NodeId {
     let agents = view.agents;
     let open = create_memo(move || agents.get().is_some());
+    let title = create_memo(
+        move || match agents.get().and_then(|agents| agents.created) {
+            Some(_) => "Agent credentials".to_owned(),
+            None => "Agents".to_owned(),
+        },
+    );
     view! {
-        <Dialog open={open} title="Agents" width=460.0 on_dismiss={|| send(UiCommand::CloseAgents)}>
+        <Dialog open={open} title={title} width=460.0 on_dismiss={|| send(UiCommand::CloseAgents)}>
             <AgentsPanel view />
         </Dialog>
     }
@@ -379,6 +385,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
     let error = create_memo(move || shown.get().error);
     let created = create_memo(move || shown.get().created);
     let made = create_memo(move || created.get().is_some());
+    let creating = create_memo(move || !made.get());
     let keys = create_memo(move || {
         shown
             .get()
@@ -399,58 +406,66 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
     view! {
         <Frame>
             <List spacing=8.0>
-                <Text style=TextStyle::CAPTION string={organization} />
-                <Text
-                    style=TextStyle::CAPTION
-                    string="An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
-                    wrap=true
-                />
-                <Show condition={none}>
-                    <Text style=TextStyle::CAPTION string="No agents yet." />
-                </Show>
-                <ForEach keys={keys}>|account: Uuid| {
-                    let label = create_memo(move || {
-                        names
-                            .get()
-                            .agents
-                            .iter()
-                            .find(|agent| agent.account == account)
-                            .map(|agent| agent.name.clone())
-                            .unwrap_or_default()
-                    });
-                    view! {
+                <Show condition={creating}>
+                    <List spacing=8.0>
+                        <Text style=TextStyle::CAPTION string={organization} />
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
+                            wrap=true
+                        />
+                        <Show condition={none}>
+                            <Text style=TextStyle::CAPTION string="No agents yet." />
+                        </Show>
+                        <ForEach keys={keys}>|account: Uuid| {
+                            let label = create_memo(move || {
+                                names
+                                    .get()
+                                    .agents
+                                    .iter()
+                                    .find(|agent| agent.account == account)
+                                    .map(|agent| agent.name.clone())
+                                    .unwrap_or_default()
+                            });
+                            view! {
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=8.0
+                                >
+                                    <Text @sizing=ItemSize::Percent(100.0) string={label} />
+                                    <IconButton
+                                        glyph={ICON_DELETE.to_owned()}
+                                        label="Remove agent"
+                                        @test_id={format!("app.agents.remove.{account}")}
+                                        on_click={move || send(UiCommand::RemoveAgent(account))}
+                                    />
+                                </List>
+                            }
+                        }</ForEach>
+                        <Text style=TextStyle::CAPTION string="Name" />
+                        <TextInput
+                            value={name}
+                            label="Agent name"
+                            @test_id={"app.agents.name"}
+                            on_change={move |value: String| set_name.set(value)}
+                        />
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Text @sizing=ItemSize::Percent(100.0) string={label} />
-                            <IconButton
-                                glyph={ICON_DELETE.to_owned()}
-                                label="Remove agent"
-                                @test_id={format!("app.agents.remove.{account}")}
-                                on_click={move || send(UiCommand::RemoveAgent(account))}
+                            <Button
+                                label="Add agent"
+                                variant=ButtonVariant::Primary
+                                disabled={cannot}
+                                @test_id={"app.agents.add"}
+                                on_click={move || send(UiCommand::CreateAgent(name.get_untracked()))}
                             />
+                            <Show condition={busy}>
+                                <Spinner />
+                            </Show>
+                            <Spacer @sizing=ItemSize::Percent(100.0) />
                         </List>
-                    }
-                }</ForEach>
-                <Text style=TextStyle::CAPTION string="Name" />
-                <TextInput
-                    value={name}
-                    label="Agent name"
-                    @test_id={"app.agents.name"}
-                    on_change={move |value: String| set_name.set(value)}
-                />
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Button
-                        label="Add agent"
-                        variant=ButtonVariant::Primary
-                        disabled={cannot}
-                        @test_id={"app.agents.add"}
-                        on_click={move || send(UiCommand::CreateAgent(name.get_untracked()))}
-                    />
-                    <Show condition={busy}>
-                        <Spinner />
-                    </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
-                <ErrorText text={error} />
+                        <ErrorText text={error} />
+                    </List>
+                </Show>
                 <Show condition={made}>
                     <AgentCredentials created={created} />
                 </Show>
@@ -531,6 +546,12 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                 variant=ButtonVariant::Secondary
                 @test_id={"app.agents.copy"}
                 on_click={move || copy_text(credentials.get_untracked())}
+            />
+            <Button
+                label="Done"
+                variant=ButtonVariant::Primary
+                @test_id={"app.agents.done"}
+                on_click={|| send(UiCommand::CloseAgents)}
             />
         </List>
     }
