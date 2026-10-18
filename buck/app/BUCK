@@ -1,9 +1,9 @@
-# The build-id file a program reads beside its executable: the hash of the
+# The build-info.json file a program reads beside its executable: the hash of the
 # tree it was built from, which ./scripts/buck writes here before each command
 # (write_build_id in scripts/internal/common.sh) and git ignores. Only the
 # bundles read it, so a new id rebuilds nothing else.
 export_file(
-    name = "build-id",
+    name = "build-info.json",
     visibility = ["PUBLIC"],
 )
 

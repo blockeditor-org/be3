@@ -41,7 +41,7 @@ How the server runs on a VPS for real notes. The files referred to are in
 
 1. Build `//crates/be-server:dist` for the VPS
    (`./scripts/buck build //crates/be-server:dist --out DIR`), copy `DIR/be-server`
-   to `/usr/local/bin/be-server` and `DIR/build-id` to `/etc/be-server/build-id`.
+   to `/usr/local/bin/be-server` and `DIR/build-info.json` to `/etc/be-server/build-info.json`.
    The server refuses clients of any other build, so upgrade it together with
    the web bundle and every device, all from one commit.
 2. `useradd --system --home /var/lib/be-server be-server`.
@@ -76,7 +76,7 @@ How the server runs on a VPS for real notes. The files referred to are in
   neither needs the keystore;
 - uploads the unpacked web bundle and plugins to `data/BUILD/web/` and archives the
   server executable and its build ID to `data/BUILD/server/` in the same zone;
-- copies only `be-server` and its `build-id` to the VPS over SSH, stops
+- copies only `be-server` and its `build-info.json` to the VPS over SSH, stops
   be-server, swaps the files and starts it again. Caddy stays running;
 - after that succeeds, publishes `/web`, the matching app HTML with a
   `<base href="/data/BUILD/web/">` before its import map and scripts. The browser
@@ -180,4 +180,4 @@ decryption. `BE3_AUTHORIZATION` and the native app's gateway field now send
 switch together. Browsers use the gateway cookie because their WebSocket API
 cannot set request headers.
 
-The app embeds `crates/block-app/src/app-config.json` in both native and web builds. Its `account_server` prefills the server address when adding an account; self-hosted builds should set it to their API URL. Saved accounts keep their own server address. This configuration is independent of the `build-id` compatibility stamp.
+The app embeds `crates/block-app/src/app-config.json` in both native and web builds. Its `account_server` prefills the server address when adding an account; self-hosted builds should set it to their API URL. Saved accounts keep their own server address. This configuration is independent of the `build-info.json` bundle metadata.

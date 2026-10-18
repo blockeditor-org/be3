@@ -77,7 +77,11 @@ use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
 use uuid::Uuid;
 
 #[cfg(not(target_arch = "wasm32"))]
-const APP_ID: &str = "Block";
+fn app_id() -> &'static str {
+    build_id::metadata()
+        .map(|info| info.app_id.as_str())
+        .unwrap_or("BlockDev")
+}
 
 pub(crate) fn build() -> &'static str {
     build_id::current().unwrap_or("no build id")
@@ -87,7 +91,7 @@ fn run_options() -> beui::RunOptions {
     let mut options = beui::RunOptions::new("Block");
     #[cfg(not(target_arch = "wasm32"))]
     {
-        options.app_id = Some(APP_ID.to_owned());
+        options.app_id = Some(app_id().to_owned());
     }
     options.size = beui::vec2(1100.0, 720.0);
     options
@@ -95,7 +99,7 @@ fn run_options() -> beui::RunOptions {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_dir() -> Option<PathBuf> {
-    directories_next::ProjectDirs::from("", "", APP_ID).map(|dirs| dirs.data_dir().to_path_buf())
+    directories_next::ProjectDirs::from("", "", app_id()).map(|dirs| dirs.data_dir().to_path_buf())
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
@@ -588,7 +592,7 @@ const CACHES: [&str; 2] = ["be-objects", "plugin-cache"];
 
 #[cfg(not(target_arch = "wasm32"))]
 fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
-    let stamp = data_dir.join(build_id::FILE);
+    let stamp = data_dir.join("build-id");
     let current = build_id::current().map_err(io::Error::other)?;
     if std::fs::read_to_string(&stamp).is_ok_and(|cached| cached == current) {
         return Ok(());

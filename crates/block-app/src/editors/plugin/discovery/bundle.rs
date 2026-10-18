@@ -37,7 +37,7 @@ static ASSETS: std::sync::OnceLock<beui::AndroidApp> = std::sync::OnceLock::new(
 pub(crate) fn use_assets(app: beui::AndroidApp) {
     let _ = ASSETS.set(app);
     if let Ok(id) = read(build_id::FILE) {
-        build_id::install(&String::from_utf8_lossy(&id));
+        let _ = build_id::install_metadata(&String::from_utf8_lossy(&id));
     }
 }
 

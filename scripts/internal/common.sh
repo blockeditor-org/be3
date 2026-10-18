@@ -257,7 +257,7 @@ buck2_path() {
     echo "$repository/target/tools/buck2-$buck2_version/buck2$(buck2_binary_suffix)"
 }
 
-# Which build this checkout makes, for buck/app's build-id file: the hash of
+# Which build this checkout makes, for buck/app's build-info.json file: the hash of
 # the working tree, taken through a throwaway index so untracked files count
 # and ignored ones do not. It names the content rather than a commit, so a
 # merge queue's commit, or any other commit of the same tree, is the same
@@ -272,12 +272,16 @@ build_id() {
     echo "${tree:-unknown}"
 }
 
-# Writes the build id where //buck/app:build-id reads it, buck/app/build-id,
+# Writes the build id where //buck/app:build-info.json reads it, buck/app/build-info.json,
 # which git ignores. As a source file, a new id invalidates only what reads
 # it, and it is rewritten only when it changes.
 write_build_id() {
-    local path="$repository/buck/app/build-id" id
+    local path="$repository/buck/app/build-info.json" id
     id="${BE3_BUILD_ID:-$(build_id)}"
+    case "$id" in *[!a-zA-Z0-9._+-]*) echo "Invalid BE3_BUILD_ID" >&2; return 1 ;; esac
+    local app_id="${BE3_APP_ID:-BlockDev}"
+    case "$app_id" in Block|BlockDev) ;; *) echo "Invalid BE3_APP_ID" >&2; return 1 ;; esac
+    id="$(printf '{"id":"%s","app_id":"%s"}' "$id" "$app_id")"
     if [[ "$(cat "$path" 2> /dev/null)" != "$id" ]]; then
         printf '%s\n' "$id" > "$path.$$"
         mv -f "$path.$$" "$path"
@@ -333,13 +337,14 @@ buck2_release_sha256() {
 
 # The be release ./scripts/be runs: the tracker's command line tool
 # (guides/tracker.md), built from the same tree as the be-server the tracker
-# lives on. The release is that server's build id (its build-id file), which
+# lives on. The release is that server's build id (its build-info.json file), which
 # install-be.sh writes beside be, so the server refuses this be once it is
 # deployed from another build. Each platform's :be bundle is uploaded to the
 # mirror as be/<release>/be-<triple>/, by the same triple buck2's releases are
 # named after, and its be is checked against these hashes. An empty hash is a platform with no
 # release uploaded yet.
 be_mirror='https://lfs.pfg.pw/by-name/be3/be'
+be_metadata_file='build-id'
 be_release='073e378a994d27dba6edd5e564c09a42ce1a860a'
 be_sha256_x86_64_unknown_linux_gnu='2fbed783cb39bbf59e5afa14d43e7b4a73834900261c163500d2105dd35e27b5'
 be_sha256_aarch64_unknown_linux_gnu='f6701a88da6a1660be6a151ec3292be5a5d7feb3183fcd8a4b97ad458c913d96'

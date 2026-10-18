@@ -16,6 +16,9 @@ guide is for what that does not cover.
   (guides/linux_desktop.md).
 
 `./scripts/buck run //crates/block-app:native` runs it in a window, with every plugin beside it.
+The bundle’s `build-info.json` selects the app identity: local builds use
+`BlockDev` (`~/.local/share/blockdev` on Linux), and deploy uses `Block`.
+They keep separate accounts, workspaces and caches, including for local release builds.
 
 ## In a window
 

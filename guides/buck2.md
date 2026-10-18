@@ -45,12 +45,15 @@ one build can hold both, and every transition keeps it. Every other build is car
 crypto crates), which `crates.bzl` carries as each crate's rustc flags.
 
 Which build a program is lives in a file beside it, never in its code:
-`//buck/app:build-id` is the file `buck/app/build-id`, and every bundle
+`//buck/app:build-info.json` is the JSON file `buck/app/build-info.json`, and every bundle
 (`:native`, `:native-dist`, `:web`, `:web-dist`, the APK's assets, be-cli's
 `:native`, be-server's `:dist`)
 carries it. A client and a server refuse each other unless their ids match, a
 program that finds no id refuses to connect or serve, and the app shows the id
-as its build. The id is the hash of the tree, not of a commit, so two commits
+as its build. The metadata contains `id` (the compatibility identity) and `app_id` (`BlockDev`
+by default, `Block` for deploy). The app reads `app_id` at startup for its window
+and data directory, so deployment identity changes only packaging. `BE3_APP_ID`
+selects it when generating the file. The id is the hash of the tree, not of a commit, so two commits
 of the same tree (a pull request's head and the merge queue's commit of it)
 share every cached bundle, APK and app test run. Since only the bundles read the
 file, a new id rebuilds nothing else.
@@ -88,8 +91,8 @@ these in front of the pinned buck2:
   Windows would miss every cache entry Linux wrote. Scripts are run with `sh`,
   and `./scripts/verify`'s lint clears the bit from anything outside `scripts/`.
 - **The build id.** Every command that builds or queries first writes the
-  working tree's hash into `buck/app/build-id`, which git ignores, if it
-  changed. The hash is taken through a throwaway index, so untracked files
+  working tree's hash into the `id` field of `buck/app/build-info.json`, which git ignores, if it
+  changed. The `app_id` field comes from `BE3_APP_ID` (`BlockDev` by default). The hash is taken through a throwaway index, so untracked files
   count and the same tree always gives the same id. As a source file, a new id
   invalidates only what reads it. `BE3_BUILD_ID` overrides it.
 - **Retries.** buck2 exits with 2 for an infrastructure error, such as a
