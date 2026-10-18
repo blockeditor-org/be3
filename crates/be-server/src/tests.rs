@@ -16,12 +16,14 @@ use tokio_tungstenite::{
 use uuid::Uuid;
 
 use super::*;
+use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_batch_answers_each_request_in_order;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
+mod a_closed_server_also_refuses_browser_registration_and_login;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
 mod a_contact_card_the_server_swaps_does_not_open;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
@@ -39,11 +41,13 @@ mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod another_build_is_greeted_and_turned_away;
 mod blocks_publish_and_read_back_through_the_server;
+mod browser_forms_enforce_origin_policy_and_deny_sign_in;
 mod contacts_are_made_by_a_link_and_finished_by_its_owner;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
 mod history_records_each_commits_parents;
 mod key_rows_are_served_only_to_who_may_see_their_block;
+mod local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers;
 mod members_manage_only_the_agents_they_created;
 mod metadata_travels_with_the_content_once_a_block_has_any;
 mod moving_a_block_drops_the_wraps_of_its_old_scope;
@@ -59,6 +63,7 @@ mod relayed_session_traffic_passes_through_the_server_sealed;
 mod removing_a_contact_revokes_what_the_two_shared;
 mod repeated_failed_sign_ins_lock_the_account_out;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
+mod the_browser_approves_only_the_requesting_connection_and_the_code_works_once;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 const KEY: Uuid = Uuid::from_u128(0x006b_6579);
@@ -78,13 +83,25 @@ impl Harness {
     }
 
     async fn at(directory: PathBuf) -> Self {
+        Self::at_with_config(directory, ServerConfig::OPEN).await
+    }
+
+    async fn configured(config: ServerConfig) -> Self {
+        Self::at_with_config(
+            std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4())),
+            config,
+        )
+        .await
+    }
+
+    async fn at_with_config(directory: PathBuf, config: ServerConfig) -> Self {
         build_id::install(BUILD);
         let listener = TcpListener::bind("127.0.0.1:0").await.unwrap();
         let address = listener.local_addr().unwrap();
         let (shutdown, receiver) = oneshot::channel();
         let data_dir = directory.clone();
         let handle = tokio::spawn(async move {
-            let _ = serve_with_config(listener, data_dir, ServerConfig::OPEN, receiver).await;
+            let _ = serve_with_config(listener, data_dir, config, receiver).await;
         });
         Self {
             url: format!("ws://{address}"),
@@ -587,4 +604,55 @@ impl TestClient {
 
 fn refused_as(response: &ServerMessage, expected: ErrorCode) -> bool {
     matches!(response, ServerMessage::Failed { code, .. } if *code == expected)
+}
+
+async fn http(
+    harness: &Harness,
+    method: &str,
+    path: &str,
+    body: &str,
+    origin: Option<&str>,
+) -> (u16, String) {
+    let address = harness.url.trim_start_matches("ws://");
+    let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+    let origin = origin
+        .map(|origin| format!("Origin: {origin}\r\n"))
+        .unwrap_or_default();
+    stream.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\n{origin}Content-Length: {}\r\nContent-Type: application/x-www-form-urlencoded\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+    let mut bytes = Vec::new();
+    stream.read_to_end(&mut bytes).await.unwrap();
+    let response = String::from_utf8(bytes).unwrap();
+    let status = response.split_whitespace().nth(1).unwrap().parse().unwrap();
+    (status, response)
+}
+async fn form(harness: &Harness, code: &str) -> String {
+    let (status, page) = http(harness, "GET", &format!("/auth?code={code}"), "", None).await;
+    assert_eq!(status, 200);
+    assert!(page.contains("Cache-Control: no-store"));
+    page.split("name=csrf value=\"")
+        .nth(1)
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap()
+        .to_owned()
+}
+async fn begin(client: &mut TestClient) -> String {
+    let ServerMessage::BrowserLogin { code, .. } = client
+        .send(|request| ClientMessage::BeginBrowserLogin { request })
+        .await
+    else {
+        panic!("a browser authorization session starts")
+    };
+    code
+}
+async fn post(harness: &Harness, body: &str) -> (u16, String) {
+    http(
+        harness,
+        "POST",
+        "/auth",
+        body,
+        Some(&harness.url.replacen("ws://", "http://", 1)),
+    )
+    .await
 }

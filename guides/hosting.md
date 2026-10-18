@@ -19,7 +19,7 @@ leaves the host's service configuration and reverse proxy alone.
 The server speaks plain WebSockets at `/api/be` and the same protocol over
 HTTP posts at `/api/be/http` for clients behind a proxy that refuses WebSockets.
 The host's reverse proxy supplies TLS at `api.be3.pfg.pw` and routes those API
-paths to the server. The web app is served separately by Bunny at `be3.pfg.pw`.
+paths and `/auth` to the server. The web app is served separately by Bunny at `be3.pfg.pw`.
 The proxy must allow the web app's origin; native clients send no Origin header.
 A gateway can accept `Be3-Gateway-Authorization` from native clients and a
 host-only cookie from browsers, whose WebSocket API cannot set headers.
@@ -162,4 +162,29 @@ decryption. `BE3_AUTHORIZATION` and the native app's gateway field now send
 `Be3-Gateway-Authorization`; the host’s gateway rules must use that header. Browsers use the gateway cookie because their WebSocket API
 cannot set request headers.
 
-The app embeds `crates/block-app/src/app-config.json` in both native and web builds. Its `account_server` prefills the server address when adding an account; self-hosted builds should set it to their API URL. Saved accounts keep their own server address. This configuration is independent of the `build-info.json` bundle metadata.
+Remote accounts are added through the server's `/auth` page. The app starts a
+short-lived authorization request over its gateway-authorized connection and
+opens `/auth?code=...`. The page uses same-origin form posts, checks Origin and
+an expiring form nonce, and applies `--allow-login` and `--allow-registration`.
+Approval notifies the requesting connection; only that connection can claim its
+session token, once. Closing the connection cancels its pending request. The
+browser is assumed to already have the API host's gateway cookie. No gateway
+or account token is put in the URL. The URL and code stay visible in the app;
+`--session` does not launch a browser automatically.
+
+The browser transport uses WebSockets, whose handshake includes the API host's
+cookies even when the page is on `be3.pfg.pw`. HTTP fetches added for API access
+must explicitly include credentials; the proxy must allow the exact frontend
+origin and credentialed responses, and allow preflights without a gateway
+cookie. The cookie remains host-only on `api.be3.pfg.pw`.
+
+`./scripts/deploy` includes `default_server` in every bundle's `build-info.json`:
+`name`, `api_url`, `auth_url`, and `gateway_required`. It contains public
+configuration only. Ordinary local and CI builds omit it and offer local or
+custom servers. The deployment command validates that its bundles carry the
+deployed identity and default server. Saved accounts retain their own URLs.
+
+The embedded server alone enables local profiles. Their UI asks only for a
+display name, and saved tokens reopen them from the account picker. Closing a
+local account keeps it in the picker. Browser-origin requests cannot access
+the embedded server's account protocol.

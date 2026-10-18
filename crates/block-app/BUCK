@@ -24,13 +24,17 @@ cargo_library(
 # through lavapipe, as the renderer's do, and the Wayland compositor's build a
 # keyboard from the test runtime's keymaps, as be-wayland's do. The tray's run a
 # private D-Bus bus with the test runtime's daemon.
+test_environment = {
+    "BE3_DBUS_DAEMON": "$(location //buck/sysroot:amd64-test)/usr/bin/dbus-daemon",
+    "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+    "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+    "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
+}
+
 cargo_test(
-    env = {
-        "BE3_DBUS_DAEMON": "$(location //buck/sysroot:amd64-test)/usr/bin/dbus-daemon",
-        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
-        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
-        "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
-    },
+    env = test_environment,
+    paints = True,
+    run_env = test_environment,
 )
 
 cargo_binary()

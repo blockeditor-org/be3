@@ -4,7 +4,7 @@ use beui::icons::{
 };
 use beui::reactive::*;
 use beui::styled::*;
-use beui::unstyled::{ChoiceOption, MenuItem};
+use beui::unstyled::MenuItem;
 use beui::{NodeId, TextAlign};
 use uuid::Uuid;
 
@@ -187,7 +187,6 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
                 on_click={|| send(UiCommand::OpenAddAccount)}
             />
             <ErrorText text={error} />
-            <AddAccountDialog view />
         </Column>
     }
 }
@@ -217,7 +216,9 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                             send(UiCommand::LogOut(log_out.get_untracked()));
                         }}
                         items={view! {
-                            <MenuItem label="Log out" />
+                            <MenuItem
+                                label={create_memo(move || if account.get().local { "Close account" } else { "Log out" }.to_owned())}
+                            />
                         }}
                     />
                 </List>
@@ -256,7 +257,9 @@ fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
     });
     view! {
         <List spacing=2.0>
-            <Text style=TextStyle::CAPTION string={email} />
+            <Show condition={create_memo(move || !email.get().is_empty())}>
+                <Text style=TextStyle::CAPTION string={email} />
+            </Show>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <Text size=TextSize::Sm align=TextAlign::Center>
                     <Icon glyph={glyph} />
@@ -268,150 +271,250 @@ fn AccountDetails(account: Memo<AccountRow>) -> NodeId {
 }
 
 #[component]
-fn AddAccountDialog(view: AppViewStore) -> NodeId {
+pub(super) fn AddAccountDialog(
+    view: AppViewStore,
+    #[prop(default = platform::default_account_server())] default_server: Option<
+        build_id::DefaultServer,
+    >,
+) -> NodeId {
     let open = create_memo(move || view.add_account.get().open);
     let generation = create_memo(move || view.add_account.get().generation);
     let pending = create_memo(move || view.add_account.get().pending);
     let error = create_memo(move || view.add_account.get().error);
-    let (register, set_register) = create_signal(false);
-    let (remote, set_remote) = create_signal(!platform::HAS_EMBEDDED_SERVER);
-    let (remote_url, set_remote_url) = create_signal(platform::default_account_server());
+    let browser = create_memo(move || view.add_account.get().browser);
+    let waiting = create_memo(move || browser.get().is_some());
+    let browser_url = create_memo(move || browser.get().map(|login| login.url).unwrap_or_default());
+    let browser_code =
+        create_memo(move || browser.get().map(|login| login.code).unwrap_or_default());
+    let default = create_memo(move || default_server.clone());
+    let has_default = default.get_untracked().is_some();
+    let default_name =
+        create_memo(move || default.get().map(|server| server.name).unwrap_or_default());
+    let (selection, set_selection) = create_signal(None::<u8>);
+    let (remote_url, set_remote_url) = create_signal(String::new());
     let (authorization, set_authorization) = create_signal(String::new());
-    let (email, set_email) = create_signal(String::new());
     let (display_name, set_display_name) = create_signal(String::new());
-    let (password, set_password) = create_signal(String::new());
     create_effect(move || {
         generation.get();
         untrack(|| {
-            set_register.set(false);
-            set_remote.set(!platform::HAS_EMBEDDED_SERVER);
-            set_remote_url.set(platform::default_account_server());
+            set_selection.set(None);
+            set_remote_url.set(String::new());
             set_authorization.set(String::new());
-            set_email.set(String::new());
             set_display_name.set(String::new());
-            set_password.set(String::new());
         });
+    });
+    let choosing = create_memo(move || selection.get().is_none() && !pending.get());
+    let editing = create_memo(move || selection.get().is_some() && !pending.get());
+    let local = create_memo(move || selection.get() == Some(1));
+    let custom = create_memo(move || selection.get() == Some(2));
+    let remote = create_memo(move || selection.get().is_some() && !local.get());
+    let gateway_required = create_memo(move || {
+        selection.get() == Some(0) && default.get().is_some_and(|server| server.gateway_required)
+    });
+    let gateway_label = create_memo(move || {
+        if gateway_required.get() {
+            "Gateway token"
+        } else {
+            "Gateway token (optional)"
+        }
+        .to_owned()
+    });
+    let server_name = create_memo(move || match selection.get() {
+        Some(0) => default
+            .get()
+            .map(|server| server.api_url)
+            .unwrap_or_default(),
+        Some(1) => "On this device".into(),
+        _ => "Another server".into(),
     });
     let ready = create_memo(move || {
         !pending.get()
-            && !email.get().trim().is_empty()
-            && !password.get().is_empty()
-            && (!register.get() || !display_name.get().trim().is_empty())
+            && match selection.get() {
+                Some(1) => !display_name.get().trim().is_empty(),
+                Some(0) => {
+                    !platform::SENDS_HEADERS
+                        || !gateway_required.get()
+                        || !authorization.get().trim().is_empty()
+                }
+                Some(2) => !remote_url.get().trim().is_empty(),
+                _ => false,
+            }
     });
     let not_ready = create_memo(move || !ready.get());
-    let submit_label = create_memo(move || match register.get() {
-        true => "Register".to_owned(),
-        false => "Log in".to_owned(),
-    });
-    let register_index = create_memo(move || usize::from(register.get()));
-    let remote_index = create_memo(move || usize::from(remote.get()));
-    let submit = move || {
-        if !ready.get_untracked() {
-            return;
+    let submit_label = create_memo(move || {
+        if local.get() {
+            "Create account"
+        } else {
+            "Continue in browser"
         }
-        send(UiCommand::SubmitAccount(AccountForm {
-            register: register.get_untracked(),
-            remote: remote.get_untracked(),
-            remote_url: remote_url.get_untracked(),
-            authorization: authorization.get_untracked(),
-            email: email.get_untracked(),
-            display_name: display_name.get_untracked(),
-            password: password.get_untracked(),
-        }));
+        .to_owned()
+    });
+    let submit = move || {
+        if ready.get_untracked() {
+            send(UiCommand::SubmitAccount(AccountForm {
+                remote: !local.get_untracked(),
+                remote_url: if selection.get_untracked() == Some(0) {
+                    default
+                        .get_untracked()
+                        .map(|server| server.api_url)
+                        .unwrap_or_default()
+                } else {
+                    remote_url.get_untracked()
+                },
+                authorization: authorization.get_untracked(),
+                display_name: display_name.get_untracked(),
+            }));
+        }
     };
-    let submit_on_enter = submit;
     view! {
         <Dialog
             open={open}
             title="Add account"
-            width=320.0
+            width=380.0
             on_dismiss={|| send(UiCommand::CloseAddAccount)}
         >
             <List spacing=10.0>
-                <Tabs
-                    selected={register_index}
-                    on_change={move |index: usize| set_register.set(index == 1)}
-                    options={view! {
-                        <ChoiceOption label="Log in" />
-                        <ChoiceOption label="Register" />
-                    }}
-                />
-                <Text style=TextStyle::CAPTION string="Server" />
-                <Show condition={platform::HAS_EMBEDDED_SERVER}>
-                    <Tabs
-                        selected={remote_index}
-                        on_change={move |index: usize| set_remote.set(index == 1)}
-                        options={view! {
-                            <ChoiceOption label="Local" />
-                            <ChoiceOption label="Remote" />
-                        }}
-                    />
-                </Show>
-                <Show condition={remote}>
+                <Show condition={choosing}>
                     <List spacing=10.0>
-                        <TextInput
-                            value={remote_url}
-                            placeholder="https://example.com"
-                            label="Server address"
-                            on_change={move |value: String| set_remote_url.set(value)}
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            string="Where should this account live?"
+                            wrap=true
                         />
-                        <Show condition={platform::SENDS_HEADERS}>
-                            <TextInput
-                                value={authorization}
-                                placeholder="Gateway authorization header (optional)"
-                                label="Gateway authorization header"
-                                password=true
-                                on_change={move |value: String| set_authorization.set(value)}
+                        <Show condition={has_default}>
+                            <Button
+                                label={default_name}
+                                @test_id="account.default"
+                                on_click={move || set_selection.set(Some(0))}
+                                variant=ButtonVariant::Secondary
                             />
                         </Show>
-                    </List>
-                </Show>
-                <Text style=TextStyle::CAPTION string="Email address" />
-                <TextInput
-                    value={email}
-                    placeholder="you@example.com"
-                    label="Email address"
-                    on_change={move |value: String| set_email.set(value)}
-                />
-                <Show condition={register}>
-                    <List spacing=10.0>
-                        <Text style=TextStyle::CAPTION string="Display name" />
-                        <TextInput
-                            value={display_name}
-                            label="Display name"
-                            on_change={move |value: String| set_display_name.set(value)}
+                        <Show condition={platform::HAS_EMBEDDED_SERVER}>
+                            <Button
+                                label="On this device"
+                                @test_id="account.local"
+                                on_click={move || set_selection.set(Some(1))}
+                                variant=ButtonVariant::Secondary
+                            />
+                        </Show>
+                        <Button
+                            label="Another server…"
+                            @test_id="account.custom"
+                            on_click={move || set_selection.set(Some(2))}
+                            variant=ButtonVariant::Secondary
                         />
                     </List>
                 </Show>
-                <Text style=TextStyle::CAPTION string="Password" />
-                <TextInput
-                    value={password}
-                    label="Password"
-                    password=true
-                    on_change={move |value: String| set_password.set(value)}
-                    on_submit={move |_value: String| submit_on_enter()}
-                />
+                <Show condition={editing}>
+                    <List spacing=10.0>
+                        <Text style=TextStyle::HEADING string={server_name} wrap=true />
+                        <Show condition={local}>
+                            <List spacing=10.0>
+                                <Text
+                                    style=TextStyle::PARAGRAPH
+                                    string="Stored on this device. No email or password needed."
+                                    wrap=true
+                                />
+                                <Text style=TextStyle::CAPTION string="Display name" />
+                                <TextInput
+                                    value={display_name}
+                                    label="Display name"
+                                    @test_id="account.name"
+                                    on_change={move |value: String| set_display_name.set(value)}
+                                    on_submit={move |_| submit()}
+                                />
+                            </List>
+                        </Show>
+                        <Show condition={custom}>
+                            <List spacing=6.0>
+                                <Text style=TextStyle::CAPTION string="Server address" />
+                                <TextInput
+                                    value={remote_url}
+                                    label="Server address"
+                                    placeholder="https://example.com"
+                                    @test_id="account.server"
+                                    on_change={move |value: String| set_remote_url.set(value)}
+                                />
+                            </List>
+                        </Show>
+                        <Show
+                            condition={create_memo(move || remote.get() && platform::SENDS_HEADERS)}
+                        >
+                            <List spacing=6.0>
+                                <Text style=TextStyle::CAPTION string={gateway_label} />
+                                <TextInput
+                                    value={authorization}
+                                    label={gateway_label}
+                                    password=true
+                                    @test_id="account.gateway"
+                                    on_change={move |value: String| set_authorization.set(value)}
+                                />
+                            </List>
+                        </Show>
+                        <Button
+                            label={submit_label}
+                            variant=ButtonVariant::Primary
+                            disabled={not_ready}
+                            @test_id="account.continue"
+                            on_click={submit}
+                        />
+                        <Button
+                            label="Back"
+                            on_click={move || { set_selection.set(None); send(UiCommand::RetryAccount); }}
+                            variant=ButtonVariant::Secondary
+                        />
+                    </List>
+                </Show>
+                <Show condition={waiting}>
+                    <List spacing=10.0>
+                        <Text style=TextStyle::HEADING string="Continue in your browser" />
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            string="Open this link on this or another device, sign in, and approve the matching code."
+                            wrap=true
+                        />
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            string={browser_url}
+                            wrap=true
+                            @test_id="account.browser-url"
+                        />
+                        <Text
+                            style=TextStyle::HEADING
+                            string={browser_code}
+                            @test_id="account.browser-code"
+                        />
+                        <Button
+                            label="Open browser"
+                            on_click={|| send(UiCommand::OpenLoginBrowser)}
+                            variant=ButtonVariant::Secondary
+                        />
+                        <Button
+                            label="Copy link"
+                            on_click={move || copy_text(browser_url.get_untracked())}
+                            variant=ButtonVariant::Secondary
+                        />
+                        <Button
+                            label="Copy code"
+                            on_click={move || copy_text(browser_code.get_untracked())}
+                            variant=ButtonVariant::Secondary
+                        />
+                        <Button
+                            label="Start again"
+                            on_click={|| send(UiCommand::RetryAccount)}
+                            variant=ButtonVariant::Secondary
+                        />
+                    </List>
+                </Show>
+                <Show condition={create_memo(move || pending.get() && !waiting.get())}>
+                    <Text style=TextStyle::CAPTION string="Contacting server…" />
+                </Show>
                 <ErrorText text={error} />
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Show condition={pending}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Spinner />
-                            <Text style=TextStyle::CAPTION string="Contacting server…" />
-                        </List>
-                    </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Button
-                        label={submit_label}
-                        variant=ButtonVariant::Primary
-                        disabled={not_ready}
-                        on_click={submit}
-                    />
-                    <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::CloseAddAccount)}
-                    />
-                </List>
+                <Button
+                    label="Cancel"
+                    variant=ButtonVariant::Secondary
+                    on_click={|| send(UiCommand::CloseAddAccount)}
+                />
             </List>
         </Dialog>
     }
@@ -519,7 +622,6 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
             <Text style=TextStyle::HEADING string="Create an organization" />
             <CreateOrganization busy={busy} created />
             <ErrorText text={error} />
-            <ReauthDialog view />
         </Column>
     }
 }
@@ -818,71 +920,42 @@ fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
 }
 
 #[component]
-fn ReauthDialog(view: AppViewStore) -> NodeId {
+pub(super) fn ReauthDialog(view: AppViewStore) -> NodeId {
     let reauth = view.reauth;
-    let open = create_memo(move || reauth.get().is_some());
+    let open = create_memo(move || reauth.get().is_some() && !view.add_account.get().open);
     let busy = create_memo(move || reauth.get().is_some_and(|reauth| reauth.busy));
     let error = create_memo(move || reauth.get().and_then(|reauth| reauth.error));
     let message = create_memo(move || {
         format!(
-            "Your session for {} is no longer valid. Enter your password to sign in again, \
-             or close this to switch accounts.",
-            reauth.get().map(|reauth| reauth.email).unwrap_or_default()
+            "Your session for {} is no longer valid. Continue in your browser to sign in again.",
+            reauth.get().map(|reauth| reauth.name).unwrap_or_default()
         )
     });
-    let (password, set_password) = create_signal(String::new());
-    create_effect(move || {
-        if !open.get() {
-            untrack(|| set_password.set(String::new()));
-        }
-    });
-    let cannot = create_memo(move || busy.get() || password.get().is_empty());
-    let submit = move || {
-        if !cannot.get_untracked() {
-            send(UiCommand::ReauthSubmit(password.get_untracked()));
-        }
-    };
-    let submit_on_enter = submit;
     view! {
         <Dialog
             open={open}
             title="Session expired"
-            width=320.0
+            width=380.0
             on_dismiss={|| send(UiCommand::ReauthClose)}
         >
             <List spacing=10.0>
                 <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
-                <Text style=TextStyle::CAPTION string="Password" />
-                <TextInput
-                    value={password}
-                    label="Password"
-                    password=true
-                    on_change={move |value: String| set_password.set(value)}
-                    on_submit={move |_value: String| submit_on_enter()}
-                />
                 <ErrorText text={error} />
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Show condition={busy}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Spinner />
-                            <Text style=TextStyle::CAPTION string="Signing in…" />
-                        </List>
-                    </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Button
-                        label="Sign in"
-                        variant=ButtonVariant::Primary
-                        disabled={cannot}
-                        on_click={submit}
-                    />
-                    <Button
-                        label="Log out"
-                        variant=ButtonVariant::Secondary
-                        disabled={busy}
-                        on_click={|| send(UiCommand::ReauthLogOut)}
-                    />
-                </List>
+                <Button
+                    label="Continue in browser"
+                    variant=ButtonVariant::Primary
+                    disabled={busy}
+                    on_click={|| send(UiCommand::ReauthSubmit)}
+                />
+                <Button
+                    label="Log out"
+                    variant=ButtonVariant::Secondary
+                    on_click={|| send(UiCommand::ReauthLogOut)}
+                />
             </List>
         </Dialog>
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests;

@@ -14,7 +14,8 @@ const SCHEMA: &str = "
         id              TEXT PRIMARY KEY,
         email           TEXT NOT NULL UNIQUE,
         display_name    TEXT NOT NULL,
-        password_hash   TEXT NOT NULL
+        password_hash   TEXT NOT NULL,
+        local_profile   INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE sessions (

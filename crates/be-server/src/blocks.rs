@@ -763,7 +763,7 @@ impl ServerStore {
             );
             listed.extend(contacts.iter().copied());
             let mut statement = database.prepare_cached(
-                "SELECT accounts.email, accounts.display_name, memberships.role
+                "SELECT CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name, memberships.role
                  FROM memberships
                  JOIN accounts ON accounts.id = memberships.account_id
                  WHERE memberships.organization_id = ?1 AND memberships.account_id = ?2",

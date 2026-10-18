@@ -175,10 +175,17 @@ library_path_test = rule(
 # :test-run is the action ./scripts/verify builds on a worker, which accepts
 # every painting and outputs the ones that changed and the ones it compared.
 # crates/app-tests is one: block-app with its plugins, driven headless.
+def _painting_command(ctx, env):
+    command = cmd_args(ctx.attrs.harness[RunInfo])
+    if "LD_LIBRARY_PATH" in env:
+        env["BE3_LD_LIBRARY_PATH"] = env.pop("LD_LIBRARY_PATH")
+        command = cmd_args("sh", "-c", _restore_library_path, "sh", command)
+    return command
+
 def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
     env = dict(ctx.attrs.env)
     env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
-    command = cmd_args(ctx.attrs.harness[RunInfo])
+    command = _painting_command(ctx, env)
     return inject_test_run_info(
         ctx,
         ExternalRunnerTestInfo(
@@ -207,6 +214,7 @@ def _painting_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
     env = dict(ctx.attrs.env)
     env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
     env["UPDATE_SNAPSHOTS"] = "1"
+    command = _painting_command(ctx, env)
     ctx.actions.run(
         cmd_args(
             "sh",
@@ -214,7 +222,7 @@ def _painting_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
             'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" && export USED_PAINTINGS CHANGED_PAINTINGS && shift && exec "$@"',
             "sh",
             paintings.as_output(),
-            ctx.attrs.harness[RunInfo],
+            command,
             hidden = ctx.attrs._inputs[DefaultInfo].default_outputs,
         ),
         category = "painting_test",

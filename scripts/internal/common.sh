@@ -281,7 +281,11 @@ write_build_id() {
     case "$id" in *[!a-zA-Z0-9._+-]*) echo "Invalid BE3_BUILD_ID" >&2; return 1 ;; esac
     local app_id="${BE3_APP_ID:-BlockDev}"
     case "$app_id" in Block|BlockDev) ;; *) echo "Invalid BE3_APP_ID" >&2; return 1 ;; esac
-    id="$(printf '{"id":"%s","app_id":"%s"}' "$id" "$app_id")"
+    if [[ "${BE3_DEPLOY_DEFAULT_SERVER:-false}" == true ]]; then
+        id="$(printf '{"id":"%s","app_id":"%s","default_server":{"name":"Block","api_url":"https://api.be3.pfg.pw","auth_url":"https://api.be3.pfg.pw/auth","gateway_required":true}}' "$id" "$app_id")"
+    else
+        id="$(printf '{"id":"%s","app_id":"%s"}' "$id" "$app_id")"
+    fi
     if [[ "$(cat "$path" 2> /dev/null)" != "$id" ]]; then
         printf '%s\n' "$id" > "$path.$$"
         mv -f "$path.$$" "$path"

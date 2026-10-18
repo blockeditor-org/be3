@@ -53,7 +53,9 @@ program that finds no id refuses to connect or serve, and the app shows the id
 as its build. The metadata contains `id` (the compatibility identity) and `app_id` (`BlockDev`
 by default, `Block` for deploy). The app reads `app_id` at startup for its window
 and data directory, so deployment identity changes only packaging. `BE3_APP_ID`
-selects it when generating the file. The id is the hash of the tree, not of a commit, so two commits
+selects it when generating the file. `./scripts/deploy` also includes an optional
+`default_server` descriptor (public name, API and authentication URLs, and whether
+native clients need a gateway token); ordinary local and CI builds omit it. The id is the hash of the tree, not of a commit, so two commits
 of the same tree (a pull request's head and the merge queue's commit of it)
 share every cached bundle, APK and app test run. Since only the bundles read the
 file, a new id rebuilds nothing else.

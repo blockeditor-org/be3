@@ -518,7 +518,7 @@ impl ServerStore {
     pub async fn list_contacts(&self, caller: Uuid) -> Result<Vec<ContactRow>, ServerError> {
         let database = self.database().lock().await;
         let mut statement = database.prepare(
-            "SELECT accounts.id, accounts.email, accounts.display_name, contacts.sealed
+            "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name, contacts.sealed
              FROM contacts JOIN accounts ON accounts.id = contacts.contact_id
              WHERE contacts.account_id = ?1
              ORDER BY accounts.display_name, accounts.email",

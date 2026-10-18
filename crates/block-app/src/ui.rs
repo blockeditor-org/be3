@@ -110,6 +110,7 @@ impl AccountRow {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct AddAccountView {
+    pub(crate) browser: Option<crate::accounts::BrowserLogin>,
     pub(crate) open: bool,
     pub(crate) generation: u64,
     pub(crate) pending: bool,
@@ -118,13 +119,10 @@ pub(crate) struct AddAccountView {
 
 #[derive(Clone, Debug)]
 pub(crate) struct AccountForm {
-    pub(crate) register: bool,
     pub(crate) remote: bool,
     pub(crate) remote_url: String,
     pub(crate) authorization: String,
-    pub(crate) email: String,
     pub(crate) display_name: String,
-    pub(crate) password: String,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -154,7 +152,7 @@ pub(crate) struct OrganizationsView {
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct ReauthView {
-    pub(crate) email: String,
+    pub(crate) name: String,
     pub(crate) busy: bool,
     pub(crate) error: Option<String>,
 }
@@ -318,6 +316,8 @@ pub(crate) enum UiCommand {
     LogOut(String),
     OpenAddAccount,
     SubmitAccount(AccountForm),
+    OpenLoginBrowser,
+    RetryAccount,
     CloseAddAccount,
     ReloadOrganizations,
     OpenOrganization(Uuid),
@@ -335,7 +335,7 @@ pub(crate) enum UiCommand {
     CreateOrganization(String),
     SwitchAccount,
     LogOutCurrent,
-    ReauthSubmit(String),
+    ReauthSubmit,
     ReauthLogOut,
     ReauthClose,
     OpenInspector,
@@ -458,6 +458,8 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     on_keep={move || send(UiCommand::KeepDisplay(keeping.get_untracked()))}
                     on_revert={move || send(UiCommand::RevertDisplay(reverting.get_untracked()))}
                 />
+                <onboarding::ReauthDialog view />
+                <onboarding::AddAccountDialog view />
                 <lock::SessionLock view={locking} />
                 <WindowActions />
             </List>

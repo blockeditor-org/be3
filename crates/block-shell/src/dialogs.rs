@@ -524,7 +524,13 @@ fn SuggestionButton(person: Memo<Option<Person>>, act: ShareAct) -> NodeId {
     let label = create_memo(move || {
         person
             .get()
-            .map(|person| format!("{} ({})", person.name, person.email))
+            .map(|person| {
+                if person.email.is_empty() {
+                    person.name
+                } else {
+                    format!("{} ({})", person.name, person.email)
+                }
+            })
             .unwrap_or_default()
     });
     view! {

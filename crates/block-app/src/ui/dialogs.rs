@@ -254,6 +254,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                         let row = row.get();
                         match row.verified {
                             true => row.email,
+                            false if row.email.is_empty() => "Not confirmed yet".to_owned(),
                             false => format!("{}, not confirmed yet", row.email),
                         }
                     });
