@@ -2,11 +2,8 @@ use super::*;
 
 #[test]
 fn import_file_builds_comptime_sample() {
-    let artifact = import_file(
-        "comptime.qxc",
-        include_str!("../../../samples/comptime.qxc"),
-    )
-    .unwrap_or_else(|errors| panic!("comptime.qxc failed to build: {errors:?}"));
+    let artifact = import_file("comptime.qxc", include_str!("samples/comptime.qxc"))
+        .unwrap_or_else(|errors| panic!("comptime.qxc failed to build: {errors:?}"));
 
     let ComptimeValueBuildArtifact::Folder(folder) = artifact else {
         panic!("expected a folder");

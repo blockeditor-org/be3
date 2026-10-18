@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn import_file_builds_codegen_sample() {
-    let artifact = import_file("codegen.qxc", include_str!("../../../samples/codegen.qxc"))
+    let artifact = import_file("codegen.qxc", include_str!("samples/codegen.qxc"))
         .unwrap_or_else(|errors| panic!("codegen.qxc failed to build: {errors:?}"));
 
     let ComptimeValueBuildArtifact::Folder(folder) = artifact else {

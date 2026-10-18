@@ -5,7 +5,7 @@ use beui_core::font::{FontId, Fonts, TextLayout};
 fn a_colour_bitmap_glyph_is_scaled_to_the_text_in_its_own_colours() {
     let sources = FontSources {
         fallback: vec![FontData::from_static(include_bytes!(
-            "../../assets/test/ColourBitmap.ttf"
+            "fonts/ColourBitmap.ttf"
         ))],
         ..FontSources::bundled()
     };

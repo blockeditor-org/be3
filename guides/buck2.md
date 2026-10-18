@@ -171,9 +171,19 @@ cargo_binary()
 Dependencies, features, edition and roots come from `crates.bzl`. The library
 is named after the package, its tests are `:test`, its binary `:bin`, and an
 example is `cargo_example("<name>")`, which makes `:example-<name>`. What
-`Cargo.toml` cannot say is passed as arguments: `srcs` for non-Rust files the
-crate reads at compile time (default `src/**/*.rs`), `env`, `extra_deps`, or any
+`Cargo.toml` cannot say is passed as arguments: `env`, `extra_deps`, or any
 rule attribute such as a test's `remote_execution = "disabled"`.
+
+Sources are inferred, including non-Rust files read at compile time. Libraries
+use `src/**` except `src/bin/**`, `tests.rs`, `tests/**`, `main_tests.rs` and
+`main_tests/**` at any depth. Tests use all of `src/**` except `src/bin/**`.
+Keep test-only assets under a `tests/` directory. Binaries and examples in a
+crate with a library use only their root file, or the root's whole directory
+when it is a `main.rs` in a subdirectory below `src/` or `examples/`.
+Binary-only crates use the library's source rules.
+Roots come from `crates.bzl`, including block-app's `src/main.rs` library and
+`src/desktop.rs` binary. The wasm SDK and editors use the same library rules,
+and plugin tests use the test rules; editors also include `manifest.json`.
 
 **An editor**: `crates/editors/<name>/BUCK` is one `editor(module)` call
 from `buck/wasm/defs.bzl`, which makes the guest cdylib `:wasm`, linked against the

@@ -5,7 +5,7 @@ use beui_core::font::{FontId, Fonts, TextLayout};
 fn layered_colour_glyphs_are_drawn_in_their_palette_colours() {
     let sources = FontSources {
         fallback: vec![FontData::from_static(include_bytes!(
-            "../../assets/test/ColourLayers.ttf"
+            "fonts/ColourLayers.ttf"
         ))],
         ..FontSources::bundled()
     };

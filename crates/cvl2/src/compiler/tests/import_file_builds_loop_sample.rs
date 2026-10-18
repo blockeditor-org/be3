@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn import_file_builds_loop_sample() {
-    let source = include_str!("../../../samples/loop.qxc");
+    let source = include_str!("samples/loop.qxc");
     let files = |source: &str| {
         let artifact = import_file("loop.qxc", source)
             .unwrap_or_else(|errors| panic!("loop.qxc failed to build: {errors:?}"));
