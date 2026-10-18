@@ -27,9 +27,11 @@ fn a_personal_organization_can_create_an_agent() {
         app.run(&["clipboard"]) == copied,
         "the text box can be copied manually"
     );
-    app.crop("#app.agents.copy");
-    app.snapshot("agent_credentials_have_a_copy_button");
-    app.crop("#app.agents.credentials-help");
+    app.key("ctrl+a");
+    app.type_text(r#"{"server":"https://blocks.example","organization":"00000000-0000-0000-0000-000000000001","token":"example-agent-token","recovery_phrase":"example agent recovery phrase"}"#);
+    app.key("Home");
+    app.click("#app.agents.name");
+    app.crop("Dialog \"Agents\"");
     app.snapshot("agent_credentials_are_copied_as_one_secret");
     app.close();
 }
