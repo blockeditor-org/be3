@@ -296,7 +296,7 @@ A native target depends on a wasm one through a transition in
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
   version), with the page and shims from `crates/block-app/web`. `buck2 run` on it runs Caddy
   (`buck/tools:caddy`) with `web/Caddyfile` and be-server behind it, and `-- --domain DOMAIN` serves
-  that domain over https, which is how the app is deployed.
+  that domain over HTTPS. Production deployment uses Bunny (guides/hosting.md).
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is

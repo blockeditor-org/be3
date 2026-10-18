@@ -107,7 +107,7 @@ Landed:
 - `tracing` logs, and SIGTERM stops the server after a WAL checkpoint.
 - `be-server backup`, `restore` and `verify`, to a directory or a Bunny Storage
   zone, with the database sealed by a backup key and old snapshots thinned.
-- systemd units, a Caddyfile and `guides/hosting.md`.
+- Deployment and hosting are described in `guides/hosting.md`.
 
 Garbage collection stays off: the app never sends `CollectDetached` or
 `PruneHistory`, and unpublished objects are never collected, until trash and
