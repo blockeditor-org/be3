@@ -9654,7 +9654,10 @@ crates = {
         "platforms": {
             "android-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9662,7 +9665,10 @@ crates = {
             },
             "linux-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9670,7 +9676,10 @@ crates = {
             },
             "linux-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9678,7 +9687,10 @@ crates = {
             },
             "macos-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9686,7 +9698,10 @@ crates = {
             },
             "macos-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9694,7 +9709,10 @@ crates = {
             },
             "wasi": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9702,7 +9720,10 @@ crates = {
             },
             "windows-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9710,7 +9731,10 @@ crates = {
             },
             "windows-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11022,6 +11046,7 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
@@ -11030,6 +11055,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
@@ -11044,6 +11070,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
@@ -11052,6 +11079,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
@@ -11066,6 +11094,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
@@ -11074,6 +11103,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
@@ -11088,6 +11118,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
@@ -11096,6 +11127,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
@@ -11110,6 +11142,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
@@ -11118,6 +11151,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
@@ -11132,6 +11166,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:sha2-0.10.9",
@@ -11139,6 +11174,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:sha2-0.10.9",
@@ -11152,6 +11188,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:sha2-0.10.9",
@@ -11159,6 +11196,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:sha2-0.10.9",

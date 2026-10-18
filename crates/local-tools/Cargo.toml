@@ -6,6 +6,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+build-id = { path = "../build-id" }
 paint-snapshot = { path = "../paint-snapshot" }
 image = { version = "0.25", default-features = false, features = ["png"] }
 sha2 = "0.10"

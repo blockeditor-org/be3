@@ -96,7 +96,7 @@ where
     F: Future<Output = Result<Vec<u8>, String>>,
 {
     if let Ok(id) = read(build_id::FILE.to_owned()).await {
-        build_id::install(&String::from_utf8_lossy(&id));
+        let _ = build_id::install_metadata(&String::from_utf8_lossy(&id));
     }
     let mut plugins = Plugins::default();
     let manifests = read(INDEX.to_owned()).await.and_then(|document| {

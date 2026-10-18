@@ -7,13 +7,13 @@ cargo_test()
 
 cargo_binary()
 
-# What CI and a host ship: be-server under cargo's name, with the build-id it
+# What CI and a host ship: be-server under cargo's name, with the build-info.json it
 # refuses clients of any other build by (guides/hosting.md).
 app(
     name = "dist",
     binary = ":bin",
     executable_name = "be-server",
-    files = ["//buck/app:build-id"],
+    files = ["//buck/app:build-info.json"],
     manifests = [],
     modules = [],
 )

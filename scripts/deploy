@@ -5,7 +5,7 @@
 # they run on (the app for Linux, macOS and Windows on x86_64 and arm64, Android
 # and the web), then runs local-tools deploy, which uploads each be and each
 # download and unpacked web bundle to be3.pfg.pw and reads them back, copies
-# be-server and its build-id over with scp, swaps the running server, points the
+# be-server and its build-info.json over with scp, swaps the running server, points the
 # mirror's download page at the build, and pins the uploaded be in
 # scripts/internal/common.sh to commit.
 #
@@ -187,6 +187,8 @@ if ! $help; then
         keystore
     fi
 fi
+
+export BE3_APP_ID=Block
 
 exec "$repository/scripts/buck" run -m release \
     -c "be3.deploy_downloads=$downloads" -c "be3.deploy_android=$android" \

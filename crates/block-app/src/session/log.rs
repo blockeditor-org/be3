@@ -55,5 +55,5 @@ fn log_directory() -> Option<PathBuf> {
         .or_else(|| {
             std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".local/state"))
         })?;
-    Some(state.join(crate::APP_ID.to_lowercase()))
+    Some(state.join(crate::app_id().to_lowercase()))
 }

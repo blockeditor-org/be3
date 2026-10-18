@@ -30,7 +30,7 @@ while [ "$index" -lt "$count" ]; do
 done
 
 [ -x "$caddy/caddy" ] && caddy="$caddy/caddy" || caddy="$caddy/caddy.exe"
-"$server" --build-id-file "$bundle/build-id" --addr "$backend" "$@" &
+"$server" --build-info-file "$bundle/build-info.json" --addr "$backend" "$@" &
 server_pid=$!
 trap 'kill "$server_pid" 2> /dev/null || true' EXIT INT TERM
 if [ -n "$domain" ]; then

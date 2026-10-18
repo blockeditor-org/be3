@@ -10,7 +10,7 @@ shared with the agents that work on them. Agents read and change them with `be`,
 
 Run it as `./scripts/be ARGS`; `./scripts/be help` lists everything. That
 script runs the `be` release pinned in `scripts/internal/common.sh`, with a
-`build-id` file beside it naming the server's build, so the server refuses it
+`build-info.json` file beside it naming the server's build, so the server refuses it
 once it is deployed from another build and the pin has to move with it. Set
 `BE3_AGENT_CREDENTIALS` to the JSON copied from the app's Agents dialog, or save
 that JSON in `external/.tracker-credentials`. The file is ignored by git and

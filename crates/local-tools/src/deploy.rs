@@ -139,7 +139,7 @@ fn setting(name: &str, default: &str) -> String {
 fn run(options: &Options) -> Result<(), String> {
     let mut build = None;
     for (triple, bundle) in &options.be {
-        let id = read_build(&bundle.join("build-id"))?;
+        let id = read_build(&bundle.join("build-info.json"))?;
         if build.as_ref().is_some_and(|build| *build != id) {
             return Err(format!("be for {triple} is build {id}, unlike the others"));
         }
@@ -184,7 +184,7 @@ fn run(options: &Options) -> Result<(), String> {
     }
 
     if let Some(web) = web {
-        let id = read_build(&web.join("build-id"))?;
+        let id = read_build(&web.join("build-info.json"))?;
         if id != build {
             return Err(format!("the web bundle is build {id}, not {build}"));
         }
@@ -209,7 +209,7 @@ fn run(options: &Options) -> Result<(), String> {
     if !options.skip_be {
         for (triple, bundle) in &options.be {
             let directory = format!("data/{build}/be-{triple}");
-            for name in ["be", "build-id"] {
+            for name in ["be", "build-info.json"] {
                 let bytes = std::fs::read(bundle.join(name)).map_err(|error| {
                     format!("cannot read {}: {error}", bundle.join(name).display())
                 })?;
@@ -277,10 +277,11 @@ fn run(options: &Options) -> Result<(), String> {
             true,
         )?;
         store.put(
-            "server build-id",
-            &format!("data/{build}/server/build-id"),
-            build.as_bytes(),
-            "text/plain; charset=utf-8",
+            "server build-info.json",
+            &format!("data/{build}/server/build-info.json"),
+            &std::fs::read(options.be[0].1.join(build_id::FILE))
+                .map_err(|error| format!("cannot read build metadata: {error}"))?,
+            "application/json",
             true,
         )?;
     }
@@ -292,8 +293,8 @@ fn run(options: &Options) -> Result<(), String> {
         let build_id = options
             .be
             .first()
-            .map(|(_, bundle)| bundle.join("build-id"))
-            .ok_or("no build-id to send")?;
+            .map(|(_, bundle)| bundle.join("build-info.json"))
+            .ok_or("no build-info.json to send")?;
         let server = options.server.display().to_string();
         let build_id = build_id.display().to_string();
         shell(
@@ -304,7 +305,10 @@ fn run(options: &Options) -> Result<(), String> {
         shell(
             options,
             "scp",
-            &[&build_id, &format!("{host}:{directory}/build-id.new")],
+            &[
+                &build_id,
+                &format!("{host}:{directory}/build-info.json.new"),
+            ],
         )?;
         shell(
             options,
@@ -317,7 +321,7 @@ fn run(options: &Options) -> Result<(), String> {
             &[
                 &host,
                 &format!(
-                    "chmod +x {directory}/be-server.new && mv {directory}/be-server.new {directory}/be-server && mv {directory}/build-id.new {directory}/build-id"
+                    "chmod +x {directory}/be-server.new && mv {directory}/be-server.new {directory}/be-server && mv {directory}/build-info.json.new {directory}/build-info.json"
                 ),
             ],
         );
@@ -640,11 +644,7 @@ fn head_tree(repository: &Path) -> Result<String, String> {
 fn read_build(path: &Path) -> Result<String, String> {
     let id = std::fs::read_to_string(path)
         .map_err(|error| format!("cannot read {}: {error}", path.display()))?;
-    let id = id.trim();
-    if id.is_empty() || id == "unknown" {
-        return Err(format!("{} names no build", path.display()));
-    }
-    Ok(id.to_owned())
+    Ok(build_id::Metadata::parse(&id)?.id)
 }
 
 fn hex(bytes: &[u8]) -> String {
@@ -746,6 +746,7 @@ fn pin(common: &Path, build: &str, pins: &[(String, String)], mirror: &str) -> R
         Ok(())
     };
     set("be_release", build)?;
+    set("be_metadata_file", "build-info.json")?;
     set("be_mirror", &format!("{mirror}/data"))?;
     for (triple, sha256) in pins {
         set(&format!("be_sha256_{}", triple.replace('-', "_")), sha256)?;

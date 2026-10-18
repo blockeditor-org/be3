@@ -1,55 +1,39 @@
 # Hosting be-server
 
-How the server runs on a VPS for real notes. The files referred to are in
-`crates/be-server/deploy`.
+The deployment command is `./scripts/deploy`. It updates an existing server;
+it does not provision its service, reverse proxy, data directory or backup schedule.
+Those are managed on the host, with no installation templates in this repository.
 
-## Layout
+## Server layout
 
-- be-server listens on `127.0.0.1:9090` and is never exposed directly: it
-  speaks plain websockets with no TLS, and the same protocol over HTTP posts
-  at `/api/be/http` for clients behind a proxy that refuses websockets (`be`).
-- Caddy can gate the site on `Be3-Gateway-Authorization`;
-  the app (Gateway authorization header when adding an account on a remote server) and
-  `be` (`BE3_AUTHORIZATION`) send one.  `Caddyfile.gated`
-  is the site behind such a key: a browser cannot put a header on a websocket,
-  so anyone else gets a page that asks for the key and keeps it in a cookie,
-  which Caddy accepts as well, and the key never goes in a URL.
-- Caddy terminates TLS at `api.be3.pfg.pw` and passes `/api*` to be-server.
-  It allows browser requests from `https://be3.pfg.pw`; native clients send no
-  Origin header. Its root redirects to `https://be3.pfg.pw/web` after the gateway
-  cookie is established. The templates are `Caddyfile` and `Caddyfile.gated`.
-- Bunny's `be-app` storage zone (Los Angeles primary, New York replica) and
-  `be-app` pull zone serve deployment artifacts at `https://be3.pfg.pw`.
-  The browser connects directly to `wss://api.be3.pfg.pw/api/be`; the gateway
-  cookie belongs only to that API host, not to the public static files.
-- Data lives in `/var/lib/be-server`: `metadata.sqlite` and `objects/`. On
-  start the server checks `metadata.sqlite` against the schema it declares,
-  adding missing tables, indexes and defaulted columns, and refuses to start on
-  anything else. The directory and its backups are frozen formats
-  (guides/frozen_formats.md): every later server reads them.
-- Sign-ins with a password are off, so only devices that are already signed
-  in connect, with the session tokens they hold. To sign in a new device,
-  put `BE_SERVER_FLAGS=--allow-login` in `/etc/be-server/server.env`, restart
-  be-server, sign in, then empty that line and restart again. Restarting drops
-  every connection for a moment; devices reconnect on their own.
-- Registration is closed. Accounts are made on the server:
-  `sudo -u be-server be-server --data-dir /var/lib/be-server --add-account EMAIL NAME ORGANIZATION`,
-  typing the password on standard input. It writes the database directly, so
-  stop the service while it runs.
+`BE3_DEPLOY_HOST` selects the SSH destination (`ubuntu@blocks.pfg.pw` by default).
+`BE3_DEPLOY_DIR` selects the directory relative to the SSH user's home
+(`be-server` by default). The deploy user must be able to write there.
+`be-server` and `build-info.json` live together in that directory; the server
+reads the adjacent metadata without `--build-info-file`.
+`BE3_DEPLOY_UNITS` names the systemd units to stop and start (`be-server` by
+default), using `sudo systemctl`. Their configuration must run that executable
+and keep the persistent data outside the files deployment replaces. Deployment
+leaves the host's service configuration and reverse proxy alone.
 
-## Install
+The server speaks plain WebSockets at `/api/be` and the same protocol over
+HTTP posts at `/api/be/http` for clients behind a proxy that refuses WebSockets.
+The host's reverse proxy supplies TLS at `api.be3.pfg.pw` and routes those API
+paths to the server. The web app is served separately by Bunny at `be3.pfg.pw`.
+The proxy must allow the web app's origin; native clients send no Origin header.
+A gateway can accept `Be3-Gateway-Authorization` from native clients and a
+host-only cookie from browsers, whose WebSocket API cannot set headers.
 
-1. Build `//crates/be-server:dist` for the VPS
-   (`./scripts/buck build //crates/be-server:dist --out DIR`), copy `DIR/be-server`
-   to `/usr/local/bin/be-server` and `DIR/build-id` to `/etc/be-server/build-id`.
-   The server refuses clients of any other build, so upgrade it together with
-   the web bundle and every device, all from one commit.
-2. `useradd --system --home /var/lib/be-server be-server`.
-3. Copy `be-server.service`, `be-backup.service` and `be-backup.timer` to
-   `/etc/systemd/system/`, then `systemctl enable --now be-server be-backup.timer`.
-4. Put `Caddyfile` (with the real domain) in Caddy's config and reload it.
-5. `journalctl -u be-server` shows its log; `RUST_LOG=debug` in the unit shows
-   each connection.
+The server's `--data-dir` holds `metadata.sqlite` and `objects/`. On startup the
+server adds missing schema tables, indexes and defaulted columns, and refuses
+incompatible schemas. This directory and its backups are frozen formats
+(guides/frozen_formats.md).
+
+Password sign-ins are disabled unless the host starts the server with
+`--allow-login`; registration requires `--allow-registration`. Devices already
+signed in reconnect with their session tokens. To create an account directly,
+stop the server and run its executable with the same `--data-dir` and
+`--add-account EMAIL NAME ORGANIZATION`, passing the password on standard input.
 
 ## Deploying
 
@@ -66,7 +50,7 @@ How the server runs on a VPS for real notes. The files referred to are in
   `buck-tools archive` into a folder of its own name, and `:android-release`,
   signed on a worker with the release keystore under the id and label
   `--android-id` and `--android-label` give (`com.be3.block` and `Block`, so
-  it installs beside CI's `com.be3.block.ci`), with
+  it installs beside dev's `com.be3.block.dev` and CI's `com.be3.block.ci`), with
   `data/BUILD/app/index.html` linking them. Once the server runs the build (not
   under `--skip-server`), it writes the same page to `index.html`, the one
   people are sent to (`be3.pfg.pw/`), without reading it back
@@ -76,7 +60,7 @@ How the server runs on a VPS for real notes. The files referred to are in
   neither needs the keystore;
 - uploads the unpacked web bundle and plugins to `data/BUILD/web/` and archives the
   server executable and its build ID to `data/BUILD/server/` in the same zone;
-- copies only `be-server` and its `build-id` to the VPS over SSH, stops
+- copies only `be-server` and its `build-info.json` to the VPS over SSH, stops
   be-server, swaps the files and starts it again. Caddy stays running;
 - after that succeeds, publishes `/web`, the matching app HTML with a
   `<base href="/data/BUILD/web/">` before its import map and scripts. The browser
@@ -133,20 +117,20 @@ that names the host, the directory there and the storage zone.
 
 ## Backups
 
-`be-backup.timer` runs `be-server backup` hourly and `be-server verify` after
-it. `be-server --help` describes what a backup holds and keeps.
+Backups are scheduled on the host. `be-server backup` writes a backup and
+`be-server verify` checks the data; `be-server --help` describes the options.
 
-- `be-server backup-key > /etc/be-server/backup.key`, readable only by
-  `be-server`. Keep a copy off the VPS: a backup cannot be restored without it.
-- `/etc/be-server/backup.env` holds `BUNNY_STORAGE_ZONE`, `BUNNY_STORAGE_KEY`
-  (the zone's password) and `BUNNY_STORAGE_ENDPOINT` (the zone's region, such
-  as `https://ny.storage.bunnycdn.com`).
+- `be-server backup-key > backup.key` creates the key. Keep it readable only by
+  the backup process and save a copy off the VPS: a backup cannot be restored
+  without it.
+- Run `be-server backup --data-dir DATA --to bunny:ZONE --key-file backup.key`
+  with `BUNNY_STORAGE_KEY` (the zone's password) and `BUNNY_STORAGE_ENDPOINT`
+  (the region endpoint, such as `https://ny.storage.bunnycdn.com`).
 - The zone's password can delete what it wrote, so a compromised VPS can delete
-  its backups. Turn on the zone's replication to a second region, and now and
-  then copy the zone to a machine the VPS cannot reach.
-- Notes are end-to-end encrypted. A restored server serves them, but reading
-  them still needs the account's recovery phrase or a device the account has
-  unlocked.
+  its backups. Turn on replication to a second region and copy backups to a
+  machine the VPS cannot reach.
+- Notes are end-to-end encrypted. Reading restored notes still needs the
+  account's recovery phrase or an unlocked device.
 
 ## Restoring
 
@@ -154,8 +138,7 @@ it. `be-server --help` describes what a backup holds and keeps.
 2. `be-server restore --from bunny:ZONE --key-file backup.key --data-dir NEW-DIR`
    restores the newest database and every object it references into an empty
    directory. `--snapshot NAME` picks an older one from `databases/`.
-3. `be-server verify --data-dir NEW-DIR`, then point the service at it (or move
-   it to `/var/lib/be-server`) and start it. Devices reconnect with the tokens
+3. `be-server verify --data-dir NEW-DIR`, then point the host’s service at it and start it. Devices reconnect with the tokens
    they had.
 
 ## Never
@@ -176,8 +159,7 @@ the same account header on every request.
 The agent dialog's proxy checkbox omits the token from its JSON bundle and sets
 `authentication` to `proxy`. The recovery phrase stays in the bundle for local
 decryption. `BE3_AUTHORIZATION` and the native app's gateway field now send
-`Be3-Gateway-Authorization`; existing Caddy configuration and proxy rules must
-switch together. Browsers use the gateway cookie because their WebSocket API
+`Be3-Gateway-Authorization`; the host’s gateway rules must use that header. Browsers use the gateway cookie because their WebSocket API
 cannot set request headers.
 
-The app embeds `crates/block-app/src/app-config.json` in both native and web builds. Its `account_server` prefills the server address when adding an account; self-hosted builds should set it to their API URL. Saved accounts keep their own server address. This configuration is independent of the `build-id` compatibility stamp.
+The app embeds `crates/block-app/src/app-config.json` in both native and web builds. Its `account_server` prefills the server address when adding an account; self-hosted builds should set it to their API URL. Saved accounts keep their own server address. This configuration is independent of the `build-info.json` bundle metadata.

@@ -31,7 +31,7 @@ if [[ -z "$be_release" ]]; then
     echo 'No be release is pinned yet (be_release in scripts/internal/common.sh).' >&2
     exit 1
 fi
-if [[ ! -x "$be" || ! -f "$(dirname "$be")/build-id" ]]; then
+if [[ ! -x "$be" || ! -f "$(dirname "$be")/$be_metadata_file" ]]; then
     "$internal/install-be.sh" >&2
 fi
 
