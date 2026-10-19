@@ -1034,7 +1034,6 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 let ty = &prop.ty;
                 quote! { <#param as #trait_ident<#ty>>::__prop(self.#ident) }
             }
-            None if prop.inner_ty.is_some() => quote! { self.#ident.unwrap_or(None) },
             None => match &prop.default {
                 Some(default) if prop.reactive_inner_ty.is_some() => quote! {
                     self.#ident
