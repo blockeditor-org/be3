@@ -1,4 +1,4 @@
-use beui_html::elements as html;
+use beui_html::{elements as html, tw};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -124,7 +124,7 @@ impl Sessions {
     }
 }
 
-use beui_html::{Children, Node, Show, Stylesheet, component, render, view};
+use beui_html::{Children, Node, Show, component, render, view};
 
 pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<String, ServerError> {
     let csrf = services.browser_auth.form()?;
@@ -191,9 +191,42 @@ fn Shell(children: Children<Node>) -> Node {
                 <html::Meta charset="utf-8" />
                 <html::Meta name="viewport" content="width=device-width, initial-scale=1" />
                 <html::Title>"Block — authorize device"</html::Title>
-                <Stylesheet css={include_str!("browser_auth.css")} />
+                <tw::Styles />
             </html::Head>
-            <html::Body>{children}</html::Body>
+            <html::Body
+                css=<>
+                    <tw::TextBase />
+                    <tw::FontSans />
+                    <tw::My12 />
+                    <tw::MxAuto />
+                    <tw::Px4 />
+                    <tw::MaxW112 />
+                    <tw::TextInk />
+                    <tw::BgPaper />
+                    <tw::Descendants target=tw::Target::Label>
+                        <tw::Block />
+                        <tw::My4 />
+                    </tw::Descendants>
+                    <tw::Descendants target=tw::Target::Input>
+                        <tw::Block />
+                        <tw::BoxBorder />
+                        <tw::WFull />
+                        <tw::Padding size=tw::Spacing::Control />
+                        <tw::FontInherit />
+                    </tw::Descendants>
+                    <tw::Descendants target=tw::Target::Button>
+                        <tw::Padding size=tw::Spacing::Control />
+                        <tw::ControlMargin />
+                        <tw::FontInherit />
+                        <tw::CursorPointer />
+                    </tw::Descendants>
+                    <tw::Descendants target=tw::Target::Alert>
+                        <tw::TextDanger />
+                    </tw::Descendants>
+                </>
+            >
+                {children}
+            </html::Body>
         </html::Html>
     }
 }

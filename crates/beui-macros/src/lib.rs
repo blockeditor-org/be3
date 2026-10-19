@@ -1207,7 +1207,10 @@ impl Parse for ViewAttr {
             return Ok(ViewAttr { key, value });
         }
         input.parse::<Token![=]>()?;
-        let value = if input.peek(syn::token::Brace) {
+        let value = if input.peek(Token![<]) {
+            let child = input.parse::<ViewChild>()?;
+            syn::parse2(expand_child(&child))?
+        } else if input.peek(syn::token::Brace) {
             let content;
             braced!(content in input);
             content.parse::<Expr>()?
@@ -1278,6 +1281,7 @@ fn apply_modifiers(
 }
 
 enum ViewChildKind {
+    Fragment(Vec<ViewChild>),
     Node(ViewNode),
     Expr(Expr, Vec<ViewModifier>),
 }
@@ -1288,7 +1292,18 @@ struct ViewChild {
 
 impl Parse for ViewChild {
     fn parse(input: ParseStream) -> syn::Result<Self> {
-        let kind = if input.peek(Token![<]) {
+        let kind = if input.peek(Token![<]) && input.peek2(Token![>]) {
+            input.parse::<Token![<]>()?;
+            input.parse::<Token![>]>()?;
+            let mut children = Vec::new();
+            while !(input.peek(Token![<]) && input.peek2(Token![/])) {
+                children.push(input.parse::<ViewChild>()?);
+            }
+            input.parse::<Token![<]>()?;
+            input.parse::<Token![/]>()?;
+            input.parse::<Token![>]>()?;
+            ViewChildKind::Fragment(children)
+        } else if input.peek(Token![<]) {
             ViewChildKind::Node(input.parse()?)
         } else if input.peek(syn::LitStr) {
             let lit: syn::LitStr = input.parse()?;
@@ -1466,6 +1481,14 @@ impl Parse for ViewNode {
 
 fn expand_child(child: &ViewChild) -> proc_macro2::TokenStream {
     match &child.kind {
+        ViewChildKind::Fragment(children) => {
+            if children.is_empty() {
+                quote! { ::__beui_tree::reactive::Children::default() }
+            } else {
+                let items = expand_child_items(children);
+                quote! { ::__beui_tree::reactive::Children::from([#(#items),*]) }
+            }
+        }
         ViewChildKind::Node(node) => expand_view_node(node),
         ViewChildKind::Expr(expr, modifiers) => apply_modifiers(quote! { #expr }, modifiers),
     }

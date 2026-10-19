@@ -43,6 +43,7 @@ struct ViewCall {
 }
 
 enum Child {
+    Fragment(Vec<Child>),
     Element(Element),
     Modified(Box<Child>, Vec<Attribute>),
     Expr(Range<usize>),
@@ -68,6 +69,7 @@ struct Attribute {
 }
 
 enum Value {
+    View(Box<Child>),
     Braced(Range<usize>),
     Bare(Range<usize>),
 }
@@ -236,7 +238,14 @@ impl Parser<'_> {
     }
 
     fn child(&mut self) -> Option<Child> {
-        let child = if self.at(0, "<") {
+        let child = if self.at(0, "<") && self.at(1, ">") {
+            self.index += 2;
+            let children = self.children()?;
+            self.expect("<")?;
+            self.expect("/")?;
+            self.expect(">")?;
+            return Some(Child::Fragment(children));
+        } else if self.at(0, "<") {
             return Some(Child::Element(self.element()?));
         } else if self.at(0, "{") {
             Child::Expr(self.group()?)
@@ -272,7 +281,9 @@ impl Parser<'_> {
             self.identifier()?
         };
         let value = if self.eat("=") {
-            if self.at(0, "{") {
+            if self.at(0, "<") && !special {
+                Some(Value::View(Box::new(self.child()?)))
+            } else if self.at(0, "{") {
                 Some(Value::Braced(self.group()?))
             } else {
                 Some(Value::Bare(self.bare_value()?))
@@ -422,6 +433,18 @@ impl Formatter<'_> {
 
     fn child_lines(&self, child: &Child, indent: usize, column: usize) -> Vec<String> {
         match child {
+            Child::Fragment(children) => {
+                if children.is_empty() {
+                    return vec!["<></>".to_owned()];
+                }
+                let mut lines = vec!["<>".to_owned()];
+                for child in children {
+                    let parts = self.child_lines(child, indent + INDENT, indent + INDENT);
+                    push_block(&mut lines, indent + INDENT, parts);
+                }
+                lines.push(format!("{}</>", spaces(indent)));
+                lines
+            }
             Child::Modified(child, modifiers) => {
                 let mut lines = self.child_lines(child, indent, column);
                 for modifier in modifiers {
@@ -503,6 +526,9 @@ impl Formatter<'_> {
         let column = column + key.chars().count() + 1;
         match &attribute.value {
             None => vec![key],
+            Some(Value::View(child)) => {
+                prefix(self.child_lines(child, indent, column), &format!("{key}="))
+            }
             Some(Value::Bare(range)) => {
                 prefix(self.expr_lines(range, indent, column), &format!("{key}="))
             }
@@ -515,6 +541,7 @@ impl Formatter<'_> {
 
     fn child_text(&self, child: &Child) -> Option<String> {
         match child {
+            Child::Fragment(children) => children.is_empty().then(|| "<></>".to_owned()),
             Child::Modified(child, modifiers) => {
                 let mut text = self.child_text(child)?;
                 for modifier in modifiers {
@@ -546,7 +573,7 @@ impl Formatter<'_> {
             }
         }
         for child in children {
-            if matches!(child, Child::Element(_)) {
+            if matches!(child, Child::Element(_) | Child::Fragment(_)) {
                 return None;
             }
             text.push_str(&self.child_text(child)?);
@@ -578,6 +605,7 @@ impl Formatter<'_> {
         let key = attribute_key(attribute);
         match &attribute.value {
             None => Some(key),
+            Some(Value::View(child)) => Some(format!("{key}={}", self.child_text(child)?)),
             Some(Value::Bare(range)) => Some(format!("{key}={}", self.expr_text(range)?)),
             Some(Value::Braced(range)) => Some(format!("{key}={{{}}}", self.expr_text(range)?)),
         }
