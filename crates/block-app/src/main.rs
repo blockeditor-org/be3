@@ -112,8 +112,19 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     }
     #[cfg(target_os = "linux")]
     if arguments.session {
-        session::start_log();
+        let console = session::start_log();
+        let ran = run_app(arguments);
+        if let (Err(error), Some(mut console)) = (&ran, console) {
+            use std::io::Write;
+            let _ = writeln!(console, "block-app: the session ended: {error}");
+        }
+        return ran;
     }
+    run_app(arguments)
+}
+
+#[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
+fn run_app(arguments: arguments::Arguments) -> Result<(), Box<dyn Error>> {
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
     app.session_mode = arguments.session;

@@ -66,8 +66,8 @@ panvk refuses the G52 (Bifrost, v7) unless
 `PAN_I_WANT_A_BROKEN_VULKAN_DRIVER` is set, so the package also installs
 `/etc/profile.d/panvk.sh`, which greetd reads before it starts a session. Mesa 26.3.0-rc1 still
 reports conformance 0.0.0.0 for the G52, so also set
-`WGPU_ALLOW_UNDERLYING_NONCOMPLIANT_ADAPTER=1` when launching block-app. Its windowed and
-offscreen renderers read wgpu's instance environment settings. Allowing the adapter does not
+`WGPU_ALLOW_UNDERLYING_NONCOMPLIANT_ADAPTER=1` when launching block-app; every renderer, the
+session's included, reads wgpu's instance environment settings. Allowing the adapter does not
 guarantee correct rendering with either Mesa version. Move `_tag` to the
 release once Mesa 26.3.0 is out, and drop the package once Arch's `vulkan-panfrost` is 26.3 or
 newer.

@@ -535,7 +535,7 @@ unsafe fn libc_close(fd: std::os::fd::RawFd) {
 pub fn adapter_for(node: u64) -> Option<wgpu::Adapter> {
     let instance = wgpu::Instance::new(wgpu::InstanceDescriptor {
         backends: wgpu::Backends::VULKAN,
-        ..wgpu::InstanceDescriptor::new_without_display_handle()
+        ..wgpu::InstanceDescriptor::new_without_display_handle_from_env()
     });
     let adapters = pollster::block_on(instance.enumerate_adapters(wgpu::Backends::VULKAN));
     let rank = |adapter: &wgpu::Adapter| {
