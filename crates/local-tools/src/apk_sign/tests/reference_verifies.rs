@@ -58,10 +58,31 @@ fn reference_verifies() {
         .unwrap();
     writer.write_all(&binary_manifest).unwrap();
     writer.finish().unwrap();
-    for fixture in ["test.jks", "test.p12", "test-keytool.p12"] {
-        let key = Path::new(&std::env::var("APK_SIGN_KEYS").unwrap())
-            .join("testdata/keystore")
-            .join(fixture);
+    let signer = std::env::var("APK_SIGNER").unwrap();
+    let generated = scratch.0.join("generated.p12");
+    let encoded = scratch.0.join("generated.base64");
+    super::super::generate_key(Path::new(&signer), &generated, 2048).unwrap();
+    let original_key = fs::read(&generated).unwrap();
+    assert!(super::super::generate_key(Path::new(&signer), &generated, 2048).is_err());
+    assert_eq!(fs::read(&generated).unwrap(), original_key);
+    super::super::save_key(&encoded, &original_key).unwrap();
+    for fixture in [
+        "test.jks",
+        "test.p12",
+        "test-keytool.p12",
+        "generated.p12",
+        "generated.base64",
+    ] {
+        let is_generated = fixture.starts_with("generated");
+        let key = if is_generated {
+            scratch.0.join(fixture)
+        } else {
+            Path::new(&std::env::var("APK_SIGN_KEYS").unwrap())
+                .join("testdata/keystore")
+                .join(fixture)
+        };
+        let pass = if is_generated { "android" } else { "test123" };
+        fs::write(&password, pass).unwrap();
         let signed = scratch.0.join(format!("{fixture}.apk"));
         super::super::run(vec![
             std::env::var("APK_SIGNER").unwrap(),
@@ -87,7 +108,7 @@ fn reference_verifies() {
                 "--verbose",
                 "--print-certs",
                 "--min-sdk-version",
-                "23",
+                "24",
             ])
             .arg(&signed)
             .output()
@@ -98,22 +119,28 @@ fn reference_verifies() {
             String::from_utf8_lossy(&verify.stderr)
         );
         let actual = String::from_utf8(verify.stdout).unwrap();
-        assert!(actual.contains("Verified using v1 scheme (JAR signing): true"));
+        assert!(actual.contains("Verified using v1 scheme (JAR signing): false"));
         assert!(actual.contains("Verified using v2 scheme (APK Signature Scheme v2): true"));
         assert!(actual.contains("Verified using v3 scheme (APK Signature Scheme v3): true"));
+        assert!(!actual.contains("WARNING"), "{actual}");
+        assert!(!String::from_utf8_lossy(&verify.stderr).contains("WARNING"));
+        let mut archive = zip::ZipArchive::new(fs::File::open(&signed).unwrap()).unwrap();
+        assert!(archive.by_name("META-INF/MANIFEST.MF").is_err());
         let reference = scratch.0.join("reference.apk");
+        let reference_key = scratch.0.join("reference-key.p12");
+        fs::write(&reference_key, super::super::read_key(&key).unwrap()).unwrap();
         let sign = Command::new(&java)
             .arg("-jar")
             .arg(&jar)
             .args([
                 "sign",
                 "--min-sdk-version",
-                "23",
+                "24",
                 "--ks-pass",
-                "pass:test123",
+                &format!("pass:{pass}"),
                 "--ks",
             ])
-            .arg(&key)
+            .arg(&reference_key)
             .arg("--out")
             .arg(&reference)
             .arg(&template)
@@ -127,7 +154,7 @@ fn reference_verifies() {
         let verify = Command::new(&java)
             .arg("-jar")
             .arg(&jar)
-            .args(["verify", "--print-certs", "--min-sdk-version", "23"])
+            .args(["verify", "--print-certs", "--min-sdk-version", "24"])
             .arg(&reference)
             .output()
             .unwrap();

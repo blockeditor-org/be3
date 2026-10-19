@@ -363,7 +363,7 @@ export_file(
 # prelude assembles .S files with the bare compiler, without toolchain flags.
 # The macOS minimums are rustc's defaults.
 clang_targets = {
-    "android_arm64": "aarch64-linux-android26",
+    "android_arm64": "aarch64-linux-android24",
     "linux_arm64": "aarch64-linux-gnu",
     "macos_arm64": "arm64-apple-macosx11.0",
     "macos_x86_64": "x86_64-apple-macosx10.12",

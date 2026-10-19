@@ -1,8 +1,8 @@
-load(":sign-wasm.bzl", "signing_trial", "wasm_signer")
+load(":sign-wasm.bzl", "apk_sign_command", "wasm_signer")
 
 # What an APK is made with, pinned by hash and size: a JDK (javac, d8,
-# apksigner), the SDK build tools (aapt2, zipalign), the platform (android.jar)
-# and the platform tools (adb, for installing).
+# apksigner for reference tests), the SDK build tools (aapt2, zipalign), and
+# the platform (android.jar). Signing runs locally through WASI.
 
 jdk_version = "21.0.12.1+1"
 
@@ -39,39 +39,6 @@ http_archive(
 )
 
 http_archive(
-    name = "platform-tools",
-    sha256 = "d230f13842f60f782a8645f9c813f8f845bf36089ea7289f28c48f17979313f1",
-    size_bytes = 9054187,
-    strip_prefix = "platform-tools",
-    urls = ["https://dl.google.com/android/repository/platform-tools_r37.0.1-linux.zip"],
-    visibility = ["PUBLIC"],
-)
-
-export_file(
-    name = "sign.sh",
-    visibility = ["PUBLIC"],
-)
-
-# CI's keystore, which signs :android-dist on a worker so that each CI build
-# installs as an update over the last. ci.yml writes it here from the
-# repository secret ANDROID_CI_KEYSTORE_BASE64, and git ignores it; without
-# it, signing fails and says so.
-filegroup(
-    name = "ci-keystore",
-    srcs = glob(["ci-keystore.base64"]),
-    visibility = ["PUBLIC"],
-)
-
-# The keystore ./scripts/deploy signs :android-release with, which it writes
-# here from the one it keeps in ~/.config/be3 (guides/hosting.md); git ignores
-# it too.
-filegroup(
-    name = "release-keystore",
-    srcs = glob(["release-keystore.base64"]),
-    visibility = ["PUBLIC"],
-)
-
-http_archive(
     name = "signer-go",
     sha256 = "68097bd680839cbc9d464a0edce4f7c333975e27a90246890e9f1078c7e702ad",
     size_bytes = 78516109,
@@ -85,7 +52,7 @@ http_archive(
     size_bytes = 98548,
     strip_prefix = "apksig-go-1.1.0",
     urls = ["https://codeload.github.com/agusibrahim/apksig-go/tar.gz/refs/tags/v1.1.0"],
-    visibility = ["//crates/local-tools:"],
+    visibility = ["PUBLIC"],
 )
 
 http_archive(
@@ -113,7 +80,7 @@ http_archive(
 )
 
 export_file(name = "build-sign-wasm.sh")
-export_file(name = "sign-wasm.patch")
+export_file(name = "keygen.go")
 
 wasm_signer(
     name = "apksign-wasm",
@@ -122,10 +89,10 @@ wasm_signer(
     keystore = ":signer-keystore",
     pkcs12 = ":signer-pkcs12",
     source = ":signer-source",
-    visibility = ["//crates/local-tools:"],
+    visibility = ["PUBLIC"],
 )
 
-signing_trial(
+apk_sign_command(
     name = "sign-wasm",
     signer = ":apksign-wasm",
     tool = "//crates/local-tools:bin",

@@ -1,8 +1,9 @@
 use serde_json::Value;
 
 pub(crate) const QUERY: &str = "//... - //third-party/... - //buck/... - //external/...";
-const HIDDEN: [&str; 4] = [
+const HIDDEN: [&str; 5] = [
     "export_file",
+    "android_template",
     "prebuilt_cxx_library",
     "rust_proc_macro_alias",
     "configured_alias",
@@ -53,7 +54,7 @@ pub(crate) fn parse_targets(listed: &Value) -> Vec<Target> {
                         "tool" => Action::Run,
                         "rust_binary" if !label.ends_with(":test-module") => Action::Run,
                         "app" if runnable_app => Action::Run,
-                        "android_apk" if attributes["ci_signed"] != true => Action::Run,
+                        "android_apk" => Action::Run,
                         _ => Action::Build,
                     };
                     Some(Target {

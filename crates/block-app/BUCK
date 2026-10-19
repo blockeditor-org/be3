@@ -160,7 +160,7 @@ export_file(
     src = "web/serve.sh",
 )
 
-# The Android app: the APK is built unsigned on a worker, with the plugins
+# The Android app: the APK is built unsigned locally, with the plugins
 # precompiled for the device, and `./scripts/buck run :android` signs it here
 # into target/android/block-app.apk (`-- --install` installs and starts it).
 # CI's APK carries the same plugins, since an APK has nowhere else to find
@@ -172,7 +172,6 @@ app(
     name = "android-assets",
     compiled_only = True,
     data = ["//{}:data".format(package) for package in editor_packages()],
-    files = ["//buck/app:build-info.json"],
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
@@ -181,8 +180,8 @@ app(
     sdk = "//crates/block-plugin-sdk:module",
 )
 
-# What CI ships is :android-dist, signed on a worker with CI's keystore, so the
-# runner downloads only the APK: `./scripts/buck build :android-dist --out block-app.apk`.
+# CI finalizes :android-dist on its runner; deploy finalizes :android-release
+# locally. Buck outputs are unsigned templates without build metadata.
 # What ./scripts/deploy uploads is :android-release, signed with the release
 # keystore, under the id and label its --android-id and --android-label give
 # (be3.android_id and be3.android_label), so that it can install beside CI's.
@@ -193,26 +192,26 @@ app(
         application_id = application_id,
         assets = ":android-assets",
         java = glob(["android/java/**/*.java"]) + ["//crates/beui-adapter-android:android-java"],
-        keystore = keystore,
         label = label,
         library = ":block-app",
         manifest = "android/AndroidManifest.xml",
-        min_sdk = 23,
+        min_sdk = 24,
         package = "com.be3.block",
         resources = "android/res",
+        signing = signing,
         target_sdk = 35,
         version_code = 1,
         version_name = "0.1.0",
         visibility = ["//crates/local-tools:"],
     )
-    for name, application_id, label, keystore in [
-        ("android", "com.be3.block.dev", "Block (Dev)", None),
-        ("android-dist", "com.be3.block.ci", "Block (CI)", "//buck/android:ci-keystore"),
+    for name, application_id, label, signing in [
+        ("android", "com.be3.block.dev", "Block (Dev)", "dev"),
+        ("android-dist", "com.be3.block.ci", "Block (CI)", "ci"),
         (
             "android-release",
             read_config("be3", "android_id", "com.be3.block"),
             read_config("be3", "android_label", "Block"),
-            "//buck/android:release-keystore",
+            "release",
         ),
     ]
 ]

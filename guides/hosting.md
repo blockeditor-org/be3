@@ -48,7 +48,7 @@ stop the server and run its executable with the same `--data-dir` and
   back the same way: `:native` with its plugins for Linux, macOS and Windows on
   x86_64 and arm64 and the web bundle, each zipped on a worker by
   `buck-tools archive` into a folder of its own name, and `:android-release`,
-  signed on a worker with the release keystore under the id and label
+  signed locally with the release keystore under the id and label
   `--android-id` and `--android-label` give (`com.be3.block` and `Block`, so
   it installs beside dev's `com.be3.block.dev` and CI's `com.be3.block.ci`), with
   `data/BUILD/app/index.html` linking them. Once the server runs the build (not
@@ -103,13 +103,15 @@ there; the old host's cookie does not move between hosts.
 After the build, Rust loads the storage zone's password (`BUNNY_STORAGE_KEY`,
 `be-app-storage-key`) and the account's API key for the purge (`BUNNY_API_KEY`,
 `bunny-api-key`, required when publishing live pages), asking at a terminal
-for missing keys and saving them in `~/.config/be3`. Before the single buck2
-invocation, Bash prepares the release keystore (`android-release-keystore.base64`),
-which it can make anew and copies to `buck/android/release-keystore.base64`
-for the signing action. Bash also handles options that configure the build. Android installs an update only when it is signed
-with the same key, so keep a copy of the keystore off the machine: a new one
-means every device uninstalls the app once. Like CI's, it is an input of the
-signing action, so it is in the build server's CAS.
+for missing keys and saving them in `~/.config/be3`. The same local Rust step
+reads the release keystore (`android-release-keystore.base64`), asking at a
+terminal to generate one with WASI or import an existing key when missing.
+`BE3_ANDROID_RELEASE_KEYSTORE` can select another local file. It adds build
+metadata and signs the unsigned APK template before hashing and uploading it;
+no signing key enters a remote build action. Bash handles only options that
+configure the build. Keep a backup of the key: installed apps accept updates
+only with the same signing certificate. `--dry-run` does not read or generate
+a signing key; it reports APK finalization and upload without producing them.
 
 It refuses a working tree that differs from its commit, so every deployed build
 can be built again. Commit the pin it writes. `--dry-run` prints each step and

@@ -1,3 +1,11 @@
+def _signer_platform_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
+    return refs.linux[PlatformInfo]
+
+_signer_platform = transition(
+    impl = _signer_platform_impl,
+    refs = {"linux": "root//buck/platforms:linux_x86_64"},
+)
+
 def _signer_impl(ctx: AnalysisContext) -> list[Provider]:
     out = ctx.actions.declare_output("apksign.wasm")
     ctx.actions.run(
@@ -10,7 +18,7 @@ def _signer_impl(ctx: AnalysisContext) -> list[Provider]:
             ctx.attrs.pkcs12,
             ctx.attrs.crypto,
             out.as_output(),
-            ctx.attrs._fix,
+            ctx.attrs._keygen,
         ),
         category = "apksign_wasm",
     )
@@ -24,21 +32,22 @@ wasm_signer = rule(
         "pkcs12": attrs.source(),
         "source": attrs.source(),
         "_build": attrs.default_only(attrs.source(default = "root//buck/android:build-sign-wasm.sh")),
-        "_fix": attrs.default_only(attrs.source(default = "root//buck/android:sign-wasm.patch")),
+        "_keygen": attrs.default_only(attrs.source(default = "root//buck/android:keygen.go")),
     },
+    cfg = _signer_platform,
     impl = _signer_impl,
 )
 
-def _trial_impl(ctx: AnalysisContext) -> list[Provider]:
+def _command_impl(ctx: AnalysisContext) -> list[Provider]:
     return [
         DefaultInfo(),
         RunInfo(args = cmd_args(ctx.attrs.tool[RunInfo], "apk-sign", ctx.attrs.signer)),
     ]
 
-signing_trial = rule(
+apk_sign_command = rule(
     attrs = {
         "signer": attrs.source(),
         "tool": attrs.dep(providers = [RunInfo]),
     },
-    impl = _trial_impl,
+    impl = _command_impl,
 )

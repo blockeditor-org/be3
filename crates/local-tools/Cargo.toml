@@ -6,6 +6,7 @@ version.workspace = true
 license.workspace = true
 
 [dependencies]
+base64 = "0.22"
 build-id = { path = "../build-id" }
 paint-snapshot = { path = "../paint-snapshot" }
 image = { version = "0.25", default-features = false, features = ["png"] }

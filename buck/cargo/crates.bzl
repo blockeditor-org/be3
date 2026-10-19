@@ -11055,6 +11055,7 @@ crates = {
                     "local-tools": [
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
@@ -11067,6 +11068,7 @@ crates = {
                 "deps": [
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:sha2-0.10.9",
@@ -11085,6 +11087,7 @@ crates = {
                     "local-tools": [
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
@@ -11097,6 +11100,7 @@ crates = {
                 "deps": [
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:sha2-0.10.9",
@@ -11115,6 +11119,7 @@ crates = {
                     "local-tools": [
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
@@ -11127,6 +11132,7 @@ crates = {
                 "deps": [
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:sha2-0.10.9",
@@ -11145,6 +11151,7 @@ crates = {
                     "local-tools": [
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
@@ -11157,6 +11164,7 @@ crates = {
                 "deps": [
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:sha2-0.10.9",
@@ -11175,6 +11183,7 @@ crates = {
                     "local-tools": [
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
@@ -11187,6 +11196,7 @@ crates = {
                 "deps": [
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:libc-0.2.186",
                     "//third-party/rust:sha2-0.10.9",
@@ -11205,6 +11215,7 @@ crates = {
                     "local-tools": [
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
@@ -11216,6 +11227,7 @@ crates = {
                 "deps": [
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:ureq-2.12.1",
@@ -11233,6 +11245,7 @@ crates = {
                     "local-tools": [
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
@@ -11244,6 +11257,7 @@ crates = {
                 "deps": [
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:ureq-2.12.1",

@@ -87,28 +87,40 @@ One touch moves TalkBack's focus to the node under it, and two in a row within o
 through `adb` is not reliable, so run it a few times before concluding it is broken, and
 compare against main with `--apk`.
 
-## Trying local signing with WASI
+## Local APK finalization
+
+Both APKs require Android 7 (API 24), matching the native toolchain, and
+use v2 and v3 signatures. `target_sdk` remains 35. Buck builds aligned,
+unsigned templates without build metadata for every Android variant. `buck run`
+adds `assets/build-info.json` and signs locally, writing
+`target/android/block-app.apk` or `target/android/be-launcher.apk`.
+`buck build --out` copies an unsigned template, not an installable APK.
+
+The finalizer is `local-tools apk-sign`, shared by local runs, `./scripts/ci
+--android DIR` on the CI runner, and `./scripts/deploy` before hashing and
+uploading the release APK. It embeds Wasmtime and runs apksig-go v1.1.0's
+CLI compiled for WASI from hash-pinned source and dependencies with network
+dependency resolution disabled. The published upstream WASM bundle targets
+JavaScript and is not used. No local Go, Java, Node or Android SDK is needed
+to produce signed APKs. `--install` needs adb, found through `ADB`, the SDK
+environment variables, standard SDK locations, or PATH.
+
+The dev key is `target/android-debug.keystore`, generated on first use.
+`--keystore FILE` overrides it; `--password-file FILE` overrides password
+`android`. Keys can be binary JKS/PKCS12 or base64 of either. CI reads
+`BE3_ANDROID_CI_KEYSTORE` or `buck/android/ci-keystore.base64`. Release reads
+`BE3_ANDROID_RELEASE_KEYSTORE` or
+`~/.config/be3/android-release-keystore.base64` (under `XDG_CONFIG_HOME` when
+set), asking at a terminal to generate or import a key when missing. Key
+generation also runs locally in WASI, without keytool or OpenSSL. Existing
+keys and certificates must be retained so installed apps accept updates.
+No key is a Buck attribute or action input.
 
 `./scripts/buck run //buck/android:sign-wasm -- --in INPUT.apk --out OUTPUT.apk --keystore KEYSTORE`
-tries apksig-go v1.1.0 on this machine through local-tools' embedded Wasmtime.
-The key is a binary JKS or PKCS12 file, with password `android` unless
-`--password-file FILE` supplies another. APKs, keys and passwords are runtime
-arguments, never Buck action inputs. The worker builds the WASI CLI from
-hash-pinned source and Go dependencies with network dependency resolution
-disabled; no Go, Java or Android SDK installation is needed locally.
-The published upstream WASM bundle targets JavaScript, so this target builds
-`cmd/apksign` for `wasip1` instead. The host sizes Wasmtime's per-call transfer
-budget from the APK size; its default 128 MB limit rejects large v1 signing
-reads.
-
-`--build-info FILE` appends `assets/build-info.json` before signing, preserving
-existing entry offsets, including the native libraries' 16 KB alignment. It
-requires an APK without that entry. The regular APK targets still include
-metadata and keep their existing signing paths; this target is a separate
-trial. It signs with v1 (the launcher supports API 23), v2 and v3, leaving
-upstream's 4-byte realignment disabled. A source patch aligns only newly
-added v1 signature entries to four bytes, preserving the existing entries;
-unpatched v1.1.0 produces unaligned `META-INF` entries. Validate output with Google's
-`apksigner verify --verbose --print-certs` and `zipalign -c -P 16 4` before
-using it for distribution. Upstream v1.1.0 produces a verifier warning about
-missing v1 anti-stripping protection.
+finalizes a template directly. `--build-info FILE` appends metadata before
+signing and requires an APK without `assets/build-info.json`. Appending
+preserves existing entries' offsets, including 16 KB native library
+alignment. V1 signing and the upstream four-byte realignment option are
+disabled. Tests cross-check signatures and certificate identity with Google's
+signer, check alignment with `zipalign -c -P 16 4`, and verify key generation
+and base64 imports.

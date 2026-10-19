@@ -158,20 +158,16 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
 
 ## CI's Android keystore
 
-`:android-dist` (`android_apk` with `keystore` in `buck/android/defs.bzl`) signs CI's APKs on a
-worker with `buck/android/ci-keystore.base64`, a base64 keystore that git
-ignores. ci.yml writes it from the repository secret
-`ANDROID_CI_KEYSTORE_BASE64` before it builds. Every CI build is signed with
-the same keystore so that each one installs as an update over the last; a new
-keystore means every device must uninstall the CI app and launcher once.
-To make a new one, signed the way `_sign` expects (store password
-`android`), and copy it for the secret:
+CI signs its unsigned APK templates on the GitHub runner, after the single
+Buck invocation, using the WASI finalizer in local-tools. The workflow writes
+`ANDROID_CI_KEYSTORE_BASE64` to the ignored file
+`buck/android/ci-keystore.base64`; local-tools reads it at runtime.
+`BE3_ANDROID_CI_KEYSTORE` can name a different local file. The path is retained
+so the workflow also works on older PRs whose rules still expect it there.
+No current rule refers to the key as an input, so signing keys no longer enter
+the build server's CAS. Previously uploaded copies are not removed by this
+change.
 
-```sh
-keytool -genkeypair -keystore ci.keystore -storepass android -alias androiddebugkey \
-    -keypass android -dname 'CN=Android Debug,O=Android,C=US' -keyalg RSA -keysize 2048 -validity 10000
-base64 -w0 ci.keystore
-```
-
-The keystore is an input of the signing action, so it is in the build server's CAS,
-where anyone with its key can read it.
+Keep the same keystore so each build installs as an update over the last.
+Keys are JKS/PKCS12 or base64 of one, with password `android`. Local WASI key
+generation and release key handling are described in guides/running/android.md.
