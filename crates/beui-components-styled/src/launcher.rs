@@ -350,7 +350,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
         }
     });
     let image = create_memo(move || item.get().and_then(|item| item.image));
-    let test_id = match &row {
+    let row_test_id = match &row {
         Row::Item(key) => format!("launcher.item.{key}"),
         Row::Run => "launcher.run".to_owned(),
     };
@@ -371,7 +371,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
     let (hover_row, click_row) = (row.clone(), row);
     view! {
         <unstyled::Button
-            @test_id={test_id}
+            @test_id={row_test_id}
             accessibility
             tab_stop=false
             press_focus=false

@@ -16,7 +16,7 @@ fn a_reactive_test_id_follows_its_signal() {
                     <Button @node_ref=&rename on_click={move || set_row.set(1)}>
                         <Text string="rename" />
                     </Button>
-                    <Text @test_id={test_id} string="value" />
+                    <Text @crate::reactive::test_id={test_id} string="value" />
                 </List>
             }
         }

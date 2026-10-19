@@ -102,7 +102,11 @@ pub(crate) fn ChromeRoot(
                                 <Frame
                                     padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
                                 >
-                                    <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=0.0
+                                    >
                                         <SheetToggle />
                                     </List>
                                 </Frame>
@@ -116,20 +120,17 @@ pub(crate) fn ChromeRoot(
                     {content} @sizing=ItemSize::Percent(100.0)
                     <Show condition={sheet}>
                         <Sheet
-                                extent={extent}
-                                open={sheet}
-                                rest={SHEET_STOPS[0]}
-                                on_close={move || close.set(false)}
-                            >
-                                <List spacing=0.0>
-                                    <ForEach keys={panels}>
-                                        |panel: NodeId| <Portal
-                                                    @sizing=ItemSize::Percent(100.0)
-                                                    node={Some(panel)}
-                                                />
-                                    </ForEach>
-                                </List>
-                            </Sheet>
+                            extent={extent}
+                            open={sheet}
+                            rest={SHEET_STOPS[0]}
+                            on_close={move || close.set(false)}
+                        >
+                            <List spacing=0.0>
+                                <ForEach keys={panels}>|panel: NodeId|
+                                    <Portal @sizing=ItemSize::Percent(100.0) node={Some(panel)} />
+                                </ForEach>
+                            </List>
+                        </Sheet>
                     </Show>
                 </List>
             }

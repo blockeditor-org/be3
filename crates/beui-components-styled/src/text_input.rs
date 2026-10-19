@@ -119,22 +119,22 @@ fn TextInputFrame(
                 >
                     <Show condition={marked}>
                         <Frame padding={Sides::new(PADDING_HORIZONTAL, 0.0, 0.0, 0.0)}>
-                                <Text color=TextColor::Muted align=TextAlign::Center>
-                                    <Icon glyph={glyph} />
-                                </Text>
-                            </Frame>
+                            <Text color=TextColor::Muted align=TextAlign::Center>
+                                <Icon glyph={glyph} />
+                            </Text>
+                        </Frame>
                     </Show>
                     {field} @sizing=ItemSize::Percent(100.0)
                     <Show condition={clearable}>
                         <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
-                                <IconButton
-                                    glyph={ICON_CLOSE.to_owned()}
-                                    label="Clear"
-                                    size=IconButtonSize::Compact
-                                    press_focus=false
-                                    on_click={clear}
-                                />
-                            </Frame>
+                            <IconButton
+                                glyph={ICON_CLOSE.to_owned()}
+                                label="Clear"
+                                size=IconButtonSize::Compact
+                                press_focus=false
+                                on_click={clear}
+                            />
+                        </Frame>
                     </Show>
                 </List>
             </Frame>

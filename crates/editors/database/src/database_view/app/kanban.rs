@@ -237,7 +237,7 @@ fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
     let pick = move || data.select(row.get_untracked(), None);
     let read_only = data.read_only;
     let payload = create_memo(move || (!read_only.get()).then(|| row.get()));
-    let test_id = create_memo(move || format!("database-view.card.{}", row.get()));
+    let element_test_id = create_memo(move || format!("database-view.card.{}", row.get()));
     let ghost = move |row: usize| {
         view! {
             <Frame width={COLUMN_WIDTH - 16.0} @test_id="database-view.card-ghost">
@@ -247,7 +247,12 @@ fn KanbanCard(data: Data, row: ReadSignal<usize>) -> NodeId {
     };
     view! {
         <Draggable payload={payload} threshold=DRAG_THRESHOLD preview={ghost}>|_: DragHandle|
-            <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
+            <ListRow
+                selected={selected}
+                @test_id={element_test_id}
+                on_click={pick}
+                on_activate={pick}
+            >
                 <CardLines data={data} row={row} />
             </ListRow>
         </Draggable>

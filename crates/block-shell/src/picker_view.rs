@@ -520,7 +520,7 @@ fn TileFace(handle: ButtonHandle, label: Memo<String>, glyph: Memo<String>) -> N
 fn LinkButton(act: Act, link: Memo<Option<LinkRow>>) -> NodeId {
     let label = create_memo(move || link.get().map(|link| link.name).unwrap_or_default());
     let glyph = create_memo(move || link.get().map(|link| link.icon).unwrap_or_default());
-    let test_id = link
+    let link_test_id = link
         .get_untracked()
         .map(|link| format!("picker.link.{}", link.id))
         .unwrap_or_default();
@@ -529,7 +529,7 @@ fn LinkButton(act: Act, link: Memo<Option<LinkRow>>) -> NodeId {
             label={label}
             glyph={glyph}
             variant=ButtonVariant::Ghost
-            @test_id={test_id}
+            @test_id={link_test_id}
             on_click={move || {
                 if let Some(link) = link.get_untracked() {
                     act.call(PickAction::Link(link.id, link.block_type));

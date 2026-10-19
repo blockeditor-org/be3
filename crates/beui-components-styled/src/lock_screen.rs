@@ -145,9 +145,10 @@ fn LockCard(
     let slots = create_memo(move || (0..actions.with(Vec::len)).collect::<Vec<usize>>());
     let error_id = format!("{id}.error");
     let action_id = id.clone();
+    let card_id = id.clone();
     view! {
         <Frame padding=inset align=Align::Start>
-            <Frame width=width height=height align=Align::Center @test_id={id.clone()}>
+            <Frame width=width height=height align=Align::Center @test_id=card_id>
                 <List spacing=GROUP_SPACING align=Align::Center>
                     <List spacing=SPACING align=Align::Center>
                         <Text style=TextStyle::DISPLAY string={time} />

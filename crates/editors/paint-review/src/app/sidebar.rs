@@ -92,13 +92,13 @@ fn PaintingRow(
     path: String,
     selected: block_editor_beui::beui::reactive::Memo<bool>,
 ) -> NodeId {
-    let test_id = format!("paint_review.entry.{path}");
+    let element_test_id = format!("paint_review.entry.{path}");
     let label = path.clone();
     let chosen = path.clone();
     view! {
         <ListRow
             selected={selected}
-            @test_id={test_id}
+            @test_id={element_test_id}
             on_click={move || review.select(&chosen)}
             on_activate={move || {}}
         >

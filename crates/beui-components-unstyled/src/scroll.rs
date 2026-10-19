@@ -633,12 +633,12 @@ fn Scrolling(
                     on_scroll={move |gesture: ScrollGesture| motion.get().wheel(gesture)}
                     on_scroll_drag={move |gesture: DragGesture| motion.get().drag(gesture)}
                     on_autoscroll={move |gesture: AutoscrollGesture| {
-                            let marking = (!gesture.ended).then_some(gesture.origin);
-                            if untrack(|| origin.get()) != marking {
-                                set_origin.set(marking);
-                            }
-                            motion.get().autoscroll(gesture);
-                        }}
+                        let marking = (!gesture.ended).then_some(gesture.origin);
+                        if untrack(|| origin.get()) != marking {
+                            set_origin.set(marking);
+                        }
+                        motion.get().autoscroll(gesture);
+                    }}
                 >
                     <Frame
                         outline={focus_outline(focused, focus_color, FOCUS_RING_WIDTH, FOCUS_RING_INSET)}

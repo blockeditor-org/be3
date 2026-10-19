@@ -289,7 +289,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
         }
     };
     let target = create_memo(move || path.get().to_vec());
-    let test_id = format!(
+    let element_test_id = format!(
         "logic-grid.slot.{}",
         path.get()
             .iter()
@@ -315,7 +315,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                         on_hover_change={move |over: bool| set_hovered.set(over)}
                     >
                         <Draggable
-                            @test_id={test_id}
+                            @test_id={element_test_id}
                             payload={payload}
                             cursor=CursorIcon::PointingHand
                             preview={ghost}

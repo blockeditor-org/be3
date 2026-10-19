@@ -321,7 +321,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
             .map(|row| short_id(&data.prefix.get(), row.as_uuid()))
             .unwrap_or_default()
     });
-    let test_id = create_memo(move || {
+    let element_test_id = create_memo(move || {
         row.get()
             .map(|row| format!("database-view.list.row.{}", row.as_uuid()))
             .unwrap_or_default()
@@ -369,7 +369,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
     let (wide_entry, narrow_entry) = (entry, entry);
     let (wide_code, wide_title) = (code, title);
     view! {
-        <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
+        <ListRow selected={selected} @test_id={element_test_id} on_click={pick} on_activate={pick}>
             <List spacing=0.0>
                 <Show condition={wide}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

@@ -452,31 +452,35 @@ fn DockSideBar(
     let rule = bar_rule(vacant);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-        <Frame
-            fill={ColorRole::custom(fill)}
-            padding=BAR_PADDING
-            @sizing=ItemSize::Percent(100.0)
-        >
-            <List spacing=BAR_SPACING>
-                <List
-                    direction=Direction::Horizontal
-                    align=Align::Center
-                    justify=Justify::SpaceBetween
-                    spacing=BAR_SPACING
-                >
-                    {grip}
-                    <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                        <DockMenu menu />
-                        <DockClose closable close={close} />
+            <Frame
+                fill={ColorRole::custom(fill)}
+                padding=BAR_PADDING
+                @sizing=ItemSize::Percent(100.0)
+            >
+                <List spacing=BAR_SPACING>
+                    <List
+                        direction=Direction::Horizontal
+                        align=Align::Center
+                        justify=Justify::SpaceBetween
+                        spacing=BAR_SPACING
+                    >
+                        {grip}
+                        <List
+                            direction=Direction::Horizontal
+                            align=Align::Center
+                            spacing=BAR_SPACING
+                        >
+                            <DockMenu menu />
+                            <DockClose closable close={close} />
+                        </List>
                     </List>
+                    {tabs} @sizing=ItemSize::Percent(100.0)
+                    <Show condition={titled}>
+                        <Text string={title.clone()} />
+                    </Show>
                 </List>
-                {tabs} @sizing=ItemSize::Percent(100.0)
-                <Show condition={titled}>
-                    <Text string={title.clone()} />
-                </Show>
-            </List>
-        </Frame>
-        <Frame fill={ColorRole::custom(rule)} width=CHROME_BORDER />
+            </Frame>
+            <Frame fill={ColorRole::custom(rule)} width=CHROME_BORDER />
         </List>
     }
 }

@@ -183,7 +183,7 @@ pub(crate) fn MapLabel(
     shown: Memo<Rc<HashMap<LabelKey, Label>>>,
     scale: Memo<f32>,
 ) -> CanvasItem {
-    let test_id = format!("map.label.{}.{}", key.text, key.occurrence);
+    let element_test_id = format!("map.label.{}.{}", key.text, key.occurrence);
     let label = create_memo(move || shown.with(|shown| shown.get(&key).cloned()));
     let rect = create_memo(move || {
         let scale = scale.get().max(f32::EPSILON);
@@ -211,7 +211,7 @@ pub(crate) fn MapLabel(
                 fill={ColorRole::Custom(HALO)}
                 radius=Radius::Xs
                 padding={Sides::horizontal(HALO_PADDING)}
-                @test_id={test_id}
+                @test_id={element_test_id}
             >
                 <Text string={text} size align=TextAlign::Center color={color} wrap=false />
             </Frame>

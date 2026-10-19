@@ -143,7 +143,9 @@ pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHan
         <List spacing=0.0>
             <Dynamic value={layer}>|layer: Layer| {
                 match layer {
-                    Layer::Emoji => view! { {emoji.call(keyboard)} @sizing=ItemSize::Percent(100.0) },
+                    Layer::Emoji => view! {
+                        {emoji.call(keyboard)} @sizing=ItemSize::Percent(100.0)
+                    },
                     _ => view! {
                         <Interactive
                             @sizing=ItemSize::Percent(100.0)

@@ -15,7 +15,7 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
                         false => ItemSize::Fixed(0.0),
                     });
                     view! {
-                        <Frame @sizing={sizing} @test_id={format!("row.{key}")} />
+                        <Frame @crate::reactive::sizing={sizing} @test_id={format!("row.{key}")} />
                     }
                 }</ForEach>
             </List>

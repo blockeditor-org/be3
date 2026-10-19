@@ -405,12 +405,13 @@ fn BranchLine(editor: Editor, blocked: Memo<bool>, name: String, current: bool) 
         true => "Current",
         false => "Switch",
     };
+    let branch_test_id = format!("checkout.branch.{name}");
     view! {
         <List
             direction=Direction::Horizontal
             align=Align::Center
             spacing=10.0
-            @test_id={format!("checkout.branch.{name}")}
+            @test_id=branch_test_id
         >
             <Text @sizing=ItemSize::Percent(100.0) string={name.clone()} />
             <Button

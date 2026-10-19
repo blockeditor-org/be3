@@ -171,7 +171,7 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
             .map(|item| item.event.value.title)
             .unwrap_or_default()
     });
-    let test_id = item.get_untracked().map_or_else(String::new, |item| {
+    let element_test_id = item.get_untracked().map_or_else(String::new, |item| {
         format!("calendar.event.{}", item.event.id)
     });
     let open = move || {
@@ -182,7 +182,7 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame fill=ColorRole::Accent radius={Radius::custom(3.0)}>
-                <ListRow @test_id={test_id} on_click={open} on_activate={open}>
+                <ListRow @test_id={element_test_id} on_click={open} on_activate={open}>
                     <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
                 </ListRow>
             </Frame>

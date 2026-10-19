@@ -29,12 +29,16 @@ fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
                         <Text string="toggle" />
                     </Button>
                     <List
-                        @sizing=ItemSize::Percent(100.0)
+                        @crate::reactive::sizing=ItemSize::Percent(100.0)
                         direction=Direction::Horizontal
                         spacing=0.0
                     >
-                        <List @sizing={sizing} @node_ref=&left spacing=0.0></List>
-                        <List @sizing=ItemSize::Percent(100.0) @node_ref=&right spacing=0.0></List>
+                        <List @crate::reactive::sizing={sizing} @node_ref=&left spacing=0.0></List>
+                        <List
+                            @crate::reactive::sizing=ItemSize::Percent(100.0)
+                            @node_ref=&right
+                            spacing=0.0
+                        ></List>
                     </List>
                 </List>
             }

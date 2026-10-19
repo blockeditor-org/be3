@@ -2057,9 +2057,7 @@ fn DockTabBody(dock: State, leaf: LeafId) -> NodeId {
     let empty = dock.empty;
     view! {
         <List spacing=0.0>
-            <Show condition={vacant}>
-                {empty.call(leaf)} @sizing=ItemSize::Percent(100.0)
-            </Show>
+            <Show condition={vacant}>{empty.call(leaf)} @sizing=ItemSize::Percent(100.0)</Show>
             <Show condition={occupied}>
                 <Portal node={panel} @sizing=ItemSize::Percent(100.0) />
             </Show>
