@@ -186,8 +186,9 @@ async fn serve_auth(
             match crate::browser_auth::submit(services, &fields).await {
                 Ok(()) => (
                     200,
-                    crate::browser_auth::shell(
-                        "<h1>Done</h1><p>Return to Block. You can close this page.</p>",
+                    crate::browser_auth::message(
+                        "Done",
+                        "Return to Block. You can close this page.",
                     ),
                 ),
                 Err(error) => (
@@ -200,10 +201,7 @@ async fn serve_auth(
                 ),
             }
         }
-        _ => (
-            405,
-            crate::browser_auth::shell("<h1>Method not allowed</h1>"),
-        ),
+        _ => (405, crate::browser_auth::message("Method not allowed", "")),
     };
     let response = format!(
         "HTTP/1.1 {status} Response\r\nContent-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nContent-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: same-origin\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{html}",

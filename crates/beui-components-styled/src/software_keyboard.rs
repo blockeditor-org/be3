@@ -245,11 +245,9 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
             </List>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <List direction=Direction::Horizontal wrap=true spacing=0.0>
-                    <ForEach keys={shown}>|emoji: &'static str| {
-                        view! {
-                            <EmojiKey emoji keyboard />
-                        }
-                    }</ForEach>
+                    <ForEach keys={shown}>|emoji: &'static str|
+                        <EmojiKey emoji keyboard />
+                    </ForEach>
                 </List>
             </Scroll>
             <List direction=Direction::Horizontal spacing=0.0 @sizing=ItemSize::Fixed(EMOJI_SIZE)>

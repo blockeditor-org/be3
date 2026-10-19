@@ -62,7 +62,7 @@ stop the server and run its executable with the same `--data-dir` and
   server executable and its build ID to `data/BUILD/server/` in the same zone;
 - copies only `be-server` and its `build-info.json` to the VPS over SSH, stops
   be-server, swaps the files and starts it again. Caddy stays running;
-- after that succeeds, publishes `/index.html`, the matching app HTML with a
+- after that succeeds, renders `/index.html` through the shared web-page renderer with a
   `<base href="/data/BUILD/web/">` before its import map and scripts. The browser
   stays at `/` or `/index.html`, keeping query parameters and fragments, so refreshing
   gets the currently deployed build.

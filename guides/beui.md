@@ -103,13 +103,12 @@ obscures which component's scope owns it. This is not enforced; break it where
 another shape is clearer.
 
 When part of the tree depends on something, express it in the view rather than
-in Rust control flow around it. `Show` takes a condition, builds its child each
-time it becomes true and disposes of it when it turns false, as SolidJS's does;
-`ShowKeepAlive` is the opt-in for a child worth keeping while it is hidden, such
-as a tab's panel whose scroll position and state should survive switching away:
-it builds the child the first time it is shown and only hides it after that,
-pausing the child's effects while it is hidden so they catch up once when it
-is shown again.
+in Rust control flow around it. `Show` takes a condition, builds its children each
+time it becomes true and disposes of them when it turns false, as SolidJS's does.
+Both it and `ShowKeepAlive` accept sibling children and components returning
+`Children<_>` without a wrapper. `ShowKeepAlive` builds its children once, keeps
+their identities while hidden, and pauses their effects until shown again.
+Use it for a tab panel whose scroll position and state should survive switching away.
 `Dynamic` rebuilds a subtree when a value changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
 keyed child per item. A component that is genuinely two different trees is two
 components with a `Dynamic` or a `Show` choosing between them.
@@ -126,9 +125,20 @@ slots - a list, a `Scroll` or a `Canvas` - so one written in a single-child slot
 whole view is a `Show` returns it typed `-> DynamicSegment<ListChild>` (or
 whatever kind of child its parent takes) rather than a `NodeId`.
 
+A function containing `view!` must be `#[component]`, whatever type it returns.
+The source check exempts test code, framework trait entrypoints, and views
+inside document/HTML rendering calls or factories storing deferred render
+callbacks. Extract other helpers into
+components and call them through `view!`, including helpers returning child
+runs rather than a single node.
+
 The exception is a component whose root is a base node it creates directly —
 the base layer itself, where `List` calls `create_list` and binds setters with
 effects. Above the base layer, one `view!` is the shape.
+
+Render-slot closures can write markup directly: `<ForEach keys={keys}>|key: Key|
+<Row key /></ForEach>`. Do not wrap that markup in `{ view! { ... } }`; the
+formatter removes a redundant macro when the block has no setup statements.
 
 ### Call components from `view!`, never their builders
 
@@ -3039,3 +3049,59 @@ the pull request's branch; it runs the workspace tests, lints, formatting, proje
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a
 failure.
+
+## HTML strings
+
+`beui-html` builds ordinary HTML elements, laid out by the browser's CSS. It
+uses `beui-tree` components and control flow, independently of the GUI's paints
+and layout and of `beui-renderer-dom`.
+
+```rust
+use beui_html::{elements as html, Text, render, view};
+
+let page = render(|| view! {
+    <html::Html>
+        <html::Body>
+            <html::P class="message"><Text value="Hello" /></html::P>
+            <html::Button name="action" value="deny" formnovalidate=true>"Deny"</html::Button>
+        </html::Body>
+    </html::Html>
+});
+```
+
+`render` builds in a fresh reactive scope, flushes bindings, writes the doctype
+and HTML, then disposes the scope. For a retained tree, build inside a scope you
+keep and call `Node::to_html` after updates. String children are escaped static
+text; `Text` binds reactive text. `Show`, `ShowKeepAlive`, `ForEach` and the other
+`beui-tree` control flow components work with HTML children.
+
+Build HTML through `view!` and components; do not call builders directly.
+Import `beui_html::elements as html` for ordinary HTML elements. Their declarations
+in `beui-html/src/elements.rs` generate normal components with shared global
+props and element-specific attributes. Extend those declarations for missing
+standard attributes. Rust keywords use raw identifiers (`r#type`, `r#for`).
+Boolean props control attribute presence; numeric attributes take numbers.
+Other attributes take strings. Omitted attributes are absent, and signals of
+`Option<T>` remove or restore attributes reactively. Static props need no effects.
+Void elements have no children prop and reject children at compile time.
+
+Use `@data={("test-id", value)}` and `@aria={("expanded", "false")}` for
+namespaced attributes; ARIA boolean values are strings. `Element tag="custom-tag"`,
+`@attr={("custom-name", value)}` and `@flag={("custom-flag", enabled)}` are
+escape hatches for custom markup. All attribute names are checked and values escaped.
+
+Multi-child `view!` produces `Children<Node>` without a wrapper. Components can
+return that type, and iterators of nodes or child runs collect into it. Both HTML
+renderers accept a node or a child run; `render_fragment` omits the doctype.
+Low-level node construction is private to the backend. Use
+`<Stylesheet css={...} />` and `<Script kind="module" source={...} />` for CSS
+and JavaScript/import-map source. These preserve source text and reject a closing
+tag for their container. CSS can live in separate files read with `include_str!`.
+
+`view!` and `#[component]` locate their support crate automatically, including
+renamed dependencies, through `proc-macro-crate`. A caller can depend on `beui`,
+`beui-view`, `beui-html`, or `beui-tree`; no macro path setting is needed.
+
+The web entry points are generated by `local-tools web-page` through its
+`:block-index` and `:demo-index` Buck targets. Their scripts, import maps and
+styles live under `crates/local-tools/src/web_page/`.

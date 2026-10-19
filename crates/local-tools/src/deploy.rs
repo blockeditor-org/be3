@@ -1,3 +1,4 @@
+use beui_html::elements as html;
 use std::{
     io::{IsTerminal, Read, Write},
     path::{Path, PathBuf},
@@ -296,13 +297,7 @@ fn run(options: &Options) -> Result<(), String> {
             return Err(format!("the web bundle is build {id}, not {build}"));
         }
     }
-    let web_entry = web
-        .map(|web| {
-            let html = std::fs::read_to_string(web.join("index.html"))
-                .map_err(|error| format!("cannot read web index: {error}"))?;
-            web_entry_point(&html, &build)
-        })
-        .transpose()?;
+    let web_entry = web.map(|_| web_entry_point(&build));
     let agents = Agents::new();
     let store = Store {
         options,
@@ -579,45 +574,69 @@ fn label(platform: &str) -> &'static str {
 }
 
 fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
-    let rows: String = downloads
-        .iter()
-        .map(|download| {
-            format!(
-                "<tr><td>{}</td><td><a href=\"{prefix}{name}\">{name}</a></td><td>{:.1} MB</td><td><code>{}</code></td></tr>\n",
-                download.label,
-                download.size as f64 / 1_000_000.0,
-                download.sha256,
-                name = download.name,
-            )
-        })
-        .collect();
-    format!(
-        "<!doctype html>
-<html lang=\"en\">
-<head>
-<meta charset=\"utf-8\">
-<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-<meta name=\"robots\" content=\"noindex, nofollow\">
-<title>Block downloads</title>
-<style>
-:root {{ color-scheme: light dark; font-family: system-ui, sans-serif; }}
-body {{ max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }}
-table {{ border-collapse: collapse; width: 100%; }}
-td, th {{ text-align: left; padding: 0.4rem 0.8rem 0.4rem 0; vertical-align: top; }}
-code {{ font-size: 0.75rem; word-break: break-all; }}
-</style>
-</head>
-<body>
-<h1>Block</h1>
-<p>Build <code>{build}</code>. A download connects only to a server running the same build.</p>
-<table>
-<tr><th>Platform</th><th>Download</th><th>Size</th><th>SHA-256</th></tr>
-{rows}</table>
-<p>Each zip holds the app in a folder of its own: run <code>block-app</code> (<code>block-app.exe</code> on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; <code>xattr -dr com.apple.quarantine block-app-macos-*</code> lets them open. The web bundle is also available to serve yourself. <a href=\"https://be3.pfg.pw/\">Open the hosted web app</a>.</p>
-</body>
-</html>
-"
-    )
+    use beui_html::{Children, Node, Stylesheet, render, view};
+    render(|| {
+        let rows: Children<Node> = downloads
+            .iter()
+            .map(|download| {
+                view! {
+                    <html::Tr>
+                        <html::Td>{download.label}</html::Td>
+                        <html::Td>
+                            <html::A href={format!("{prefix}{}", download.name)}>
+                                {download.name.as_str()}
+                            </html::A>
+                        </html::Td>
+                        <html::Td>
+                            {format!("{:.1} MB", download.size as f64 / 1_000_000.0)}
+                        </html::Td>
+                        <html::Td>
+                            <html::Code>{download.sha256.as_str()}</html::Code>
+                        </html::Td>
+                    </html::Tr>
+                }
+            })
+            .collect();
+        view! {
+            <html::Html lang="en">
+                <html::Head>
+                    <html::Meta charset="utf-8" />
+                    <html::Meta name="viewport" content="width=device-width, initial-scale=1" />
+                    <html::Meta name="robots" content="noindex, nofollow" />
+                    <html::Title>"Block downloads"</html::Title>
+                    <Stylesheet css={include_str!("deploy/downloads.css")} />
+                </html::Head>
+                <html::Body>
+                    <html::H1>"Block"</html::H1>
+                    <html::P>
+                        "Build "
+                        <html::Code>{build}</html::Code>
+                        ". A download connects only to a server running the same build."
+                    </html::P>
+                    <html::Table>
+                        <html::Tr>
+                            <html::Th>"Platform"</html::Th>
+                            <html::Th>"Download"</html::Th>
+                            <html::Th>"Size"</html::Th>
+                            <html::Th>"SHA-256"</html::Th>
+                        </html::Tr>
+                        {rows}
+                    </html::Table>
+                    <html::P>
+                        "Each zip holds the app in a folder of its own: run "
+                        <html::Code>"block-app"</html::Code>
+                        " ("
+                        <html::Code>"block-app.exe"</html::Code>
+                        " on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; "
+                        <html::Code>"xattr -dr com.apple.quarantine block-app-macos-*"</html::Code>
+                        " lets them open. The web bundle is also available to serve yourself. "
+                        <html::A href="https://be3.pfg.pw/">"Open the hosted web app"</html::A>
+                        "."
+                    </html::P>
+                </html::Body>
+            </html::Html>
+        }
+    })
 }
 
 fn purge(agents: &Agents, api_key: &str, url: &str) -> Result<(), String> {
@@ -655,13 +674,8 @@ impl Agents {
     }
 }
 
-fn web_entry_point(html: &str, build: &str) -> Result<String, String> {
-    let (before, after) = html
-        .split_once("<head>")
-        .ok_or("the web entry point has no head element")?;
-    Ok(format!(
-        "{before}<head><base href=\"/data/{build}/web/\">{after}"
-    ))
+fn web_entry_point(build: &str) -> String {
+    crate::web_page::page(false, Some(format!("/data/{build}/web/")))
 }
 
 fn upload_web(

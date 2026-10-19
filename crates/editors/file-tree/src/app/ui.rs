@@ -18,7 +18,7 @@ use block_editor_beui::{
 use uuid::Uuid;
 
 use super::export::{Export, ExportFormat, Exporter, formats};
-use super::menu::{RowTools, row_menu};
+use super::menu::{RowMenu, RowTools};
 use super::rows::{
     Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker, is_workspace,
 };
@@ -227,7 +227,9 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                     row_test_id={move |key: RowKey| row_test_id(&key)}
                                     reveal_test_id={"file-tree.reveal".to_owned()}
                                     outline={outline}
-                                    menu={move |key: RowKey| row_menu(tools, key)}
+                                    menu={move |key: RowKey| view! {
+                                        <RowMenu tools key />
+                                    }}
                                     on_select={open}
                                     on_expand={expand}
                                     on_reveal={reveal}

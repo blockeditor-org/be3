@@ -6,3 +6,8 @@ compile_fail(
     name = "beui",
     deps = ["//crates/beui:beui"],
 )
+
+compile_fail(
+    name = "beui-html",
+    deps = ["//crates/beui-html:beui-html"],
+)

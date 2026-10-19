@@ -1,3 +1,4 @@
+use beui_html::elements as html;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -116,38 +117,100 @@ impl Sessions {
     }
 }
 
+use beui_html::{Children, Node, Show, Stylesheet, component, render, view};
+
 pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<String, ServerError> {
     let csrf = services.browser_auth.form()?;
-    let login = if services.config.allow_login {
-        "<button name=action value=login>Sign in and authorize</button>"
-    } else {
-        ""
-    };
-    let register = if services.config.allow_registration {
-        "<label>Display name (for a new account)<input name=display_name autocomplete=nickname maxlength=200></label><button name=action value=register>Create account and authorize</button>"
-    } else {
-        ""
-    };
-    Ok(shell(&format!(
-        r#"<h1>Authorize Block</h1><p>Only continue if you started adding an account on your device. Check that its code matches.</p><p role=alert>{error}</p><form method=post action=/auth><input type=hidden name=csrf value="{csrf}"><label>Device code<input name=code value="{code}" required autocomplete=off maxlength=14></label><label>Email<input name=email type=email autocomplete=username></label><label>Password<input name=password type=password autocomplete=current-password></label>{login}{register}<button name=action value=deny formnovalidate>Deny</button></form>"#,
-        error = escape(error),
-        code = escape(code)
-    )))
+    let allow_login = services.config.allow_login;
+    let allow_registration = services.config.allow_registration;
+    let code = code.to_string();
+    let error = error.to_string();
+    Ok(render(|| {
+        view! {
+            <Shell>
+                <html::Main>
+                    <html::H1>"Authorize Block"</html::H1>
+                    <html::P>
+                        "Only continue if you started adding an account on your device. Check that its code matches."
+                    </html::P>
+                    <html::P role="alert">{error}</html::P>
+                    <html::Form method="post" action="/auth">
+                        <html::Input r#type="hidden" name="csrf" value={csrf} />
+                        <html::Label>
+                            "Device code"
+                            <html::Input
+                                name="code"
+                                value={code}
+                                required=true
+                                autocomplete="off"
+                                maxlength=14
+                            />
+                        </html::Label>
+                        <html::Label>
+                            "Email"
+                            <html::Input name="email" r#type="email" autocomplete="username" />
+                        </html::Label>
+                        <html::Label>
+                            "Password"
+                            <html::Input
+                                name="password"
+                                r#type="password"
+                                autocomplete="current-password"
+                            />
+                        </html::Label>
+                        <Show condition={allow_login}>
+                            <html::Button name="action" value="login">
+                                "Sign in and authorize"
+                            </html::Button>
+                        </Show>
+                        <Show condition={allow_registration}>
+                            <Registration />
+                        </Show>
+                        <html::Button name="action" value="deny" formnovalidate=true>
+                            "Deny"
+                        </html::Button>
+                    </html::Form>
+                </html::Main>
+            </Shell>
+        }
+    }))
 }
 
-pub(crate) fn shell(content: &str) -> String {
-    format!(
-        r#"<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content="width=device-width, initial-scale=1"><title>Block — authorize device</title><style>body{{font:1rem system-ui;margin:3rem auto;padding:0 1rem;max-width:28rem;color:#202124;background:#fafafa}}label{{display:block;margin:1rem 0}}input{{display:block;box-sizing:border-box;width:100%;padding:.7rem;font:inherit}}button{{padding:.7rem;margin:.4rem .4rem .4rem 0;font:inherit;cursor:pointer}}[role=alert]{{color:#a00}}</style>{content}</html>"#
-    )
+#[component]
+fn Shell(children: Children<Node>) -> Node {
+    view! {
+        <html::Html lang="en">
+            <html::Head>
+                <html::Meta charset="utf-8" />
+                <html::Meta name="viewport" content="width=device-width, initial-scale=1" />
+                <html::Title>"Block — authorize device"</html::Title>
+                <Stylesheet css={include_str!("browser_auth.css")} />
+            </html::Head>
+            <html::Body>{children}</html::Body>
+        </html::Html>
+    }
 }
 
-pub(crate) fn escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
+#[component]
+fn Registration() -> Children<Node> {
+    view! {
+        <html::Label>
+            "Display name (for a new account)"
+            <html::Input name="display_name" autocomplete="nickname" maxlength=200 />
+        </html::Label>
+        <html::Button name="action" value="register">"Create account and authorize"</html::Button>
+    }
+}
+
+pub(crate) fn message(title: &str, message: &str) -> String {
+    render(|| {
+        view! {
+            <Shell>
+                <html::H1>{title}</html::H1>
+                <html::P>{message}</html::P>
+            </Shell>
+        }
+    })
 }
 
 pub(crate) fn fields(body: &str) -> HashMap<String, String> {

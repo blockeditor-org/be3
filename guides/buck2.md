@@ -179,7 +179,10 @@ example is `cargo_example("<name>")`, which makes `:example-<name>`. What
 `Cargo.toml` cannot say is passed as arguments: `env`, `extra_deps`, or any
 rule attribute such as a test's `remote_execution = "disabled"`.
 
-Sources are inferred, including non-Rust files read at compile time. Libraries
+Sources are inferred, including non-Rust files read at compile time. The common
+library, binary, example and test rules also carry the manifest at
+`CARGO_MANIFEST_DIR/Cargo.toml`, so procedural macros can discover dependency
+names during remote compilation. Libraries
 use `src/**` except `src/bin/**`, `tests.rs`, `tests/**`, `main_tests.rs` and
 `main_tests/**` at any depth. Tests use all of `src/**` except `src/bin/**`.
 Keep test-only assets under a `tests/` directory. Binaries and examples in a
@@ -238,6 +241,9 @@ treated the same way: `:test` runs here and `:test-run` is the action
 `./scripts/verify` reads paintings from. `run_env` is the environment the test
 runs with, kept out of its compile. crates/app-tests is the one: it runs
 block-app's `:native` headless, so it runs on Linux x86_64 only.
+
+Each compile-fail suite keeps a `Cargo.toml` listing its dependencies. The rule
+maps it into the compiler sandbox for automatic macro support-crate discovery.
 
 `compile_fail/` holds code that must not compile: `compile_fail(name, deps)`
 in its `BUCK` makes `<name>/lib.rs` a crate and `:<name>-test`, which reads

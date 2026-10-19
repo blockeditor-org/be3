@@ -45,6 +45,8 @@ def compile_fail(name, deps):
         crate_root = name + "/lib.rs",
         deps = deps,
         edition = "2024",
+        env = {"CARGO_MANIFEST_DIR": native.package_name() + "/" + name},
+        mapped_srcs = {name + "/Cargo.toml": native.package_name() + "/" + name + "/Cargo.toml"},
         srcs = srcs,
     )
     _compile_fail_test(

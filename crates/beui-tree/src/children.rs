@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -363,6 +363,48 @@ impl<C: SlotChild> ChildSlot<C> {
     }
 }
 
+pub(crate) struct NestedHost<C: SlotChild> {
+    slot: ChildSlot<C>,
+    items: RefCell<ChildList<C::Stored>>,
+    mounting: Cell<bool>,
+    visible: Cell<bool>,
+}
+
+impl<C: SlotChild> NestedHost<C> {
+    pub(crate) fn set_visible(&self, visible: bool) {
+        self.visible.set(visible);
+        if visible {
+            self.publish();
+        } else {
+            self.slot.fill(Vec::new());
+        }
+    }
+
+    fn publish(&self) {
+        if !self.mounting.get() && self.visible.get() {
+            self.slot
+                .fill(self.items.borrow().iter().cloned().collect());
+        }
+    }
+}
+
+impl<C: SlotChild> SlotHost<C> for NestedHost<C> {
+    fn store(&self, child: C) -> C::Stored {
+        self.slot.store(child)
+    }
+    fn append(&self, stored: C::Stored) {
+        self.items.borrow_mut().push(stored);
+        self.publish();
+    }
+    fn open(&self) -> SlotId {
+        self.items.borrow_mut().open()
+    }
+    fn fill(&self, slot: SlotId, items: Vec<C::Stored>) {
+        self.items.borrow_mut().fill(slot, items);
+        self.publish();
+    }
+}
+
 #[diagnostic::on_unimplemented(
     message = "a `{Self}` cannot be written between these tags",
     label = "this component takes `{T}` children"
@@ -437,6 +479,14 @@ pub trait ChildrenSlot {
     type Child: SlotChild;
 }
 
+impl<T: SlotChild> ChildValue for Children<T> {}
+
+impl<T: SlotChild, H: IntoSegment<T>> FromIterator<H> for Children<T> {
+    fn from_iter<I: IntoIterator<Item = H>>(iter: I) -> Self {
+        Self(iter.into_iter().map(IntoSegment::into_segment).collect())
+    }
+}
+
 impl<T: SlotChild> ChildrenSlot for Children<T> {
     type Child = T;
 }
@@ -507,6 +557,19 @@ impl<T: SlotChild> Children<T> {
         for segment in self.0 {
             mount_segment(&host, segment);
         }
+    }
+
+    pub(crate) fn mount_in(self, slot: ChildSlot<T>) -> Rc<NestedHost<T>> {
+        let host = Rc::new(NestedHost {
+            slot,
+            items: RefCell::default(),
+            mounting: Cell::new(true),
+            visible: Cell::new(true),
+        });
+        self.mount(host.clone() as Rc<dyn SlotHost<T>>);
+        host.mounting.set(false);
+        host.publish();
+        host
     }
 
     pub fn from_block(block: impl IntoSegments<T>) -> Self {

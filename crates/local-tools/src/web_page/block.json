@@ -1,0 +1,7 @@
+{
+                "imports": {
+                    "wasi_snapshot_preview1": "./wasi.js",
+                    "wasi": "./threads.js",
+                    "env": "./env.js"
+                }
+            }

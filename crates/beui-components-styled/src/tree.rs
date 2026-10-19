@@ -70,6 +70,8 @@ pub struct TreeMenu {
     pub on_select: Callback<Vec<usize>>,
 }
 
+impl ChildValue for TreeMenu {}
+
 pub struct TreeRowFace<K> {
     pub key: K,
     pub item: Memo<TreeItem>,
@@ -365,11 +367,9 @@ fn Chevron(
                     item
                     toggle={toggle}
                     button_test_id=named
-                >|handle: TreeToggleHandle| {
-                    view! {
-                        <ChevronFace handle item marked={marked} sized={sized} />
-                    }
-                }</unstyled::TreeToggle>
+                >|handle: TreeToggleHandle|
+                    <ChevronFace handle item marked={marked} sized={sized} />
+                </unstyled::TreeToggle>
             </List>
         </Frame>
     }

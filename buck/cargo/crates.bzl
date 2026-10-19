@@ -2679,6 +2679,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2703,6 +2704,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -2735,6 +2737,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2759,6 +2762,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -2791,6 +2795,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2815,6 +2820,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -2847,6 +2853,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2871,6 +2878,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -2903,6 +2911,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2927,6 +2936,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -2959,6 +2969,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2983,6 +2994,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -3015,6 +3027,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -3039,6 +3052,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -6133,6 +6147,91 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/beui-html": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_html",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-html",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/beui-inspector": {
         "binaries": [],
         "edition": "2024",
@@ -6306,6 +6405,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6318,6 +6418,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6330,6 +6431,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6342,6 +6444,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6354,6 +6457,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6366,6 +6470,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6378,6 +6483,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6390,6 +6496,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6402,6 +6509,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -11053,6 +11161,7 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
@@ -11062,6 +11171,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
@@ -11077,6 +11187,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
@@ -11086,6 +11197,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
@@ -11101,6 +11213,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
@@ -11110,6 +11223,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
@@ -11125,6 +11239,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
@@ -11134,6 +11249,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
@@ -11149,6 +11265,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
@@ -11158,6 +11275,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
@@ -11173,6 +11291,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
@@ -11181,6 +11300,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",
@@ -11195,6 +11315,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:image-0.25.10",
@@ -11203,6 +11324,7 @@ crates = {
                     ],
                 },
                 "deps": [
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:image-0.25.10",

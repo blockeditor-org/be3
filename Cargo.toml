@@ -38,6 +38,7 @@ members = [
     "crates/beui-renderer-dom",
     "crates/beui-renderer-wgpu",
     "crates/beui-tree",
+    "crates/beui-html",
     "crates/beui-view",
     "crates/beui-web-demo",
     "crates/block-app",
