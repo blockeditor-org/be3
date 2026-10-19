@@ -6,11 +6,7 @@ use crate::tw;
 fn typed_styles_require_an_outlet() {
     render_fragment(|| {
         view! {
-            <elements::Div
-                css=[
-                    <tw::Flex />
-                ]
-            />
+            <elements::Div css=<tw::Flex /> />
         }
     });
 }

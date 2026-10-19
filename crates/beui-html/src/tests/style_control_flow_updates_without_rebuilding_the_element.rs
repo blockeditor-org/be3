@@ -10,7 +10,7 @@ fn style_control_flow_updates_without_rebuilding_the_element() {
     let node = scope.run(|| {
         view! {
             <elements::Div
-                css=[
+                css=<>
                     <tw::Flex />
                     <Show condition={shown}>
                         <tw::Hidden />
@@ -18,7 +18,7 @@ fn style_control_flow_updates_without_rebuilding_the_element() {
                     <ForEach keys={items}>|_item: i32|
                         <tw::Underline />
                     </ForEach>
-                ]
+                </>
             >
                 <tw::Styles />
                 "Kept"

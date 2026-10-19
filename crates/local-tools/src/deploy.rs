@@ -592,10 +592,10 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
                         </html::Td>
                         <html::Td>
                             <html::Code
-                                css=[
+                                css=<>
                                     <tw::TextXs />
                                     <tw::BreakAll />
-                                ]
+                                </>
                             >
                                 {download.sha256.as_str()}
                             </html::Code>
@@ -607,10 +607,10 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
         view! {
             <html::Html
                 lang="en"
-                css=[
+                css=<>
                     <tw::ColorSchemeLightDark />
                     <tw::FontSans />
-                ]
+                </>
             >
                 <html::Head>
                     <html::Meta charset="utf-8" />
@@ -620,28 +620,28 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
                     <tw::Styles />
                 </html::Head>
                 <html::Body
-                    css=[
+                    css=<>
                         <tw::MaxW240 />
                         <tw::My8 />
                         <tw::MxAuto />
                         <tw::Px4 />
-                    ]
+                    </>
                 >
                     <html::H1>"Block"</html::H1>
                     <html::P>
                         "Build "
                         <html::Code
-                            css=[
+                            css=<>
                                 <tw::TextXs />
                                 <tw::BreakAll />
-                            ]
+                            </>
                         >
                             {build}
                         </html::Code>
                         ". A download connects only to a server running the same build."
                     </html::P>
                     <html::Table
-                        css=[
+                        css=<>
                             <tw::BorderCollapse />
                             <tw::WFull />
                             <tw::Descendants target=tw::Target::Cell>
@@ -649,7 +649,7 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
                                 <tw::Padding size=tw::Spacing::Table />
                                 <tw::AlignTop />
                             </tw::Descendants>
-                        ]
+                        </>
                     >
                         <html::Tr>
                             <html::Th>"Platform"</html::Th>
@@ -662,28 +662,28 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
                     <html::P>
                         "Each zip holds the app in a folder of its own: run "
                         <html::Code
-                            css=[
+                            css=<>
                                 <tw::TextXs />
                                 <tw::BreakAll />
-                            ]
+                            </>
                         >
                             "block-app"
                         </html::Code>
                         " ("
                         <html::Code
-                            css=[
+                            css=<>
                                 <tw::TextXs />
                                 <tw::BreakAll />
-                            ]
+                            </>
                         >
                             "block-app.exe"
                         </html::Code>
                         " on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; "
                         <html::Code
-                            css=[
+                            css=<>
                                 <tw::TextXs />
                                 <tw::BreakAll />
-                            ]
+                            </>
                         >
                             "xattr -dr com.apple.quarantine block-app-macos-*"
                         </html::Code>

@@ -11,22 +11,13 @@ fn Panel(before: Children<Node>, children: Children<Node>) -> Node {
 fn component_valued_props_accept_single_empty_and_composed_views() {
     let output = render_fragment(|| {
         view! {
-            <Panel
-                before=[
-                    <elements::H1>"Title"</elements::H1>
-                ]
-            >
+            <Panel before=<elements::H1>"Title"</elements::H1>>
+                <Panel before=<></>>"Empty"</Panel>
                 <Panel
-                    before=[
-                    ]
-                >
-                    "Empty"
-                </Panel>
-                <Panel
-                    before=[
+                    before=<>
                         "One"
                         <elements::Span>"Two"</elements::Span>
-                    ]
+                    </>
                 >
                     "Three"
                 </Panel>

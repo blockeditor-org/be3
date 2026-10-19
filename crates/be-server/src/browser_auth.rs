@@ -187,7 +187,7 @@ fn Shell(children: Children<Node>) -> Node {
                 <tw::Styles />
             </html::Head>
             <html::Body
-                css=[
+                css=<>
                     <tw::TextBase />
                     <tw::FontSans />
                     <tw::My12 />
@@ -216,7 +216,7 @@ fn Shell(children: Children<Node>) -> Node {
                     <tw::Descendants target=tw::Target::Alert>
                         <tw::TextDanger />
                     </tw::Descendants>
-                ]
+                </>
             >
                 {children}
             </html::Body>

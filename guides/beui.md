@@ -3071,10 +3071,17 @@ let page = render(|| view! {
 
 ### Typed CSS
 
-Use `beui_html::tw` style components in an element's `css` prop. Bracket-valued
-props are nested views: `prop=[...]` works on any component prop and expands
-like `prop={view! { ... }}`. It is not specific to CSS. Empty brackets build
-empty children; expressions, reusable components and control flow work inside.
+Use `beui_html::tw` style components in an element's `css` prop. A component
+prop can take a view directly: `prop=<Component />`, or a run of children with
+`prop=<>...</>`. This syntax works on any component prop, not just CSS.
+Fragments `<>...</>` also work anywhere children fit, including at the root
+of `view!`; they group children without a backend node. Empty fragments
+`<></>` build empty children. Expressions, reusable components and control
+flow work inside fragments.
+
+The compiler grammar lives in `beui-macros/src/lib.rs`; the source formatter has
+its own grammar in `fix-rust-source/src/views.rs`, using lossless source tokens.
+Changes to view syntax must cover both grammars and their tests.
 
 ```rust
 use beui_html::{elements as html, tw, view};
@@ -3082,13 +3089,28 @@ use beui_html::{elements as html, tw, view};
 view! {
     <html::Html>
         <html::Head><tw::Styles /></html::Head>
-        <html::Body css=[<tw::FontSans /><tw::BgSurface /><tw::TextForeground />]>
-            <html::Button css=[
-                <tw::InlineFlex /><tw::ItemsCenter /><tw::Px4 /><tw::Py2 />
-                <tw::BgAccent /><tw::TextOnAccent /><tw::RoundedMd />
-                <tw::Hover><tw::BgAccentHover /></tw::Hover>
-                <tw::Md><tw::Px4 /></tw::Md>
-            ]>"Continue"</html::Button>
+        <html::Body
+            css=<>
+                <tw::FontSans />
+                <tw::BgSurface />
+                <tw::TextForeground />
+            </>
+        >
+            <html::Button
+                css=<>
+                    <tw::InlineFlex />
+                    <tw::ItemsCenter />
+                    <tw::Px4 />
+                    <tw::Py2 />
+                    <tw::BgAccent />
+                    <tw::TextOnAccent />
+                    <tw::RoundedMd />
+                    <tw::Hover><tw::BgAccentHover /></tw::Hover>
+                    <tw::Md><tw::Px4 /></tw::Md>
+                </>
+            >
+                "Continue"
+            </html::Button>
         </html::Body>
     </html::Html>
 }

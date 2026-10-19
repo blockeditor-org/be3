@@ -29,10 +29,10 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
                 Children::<Node>::from(view! {
                     <html::Div
                         id="demo"
-                        css=[
+                        css=<>
                             <tw::WFull />
                             <tw::HFull />
-                        ]
+                        </>
                     />
                 }),
             )
@@ -44,7 +44,7 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
                 view! {
                     <html::Div
                         id="plugins"
-                        css=[
+                        css=<>
                             <tw::Fixed />
                             <tw::Inset0 />
                             <tw::OverflowHidden />
@@ -55,17 +55,17 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
                                 <tw::Top0 />
                                 <tw::OriginTopLeft />
                             </tw::Descendants>
-                        ]
+                        </>
                     />
                     <html::Canvas
                         id="block"
-                        css=[
+                        css=<>
                             <tw::Relative />
                             <tw::Z1 />
                             <tw::Block />
                             <tw::WFull />
                             <tw::HFull />
-                        ]
+                        </>
                     />
                 },
             )
@@ -74,10 +74,10 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
             view! {
                 <html::Div
                     id="status"
-                    css=[
+                    css=<>
                         <StatusStyles />
                         <tw::WhitespacePreWrap />
-                    ]
+                    </>
                 >
                     "Loading…"
                 </html::Div>
@@ -86,21 +86,21 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
             view! {
                 <html::Div
                     id="status"
-                    css=[
+                    css=<>
                         <StatusStyles />
                         <tw::FlexCol />
                         <tw::Gap3 />
                         <tw::TextCenter />
-                    ]
+                    </>
                 >
                     <html::Div
                         class="detail"
-                        css=[
+                        css=<>
                             <tw::MaxW160 />
                             <tw::TextSm />
                             <tw::TextMuted />
                             <tw::WhitespacePreWrap />
-                        ]
+                        </>
                     >
                         "Loading Block…"
                     </html::Div>
@@ -108,12 +108,7 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
             }
         };
         view! {
-            <html::Html
-                lang="en"
-                css=[
-                    <PageStyles />
-                ]
-            >
+            <html::Html lang="en" css=<PageStyles />>
                 <html::Head>
                     {base}
                     <html::Meta charset="utf-8" />
@@ -125,11 +120,7 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
                     <tw::Styles />
                     <Script kind="importmap" source={imports} />
                 </html::Head>
-                <html::Body
-                    css=[
-                        <PageStyles />
-                    ]
-                >
+                <html::Body css=<PageStyles />>
                     {content}
                     {status}
                     <Script kind="module" source={js} />
