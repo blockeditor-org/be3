@@ -799,7 +799,7 @@ pub fn Sheet(
     let (dragging, set_dragging) = create_signal(false);
     let (shift, set_shift) = create_signal(HIDDEN_SHIFT);
     let (gone, set_gone) = create_signal(true);
-    let sizing = create_memo(move || match rest_at.get() {
+    let sheet_sizing = create_memo(move || match rest_at.get() {
         _ if gone.get() => ItemSize::Fixed(0.0).into(),
         Rest::Share(share) => ItemSize::Intrinsic.max(share * extent.get()).shrink(1.0),
         Rest::Fitted => ItemSize::Intrinsic.shrink(1.0),
@@ -868,7 +868,7 @@ pub fn Sheet(
     view! {
         <List spacing=0.0>
             <BackHandler
-                @sizing={sizing}
+                @sizing={sheet_sizing}
                 enabled={open}
                 on_gesture={move |gesture: BackGesture| motion.get().back(gesture)}
             >

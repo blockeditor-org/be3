@@ -177,12 +177,13 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
 #[component]
 fn BranchRow(editor: Editor, blocked: Memo<bool>, name: String, head: String) -> NodeId {
     let branch = name.clone();
+    let branch_test_id = format!("repository.branch.{name}");
     view! {
         <List
             direction=Direction::Horizontal
             align=Align::Center
             spacing=10.0
-            @test_id={format!("repository.branch.{name}")}
+            @test_id=branch_test_id
         >
             <Text @sizing=ItemSize::Percent(100.0) string={name.clone()} />
             <Text style=TextStyle::CAPTION string={head} />

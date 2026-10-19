@@ -44,6 +44,7 @@ struct ViewCall {
 
 enum Child {
     Element(Element),
+    Modified(Box<Child>, Vec<Attribute>),
     Expr(Range<usize>),
     Literal(Range<usize>),
 }
@@ -235,18 +236,55 @@ impl Parser<'_> {
     }
 
     fn child(&mut self) -> Option<Child> {
-        if self.at(0, "<") {
+        let child = if self.at(0, "<") {
             return Some(Child::Element(self.element()?));
-        }
-        if self.at(0, "{") {
-            return Some(Child::Expr(self.group()?));
-        }
-        let token = self.tokens.get(self.index)?;
-        if token.kind == SyntaxKind::STRING {
+        } else if self.at(0, "{") {
+            Child::Expr(self.group()?)
+        } else {
+            let token = self.tokens.get(self.index)?;
+            if token.kind != SyntaxKind::STRING {
+                return None;
+            }
             self.index += 1;
-            return Some(Child::Literal(token.range.clone()));
+            Child::Literal(token.range.clone())
+        };
+        let mut modifiers = Vec::new();
+        while self.at(0, "@") {
+            modifiers.push(self.attribute()?);
         }
-        None
+        Some(if modifiers.is_empty() {
+            child
+        } else {
+            Child::Modified(Box::new(child), modifiers)
+        })
+    }
+
+    fn attribute(&mut self) -> Option<Attribute> {
+        let special = self.eat("@");
+        let key = if special {
+            let absolute = self.eat(":");
+            if absolute {
+                self.expect(":")?;
+            }
+            let path = self.tag_path()?;
+            if absolute { format!("::{path}") } else { path }
+        } else {
+            self.identifier()?
+        };
+        let value = if self.eat("=") {
+            if self.at(0, "{") {
+                Some(Value::Braced(self.group()?))
+            } else {
+                Some(Value::Bare(self.bare_value()?))
+            }
+        } else {
+            None
+        };
+        Some(Attribute {
+            special,
+            key,
+            value,
+        })
     }
 
     fn element(&mut self) -> Option<Element> {
@@ -257,22 +295,7 @@ impl Parser<'_> {
             if self.index >= self.tokens.len() {
                 return None;
             }
-            let special = self.eat("@");
-            let key = self.identifier()?;
-            let value = if self.eat("=") {
-                if self.at(0, "{") {
-                    Some(Value::Braced(self.group()?))
-                } else {
-                    Some(Value::Bare(self.bare_value()?))
-                }
-            } else {
-                None
-            };
-            attributes.push(Attribute {
-                special,
-                key,
-                value,
-            });
+            attributes.push(self.attribute()?);
         }
         if self.eat("/") {
             self.expect(">")?;
@@ -384,6 +407,21 @@ impl Formatter<'_> {
 
     fn child_lines(&self, child: &Child, indent: usize, column: usize) -> Vec<String> {
         match child {
+            Child::Modified(child, modifiers) => {
+                let mut lines = self.child_lines(child, indent, column);
+                for modifier in modifiers {
+                    let next_column = column + lines.last().map_or(0, String::len) + 1;
+                    let modifier_lines = self.attribute_lines(modifier, indent, next_column);
+                    let mut parts = modifier_lines.into_iter();
+                    if let Some(first) = parts.next() {
+                        let last = lines.last_mut().expect("a child has at least one line");
+                        last.push(' ');
+                        last.push_str(&first);
+                    }
+                    lines.extend(parts);
+                }
+                lines
+            }
             Child::Element(element) => self.element_lines(element, indent, column),
             Child::Expr(range) => brace(self.expr_lines(range, indent, column + 1)),
             Child::Literal(range) => vec![text(self.source, range.clone()).to_owned()],
@@ -462,6 +500,14 @@ impl Formatter<'_> {
 
     fn child_text(&self, child: &Child) -> Option<String> {
         match child {
+            Child::Modified(child, modifiers) => {
+                let mut text = self.child_text(child)?;
+                for modifier in modifiers {
+                    text.push(' ');
+                    text.push_str(&self.attribute_text(modifier)?);
+                }
+                Some(text)
+            }
             Child::Element(element) => self.element_text(element),
             Child::Expr(range) => Some(format!("{{{}}}", self.expr_text(range)?)),
             Child::Literal(range) => one_line(self.source, range.clone()).map(str::to_owned),

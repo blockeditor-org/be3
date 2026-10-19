@@ -646,7 +646,7 @@ fn ValueChoices(
                             };
                             data.operate_view(DatabaseView::set_filter_condition(id, &next));
                         };
-                        let test_id = format!("database-view.filter.{}.choice.{index}", id.as_uuid());
+                        let element_test_id = format!("database-view.filter.{}.choice.{index}", id.as_uuid());
                         let read_only = read_only;
                         view! {
                             <List
@@ -662,7 +662,7 @@ fn ValueChoices(
                                     label={label}
                                     checked={checked}
                                     disabled={read_only}
-                                    @test_id={test_id}
+                                    @test_id={element_test_id}
                                     on_change={toggle}
                                 />
                                 <Text style=TextStyle::CAPTION string={count} />

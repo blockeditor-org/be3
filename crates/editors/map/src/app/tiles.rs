@@ -127,14 +127,19 @@ pub(crate) fn Tile(
     let y = create_memo(move || rect.get().top());
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
-    let test_id = match underlay {
+    let element_test_id = match underlay {
         true => format!("map.underlay.{}.{}.{}", tile.zoom, tile.x, tile.y),
         false => format!("map.tile.{}.{}.{}", tile.zoom, tile.x, tile.y),
     };
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame fill={ColorRole::custom(backdrop)}>
-                <Picture image={image} source={source} fit=ImageFit::Fill @test_id={test_id} />
+                <Picture
+                    image={image}
+                    source={source}
+                    fit=ImageFit::Fill
+                    @test_id={element_test_id}
+                />
             </Frame>
         </CanvasItem>
     }

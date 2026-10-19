@@ -402,9 +402,16 @@ holds) and `IntoSlotHost`, so a component
 can `children.mount(...)` into it. The macros need `::beui::reactive` to
 resolve: `beui-tree` names itself `beui` for its own tests, and a crate built on
 it does the same or re-exports `beui_tree::reactive` as a `reactive` module of
-a crate it calls `beui`. `@sizing`, `@test_id` and `@node_ref` expand to
-`beui::reactive::ListChild`, `with_test_id` and `with_node_ref`, which only
-`beui-view` has, and an untyped `Render`/`RenderFn` child or a `Child` prop is
+a crate it calls `beui`. Modifiers are ordinary functions: `@name=value`
+expands to `name(built, value)` after the component is built. Paths such as
+`@my_module::decorate=value` work too. Multiple modifiers run in source order,
+including repeated names, and can change the output type. They also follow
+expression and string children: `{child} @decorate=value`. A modifier without
+`=` uses its path as its value, like prop punning. Ordinary props are set on the
+builder before any modifier runs, regardless of their position among modifiers.
+The GUI prelude (`beui::reactive::*`) supplies `sizing`, `test_id` and `node_ref`;
+other trees supply their own functions. Qualify a modifier when a local variable
+shadows its name. An untyped `Render`/`RenderFn` child or a `Child` prop is
 `beui::reactive::Child`, a `NodeId`. `beui-tree`'s tests build a small DOM this
 way.
 
@@ -2627,7 +2634,7 @@ Compose it from base components. For an interactive control this normally means:
 4. Publish the correct AccessKit role and state with `component_accessibility`.
 5. Give the caller a `Render<Handle>` or `RenderFn<Handle>` containing the
    reactive state needed to paint the control.
-6. Return the root base node directly so component state and framework slots
+6. Return the root base node directly so component state and node modifiers
    attach to the node callers receive.
 
 A catcher shows the `cursor` it is given while it is hovered or held, and
