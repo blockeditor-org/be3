@@ -1,4 +1,5 @@
 use super::*;
 
 mod a_versioned_artifact_cannot_be_replaced_with_different_bytes;
+mod download_pages_discourage_crawlers;
 mod the_web_entry_point_preserves_links_and_selects_one_build;

@@ -52,8 +52,8 @@ stop the server and run its executable with the same `--data-dir` and
   `--android-id` and `--android-label` give (`com.be3.block` and `Block`, so
   it installs beside dev's `com.be3.block.dev` and CI's `com.be3.block.ci`), with
   `data/BUILD/app/index.html` linking them. Once the server runs the build (not
-  under `--skip-server`), it writes the same page to `index.html`, the one
-  people are sent to (`be3.pfg.pw/`), without reading it back
+  under `--skip-server`), it writes the same page to the unlinked
+  `web/downloads.html` with `noindex, nofollow` robots metadata, without reading it back
   through the CDN, and purges it from the CDN using the required `BUNNY_API_KEY`. A
   download connects only to a server of its build. `--skip-downloads` leaves
   the downloads out of the build, and `--skip-android` only the APK, so that
@@ -62,9 +62,9 @@ stop the server and run its executable with the same `--data-dir` and
   server executable and its build ID to `data/BUILD/server/` in the same zone;
 - copies only `be-server` and its `build-info.json` to the VPS over SSH, stops
   be-server, swaps the files and starts it again. Caddy stays running;
-- after that succeeds, publishes `/web`, the matching app HTML with a
+- after that succeeds, publishes `/index.html`, the matching app HTML with a
   `<base href="/data/BUILD/web/">` before its import map and scripts. The browser
-  stays at `/web`, keeping query parameters and fragments, so refreshing
+  stays at `/` or `/index.html`, keeping query parameters and fragments, so refreshing
   gets the currently deployed build.
   Purges the web entry point using the required `BUNNY_API_KEY`. `--skip-server`
   uploads versioned files but leaves both live entry points unchanged.
@@ -85,13 +85,13 @@ app (they are CDN settings, not files that the uploader can set in storage):
 
 | Paths | Headers / caching |
 | --- | --- |
-| `/data/*`, `/web` | `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp` |
+| `/data/*`, `/`, `/index.html` | `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp` |
 | `/data/*` | CDN cache TTL one year; `Cache-Control: public, max-age=31536000, immutable` |
-| `/`, `/index.html`, `/web` | Override CDN cache TTL to one hour; send `Cache-Control: no-cache` to browsers |
+| `/`, `/index.html`, `/web/downloads.html` | Override CDN cache TTL to one hour; send `Cache-Control: no-cache` to browsers |
 
 The mutable pages stay cached at the edge until deployment purges their exact URLs after uploading replacements. Configure the CDN TTL independently of the browser header, so browsers revalidate while Bunny can serve its cached copy. Deployment checks for the purge key before uploading or swapping the server and fails if a purge fails. Dry runs and `--skip-server` do not require the purge key.
 
-Use a prefix rule for `/data/*` and exact-path rules for the three mutable entry points, so every later build inherits the cache policy. Enable directory index resolution to `index.html`. Preserve uploaded content
+Use a prefix rule for `/data/*` and exact-path rules for the mutable entry points, so every later build inherits the cache policy. Enable directory index resolution to `index.html`. Preserve uploaded content
 types, especially `application/wasm` and JavaScript MIME types. Uploading an
 HTML entry point last avoids incomplete releases; long-lived versioned paths
 avoid mixing modules and plugins from different builds. The public web bundle

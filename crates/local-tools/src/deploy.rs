@@ -22,7 +22,7 @@ x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
 release keystore under the id and label --android-id and --android-label give
 (com.be3.block and Block), so it installs beside CI's com.be3.block.ci. They go
 to data/BUILD/app/ beside a page linking them, and once the server runs the build,
-index.html is that page (https://be3.pfg.pw/). It is not
+web/downloads.html is that unlinked page. It is not
 read back from the mirror, whose CDN may hold the last one until it is purged.
 
   --dry-run      print what it would do, uploading and changing nothing
@@ -46,7 +46,7 @@ Environment:
   BE3_DEPLOY_HOST     the server, for ssh and scp (ubuntu@blocks.pfg.pw)
   BE3_DEPLOY_DIR      the directory there that holds be-server (be-server)
   BE3_DEPLOY_UNITS    the units stopped around the swap (be-server)
-  Web files are uploaded under data/BUILD/web/; /web selects the live build.";
+  Web files are uploaded under data/BUILD/web/; /index.html selects the live build.";
 
 struct Options {
     repository: PathBuf,
@@ -444,29 +444,29 @@ fn run(options: &Options) -> Result<(), String> {
     if let Some(launch) = web_entry.filter(|_| !options.skip_server) {
         store.put(
             "the web app entry point",
-            "web",
+            "index.html",
             launch.as_bytes(),
             "text/html; charset=utf-8",
             false,
         )?;
-        purge_pages(options, &agents, &api_key, &mirror, &["web"])?;
+        purge_pages(options, &agents, &api_key, &mirror, &["index.html", ""])?;
     }
 
     if page.is_some() && options.skip_server {
         println!(
-            "the server still runs its last build, so {mirror}/ still offers that one's \
+            "the server still runs its last build, so {mirror}/web/downloads.html still offers that one's \
              downloads; this build's are at {mirror}/data/{build}/app/"
         );
     } else if let Some(page) = page {
         store.put(
             "the latest download page",
-            "index.html",
+            "web/downloads.html",
             page.as_bytes(),
             "text/html; charset=utf-8",
             false,
         )?;
-        purge_pages(options, &agents, &api_key, &mirror, &["index.html", ""])?;
-        println!("the downloads for build {build} are at {mirror}/");
+        purge_pages(options, &agents, &api_key, &mirror, &["web/downloads.html"])?;
+        println!("the downloads for build {build} are at {mirror}/web/downloads.html");
     }
 
     if !pins.is_empty() {
@@ -597,6 +597,7 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
 <head>
 <meta charset=\"utf-8\">
 <meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
+<meta name=\"robots\" content=\"noindex, nofollow\">
 <title>Block downloads</title>
 <style>
 :root {{ color-scheme: light dark; font-family: system-ui, sans-serif; }}
@@ -612,7 +613,7 @@ code {{ font-size: 0.75rem; word-break: break-all; }}
 <table>
 <tr><th>Platform</th><th>Download</th><th>Size</th><th>SHA-256</th></tr>
 {rows}</table>
-<p>Each zip holds the app in a folder of its own: run <code>block-app</code> (<code>block-app.exe</code> on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; <code>xattr -dr com.apple.quarantine block-app-macos-*</code> lets them open. The web bundle is also available to serve yourself. <a href=\"https://be3.pfg.pw/web\">Open the hosted web app</a>.</p>
+<p>Each zip holds the app in a folder of its own: run <code>block-app</code> (<code>block-app.exe</code> on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; <code>xattr -dr com.apple.quarantine block-app-macos-*</code> lets them open. The web bundle is also available to serve yourself. <a href=\"https://be3.pfg.pw/\">Open the hosted web app</a>.</p>
 </body>
 </html>
 "
