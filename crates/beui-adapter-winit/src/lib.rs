@@ -41,8 +41,8 @@ use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
 use beui_core::file_picker::{FilePickAnswer, FilePickRequest};
 use beui_core::geometry::{Pos2, Vec2, pos2, vec2};
 use beui_core::input::{
-    CursorIcon, DroppedFile, Event, ImeEvent, Key, Modifiers, Pen, PenPhase, PointerButton,
-    TouchId, TouchPhase,
+    CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, Pen, PenPhase,
+    PointerButton, TouchId, TouchPhase,
 };
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
@@ -181,30 +181,7 @@ impl Platform for WinitPlatform<'_> {
         if (window.cursor, window.pointer_locked) != (shown.cursor, shown.pointer_locked) {
             show_cursor(surface, window);
         }
-        if window.ime != shown.ime {
-            let request = match &window.ime {
-                None => ImeRequest::Disable,
-                Some(area) => {
-                    let data = ImeRequestData::default().with_cursor_area(
-                        LogicalPosition::new(area.cursor.min.x, area.cursor.min.y).into(),
-                        LogicalSize::new(
-                            area.cursor.width().max(1.0),
-                            area.cursor.height().max(1.0),
-                        )
-                        .into(),
-                    );
-                    match shown.ime.is_some() {
-                        true => ImeRequest::Update(data),
-                        false => match ImeEnableRequest::new(
-                            ImeCapabilities::new().with_cursor_area(),
-                            data,
-                        ) {
-                            Some(enable) => ImeRequest::Enable(enable),
-                            None => return,
-                        },
-                    }
-                }
-            };
+        if let Some(request) = ime_request(window, shown) {
             let _ = surface.window.request_ime_update(request);
         }
     }
@@ -217,6 +194,28 @@ impl Platform for WinitPlatform<'_> {
 
     fn publish_accessibility(&mut self, tree: &mut dyn FnMut() -> TreeUpdate) {
         self.surface.accessibility.update_if_active(tree);
+    }
+}
+
+fn ime_request(window: &WindowState, shown: &WindowState) -> Option<ImeRequest> {
+    fn typed(state: &WindowState) -> Option<&ImeArea> {
+        state.ime.as_ref().filter(|area| area.keyboard.shown())
+    }
+    let (wanted, asked) = (typed(window), typed(shown));
+    if wanted == asked {
+        return None;
+    }
+    let Some(area) = wanted else {
+        return Some(ImeRequest::Disable);
+    };
+    let data = ImeRequestData::default().with_cursor_area(
+        LogicalPosition::new(area.cursor.min.x, area.cursor.min.y).into(),
+        LogicalSize::new(area.cursor.width().max(1.0), area.cursor.height().max(1.0)).into(),
+    );
+    match asked {
+        Some(_) => Some(ImeRequest::Update(data)),
+        None => ImeEnableRequest::new(ImeCapabilities::new().with_cursor_area(), data)
+            .map(ImeRequest::Enable),
     }
 }
 

@@ -137,6 +137,10 @@ fn key_event(doc: &mut Document, ctx: &Context, event: &Event) -> Result<bool, F
             }
             if press.pressed {
                 doc.acted = Acted::Keys;
+                if !press.key.is_media() {
+                    doc.touched = false;
+                    doc.keyboard_held = false;
+                }
             }
             let asked = doc.paste_requested();
             let fate = key_press(doc, *press);

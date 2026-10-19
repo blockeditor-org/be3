@@ -393,6 +393,7 @@ fn down(
         let stale = doc.pointers.sessions.remove(index);
         end(doc, frame, stale, true);
     }
+    doc.touched = event.pointer != PointerId::Mouse;
     let kind = Kind::of(event.pointer);
     let role = match button {
         _ if kind.finger && primary_touch(doc).is_some() => Role::Finger,
