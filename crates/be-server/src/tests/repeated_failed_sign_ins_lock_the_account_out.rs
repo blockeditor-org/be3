@@ -1,45 +1,80 @@
 use super::*;
-
 #[tokio::test]
 async fn repeated_failed_sign_ins_lock_the_account_out() {
     let harness = Harness::start().await;
     harness.member("owner@example.com").await;
-    let mut guesser = harness.client().await;
-    let mut sign_in = async |password: &str| {
-        guesser
-            .send(|request| ClientMessage::Login {
-                request,
-                email: "owner@example.com".into(),
-                password: password.into(),
-            })
-            .await
-    };
-
+    let mut browser = Browser::default();
     for _ in 0..5 {
-        let refused = sign_in("wrong password").await;
-        assert!(
-            matches!(&refused, ServerMessage::Failed { message, .. } if !message.contains("try again")),
-            "{refused:?}"
-        );
+        let (status, page) = browser
+            .submit(
+                &harness,
+                "/auth/login",
+                "/auth/login",
+                &[
+                    ("email", "owner@example.com"),
+                    ("password", "wrong password"),
+                ],
+            )
+            .await;
+        assert_eq!(status, 400);
+        assert!(!page.contains("try again"));
     }
-    let locked = sign_in("correct horse battery").await;
-    assert!(
-        matches!(&locked, ServerMessage::Failed { message, .. } if message.contains("try again")),
-        "the right password got in while the account was locked out: {locked:?}"
-    );
-
-    let mut other = harness.client().await;
-    let response = other
-        .send(|request| ClientMessage::Login {
-            request,
-            email: "nobody@example.com".into(),
-            password: "correct horse battery".into(),
-        })
+    let (status, page) = browser
+        .submit(
+            &harness,
+            "/auth/login",
+            "/auth/login",
+            &[
+                ("email", "owner@example.com"),
+                ("password", "correct horse battery"),
+            ],
+        )
         .await;
-    assert!(
-        matches!(&response, ServerMessage::Failed { message, .. } if !message.contains("try again")),
-        "another email was locked out too: {response:?}"
+    assert_eq!(status, 400);
+    assert!(page.contains("try again"));
+    let (_, page) = browser
+        .submit(
+            &harness,
+            "/auth/login",
+            "/auth/login",
+            &[
+                ("email", "nobody@example.com"),
+                ("password", "correct horse battery"),
+            ],
+        )
+        .await;
+    assert!(!page.contains("try again"));
+    assert_eq!(
+        browser
+            .submit(
+                &harness,
+                "/auth/forgot",
+                "/auth/forgot",
+                &[("email", "owner@example.com")]
+            )
+            .await
+            .0,
+        303
     );
-
+    let reset = harness.mail_token("owner@example.com");
+    assert_eq!(
+        browser
+            .submit(
+                &harness,
+                "/auth/reset",
+                "/auth/reset",
+                &[
+                    ("token", &reset),
+                    ("password", "a new password"),
+                    ("confirmation", "a new password")
+                ]
+            )
+            .await
+            .0,
+        303
+    );
+    browser
+        .login(&harness, "owner@example.com", "a new password")
+        .await;
     harness.stop().await;
 }

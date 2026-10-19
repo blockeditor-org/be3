@@ -3,7 +3,7 @@ use super::*;
 #[tokio::test]
 async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
     let directory = std::env::temp_dir().join(format!("be-server-test-{}", Uuid::new_v4()));
-    let (account, organization) = add_account(
+    let (account, organization) = fixture_account(
         &directory,
         "owner@example.com",
         "Owner",
@@ -28,41 +28,6 @@ async fn a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens() {
     build_id::install(BUILD);
     let mut client = TestClient::connect(&format!("ws://{address}")).await;
 
-    let refused = client
-        .send(|request| ClientMessage::Register {
-            request,
-            email: "stranger@example.com".into(),
-            display_name: "Stranger".into(),
-            password: "correct horse battery".into(),
-        })
-        .await;
-    assert!(
-        matches!(
-            refused,
-            ServerMessage::Failed {
-                code: ErrorCode::RegistrationDisabled,
-                ..
-            }
-        ),
-        "{refused:?}"
-    );
-    let refused = client
-        .send(|request| ClientMessage::Login {
-            request,
-            email: "owner@example.com".into(),
-            password: "correct horse battery".into(),
-        })
-        .await;
-    assert!(
-        matches!(
-            refused,
-            ServerMessage::Failed {
-                code: ErrorCode::LoginDisabled,
-                ..
-            }
-        ),
-        "the right password signed in while sign-ins were off: {refused:?}"
-    );
     let resumed = client
         .send(|request| ClientMessage::Authenticate {
             request,

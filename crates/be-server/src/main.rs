@@ -1,4 +1,4 @@
-use std::{env, error::Error, io::BufRead, net::SocketAddr, path::PathBuf, process::ExitCode};
+use std::{env, error::Error, net::SocketAddr, path::PathBuf, process::ExitCode};
 
 use be_server::{ServerConfig, backup};
 use tokio::net::TcpListener;
@@ -6,8 +6,7 @@ use tokio::net::TcpListener;
 const USAGE: &str = "\
 Usage:
   be-server [--addr ADDR] [--data-dir DIR] [--allow-login] [--allow-registration]
-            [--build-info-file FILE]
-  be-server [--data-dir DIR] --add-account EMAIL NAME ORGANIZATION < password
+            [--build-info-file FILE] [--auth-origin URL]
   be-server backup-key > KEY-FILE
   be-server backup [--data-dir DIR] --to TARGET --key-file KEY-FILE
   be-server restore --from TARGET --key-file KEY-FILE --data-dir EMPTY-DIR [--snapshot NAME]
@@ -17,13 +16,11 @@ Usage:
   --data-dir DIR            Where accounts and blocks are stored (default: be-server-data)
   --allow-login             Accept sign-ins with a password; without it, only devices
                             already signed in can connect, with the tokens they hold
-  --allow-registration      Let anyone who reaches the server make an account; without it,
-                            accounts are made with --add-account
+  --allow-registration      Let anyone who reaches the portal register a verified account
   --build-info-file FILE    JSON build metadata; clients must match its id. By
                             default the build-info.json file beside the executable, and with
                             neither it does not start
-  --add-account             Make an account that owns a new organization, reading its password
-                            from the first line of standard input
+  --auth-origin URL         Public origin of the account portal (required outside localhost)
 
 A backup uploads every object the database references that the target does not
 have yet, never deleting one, and then the database, sealed with the backup
@@ -74,7 +71,6 @@ async fn run() -> Result<(), Box<dyn Error>> {
     let mut address: SocketAddr = "127.0.0.1:9090".parse()?;
     let mut data_dir = PathBuf::from("be-server-data");
     let mut config = ServerConfig::default();
-    let mut account: Option<(String, String, String)> = None;
 
     while let Some(argument) = arguments.next() {
         match argument.as_str() {
@@ -91,13 +87,10 @@ async fn run() -> Result<(), Box<dyn Error>> {
                     arguments.next().ok_or("--build-info-file needs a value")?,
                 ))?;
             }
-            "--add-account" => {
-                let email = arguments.next().ok_or("--add-account needs an email")?;
-                let display_name = arguments.next().ok_or("--add-account needs a name")?;
-                let organization = arguments
-                    .next()
-                    .ok_or("--add-account needs an organization")?;
-                account = Some((email, display_name, organization));
+            "--auth-origin" => {
+                let origin = arguments.next().ok_or("--auth-origin needs a URL")?;
+                be_server::mail::validate_origin(&origin)?;
+                config.auth_origin = Some(origin);
             }
             "--help" => {
                 println!("{USAGE}");
@@ -105,18 +98,6 @@ async fn run() -> Result<(), Box<dyn Error>> {
             }
             other => return Err(format!("unknown argument {other}\n\n{USAGE}").into()),
         }
-    }
-
-    if let Some((email, display_name, organization)) = account {
-        eprintln!("Password for {email}:");
-        let mut password = String::new();
-        std::io::stdin().lock().read_line(&mut password)?;
-        let password = password.trim_end_matches(['\r', '\n']);
-        let (account, organization) =
-            be_server::add_account(&data_dir, &email, &display_name, password, &organization)
-                .await?;
-        println!("account {account} owns organization {organization}");
-        return Ok(());
     }
 
     let build = build_id::current()?;

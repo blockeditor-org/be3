@@ -238,19 +238,17 @@ time, so notifications wait for the next post.
   announcements interleave), and the revision is how the client puts them back
   in order. The counter restarts with the server, which a client sees as a
   reconnect and a reload.
-- Accounts live here. `Register` (refused unless the server runs with
-  `--allow-registration`; the app's embedded server and the dev targets do),
-  `Login` (refused unless the server runs with `--allow-login`, so a server
-  on the internet takes only the tokens of devices already signed in),
-  `Authenticate` with a token and `Logout`; organizations are created
+- Accounts live here. Remote password authentication and verified registration use
+  the `/auth` portal. The protocol uses browser sign-in handoff, `Authenticate`
+  with a token, header authentication, and `Logout`; organizations are created
   through it, and an administrator can `Invite` an email under an id the
   inviting client picks. Accepting an invitation makes inviter and invitee
   contacts. Only an account with that email can read the
   invitation (`GetInvitation`) or join with it (`AcceptInvitation`), once;
   inviting the same email again replaces it. There is no list of an account's
   invitations: the id only reaches the invitee in the link (see Keys).
-  `--add-account EMAIL NAME ORGANIZATION` provisions an account and its organization
-  from the command line, reading the password from standard input. Password
+  Remote accounts register and sign in through the server’s `/auth` portal;
+  registration verifies email ownership before creating the account. Password
   checks run off the database lock, a few at a time, and an email with five
   failed sign-ins in a row is locked out for a time that doubles with each
   further failure.
@@ -660,9 +658,12 @@ store of its own: history is be-store objects and be-commit commits.
 ## Running it
 
 ```
-echo hunter2hunter2 | ./scripts/buck run //crates/be-server:bin -- --add-account you@example.com "You" Organization
-./scripts/buck run //crates/be-server:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
+./scripts/buck run //crates/be-server:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data --allow-login --allow-registration
 ```
+
+Open `http://127.0.0.1:9090/auth` to register. Until email delivery is connected,
+verification messages are printed in the server log. Deployments also configure
+`--auth-origin` with the public HTTPS origin (guides/hosting.md).
 
 `--addr` (or `--address`) defaults to `127.0.0.1:9090` and `--data-dir` to
 `be-server-data`. The desktop app does not need a server of its own for a local

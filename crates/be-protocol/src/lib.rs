@@ -300,7 +300,6 @@ pub enum ErrorCode {
     ParentCycle,
     Storage,
     OrganizationNotFound,
-    RegistrationDisabled,
     InvitationNotFound,
     LoginDisabled,
     BlockHasContent,
@@ -329,17 +328,6 @@ pub enum ClientMessage {
     CreateLocalProfile {
         request: u64,
         display_name: String,
-    },
-    Register {
-        request: u64,
-        email: String,
-        display_name: String,
-        password: String,
-    },
-    Login {
-        request: u64,
-        email: String,
-        password: String,
     },
     Authenticate {
         request: u64,
@@ -673,8 +661,6 @@ impl ClientMessage {
             Self::BeginBrowserLogin { request }
             | Self::FinishBrowserLogin { request, .. }
             | Self::CreateLocalProfile { request, .. }
-            | Self::Register { request, .. }
-            | Self::Login { request, .. }
             | Self::Authenticate { request, .. }
             | Self::AuthenticateHeader { request }
             | Self::Logout { request }

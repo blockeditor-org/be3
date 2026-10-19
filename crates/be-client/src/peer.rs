@@ -25,15 +25,6 @@ pub use import::Imported;
 
 #[derive(Clone)]
 pub enum Credentials {
-    Register {
-        email: String,
-        display_name: String,
-        password: String,
-    },
-    Login {
-        email: String,
-        password: String,
-    },
     Token(String),
     Header,
 }
@@ -41,21 +32,6 @@ pub enum Credentials {
 impl Credentials {
     fn message(self, request: u64) -> ClientMessage {
         match self {
-            Self::Register {
-                email,
-                display_name,
-                password,
-            } => ClientMessage::Register {
-                request,
-                email,
-                display_name,
-                password,
-            },
-            Self::Login { email, password } => ClientMessage::Login {
-                request,
-                email,
-                password,
-            },
             Self::Header => ClientMessage::AuthenticateHeader { request },
             Self::Token(token) => ClientMessage::Authenticate { request, token },
         }

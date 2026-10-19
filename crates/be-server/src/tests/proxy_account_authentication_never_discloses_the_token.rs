@@ -16,6 +16,7 @@ async fn proxy_account_authentication_never_discloses_the_token() {
         socket.send(WsMessage::Binary(hello(BUILD))).await.unwrap();
         next_binary(&mut socket).await.unwrap();
         let mut client = TestClient {
+            directory: None,
             socket,
             next: 0,
             notifications: Vec::new(),

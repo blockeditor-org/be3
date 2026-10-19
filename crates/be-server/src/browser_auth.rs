@@ -1,4 +1,3 @@
-use beui_html::{elements as html, tw};
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -17,7 +16,7 @@ const LIMIT: usize = 1024;
 #[derive(Default)]
 pub(crate) struct Sessions {
     pending: Mutex<HashMap<String, Pending>>,
-    forms: Mutex<HashMap<String, Instant>>,
+    forms: Mutex<HashMap<String, (Instant, String)>>,
 }
 
 struct Pending {
@@ -26,6 +25,7 @@ struct Pending {
     denied: bool,
     expires: Instant,
     account: Option<Uuid>,
+    approved_by: String,
     _cancel: tokio::sync::oneshot::Sender<()>,
 }
 
@@ -56,6 +56,7 @@ impl Sessions {
                 denied: false,
                 expires: Instant::now() + LIFETIME,
                 account: None,
+                approved_by: String::new(),
                 _cancel: cancel,
             },
         );
@@ -85,7 +86,7 @@ impl Sessions {
         client: u64,
         code: &str,
         secret: &str,
-    ) -> Result<Option<Uuid>, ServerError> {
+    ) -> Result<Option<(Uuid, String)>, ServerError> {
         let mut pending = self.pending.lock().unwrap();
         let entry = pending
             .get_mut(code)
@@ -98,159 +99,31 @@ impl Sessions {
         let Some(account) = entry.account else {
             return Ok(None);
         };
+        let issuer = entry.approved_by.clone();
         pending.remove(code);
-        Ok(Some(account))
+        Ok(Some((account, issuer)))
     }
 
-    fn form(&self) -> Result<String, ServerError> {
+    pub(crate) fn form(&self, owner: &str) -> Result<String, ServerError> {
         let mut forms = self.forms.lock().unwrap();
-        forms.retain(|_, expires| *expires > Instant::now());
+        forms.retain(|_, (expires, _)| *expires > Instant::now());
         if forms.len() >= LIMIT {
             return Err(invalid("too many open sign-in pages; try again later"));
         }
         let token = Uuid::new_v4().to_string();
-        forms.insert(token.clone(), Instant::now() + LIFETIME);
+        forms.insert(token.clone(), (Instant::now() + LIFETIME, owner.into()));
         Ok(token)
     }
 
-    fn consume_form(&self, token: &str) -> Result<(), ServerError> {
+    pub(crate) fn consume_form(&self, token: &str, owner: &str) -> Result<(), ServerError> {
         self.forms
             .lock()
             .unwrap()
             .remove(token)
-            .filter(|expires| *expires > Instant::now())
+            .filter(|(expires, bound)| *expires > Instant::now() && bound == owner)
             .ok_or_else(|| invalid("this page expired; reload it and try again"))?;
         Ok(())
     }
-}
-
-use beui_html::{Children, Node, Show, component, render, view};
-
-pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<String, ServerError> {
-    let csrf = services.browser_auth.form()?;
-    let allow_login = services.config.allow_login;
-    let allow_registration = services.config.allow_registration;
-    let code = code.to_string();
-    let error = error.to_string();
-    Ok(render(|| {
-        view! {
-            <Shell>
-                <html::Main>
-                    <html::H1>"Authorize Block"</html::H1>
-                    <html::P>
-                        "Only continue if you started adding an account on your device. Check that its code matches."
-                    </html::P>
-                    <html::P role="alert">{error}</html::P>
-                    <html::Form method="post" action="/auth">
-                        <html::Input r#type="hidden" name="csrf" value={csrf} />
-                        <html::Label>
-                            "Device code"
-                            <html::Input
-                                name="code"
-                                value={code}
-                                required=true
-                                autocomplete="off"
-                                maxlength=14
-                            />
-                        </html::Label>
-                        <html::Label>
-                            "Email"
-                            <html::Input name="email" r#type="email" autocomplete="username" />
-                        </html::Label>
-                        <html::Label>
-                            "Password"
-                            <html::Input
-                                name="password"
-                                r#type="password"
-                                autocomplete="current-password"
-                            />
-                        </html::Label>
-                        <Show condition={allow_login}>
-                            <html::Button name="action" value="login">
-                                "Sign in and authorize"
-                            </html::Button>
-                        </Show>
-                        <Show condition={allow_registration}>
-                            <Registration />
-                        </Show>
-                        <html::Button name="action" value="deny" formnovalidate=true>
-                            "Deny"
-                        </html::Button>
-                    </html::Form>
-                </html::Main>
-            </Shell>
-        }
-    }))
-}
-
-#[component]
-fn Shell(children: Children<Node>) -> Node {
-    view! {
-        <html::Html lang="en">
-            <html::Head>
-                <html::Meta charset="utf-8" />
-                <html::Meta name="viewport" content="width=device-width, initial-scale=1" />
-                <html::Title>"Block — authorize device"</html::Title>
-                <tw::Styles />
-            </html::Head>
-            <html::Body
-                css=<>
-                    <tw::TextBase />
-                    <tw::FontSans />
-                    <tw::My12 />
-                    <tw::MxAuto />
-                    <tw::Px4 />
-                    <tw::MaxW112 />
-                    <tw::TextInk />
-                    <tw::BgPaper />
-                    <tw::Descendants target=tw::Target::Label>
-                        <tw::Block />
-                        <tw::My4 />
-                    </tw::Descendants>
-                    <tw::Descendants target=tw::Target::Input>
-                        <tw::Block />
-                        <tw::BoxBorder />
-                        <tw::WFull />
-                        <tw::Padding size=tw::Spacing::Control />
-                        <tw::FontInherit />
-                    </tw::Descendants>
-                    <tw::Descendants target=tw::Target::Button>
-                        <tw::Padding size=tw::Spacing::Control />
-                        <tw::ControlMargin />
-                        <tw::FontInherit />
-                        <tw::CursorPointer />
-                    </tw::Descendants>
-                    <tw::Descendants target=tw::Target::Alert>
-                        <tw::TextDanger />
-                    </tw::Descendants>
-                </>
-            >
-                {children}
-            </html::Body>
-        </html::Html>
-    }
-}
-
-#[component]
-fn Registration() -> Children<Node> {
-    view! {
-        <html::Label>
-            "Display name (for a new account)"
-            <html::Input name="display_name" autocomplete="nickname" maxlength=200 />
-        </html::Label>
-        <html::Button name="action" value="register">"Create account and authorize"</html::Button>
-    }
-}
-
-pub(crate) fn message(title: &str, message: &str) -> String {
-    render(|| {
-        view! {
-            <Shell>
-                <html::H1>{title}</html::H1>
-                <html::P>{message}</html::P>
-            </Shell>
-        }
-    })
 }
 
 pub(crate) fn fields(body: &str) -> HashMap<String, String> {
@@ -279,70 +152,23 @@ fn decode(value: &str) -> Option<String> {
     String::from_utf8(bytes).ok()
 }
 
-pub(crate) async fn submit(
+pub(crate) async fn decide(
     services: &Services,
-    fields: &HashMap<String, String>,
+    code: &str,
+    account: Option<Uuid>,
+    issuer: &str,
 ) -> Result<(), ServerError> {
-    let field = |key: &str| fields.get(key).map(String::as_str).unwrap_or_default();
-    services.browser_auth.consume_form(field("csrf"))?;
-    let code = field("code").trim().to_ascii_lowercase();
-    {
-        let pending = services.browser_auth.pending.lock().unwrap();
-        let entry = pending
-            .get(&code)
-            .filter(|entry| {
-                entry.expires > Instant::now() && entry.account.is_none() && !entry.denied
-            })
-            .ok_or_else(|| invalid("this code is invalid, expired, or already approved"))?;
-        let _ = entry;
+    if !services.config.allow_login {
+        return Err(invalid("This server is not accepting sign-ins."));
     }
-    if field("action") == "deny" {
-        let entry = {
-            let mut pending = services.browser_auth.pending.lock().unwrap();
-            pending.get_mut(&code).map(|entry| {
-                entry.denied = true;
-                entry.client
-            })
-        };
-        if let Some(entry) = entry {
-            services
-                .hub
-                .send_to(
-                    entry,
-                    ServerMessage::BrowserLoginFinished {
-                        approved: false,
-                        message: "Sign-in was denied in the browser.".into(),
-                    },
-                )
-                .await;
-        }
-        return Ok(());
-    }
-    let (profile, token) = match field("action") {
-        "login" if services.config.allow_login => {
-            services
-                .store
-                .login(field("email"), field("password"))
-                .await?
-        }
-        "register" if services.config.allow_registration => {
-            services
-                .store
-                .register(field("email"), field("display_name"), field("password"))
-                .await?
-        }
-        _ => return Err(invalid("this server does not allow that sign-in method")),
-    };
-    services.store.logout(&token).await?;
+    let code = code.trim().to_ascii_lowercase();
     let client = {
         let mut pending = services.browser_auth.pending.lock().unwrap();
-        let entry = pending
-            .get_mut(&code)
-            .filter(|entry| {
-                entry.expires > Instant::now() && entry.account.is_none() && !entry.denied
-            })
-            .ok_or_else(|| invalid("this sign-in expired or was cancelled"))?;
-        entry.account = Some(profile.account);
+        let entry = pending.get_mut(&code).filter(|entry| entry.expires > Instant::now() && entry.account.is_none() && !entry.denied)
+            .ok_or_else(|| invalid("This code is invalid, expired, denied, or already approved. Start sign-in again in Block."))?;
+        entry.account = account;
+        entry.approved_by = issuer.into();
+        entry.denied = account.is_none();
         entry.client
     };
     services
@@ -350,13 +176,38 @@ pub(crate) async fn submit(
         .send_to(
             client,
             ServerMessage::BrowserLoginFinished {
-                approved: true,
-                message: String::new(),
+                approved: account.is_some(),
+                message: if account.is_some() {
+                    String::new()
+                } else {
+                    "Sign-in was denied in the browser.".into()
+                },
             },
         )
         .await;
     Ok(())
 }
 
+pub(crate) fn code_status(services: &Services, code: &str) -> Result<(), ServerError> {
+    let pending = services.browser_auth.pending.lock().unwrap();
+    match pending.get(&code.trim().to_ascii_lowercase()) {
+        None => Err(invalid(
+            "This code is invalid or expired. Start sign-in again in Block.",
+        )),
+        Some(entry) if entry.expires <= Instant::now() => Err(invalid(
+            "This sign-in expired. Start sign-in again in Block.",
+        )),
+        Some(entry) if entry.denied => Err(invalid(
+            "This sign-in was denied. Start sign-in again in Block.",
+        )),
+        Some(entry) if entry.account.is_some() => Err(invalid(
+            "This sign-in was already approved. Return to Block.",
+        )),
+        Some(_) => Ok(()),
+    }
+}
+
+#[cfg(test)]
+pub(crate) use crate::portal::message;
 #[cfg(test)]
 mod tests;

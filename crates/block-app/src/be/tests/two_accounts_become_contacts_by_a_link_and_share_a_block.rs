@@ -3,7 +3,12 @@ use super::*;
 #[test]
 fn two_accounts_become_contacts_by_a_link_and_share_a_block() {
     let harness = Harness::start();
-    let guest = Someone::register(&harness.url, "guest@example.com", "Guest");
+    let guest = Someone::register(
+        &harness.directory.join("server"),
+        &harness.url,
+        "guest@example.com",
+        "Guest",
+    );
     let personal = harness.connect_personal();
     let block = Uuid::new_v4();
     written(block, "meet at noon");
