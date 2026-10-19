@@ -579,44 +579,79 @@ fn label(platform: &str) -> &'static str {
 }
 
 fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
-    use beui_html::{Node, document, fragment, stylesheet};
-    let rows = downloads.iter().map(|download| {
-        Node::element("tr")
-            .child(Node::element("td").child(download.label))
-            .child(
-                Node::element("td").child(
-                    Node::element("a")
-                        .attr("href", format!("{prefix}{}", download.name))
-                        .child(download.name.as_str()),
-                ),
-            )
-            .child(
-                Node::element("td").child(format!("{:.1} MB", download.size as f64 / 1_000_000.0)),
-            )
-            .child(Node::element("td").child(Node::element("code").child(download.sha256.as_str())))
-    });
-    document(Node::element("html").attr("lang", "en")
-        .child(Node::element("head")
-            .child(Node::element("meta").attr("charset", "utf-8"))
-            .child(Node::element("meta").attr("name", "viewport").attr("content", "width=device-width, initial-scale=1"))
-            .child(Node::element("meta").attr("name", "robots").attr("content", "noindex, nofollow"))
-            .child(Node::element("title").child("Block downloads"))
-            .child(stylesheet(include_str!("deploy/downloads.css"))))
-        .child(Node::element("body")
-            .child(Node::element("h1").child("Block"))
-            .child(Node::element("p").child("Build ").child(Node::element("code").child(build)).child(". A download connects only to a server running the same build."))
-            .child(Node::element("table")
-                .child(Node::element("tr").child(fragment(["Platform", "Download", "Size", "SHA-256"].map(|title| Node::element("th").child(title)))))
-                .child(fragment(rows)))
-            .child(Node::element("p")
-                .child("Each zip holds the app in a folder of its own: run ")
-                .child(Node::element("code").child("block-app"))
-                .child(" (").child(Node::element("code").child("block-app.exe"))
-                .child(" on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; ")
-                .child(Node::element("code").child("xattr -dr com.apple.quarantine block-app-macos-*"))
-                .child(" lets them open. The web bundle is also available to serve yourself. ")
-                .child(Node::element("a").attr("href", "https://be3.pfg.pw/").child("Open the hosted web app"))
-                .child("."))))
+    use beui_html::{Element, Fragment, Stylesheet, attr, render, view};
+    render(|| {
+        let rows: Vec<_> = downloads
+            .iter()
+            .map(|download| {
+                view! {
+                    <Element tag="tr">
+                        <Element tag="td">{download.label}</Element>
+                        <Element tag="td">
+                            <Element tag="a" @attr={("href", format!("{prefix}{}", download.name))}>
+                                {download.name.as_str()}
+                            </Element>
+                        </Element>
+                        <Element tag="td">
+                            {format!("{:.1} MB", download.size as f64 / 1_000_000.0)}
+                        </Element>
+                        <Element tag="td">
+                            <Element tag="code">{download.sha256.as_str()}</Element>
+                        </Element>
+                    </Element>
+                }
+            })
+            .collect();
+        view! {
+            <Element tag="html" @attr={("lang", "en")}>
+                <Element tag="head">
+                    <Element tag="meta" @attr={("charset", "utf-8")} />
+                    <Element
+                        tag="meta"
+                        @attr={("name", "viewport")}
+                        @attr={("content", "width=device-width, initial-scale=1")}
+                    />
+                    <Element
+                        tag="meta"
+                        @attr={("name", "robots")}
+                        @attr={("content", "noindex, nofollow")}
+                    />
+                    <Element tag="title">"Block downloads"</Element>
+                    <Stylesheet css={include_str!("deploy/downloads.css")} />
+                </Element>
+                <Element tag="body">
+                    <Element tag="h1">"Block"</Element>
+                    <Element tag="p">
+                        "Build "
+                        <Element tag="code">{build}</Element>
+                        ". A download connects only to a server running the same build."
+                    </Element>
+                    <Element tag="table">
+                        <Element tag="tr">
+                            <Element tag="th">"Platform"</Element>
+                            <Element tag="th">"Download"</Element>
+                            <Element tag="th">"Size"</Element>
+                            <Element tag="th">"SHA-256"</Element>
+                        </Element>
+                        <Fragment nodes={rows} />
+                    </Element>
+                    <Element tag="p">
+                        "Each zip holds the app in a folder of its own: run "
+                        <Element tag="code">"block-app"</Element>
+                        " ("
+                        <Element tag="code">"block-app.exe"</Element>
+                        " on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; "
+                        <Element tag="code">"xattr -dr com.apple.quarantine block-app-macos-*"</Element>
+                        " lets them open. The web bundle is also available to serve yourself. "
+                        <Element tag="a" @attr={("href", "https://be3.pfg.pw/")}>
+                            "Open the hosted web app"
+                        </Element>
+                        "."
+                    </Element>
+                </Element>
+            </Element>
+        }
+    })
 }
 
 fn purge(agents: &Agents, api_key: &str, url: &str) -> Result<(), String> {
@@ -658,9 +693,12 @@ fn web_entry_point(html: &str, build: &str) -> Result<String, String> {
     let (before, after) = html
         .split_once("<head>")
         .ok_or("the web entry point has no head element")?;
-    let base = beui_html::Node::element("base")
-        .attr("href", format!("/data/{build}/web/"))
-        .to_html();
+    use beui_html::{Element, attr, render_fragment, view};
+    let base = render_fragment(|| {
+        view! {
+            <Element tag="base" @attr={("href", format!("/data/{build}/web/"))} />
+        }
+    });
     Ok(format!("{before}<head>{base}{after}"))
 }
 

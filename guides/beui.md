@@ -3066,12 +3066,15 @@ keep and call `Node::to_html` after updates. `Text` and `@attr` bind reactive
 props; string children are escaped static text. `Show`, `ForEach` and the other
 `beui-tree` control flow components work with HTML children.
 
-`Node::element`, `.attr`, `.flag` and `.child` also build trees without macros;
-`fragment` joins nodes, and `document` serializes a document. Text and attribute
+Build HTML through `view!` and components; do not call builders directly.
+`Element` takes a tag and children, `Fragment` groups children without a wrapper
+(and accepts an existing `Vec<Node>` through `nodes`), and `@flag` binds boolean
+attributes. `render_fragment` builds and serializes without a doctype.
+Low-level node construction is private to the backend. Text and attribute
 values are escaped, attribute names are checked, and void elements reject
-children. Use `stylesheet` and `script` for CSS and JavaScript/import-map source:
-these preserve source text and reject a closing tag for their container. There
-is no general unescaped-HTML child. CSS can live in separate files and be read
+children. Use `<Stylesheet css={...} />` and `<Script kind="module" source={...} />`
+for CSS and JavaScript/import-map source. These preserve source text and reject
+a closing tag for their container. CSS can live in separate files and be read
 with `include_str!`.
 
 `view!` and `#[component]` locate their support crate automatically, including

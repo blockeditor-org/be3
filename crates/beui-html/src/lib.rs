@@ -28,27 +28,6 @@ impl Node {
         }))
     }
 
-    pub fn element(tag: &'static str) -> Self {
-        assert!(valid_name(tag), "invalid HTML element name");
-        Self::new(Kind::Element(tag))
-    }
-
-    pub fn child(self, child: impl IntoChild<Node>) -> Self {
-        assert!(!self.is_void(), "void HTML elements cannot have children");
-        self.0.children.borrow_mut().push(child.into_child());
-        self
-    }
-
-    pub fn attr(self, name: &str, value: impl ToString) -> Self {
-        set_attr(&self, name, Some(value.to_string()));
-        self
-    }
-
-    pub fn flag(self, name: &str, present: bool) -> Self {
-        set_attr(&self, name, present.then(String::new));
-        self
-    }
-
     fn is_void(&self) -> bool {
         let Kind::Element(tag) = &self.0.kind else {
             return false;
@@ -139,43 +118,19 @@ fn escape_into(value: &str, output: &mut String) {
     }
 }
 
-pub fn text(value: impl ToString) -> Node {
+fn text(value: impl ToString) -> Node {
     Node::new(Kind::Text(value.to_string()))
 }
 
-pub fn fragment(children: impl IntoIterator<Item = Node>) -> Node {
-    children
-        .into_iter()
-        .fold(Node::new(Kind::Fragment), Node::child)
-}
-
-pub fn document(node: Node) -> String {
-    format!("<!doctype html>{}", node.to_html())
-}
-
 pub fn render(build: impl FnOnce() -> Node) -> String {
+    format!("<!doctype html>{}", render_fragment(build))
+}
+
+pub fn render_fragment(build: impl FnOnce() -> Node) -> String {
     let _root = RootScope::new();
     let scope = Scope::new();
     let node = scope.run(build);
-    document(node)
-}
-
-pub fn stylesheet(css: &str) -> Node {
-    assert!(
-        !css.to_ascii_lowercase().contains("</style"),
-        "CSS contains a closing style tag"
-    );
-    Node::element("style").child(Node::new(Kind::Raw(css.into())))
-}
-
-pub fn script(kind: &str, source: &str) -> Node {
-    assert!(
-        !source.to_ascii_lowercase().contains("</script"),
-        "script contains a closing script tag"
-    );
-    Node::element("script")
-        .attr("type", kind)
-        .child(Node::new(Kind::Raw(source.into())))
+    node.to_html()
 }
 
 impl ChildValue for Node {}
@@ -240,7 +195,8 @@ impl IntoSlotHost<Node> for &Node {
 
 #[component]
 pub fn Element(tag: &'static str, children: Children<Node>) -> Node {
-    let node = Node::element(tag);
+    assert!(valid_name(tag), "invalid HTML element name");
+    let node = Node::new(Kind::Element(tag));
     children.mount(&node);
     node
 }
@@ -274,3 +230,49 @@ pub fn attr(node: Node, (name, value): (&'static str, impl IntoProp<String>)) ->
 
 #[cfg(test)]
 mod tests;
+
+#[component]
+pub fn Fragment(#[prop(default = Vec::new())] nodes: Vec<Node>, children: Children<Node>) -> Node {
+    let node = Node::new(Kind::Fragment);
+    for child in nodes {
+        node.0.children.borrow_mut().push(child);
+    }
+    children.mount(&node);
+    node
+}
+
+#[component]
+pub fn Stylesheet(css: String) -> Node {
+    assert!(
+        !css.to_ascii_lowercase().contains("</style"),
+        "CSS contains a closing style tag"
+    );
+    view! {
+        <Element tag="style">{Node::new(Kind::Raw(css))}</Element>
+    }
+}
+
+#[component]
+pub fn Script(kind: &'static str, source: String) -> Node {
+    assert!(
+        !source.to_ascii_lowercase().contains("</script"),
+        "script contains a closing script tag"
+    );
+    view! {
+        <Element tag="script" @attr={("type", kind.to_string())}>
+            {Node::new(Kind::Raw(source))}
+        </Element>
+    }
+}
+
+pub fn flag(node: Node, (name, value): (&'static str, impl IntoProp<bool>)) -> Node {
+    let value = value.into_prop();
+    let weak = Rc::downgrade(&node.0);
+    create_effect(move || {
+        let value = value.get();
+        if let Some(data) = weak.upgrade() {
+            set_attr(&Node(data), name, value.then(String::new));
+        }
+    });
+    node
+}

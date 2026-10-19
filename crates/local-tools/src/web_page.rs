@@ -1,4 +1,4 @@
-use beui_html::{Element, Node, attr, render, script, stylesheet, view};
+use beui_html::{Element, Fragment, Script, Stylesheet, attr, render, view};
 
 pub fn main(args: Vec<String>) -> std::process::ExitCode {
     let demo = match args.first().map(String::as_str) {
@@ -13,7 +13,9 @@ pub fn main(args: Vec<String>) -> std::process::ExitCode {
                 include_str!("web_page/demo.css"),
                 include_str!("web_page/demo.json"),
                 include_str!("web_page/demo.js"),
-                Node::element("div").attr("id", "demo"),
+                view! {
+                    <Element tag="div" @attr={("id", "demo")} />
+                },
             )
         } else {
             (
@@ -21,31 +23,43 @@ pub fn main(args: Vec<String>) -> std::process::ExitCode {
                 include_str!("web_page/block.css"),
                 include_str!("web_page/block.json"),
                 include_str!("web_page/block.js"),
-                beui_html::fragment([
-                    Node::element("div").attr("id", "plugins"),
-                    Node::element("canvas").attr("id", "block"),
-                ]),
+                view! {
+                    <Fragment>
+                        <Element tag="div" @attr={("id", "plugins")} />
+                        <Element tag="canvas" @attr={("id", "block")} />
+                    </Fragment>
+                },
             )
         };
         let status = if demo {
-            Node::element("div").attr("id", "status").child("Loading…")
+            view! {
+                <Element tag="div" @attr={("id", "status")}>"Loading…"</Element>
+            }
         } else {
-            Node::element("div").attr("id", "status").child(
-                Node::element("div")
-                    .attr("class", "detail")
-                    .child("Loading Block…"),
-            )
+            view! {
+                <Element tag="div" @attr={("id", "status")}>
+                    <Element tag="div" @attr={("class", "detail")}>"Loading Block…"</Element>
+                </Element>
+            }
         };
         view! {
             <Element tag="html" @attr={("lang", "en")}>
                 <Element tag="head">
-                    {Node::element("meta").attr("charset", "utf-8")}
-                    {Node::element("meta").attr("name", "viewport").attr("content", "width=device-width, initial-scale=1, user-scalable=no, interactive-widget=resizes-content")}
+                    <Element tag="meta" @attr={("charset", "utf-8")} />
+                    <Element
+                        tag="meta"
+                        @attr={("name", "viewport")}
+                        @attr={("content", "width=device-width, initial-scale=1, user-scalable=no, interactive-widget=resizes-content")}
+                    />
                     <Element tag="title">{title}</Element>
-                    {stylesheet(css)}
-                    {script("importmap", imports)}
+                    <Stylesheet css={css} />
+                    <Script kind="importmap" source={imports} />
                 </Element>
-                <Element tag="body">{content}{status}{script("module", js)}</Element>
+                <Element tag="body">
+                    {content}
+                    {status}
+                    <Script kind="module" source={js} />
+                </Element>
             </Element>
         }
     });

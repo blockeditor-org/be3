@@ -581,16 +581,22 @@ impl Formatter<'_> {
         {
             return vec![single];
         }
+        let nested_views = self.nested_views(range);
         let shift = (!self.spans_lines_in_a_literal(range)).then(|| {
-            (
-                base_indent(text(self.source, range.clone()), indent),
-                indent,
-            )
+            let mut surrounding = String::new();
+            let mut cursor = range.start;
+            for view in &nested_views {
+                surrounding.push_str(text(self.source, cursor..view.range.start));
+                surrounding.push_str("view");
+                cursor = view.range.end;
+            }
+            surrounding.push_str(text(self.source, cursor..range.end));
+            (base_indent(&surrounding, indent), indent)
         });
         let mut lines = Vec::new();
         let mut current = String::new();
         let mut cursor = range.start;
-        for nested in self.nested_views(range) {
+        for nested in nested_views {
             self.push_source(&mut lines, &mut current, cursor..nested.range.start, shift);
             let nested_indent = if lines.is_empty() {
                 indent

@@ -1,7 +1,9 @@
 use super::*;
 
 mod attribute_names_cannot_inject_markup;
+mod boolean_attributes_follow_signals;
 mod dynamic_children_cannot_hide_inside_void_elements;
+mod fragment_and_raw_text_components_preserve_their_content;
 mod rendering_flushes_bindings_before_serializing_and_disposes_scope;
 mod scripts_cannot_close_their_container;
 mod styles_cannot_close_their_container;

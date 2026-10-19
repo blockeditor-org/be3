@@ -116,7 +116,7 @@ impl Sessions {
     }
 }
 
-use beui_html::{Element, Node, attr, document, fragment, render, stylesheet, view};
+use beui_html::{Element, Fragment, Node, Show, Stylesheet, attr, flag, render, view};
 
 pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<String, ServerError> {
     let csrf = services.browser_auth.form()?;
@@ -125,32 +125,6 @@ pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<Strin
     let code = code.to_string();
     let error = error.to_string();
     Ok(render(|| {
-        let login = if allow_login {
-            Node::element("button")
-                .attr("name", "action")
-                .attr("value", "login")
-                .child("Sign in and authorize")
-        } else {
-            fragment([])
-        };
-        let register = if allow_registration {
-            fragment([
-                Node::element("label")
-                    .child("Display name (for a new account)")
-                    .child(
-                        Node::element("input")
-                            .attr("name", "display_name")
-                            .attr("autocomplete", "nickname")
-                            .attr("maxlength", "200"),
-                    ),
-                Node::element("button")
-                    .attr("name", "action")
-                    .attr("value", "register")
-                    .child("Create account and authorize"),
-            ])
-        } else {
-            fragment([])
-        };
         shell_node(view! {
             <Element tag="main">
                 <Element tag="h1">"Authorize Block"</Element>
@@ -159,22 +133,74 @@ pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<Strin
                 </Element>
                 <Element tag="p" @attr={("role", "alert")}>{error}</Element>
                 <Element tag="form" @attr={("method", "post")} @attr={("action", "/auth")}>
-                    {Node::element("input").attr("type", "hidden").attr("name", "csrf").attr("value", csrf)}
+                    <Element
+                        tag="input"
+                        @attr={("type", "hidden")}
+                        @attr={("name", "csrf")}
+                        @attr={("value", csrf)}
+                    />
                     <Element tag="label">
                         "Device code"
-                        {Node::element("input").attr("name", "code").attr("value", code).flag("required", true).attr("autocomplete", "off").attr("maxlength", "14")}
+                        <Element
+                            tag="input"
+                            @attr={("name", "code")}
+                            @attr={("value", code)}
+                            @flag={("required", true)}
+                            @attr={("autocomplete", "off")}
+                            @attr={("maxlength", "14")}
+                        />
                     </Element>
                     <Element tag="label">
                         "Email"
-                        {Node::element("input").attr("name", "email").attr("type", "email").attr("autocomplete", "username")}
+                        <Element
+                            tag="input"
+                            @attr={("name", "email")}
+                            @attr={("type", "email")}
+                            @attr={("autocomplete", "username")}
+                        />
                     </Element>
                     <Element tag="label">
                         "Password"
-                        {Node::element("input").attr("name", "password").attr("type", "password").attr("autocomplete", "current-password")}
+                        <Element
+                            tag="input"
+                            @attr={("name", "password")}
+                            @attr={("type", "password")}
+                            @attr={("autocomplete", "current-password")}
+                        />
                     </Element>
-                    {login}
-                    {register}
-                    {Node::element("button").attr("name", "action").attr("value", "deny").flag("formnovalidate", true).child("Deny")}
+                    <Show condition={allow_login}>
+                        <Element tag="button" @attr={("name", "action")} @attr={("value", "login")}>
+                            "Sign in and authorize"
+                        </Element>
+                    </Show>
+                    <Show condition={allow_registration}>
+                        <Fragment>
+                            <Element tag="label">
+                                "Display name (for a new account)"
+                                <Element
+                                    tag="input"
+                                    @attr={("name", "display_name")}
+                                    @attr={("autocomplete", "nickname")}
+                                    @attr={("maxlength", "200")}
+                                />
+                            </Element>
+                            <Element
+                                tag="button"
+                                @attr={("name", "action")}
+                                @attr={("value", "register")}
+                            >
+                                "Create account and authorize"
+                            </Element>
+                        </Fragment>
+                    </Show>
+                    <Element
+                        tag="button"
+                        @attr={("name", "action")}
+                        @attr={("value", "deny")}
+                        @flag={("formnovalidate", true)}
+                    >
+                        "Deny"
+                    </Element>
                 </Element>
             </Element>
         })
@@ -182,27 +208,32 @@ pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<Strin
 }
 
 fn shell_node(content: Node) -> Node {
-    Node::element("html")
-        .attr("lang", "en")
-        .child(
-            Node::element("head")
-                .child(Node::element("meta").attr("charset", "utf-8"))
-                .child(
-                    Node::element("meta")
-                        .attr("name", "viewport")
-                        .attr("content", "width=device-width, initial-scale=1"),
-                )
-                .child(Node::element("title").child("Block — authorize device"))
-                .child(stylesheet(include_str!("browser_auth.css"))),
-        )
-        .child(Node::element("body").child(content))
+    view! {
+        <Element tag="html" @attr={("lang", "en")}>
+            <Element tag="head">
+                <Element tag="meta" @attr={("charset", "utf-8")} />
+                <Element
+                    tag="meta"
+                    @attr={("name", "viewport")}
+                    @attr={("content", "width=device-width, initial-scale=1")}
+                />
+                <Element tag="title">"Block — authorize device"</Element>
+                <Stylesheet css={include_str!("browser_auth.css")} />
+            </Element>
+            <Element tag="body">{content}</Element>
+        </Element>
+    }
 }
 
 pub(crate) fn message(title: &str, message: &str) -> String {
-    document(shell_node(fragment([
-        Node::element("h1").child(title),
-        Node::element("p").child(message),
-    ])))
+    render(|| {
+        shell_node(view! {
+            <Fragment>
+                <Element tag="h1">{title}</Element>
+                <Element tag="p">{message}</Element>
+            </Fragment>
+        })
+    })
 }
 
 pub(crate) fn fields(body: &str) -> HashMap<String, String> {

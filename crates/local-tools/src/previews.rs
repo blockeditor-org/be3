@@ -2,7 +2,7 @@ use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::path::Path;
 
-use beui_html::{Node, fragment, text};
+use beui_html::{Element, Fragment, Node, RootScope, attr, flag, view};
 use paint_snapshot::Snapshot;
 use sha2::{Digest as _, Sha256};
 
@@ -10,6 +10,7 @@ const ROOT: &str = "PREVIEW_ROOT";
 const MAX_ROWS: usize = 30;
 
 pub fn generate(before: &Path, after: &Path, output: &Path) -> Result<String, String> {
+    let _root = RootScope::new();
     let mut comment = "## Paintings\n\n".to_owned();
 
     std::fs::create_dir_all(output).map_err(|error| error.to_string())?;
@@ -50,21 +51,25 @@ pub fn generate(before: &Path, after: &Path, output: &Path) -> Result<String, St
         }
         let table = table(old.as_ref(), new.as_ref(), output, &mut rows)?;
         let (headline, detail) = summary.split_once(": ").unwrap_or((&summary, ""));
-        sections.push(
-            Node::element("details")
-                .child(
-                    Node::element("summary")
-                        .child(Node::element("code").child(name.as_str()))
-                        .child(" ")
-                        .child(headline),
-                )
-                .child(if detail.is_empty() {
-                    fragment([])
+        sections.push(view! {
+            <Element tag="details">
+                <Element tag="summary">
+                    <Element tag="code">{name.as_str()}</Element>
+                    " "
+                    {headline}
+                </Element>
+                {if detail.is_empty() {
+                    view! {
+                        <Fragment />
+                    }
                 } else {
-                    Node::element("sub").child(detail)
-                })
-                .child(table),
-        );
+                    view! {
+                        <Element tag="sub">{detail}</Element>
+                    }
+                }}
+                {table}
+            </Element>
+        });
     }
 
     let total = added + removed + changed;
@@ -82,7 +87,10 @@ pub fn generate(before: &Path, after: &Path, output: &Path) -> Result<String, St
         );
         let open = sections.len() <= 5;
         for section in sections {
-            comment.push_str(&section.flag("open", open).to_html());
+            let section = view! {
+                {section} @flag={("open", open)}
+            };
+            comment.push_str(&section.to_html());
             comment.push('\n');
         }
         if !unshown.is_empty() {
@@ -104,9 +112,7 @@ fn table(
 ) -> Result<Node, String> {
     let count = |snapshot: Option<&Snapshot>| snapshot.map_or(0, |snapshot| snapshot.frames.len());
     let frames = count(old).max(count(new));
-    let mut table = Node::element("table").child(Node::element("tr").child(fragment(
-        ["Frame", "Before", "After", "Changes"].map(|title| Node::element("th").child(title)),
-    )));
+    let mut table_rows = Vec::new();
     for index in 0..frames {
         let old_frame = old.and_then(|snapshot| snapshot.frames.get(index));
         let new_frame = new.and_then(|snapshot| snapshot.frames.get(index));
@@ -114,15 +120,12 @@ fn table(
             continue;
         }
         if *rows >= MAX_ROWS {
-            table = table.child(
-                Node::element("tr")
-                    .child(Node::element("td").child((index + 1).to_string()))
-                    .child(
-                        Node::element("td")
-                            .attr("colspan", "3")
-                            .child("more frames not shown"),
-                    ),
-            );
+            table_rows.push(view! {
+                <Element tag="tr">
+                    <Element tag="td">{(index + 1).to_string()}</Element>
+                    <Element tag="td" @attr={("colspan", "3")}>"more frames not shown"</Element>
+                </Element>
+            });
             break;
         }
         *rows += 1;
@@ -137,23 +140,46 @@ fn table(
                     1 => "1 pixel".to_string(),
                     count => format!("{count} pixels"),
                 };
-                fragment([cell, Node::element("br"), text(label)])
+                view! {
+                    <Fragment>
+                        {cell}
+                        <Element tag="br" />
+                        {label}
+                    </Fragment>
+                }
             }
-            _ => fragment([]),
+            _ => view! {
+                <Fragment />
+            },
         };
         let cell = |rendered: &Option<image::RgbaImage>, kind: &str| match rendered {
             Some(rendered) => image(kind, rendered, output),
-            None => Ok(fragment([])),
+            None => Ok(view! {
+                <Fragment />
+            }),
         };
-        table = table.child(
-            Node::element("tr")
-                .child(Node::element("td").child((index + 1).to_string()))
-                .child(Node::element("td").child(cell(&old_image, "before")?))
-                .child(Node::element("td").child(cell(&new_image, "after")?))
-                .child(Node::element("td").child(changes)),
-        );
+        let before = cell(&old_image, "before")?;
+        let after = cell(&new_image, "after")?;
+        table_rows.push(view! {
+            <Element tag="tr">
+                <Element tag="td">{(index + 1).to_string()}</Element>
+                <Element tag="td">{before}</Element>
+                <Element tag="td">{after}</Element>
+                <Element tag="td">{changes}</Element>
+            </Element>
+        });
     }
-    Ok(table)
+    Ok(view! {
+        <Element tag="table">
+            <Element tag="tr">
+                <Element tag="th">"Frame"</Element>
+                <Element tag="th">"Before"</Element>
+                <Element tag="th">"After"</Element>
+                <Element tag="th">"Changes"</Element>
+            </Element>
+            <Fragment nodes={table_rows} />
+        </Element>
+    })
 }
 
 fn render(snapshot: &Snapshot, index: usize) -> Option<image::RgbaImage> {
@@ -175,9 +201,13 @@ fn image(kind: &str, image: &image::RgbaImage, output: &Path) -> Result<Node, St
     let path = output.join(&file);
     std::fs::write(&path, png)
         .map_err(|error| format!("could not write {}: {error}", path.display()))?;
-    Ok(Node::element("img")
-        .attr("alt", kind)
-        .attr("src", format!("{ROOT}/{file}")))
+    Ok(view! {
+        <Element
+            tag="img"
+            @attr={("alt", kind.to_string())}
+            @attr={("src", format!("{ROOT}/{file}"))}
+        />
+    })
 }
 
 fn paintings(directory: &Path) -> Vec<String> {
@@ -203,7 +233,11 @@ fn read(path: &Path) -> Option<Result<Snapshot, String>> {
 }
 
 fn escaped(text: &str) -> String {
-    beui_html::text(text).to_html()
+    beui_html::render_fragment(|| {
+        view! {
+            <Fragment>{text}</Fragment>
+        }
+    })
 }
 
 #[cfg(test)]
