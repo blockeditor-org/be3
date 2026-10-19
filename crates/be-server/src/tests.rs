@@ -41,6 +41,7 @@ mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod another_build_is_greeted_and_turned_away;
 mod blocks_publish_and_read_back_through_the_server;
+mod browser_authorization_survives_disconnecting_before_approval;
 mod browser_forms_enforce_origin_policy_and_deny_sign_in;
 mod browser_pages_escape_codes_and_keep_available_actions;
 mod contacts_are_made_by_a_link_and_finished_by_its_owner;
@@ -64,7 +65,7 @@ mod relayed_session_traffic_passes_through_the_server_sealed;
 mod removing_a_contact_revokes_what_the_two_shared;
 mod repeated_failed_sign_ins_lock_the_account_out;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
-mod the_browser_approves_only_the_requesting_connection_and_the_code_works_once;
+mod the_browser_authorization_requires_the_private_secret_and_works_once;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 const KEY: Uuid = Uuid::from_u128(0x006b_6579);
@@ -638,14 +639,17 @@ async fn form(harness: &Harness, code: &str) -> String {
         .unwrap()
         .to_owned()
 }
-async fn begin(client: &mut TestClient) -> String {
-    let ServerMessage::BrowserLogin { code, .. } = client
+async fn begin_session(client: &mut TestClient) -> (String, String) {
+    let ServerMessage::BrowserLogin { code, secret, .. } = client
         .send(|request| ClientMessage::BeginBrowserLogin { request })
         .await
     else {
         panic!("a browser authorization session starts")
     };
-    code
+    (code, secret)
+}
+async fn begin(client: &mut TestClient) -> String {
+    begin_session(client).await.0
 }
 async fn post(harness: &Harness, body: &str) -> (u16, String) {
     http(

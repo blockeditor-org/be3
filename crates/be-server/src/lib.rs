@@ -270,7 +270,6 @@ impl Client {
     }
 
     pub(crate) async fn close(self) {
-        self.connection.browser_auth.cancel(self.connection.client);
         let Connection {
             hub,
             registry,
@@ -490,13 +489,23 @@ impl Connection {
         }
         match message {
             ClientMessage::BeginBrowserLogin { request } => {
-                let code = self
+                let (code, secret) = self
                     .browser_auth
                     .begin(self.client, Arc::clone(&self.hub))?;
-                Ok(ServerMessage::BrowserLogin { request, code })
+                Ok(ServerMessage::BrowserLogin {
+                    request,
+                    code,
+                    secret,
+                })
             }
-            ClientMessage::FinishBrowserLogin { request, code } => {
-                let account = self.browser_auth.finish(self.client, &code)?;
+            ClientMessage::FinishBrowserLogin {
+                request,
+                code,
+                secret,
+            } => {
+                let Some(account) = self.browser_auth.finish(self.client, &code, &secret)? else {
+                    return Ok(ServerMessage::Ok { request });
+                };
                 let token = self.store.issue_session(account).await?;
                 let profile = self.store.resolve_token(&token).await?;
                 Ok(self.authenticated(request, profile, token).await)

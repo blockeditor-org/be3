@@ -37,7 +37,7 @@ pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     wasm_bindgen_futures::spawn_local(task);
 }
 
-pub(super) async fn sleep(duration: Duration) {
+pub(crate) async fn sleep(duration: Duration) {
     let Some(window) = web_sys::window() else {
         return std::future::pending().await;
     };

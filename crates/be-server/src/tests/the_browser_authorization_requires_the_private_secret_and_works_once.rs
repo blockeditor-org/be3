@@ -1,18 +1,19 @@
 use super::*;
 
 #[tokio::test]
-async fn the_browser_approves_only_the_requesting_connection_and_the_code_works_once() {
+async fn the_browser_authorization_requires_the_private_secret_and_works_once() {
     let harness = Harness::start().await;
     let mut app = harness.client().await;
     let mut other = harness.client().await;
-    let code = begin(&mut app).await;
+    let (code, secret) = begin_session(&mut app).await;
     assert!(matches!(
         app.send(|request| ClientMessage::FinishBrowserLogin {
             request,
-            code: code.clone()
+            code: code.clone(),
+            secret: secret.clone()
         })
         .await,
-        ServerMessage::Failed { .. }
+        ServerMessage::Ok { .. }
     ));
     let csrf = form(&harness, &code).await;
     let body = format!(
@@ -29,15 +30,19 @@ async fn the_browser_approves_only_the_requesting_connection_and_the_code_works_
         other
             .send(|request| ClientMessage::FinishBrowserLogin {
                 request,
-                code: code.clone()
+                code: code.clone(),
+                secret: "wrong secret".into()
             })
             .await,
         ServerMessage::Failed { .. }
     ));
+    drop(app);
+    let mut app = harness.client().await;
     let session = app
         .send(|request| ClientMessage::FinishBrowserLogin {
             request,
             code: code.clone(),
+            secret: secret.clone(),
         })
         .await;
     let ServerMessage::Authenticated { token, email, .. } = session else {
@@ -48,7 +53,8 @@ async fn the_browser_approves_only_the_requesting_connection_and_the_code_works_
     assert!(matches!(
         app.send(|request| ClientMessage::FinishBrowserLogin {
             request,
-            code: code.clone()
+            code: code.clone(),
+            secret: secret.clone()
         })
         .await,
         ServerMessage::Failed { .. }
@@ -60,7 +66,7 @@ async fn the_browser_approves_only_the_requesting_connection_and_the_code_works_
             .await,
         ServerMessage::Authenticated { .. }
     ));
-    let code = begin(&mut app).await;
+    let (code, _) = begin_session(&mut app).await;
     let csrf = form(&harness, &code).await;
     assert_eq!(post(&harness, &format!("csrf={csrf}&code={code}&action=login&email=ada%40example.com&password=correct+horse+battery")).await.0, 200);
     assert!(matches!(
