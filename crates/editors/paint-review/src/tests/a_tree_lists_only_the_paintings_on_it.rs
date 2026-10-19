@@ -8,6 +8,7 @@ fn a_tree_lists_only_the_paintings_on_it() {
             {"type": "blob", "path": "b.second.paint"},
             {"type": "blob", "path": "a.first.paint"},
             {"type": "blob", "path": "README.md"},
+            {"type": "blob", "path": "portal.login.browser.paint"},
             {"type": "tree", "path": "nested"}
         ]
     }"#;

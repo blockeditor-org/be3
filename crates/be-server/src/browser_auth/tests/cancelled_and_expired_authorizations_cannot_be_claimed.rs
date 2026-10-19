@@ -16,7 +16,7 @@ async fn cancelled_and_expired_authorizations_cannot_be_claimed() {
         entry.expires -= LIFETIME + Duration::from_secs(1);
     }
     assert!(sessions.finish(1, &expired, &expired_secret).is_err());
-    let form = sessions.form().unwrap();
-    *sessions.forms.lock().unwrap().get_mut(&form).unwrap() -= LIFETIME + Duration::from_secs(1);
-    assert!(sessions.consume_form(&form).is_err());
+    let form = sessions.form("").unwrap();
+    sessions.forms.lock().unwrap().get_mut(&form).unwrap().0 -= LIFETIME + Duration::from_secs(1);
+    assert!(sessions.consume_form(&form, "").is_err());
 }

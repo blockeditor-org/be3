@@ -958,6 +958,7 @@ impl BlockApp {
             self.switch_account(account);
             return;
         }
+        self.add_account_open = remote_url.is_some();
         self.begin_account_request(AccountForm {
             remote: remote_url.is_some(),
             remote_url: remote_url.unwrap_or_default(),
@@ -1050,7 +1051,6 @@ impl BlockApp {
         be_client::authorize(&url, authorization.clone());
         let requested = url.clone();
         let display_name = form.display_name;
-        let dev = self.dev_workspace;
         let default = platform::default_account_server();
         let auth_url = default
             .filter(|server| server.api_url == url)
@@ -1062,10 +1062,6 @@ impl BlockApp {
             let notify = sender.clone();
             let result = if !remote {
                 accounts::create_local_profile(requested, display_name)
-                    .await
-                    .map_err(|error| error.to_string())
-            } else if dev {
-                accounts::dev_session(requested)
                     .await
                     .map_err(|error| error.to_string())
             } else {

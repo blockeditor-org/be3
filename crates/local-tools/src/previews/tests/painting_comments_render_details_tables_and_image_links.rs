@@ -18,7 +18,7 @@ fn painting_comments_render_details_tables_and_image_links() {
         Default::default(),
     );
     std::fs::write(after.join("sample.paint"), snapshot.encode().unwrap()).unwrap();
-    let comment = generate(&before, &after, &output).unwrap();
+    let comment = generate(&before, &after, &output, None).unwrap();
     assert!(
         comment.contains("<details open=\"\"><summary><code>sample</code> was added</summary>")
     );

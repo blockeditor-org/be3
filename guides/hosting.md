@@ -19,7 +19,7 @@ leaves the host's service configuration and reverse proxy alone.
 The server speaks plain WebSockets at `/api/be` and the same protocol over
 HTTP posts at `/api/be/http` for clients behind a proxy that refuses WebSockets.
 The host's reverse proxy supplies TLS at `api.be3.pfg.pw` and routes those API
-paths and `/auth` to the server. The web app is served separately by Bunny at `be3.pfg.pw`.
+paths, `/auth`, and `/auth/*` to the server. The web app is served separately by Bunny at `be3.pfg.pw`.
 The proxy must allow the web app's origin; native clients send no Origin header.
 A gateway can accept `Be3-Gateway-Authorization` from native clients and a
 host-only cookie from browsers, whose WebSocket API cannot set headers.
@@ -29,15 +29,41 @@ server adds missing schema tables, indexes and defaulted columns, and refuses
 incompatible schemas. This directory and its backups are frozen formats
 (guides/frozen_formats.md).
 
-Password sign-ins are disabled unless the host starts the server with
-`--allow-login`; registration requires `--allow-registration`. Devices already
-signed in reconnect with their session tokens. Browser authorization lasts ten
-minutes independently of the initiating connection. The app retains a private
-secret separately from the displayed code and checks completion on fresh
-connections, retrying when the network is unavailable. Only that secret can
-redeem the approved authorization, once. To create an account directly,
-stop the server and run its executable with the same `--data-dir` and
-`--add-account EMAIL NAME ORGANIZATION`, passing the password on standard input.
+The account portal requires `--auth-origin https://api.be3.pfg.pw` on a deployed
+server. This is the exact public origin used for form Origin checks, Secure cookies,
+and email links; request Host and forwarded headers cannot override it. Localhost
+HTTP development can infer its origin. Web launchers supply their public origin.
+The host's service configuration must include the flag before deploying this build;
+deployment does not change systemd or proxy configuration.
+
+Password sign-ins require `--allow-login`; verified registration also requires
+`--allow-registration`. `/auth` is the only remote password/registration interface:
+the app protocol accepts browser authorization, session tokens, and proxy headers.
+There is no command-line account provisioning flag. To bootstrap a server, enable
+registration, create and verify an account through the portal, then disable registration
+if appropriate. Existing accounts do not need retroactive email verification.
+
+Remote human sessions predating portal session metadata must sign in again. Agent and local-profile credentials
+are retained because those accounts have no password recovery path. New browser sessions last
+30 days and use a host-only HttpOnly SameSite=Lax cookie scoped to `/auth`; they cannot
+be used as app bearer credentials. App sessions are listed alongside browser sessions.
+Revocation and password reset disconnect active clients and remove their subscriptions.
+Signing out cannot remove data already held by a device.
+
+Email delivery uses `mail::Delivery`, currently `LogDelivery`: the server log contains
+recipient, subject and the complete message, including verification/reset links. Treat
+that log as access to the addressed accounts. Tests inject a capturing delivery sink.
+Verification links last one hour and password reset links 30 minutes; tokens are stored
+hashed and consumed only by POST. Repeating the requesting form sends another link,
+subject to issuance limits. Password reset changes authentication only: encrypted data
+still needs a recovery phrase or another unlocked Block device.
+
+Browser authorization lasts ten minutes independently of the initiating connection.
+The app retains a private secret separately from the displayed code, checks completion
+on fresh connections, and retries when the network is unavailable. Only that secret
+can redeem an approved request, once. Approval is explicit after portal authentication;
+email verification alone does not approve a device. A revoked approving browser session
+cannot issue an app session from an unclaimed approval.
 
 ## Deploying
 
@@ -167,15 +193,22 @@ decryption. `BE3_AUTHORIZATION` and the native app's gateway field now send
 `Be3-Gateway-Authorization`; the host’s gateway rules must use that header. Browsers use the gateway cookie because their WebSocket API
 cannot set request headers.
 
-Remote accounts are added through the server's `/auth` page. The app starts a
-short-lived authorization request over its gateway-authorized connection and
-opens `/auth?code=...`. The page uses same-origin form posts, checks Origin and
-an expiring form nonce, and applies `--allow-login` and `--allow-registration`.
-Approval notifies the requesting connection; only that connection can claim its
-session token, once. Closing the connection cancels its pending request. The
-browser is assumed to already have the API host's gateway cookie. No gateway
-or account token is put in the URL. The URL and code stay visible in the app;
-`--session` does not launch a browser automatically.
+Remote accounts are added through the server's `/auth` portal. The app begins a
+short-lived authorization request over its gateway-authorized connection and opens
+`/auth?code=...`. The user signs in or registers and verifies email, then approves the
+matching code. A remembered browser session usually needs only approval. The portal
+also accepts manually entered codes for another browser profile or `--session` mode.
+The app keeps its URL and code visible even when browser launch appears successful.
+The page uses server-rendered forms, same-origin POST checks and single-use form tokens
+bound to the browser credential. Field validation happens on submission; browser
+constraint validation and input length limits are disabled. Password-manager autocomplete
+stays enabled, but submitted passwords are never echoed into HTML after errors.
+Keep the portal’s Referrer-Policy at `strict-origin`: `no-referrer` makes browser
+form navigations send a null Origin, which the same-origin check rejects.
+
+The browser is assumed to already have the API host's gateway cookie. No gateway or
+account token is put in the device URL. `--session` does not launch a browser automatically.
+The portal authenticates the account; encryption unlocking and pairing stay in Block.
 
 The browser transport uses WebSockets, whose handshake includes the API host's
 cookies even when the page is on `be3.pfg.pw`. HTTP fetches added for API access

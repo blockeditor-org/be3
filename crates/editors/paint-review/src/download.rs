@@ -181,7 +181,7 @@ pub(crate) fn paths_in(tree: &[u8]) -> Result<Vec<String>, String> {
         .iter()
         .filter(|entry| entry.get("type").and_then(Value::as_str) == Some("blob"))
         .filter_map(|entry| entry.get("path").and_then(Value::as_str))
-        .filter(|path| path.ends_with(&suffix))
+        .filter(|path| path.ends_with(&suffix) && !path.ends_with(".browser.paint"))
         .map(str::to_owned)
         .collect();
     paths.sort();

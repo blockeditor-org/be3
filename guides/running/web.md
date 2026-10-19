@@ -31,9 +31,11 @@ and its plugins' workers log to the console goes to `~/.cache/be3/web-dev/browse
 
 What the launcher opens is `http://127.0.0.1:8090/?dev-workspace&automation`; those
 two parameters work on any page serving the bundle:
-- `dev-workspace`: sign in to the page's own server as `dev@localhost`, registering it
-  unless it is registered already. Then open the last organization, or the first one (the
-  personal organization registering joins).
+- `dev-workspace`: start browser sign-in against the page's own server, then open the
+  last organization or the personal organization. The launcher drives the ordinary
+  portal as `dev@localhost`, reads its verification message from the development server
+  log when registering, and explicitly approves the device request. The parameter
+  alone requires completing that portal flow manually.
 - `automation`: answer `drive`'s commands through the bundle's `automate` export.
 
 ## Driving the page

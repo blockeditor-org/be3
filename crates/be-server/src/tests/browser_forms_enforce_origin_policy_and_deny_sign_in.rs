@@ -1,17 +1,16 @@
 use super::*;
-
 #[tokio::test]
 async fn browser_forms_enforce_origin_policy_and_deny_sign_in() {
     let harness = Harness::start().await;
     let mut app = harness.client().await;
     let (code, secret) = begin_session(&mut app).await;
-    let csrf = form(&harness, &code).await;
-    let body = format!("csrf={csrf}&code={code}&action=deny");
+    let page = http(&harness, "GET", "/auth", "", None).await.1;
+    let body = format!("csrf={}&code={code}", csrf(&page));
     assert_eq!(
         http(
             &harness,
             "POST",
-            "/auth",
+            "/auth/deny",
             &body,
             Some("https://unrelated.example")
         )
@@ -19,7 +18,14 @@ async fn browser_forms_enforce_origin_policy_and_deny_sign_in() {
         .0,
         403
     );
-    assert_eq!(post(&harness, &body).await.0, 200);
+    let mut browser = Browser::default();
+    assert_eq!(
+        browser
+            .request(&harness, "POST", "/auth/deny", &body)
+            .await
+            .0,
+        303
+    );
     assert!(matches!(
         app.notification().await,
         ServerMessage::BrowserLoginFinished {
@@ -36,4 +42,11 @@ async fn browser_forms_enforce_origin_policy_and_deny_sign_in() {
         .await,
         ServerMessage::Failed { .. }
     ));
+    assert_eq!(
+        browser
+            .request(&harness, "POST", "/auth/deny", &body)
+            .await
+            .0,
+        400
+    );
 }

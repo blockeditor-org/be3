@@ -81,51 +81,6 @@ pub(crate) enum LoginEvent {
     Finished(Result<Session, String>),
 }
 
-#[cfg(test)]
-pub(crate) async fn register(
-    server_url: String,
-    email: String,
-    display_name: String,
-    password: String,
-) -> Result<Session, AccountError> {
-    let connection = Connection::connect(&socket_url(&server_url)).await?;
-    session_of(
-        connection
-            .request(|request| ClientMessage::Register {
-                request,
-                email,
-                display_name,
-                password,
-            })
-            .await?,
-    )
-}
-
-pub(crate) async fn dev_session(server_url: String) -> Result<Session, AccountError> {
-    let connection = Connection::connect(&socket_url(&server_url)).await?;
-    let response = connection
-        .request(|request| ClientMessage::Register {
-            request,
-            email: "dev@localhost".into(),
-            display_name: "Dev".into(),
-            password: "dev-password".into(),
-        })
-        .await;
-    let response = match response {
-        Ok(response) => response,
-        Err(_) => {
-            connection
-                .request(|request| ClientMessage::Login {
-                    request,
-                    email: "dev@localhost".into(),
-                    password: "dev-password".into(),
-                })
-                .await?
-        }
-    };
-    session_of(response)
-}
-
 pub(crate) async fn create_local_profile(
     server_url: String,
     display_name: String,

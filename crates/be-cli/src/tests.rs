@@ -74,11 +74,14 @@ impl Harness {
             PeerConfig::new(
                 be_client::socket_url(&self.url),
                 be_keys::RecoveryPhrase::generate().secret(),
-                Credentials::Register {
-                    email: "owner@example.com".into(),
-                    display_name: "Owner".into(),
-                    password: "correct horse battery".into(),
-                },
+                Credentials::Token(
+                    be_server::ServerStore::open(&self.directory)
+                        .unwrap()
+                        .register("owner@example.com", "Owner", "correct horse battery")
+                        .await
+                        .unwrap()
+                        .1,
+                ),
             ),
             MemoryStore::new(),
         )

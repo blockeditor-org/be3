@@ -134,13 +134,14 @@ async fn serve_scene(data: &Path) -> Result<Written, String> {
         ServerConfig::OPEN,
         stopped,
     ));
-    let written = write_scene(&url).await;
+    let written = write_scene(&url, data).await;
     let _ = stop.send(());
     let _ = tokio::time::timeout(Duration::from_secs(10), server).await;
     written
 }
 
 async fn register(
+    data: &Path,
     socket: &str,
     email: &str,
     name: &str,
@@ -152,11 +153,14 @@ async fn register(
         PeerConfig::new(
             socket,
             phrase.secret(),
-            Credentials::Register {
-                email: email.into(),
-                display_name: name.into(),
-                password: password.into(),
-            },
+            Credentials::Token(
+                be_server::ServerStore::open(data)
+                    .map_err(text)?
+                    .register(email, name, password)
+                    .await
+                    .map_err(text)?
+                    .1,
+            ),
         )
         .organization(organization),
         MemoryStore::new(),
@@ -253,7 +257,7 @@ fn card(peer: &Peer<MemoryStore>, name: &str, email: &str) -> be_keys::ContactCa
     be_client::contacts::card(peer.account(), peer.keys().identity(), name, email)
 }
 
-async fn write_scene(url: &str) -> Result<Written, String> {
+async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
     let socket = be_client::socket_url(url);
     let owner_phrase = RecoveryPhrase::generate();
     let owner = Peer::connect(
@@ -262,11 +266,14 @@ async fn write_scene(url: &str) -> Result<Written, String> {
             ..PeerConfig::new(
                 &socket,
                 owner_phrase.secret(),
-                Credentials::Register {
-                    email: scene::OWNER_EMAIL.into(),
-                    display_name: scene::OWNER_NAME.into(),
-                    password: scene::OWNER_PASSWORD.into(),
-                },
+                Credentials::Token(
+                    be_server::ServerStore::open(data)
+                        .map_err(text)?
+                        .register(scene::OWNER_EMAIL, scene::OWNER_NAME, scene::OWNER_PASSWORD)
+                        .await
+                        .map_err(text)?
+                        .1,
+                ),
             )
         },
         MemoryStore::new(),
@@ -292,6 +299,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
 
     let editor_phrase = RecoveryPhrase::generate();
     let editor = register(
+        data,
         &socket,
         scene::EDITOR_EMAIL,
         scene::EDITOR_NAME,
@@ -591,6 +599,7 @@ async fn write_scene(url: &str) -> Result<Written, String> {
     let owner_personal = reopen(&socket, &owner, personal, ChunkerConfig::DEFAULT).await?;
     let friend_phrase = RecoveryPhrase::generate();
     let friend = register(
+        data,
         &socket,
         scene::FRIEND_EMAIL,
         scene::FRIEND_NAME,

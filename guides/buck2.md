@@ -239,8 +239,8 @@ deletes the paintings no test named.
 **Native tests that paint**, `cargo_test(paints = True, run_env = ...)`, are
 treated the same way: `:test` runs here and `:test-run` is the action
 `./scripts/verify` reads paintings from. `run_env` is the environment the test
-runs with, kept out of its compile. crates/app-tests is the one: it runs
-block-app's `:native` headless, so it runs on Linux x86_64 only.
+runs with, kept out of its compile. crates/app-tests runs block-app's `:native` headless, so it runs on Linux x86_64 only.
+crates/be-server captures its SSR portal as text browser paintings without a browser.
 
 Each compile-fail suite keeps a `Cargo.toml` listing its dependencies. The rule
 maps it into the compiler sandbox for automatic macro support-crate discovery.

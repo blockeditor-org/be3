@@ -39,7 +39,7 @@ fn main() {
         println!("the images are in {}", folder.display());
     }
     if changes.is_empty() {
-        println!("no painting in {FOLDER}/ differs from {base}");
+        println!("no native painting in {FOLDER}/ differs from {base}");
         return;
     }
     for change in &changes {
@@ -69,7 +69,7 @@ fn changes(root: &Path, base: &str) -> Vec<Change> {
                 .map(str::to_owned)
                 .collect::<Vec<_>>()
         })
-        .filter(|path| path.ends_with(".paint"))
+        .filter(|path| path.ends_with(".paint") && !path.ends_with(".browser.paint"))
         .collect();
 
     paths

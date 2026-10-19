@@ -1,11 +1,27 @@
 use super::*;
-
 #[tokio::test]
 async fn the_browser_authorization_requires_the_private_secret_and_works_once() {
     let harness = Harness::start().await;
     let mut app = harness.client().await;
     let mut other = harness.client().await;
     let (code, secret) = begin_session(&mut app).await;
+    let mut browser = Browser::default();
+    let (status, page) = browser
+        .submit(
+            &harness,
+            "/auth/register",
+            "/auth/register",
+            &[
+                ("code", &code),
+                ("email", "ada@example.com"),
+                ("display_name", "Ada"),
+                ("password", "correct horse battery"),
+                ("confirmation", "correct horse battery"),
+            ],
+        )
+        .await;
+    assert_eq!(status, 303, "{page}");
+    assert!(!page.contains("correct horse"));
     assert!(matches!(
         app.send(|request| ClientMessage::FinishBrowserLogin {
             request,
@@ -15,13 +31,36 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
         .await,
         ServerMessage::Ok { .. }
     ));
-    let csrf = form(&harness, &code).await;
-    let body = format!(
-        "csrf={csrf}&code={code}&action=register&email=ada%40example.com&display_name=Ada&password=correct+horse+battery"
+    let token = harness.mail_token("ada@example.com");
+    let path = format!("/auth/verify?token={token}");
+    assert_eq!(
+        browser
+            .submit(&harness, &path, "/auth/verify", &[("token", &token)])
+            .await
+            .0,
+        303
     );
-    let (status, page) = post(&harness, &body).await;
-    assert_eq!(status, 200, "{page}");
-    assert!(!page.contains("correct horse"));
+    assert!(matches!(
+        app.send(|request| ClientMessage::FinishBrowserLogin {
+            request,
+            code: code.clone(),
+            secret: secret.clone()
+        })
+        .await,
+        ServerMessage::Ok { .. }
+    ));
+    assert_eq!(
+        browser
+            .submit(
+                &harness,
+                &format!("/auth?code={code}"),
+                "/auth/approve",
+                &[("code", &code)]
+            )
+            .await
+            .0,
+        303
+    );
     assert!(matches!(
         app.notification().await,
         ServerMessage::BrowserLoginFinished { approved: true, .. }
@@ -36,8 +75,6 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
             .await,
         ServerMessage::Failed { .. }
     ));
-    drop(app);
-    let mut app = harness.client().await;
     let session = app
         .send(|request| ClientMessage::FinishBrowserLogin {
             request,
@@ -49,28 +86,19 @@ async fn the_browser_authorization_requires_the_private_secret_and_works_once() 
         panic!("{session:?}")
     };
     assert_eq!(email, "ada@example.com");
-    assert!(!page.contains(&token));
     assert!(matches!(
         app.send(|request| ClientMessage::FinishBrowserLogin {
             request,
-            code: code.clone(),
-            secret: secret.clone()
+            code,
+            secret
         })
         .await,
         ServerMessage::Failed { .. }
     ));
-    assert_eq!(post(&harness, &body).await.0, 400);
     assert!(matches!(
         other
             .send(|request| ClientMessage::Authenticate { request, token })
             .await,
         ServerMessage::Authenticated { .. }
-    ));
-    let (code, _) = begin_session(&mut app).await;
-    let csrf = form(&harness, &code).await;
-    assert_eq!(post(&harness, &format!("csrf={csrf}&code={code}&action=login&email=ada%40example.com&password=correct+horse+battery")).await.0, 200);
-    assert!(matches!(
-        app.notification().await,
-        ServerMessage::BrowserLoginFinished { approved: true, .. }
     ));
 }
