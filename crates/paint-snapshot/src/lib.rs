@@ -1,3 +1,5 @@
+mod browser;
+pub use browser::{BrowserFile, BrowserSnapshot};
 mod accepted;
 mod compare;
 mod fingerprint;

@@ -1,3 +1,4 @@
+mod browser;
 use std::process::ExitCode;
 
 mod deploy;

@@ -806,3 +806,6 @@ fn PageView(data: Page) -> Node {
         </Shell>
     }
 }
+
+#[cfg(test)]
+mod tests;

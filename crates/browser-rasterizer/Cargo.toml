@@ -1,0 +1,12 @@
+[package]
+name = "browser-rasterizer"
+description = "On-demand Playwright rendering of browser paint snapshots"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+paint-snapshot = { path = "../paint-snapshot" }
+
+[lints]
+workspace = true

@@ -32,6 +32,7 @@ uuid = { version = "1", features = ["serde", "v4"] }
 workspace = true
 
 [dev-dependencies]
+paint-snapshot = { path = "../paint-snapshot" }
 be-keys = { path = "../be-keys" }
 futures-util = "0.3"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

@@ -352,7 +352,7 @@ impl Run {
         if !changed.is_empty() {
             if self.options.check {
                 println!(
-                    "These paintings changed; run ./scripts/verify without --check to accept them, then review them in a Paint review block:"
+                    "These paintings changed; run ./scripts/verify without --check to accept them, then review them on the pull request:"
                 );
             } else {
                 println!("Accepting the paintings that changed:");
@@ -552,7 +552,13 @@ impl Run {
                 if files == 1 { "file" } else { "files" }
             );
         }
-        comment.push_str(&crate::previews::generate(&before, &after, out)?);
+        let renderers = self.built("browser-rasterizer");
+        comment.push_str(&crate::previews::generate(
+            &before,
+            &after,
+            out,
+            renderers.first().map(PathBuf::as_path),
+        )?);
         let path = out.join("comment.md");
         fs::write(path, comment).map_err(|error| error.to_string())?;
         Ok(())

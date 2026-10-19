@@ -120,6 +120,8 @@ def _impl(ctx: bxl.Context):
         built.extend(_outputs(ctx, "^test_run$", "//crates/... + //compile_fail/..."))
     if args.plugin_tests:
         printed.extend([("paintings", paintings) for paintings in _outputs(ctx, "^(plugin_test_run|painting_test_run)$", "//crates/...")])
+    if args.previews:
+        printed.append(("browser-rasterizer", _host_output(ctx, "root//crates/browser-rasterizer:bin", args.host)))
     if args.android:
         printed.append(("block-app.apk", _output(ctx, "root//crates/block-app:android-dist")))
         printed.append(("be-launcher.apk", _output(ctx, "root//crates/be-launcher:android-dist")))

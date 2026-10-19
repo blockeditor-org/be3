@@ -214,7 +214,7 @@ way for the test to fail.
   and a person reviews them there before merging. Leave the images alone.
 - The exception is a painting you did not expect to change: if your change should not have
   touched it, find out why it changed.
-  ./scripts/buck run //crates/paint-snapshot:example-changed says, for every painting in
+  ./scripts/buck run //crates/paint-snapshot:example-changed says, for every native painting in
   snapshots/ that differs from HEAD, which frame changed and what moved in it. With
   -- --images it also writes them into target/changed-paintings as PNGs - a before, an after
   and a changes image for every frame that differs, where magenta marks every pixel that
@@ -241,6 +241,44 @@ so a test of one asserts on the block instead.
 beui shapes and rasterizes its glyphs through the HarfBuzz and FreeType it carries, with
 the fonts it carries, once it is compiled to wasm, which is how its tests run, so what an
 editor paints is comparable like anything else.
+
+Browser pages use `paint_snapshot::BrowserSnapshot` instead of native drawing commands:
+
+    BrowserSnapshot::new([390, 844], &html)
+        .file("/style.css", "text/css", css.as_bytes())
+        .file("/script.js", "text/javascript", js.as_bytes())
+        .snapshot("sign_in_phone.browser");
+
+The name ends in `.browser`, making `snapshots/<crate>.<name>.paint` a text file.
+It contains the viewport, the complete SSR document and every embedded resource, with
+DOM tokens and resource lines on separate JSON lines for readable Git diffs. Tokens
+are concatenated without adding whitespace, preserving the exact rendered document.
+Binary resources such as images and fonts can be supplied through the same `file` method.
+Resources use absolute paths or full URLs; the document is served at
+`https://snapshot.invalid/`. Include resources referenced by CSS or scripts as well.
+Keep dynamic ids, form tokens and displayed times fixed in fixtures.
+Native test crates opt into acceptance and cleanup with `cargo_test(paints = True)` in
+BUCK. The portal's tests in `crates/be-server/src/portal/tests/` demonstrate this.
+
+Tests compare the encoded bytes without starting a browser. Browser paintings share the
+native acceptance and cleanup pipeline, but Git shows their text diffs and prevents line
+merging. GitHub's painting comment and `local-tools rasterize` render them on demand through
+`crates/browser-rasterizer`, a separate binary. Paint review blocks list native paintings;
+browser paintings are reviewed in the pull request's comment and text diff.
+
+For local browser rasterization, install the optional runtime once:
+
+    python3 -m venv ~/.cache/be3/browser-rasterizer
+    ~/.cache/be3/browser-rasterizer/bin/pip install -r crates/browser-rasterizer/requirements.txt
+    ~/.cache/be3/browser-rasterizer/bin/python -m playwright install --with-deps chromium
+    export BE3_PLAYWRIGHT_PYTHON=~/.cache/be3/browser-rasterizer/bin/python
+    ./scripts/buck run //crates/local-tools:bin -- rasterize snapshots/be-server.portal_login_phone.browser.paint out.png
+
+`local-tools` builds the browser rasterizer only for browser inputs. During CI previews,
+that binary is built by the same buck2 invocation as the other verification tools.
+The runtime blocks all uncaptured network requests, waits for fonts and images, disables
+animations and reports missing resources or failed scripts instead of silently producing
+an incomplete preview. Browser rendering is not part of snapshot equality.
 
 5. Running them
 
