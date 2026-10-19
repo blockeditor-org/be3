@@ -641,7 +641,9 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
                         " ("
                         <Element tag="code">"block-app.exe"</Element>
                         " on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; "
-                        <Element tag="code">"xattr -dr com.apple.quarantine block-app-macos-*"</Element>
+                        <Element tag="code">
+                            "xattr -dr com.apple.quarantine block-app-macos-*"
+                        </Element>
                         " lets them open. The web bundle is also available to serve yourself. "
                         <Element tag="a" @attr={("href", "https://be3.pfg.pw/")}>
                             "Open the hosted web app"
