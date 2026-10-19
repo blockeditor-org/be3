@@ -1,9 +1,9 @@
-use ra_ap_syntax::ast::{self, AstNode, HasArgList};
+use ra_ap_syntax::ast::{self, AstNode, HasArgList, HasAttrs};
 use ra_ap_syntax::{SourceFile, SyntaxNode};
 
 const SIGNAL_WRITES: [&str; 3] = ["set", "update", "set_unconditionally"];
 
-const PRIMITIVE_USERS: [&str; 7] = [
+const PRIMITIVE_USERS: [&str; 14] = [
     "crates/beui/",
     "crates/beui-view/",
     "crates/beui-components-styled/",
@@ -11,6 +11,13 @@ const PRIMITIVE_USERS: [&str; 7] = [
     "crates/beui-inspector/",
     "crates/beui-renderer-wgpu/",
     "crates/beui-demo/src/base_pages.rs",
+    "crates\\beui\\",
+    "crates\\beui-view\\",
+    "crates\\beui-components-styled\\",
+    "crates\\beui-components-unstyled\\",
+    "crates\\beui-inspector\\",
+    "crates\\beui-renderer-wgpu\\",
+    "crates\\beui-demo\\src\\base_pages.rs",
 ];
 
 pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
@@ -20,7 +27,10 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
         format!("{relative}:{line}")
     };
     let mut violations = Vec::new();
-    let test_source = relative.contains("/tests/") || relative.ends_with("/tests.rs");
+    let test_source = relative.contains("/tests/")
+        || relative.ends_with("/tests.rs")
+        || relative.contains("\\tests\\")
+        || relative.ends_with("\\tests.rs");
     for call in tree.syntax().descendants().filter_map(ast::CallExpr::cast) {
         if test_source || !calls(&call, "create_memo") {
             continue;
@@ -50,7 +60,44 @@ pub(crate) fn beui_violations(tree: &SourceFile, source: &str, relative: &str) -
     {
         violations.extend(primitive_uses(tree, source, relative));
     }
+    violations.extend(not_marked_component(tree, source, relative));
     violations
+}
+
+fn not_marked_component(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {
+    tree.syntax().descendants().filter_map(ast::Fn::cast).filter(|function| !function
+            .syntax()
+            .ancestors()
+            .any(|node| ast::Impl::can_cast(node.kind()) || ast::Trait::can_cast(node.kind())))
+        .filter(|function| !function.attrs().any(|attr| {
+            attr.as_simple_path()
+                .and_then(|path| path.segment())
+                .and_then(|segment| segment.name_ref())
+                .is_some_and(|name_ref| name_ref.text() == "component")})).filter(|function| function
+            .body()
+            .and_then(|body| body.tail_expr())
+            .and_then(|expr| match expr {
+                ast::Expr::MacroExpr(mac) => Some(mac),
+                _ => None,
+            })
+            .and_then(|mac| mac.macro_call())
+            .and_then(|call| call.path())
+            .and_then(|path| path.segment())
+            .and_then(|segment| segment.name_ref())
+            .is_some_and(|name_ref| name_ref.text() == "view")).map(|function|  {
+        let line_str = function
+            .fn_token()
+            .map(|fn_token| {
+                let offset = u32::from(fn_token.text_range().start()) as usize;
+                let line_num = source[..offset].matches('\n').count() + 1;
+                line_num.to_string()
+            })
+            .unwrap_or_else(|| "?".to_string());
+
+        format!(
+            "component function not marked #[component]: {relative}:{line_str} a function that returns a beui node should be a component.\nsolution: rename it to PascalCase and mark it #[component], then call it from inside `view! {{ <FunctionName /> }}`"
+        )
+    }).collect()
 }
 
 fn primitive_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String> {

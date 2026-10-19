@@ -7,7 +7,8 @@ use crate::reactive::*;
 
 type Heard = Rc<RefCell<Vec<(&'static str, bool)>>>;
 
-fn control(name: &'static str, heard: Heard) -> NodeId {
+#[component]
+fn Control(name: &'static str, heard: Heard) -> NodeId {
     view! {
         <Interactive
             focusable=true
@@ -28,14 +29,16 @@ fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
     let mut controls = None;
     let listening = Rc::clone(&heard);
     let document = build(|| {
-        let first = control("first", Rc::clone(&listening));
-        let second = control("second", Rc::clone(&listening));
+        let first = view! {<Control name="first" heard=Rc::clone(&listening) />};
+        let second = view! {<Control name="second" heard=Rc::clone(&listening) />};
         controls = Some((first, second));
         let removable = Rc::clone(&listening);
         view! {
             <List spacing=0.0>
                 <Portal node={shown} />
-                <Show condition={kept}>{control("removable", Rc::clone(&removable))}</Show>
+                <Show condition={kept}>
+                    <Control name="removable" heard=Rc::clone(&removable) />
+                </Show>
             </List>
         }
     });
