@@ -40,3 +40,4 @@ mod format_views_preserves_generic_modifiers;
 mod format_views_puts_the_value_a_tag_hands_its_children_after_the_tag;
 mod format_views_shifts_a_multi_line_expression_to_its_new_indent;
 mod strip_comments;
+mod view_helpers_require_components_independently_of_return_type;

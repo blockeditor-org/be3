@@ -437,6 +437,14 @@ pub trait ChildrenSlot {
     type Child: SlotChild;
 }
 
+impl<T: SlotChild> ChildValue for Children<T> {}
+
+impl<T: SlotChild, H: IntoSegment<T>> FromIterator<H> for Children<T> {
+    fn from_iter<I: IntoIterator<Item = H>>(iter: I) -> Self {
+        Self(iter.into_iter().map(IntoSegment::into_segment).collect())
+    }
+}
+
 impl<T: SlotChild> ChildrenSlot for Children<T> {
     type Child = T;
 }

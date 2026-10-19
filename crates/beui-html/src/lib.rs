@@ -122,14 +122,18 @@ fn text(value: impl ToString) -> Node {
     Node::new(Kind::Text(value.to_string()))
 }
 
-pub fn render(build: impl FnOnce() -> Node) -> String {
+pub fn render<C: IntoSegment<Node>>(build: impl FnOnce() -> C) -> String {
     format!("<!doctype html>{}", render_fragment(build))
 }
 
-pub fn render_fragment(build: impl FnOnce() -> Node) -> String {
+pub fn render_fragment<C: IntoSegment<Node>>(build: impl FnOnce() -> C) -> String {
     let _root = RootScope::new();
     let scope = Scope::new();
-    let node = scope.run(build);
+    let node = scope.run(|| {
+        let node = Node::new(Kind::Fragment);
+        Children::from(into_segment(build())).mount(&node);
+        node
+    });
     node.to_html()
 }
 
@@ -230,16 +234,6 @@ pub fn attr(node: Node, (name, value): (&'static str, impl IntoProp<String>)) ->
 
 #[cfg(test)]
 mod tests;
-
-#[component]
-pub fn Fragment(#[prop(default = Vec::new())] nodes: Vec<Node>, children: Children<Node>) -> Node {
-    let node = Node::new(Kind::Fragment);
-    for child in nodes {
-        node.0.children.borrow_mut().push(child);
-    }
-    children.mount(&node);
-    node
-}
 
 #[component]
 pub fn Stylesheet(css: String) -> Node {

@@ -579,9 +579,9 @@ fn label(platform: &str) -> &'static str {
 }
 
 fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
-    use beui_html::{Element, Fragment, Stylesheet, attr, render, view};
+    use beui_html::{Children, Element, Node, Stylesheet, attr, render, view};
     render(|| {
-        let rows: Vec<_> = downloads
+        let rows: Children<Node> = downloads
             .iter()
             .map(|download| {
                 view! {
@@ -633,7 +633,7 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
                             <Element tag="th">"Size"</Element>
                             <Element tag="th">"SHA-256"</Element>
                         </Element>
-                        <Fragment nodes={rows} />
+                        {rows}
                     </Element>
                     <Element tag="p">
                         "Each zip holds the app in a folder of its own: run "
@@ -641,7 +641,9 @@ fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
                         " ("
                         <Element tag="code">"block-app.exe"</Element>
                         " on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; "
-                        <Element tag="code">"xattr -dr com.apple.quarantine block-app-macos-*"</Element>
+                        <Element tag="code">
+                            "xattr -dr com.apple.quarantine block-app-macos-*"
+                        </Element>
                         " lets them open. The web bundle is also available to serve yourself. "
                         <Element tag="a" @attr={("href", "https://be3.pfg.pw/")}>
                             "Open the hosted web app"

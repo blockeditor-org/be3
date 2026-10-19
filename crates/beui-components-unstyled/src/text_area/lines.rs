@@ -525,7 +525,9 @@ fn RowText(
             carets={carets}
         >
             <ForEach keys={keys}>|(key, _): (PieceKey, usize)| {
-                row_piece(cx, item_model, cursors, layer, key)
+                view! {
+                    <RowPiece cx model={item_model} cursors layer key />
+                }
             }</ForEach>
             <Show condition={anchored}>
                 <TextItem at={anchor_position}>
@@ -592,7 +594,8 @@ fn piece_keys(row: &Row, layer: Layer) -> Vec<(PieceKey, usize)> {
         .collect()
 }
 
-fn row_piece(
+#[component]
+fn RowPiece(
     cx: Context,
     model: Memo<Rc<Row>>,
     cursors: Memo<RowCursors>,

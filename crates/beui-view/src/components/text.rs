@@ -69,6 +69,20 @@ pub enum TextChild {
     Item(TextItem),
 }
 
+impl ChildValue for TextChild {
+    fn finish_component(
+        &mut self,
+        component: &crate::reactive::ComponentContext,
+        scope: &crate::reactive::ScopeContext,
+    ) {
+        match self {
+            Self::Span(value) => value.finish_component(component, scope),
+            Self::Gap(value) => value.finish_component(component, scope),
+            Self::Item(value) => value.finish_component(component, scope),
+        }
+    }
+}
+
 crate::child_type!(TextChild);
 
 impl SlotChild for TextChild {

@@ -70,6 +70,8 @@ pub struct TreeMenu {
     pub on_select: Callback<Vec<usize>>,
 }
 
+impl ChildValue for TreeMenu {}
+
 pub struct TreeRowFace<K> {
     pub key: K,
     pub item: Memo<TreeItem>,

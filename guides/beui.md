@@ -126,6 +126,13 @@ slots - a list, a `Scroll` or a `Canvas` - so one written in a single-child slot
 whole view is a `Show` returns it typed `-> DynamicSegment<ListChild>` (or
 whatever kind of child its parent takes) rather than a `NodeId`.
 
+A function containing `view!` must be `#[component]`, whatever type it returns.
+The source check exempts test code, framework trait entrypoints, and views
+inside document/HTML rendering calls or factories storing deferred render
+callbacks. Extract other helpers into
+components and call them through `view!`, including helpers returning child
+runs rather than a single node.
+
 The exception is a component whose root is a base node it creates directly —
 the base layer itself, where `List` calls `create_list` and binds setters with
 effects. Above the base layer, one `view!` is the shape.
@@ -3067,9 +3074,11 @@ props; string children are escaped static text. `Show`, `ForEach` and the other
 `beui-tree` control flow components work with HTML children.
 
 Build HTML through `view!` and components; do not call builders directly.
-`Element` takes a tag and children, `Fragment` groups children without a wrapper
-(and accepts an existing `Vec<Node>` through `nodes`), and `@flag` binds boolean
-attributes. `render_fragment` builds and serializes without a doctype.
+`Element` takes a tag and children, and `@flag` binds boolean attributes.
+Multi-child `view!` already produces `Children<Node>` without a wrapper;
+components can return that type, and iterators of nodes or child runs can be
+collected into it. Both HTML renderers accept a node or a child run.
+`render_fragment` serializes without a doctype.
 Low-level node construction is private to the backend. Text and attribute
 values are escaped, attribute names are checked, and void elements reject
 children. Use `<Stylesheet css={...} />` and `<Script kind="module" source={...} />`

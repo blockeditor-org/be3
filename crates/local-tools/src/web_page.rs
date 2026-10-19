@@ -1,4 +1,4 @@
-use beui_html::{Element, Fragment, Script, Stylesheet, attr, render, view};
+use beui_html::{Children, Element, Node, Script, Stylesheet, attr, render, view};
 
 pub fn main(args: Vec<String>) -> std::process::ExitCode {
     let demo = match args.first().map(String::as_str) {
@@ -13,9 +13,9 @@ pub fn main(args: Vec<String>) -> std::process::ExitCode {
                 include_str!("web_page/demo.css"),
                 include_str!("web_page/demo.json"),
                 include_str!("web_page/demo.js"),
-                view! {
+                Children::<Node>::from(view! {
                     <Element tag="div" @attr={("id", "demo")} />
-                },
+                }),
             )
         } else {
             (
@@ -24,10 +24,8 @@ pub fn main(args: Vec<String>) -> std::process::ExitCode {
                 include_str!("web_page/block.json"),
                 include_str!("web_page/block.js"),
                 view! {
-                    <Fragment>
-                        <Element tag="div" @attr={("id", "plugins")} />
-                        <Element tag="canvas" @attr={("id", "block")} />
-                    </Fragment>
+                    <Element tag="div" @attr={("id", "plugins")} />
+                    <Element tag="canvas" @attr={("id", "block")} />
                 },
             )
         };

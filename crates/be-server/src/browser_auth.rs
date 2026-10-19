@@ -116,7 +116,7 @@ impl Sessions {
     }
 }
 
-use beui_html::{Element, Fragment, Node, Show, Stylesheet, attr, flag, render, view};
+use beui_html::{Children, Element, Node, Show, Stylesheet, attr, component, flag, render, view};
 
 pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<String, ServerError> {
     let csrf = services.browser_auth.form()?;
@@ -125,89 +125,77 @@ pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<Strin
     let code = code.to_string();
     let error = error.to_string();
     Ok(render(|| {
-        shell_node(view! {
-            <Element tag="main">
-                <Element tag="h1">"Authorize Block"</Element>
-                <Element tag="p">
-                    "Only continue if you started adding an account on your device. Check that its code matches."
-                </Element>
-                <Element tag="p" @attr={("role", "alert")}>{error}</Element>
-                <Element tag="form" @attr={("method", "post")} @attr={("action", "/auth")}>
-                    <Element
-                        tag="input"
-                        @attr={("type", "hidden")}
-                        @attr={("name", "csrf")}
-                        @attr={("value", csrf)}
-                    />
-                    <Element tag="label">
-                        "Device code"
+        view! {
+            <Shell>
+                <Element tag="main">
+                    <Element tag="h1">"Authorize Block"</Element>
+                    <Element tag="p">
+                        "Only continue if you started adding an account on your device. Check that its code matches."
+                    </Element>
+                    <Element tag="p" @attr={("role", "alert")}>{error}</Element>
+                    <Element tag="form" @attr={("method", "post")} @attr={("action", "/auth")}>
                         <Element
                             tag="input"
-                            @attr={("name", "code")}
-                            @attr={("value", code)}
-                            @flag={("required", true)}
-                            @attr={("autocomplete", "off")}
-                            @attr={("maxlength", "14")}
+                            @attr={("type", "hidden")}
+                            @attr={("name", "csrf")}
+                            @attr={("value", csrf)}
                         />
-                    </Element>
-                    <Element tag="label">
-                        "Email"
-                        <Element
-                            tag="input"
-                            @attr={("name", "email")}
-                            @attr={("type", "email")}
-                            @attr={("autocomplete", "username")}
-                        />
-                    </Element>
-                    <Element tag="label">
-                        "Password"
-                        <Element
-                            tag="input"
-                            @attr={("name", "password")}
-                            @attr={("type", "password")}
-                            @attr={("autocomplete", "current-password")}
-                        />
-                    </Element>
-                    <Show condition={allow_login}>
-                        <Element tag="button" @attr={("name", "action")} @attr={("value", "login")}>
-                            "Sign in and authorize"
+                        <Element tag="label">
+                            "Device code"
+                            <Element
+                                tag="input"
+                                @attr={("name", "code")}
+                                @attr={("value", code)}
+                                @flag={("required", true)}
+                                @attr={("autocomplete", "off")}
+                                @attr={("maxlength", "14")}
+                            />
                         </Element>
-                    </Show>
-                    <Show condition={allow_registration}>
-                        <Fragment>
-                            <Element tag="label">
-                                "Display name (for a new account)"
-                                <Element
-                                    tag="input"
-                                    @attr={("name", "display_name")}
-                                    @attr={("autocomplete", "nickname")}
-                                    @attr={("maxlength", "200")}
-                                />
-                            </Element>
+                        <Element tag="label">
+                            "Email"
+                            <Element
+                                tag="input"
+                                @attr={("name", "email")}
+                                @attr={("type", "email")}
+                                @attr={("autocomplete", "username")}
+                            />
+                        </Element>
+                        <Element tag="label">
+                            "Password"
+                            <Element
+                                tag="input"
+                                @attr={("name", "password")}
+                                @attr={("type", "password")}
+                                @attr={("autocomplete", "current-password")}
+                            />
+                        </Element>
+                        <Show condition={allow_login}>
                             <Element
                                 tag="button"
                                 @attr={("name", "action")}
-                                @attr={("value", "register")}
+                                @attr={("value", "login")}
                             >
-                                "Create account and authorize"
+                                "Sign in and authorize"
                             </Element>
-                        </Fragment>
-                    </Show>
-                    <Element
-                        tag="button"
-                        @attr={("name", "action")}
-                        @attr={("value", "deny")}
-                        @flag={("formnovalidate", true)}
-                    >
-                        "Deny"
+                        </Show>
+                        <Registration enabled={allow_registration} />
+                        <Element
+                            tag="button"
+                            @attr={("name", "action")}
+                            @attr={("value", "deny")}
+                            @flag={("formnovalidate", true)}
+                        >
+                            "Deny"
+                        </Element>
                     </Element>
                 </Element>
-            </Element>
-        })
+            </Shell>
+        }
     }))
 }
 
-fn shell_node(content: Node) -> Node {
+#[component]
+fn Shell(children: Children<Node>) -> Node {
     view! {
         <Element tag="html" @attr={("lang", "en")}>
             <Element tag="head">
@@ -220,19 +208,40 @@ fn shell_node(content: Node) -> Node {
                 <Element tag="title">"Block — authorize device"</Element>
                 <Stylesheet css={include_str!("browser_auth.css")} />
             </Element>
-            <Element tag="body">{content}</Element>
+            <Element tag="body">{children}</Element>
+        </Element>
+    }
+}
+
+#[component]
+fn Registration(enabled: bool) -> Children<Node> {
+    if !enabled {
+        return view! {};
+    }
+    view! {
+        <Element tag="label">
+            "Display name (for a new account)"
+            <Element
+                tag="input"
+                @attr={("name", "display_name")}
+                @attr={("autocomplete", "nickname")}
+                @attr={("maxlength", "200")}
+            />
+        </Element>
+        <Element tag="button" @attr={("name", "action")} @attr={("value", "register")}>
+            "Create account and authorize"
         </Element>
     }
 }
 
 pub(crate) fn message(title: &str, message: &str) -> String {
     render(|| {
-        shell_node(view! {
-            <Fragment>
+        view! {
+            <Shell>
                 <Element tag="h1">{title}</Element>
                 <Element tag="p">{message}</Element>
-            </Fragment>
-        })
+            </Shell>
+        }
     })
 }
 

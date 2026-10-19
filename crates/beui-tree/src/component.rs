@@ -122,6 +122,19 @@ pub trait ChildValue {
     }
 }
 
+impl<T: ChildValue> ChildValue for Option<T> {
+    fn finish_component(&mut self, component: &ComponentContext, scope: &ScopeContext) {
+        if let Some(value) = self {
+            value.finish_component(component, scope);
+        } else {
+            assert!(
+                !component.has_extensions(),
+                "an empty component has no node to attach bindings to"
+            );
+        }
+    }
+}
+
 pub fn component<T: ChildValue>(info: &'static ComponentInfo, f: impl FnOnce() -> T) -> T {
     let context = Rc::new(ComponentContext::new(info));
     let (mut value, scope) = child_scope(|| in_component(Some(context.clone()), f));
