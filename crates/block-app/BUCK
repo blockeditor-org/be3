@@ -80,7 +80,7 @@ app(
 )
 
 # The web bundle: the app for wasi and the gpu shim for wasm32, each through
-# wasm-bindgen, the page and shims in web/, and the plugins. :web-dist is CI's,
+# wasm-bindgen, the generated HTML page, shims in web/, and the plugins. :web-dist is CI's,
 # without them. `./scripts/buck run //crates/block-app:web` serves it here with
 # Caddy, with be-server behind it (web/serve.sh).
 wasi_app_module(
@@ -89,7 +89,7 @@ wasi_app_module(
     module = "block_app_lib",
 )
 
-web_files = glob(["web/*.html", "web/*.js"]) + ["//buck/app:build-info.json"]
+web_files = glob(["web/*.js"]) + ["//crates/local-tools:block-index"] + ["//buck/app:build-info.json"]
 
 # The WASI and wasi-threads shims, which beui-web-demo needs too, with what
 # thread.js imports.

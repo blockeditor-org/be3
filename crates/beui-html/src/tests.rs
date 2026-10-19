@@ -1,0 +1,11 @@
+use super::*;
+
+mod attribute_names_cannot_inject_markup;
+mod dynamic_children_cannot_hide_inside_void_elements;
+mod rendering_flushes_bindings_before_serializing_and_disposes_scope;
+mod scripts_cannot_close_their_container;
+mod styles_cannot_close_their_container;
+mod text_attributes_and_void_elements_are_serialized_safely;
+mod uppercase_void_elements_reject_children;
+mod view_control_flow_and_bindings_update_the_html_tree;
+mod void_elements_reject_children;

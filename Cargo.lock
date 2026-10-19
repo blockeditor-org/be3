@@ -832,6 +832,7 @@ dependencies = [
  "be-protocol",
  "be-session",
  "be-store",
+ "beui-html",
  "build-id",
  "chacha20poly1305",
  "futures-util",
@@ -1093,6 +1094,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-html"
+version = "0.1.0"
+dependencies = [
+ "beui-tree",
+]
+
+[[package]]
 name = "beui-inspector"
 version = "0.1.0"
 dependencies = [
@@ -1183,6 +1191,7 @@ dependencies = [
 name = "beui_macros"
 version = "0.1.0"
 dependencies = [
+ "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -4437,6 +4446,7 @@ checksum = "11d3d7f243d5c5a8b9bb5d6dd2b1602c0cb0b9db1621bafc7ed66e35ff9fe092"
 name = "local-tools"
 version = "0.1.0"
 dependencies = [
+ "beui-html",
  "build-id",
  "image",
  "libc",

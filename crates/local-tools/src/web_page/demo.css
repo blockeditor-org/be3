@@ -1,0 +1,28 @@
+html,
+            body {
+                margin: 0;
+                height: 100%;
+                overflow: hidden;
+                background: #1b1b1b;
+                color: #d0d0d0;
+                font-family: system-ui, sans-serif;
+            }
+
+            #demo {
+                width: 100%;
+                height: 100%;
+            }
+
+            #status {
+                position: absolute;
+                inset: 0;
+                display: flex;
+                align-items: center;
+                justify-content: center;
+                white-space: pre-wrap;
+                padding: 1rem;
+            }
+
+            #status[hidden] {
+                display: none;
+            }

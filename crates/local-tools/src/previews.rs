@@ -2,6 +2,7 @@ use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::path::Path;
 
+use beui_html::{Node, fragment, text};
 use paint_snapshot::Snapshot;
 use sha2::{Digest as _, Sha256};
 
@@ -49,14 +50,21 @@ pub fn generate(before: &Path, after: &Path, output: &Path) -> Result<String, St
         }
         let table = table(old.as_ref(), new.as_ref(), output, &mut rows)?;
         let (headline, detail) = summary.split_once(": ").unwrap_or((&summary, ""));
-        sections.push(format!(
-            "<details{{open}}>\n<summary><code>{name}</code> {}</summary>\n\n{}{table}\n</details>\n",
-            escaped(headline),
-            match detail {
-                "" => String::new(),
-                detail => format!("<sub>{}</sub>\n\n", escaped(detail)),
-            }
-        ));
+        sections.push(
+            Node::element("details")
+                .child(
+                    Node::element("summary")
+                        .child(Node::element("code").child(name.as_str()))
+                        .child(" ")
+                        .child(headline),
+                )
+                .child(if detail.is_empty() {
+                    fragment([])
+                } else {
+                    Node::element("sub").child(detail)
+                })
+                .child(table),
+        );
     }
 
     let total = added + removed + changed;
@@ -72,9 +80,9 @@ pub fn generate(before: &Path, after: &Path, output: &Path) -> Result<String, St
                 count => format!("{count} paintings differ"),
             }
         );
-        let open = if sections.len() <= 5 { " open" } else { "" };
+        let open = sections.len() <= 5;
         for section in sections {
-            comment.push_str(&section.replace("{open}", open));
+            comment.push_str(&section.flag("open", open).to_html());
             comment.push('\n');
         }
         if !unshown.is_empty() {
@@ -93,10 +101,12 @@ fn table(
     new: Option<&Snapshot>,
     output: &Path,
     rows: &mut usize,
-) -> Result<String, String> {
+) -> Result<Node, String> {
     let count = |snapshot: Option<&Snapshot>| snapshot.map_or(0, |snapshot| snapshot.frames.len());
     let frames = count(old).max(count(new));
-    let mut table = "| Frame | Before | After | Changes |\n|---|---|---|---|\n".to_owned();
+    let mut table = Node::element("table").child(Node::element("tr").child(fragment(
+        ["Frame", "Before", "After", "Changes"].map(|title| Node::element("th").child(title)),
+    )));
     for index in 0..frames {
         let old_frame = old.and_then(|snapshot| snapshot.frames.get(index));
         let new_frame = new.and_then(|snapshot| snapshot.frames.get(index));
@@ -104,7 +114,15 @@ fn table(
             continue;
         }
         if *rows >= MAX_ROWS {
-            let _ = writeln!(table, "| {} | more frames not shown | | |", index + 1);
+            table = table.child(
+                Node::element("tr")
+                    .child(Node::element("td").child((index + 1).to_string()))
+                    .child(
+                        Node::element("td")
+                            .attr("colspan", "3")
+                            .child("more frames not shown"),
+                    ),
+            );
             break;
         }
         *rows += 1;
@@ -114,24 +132,25 @@ fn table(
             (Some(old), Some(new)) => {
                 let highlight = paint_snapshot::highlight(old, new);
                 let cell = image("changes", &highlight.image, output)?;
-                match highlight.changed {
-                    0 => format!("{cell}<br>no visible difference"),
-                    1 => format!("{cell}<br>1 pixel"),
-                    count => format!("{cell}<br>{count} pixels"),
-                }
+                let label = match highlight.changed {
+                    0 => "no visible difference".to_string(),
+                    1 => "1 pixel".to_string(),
+                    count => format!("{count} pixels"),
+                };
+                fragment([cell, Node::element("br"), text(label)])
             }
-            _ => String::new(),
+            _ => fragment([]),
         };
         let cell = |rendered: &Option<image::RgbaImage>, kind: &str| match rendered {
             Some(rendered) => image(kind, rendered, output),
-            None => Ok(String::new()),
+            None => Ok(fragment([])),
         };
-        let _ = writeln!(
-            table,
-            "| {} | {} | {} | {changes} |",
-            index + 1,
-            cell(&old_image, "before")?,
-            cell(&new_image, "after")?,
+        table = table.child(
+            Node::element("tr")
+                .child(Node::element("td").child((index + 1).to_string()))
+                .child(Node::element("td").child(cell(&old_image, "before")?))
+                .child(Node::element("td").child(cell(&new_image, "after")?))
+                .child(Node::element("td").child(changes)),
         );
     }
     Ok(table)
@@ -143,7 +162,7 @@ fn render(snapshot: &Snapshot, index: usize) -> Option<image::RgbaImage> {
         .ok()
 }
 
-fn image(kind: &str, image: &image::RgbaImage, output: &Path) -> Result<String, String> {
+fn image(kind: &str, image: &image::RgbaImage, output: &Path) -> Result<Node, String> {
     let mut png = Vec::new();
     image
         .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
@@ -156,7 +175,9 @@ fn image(kind: &str, image: &image::RgbaImage, output: &Path) -> Result<String, 
     let path = output.join(&file);
     std::fs::write(&path, png)
         .map_err(|error| format!("could not write {}: {error}", path.display()))?;
-    Ok(format!("![{kind}]({ROOT}/{file})"))
+    Ok(Node::element("img")
+        .attr("alt", kind)
+        .attr("src", format!("{ROOT}/{file}")))
 }
 
 fn paintings(directory: &Path) -> Vec<String> {
@@ -182,7 +203,8 @@ fn read(path: &Path) -> Option<Result<Snapshot, String>> {
 }
 
 fn escaped(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
+    beui_html::text(text).to_html()
 }
+
+#[cfg(test)]
+mod tests;

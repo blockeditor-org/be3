@@ -8,3 +8,4 @@ mod a_prop_written_twice_on_one_tag_is_rejected;
 mod a_qualified_modifier_can_follow_a_value_child;
 mod children_written_as_a_prop_and_between_the_tags_are_rejected;
 mod repeated_modifiers_compose_in_source_order;
+mod resolved_support_paths_preserve_caller_paths;

@@ -44,6 +44,9 @@ def _env(crate, crate_name, env):
     base.update(env)
     return base
 
+def cargo_manifest_sources():
+    return {"Cargo.toml": native.package_name() + "/Cargo.toml"}
+
 def cargo_library_sources():
     return native.glob(
         ["src/**"],
@@ -86,6 +89,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], env = {}, *
         edition = crate["edition"],
         env = _env(crate, library["crate"], env),
         features = _per_platform(crate, lambda entry: entry["features"], extra_features),
+        mapped_srcs = cargo_manifest_sources(),
         proc_macro = library["proc_macro"],
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = cargo_library_sources(),
@@ -112,6 +116,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_env
         deps = _per_platform(crate, lambda entry: entry["deps"] + entry["test_deps"], extra_deps),
         edition = crate["edition"],
         features = _per_platform(crate, lambda entry: entry["test_features"]),
+        mapped_srcs = cargo_manifest_sources(),
         srcs = cargo_test_sources(),
     )
     if paints:
@@ -292,6 +297,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
         deps = _per_platform(crate, lambda entry: entry["binaries"].get(bin, []), own + extra_deps),
         edition = crate["edition"],
         env = _env(crate, crate_name, env),
+        mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, binary["crate_root"]),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
@@ -318,6 +324,7 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         edition = crate["edition"],
         env = _env(crate, crate_name, env),
         features = _per_platform(crate, lambda entry: entry["examples"].get(example, {}).get("features", [])),
+        mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, examples[example]["crate_root"]),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),

@@ -42,6 +42,7 @@ mod an_unauthenticated_connection_cannot_touch_blocks;
 mod another_build_is_greeted_and_turned_away;
 mod blocks_publish_and_read_back_through_the_server;
 mod browser_forms_enforce_origin_policy_and_deny_sign_in;
+mod browser_pages_escape_codes_and_keep_available_actions;
 mod contacts_are_made_by_a_link_and_finished_by_its_owner;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
@@ -629,7 +630,7 @@ async fn form(harness: &Harness, code: &str) -> String {
     let (status, page) = http(harness, "GET", &format!("/auth?code={code}"), "", None).await;
     assert_eq!(status, 200);
     assert!(page.contains("Cache-Control: no-store"));
-    page.split("name=csrf value=\"")
+    page.split("name=\"csrf\" value=\"")
         .nth(1)
         .unwrap()
         .split('"')

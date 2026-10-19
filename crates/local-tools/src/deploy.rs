@@ -579,45 +579,44 @@ fn label(platform: &str) -> &'static str {
 }
 
 fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
-    let rows: String = downloads
-        .iter()
-        .map(|download| {
-            format!(
-                "<tr><td>{}</td><td><a href=\"{prefix}{name}\">{name}</a></td><td>{:.1} MB</td><td><code>{}</code></td></tr>\n",
-                download.label,
-                download.size as f64 / 1_000_000.0,
-                download.sha256,
-                name = download.name,
+    use beui_html::{Node, document, fragment, stylesheet};
+    let rows = downloads.iter().map(|download| {
+        Node::element("tr")
+            .child(Node::element("td").child(download.label))
+            .child(
+                Node::element("td").child(
+                    Node::element("a")
+                        .attr("href", format!("{prefix}{}", download.name))
+                        .child(download.name.as_str()),
+                ),
             )
-        })
-        .collect();
-    format!(
-        "<!doctype html>
-<html lang=\"en\">
-<head>
-<meta charset=\"utf-8\">
-<meta name=\"viewport\" content=\"width=device-width, initial-scale=1\">
-<meta name=\"robots\" content=\"noindex, nofollow\">
-<title>Block downloads</title>
-<style>
-:root {{ color-scheme: light dark; font-family: system-ui, sans-serif; }}
-body {{ max-width: 60rem; margin: 2rem auto; padding: 0 1rem; }}
-table {{ border-collapse: collapse; width: 100%; }}
-td, th {{ text-align: left; padding: 0.4rem 0.8rem 0.4rem 0; vertical-align: top; }}
-code {{ font-size: 0.75rem; word-break: break-all; }}
-</style>
-</head>
-<body>
-<h1>Block</h1>
-<p>Build <code>{build}</code>. A download connects only to a server running the same build.</p>
-<table>
-<tr><th>Platform</th><th>Download</th><th>Size</th><th>SHA-256</th></tr>
-{rows}</table>
-<p>Each zip holds the app in a folder of its own: run <code>block-app</code> (<code>block-app.exe</code> on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; <code>xattr -dr com.apple.quarantine block-app-macos-*</code> lets them open. The web bundle is also available to serve yourself. <a href=\"https://be3.pfg.pw/\">Open the hosted web app</a>.</p>
-</body>
-</html>
-"
-    )
+            .child(
+                Node::element("td").child(format!("{:.1} MB", download.size as f64 / 1_000_000.0)),
+            )
+            .child(Node::element("td").child(Node::element("code").child(download.sha256.as_str())))
+    });
+    document(Node::element("html").attr("lang", "en")
+        .child(Node::element("head")
+            .child(Node::element("meta").attr("charset", "utf-8"))
+            .child(Node::element("meta").attr("name", "viewport").attr("content", "width=device-width, initial-scale=1"))
+            .child(Node::element("meta").attr("name", "robots").attr("content", "noindex, nofollow"))
+            .child(Node::element("title").child("Block downloads"))
+            .child(stylesheet(include_str!("deploy/downloads.css"))))
+        .child(Node::element("body")
+            .child(Node::element("h1").child("Block"))
+            .child(Node::element("p").child("Build ").child(Node::element("code").child(build)).child(". A download connects only to a server running the same build."))
+            .child(Node::element("table")
+                .child(Node::element("tr").child(fragment(["Platform", "Download", "Size", "SHA-256"].map(|title| Node::element("th").child(title)))))
+                .child(fragment(rows)))
+            .child(Node::element("p")
+                .child("Each zip holds the app in a folder of its own: run ")
+                .child(Node::element("code").child("block-app"))
+                .child(" (").child(Node::element("code").child("block-app.exe"))
+                .child(" on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; ")
+                .child(Node::element("code").child("xattr -dr com.apple.quarantine block-app-macos-*"))
+                .child(" lets them open. The web bundle is also available to serve yourself. ")
+                .child(Node::element("a").attr("href", "https://be3.pfg.pw/").child("Open the hosted web app"))
+                .child("."))))
 }
 
 fn purge(agents: &Agents, api_key: &str, url: &str) -> Result<(), String> {
@@ -659,9 +658,10 @@ fn web_entry_point(html: &str, build: &str) -> Result<String, String> {
     let (before, after) = html
         .split_once("<head>")
         .ok_or("the web entry point has no head element")?;
-    Ok(format!(
-        "{before}<head><base href=\"/data/{build}/web/\">{after}"
-    ))
+    let base = beui_html::Node::element("base")
+        .attr("href", format!("/data/{build}/web/"))
+        .to_html();
+    Ok(format!("{before}<head>{base}{after}"))
 }
 
 fn upload_web(

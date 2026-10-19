@@ -116,38 +116,93 @@ impl Sessions {
     }
 }
 
+use beui_html::{Element, Node, attr, document, fragment, render, stylesheet, view};
+
 pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<String, ServerError> {
     let csrf = services.browser_auth.form()?;
-    let login = if services.config.allow_login {
-        "<button name=action value=login>Sign in and authorize</button>"
-    } else {
-        ""
-    };
-    let register = if services.config.allow_registration {
-        "<label>Display name (for a new account)<input name=display_name autocomplete=nickname maxlength=200></label><button name=action value=register>Create account and authorize</button>"
-    } else {
-        ""
-    };
-    Ok(shell(&format!(
-        r#"<h1>Authorize Block</h1><p>Only continue if you started adding an account on your device. Check that its code matches.</p><p role=alert>{error}</p><form method=post action=/auth><input type=hidden name=csrf value="{csrf}"><label>Device code<input name=code value="{code}" required autocomplete=off maxlength=14></label><label>Email<input name=email type=email autocomplete=username></label><label>Password<input name=password type=password autocomplete=current-password></label>{login}{register}<button name=action value=deny formnovalidate>Deny</button></form>"#,
-        error = escape(error),
-        code = escape(code)
-    )))
+    let allow_login = services.config.allow_login;
+    let allow_registration = services.config.allow_registration;
+    let code = code.to_string();
+    let error = error.to_string();
+    Ok(render(|| {
+        let login = if allow_login {
+            Node::element("button")
+                .attr("name", "action")
+                .attr("value", "login")
+                .child("Sign in and authorize")
+        } else {
+            fragment([])
+        };
+        let register = if allow_registration {
+            fragment([
+                Node::element("label")
+                    .child("Display name (for a new account)")
+                    .child(
+                        Node::element("input")
+                            .attr("name", "display_name")
+                            .attr("autocomplete", "nickname")
+                            .attr("maxlength", "200"),
+                    ),
+                Node::element("button")
+                    .attr("name", "action")
+                    .attr("value", "register")
+                    .child("Create account and authorize"),
+            ])
+        } else {
+            fragment([])
+        };
+        shell_node(view! {
+            <Element tag="main">
+                <Element tag="h1">"Authorize Block"</Element>
+                <Element tag="p">
+                    "Only continue if you started adding an account on your device. Check that its code matches."
+                </Element>
+                <Element tag="p" @attr={("role", "alert")}>{error}</Element>
+                <Element tag="form" @attr={("method", "post")} @attr={("action", "/auth")}>
+                    {Node::element("input").attr("type", "hidden").attr("name", "csrf").attr("value", csrf)}
+                    <Element tag="label">
+                        "Device code"
+                        {Node::element("input").attr("name", "code").attr("value", code).flag("required", true).attr("autocomplete", "off").attr("maxlength", "14")}
+                    </Element>
+                    <Element tag="label">
+                        "Email"
+                        {Node::element("input").attr("name", "email").attr("type", "email").attr("autocomplete", "username")}
+                    </Element>
+                    <Element tag="label">
+                        "Password"
+                        {Node::element("input").attr("name", "password").attr("type", "password").attr("autocomplete", "current-password")}
+                    </Element>
+                    {login}
+                    {register}
+                    {Node::element("button").attr("name", "action").attr("value", "deny").flag("formnovalidate", true).child("Deny")}
+                </Element>
+            </Element>
+        })
+    }))
 }
 
-pub(crate) fn shell(content: &str) -> String {
-    format!(
-        r#"<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content="width=device-width, initial-scale=1"><title>Block — authorize device</title><style>body{{font:1rem system-ui;margin:3rem auto;padding:0 1rem;max-width:28rem;color:#202124;background:#fafafa}}label{{display:block;margin:1rem 0}}input{{display:block;box-sizing:border-box;width:100%;padding:.7rem;font:inherit}}button{{padding:.7rem;margin:.4rem .4rem .4rem 0;font:inherit;cursor:pointer}}[role=alert]{{color:#a00}}</style>{content}</html>"#
-    )
+fn shell_node(content: Node) -> Node {
+    Node::element("html")
+        .attr("lang", "en")
+        .child(
+            Node::element("head")
+                .child(Node::element("meta").attr("charset", "utf-8"))
+                .child(
+                    Node::element("meta")
+                        .attr("name", "viewport")
+                        .attr("content", "width=device-width, initial-scale=1"),
+                )
+                .child(Node::element("title").child("Block — authorize device"))
+                .child(stylesheet(include_str!("browser_auth.css"))),
+        )
+        .child(Node::element("body").child(content))
 }
 
-pub(crate) fn escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
+pub(crate) fn message(title: &str, message: &str) -> String {
+    document(shell_node(fragment([
+        Node::element("h1").child(title),
+        Node::element("p").child(message),
+    ])))
 }
 
 pub(crate) fn fields(body: &str) -> HashMap<String, String> {

@@ -21,7 +21,7 @@ app(
     name = "web",
     bindgen = [":web-module"],
     files = [
-        "web/index.html",
+        "//crates/local-tools:demo-index",
         "//crates/beui-font-freetype:icons.ttf",
         "//crates/block-app:wasi.js",
         "//crates/block-app:threads.js",

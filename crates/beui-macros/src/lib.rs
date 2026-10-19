@@ -62,15 +62,15 @@ fn is_unit_type(ty: &Type) -> bool {
 fn render_child(render: &Render) -> proc_macro2::TokenStream {
     match &render.child {
         Some(child) => quote! { #child },
-        None => quote! { ::beui::reactive::Child },
+        None => quote! { ::__beui_tree::reactive::Child },
     }
 }
 
 fn callback_signature(ty: &Type) -> syn::Result<proc_macro2::TokenStream> {
     let args = generic_args(ty, "Callback").unwrap_or_default();
     match args.as_slice() {
-        [value] => Ok(quote! { ::beui::reactive::IntoCallback<#value, ()> }),
-        [value, result] => Ok(quote! { ::beui::reactive::IntoCallback<#value, #result> }),
+        [value] => Ok(quote! { ::__beui_tree::reactive::IntoCallback<#value, ()> }),
+        [value, result] => Ok(quote! { ::__beui_tree::reactive::IntoCallback<#value, #result> }),
         _ => Err(syn::Error::new_spanned(
             ty,
             "a `Callback` prop takes one or two type arguments, as `Callback<Value>` or `Callback<Value, Result>`",
@@ -103,9 +103,9 @@ fn func_setter(
     Setter {
         method: method.clone(),
         generics: quote! {},
-        args: quote! { value: impl ::beui::reactive::IntoFunc<#value, #result> },
+        args: quote! { value: impl ::__beui_tree::reactive::IntoFunc<#value, #result> },
         where_clause: quote! {},
-        value: wrap(quote! { ::beui::reactive::IntoFunc::into_func(value) }),
+        value: wrap(quote! { ::__beui_tree::reactive::IntoFunc::into_func(value) }),
     }
 }
 
@@ -118,16 +118,16 @@ impl RenderOutput {
     fn built_bound(&self) -> proc_macro2::TokenStream {
         let child = &self.child;
         match &self.item {
-            Some(item) => quote! { ::beui::reactive::IntoSegment<#item> },
-            None => quote! { ::beui::reactive::IntoChild<#child> },
+            Some(item) => quote! { ::__beui_tree::reactive::IntoSegment<#item> },
+            None => quote! { ::__beui_tree::reactive::IntoChild<#child> },
         }
     }
 
     fn block_bound(&self) -> proc_macro2::TokenStream {
         let child = &self.child;
         match &self.item {
-            Some(item) => quote! { ::beui::reactive::IntoSegments<#item> },
-            None => quote! { ::beui::reactive::OneChild<#child> },
+            Some(item) => quote! { ::__beui_tree::reactive::IntoSegments<#item> },
+            None => quote! { ::__beui_tree::reactive::OneChild<#child> },
         }
     }
 
@@ -135,17 +135,17 @@ impl RenderOutput {
         let child = &self.child;
         match &self.item {
             Some(_) => {
-                quote! { ::beui::reactive::Children::from(::beui::reactive::into_segment(#built)) }
+                quote! { ::__beui_tree::reactive::Children::from(::__beui_tree::reactive::into_segment(#built)) }
             }
-            None => quote! { ::beui::reactive::into_child::<#child>(#built) },
+            None => quote! { ::__beui_tree::reactive::into_child::<#child>(#built) },
         }
     }
 
     fn wrap_block(&self, block: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
         let child = &self.child;
         match &self.item {
-            Some(_) => quote! { ::beui::reactive::Children::from_block(#block) },
-            None => quote! { <_ as ::beui::reactive::OneChild<#child>>::one_child(#block) },
+            Some(_) => quote! { ::__beui_tree::reactive::Children::from_block(#block) },
+            None => quote! { <_ as ::__beui_tree::reactive::OneChild<#child>>::one_child(#block) },
         }
     }
 }
@@ -156,15 +156,15 @@ fn render_output(render: &Render) -> RenderOutput {
         .child
         .as_ref()
         .filter(|ty| is_named_type(ty, "Children"))
-        .map(|_| quote! { <#child as ::beui::reactive::ChildrenSlot>::Child });
+        .map(|_| quote! { <#child as ::__beui_tree::reactive::ChildrenSlot>::Child });
     RenderOutput { child, item }
 }
 
 fn render_new(render: &Render) -> proc_macro2::TokenStream {
     if render.once {
-        quote! { ::beui::reactive::Render::new }
+        quote! { ::__beui_tree::reactive::Render::new }
     } else {
-        quote! { ::beui::reactive::RenderFn::new }
+        quote! { ::__beui_tree::reactive::RenderFn::new }
     }
 }
 
@@ -185,15 +185,15 @@ fn render_setter(
     let (generics, signature, where_clause, build) = match (&render.handle, render.once) {
         (Some(handle), true) => (
             quote! {},
-            quote! { ::beui::reactive::IntoRender<#handle, #child> },
+            quote! { ::__beui_tree::reactive::IntoRender<#handle, #child> },
             quote! {},
-            quote! { ::beui::reactive::IntoRender::into_render(value) },
+            quote! { ::__beui_tree::reactive::IntoRender::into_render(value) },
         ),
         (Some(handle), false) => (
             quote! {},
-            quote! { ::beui::reactive::IntoRenderFn<#handle, #child> },
+            quote! { ::__beui_tree::reactive::IntoRenderFn<#handle, #child> },
             quote! {},
-            quote! { ::beui::reactive::IntoRenderFn::into_render_fn(value) },
+            quote! { ::__beui_tree::reactive::IntoRenderFn::into_render_fn(value) },
         ),
         (None, _) => {
             let output = render_output(render);
@@ -229,13 +229,13 @@ fn render_children_closure(
             let child = &output.child;
             let (into, convert) = if render.once {
                 (
-                    quote! { ::beui::reactive::IntoRender<#handle, #child> },
-                    quote! { ::beui::reactive::IntoRender::into_render(value) },
+                    quote! { ::__beui_tree::reactive::IntoRender<#handle, #child> },
+                    quote! { ::__beui_tree::reactive::IntoRender::into_render(value) },
                 )
             } else {
                 (
-                    quote! { ::beui::reactive::IntoRenderFn<#handle, #child> },
-                    quote! { ::beui::reactive::IntoRenderFn::into_render_fn(value) },
+                    quote! { ::__beui_tree::reactive::IntoRenderFn<#handle, #child> },
+                    quote! { ::__beui_tree::reactive::IntoRenderFn::into_render_fn(value) },
                 )
             };
             let bound = render_fn_bound(render, quote! { #handle });
@@ -335,8 +335,8 @@ fn no_children_with() -> Setter {
         method: format_ident!("children_with"),
         generics: quote! { <ChildrenFn> },
         args: quote! { children: ChildrenFn },
-        where_clause: quote! { where ChildrenFn: ::beui::reactive::HandsAValue },
-        value: quote! { ::beui::reactive::HandsAValue::bind(children) },
+        where_clause: quote! { where ChildrenFn: ::__beui_tree::reactive::HandsAValue },
+        value: quote! { ::__beui_tree::reactive::HandsAValue::bind(children) },
     }
 }
 
@@ -345,8 +345,8 @@ fn no_children_render() -> Setter {
         method: format_ident!("children_render"),
         generics: quote! { <ChildrenFn> },
         args: quote! { children: ChildrenFn },
-        where_clause: quote! { where ChildrenFn: ::beui::reactive::BuildsItsChildren },
-        value: quote! { ::beui::reactive::BuildsItsChildren::build(children) },
+        where_clause: quote! { where ChildrenFn: ::__beui_tree::reactive::BuildsItsChildren },
+        value: quote! { ::__beui_tree::reactive::BuildsItsChildren::build(children) },
     }
 }
 
@@ -354,14 +354,14 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
     let block = format_ident!("children_block");
     if prop.is_children {
         let ty = &prop.ty;
-        let child = quote! { <#ty as ::beui::reactive::ChildrenSlot>::Child };
+        let child = quote! { <#ty as ::__beui_tree::reactive::ChildrenSlot>::Child };
         return vec![
             Setter {
                 method: block,
                 generics: quote! { <ChildrenBlock> },
                 args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-                where_clause: quote! { where ChildrenBlock: ::beui::reactive::IntoSegments<#child> },
-                value: quote! { ::beui::reactive::Children::from_block(children()) },
+                where_clause: quote! { where ChildrenBlock: ::__beui_tree::reactive::IntoSegments<#child> },
+                value: quote! { ::__beui_tree::reactive::Children::from_block(children()) },
             },
             no_children_with(),
             no_children_render(),
@@ -377,8 +377,8 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
                 method: block,
                 generics: quote! { <ChildrenBlock> },
                 args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-                where_clause: quote! { where ChildrenBlock: ::beui::reactive::AtMostOneChild<#item> },
-                value: quote! { ::beui::reactive::AtMostOneChild::at_most_one_child(children()) },
+                where_clause: quote! { where ChildrenBlock: ::__beui_tree::reactive::AtMostOneChild<#item> },
+                value: quote! { ::__beui_tree::reactive::AtMostOneChild::at_most_one_child(children()) },
             },
             no_children_with(),
             no_children_render(),
@@ -391,8 +391,8 @@ fn children_setters(prop: &Prop) -> Vec<Setter> {
                 method: block,
                 generics: quote! { <ChildrenBlock> },
                 args: quote! { children: impl ::core::ops::FnOnce() -> ChildrenBlock },
-                where_clause: quote! { where ChildrenBlock: ::beui::reactive::OneChild<#ty> },
-                value: quote! { ::beui::reactive::OneChild::one_child(children()) },
+                where_clause: quote! { where ChildrenBlock: ::__beui_tree::reactive::OneChild<#ty> },
+                value: quote! { ::__beui_tree::reactive::OneChild::one_child(children()) },
             },
             no_children_with(),
             no_children_render(),
@@ -446,18 +446,18 @@ fn named_setter(prop: &Prop) -> Setter {
         func_setter(ident, args, |build| build)
     } else if prop.is_optional_click_callback {
         plain(
-            quote! { value: impl ::beui::reactive::IntoClickCallback },
-            quote! { Some(::beui::reactive::IntoClickCallback::into_click_callback(value)) },
+            quote! { value: impl ::__beui_tree::reactive::IntoClickCallback },
+            quote! { Some(::__beui_tree::reactive::IntoClickCallback::into_click_callback(value)) },
         )
     } else if let Some(signature) = &prop.optional_callback_signature {
         plain(
             quote! { value: impl #signature },
-            quote! { Some(::beui::reactive::IntoCallback::into_callback(value)) },
+            quote! { Some(::__beui_tree::reactive::IntoCallback::into_callback(value)) },
         )
     } else if let Some(inner_ty) = &prop.optional_reactive_inner_ty {
         plain(
-            quote! { value: impl ::beui::reactive::IntoProp<#inner_ty> },
-            quote! { Some(::beui::reactive::IntoProp::into_prop(value)) },
+            quote! { value: impl ::__beui_tree::reactive::IntoProp<#inner_ty> },
+            quote! { Some(::__beui_tree::reactive::IntoProp::into_prop(value)) },
         )
     } else if let Some(inner_ty) = &prop.inner_ty {
         if is_string_type(inner_ty) {
@@ -475,18 +475,18 @@ fn named_setter(prop: &Prop) -> Setter {
         }
     } else if prop.is_click_callback {
         plain(
-            quote! { value: impl ::beui::reactive::IntoClickCallback },
-            quote! { ::beui::reactive::IntoClickCallback::into_click_callback(value) },
+            quote! { value: impl ::__beui_tree::reactive::IntoClickCallback },
+            quote! { ::__beui_tree::reactive::IntoClickCallback::into_click_callback(value) },
         )
     } else if let Some(signature) = &prop.callback_signature {
         plain(
             quote! { value: impl #signature },
-            quote! { ::beui::reactive::IntoCallback::into_callback(value) },
+            quote! { ::__beui_tree::reactive::IntoCallback::into_callback(value) },
         )
     } else if let Some(inner_ty) = &prop.reactive_inner_ty {
         plain(
-            quote! { value: impl ::beui::reactive::IntoProp<#inner_ty> },
-            quote! { ::beui::reactive::IntoProp::into_prop(value) },
+            quote! { value: impl ::__beui_tree::reactive::IntoProp<#inner_ty> },
+            quote! { ::__beui_tree::reactive::IntoProp::into_prop(value) },
         )
     } else if is_string_type(&prop.ty) {
         plain(quote! { value: impl Into<String> }, quote! { value.into() })
@@ -637,7 +637,7 @@ pub fn component(attr: TokenStream, item: TokenStream) -> TokenStream {
     parse_macro_input!(attr as syn::parse::Nothing);
     let item = parse_macro_input!(item as ItemFn);
     match expand_component(item) {
-        Ok(expanded) => expanded.into(),
+        Ok(expanded) => resolve_tree(expanded).into(),
         Err(error) => error.to_compile_error().into(),
     }
 }
@@ -883,7 +883,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         .chain(
             req_params
                 .iter()
-                .map(|param| quote! { #param = ::beui::reactive::MissingProp }),
+                .map(|param| quote! { #param = ::__beui_tree::reactive::MissingProp }),
         )
         .collect();
     let decl_generics = angle_bracketed(&decl_params);
@@ -912,7 +912,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     let init_fields = props.iter().enumerate().map(|(index, prop)| {
         let ident = &prop.ident;
         match req_slot_of[index] {
-            Some(_) => quote! { #ident: ::beui::reactive::MissingProp },
+            Some(_) => quote! { #ident: ::__beui_tree::reactive::MissingProp },
             None => quote! { #ident: ::core::default::Default::default() },
         }
     });
@@ -974,7 +974,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
             .cloned()
             .chain(req_params.iter().enumerate().map(|(other, param)| {
                 if other == slot {
-                    quote! { ::beui::reactive::MissingProp }
+                    quote! { ::__beui_tree::reactive::MissingProp }
                 } else {
                     quote! { #param }
                 }
@@ -1038,7 +1038,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
             None => match &prop.default {
                 Some(default) if prop.reactive_inner_ty.is_some() => quote! {
                     self.#ident
-                        .unwrap_or_else(|| ::beui::reactive::IntoProp::into_prop(#default))
+                        .unwrap_or_else(|| ::__beui_tree::reactive::IntoProp::into_prop(#default))
                 },
                 Some(default) => quote! { self.#ident.unwrap_or_else(|| #default) },
                 None => quote! { self.#ident.unwrap_or_default() },
@@ -1062,7 +1062,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
     };
 
     let finish = quote! {
-        ::beui::reactive::component(&::beui::reactive::ComponentInfo { name: #name, module: module_path!() }, move || #block)
+        ::__beui_tree::reactive::component(&::__beui_tree::reactive::ComponentInfo { name: #name, module: module_path!() }, move || #block)
     };
 
     Ok(quote! {
@@ -1089,7 +1089,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
 
         }
 
-        impl #all_generics ::beui::reactive::ComponentBuilder for #builder_all #where_clause {
+        impl #all_generics ::__beui_tree::reactive::ComponentBuilder for #builder_all #where_clause {
             type Output = #output_ty;
 
             fn with_built(
@@ -1476,7 +1476,7 @@ fn expand_child_items(children: &[ViewChild]) -> Vec<proc_macro2::TokenStream> {
         .iter()
         .map(|child| {
             let built = expand_child(child);
-            quote! { ::beui::reactive::into_segment(#built) }
+            quote! { ::__beui_tree::reactive::into_segment(#built) }
         })
         .collect()
 }
@@ -1487,7 +1487,7 @@ fn expand_child_block(children: &[ViewChild]) -> proc_macro2::TokenStream {
         return quote! { [#(#items),*] };
     };
     let built = expand_child(child);
-    quote! { ::beui::reactive::SingleChild(#built) }
+    quote! { ::__beui_tree::reactive::SingleChild(#built) }
 }
 
 fn expand_view_node(node: &ViewNode) -> proc_macro2::TokenStream {
@@ -1572,10 +1572,10 @@ fn expand_view(view: &View) -> proc_macro2::TokenStream {
         return expand_child(root);
     }
     if view.roots.is_empty() {
-        return quote! { ::beui::reactive::Children::default() };
+        return quote! { ::__beui_tree::reactive::Children::default() };
     }
     let items = expand_child_items(&view.roots);
-    quote! { ::beui::reactive::Children::from([#(#items),*]) }
+    quote! { ::__beui_tree::reactive::Children::from([#(#items),*]) }
 }
 
 #[proc_macro_attribute]
@@ -1652,5 +1652,63 @@ mod tests;
 pub fn view(item: TokenStream) -> TokenStream {
     let view = parse_macro_input!(item as View);
     let expanded = expand_view(&view);
-    quote! { { #expanded } }.into()
+    resolve_tree(quote! { { #expanded } }).into()
+}
+
+fn resolve_tree(tokens: proc_macro2::TokenStream) -> proc_macro2::TokenStream {
+    use proc_macro_crate::{FoundCrate, crate_name};
+    let target = ["beui", "beui-view", "beui-html", "beui-tree"]
+        .into_iter()
+        .find_map(|name| crate_name(name).ok().map(|found| (name, found)))
+        .map(|(name, found)| match found {
+            FoundCrate::Itself
+                if std::env::var("CARGO_CRATE_NAME").ok().as_deref()
+                    == Some(name.replace('-', "_").as_str()) =>
+            {
+                "crate".to_string()
+            }
+            FoundCrate::Itself => name.replace('-', "_"),
+            FoundCrate::Name(name) => name,
+        });
+    let Some(target) = target else {
+        return rewrite_tree(tokens, "beui");
+    };
+    rewrite_tree(tokens, &target)
+}
+
+fn rewrite_tree(tokens: proc_macro2::TokenStream, target: &str) -> proc_macro2::TokenStream {
+    use proc_macro2::{Group, Ident, TokenTree};
+    let tokens: Vec<_> = tokens.into_iter().collect();
+    let mut output = proc_macro2::TokenStream::new();
+    let mut index = 0;
+    while index < tokens.len() {
+        if index + 4 < tokens.len()
+            && tokens[index].to_string() == ":"
+            && tokens[index + 1].to_string() == ":"
+            && tokens[index + 2].to_string() == "__beui_tree"
+            && tokens[index + 3].to_string() == ":"
+            && tokens[index + 4].to_string() == ":"
+        {
+            if target != "crate" {
+                output.extend(tokens[index..index + 2].iter().cloned());
+            }
+            output.extend([TokenTree::Ident(Ident::new(
+                target,
+                tokens[index + 2].span(),
+            ))]);
+            index += 3;
+            continue;
+        }
+        let token = match &tokens[index] {
+            TokenTree::Group(group) => {
+                let mut new = Group::new(group.delimiter(), rewrite_tree(group.stream(), target));
+                new.set_span(group.span());
+                TokenTree::Group(new)
+            }
+            other => other.clone(),
+        };
+        output.extend([token]);
+        index += 1;
+    }
+    output
 }

@@ -23,7 +23,7 @@ async fn browser_approval_finishes_the_apps_login() {
         .into_string()
         .unwrap();
     let csrf = page
-        .split("name=csrf value=\"")
+        .split("name=\"csrf\" value=\"")
         .nth(1)
         .unwrap()
         .split('"')

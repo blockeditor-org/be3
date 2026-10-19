@@ -1,6 +1,6 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
 load("@root//buck/app:defs.bzl", "plugin_data")
-load("@root//buck/cargo:defs.bzl", "cargo_library_sources", "cargo_test_sources", "cargo_wasm_facts")
+load("@root//buck/cargo:defs.bzl", "cargo_library_sources", "cargo_manifest_sources", "cargo_test_sources", "cargo_wasm_facts")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
 
@@ -121,6 +121,7 @@ def plugin_sdk():
         env = facts.env,
         features = facts.features,
         linker_flags = ["--be3-sdk"],
+        mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
         rustc_flags = plugin_exports,
         srcs = cargo_library_sources(),
@@ -152,6 +153,7 @@ def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps
         env = facts.env,
         features = facts.features,
         linker_flags = ["--be3-plugin=$(location {})".format(PLUGIN_SDK)] if shared_sdk else [],
+        mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
         rustc_flags = plugin_exports,
         srcs = cargo_library_sources() + ["manifest.json"],
@@ -199,6 +201,7 @@ def plugin_tests(exports = [], env = {}, extra_deps = []):
         edition = facts.edition,
         env = facts.env | env,
         features = facts.test_features,
+        mapped_srcs = cargo_manifest_sources(),
         rustc_flags = exports + ["--test", "-Copt-level=0"],
         srcs = cargo_test_sources() + native.glob(["manifest.json"]),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
