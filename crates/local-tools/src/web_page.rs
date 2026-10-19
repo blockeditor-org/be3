@@ -1,4 +1,5 @@
-use beui_html::{Children, Element, Node, Script, Stylesheet, attr, render, view};
+use beui_html::elements as html;
+use beui_html::{Children, Node, Script, Stylesheet, render, view};
 
 pub fn main(args: Vec<String>) -> std::process::ExitCode {
     let demo = match args.first().map(String::as_str) {
@@ -15,7 +16,7 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
     render(|| {
         let base: Children<Node> = match base {
             Some(href) => view! {
-                <Element tag="base" @attr={("href", href)} />
+                <html::Base href={href} />
             }
             .into(),
             None => view! {},
@@ -27,7 +28,7 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
                 include_str!("web_page/demo.json"),
                 include_str!("web_page/demo.js"),
                 Children::<Node>::from(view! {
-                    <Element tag="div" @attr={("id", "demo")} />
+                    <html::Div id="demo" />
                 }),
             )
         } else {
@@ -37,42 +38,41 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
                 include_str!("web_page/block.json"),
                 include_str!("web_page/block.js"),
                 view! {
-                    <Element tag="div" @attr={("id", "plugins")} />
-                    <Element tag="canvas" @attr={("id", "block")} />
+                    <html::Div id="plugins" />
+                    <html::Canvas id="block" />
                 },
             )
         };
         let status = if demo {
             view! {
-                <Element tag="div" @attr={("id", "status")}>"Loading…"</Element>
+                <html::Div id="status">"Loading…"</html::Div>
             }
         } else {
             view! {
-                <Element tag="div" @attr={("id", "status")}>
-                    <Element tag="div" @attr={("class", "detail")}>"Loading Block…"</Element>
-                </Element>
+                <html::Div id="status">
+                    <html::Div class="detail">"Loading Block…"</html::Div>
+                </html::Div>
             }
         };
         view! {
-            <Element tag="html" @attr={("lang", "en")}>
-                <Element tag="head">
+            <html::Html lang="en">
+                <html::Head>
                     {base}
-                    <Element tag="meta" @attr={("charset", "utf-8")} />
-                    <Element
-                        tag="meta"
-                        @attr={("name", "viewport")}
-                        @attr={("content", "width=device-width, initial-scale=1, user-scalable=no, interactive-widget=resizes-content")}
+                    <html::Meta charset="utf-8" />
+                    <html::Meta
+                        name="viewport"
+                        content="width=device-width, initial-scale=1, user-scalable=no, interactive-widget=resizes-content"
                     />
-                    <Element tag="title">{title}</Element>
+                    <html::Title>{title}</html::Title>
                     <Stylesheet css={css} />
                     <Script kind="importmap" source={imports} />
-                </Element>
-                <Element tag="body">
+                </html::Head>
+                <html::Body>
                     {content}
                     {status}
                     <Script kind="module" source={js} />
-                </Element>
-            </Element>
+                </html::Body>
+            </html::Html>
         }
     })
 }

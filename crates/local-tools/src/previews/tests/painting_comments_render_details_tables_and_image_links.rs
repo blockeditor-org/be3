@@ -27,7 +27,8 @@ fn painting_comments_render_details_tables_and_image_links() {
             "<table><tr><th>Frame</th><th>Before</th><th>After</th><th>Changes</th></tr>"
         )
     );
-    assert!(comment.contains("<img alt=\"after\" src=\"PREVIEW_ROOT/"));
+    assert!(comment.contains("<img src=\"PREVIEW_ROOT/"));
+    assert!(comment.contains("alt=\"after\""));
     assert_eq!(std::fs::read_dir(&output).unwrap().count(), 1);
     std::fs::remove_dir_all(root).unwrap();
 }

@@ -1,8 +1,9 @@
+use beui_html::elements as html;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
 use std::path::Path;
 
-use beui_html::{Children, Element, Node, attr, component, flag, render_fragment, view};
+use beui_html::{Children, Node, component, render_fragment, view};
 use paint_snapshot::Snapshot;
 use sha2::{Digest as _, Sha256};
 
@@ -173,20 +174,20 @@ fn Section(data: SectionData, open: bool) -> Node {
         view! {}
     } else {
         view! {
-            <Element tag="sub">{data.detail}</Element>
+            <html::Sub>{data.detail}</html::Sub>
         }
         .into()
     };
     view! {
-        <Element tag="details" @flag={("open", open)}>
-            <Element tag="summary">
-                <Element tag="code">{data.name}</Element>
+        <html::Details open={open}>
+            <html::Summary>
+                <html::Code>{data.name}</html::Code>
                 " "
                 {data.headline}
-            </Element>
+            </html::Summary>
             {detail}
             <Table rows={data.rows} />
-        </Element>
+        </html::Details>
     }
 }
 
@@ -201,15 +202,15 @@ fn Table(rows: Vec<RowData>) -> Node {
         })
         .collect();
     view! {
-        <Element tag="table">
-            <Element tag="tr">
-                <Element tag="th">"Frame"</Element>
-                <Element tag="th">"Before"</Element>
-                <Element tag="th">"After"</Element>
-                <Element tag="th">"Changes"</Element>
-            </Element>
+        <html::Table>
+            <html::Tr>
+                <html::Th>"Frame"</html::Th>
+                <html::Th>"Before"</html::Th>
+                <html::Th>"After"</html::Th>
+                <html::Th>"Changes"</html::Th>
+            </html::Tr>
             {rows}
-        </Element>
+        </html::Table>
     }
 }
 
@@ -217,31 +218,31 @@ fn Table(rows: Vec<RowData>) -> Node {
 fn Row(data: RowData) -> Node {
     if data.truncated {
         return view! {
-            <Element tag="tr">
-                <Element tag="td">{data.number.to_string()}</Element>
-                <Element tag="td" @attr={("colspan", "3")}>"more frames not shown"</Element>
-            </Element>
+            <html::Tr>
+                <html::Td>{data.number.to_string()}</html::Td>
+                <html::Td colspan=3>"more frames not shown"</html::Td>
+            </html::Tr>
         };
     }
     let changes: Children<Node> = match data.changes {
         Some((image, label)) => view! {
             <Image data={image} />
-            <Element tag="br" />
+            <html::Br />
             {label}
         },
         None => view! {},
     };
     view! {
-        <Element tag="tr">
-            <Element tag="td">{data.number.to_string()}</Element>
-            <Element tag="td">
+        <html::Tr>
+            <html::Td>{data.number.to_string()}</html::Td>
+            <html::Td>
                 <ImageCell image={data.before} />
-            </Element>
-            <Element tag="td">
+            </html::Td>
+            <html::Td>
                 <ImageCell image={data.after} />
-            </Element>
-            <Element tag="td">{changes}</Element>
-        </Element>
+            </html::Td>
+            <html::Td>{changes}</html::Td>
+        </html::Tr>
     }
 }
 
@@ -259,7 +260,7 @@ fn ImageCell(image: Option<ImageData>) -> Children<Node> {
 #[component]
 fn Image(data: ImageData) -> Node {
     view! {
-        <Element tag="img" @attr={("alt", data.alt)} @attr={("src", data.src)} />
+        <html::Img alt={data.alt} src={data.src} />
     }
 }
 

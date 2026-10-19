@@ -1,3 +1,4 @@
+pub mod elements;
 pub use beui_tree::reactive;
 pub use reactive::*;
 use std::cell::RefCell;
@@ -220,15 +221,74 @@ pub fn Text(value: Prop<String>) -> Node {
     node
 }
 
-pub fn attr(node: Node, (name, value): (&'static str, impl IntoProp<String>)) -> Node {
-    let value = value.into_prop();
-    let weak = Rc::downgrade(&node.0);
-    create_effect(move || {
-        let value = value.get();
-        if let Some(data) = weak.upgrade() {
-            set_attr(&Node(data), name, Some(value));
+fn bind_attribute<T: Clone + ToString + 'static>(
+    node: &Node,
+    name: impl AsRef<str>,
+    value: Prop<Option<T>>,
+) {
+    let name = name.as_ref();
+    assert!(
+        matches!(node.0.kind, Kind::Element(_)),
+        "attributes require an element"
+    );
+    assert!(valid_name(name), "invalid HTML attribute name");
+    match value {
+        Prop::Static(value) => {
+            if let Some(value) = value {
+                set_attr(node, name, Some(value.to_string()));
+            }
         }
-    });
+        Prop::Dynamic(read) => {
+            let name = name.to_owned();
+            let weak = Rc::downgrade(&node.0);
+            create_effect(move || {
+                let value = read.get().map(|value| value.to_string());
+                if let Some(data) = weak.upgrade() {
+                    set_attr(&Node(data), &name, value);
+                }
+            });
+        }
+    }
+}
+
+fn bind_flag(node: &Node, name: &'static str, value: Prop<bool>) {
+    assert!(
+        matches!(node.0.kind, Kind::Element(_)),
+        "attributes require an element"
+    );
+    assert!(valid_name(name), "invalid HTML attribute name");
+    match value {
+        Prop::Static(value) => {
+            if value {
+                set_attr(node, name, Some(String::new()));
+            }
+        }
+        Prop::Dynamic(read) => {
+            let weak = Rc::downgrade(&node.0);
+            create_effect(move || {
+                let value = read.get();
+                if let Some(data) = weak.upgrade() {
+                    set_attr(&Node(data), name, value.then(String::new));
+                }
+            });
+        }
+    }
+}
+
+pub fn attr(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
+    bind_attribute(&node, name, value.into_prop());
+    node
+}
+
+pub fn data(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
+    assert!(valid_name(name), "invalid data attribute name");
+    bind_attribute(&node, format!("data-{name}"), value.into_prop());
+    node
+}
+
+pub fn aria(node: Node, (name, value): (&'static str, impl IntoProp<Option<String>>)) -> Node {
+    assert!(valid_name(name), "invalid ARIA attribute name");
+    bind_attribute(&node, format!("aria-{name}"), value.into_prop());
     node
 }
 
@@ -242,7 +302,7 @@ pub fn Stylesheet(css: String) -> Node {
         "CSS contains a closing style tag"
     );
     view! {
-        <Element tag="style">{Node::new(Kind::Raw(css))}</Element>
+        <elements::Style>{Node::new(Kind::Raw(css))}</elements::Style>
     }
 }
 
@@ -253,20 +313,13 @@ pub fn Script(kind: &'static str, source: String) -> Node {
         "script contains a closing script tag"
     );
     view! {
-        <Element tag="script" @attr={("type", kind.to_string())}>
+        <elements::Script r#type={kind.to_string()}>
             {Node::new(Kind::Raw(source))}
-        </Element>
+        </elements::Script>
     }
 }
 
 pub fn flag(node: Node, (name, value): (&'static str, impl IntoProp<bool>)) -> Node {
-    let value = value.into_prop();
-    let weak = Rc::downgrade(&node.0);
-    create_effect(move || {
-        let value = value.get();
-        if let Some(data) = weak.upgrade() {
-            set_attr(&Node(data), name, value.then(String::new));
-        }
-    });
+    bind_flag(&node, name, value.into_prop());
     node
 }

@@ -1,3 +1,4 @@
+use beui_html::elements as html;
 use std::{
     collections::HashMap,
     sync::{Arc, Mutex},
@@ -116,7 +117,7 @@ impl Sessions {
     }
 }
 
-use beui_html::{Children, Element, Node, Show, Stylesheet, attr, component, flag, render, view};
+use beui_html::{Children, Node, Show, Stylesheet, component, render, view};
 
 pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<String, ServerError> {
     let csrf = services.browser_auth.form()?;
@@ -127,70 +128,49 @@ pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<Strin
     Ok(render(|| {
         view! {
             <Shell>
-                <Element tag="main">
-                    <Element tag="h1">"Authorize Block"</Element>
-                    <Element tag="p">
+                <html::Main>
+                    <html::H1>"Authorize Block"</html::H1>
+                    <html::P>
                         "Only continue if you started adding an account on your device. Check that its code matches."
-                    </Element>
-                    <Element tag="p" @attr={("role", "alert")}>{error}</Element>
-                    <Element tag="form" @attr={("method", "post")} @attr={("action", "/auth")}>
-                        <Element
-                            tag="input"
-                            @attr={("type", "hidden")}
-                            @attr={("name", "csrf")}
-                            @attr={("value", csrf)}
-                        />
-                        <Element tag="label">
+                    </html::P>
+                    <html::P role="alert">{error}</html::P>
+                    <html::Form method="post" action="/auth">
+                        <html::Input r#type="hidden" name="csrf" value={csrf} />
+                        <html::Label>
                             "Device code"
-                            <Element
-                                tag="input"
-                                @attr={("name", "code")}
-                                @attr={("value", code)}
-                                @flag={("required", true)}
-                                @attr={("autocomplete", "off")}
-                                @attr={("maxlength", "14")}
+                            <html::Input
+                                name="code"
+                                value={code}
+                                required=true
+                                autocomplete="off"
+                                maxlength=14
                             />
-                        </Element>
-                        <Element tag="label">
+                        </html::Label>
+                        <html::Label>
                             "Email"
-                            <Element
-                                tag="input"
-                                @attr={("name", "email")}
-                                @attr={("type", "email")}
-                                @attr={("autocomplete", "username")}
-                            />
-                        </Element>
-                        <Element tag="label">
+                            <html::Input name="email" r#type="email" autocomplete="username" />
+                        </html::Label>
+                        <html::Label>
                             "Password"
-                            <Element
-                                tag="input"
-                                @attr={("name", "password")}
-                                @attr={("type", "password")}
-                                @attr={("autocomplete", "current-password")}
+                            <html::Input
+                                name="password"
+                                r#type="password"
+                                autocomplete="current-password"
                             />
-                        </Element>
+                        </html::Label>
                         <Show condition={allow_login}>
-                            <Element
-                                tag="button"
-                                @attr={("name", "action")}
-                                @attr={("value", "login")}
-                            >
+                            <html::Button name="action" value="login">
                                 "Sign in and authorize"
-                            </Element>
+                            </html::Button>
                         </Show>
                         <Show condition={allow_registration}>
                             <Registration />
                         </Show>
-                        <Element
-                            tag="button"
-                            @attr={("name", "action")}
-                            @attr={("value", "deny")}
-                            @flag={("formnovalidate", true)}
-                        >
+                        <html::Button name="action" value="deny" formnovalidate=true>
                             "Deny"
-                        </Element>
-                    </Element>
-                </Element>
+                        </html::Button>
+                    </html::Form>
+                </html::Main>
             </Shell>
         }
     }))
@@ -199,37 +179,26 @@ pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<Strin
 #[component]
 fn Shell(children: Children<Node>) -> Node {
     view! {
-        <Element tag="html" @attr={("lang", "en")}>
-            <Element tag="head">
-                <Element tag="meta" @attr={("charset", "utf-8")} />
-                <Element
-                    tag="meta"
-                    @attr={("name", "viewport")}
-                    @attr={("content", "width=device-width, initial-scale=1")}
-                />
-                <Element tag="title">"Block — authorize device"</Element>
+        <html::Html lang="en">
+            <html::Head>
+                <html::Meta charset="utf-8" />
+                <html::Meta name="viewport" content="width=device-width, initial-scale=1" />
+                <html::Title>"Block — authorize device"</html::Title>
                 <Stylesheet css={include_str!("browser_auth.css")} />
-            </Element>
-            <Element tag="body">{children}</Element>
-        </Element>
+            </html::Head>
+            <html::Body>{children}</html::Body>
+        </html::Html>
     }
 }
 
 #[component]
 fn Registration() -> Children<Node> {
     view! {
-        <Element tag="label">
+        <html::Label>
             "Display name (for a new account)"
-            <Element
-                tag="input"
-                @attr={("name", "display_name")}
-                @attr={("autocomplete", "nickname")}
-                @attr={("maxlength", "200")}
-            />
-        </Element>
-        <Element tag="button" @attr={("name", "action")} @attr={("value", "register")}>
-            "Create account and authorize"
-        </Element>
+            <html::Input name="display_name" autocomplete="nickname" maxlength=200 />
+        </html::Label>
+        <html::Button name="action" value="register">"Create account and authorize"</html::Button>
     }
 }
 
@@ -237,8 +206,8 @@ pub(crate) fn message(title: &str, message: &str) -> String {
     render(|| {
         view! {
             <Shell>
-                <Element tag="h1">{title}</Element>
-                <Element tag="p">{message}</Element>
+                <html::H1>{title}</html::H1>
+                <html::P>{message}</html::P>
             </Shell>
         }
     })

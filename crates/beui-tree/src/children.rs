@@ -363,15 +363,25 @@ impl<C: SlotChild> ChildSlot<C> {
     }
 }
 
-struct NestedHost<C: SlotChild> {
+pub(crate) struct NestedHost<C: SlotChild> {
     slot: ChildSlot<C>,
     items: RefCell<ChildList<C::Stored>>,
     mounting: Cell<bool>,
+    visible: Cell<bool>,
 }
 
 impl<C: SlotChild> NestedHost<C> {
+    pub(crate) fn set_visible(&self, visible: bool) {
+        self.visible.set(visible);
+        if visible {
+            self.publish();
+        } else {
+            self.slot.fill(Vec::new());
+        }
+    }
+
     fn publish(&self) {
-        if !self.mounting.get() {
+        if !self.mounting.get() && self.visible.get() {
             self.slot
                 .fill(self.items.borrow().iter().cloned().collect());
         }
@@ -549,15 +559,17 @@ impl<T: SlotChild> Children<T> {
         }
     }
 
-    pub(crate) fn mount_in(self, slot: ChildSlot<T>) {
+    pub(crate) fn mount_in(self, slot: ChildSlot<T>) -> Rc<NestedHost<T>> {
         let host = Rc::new(NestedHost {
             slot,
             items: RefCell::default(),
             mounting: Cell::new(true),
+            visible: Cell::new(true),
         });
         self.mount(host.clone() as Rc<dyn SlotHost<T>>);
         host.mounting.set(false);
         host.publish();
+        host
     }
 
     pub fn from_block(block: impl IntoSegments<T>) -> Self {

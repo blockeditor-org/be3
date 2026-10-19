@@ -105,12 +105,10 @@ another shape is clearer.
 When part of the tree depends on something, express it in the view rather than
 in Rust control flow around it. `Show` takes a condition, builds its children each
 time it becomes true and disposes of them when it turns false, as SolidJS's does.
-It accepts sibling children and components returning `Children<_>` without a wrapper;
-`ShowKeepAlive` is the opt-in for a child worth keeping while it is hidden, such
-as a tab's panel whose scroll position and state should survive switching away:
-it builds the child the first time it is shown and only hides it after that,
-pausing the child's effects while it is hidden so they catch up once when it
-is shown again.
+Both it and `ShowKeepAlive` accept sibling children and components returning
+`Children<_>` without a wrapper. `ShowKeepAlive` builds its children once, keeps
+their identities while hidden, and pauses their effects until shown again.
+Use it for a tab panel whose scroll position and state should survive switching away.
 `Dynamic` rebuilds a subtree when a value changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
 keyed child per item. A component that is genuinely two different trees is two
 components with a `Dynamic` or a `Show` choosing between them.
@@ -3059,37 +3057,46 @@ uses `beui-tree` components and control flow, independently of the GUI's paints
 and layout and of `beui-renderer-dom`.
 
 ```rust
-use beui_html::{Element, Text, attr, render, view};
+use beui_html::{elements as html, Text, render, view};
 
 let page = render(|| view! {
-    <Element tag="html">
-        <Element tag="body">
-            <Element tag="p" @attr={("class", "message")}>
-                <Text value="Hello" />
-            </Element>
-        </Element>
-    </Element>
+    <html::Html>
+        <html::Body>
+            <html::P class="message"><Text value="Hello" /></html::P>
+            <html::Button name="action" value="deny" formnovalidate=true>"Deny"</html::Button>
+        </html::Body>
+    </html::Html>
 });
 ```
 
 `render` builds in a fresh reactive scope, flushes bindings, writes the doctype
 and HTML, then disposes the scope. For a retained tree, build inside a scope you
-keep and call `Node::to_html` after updates. `Text` and `@attr` bind reactive
-props; string children are escaped static text. `Show`, `ForEach` and the other
+keep and call `Node::to_html` after updates. String children are escaped static
+text; `Text` binds reactive text. `Show`, `ShowKeepAlive`, `ForEach` and the other
 `beui-tree` control flow components work with HTML children.
 
 Build HTML through `view!` and components; do not call builders directly.
-`Element` takes a tag and children, and `@flag` binds boolean attributes.
-Multi-child `view!` already produces `Children<Node>` without a wrapper;
-components can return that type, and iterators of nodes or child runs can be
-collected into it. Both HTML renderers accept a node or a child run.
-`render_fragment` serializes without a doctype.
-Low-level node construction is private to the backend. Text and attribute
-values are escaped, attribute names are checked, and void elements reject
-children. Use `<Stylesheet css={...} />` and `<Script kind="module" source={...} />`
-for CSS and JavaScript/import-map source. These preserve source text and reject
-a closing tag for their container. CSS can live in separate files and be read
-with `include_str!`.
+Import `beui_html::elements as html` for ordinary HTML elements. Their declarations
+in `beui-html/src/elements.rs` generate normal components with shared global
+props and element-specific attributes. Extend those declarations for missing
+standard attributes. Rust keywords use raw identifiers (`r#type`, `r#for`).
+Boolean props control attribute presence; numeric attributes take numbers.
+Other attributes take strings. Omitted attributes are absent, and signals of
+`Option<T>` remove or restore attributes reactively. Static props need no effects.
+Void elements have no children prop and reject children at compile time.
+
+Use `@data={("test-id", value)}` and `@aria={("expanded", "false")}` for
+namespaced attributes; ARIA boolean values are strings. `Element tag="custom-tag"`,
+`@attr={("custom-name", value)}` and `@flag={("custom-flag", enabled)}` are
+escape hatches for custom markup. All attribute names are checked and values escaped.
+
+Multi-child `view!` produces `Children<Node>` without a wrapper. Components can
+return that type, and iterators of nodes or child runs collect into it. Both HTML
+renderers accept a node or a child run; `render_fragment` omits the doctype.
+Low-level node construction is private to the backend. Use
+`<Stylesheet css={...} />` and `<Script kind="module" source={...} />` for CSS
+and JavaScript/import-map source. These preserve source text and reject a closing
+tag for their container. CSS can live in separate files read with `include_str!`.
 
 `view!` and `#[component]` locate their support crate automatically, including
 renamed dependencies, through `proc-macro-crate`. A caller can depend on `beui`,

@@ -1,0 +1,4 @@
+mod attributes_belong_to_their_element;
+mod boolean_attributes_take_booleans;
+mod numeric_attributes_take_numbers;
+mod void_elements_have_no_children;

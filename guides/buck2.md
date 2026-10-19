@@ -242,6 +242,9 @@ treated the same way: `:test` runs here and `:test-run` is the action
 runs with, kept out of its compile. crates/app-tests is the one: it runs
 block-app's `:native` headless, so it runs on Linux x86_64 only.
 
+Each compile-fail suite keeps a `Cargo.toml` listing its dependencies. The rule
+maps it into the compiler sandbox for automatic macro support-crate discovery.
+
 `compile_fail/` holds code that must not compile: `compile_fail(name, deps)`
 in its `BUCK` makes `<name>/lib.rs` a crate and `:<name>-test`, which reads
 the crate's `[diag.json]` and passes when every line marked

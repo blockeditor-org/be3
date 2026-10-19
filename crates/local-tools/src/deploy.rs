@@ -1,3 +1,4 @@
+use beui_html::elements as html;
 use std::{
     io::{IsTerminal, Read, Write},
     path::{Path, PathBuf},
@@ -573,79 +574,67 @@ fn label(platform: &str) -> &'static str {
 }
 
 fn download_page(build: &str, downloads: &[Download], prefix: &str) -> String {
-    use beui_html::{Children, Element, Node, Stylesheet, attr, render, view};
+    use beui_html::{Children, Node, Stylesheet, render, view};
     render(|| {
         let rows: Children<Node> = downloads
             .iter()
             .map(|download| {
                 view! {
-                    <Element tag="tr">
-                        <Element tag="td">{download.label}</Element>
-                        <Element tag="td">
-                            <Element tag="a" @attr={("href", format!("{prefix}{}", download.name))}>
+                    <html::Tr>
+                        <html::Td>{download.label}</html::Td>
+                        <html::Td>
+                            <html::A href={format!("{prefix}{}", download.name)}>
                                 {download.name.as_str()}
-                            </Element>
-                        </Element>
-                        <Element tag="td">
+                            </html::A>
+                        </html::Td>
+                        <html::Td>
                             {format!("{:.1} MB", download.size as f64 / 1_000_000.0)}
-                        </Element>
-                        <Element tag="td">
-                            <Element tag="code">{download.sha256.as_str()}</Element>
-                        </Element>
-                    </Element>
+                        </html::Td>
+                        <html::Td>
+                            <html::Code>{download.sha256.as_str()}</html::Code>
+                        </html::Td>
+                    </html::Tr>
                 }
             })
             .collect();
         view! {
-            <Element tag="html" @attr={("lang", "en")}>
-                <Element tag="head">
-                    <Element tag="meta" @attr={("charset", "utf-8")} />
-                    <Element
-                        tag="meta"
-                        @attr={("name", "viewport")}
-                        @attr={("content", "width=device-width, initial-scale=1")}
-                    />
-                    <Element
-                        tag="meta"
-                        @attr={("name", "robots")}
-                        @attr={("content", "noindex, nofollow")}
-                    />
-                    <Element tag="title">"Block downloads"</Element>
+            <html::Html lang="en">
+                <html::Head>
+                    <html::Meta charset="utf-8" />
+                    <html::Meta name="viewport" content="width=device-width, initial-scale=1" />
+                    <html::Meta name="robots" content="noindex, nofollow" />
+                    <html::Title>"Block downloads"</html::Title>
                     <Stylesheet css={include_str!("deploy/downloads.css")} />
-                </Element>
-                <Element tag="body">
-                    <Element tag="h1">"Block"</Element>
-                    <Element tag="p">
+                </html::Head>
+                <html::Body>
+                    <html::H1>"Block"</html::H1>
+                    <html::P>
                         "Build "
-                        <Element tag="code">{build}</Element>
+                        <html::Code>{build}</html::Code>
                         ". A download connects only to a server running the same build."
-                    </Element>
-                    <Element tag="table">
-                        <Element tag="tr">
-                            <Element tag="th">"Platform"</Element>
-                            <Element tag="th">"Download"</Element>
-                            <Element tag="th">"Size"</Element>
-                            <Element tag="th">"SHA-256"</Element>
-                        </Element>
+                    </html::P>
+                    <html::Table>
+                        <html::Tr>
+                            <html::Th>"Platform"</html::Th>
+                            <html::Th>"Download"</html::Th>
+                            <html::Th>"Size"</html::Th>
+                            <html::Th>"SHA-256"</html::Th>
+                        </html::Tr>
                         {rows}
-                    </Element>
-                    <Element tag="p">
+                    </html::Table>
+                    <html::P>
                         "Each zip holds the app in a folder of its own: run "
-                        <Element tag="code">"block-app"</Element>
+                        <html::Code>"block-app"</html::Code>
                         " ("
-                        <Element tag="code">"block-app.exe"</Element>
+                        <html::Code>"block-app.exe"</html::Code>
                         " on Windows) inside it. The macOS builds are not signed, so macOS asks before opening them; "
-                        <Element tag="code">
-                            "xattr -dr com.apple.quarantine block-app-macos-*"
-                        </Element>
+                        <html::Code>"xattr -dr com.apple.quarantine block-app-macos-*"</html::Code>
                         " lets them open. The web bundle is also available to serve yourself. "
-                        <Element tag="a" @attr={("href", "https://be3.pfg.pw/")}>
-                            "Open the hosted web app"
-                        </Element>
+                        <html::A href="https://be3.pfg.pw/">"Open the hosted web app"</html::A>
                         "."
-                    </Element>
-                </Element>
-            </Element>
+                    </html::P>
+                </html::Body>
+            </html::Html>
         }
     })
 }
