@@ -6,7 +6,7 @@ fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
-    harness.document_mut().set_rubber_banding(false);
+    harness.context.set_motion(crate::reactive::Motion::Instant);
     let window = floated_window(&mut harness, dock);
     let floated = dock_state(harness.document(), dock)
         .window_rect(window)
@@ -14,7 +14,9 @@ fn resizing_a_window_from_its_top_edge_does_not_drag_it() {
     let bounds = harness.rect(dock);
     let bar = bounds.min + floated.min.to_vec2() + vec2(floated.width() - 80.0, 10.0);
     harness.drag(bar, bar - vec2(floated.min.x, 0.0));
-    harness.document_mut().set_rubber_banding(true);
+    harness
+        .context
+        .set_motion(crate::reactive::Motion::Animated);
     let before = dock_state(harness.document(), dock)
         .window_rect(window)
         .expect("the window is still open");

@@ -2,10 +2,19 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use super::*;
 
-async fn post(
+pub(super) async fn post(
     stream: &mut tokio::net::TcpStream,
     session: Option<&str>,
     frames: &[&[u8]],
+) -> (u16, Option<String>, Vec<Vec<u8>>) {
+    post_authorized(stream, session, frames, None).await
+}
+
+async fn post_authorized(
+    stream: &mut tokio::net::TcpStream,
+    session: Option<&str>,
+    frames: &[&[u8]],
+    authorization: Option<&str>,
 ) -> (u16, Option<String>, Vec<Vec<u8>>) {
     let mut body = Vec::new();
     for frame in frames {
@@ -18,6 +27,9 @@ async fn post(
     );
     if let Some(session) = session {
         head.push_str(&format!("Be3-Session: {session}\r\n"));
+    }
+    if let Some(authorization) = authorization {
+        head.push_str(&format!("Authorization: {authorization}\r\n"));
     }
     head.push_str("\r\n");
     stream.write_all(head.as_bytes()).await.unwrap();
@@ -70,13 +82,12 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
     let session = session.expect("a greeting of the same build opens a session");
 
-    let register = encode(&ClientMessage::Register {
-        request: 1,
-        email: "http@example.com".into(),
-        display_name: "Http".into(),
-        password: "a long enough password".into(),
-    })
-    .unwrap();
+    let (_, token) = ServerStore::open(&harness.directory)
+        .unwrap()
+        .register("http@example.com", "Http", "a long enough password")
+        .await
+        .unwrap();
+    let register = encode(&ClientMessage::Authenticate { request: 1, token }).unwrap();
     let (_, _, frames) = post(&mut stream, Some(&session), &[&register]).await;
     let response: ServerMessage = be_protocol::decode(frames.last().unwrap()).unwrap();
     assert!(
@@ -108,5 +119,32 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
     assert_eq!(session, None, "another build was given a session");
 
+    let ServerMessage::Authenticated { token, .. } = response else {
+        panic!("not authenticated")
+    };
+    let authorization = format!("Bearer {token}");
+    let mut proxy = tokio::net::TcpStream::connect(&address).await.unwrap();
+    let (_, session, _) =
+        post_authorized(&mut proxy, None, &[&hello(BUILD)], Some(&authorization)).await;
+    let session = session.unwrap();
+    let authenticate = encode(&ClientMessage::AuthenticateHeader { request: 4 }).unwrap();
+    let (_, _, frames) = post_authorized(
+        &mut proxy,
+        Some(&session),
+        &[&authenticate],
+        Some(&authorization),
+    )
+    .await;
+    assert!(
+        matches!(be_protocol::decode::<ServerMessage>(frames.last().unwrap()).unwrap(), ServerMessage::Authenticated { token, .. } if token.is_empty())
+    );
+    let (status, _, _) =
+        post_authorized(&mut proxy, Some(&session), &[&list], Some(&authorization)).await;
+    assert_eq!(status, 200);
+    let (status, _, _) = post(&mut proxy, Some(&session), &[&list]).await;
+    assert_eq!(
+        status, 401,
+        "a session id alone must not replace the injected account token"
+    );
     harness.stop().await;
 }

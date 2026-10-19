@@ -2,7 +2,10 @@ use beui::datetime::Date;
 use beui::{Document, NodeId, Pos2, Vec2, pos2};
 use block_ui_test::DocumentTest;
 
+use super::*;
 use crate::{DemoApp, PAGES, Page};
+use beui::icons::ICON_VOLUME_UP;
+use std::time::Duration;
 
 mod a_dialog_hangs_from_the_tab_that_opened_it;
 mod a_dialog_opens_on_the_screen_it_was_asked_for_from;
@@ -14,10 +17,13 @@ mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
+mod an_instant_level_display_keeps_its_duration_without_fading;
+mod animations_paint_their_progress_and_instant_targets;
 mod every_demo_page_paints_as_accepted;
 mod every_demo_page_paints_as_accepted_on_a_phone;
 mod holding_alt_and_pressing_q_switches_between_recent_tabs;
 mod holding_alt_moves_a_floating_demo_page_by_its_content;
+mod instant_indicators_hold_still_and_resume;
 mod paused_edits_wait_for_a_send_and_carry_presence;
 mod replacing_a_page_closes_the_dialogs_it_opened;
 mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
@@ -162,4 +168,30 @@ fn lowest_edge(document: &Document, id: NodeId, clip: f32) -> f32 {
 
 fn over_the_page(size: Vec2) -> Pos2 {
     pos2(size.x * 0.7, size.y * 0.6)
+}
+
+fn level_display() -> DocumentTest {
+    let document = build(move || {
+        let (shown, set_shown) = create_signal(0_u64);
+        let level = Some(OsdLevel {
+            glyph: ICON_VOLUME_UP.to_owned(),
+            label: "Volume".to_owned(),
+            level: 0.65,
+            muted: false,
+        });
+        view! {
+            <Frame fill=ColorRole::Background>
+                <List spacing=0.0>
+                    <Button
+                        @test_id={"test.show"}
+                        label="Turn it up"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || set_shown.update(|shown| *shown += 1)}
+                    />
+                    <LevelOsd level={level} shown={shown} />
+                </List>
+            </Frame>
+        }
+    });
+    DocumentTest::new(document, Vec2::new(1100.0, 480.0))
 }

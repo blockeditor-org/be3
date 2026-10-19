@@ -5,8 +5,8 @@ use beui_core::font::{FontFamily, FontId, Fonts, TextLayout};
 fn every_glyph_draws_inside_the_box_it_is_culled_by() {
     let sources = FontSources {
         fallback: vec![
-            FontData::from_static(include_bytes!("../../assets/test/ColourBitmap.ttf")),
-            FontData::from_static(include_bytes!("../../assets/test/ColourLayers.ttf")),
+            FontData::from_static(include_bytes!("fonts/ColourBitmap.ttf")),
+            FontData::from_static(include_bytes!("fonts/ColourLayers.ttf")),
         ],
         ..FontSources::bundled()
     };

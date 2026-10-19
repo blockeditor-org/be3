@@ -101,7 +101,7 @@ so dialogs, the file tree and every editor read like the host's own controls.
 - `drive shot FILE [TARGET]` writes a PNG of the window, or of one target.
 - `drive paint FILE [TARGET]` writes what the window paints as a paint snapshot
   (guides/testing_a_gui.md, 4), every plugin's painting included where the host composites it,
-  so it compares exactly where a PNG would not; `example-rasterize` turns it into a PNG and
+  so it compares exactly where a PNG would not; `./scripts/buck run //crates/local-tools:bin -- rasterize SNAPSHOT.paint OUTPUT.png [FRAME|all]` turns it into a PNG and
   `example-dump` lists its shapes. It waits until the app settles, then asks every running
   plugin for what it last painted, through an extension message (`PAINTING_EXTENSION` in
   crates/paint-format) rather than the plugin protocol proper. What a plugin draws through a

@@ -106,6 +106,7 @@ impl Members {
                     name: named(member),
                     detail: match (member.agent, member.role) {
                         (true, _) => format!("{}, agent", member.email),
+                        (false, role) if member.email.is_empty() => role.label().to_owned(),
                         (false, role) => format!("{}, {}", member.email, role.label()),
                     },
                     administrator: member.role == OrganizationRole::Administrator,

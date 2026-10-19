@@ -69,6 +69,20 @@ pub enum TextChild {
     Item(TextItem),
 }
 
+impl ChildValue for TextChild {
+    fn finish_component(
+        &mut self,
+        component: &crate::reactive::ComponentContext,
+        scope: &crate::reactive::ScopeContext,
+    ) {
+        match self {
+            Self::Span(value) => value.finish_component(component, scope),
+            Self::Gap(value) => value.finish_component(component, scope),
+            Self::Item(value) => value.finish_component(component, scope),
+        }
+    }
+}
+
 crate::child_type!(TextChild);
 
 impl SlotChild for TextChild {
@@ -361,7 +375,11 @@ impl IntoSegment<TextChild> for Gap {
 pub type TextItem = Placed<TextNode>;
 
 #[component]
-pub fn TextItem(at: Option<Prop<Option<usize>>>, children: Option<Child>) -> TextItem {
+pub fn TextItem(
+    at: Option<Prop<Option<usize>>>,
+    text: Option<Prop<Option<Rc<str>>>>,
+    children: Option<Child>,
+) -> TextItem {
     let item = with_document(|document| {
         let item = document.create_text_item();
         if let Some(child) = children {
@@ -369,6 +387,11 @@ pub fn TextItem(at: Option<Prop<Option<usize>>>, children: Option<Child>) -> Tex
         }
         item
     });
+    if let Some(text) = text {
+        create_effect(move || {
+            with_document(|document| document.set_text_item_text(item, text.get()))
+        });
+    }
     let anchored = at.is_some();
     if let Some(at) = at {
         create_effect(move || with_document(|document| document.set_text_item_at(item, at.get())));

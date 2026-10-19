@@ -12,6 +12,22 @@ Claude Code's cloud containers have no KVM: `/dev/kvm` does not exist and the CP
 expose `vmx`/`svm` to the guest, so there the emulator cannot run. Only building the APK
 works.
 
+## APK identities
+
+The package id in the APK manifest determines the installed app and its private
+storage. These variants install side by side:
+
+| Target | Package id | Launcher label |
+| --- | --- | --- |
+| `:android` (local) | `com.be3.block.dev` | Block (Dev) |
+| `:android-dist` (CI) | `com.be3.block.ci` | Block (CI) |
+| `:android-release` (deploy) | `com.be3.block` | Block |
+
+Deploy can override its id and label with `--android-id` and `--android-label`.
+The Java activity remains `com.be3.block.MainActivity` in all variants; it is
+independent of the installed package id. The bundle's JSON `app_id` does not
+select the Android package or storage directory.
+
 ## Starting it
 
     ./scripts/buck run //crates/block-app:android
@@ -22,7 +38,8 @@ emulator if it is not running, installs the APK if it changed, launches the app,
 `--wait` seconds (20 by default) and prints the app's log and whether it is still running.
 It exits non-zero if the app died. It writes `logcat.txt`, `app.log` and `screen.png` to
 `/tmp/be3-android`. `--apk PATH` installs a different APK, which is how to compare a
-branch against main. `./scripts/android-emulator stop` shuts the emulator down.
+branch against main. The runner defaults to the dev package; for a CI or
+deployed APK also pass `--package com.be3.block.ci` or `--package com.be3.block`. `./scripts/android-emulator stop` shuts the emulator down.
 
 The APK only carries arm64 code, and the emulator is x86_64, so the app runs under
 Android's arm64 translation. A native crash's backtrace stops at the translation layer
@@ -53,7 +70,7 @@ the app's area shrinks to what is left.
     adb shell settings put secure enabled_accessibility_services '""'    # off
 
 The first time it is turned on, TalkBack opens its own tutorial and permission prompts
-over the app; relaunch the app with `adb shell am start -n com.be3.block/.MainActivity`.
+over the app; relaunch the app with `adb shell am start -n com.be3.block.dev/com.be3.block.MainActivity`.
 
 `input tap` is injected past TalkBack's touch exploration, so under TalkBack it still
 clicks. To touch the screen the way a finger does, write to the touchscreen's device with

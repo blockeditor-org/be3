@@ -11,6 +11,8 @@ mod a_snapshot_survives_a_round_trip;
 mod a_transparent_texel_leaves_what_is_behind_it;
 mod a_triangle_is_filled_with_its_corner_colour;
 mod a_turned_rounded_rect_is_covered_where_it_turned_to;
+mod browser_paintings_keep_the_document_and_every_resource_as_text;
+mod browser_paintings_reject_incomplete_resources_and_unknown_versions;
 
 fn white() -> Texture {
     Texture::encode([1, 1], &[[255, 255, 255, 255]]).unwrap()

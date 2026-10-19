@@ -11,6 +11,7 @@ fn accept(session: &mut ClientSession) {
             format: SurfaceFormat::Rgba8Unorm,
         }),
         theme: Theme::Dark,
+        motion: block_plugin_api::Motion::default(),
     }));
 }
 

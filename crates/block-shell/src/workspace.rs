@@ -38,6 +38,7 @@ use super::window::{
 
 pub const FILES: TabId = TabId::new(1);
 pub const SETTINGS: TabId = TabId::new(1 << 39);
+pub const REVISIONS: TabId = TabId::new((1 << 39) + 1);
 const FIRST_BLOCK_TAB: u64 = 2;
 const MAX_OPENED_VIA_HOPS: usize = 64;
 const PANEL_PADDING: f32 = 14.0;
@@ -64,6 +65,7 @@ struct State {
 
 #[derive(Clone, Copy)]
 pub struct Workspace {
+    pub(crate) revisions: super::revisions::RevisionHistory,
     state: Stored<State>,
     editor: Editor,
     with_files: bool,
@@ -126,6 +128,7 @@ impl Workspace {
         let (held, set_held) = create_signal(false);
         let default_editors = editor.effective_settings::<EditorSettings>();
         let workspace = Self {
+            revisions: super::revisions::RevisionHistory::new(editor),
             state: store(State {
                 layout: DockingLayout::new(),
                 restored: Cell::new(false),
@@ -794,6 +797,15 @@ impl Workspace {
         self.routes.get();
         let active = current.or_else(|| inner.active.get());
         inner.active.set(active);
+        let history_target = self.tabs.with(|tabs| match shown {
+            Some(tab) if tab == FILES || tab == SETTINGS || tab == REVISIONS => self
+                .revisions
+                .target()
+                .filter(|item| tabs.values().any(|open| open.id == item.id)),
+            Some(tab) => tabs.get(&tab).copied(),
+            None => active.and_then(|id| tabs.values().find(|item| item.id == id).copied()),
+        });
+        self.revisions.follow(history_target);
         let focused = active.and_then(|id| {
             let block_type = inner.block_types.borrow().get(&id).copied()?;
             Some((id, block_type))
@@ -983,7 +995,7 @@ impl Workspace {
         }
     }
 
-    fn tab_showing(&self, id: Uuid) -> Option<TabId> {
+    pub(crate) fn tab_showing(&self, id: Uuid) -> Option<TabId> {
         self.tabs.with_untracked(|tabs| {
             tabs.iter()
                 .find(|(_, item)| item.id == id)

@@ -25,19 +25,23 @@ fi
 
 destination="$(be_path)"
 directory="$(dirname "$destination")"
-if [[ -x "$destination" && -f "$directory/build-id" ]]; then
+if [[ -x "$destination" && -f "$directory/$be_metadata_file" ]]; then
     echo "be $be_release is already installed at $destination"
     exit 0
 fi
 
 triple="$(buck2_triple)"
 sha256="$(buck2_release_sha256 be "$triple")"
-url="$download_mirror/be/$be_release/be-$triple/be"
+url="$be_mirror/$be_release/be-$triple/be"
 
 echo "Downloading be $be_release from $url..." >&2
 mkdir -p "$directory"
 download_verified "$url" "$destination.partial" "$sha256"
 chmod +x "$destination.partial"
-printf '%s\n' "$be_release" > "$directory/build-id"
+if [[ "$be_metadata_file" == build-id ]]; then
+    printf '%s\n' "$be_release" > "$directory/$be_metadata_file"
+else
+    printf '{"id":"%s","app_id":"Block"}\n' "$be_release" > "$directory/$be_metadata_file"
+fi
 mv -f "$destination.partial" "$destination"
 echo "Installed be $be_release at $destination" >&2

@@ -6,10 +6,13 @@ const RADIUS: f32 = 8.0;
 #[test]
 fn a_window_blends_a_thin_rounded_outline_as_dark_as_its_straight_edges() {
     let format = surface_format(&[
+        wgpu::TextureFormat::Rgba16Unorm,
+        wgpu::TextureFormat::Rgba16Float,
         wgpu::TextureFormat::Rgba8UnormSrgb,
         wgpu::TextureFormat::Rgba8Unorm,
     ])
     .expect("a format is offered");
+    assert_eq!(format, wgpu::TextureFormat::Rgba8Unorm);
     let capture = capture_in(format, Color32::WHITE, |painter| {
         painter.rect_stroke(
             Rect::from_min_max(pos2(8.0, 8.0), pos2(56.0, 56.0)),

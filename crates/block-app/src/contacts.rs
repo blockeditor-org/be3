@@ -221,6 +221,9 @@ fn named(name: &str, email: &str) -> String {
 }
 
 fn described(card: &ContactCard) -> String {
+    if card.email.is_empty() {
+        return card.display_name.clone();
+    }
     format!(
         "{} ({})",
         named(&card.display_name, &card.email),

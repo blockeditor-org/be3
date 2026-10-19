@@ -237,6 +237,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 format: SurfaceFormat::Rgba8UnormSrgb,
             }),
             theme: Theme::default(),
+            motion: block_plugin_api::Motion::default(),
         }));
         test.deliver(Message::Editor(open));
         test.place();
@@ -574,6 +575,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 states: states
                     .into_iter()
                     .map(|(block, history)| block_plugin_api::HistoryState {
+                        head: None,
                         block_id: block.into_bytes(),
                         can_undo: history.can_undo,
                         can_redo: history.can_redo,
@@ -620,6 +622,10 @@ impl<A: BeuiApp> BeuiTest<A> {
                 web_view,
                 event,
             }));
+    }
+
+    pub fn set_motion(&mut self, motion: block_plugin_api::Motion) {
+        self.inbox.push(Message::Motion(motion));
     }
 
     pub fn set_host_value<T: block_plugin_api::HostValue>(&mut self, value: &T::Value) {

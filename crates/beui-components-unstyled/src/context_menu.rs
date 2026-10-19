@@ -148,40 +148,38 @@ pub fn ContextMenu(
                 {children} @sizing={child_size}
                 <Show condition={built}>
                     <MenuPopup
-                            overlay
-                            content
-                            items={items.clone()}
-                            menu={menu}
-                            anchor
-                            open={shown}
-                            touched
-                            focusing
-                            on_dismiss={move || {
-                                set_open.set(false);
-                                on_close.call();
-                            }}
-                            on_select={on_select}
+                        overlay
+                        content
+                        items={items.clone()}
+                        menu={menu}
+                        anchor
+                        open={shown}
+                        touched
+                        focusing
+                        on_dismiss={move || {
+                            set_open.set(false);
+                            on_close.call();
+                        }}
+                        on_select={on_select}
+                    />
+                </Show>
+                <Show condition={toolbar_open}>|| {
+                    let (button, panel) = toolbar_style.unwrap_or_else(|| unreachable!());
+                    view! {
+                        <Toolbar
+                            @node_ref=&toolbar
+                            items={toolbar_items.clone()}
+                            button
+                            panel
+                            anchor={toolbar_anchor}
+                            bar
+                            more={more_button}
+                            on_choose={choose}
+                            on_more={more}
+                            on_dismiss={move || on_toolbar_close.call()}
                         />
-                </Show>
-                <Show condition={toolbar_open}>
-                    || {
-                        let (button, panel) = toolbar_style.unwrap_or_else(|| unreachable!());
-                        view! {
-                            <Toolbar
-                                @node_ref=&toolbar
-                                items={toolbar_items.clone()}
-                                button
-                                panel
-                                anchor={toolbar_anchor}
-                                bar
-                                more={more_button}
-                                on_choose={choose}
-                                on_more={more}
-                                on_dismiss={move || on_toolbar_close.call()}
-                            />
-                        }
                     }
-                </Show>
+                }</Show>
             </List>
         </Interactive>
     }

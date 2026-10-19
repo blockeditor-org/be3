@@ -34,6 +34,7 @@ mod an_unknown_content_type_has_no_content_in_the_new_stack;
 mod flushing_seals_what_the_sessions_hold_and_leaves_them_live;
 mod presence_crosses_between_this_peer_and_another;
 mod replacing_content_reaches_a_block_open_or_not;
+mod revision_history_previews_and_restores_saved_content;
 mod taking_a_share_back_rotates_its_keys_and_reseals_the_open_block;
 mod two_accounts_become_contacts_by_a_link_and_share_a_block;
 mod two_peers_of_one_organization_share_a_counter;
@@ -67,23 +68,25 @@ impl Harness {
             .unwrap_or_else(std::sync::PoisonError::into_inner);
         build_id::install("test");
         let directory = std::env::temp_dir().join(format!("block-app-be-test-{}", Uuid::new_v4()));
+        let runtime = runtime();
+        let (profile, token) = runtime.block_on(async {
+            be_server::ServerStore::open(directory.join("server"))
+                .unwrap()
+                .register("counter@example.com", "Counter", "correct horse battery")
+                .await
+                .unwrap()
+        });
+        let session = crate::accounts::Session {
+            account: profile.account,
+            email: profile.email,
+            display_name: profile.display_name,
+            token,
+        };
         let server = platform::start_embedded_server(directory.join("server"))
             .expect("the embedded block server starts");
         let url = server.url.clone();
         let managed = url.clone();
-        let runtime = tokio::runtime::Builder::new_current_thread()
-            .enable_all()
-            .build()
-            .expect("a test runtime starts");
         let (account, token, organization) = runtime.block_on(async {
-            let session = crate::accounts::register(
-                managed.clone(),
-                "counter@example.com".to_owned(),
-                "Counter".to_owned(),
-                "correct horse battery".to_owned(),
-            )
-            .await
-            .expect("the account registers");
             let organization = crate::accounts::create_organization(
                 managed,
                 session.token.clone(),
@@ -349,15 +352,20 @@ struct Someone {
 }
 
 impl Someone {
-    fn register(url: &str, email: &str, name: &str) -> Self {
-        let session = runtime()
-            .block_on(crate::accounts::register(
-                url.to_owned(),
-                email.to_owned(),
-                name.to_owned(),
-                "correct horse battery".to_owned(),
+    fn register(data: &std::path::Path, _url: &str, email: &str, name: &str) -> Self {
+        let (profile, token) = runtime()
+            .block_on(be_server::ServerStore::open(data).unwrap().register(
+                email,
+                name,
+                "correct horse battery",
             ))
-            .expect("the account registers");
+            .unwrap();
+        let session = crate::accounts::Session {
+            account: profile.account,
+            email: profile.email,
+            display_name: profile.display_name,
+            token,
+        };
         Self {
             session,
             phrase: be_keys::RecoveryPhrase::generate(),

@@ -111,6 +111,7 @@ pub struct ShowRequest {
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct BlockHistory {
+    pub head: Option<[u8; 32]>,
     pub can_undo: bool,
     pub can_redo: bool,
 }
@@ -1168,6 +1169,52 @@ impl EditorHost {
         id
     }
 
+    pub fn list_revisions(&self, block: Uuid) -> u64 {
+        self.ask(HostRequest::ListRevisions(block.into_bytes()))
+    }
+
+    pub fn preview_revision(&self, block: Uuid, commit: [u8; 32]) -> u64 {
+        self.ask(HostRequest::PreviewRevision {
+            block_id: block.into_bytes(),
+            commit,
+        })
+    }
+
+    pub fn restore_revision(&self, block: Uuid, commit: [u8; 32]) -> u64 {
+        self.ask(HostRequest::RestoreRevision {
+            block_id: block.into_bytes(),
+            commit,
+        })
+    }
+
+    pub fn release_revision(&self, preview: Uuid) {
+        self.ask(HostRequest::ReleaseRevision(preview.into_bytes()));
+    }
+
+    pub fn take_revisions(
+        &self,
+        request: u64,
+    ) -> Option<Result<Vec<block_plugin_api::Revision>, String>> {
+        match self.take_reply(request)? {
+            HostReply::RevisionsListed(result) => Some(result),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
+    pub fn take_revision_preview(&self, request: u64) -> Option<Result<Uuid, String>> {
+        match self.take_reply(request)? {
+            HostReply::RevisionPreviewed(result) => Some(result.map(Uuid::from_bytes)),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
+    pub fn take_revision_restore(&self, request: u64) -> Option<Result<(), String>> {
+        match self.take_reply(request)? {
+            HostReply::RevisionRestored(result) => Some(result),
+            reply => self.mismatched(request, reply),
+        }
+    }
+
     pub fn pick_file(&self, filter: FileFilter) -> u64 {
         self.ask(HostRequest::PickFile(filter))
     }
@@ -1326,6 +1373,9 @@ impl EditorHost {
     }
 
     pub fn set_reply(&self, request: u64, reply: HostReply) {
+        if matches!(reply, HostReply::RevisionReleased) {
+            return;
+        }
         self.replies.borrow_mut().insert(request, reply);
         self.push(Pushed::Replies);
     }

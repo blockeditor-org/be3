@@ -205,7 +205,7 @@ impl Default for FontLibrary {
     }
 }
 
-pub const ICONS_FONT: &[u8] = include_bytes!("../assets/icons/MaterialSymbolsRounded-Filled.ttf");
-const UBUNTU_LIGHT: &[u8] = include_bytes!("../assets/fonts/Ubuntu-Light.ttf");
-const HACK_REGULAR: &[u8] = include_bytes!("../assets/fonts/Hack-Regular.ttf");
-const NOTO_EMOJI_REGULAR: &[u8] = include_bytes!("../assets/fonts/NotoEmoji-Regular.ttf");
+pub const ICONS_FONT: &[u8] = include_bytes!("assets/icons/MaterialSymbolsRounded-Filled.ttf");
+const UBUNTU_LIGHT: &[u8] = include_bytes!("assets/fonts/Ubuntu-Light.ttf");
+const HACK_REGULAR: &[u8] = include_bytes!("assets/fonts/Hack-Regular.ttf");
+const NOTO_EMOJI_REGULAR: &[u8] = include_bytes!("assets/fonts/NotoEmoji-Regular.ttf");

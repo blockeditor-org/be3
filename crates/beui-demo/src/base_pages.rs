@@ -20,6 +20,9 @@ const PLANETS: [&str; 8] = [
 pub(crate) fn FramesPage() -> NodeId {
     view! {
         <ScrollPage>
+            <Sample title="Animation" code={vec![AnimationSample::SOURCE]}>
+                <AnimationSample />
+            </Sample>
             <Sample title="Fills, outlines and corners" code={vec![FrameSwatches::SOURCE]}>
                 <FrameSwatches />
             </Sample>
@@ -661,6 +664,88 @@ fn AnchoredOverlay() -> NodeId {
                     </Frame>
                 </Frame>
             </Overlay>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn AnimationSample() -> NodeId {
+    let theme = use_theme();
+    let (position, set_position) = create_signal(0.0_f32);
+    let (spring_position, set_spring_position) = create_signal(0.0_f32);
+    let target = StoredCell::new(0.0_f32);
+    let from = StoredCell::new(0.0_f32);
+    let velocity = StoredCell::new(0.0_f32);
+    let transition = create_animation(
+        move |frame| {
+            let progress = tween(frame.elapsed.as_secs_f32(), 0.5, Easing::OutCubic);
+            set_position.set(from.get() + (target.get() - from.get()) * progress);
+            progress < 1.0
+        },
+        move || set_position.set(target.get()),
+    );
+    let spring = create_animation(
+        move |frame| {
+            let mut offset = spring_position.get_untracked() - target.get();
+            let mut speed = velocity.get();
+            Spring {
+                stiffness: 180.0,
+                damping: 24.0,
+            }
+            .advance(&mut offset, &mut speed, frame.delta.as_secs_f32());
+            velocity.set(speed);
+            set_spring_position.set(target.get() + offset);
+            offset != 0.0 || speed != 0.0
+        },
+        move || {
+            velocity.set(0.0);
+            set_spring_position.set(target.get());
+        },
+    );
+    let preference = with_document(|document| document.watch_motion());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Checkbox
+                @test_id="animation.instant"
+                label="Disable animations"
+                checked={create_memo(move || !preference.get().animates())}
+                on_change={move |disabled| with_document(|document| {
+                    if let Some(context) = document.context() {
+                        context.set_motion(if disabled { Motion::Instant } else { Motion::Animated });
+                    }
+                })}
+            />
+            <Button
+                @test_id="animation.retarget"
+                label="Move or retarget"
+                variant=ButtonVariant::Secondary
+                on_click={move || {
+                    from.set(position.get_untracked());
+                    target.set(if target.get() == 0.0 { 220.0 } else { 0.0 });
+                    transition.stop();
+                    transition.start();
+                    spring.start();
+                }}
+            />
+            <Button
+                @test_id="animation.stop"
+                label="Stop"
+                variant=ButtonVariant::Secondary
+                on_click={move || { transition.stop(); spring.stop(); }}
+            />
+            <Text string="Tween" color={theme.text} />
+            <Frame
+                width={create_memo(move || position.get() + 20.0)}
+                height=12.0
+                fill={theme.accent}
+            />
+            <Text string="Spring" color={theme.text} />
+            <Frame
+                width={create_memo(move || spring_position.get() + 20.0)}
+                height=12.0
+                fill={theme.success}
+            />
         </List>
     }
 }

@@ -466,10 +466,13 @@ fn SimulationPanel(
                         on_click={move || state.get().toggle_keyboard()}
                     />
                     <Checkbox
-                        @test_id={"inspector.simulation.rubber_banding"}
-                        label="Rubber-band scrolls and windows"
-                        checked={state.get().rubber_banding.get()}
-                        on_change={move |enabled| state.get().rubber_banding.set(enabled)}
+                        @test_id={"inspector.simulation.disable_animations"}
+                        label="Disable animations"
+                        checked={state.get().disable_animations.get()}
+                        on_change={move |enabled| {
+                            state.get().disable_animations.set(enabled);
+                            state.get().requested_motion.set(Some(if enabled { beui_core::animation::Motion::Instant } else { beui_core::animation::Motion::Animated }));
+                        }}
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>

@@ -151,7 +151,7 @@ pub struct Document {
     damage: Damage,
     damage_flashes: FlashLog<Rect>,
     painters: NodeMap<Placing>,
-    rubber_banding: bool,
+    motion: ::reactive::OwnedSignal<crate::animation::Motion>,
 }
 
 #[derive(Clone, Copy)]
@@ -358,7 +358,7 @@ impl Document {
             damage: Damage::default(),
             damage_flashes: FlashLog::default(),
             painters: NodeMap::default(),
-            rubber_banding: true,
+            motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
         }
     }
 
@@ -761,12 +761,21 @@ impl Document {
         self.changes.set_enabled(enabled);
     }
 
-    pub fn rubber_banding(&self) -> bool {
-        self.rubber_banding
+    pub fn motion(&self) -> crate::animation::Motion {
+        self.motion.read().get_untracked()
     }
 
-    pub fn set_rubber_banding(&mut self, enabled: bool) {
-        self.rubber_banding = enabled;
+    pub fn watch_motion(&self) -> ::reactive::ReadSignal<crate::animation::Motion> {
+        self.motion.read()
+    }
+
+    fn set_motion(&mut self, motion: crate::animation::Motion) {
+        if self.motion() == motion {
+            return;
+        }
+        self.arena.invalidate();
+        let write = self.motion.write();
+        crate::current::with_reactive_scope(self, move || write.set(motion));
     }
 
     pub fn track_damage(&mut self, enabled: bool) {
@@ -1123,6 +1132,7 @@ impl Document {
 
     pub fn show_content(&mut self, ctx: &Context, rect: Rect) {
         self.now = ctx.now();
+        self.set_motion(ctx.motion());
         if std::mem::take(&mut self.hidden) {
             ctx.report_damage(rect);
             self.conceal_embeds(false);

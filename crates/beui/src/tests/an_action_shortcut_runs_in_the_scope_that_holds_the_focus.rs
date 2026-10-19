@@ -11,9 +11,10 @@ fn Scoped(name: String, hits: WriteSignal<Vec<String>>) -> NodeId {
     })
     .shortcut(Chord::ctrl(Key::G))
     .register();
+    let button_id = format!("{name}.button");
     view! {
         <List @node_ref=&node spacing=0.0>
-            <unstyled::Button @test_id={format!("{name}.button")}>
+            <unstyled::Button @test_id=button_id>
                 <ButtonFace label={name} />
             </unstyled::Button>
         </List>

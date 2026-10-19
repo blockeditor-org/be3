@@ -64,7 +64,7 @@ if $fresh; then
 fi
 
 [ -x "$caddy/caddy" ] && caddy="$caddy/caddy" || caddy="$caddy/caddy.exe"
-setsid "$server" --build-id-file "$bundle/build-id" --addr "127.0.0.1:$backend" --data-dir "$dir/server" --allow-login --allow-registration \
+setsid "$server" --build-info-file "$bundle/build-info.json" --addr "127.0.0.1:$backend" --data-dir "$dir/server" --allow-login --allow-registration --auth-origin "http://127.0.0.1:$port" \
     > "$dir/server.log" 2>&1 < /dev/null &
 echo $! > "$dir/server.pid"
 BE3_DOMAIN_NAME="http://127.0.0.1:$port" BE3_BACKEND_URL="127.0.0.1:$backend" \
@@ -97,10 +97,12 @@ export NODE_PATH=$NODE_PATH
 drive() { node "$drive" "\$@"; }
 ENV
 . "$dir/env"
-if ! timeout 60 sh -c ". '$dir/env'; until drive tree 2> /dev/null | grep -q '^Window'; do sleep 0.2; done" || ! drive --timeout=120 settle; then
+if ! timeout 60 sh -c ". '$dir/env'; until drive tree 2> /dev/null | grep -q '^Window'; do sleep 0.2; done"; then
     echo "The page did not start; see $dir/browser.log." >&2
     exit 1
 fi
+drive --timeout=120 dev-sign-in "$dir/server.log" || exit 1
+drive --timeout=120 settle || exit 1
 drive size 1280 800
 cat <<INFO
 The web app is served on $url and open in a headless Chromium;

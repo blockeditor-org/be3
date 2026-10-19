@@ -17,6 +17,7 @@ fn ctrl_z_in_a_text_field_is_left_to_the_field() {
     test.set_histories([(
         block,
         BlockHistory {
+            head: None,
             can_undo: true,
             can_redo: false,
         },

@@ -301,10 +301,10 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
             .get()
             .map_or(Color32::TRANSPARENT, |point| marker_color(point.color))
     });
-    let test_id = format!("map.point.{id}");
+    let element_test_id = format!("map.point.{id}");
     view! {
         <ListRow
-            @test_id={test_id}
+            @test_id={element_test_id}
             on_click={move || {
                 state.select(Some(id));
                 if let Some(point) = state.points.get_untracked().iter().find(|point| point.id == id) {

@@ -103,13 +103,12 @@ obscures which component's scope owns it. This is not enforced; break it where
 another shape is clearer.
 
 When part of the tree depends on something, express it in the view rather than
-in Rust control flow around it. `Show` takes a condition, builds its child each
-time it becomes true and disposes of it when it turns false, as SolidJS's does;
-`ShowKeepAlive` is the opt-in for a child worth keeping while it is hidden, such
-as a tab's panel whose scroll position and state should survive switching away:
-it builds the child the first time it is shown and only hides it after that,
-pausing the child's effects while it is hidden so they catch up once when it
-is shown again.
+in Rust control flow around it. `Show` takes a condition, builds its children each
+time it becomes true and disposes of them when it turns false, as SolidJS's does.
+Both it and `ShowKeepAlive` accept sibling children and components returning
+`Children<_>` without a wrapper. `ShowKeepAlive` builds its children once, keeps
+their identities while hidden, and pauses their effects until shown again.
+Use it for a tab panel whose scroll position and state should survive switching away.
 `Dynamic` rebuilds a subtree when a value changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
 keyed child per item. A component that is genuinely two different trees is two
 components with a `Dynamic` or a `Show` choosing between them.
@@ -126,9 +125,20 @@ slots - a list, a `Scroll` or a `Canvas` - so one written in a single-child slot
 whole view is a `Show` returns it typed `-> DynamicSegment<ListChild>` (or
 whatever kind of child its parent takes) rather than a `NodeId`.
 
+A function containing `view!` must be `#[component]`, whatever type it returns.
+The source check exempts test code, framework trait entrypoints, and views
+inside document/HTML rendering calls or factories storing deferred render
+callbacks. Extract other helpers into
+components and call them through `view!`, including helpers returning child
+runs rather than a single node.
+
 The exception is a component whose root is a base node it creates directly —
 the base layer itself, where `List` calls `create_list` and binds setters with
 effects. Above the base layer, one `view!` is the shape.
+
+Render-slot closures can write markup directly: `<ForEach keys={keys}>|key: Key|
+<Row key /></ForEach>`. Do not wrap that markup in `{ view! { ... } }`; the
+formatter removes a redundant macro when the block has no setup statements.
 
 ### Call components from `view!`, never their builders
 
@@ -402,9 +412,16 @@ holds) and `IntoSlotHost`, so a component
 can `children.mount(...)` into it. The macros need `::beui::reactive` to
 resolve: `beui-tree` names itself `beui` for its own tests, and a crate built on
 it does the same or re-exports `beui_tree::reactive` as a `reactive` module of
-a crate it calls `beui`. `@sizing`, `@test_id` and `@node_ref` expand to
-`beui::reactive::ListChild`, `with_test_id` and `with_node_ref`, which only
-`beui-view` has, and an untyped `Render`/`RenderFn` child or a `Child` prop is
+a crate it calls `beui`. Modifiers are ordinary functions: `@name=value`
+expands to `name(built, value)` after the component is built. Paths such as
+`@my_module::decorate=value` work too. Multiple modifiers run in source order,
+including repeated names, and can change the output type. They also follow
+expression and string children: `{child} @decorate=value`. A modifier without
+`=` uses its path as its value, like prop punning. Ordinary props are set on the
+builder before any modifier runs, regardless of their position among modifiers.
+The GUI prelude (`beui::reactive::*`) supplies `sizing`, `test_id` and `node_ref`;
+other trees supply their own functions. Qualify a modifier when a local variable
+shadows its name. An untyped `Render`/`RenderFn` child or a `Child` prop is
 `beui::reactive::Child`, a `NodeId`. `beui-tree`'s tests build a small DOM this
 way.
 
@@ -1098,6 +1115,35 @@ returns `Some(delay)` to run again - an animation returns
 which is what lets a scroll fling or a spinner stop costing frames. Start a
 timer from the event or effect that begins the motion rather than leaving one
 running.
+
+UI motion uses `create_animation(step, finish)`, not a repeating timer. Its scope-owned,
+copyable `Animation` handle has `start()`, `stop()`, `finish()` and `running()`; starting
+an active animation keeps its clock, stopping cancels without completion, and finishing
+applies its terminal state exactly once. The step receives `AnimationFrame` (`now`,
+`elapsed` since start, and `delta` since the previous step) and returns whether another
+frame is needed. Returning false finishes it. A callback may start another animation;
+disposing the scope cancels without completing it. Publish values through signals.
+
+Use `tween(elapsed_seconds, duration_seconds, Easing)` for duration-based progress and
+`Spring::advance` for a displacement and velocity relative to a target. Tweens catch up
+to the frame clock after stalls; springs solve damped motion analytically rather than
+clamping away elapsed time. Retarget a spring by changing its target while keeping its
+current value and velocity. `Fling` supplies the shared inertia curve. Components keep
+interaction decisions and semantic completion actions, not their own frame scheduling.
+
+`Context::set_motion(Motion::Instant)` finishes active animations and completes new ones
+without scheduling animation frames. The default is `Animated`. Each document exposes
+`motion()` and the reactive `watch_motion()` preference; the inspector Simulation tab's
+Disable animations checkbox changes the context preference. Instant mode disables inertia
+and rubber-banding, keeps carets visible and spinners static, and leaves held gestures
+following input normally. Functional timers (expiry, key repeat, media and clocks) still
+run; keep visibility delays separate from the fade that follows them. Switching back does
+not replay completed transitions; repeating indicators explicitly resume. Appearance and
+motion are independent, including the EInk theme.
+
+The host supplies the framework-independent motion preference in plugin acceptance and
+live `Message::Motion` updates. The plugin adapter applies it to every surface context
+before running a frame. Plugin tests can send it with `BeuiTest::set_motion`.
 
 `pixels_per_point()` is the document's scale as a signal, for layout that
 depends on it.
@@ -2606,7 +2652,7 @@ Compose it from base components. For an interactive control this normally means:
 4. Publish the correct AccessKit role and state with `component_accessibility`.
 5. Give the caller a `Render<Handle>` or `RenderFn<Handle>` containing the
    reactive state needed to paint the control.
-6. Return the root base node directly so component state and framework slots
+6. Return the root base node directly so component state and node modifiers
    attach to the node callers receive.
 
 A catcher shows the `cursor` it is given while it is hovered or held, and
@@ -3011,3 +3057,127 @@ the pull request's branch; it runs the workspace tests, lints, formatting, proje
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a
 failure.
+
+## HTML strings
+
+`beui-html` builds ordinary HTML elements, laid out by the browser's CSS. It
+uses `beui-tree` components and control flow, independently of the GUI's paints
+and layout and of `beui-renderer-dom`.
+
+```rust
+use beui_html::{elements as html, Text, render, view};
+
+let page = render(|| view! {
+    <html::Html>
+        <html::Body>
+            <html::P class="message"><Text value="Hello" /></html::P>
+            <html::Button name="action" value="deny" formnovalidate=true>"Deny"</html::Button>
+        </html::Body>
+    </html::Html>
+});
+```
+
+### Typed CSS
+
+Use `beui_html::tw` style components in an element's `css` prop. A component
+prop can take a view directly: `prop=<Component />`, or a run of children with
+`prop=<>...</>`. This syntax works on any component prop, not just CSS.
+Fragments `<>...</>` also work anywhere children fit, including at the root
+of `view!`; they group children without a backend node. Empty fragments
+`<></>` build empty children. Expressions, reusable components and control
+flow work inside fragments.
+
+The compiler grammar lives in `beui-macros/src/lib.rs`; the source formatter has
+its own grammar in `fix-rust-source/src/views.rs`, using lossless source tokens.
+Changes to view syntax must cover both grammars and their tests.
+
+```rust
+use beui_html::{elements as html, tw, view};
+
+view! {
+    <html::Html>
+        <html::Head><tw::Styles /></html::Head>
+        <html::Body
+            css=<>
+                <tw::FontSans />
+                <tw::BgSurface />
+                <tw::TextForeground />
+            </>
+        >
+            <html::Button
+                css=<>
+                    <tw::InlineFlex />
+                    <tw::ItemsCenter />
+                    <tw::Px4 />
+                    <tw::Py2 />
+                    <tw::BgAccent />
+                    <tw::TextOnAccent />
+                    <tw::RoundedMd />
+                    <tw::Hover><tw::BgAccentHover /></tw::Hover>
+                    <tw::Md><tw::Px4 /></tw::Md>
+                </>
+            >
+                "Continue"
+            </html::Button>
+        </html::Body>
+    </html::Html>
+}
+```
+
+Style components return `tw::Style`; reusable compositions return
+`Children<tw::Style>`. HTML and style children are different types. `Show` and
+`ForEach` work with both; removing a style contribution removes its declarations
+on the next serialization. Static styling needs no signals or effects.
+
+Put one `<tw::Styles />` in the document head, or at the beginning of a fragment.
+Serialization first collects CSS from the mounted tree, including current style
+branches, then fills the outlet. Constructed but unmounted nodes contribute
+nothing. A styled tree without an outlet is an error. Output is buffered, not
+streamed. Rendering remains string serialization, not browser DOM binding.
+
+Each distinct ordered style composition gets a deterministic generated class;
+identical compositions share rules. Existing `class` attributes are preserved.
+Within a composition, declarations keep their source order, so later declarations
+win at equal specificity. Pseudo-class and descendant selectors still follow
+normal CSS specificity. Nested breakpoint and pseudo-class components compose;
+`Descendants target=tw::Target::Input` styles matching descendants, including
+children added later by scripts. Semantic colors reference `--bht-*` CSS custom
+properties with defaults; this theme is independent of GUI beui crates. Utilities
+use rem spacing and text sizes. No reset is installed implicitly.
+
+`render` builds in a fresh reactive scope, flushes bindings, writes the doctype
+and HTML, then disposes the scope. For a retained tree, build inside a scope you
+keep and call `Node::to_html` after updates. String children are escaped static
+text; `Text` binds reactive text. `Show`, `ShowKeepAlive`, `ForEach` and the other
+`beui-tree` control flow components work with HTML children.
+
+Build HTML through `view!` and components; do not call builders directly.
+Import `beui_html::elements as html` for ordinary HTML elements. Their declarations
+in `beui-html/src/elements.rs` generate normal components with shared global
+props and element-specific attributes. Extend those declarations for missing
+standard attributes. Rust keywords use raw identifiers (`r#type`, `r#for`).
+Boolean props control attribute presence; numeric attributes take numbers.
+Other attributes take strings. Omitted attributes are absent, and signals of
+`Option<T>` remove or restore attributes reactively. Static props need no effects.
+Void elements have no children prop and reject children at compile time.
+
+Use `@data={("test-id", value)}` and `@aria={("expanded", "false")}` for
+namespaced attributes; ARIA boolean values are strings. `Element tag="custom-tag"`,
+`@attr={("custom-name", value)}` and `@flag={("custom-flag", enabled)}` are
+escape hatches for custom markup. All attribute names are checked and values escaped.
+
+Multi-child `view!` produces `Children<Node>` without a wrapper. Components can
+return that type, and iterators of nodes or child runs collect into it. Both HTML
+renderers accept a node or a child run; `render_fragment` omits the doctype.
+Low-level node construction is private to the backend. Use
+`<Stylesheet css={...} />` and `<Script kind="module" source={...} />` for CSS
+and JavaScript/import-map source. These preserve source text and reject a closing
+tag for their container. CSS can live in separate files read with `include_str!`.
+
+`view!` and `#[component]` locate their support crate automatically, including
+renamed dependencies, through `proc-macro-crate`. A caller can depend on `beui`,
+`beui-view`, `beui-html`, or `beui-tree`; no macro path setting is needed.
+
+The web entry points are generated by `local-tools web-page` through its
+`:block-index` and `:demo-index` Buck targets. Their scripts, import maps and
+styles live under `crates/local-tools/src/web_page/`.

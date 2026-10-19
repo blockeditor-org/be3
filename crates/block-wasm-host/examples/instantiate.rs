@@ -143,6 +143,7 @@ fn hello_accepted() -> Message {
             format: block_plugin_api::SurfaceFormat::Rgba8Unorm,
         }),
         theme: block_plugin_api::Theme::Dark,
+        motion: block_plugin_api::Motion::default(),
     })
 }
 

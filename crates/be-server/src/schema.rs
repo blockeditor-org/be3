@@ -14,13 +14,30 @@ const SCHEMA: &str = "
         id              TEXT PRIMARY KEY,
         email           TEXT NOT NULL UNIQUE,
         display_name    TEXT NOT NULL,
-        password_hash   TEXT NOT NULL
+        password_hash   TEXT NOT NULL,
+        local_profile   INTEGER NOT NULL DEFAULT 0
     );
 
     CREATE TABLE sessions (
         token_hash      TEXT PRIMARY KEY,
-        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE
+        account_id      TEXT NOT NULL REFERENCES accounts(id) ON DELETE CASCADE,
+        kind            TEXT NOT NULL DEFAULT 'legacy',
+        public_id       TEXT NOT NULL DEFAULT '',
+        created         INTEGER NOT NULL DEFAULT 0,
+        expires         INTEGER NOT NULL DEFAULT 0
     );
+
+    CREATE TABLE account_mail (
+        token_hash TEXT PRIMARY KEY,
+        purpose TEXT NOT NULL,
+        account_id TEXT NOT NULL DEFAULT '',
+        email TEXT NOT NULL,
+        display_name TEXT NOT NULL DEFAULT '',
+        password_hash TEXT NOT NULL DEFAULT '',
+        device_code TEXT NOT NULL DEFAULT '',
+        expires INTEGER NOT NULL
+    );
+    CREATE INDEX account_mail_email ON account_mail(email, purpose);
 
     CREATE TABLE organizations (
         id              TEXT PRIMARY KEY,

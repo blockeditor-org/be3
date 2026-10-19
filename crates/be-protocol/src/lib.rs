@@ -300,7 +300,6 @@ pub enum ErrorCode {
     ParentCycle,
     Storage,
     OrganizationNotFound,
-    RegistrationDisabled,
     InvitationNotFound,
     LoginDisabled,
     BlockHasContent,
@@ -318,20 +317,24 @@ impl fmt::Display for ErrorCode {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ClientMessage {
-    Register {
+    BeginBrowserLogin {
         request: u64,
-        email: String,
-        display_name: String,
-        password: String,
     },
-    Login {
+    FinishBrowserLogin {
         request: u64,
-        email: String,
-        password: String,
+        code: String,
+        secret: String,
+    },
+    CreateLocalProfile {
+        request: u64,
+        display_name: String,
     },
     Authenticate {
         request: u64,
         token: String,
+    },
+    AuthenticateHeader {
+        request: u64,
     },
     Logout {
         request: u64,
@@ -655,9 +658,11 @@ pub struct SealedKey {
 impl ClientMessage {
     pub fn request(&self) -> u64 {
         match self {
-            Self::Register { request, .. }
-            | Self::Login { request, .. }
+            Self::BeginBrowserLogin { request }
+            | Self::FinishBrowserLogin { request, .. }
+            | Self::CreateLocalProfile { request, .. }
             | Self::Authenticate { request, .. }
+            | Self::AuthenticateHeader { request }
             | Self::Logout { request }
             | Self::Invite { request, .. }
             | Self::GetInvitation { request, .. }
@@ -730,6 +735,15 @@ pub struct HistoryEntry {
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub enum ServerMessage {
+    BrowserLogin {
+        request: u64,
+        code: String,
+        secret: String,
+    },
+    BrowserLoginFinished {
+        approved: bool,
+        message: String,
+    },
     Ok {
         request: u64,
     },
@@ -890,7 +904,8 @@ pub enum ServerMessage {
 impl ServerMessage {
     pub fn request(&self) -> Option<u64> {
         match self {
-            Self::Ok { request }
+            Self::BrowserLogin { request, .. }
+            | Self::Ok { request }
             | Self::Failed { request, .. }
             | Self::Authenticated { request, .. }
             | Self::Organizations { request, .. }
@@ -925,6 +940,7 @@ impl ServerMessage {
             | Self::Relayed { .. }
             | Self::Paired { .. }
             | Self::ContactsChanged
+            | Self::BrowserLoginFinished { .. }
             | Self::KeyWorkChanged => None,
         }
     }

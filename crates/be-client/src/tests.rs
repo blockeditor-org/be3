@@ -97,11 +97,14 @@ impl Harness {
             PeerConfig::new(
                 &self.url,
                 identity(email),
-                Credentials::Register {
-                    email: email.into(),
-                    display_name: email.into(),
-                    password: "correct horse battery".into(),
-                },
+                Credentials::Token(
+                    be_server::ServerStore::open(&self.directory)
+                        .unwrap()
+                        .register(email, email, "correct horse battery")
+                        .await
+                        .unwrap()
+                        .1,
+                ),
             )
             .chunker(ChunkerConfig::SMALL),
             MemoryStore::new(),

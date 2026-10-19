@@ -257,7 +257,7 @@ buck2_path() {
     echo "$repository/target/tools/buck2-$buck2_version/buck2$(buck2_binary_suffix)"
 }
 
-# Which build this checkout makes, for buck/app's build-id file: the hash of
+# Which build this checkout makes, for buck/app's build-info.json file: the hash of
 # the working tree, taken through a throwaway index so untracked files count
 # and ignored ones do not. It names the content rather than a commit, so a
 # merge queue's commit, or any other commit of the same tree, is the same
@@ -272,12 +272,20 @@ build_id() {
     echo "${tree:-unknown}"
 }
 
-# Writes the build id where //buck/app:build-id reads it, buck/app/build-id,
+# Writes the build id where //buck/app:build-info.json reads it, buck/app/build-info.json,
 # which git ignores. As a source file, a new id invalidates only what reads
 # it, and it is rewritten only when it changes.
 write_build_id() {
-    local path="$repository/buck/app/build-id" id
+    local path="$repository/buck/app/build-info.json" id
     id="${BE3_BUILD_ID:-$(build_id)}"
+    case "$id" in *[!a-zA-Z0-9._+-]*) echo "Invalid BE3_BUILD_ID" >&2; return 1 ;; esac
+    local app_id="${BE3_APP_ID:-BlockDev}"
+    case "$app_id" in Block|BlockDev) ;; *) echo "Invalid BE3_APP_ID" >&2; return 1 ;; esac
+    if [[ "${BE3_DEPLOY_DEFAULT_SERVER:-false}" == true ]]; then
+        id="$(printf '{"id":"%s","app_id":"%s","default_server":{"name":"Block","api_url":"https://api.be3.pfg.pw","auth_url":"https://api.be3.pfg.pw/auth","gateway_required":true}}' "$id" "$app_id")"
+    else
+        id="$(printf '{"id":"%s","app_id":"%s"}' "$id" "$app_id")"
+    fi
     if [[ "$(cat "$path" 2> /dev/null)" != "$id" ]]; then
         printf '%s\n' "$id" > "$path.$$"
         mv -f "$path.$$" "$path"
@@ -333,15 +341,17 @@ buck2_release_sha256() {
 
 # The be release ./scripts/be runs: the tracker's command line tool
 # (guides/tracker.md), built from the same tree as the be-server the tracker
-# lives on. The release is that server's build id (its build-id file), which
+# lives on. The release is that server's build id (its build-info.json file), which
 # install-be.sh writes beside be, so the server refuses this be once it is
 # deployed from another build. Each platform's :be bundle is uploaded to the
 # mirror as be/<release>/be-<triple>/, by the same triple buck2's releases are
 # named after, and its be is checked against these hashes. An empty hash is a platform with no
 # release uploaded yet.
-be_release='9c671a180b9f7042435a34a88ff42aec0fa23986'
-be_sha256_x86_64_unknown_linux_gnu='e686c1bdf34feaa6a4fa46c794f085adc15b1d1430ae7a8b760a1c9c607e0902'
-be_sha256_aarch64_unknown_linux_gnu='592ff1ebe706f58842124c6b223ab0097bb12663e0016d1d1338ff2a59cd48e1'
+be_mirror='https://be3.pfg.pw/data'
+be_metadata_file='build-info.json'
+be_release='ba2d1bfe2d6aa63ba633ecfc881eeb4e4dfe487c'
+be_sha256_x86_64_unknown_linux_gnu='4f6aa28204b00858db5ec0c400637ef8b2110b1e6b015c8705f7eb983eb545a2'
+be_sha256_aarch64_unknown_linux_gnu='367167615d822cacf360e294c626cd7755837ffc5d7bfc510864f14b3b816b15'
 be_sha256_x86_64_apple_darwin=''
 be_sha256_aarch64_apple_darwin=''
 

@@ -73,7 +73,8 @@ pub struct State {
     pub picking: Cell<bool>,
     pub touch_emulation: Cell<bool>,
     pub mouse_simulation: Cell<bool>,
-    pub rubber_banding: Cell<bool>,
+    pub disable_animations: Cell<bool>,
+    pub requested_motion: Cell<Option<beui_core::animation::Motion>>,
     pub flash_changes: Cell<bool>,
     pub flash_damage: Cell<bool>,
     pub simulated_pixels_per_point: Cell<Option<f32>>,
@@ -107,7 +108,8 @@ impl State {
             picking: Cell::new(false),
             touch_emulation: Cell::new(ctx.touch_emulation()),
             mouse_simulation: Cell::new(ctx.mouse_simulation()),
-            rubber_banding: Cell::new(true),
+            disable_animations: Cell::new(!ctx.motion().animates()),
+            requested_motion: Cell::new(None),
             flash_changes: Cell::new(false),
             flash_damage: Cell::new(false),
             simulated_pixels_per_point: Cell::new(ctx.simulated_pixels_per_point()),
@@ -665,7 +667,12 @@ impl Inspector {
         }
         ctx.set_touch_emulation(self.state().touch_emulation.get());
         crate::mouse_simulation::simulate(ctx, self.state().mouse_simulation.get());
-        target.set_rubber_banding(self.state().rubber_banding.get());
+        if let Some(motion) = self.state().requested_motion.take() {
+            ctx.set_motion(motion);
+        }
+        self.state()
+            .disable_animations
+            .set(!ctx.motion().animates());
         ctx.set_accessibility_active(self.state().accessibility.get());
         target.track_changes(self.state().flash_changes.get());
         target.track_damage(self.state().flash_damage.get());

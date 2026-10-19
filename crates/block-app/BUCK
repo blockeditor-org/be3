@@ -8,8 +8,6 @@ load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 # The app, with its full features (the embedded browser), which buckify.bxl
 # turns on for every platform.
 
-app_srcs = glob(["src/**/*.rs", "src/**/*.wgsl", "src/**/*.desktop", "src/**/*.pam", "assets/**/*"])
-
 # On Android the app is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
 cargo_library(
@@ -18,7 +16,6 @@ cargo_library(
         "root//buck/platforms:wasi_setting": wasi_app_flags,
     }),
     soname = "libblock_app_lib.so",
-    srcs = app_srcs,
 )
 
 # The app links system libraries the worker's image does not have - ALSA, and
@@ -27,17 +24,20 @@ cargo_library(
 # through lavapipe, as the renderer's do, and the Wayland compositor's build a
 # keyboard from the test runtime's keymaps, as be-wayland's do. The tray's run a
 # private D-Bus bus with the test runtime's daemon.
+test_environment = {
+    "BE3_DBUS_DAEMON": "$(location //buck/sysroot:amd64-test)/usr/bin/dbus-daemon",
+    "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
+    "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
+    "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
+}
+
 cargo_test(
-    env = {
-        "BE3_DBUS_DAEMON": "$(location //buck/sysroot:amd64-test)/usr/bin/dbus-daemon",
-        "LD_LIBRARY_PATH": "$(location //buck/sysroot:amd64)/usr/lib/x86_64-linux-gnu:$(location //buck/sysroot:amd64-test)/usr/lib/x86_64-linux-gnu",
-        "VK_ICD_FILENAMES": "$(location //buck/sysroot:lavapipe_icd.json)",
-        "XKB_CONFIG_ROOT": "$(location //buck/sysroot:amd64-test)/usr/share/X11/xkb",
-    },
-    srcs = app_srcs,
+    env = test_environment,
+    paints = True,
+    run_env = test_environment,
 )
 
-cargo_binary(srcs = app_srcs)
+cargo_binary()
 
 # The app with every plugin beside it: `./scripts/buck run //crates/block-app:native`
 # runs it. buck/app says how it is laid out.
@@ -46,7 +46,7 @@ app(
     binary = ":bin",
     data = ["//{}:data".format(package) for package in editor_packages()],
     executable_name = "block-app",
-    files = ["//buck/app:build-id"],
+    files = ["//buck/app:build-info.json"],
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
@@ -74,13 +74,13 @@ app(
     name = "native-dist",
     binary = ":bin",
     executable_name = "block-app",
-    files = ["//buck/app:build-id"],
+    files = ["//buck/app:build-info.json"],
     manifests = [],
     modules = [],
 )
 
 # The web bundle: the app for wasi and the gpu shim for wasm32, each through
-# wasm-bindgen, the page and shims in web/, and the plugins. :web-dist is CI's,
+# wasm-bindgen, the generated HTML page, shims in web/, and the plugins. :web-dist is CI's,
 # without them. `./scripts/buck run //crates/block-app:web` serves it here with
 # Caddy, with be-server behind it (web/serve.sh).
 wasi_app_module(
@@ -89,7 +89,7 @@ wasi_app_module(
     module = "block_app_lib",
 )
 
-web_files = glob(["web/*.html", "web/*.js"]) + ["//buck/app:build-id"]
+web_files = glob(["web/*.js"]) + ["//crates/local-tools:block-index"] + ["//buck/app:build-info.json"]
 
 # The WASI and wasi-threads shims, which beui-web-demo needs too, with what
 # thread.js imports.
@@ -172,7 +172,7 @@ app(
     name = "android-assets",
     compiled_only = True,
     data = ["//{}:data".format(package) for package in editor_packages()],
-    files = ["//buck/app:build-id"],
+    files = ["//buck/app:build-info.json"],
     index = True,
     manifests = ["//{}:manifest".format(package) for package in editor_packages()],
     modules = ["//{}:module".format(package) for package in editor_packages()],
@@ -206,7 +206,7 @@ app(
         visibility = ["//crates/local-tools:"],
     )
     for name, application_id, label, keystore in [
-        ("android", "com.be3.block", "Block", None),
+        ("android", "com.be3.block.dev", "Block (Dev)", None),
         ("android-dist", "com.be3.block.ci", "Block (CI)", "//buck/android:ci-keystore"),
         (
             "android-release",

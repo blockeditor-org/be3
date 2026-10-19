@@ -119,6 +119,14 @@ jobs:
             (umask 077 && printf '%s' "$ANDROID_CI_KEYSTORE_BASE64" > buck/android/ci-keystore.base64)
           fi
 
+      - name: Install the browser preview runtime
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('crates/browser-rasterizer/requirements.txt') != '' }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/browser-rasterizer"
+          "$RUNNER_TEMP/browser-rasterizer/bin/pip" install -r crates/browser-rasterizer/requirements.txt
+          "$RUNNER_TEMP/browser-rasterizer/bin/python" -m playwright install --with-deps chromium
+          echo "BE3_PLAYWRIGHT_PYTHON=$RUNNER_TEMP/browser-rasterizer/bin/python" >> "$GITHUB_ENV"
+
       - name: Run ./scripts/ci
         if: ${{ !cancelled() }}
         env:

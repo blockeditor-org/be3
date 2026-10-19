@@ -45,8 +45,14 @@ fn InviteDialog(view: AppViewStore) -> NodeId {
 fn AgentsDialog(view: AppViewStore) -> NodeId {
     let agents = view.agents;
     let open = create_memo(move || agents.get().is_some());
+    let title = create_memo(
+        move || match agents.get().and_then(|agents| agents.created) {
+            Some(_) => "Agent credentials".to_owned(),
+            None => "Agents".to_owned(),
+        },
+    );
     view! {
-        <Dialog open={open} title="Agents" width=460.0 on_dismiss={|| send(UiCommand::CloseAgents)}>
+        <Dialog open={open} title={title} width=460.0 on_dismiss={|| send(UiCommand::CloseAgents)}>
             <AgentsPanel view />
         </Dialog>
     }
@@ -248,6 +254,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                         let row = row.get();
                         match row.verified {
                             true => row.email,
+                            false if row.email.is_empty() => "Not confirmed yet".to_owned(),
                             false => format!("{}, not confirmed yet", row.email),
                         }
                     });
@@ -379,6 +386,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
     let error = create_memo(move || shown.get().error);
     let created = create_memo(move || shown.get().created);
     let made = create_memo(move || created.get().is_some());
+    let creating = create_memo(move || !made.get());
     let keys = create_memo(move || {
         shown
             .get()
@@ -399,58 +407,66 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
     view! {
         <Frame>
             <List spacing=8.0>
-                <Text style=TextStyle::CAPTION string={organization} />
-                <Text
-                    style=TextStyle::CAPTION
-                    string="An agent is an account for a program, such as a coding agent, that reads and edits this organization through the be command line tool. It sees only the blocks you share with it, and only this device knows its key, so share them from here."
-                    wrap=true
-                />
-                <Show condition={none}>
-                    <Text style=TextStyle::CAPTION string="No agents yet." />
-                </Show>
-                <ForEach keys={keys}>|account: Uuid| {
-                    let label = create_memo(move || {
-                        names
-                            .get()
-                            .agents
-                            .iter()
-                            .find(|agent| agent.account == account)
-                            .map(|agent| agent.name.clone())
-                            .unwrap_or_default()
-                    });
-                    view! {
+                <Show condition={creating}>
+                    <List spacing=8.0>
+                        <Text style=TextStyle::CAPTION string={organization} />
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="An agent is an account for a program, such as a coding agent. It sees only the blocks you share with it. Share a workspace or blocks with it from this device after setup. This list shows the agents you created."
+                            wrap=true
+                        />
+                        <Show condition={none}>
+                            <Text style=TextStyle::CAPTION string="No agents yet." />
+                        </Show>
+                        <ForEach keys={keys}>|account: Uuid| {
+                            let label = create_memo(move || {
+                                names
+                                    .get()
+                                    .agents
+                                    .iter()
+                                    .find(|agent| agent.account == account)
+                                    .map(|agent| agent.name.clone())
+                                    .unwrap_or_default()
+                            });
+                            view! {
+                                <List
+                                    direction=Direction::Horizontal
+                                    align=Align::Center
+                                    spacing=8.0
+                                >
+                                    <Text @sizing=ItemSize::Percent(100.0) string={label} />
+                                    <IconButton
+                                        glyph={ICON_DELETE.to_owned()}
+                                        label="Remove agent"
+                                        @test_id={format!("app.agents.remove.{account}")}
+                                        on_click={move || send(UiCommand::RemoveAgent(account))}
+                                    />
+                                </List>
+                            }
+                        }</ForEach>
+                        <Text style=TextStyle::CAPTION string="Name" />
+                        <TextInput
+                            value={name}
+                            label="Agent name"
+                            @test_id={"app.agents.name"}
+                            on_change={move |value: String| set_name.set(value)}
+                        />
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Text @sizing=ItemSize::Percent(100.0) string={label} />
-                            <IconButton
-                                glyph={ICON_DELETE.to_owned()}
-                                label="Remove agent"
-                                @test_id={format!("app.agents.remove.{account}")}
-                                on_click={move || send(UiCommand::RemoveAgent(account))}
+                            <Button
+                                label="Add agent"
+                                variant=ButtonVariant::Primary
+                                disabled={cannot}
+                                @test_id={"app.agents.add"}
+                                on_click={move || send(UiCommand::CreateAgent(name.get_untracked()))}
                             />
+                            <Show condition={busy}>
+                                <Spinner />
+                            </Show>
+                            <Spacer @sizing=ItemSize::Percent(100.0) />
                         </List>
-                    }
-                }</ForEach>
-                <Text style=TextStyle::CAPTION string="Name" />
-                <TextInput
-                    value={name}
-                    label="Agent name"
-                    @test_id={"app.agents.name"}
-                    on_change={move |value: String| set_name.set(value)}
-                />
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Button
-                        label="Add agent"
-                        variant=ButtonVariant::Primary
-                        disabled={cannot}
-                        @test_id={"app.agents.add"}
-                        on_click={move || send(UiCommand::CreateAgent(name.get_untracked()))}
-                    />
-                    <Show condition={busy}>
-                        <Spinner />
-                    </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
-                <ErrorText text={error} />
+                        <ErrorText text={error} />
+                    </List>
+                </Show>
                 <Show condition={made}>
                     <AgentCredentials created={created} />
                 </Show>
@@ -466,29 +482,78 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
     };
     let heading = field(|created| {
         format!(
-            "Give {} these as environment variables. They are shown only once: the token and the recovery phrase are not kept anywhere you can read them again.",
+            "Copy these secret credentials for {}. They are shown only once. Set BE3_AGENT_CREDENTIALS to this value, then share a workspace or blocks with the agent.",
             created.name
         )
     });
-    let server = field(|created| created.server.clone());
-    let organization = field(|created| created.organization.clone());
-    let token = field(|created| created.token.clone());
-    let phrase = field(|created| created.phrase.clone());
+    let (proxy, set_proxy) = create_signal(false);
+    let credentials = create_memo(move || {
+        let Some(created) = created.get() else {
+            return String::new();
+        };
+        let mut bundle = serde_json::json!({
+            "server": created.server,
+            "organization": created.organization,
+            "recovery_phrase": created.phrase,
+        });
+        if proxy.get() {
+            bundle["authentication"] = "proxy".into();
+        } else {
+            bundle["token"] = created.token.into();
+        }
+        bundle.to_string()
+    });
+    let header = field(|created| format!("Bearer {}", created.token));
     view! {
         <List spacing=6.0>
-            <Text style=TextStyle::PARAGRAPH string={heading} wrap=true />
-            <Text style=TextStyle::CODE string="BE3_SERVER" />
-            <TextInput value={server} label="BE3_SERVER" @test_id={"app.agents.server"} />
-            <Text style=TextStyle::CODE string="BE3_ORGANIZATION" />
-            <TextInput
-                value={organization}
-                label="BE3_ORGANIZATION"
-                @test_id={"app.agents.organization"}
+            <Text
+                style=TextStyle::PARAGRAPH
+                string={heading}
+                wrap=true
+                @test_id={"app.agents.credentials-help"}
             />
-            <Text style=TextStyle::CODE string="BE3_TOKEN" />
-            <TextInput value={token} label="BE3_TOKEN" @test_id={"app.agents.token"} />
-            <Text style=TextStyle::CODE string="BE3_RECOVERY_PHRASE" />
-            <TextInput value={phrase} label="BE3_RECOVERY_PHRASE" @test_id={"app.agents.phrase"} />
+            <Checkbox
+                label="Account token supplied by proxy"
+                checked={proxy}
+                on_change={move |on: bool| set_proxy.set(on)}
+                @test_id={"app.agents.proxy"}
+            />
+            <Show condition={proxy}>
+                <List spacing=6.0>
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="Add a proxy rule for the server in these credentials (api.be3.pfg.pw for the hosted service). Set its Authorization header to the value below and keep it outside the agent container. If a gateway secret is required, add Be3-Gateway-Authorization: Bearer <gateway secret> as a separate rule."
+                        wrap=true
+                    />
+                    <TextInput
+                        value={header}
+                        label="Proxy Authorization header"
+                        @test_id={"app.agents.header"}
+                    />
+                    <Button
+                        label="Copy authorization header"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || copy_text(header.get_untracked())}
+                    />
+                </List>
+            </Show>
+            <TextInput
+                value={credentials}
+                label="Agent credentials"
+                @test_id={"app.agents.credentials"}
+            />
+            <Button
+                label="Copy credentials"
+                variant=ButtonVariant::Secondary
+                @test_id={"app.agents.copy"}
+                on_click={move || copy_text(credentials.get_untracked())}
+            />
+            <Button
+                label="Done"
+                variant=ButtonVariant::Primary
+                @test_id={"app.agents.done"}
+                on_click={|| send(UiCommand::CloseAgents)}
+            />
         </List>
     }
 }

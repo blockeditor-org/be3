@@ -284,6 +284,7 @@ impl Row {
                 Piece::Inline {
                     index: flow - 1,
                     size,
+                    text: self.display.get(span.range.clone()).unwrap_or_default(),
                 }
             })
             .collect()
@@ -549,8 +550,13 @@ impl Builder<'_> {
     }
 
     fn inline(&mut self, inline: Inline, source: Range<usize>, style: SpanStyle, label: String) {
+        let index = self.push_inline(inline, style, label);
+        self.push(OBJECT, source, false, style, SpanKind::Inline(index));
+    }
+
+    fn push_inline(&mut self, inline: Inline, style: SpanStyle, label: String) -> usize {
         let size = inline_size(inline, &label, style);
-        self.inline_sized(inline, source, style, label, size);
+        self.push_inline_sized(inline, style, label, size)
     }
 
     fn inline_sized(
@@ -561,14 +567,24 @@ impl Builder<'_> {
         label: String,
         size: Vec2,
     ) {
-        let index = self.row.inline.len();
+        let index = self.push_inline_sized(inline, style, label, size);
+        self.push(OBJECT, source, false, style, SpanKind::Inline(index));
+    }
+
+    fn push_inline_sized(
+        &mut self,
+        inline: Inline,
+        style: SpanStyle,
+        label: String,
+        size: Vec2,
+    ) -> usize {
         self.row.inline.push(InlineItem {
             inline,
             size,
             style,
             label,
         });
-        self.push(OBJECT, source, false, style, SpanKind::Inline(index));
+        self.row.inline.len() - 1
     }
 }
 
@@ -776,7 +792,15 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                 line_start: checkbox.line_start,
                 checked: checkbox.checked,
             };
-            builder.inline(inline, checkbox.marker.clone(), base, String::new());
+            let inline = builder.push_inline(inline, base, String::new());
+            let marker = String::from_utf8_lossy(&bytes[checkbox.marker.clone()]).into_owned();
+            builder.push(
+                &marker,
+                checkbox.marker.clone(),
+                true,
+                base,
+                SpanKind::Inline(inline),
+            );
             index = checkbox.marker.end;
             continue;
         }

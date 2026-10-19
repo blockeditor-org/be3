@@ -30,9 +30,6 @@ while [ "$index" -lt "$count" ]; do
 done
 
 [ -x "$caddy/caddy" ] && caddy="$caddy/caddy" || caddy="$caddy/caddy.exe"
-"$server" --build-id-file "$bundle/build-id" --addr "$backend" "$@" &
-server_pid=$!
-trap 'kill "$server_pid" 2> /dev/null || true' EXIT INT TERM
 if [ -n "$domain" ]; then
     address="$domain"
     echo "Serving https://$domain"
@@ -40,5 +37,8 @@ else
     address="http://$listen"
     echo "Serving $address"
 fi
+"$server" --build-info-file "$bundle/build-info.json" --addr "$backend" --auth-origin "$(case "$address" in http*) echo "$address" ;; *) echo "https://$address" ;; esac)" "$@" &
+server_pid=$!
+trap 'kill "$server_pid" 2> /dev/null || true' EXIT INT TERM
 BE3_DOMAIN_NAME="$address" BE3_BACKEND_URL="$backend" BE3_WEB_ROOT="$(cd "$bundle" && pwd)" \
     "$caddy" run --adapter caddyfile --config "$caddyfile"

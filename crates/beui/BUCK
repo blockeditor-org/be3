@@ -1,13 +1,11 @@
 load("@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_test")
 
-beui_srcs = glob(["src/**/*.rs", "examples/**/*.rs"])
+cargo_library()
 
-cargo_library(srcs = beui_srcs)
-
-cargo_test(srcs = beui_srcs)
+cargo_test()
 
 # The examples: `./scripts/buck run //crates/beui:example-<example>`.
 
-cargo_example("survey", srcs = beui_srcs)
+cargo_example("survey")
 
-cargo_example("text-bench", srcs = beui_srcs)
+cargo_example("text-bench")

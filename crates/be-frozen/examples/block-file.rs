@@ -44,22 +44,25 @@ async fn serve(data: &std::path::Path) -> Result<Vec<u8>, String> {
         be_server::ServerConfig::OPEN,
         stopped,
     ));
-    let written = write(&url).await;
+    let written = write(&url, data).await;
     let _ = stop.send(());
     let _ = tokio::time::timeout(Duration::from_secs(10), server).await;
     written
 }
 
-async fn write(url: &str) -> Result<Vec<u8>, String> {
+async fn write(url: &str, data: &std::path::Path) -> Result<Vec<u8>, String> {
     let owner = Peer::connect(
         PeerConfig::new(
             be_client::socket_url(url),
             be_keys::RecoveryPhrase::generate().secret(),
-            Credentials::Register {
-                email: scene::OWNER_EMAIL.into(),
-                display_name: scene::OWNER_NAME.into(),
-                password: scene::OWNER_PASSWORD.into(),
-            },
+            Credentials::Token(
+                be_server::ServerStore::open(data)
+                    .map_err(text)?
+                    .register(scene::OWNER_EMAIL, scene::OWNER_NAME, scene::OWNER_PASSWORD)
+                    .await
+                    .map_err(text)?
+                    .1,
+            ),
         ),
         MemoryStore::new(),
     )

@@ -2679,6 +2679,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2703,6 +2704,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -2724,6 +2726,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-keys:be-keys",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -2735,6 +2738,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2759,6 +2763,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -2780,6 +2785,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-keys:be-keys",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -2791,6 +2797,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2815,6 +2822,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -2836,6 +2844,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-keys:be-keys",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -2847,6 +2856,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2871,6 +2881,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -2892,6 +2903,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-keys:be-keys",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -2903,6 +2915,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2927,6 +2940,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -2948,6 +2962,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-keys:be-keys",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -2959,6 +2974,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -2983,6 +2999,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -3004,6 +3021,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-keys:be-keys",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -3015,6 +3033,7 @@ crates = {
                         "//crates/be-protocol:be-protocol",
                         "//crates/be-session:be-session",
                         "//crates/be-store:be-store",
+                        "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/sqlite-schema:sqlite-schema",
                         "//third-party/rust:argon2-0.5.3",
@@ -3039,6 +3058,7 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-session:be-session",
                     "//crates/be-store:be-store",
+                    "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/sqlite-schema:sqlite-schema",
                     "//third-party/rust:argon2-0.5.3",
@@ -3060,6 +3080,7 @@ crates = {
                 "features": [],
                 "test_deps": [
                     "//crates/be-keys:be-keys",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [],
             },
@@ -6133,6 +6154,91 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/beui-html": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "beui_html",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "beui-html",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui-tree:beui-tree",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/beui-inspector": {
         "binaries": [],
         "edition": "2024",
@@ -6306,6 +6412,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6318,6 +6425,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6330,6 +6438,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6342,6 +6451,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6354,6 +6464,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6366,6 +6477,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6378,6 +6490,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6390,6 +6503,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -6402,6 +6516,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:proc-macro-crate-3.5.0",
                     "//third-party/rust:proc-macro2-1.0.106",
                     "//third-party/rust:quote-1.0.45",
                     "//third-party/rust:syn-2.0.117",
@@ -7183,6 +7298,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:pollster-0.4.0",
                 ],
                 "test_features": [
@@ -7290,6 +7406,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
@@ -7396,6 +7513,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
@@ -7484,6 +7602,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
@@ -7572,6 +7691,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
@@ -7697,6 +7817,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
@@ -7783,6 +7904,7 @@ crates = {
                 ],
                 "test_deps": [
                     "//crates/block-editor-plugin:block-editor-plugin",
+                    "//crates/paint-snapshot:paint-snapshot",
                 ],
                 "test_features": [
                     "default",
@@ -9481,6 +9603,106 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/browser-rasterizer": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "browser-rasterizer",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": None,
+        "name": "browser-rasterizer",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "browser-rasterizer": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "browser-rasterizer": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "browser-rasterizer": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "browser-rasterizer": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "browser-rasterizer": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "browser-rasterizer": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "browser-rasterizer": [
+                        "//crates/paint-snapshot:paint-snapshot",
+                    ],
+                },
+                "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/buck-tools": {
         "binaries": [
             {
@@ -9654,7 +9876,10 @@ crates = {
         "platforms": {
             "android-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9662,7 +9887,10 @@ crates = {
             },
             "linux-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9670,7 +9898,10 @@ crates = {
             },
             "linux-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9678,7 +9909,10 @@ crates = {
             },
             "macos-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9686,7 +9920,10 @@ crates = {
             },
             "macos-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9694,7 +9931,10 @@ crates = {
             },
             "wasi": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9702,7 +9942,10 @@ crates = {
             },
             "windows-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -9710,7 +9953,10 @@ crates = {
             },
             "windows-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11012,18 +11258,34 @@ crates = {
         ],
         "edition": "2024",
         "examples": [],
-        "library": None,
+        "library": {
+            "crate": "local_tools",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
         "name": "local-tools",
         "platforms": {
             "android-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
                     ],
                 },
-                "deps": [],
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/build-id:build-id",
+                    "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:ureq-2.12.1",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11032,12 +11294,24 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
                     ],
                 },
-                "deps": [],
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/build-id:build-id",
+                    "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:ureq-2.12.1",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11046,12 +11320,24 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
                     ],
                 },
-                "deps": [],
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/build-id:build-id",
+                    "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:ureq-2.12.1",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11060,12 +11346,24 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
                     ],
                 },
-                "deps": [],
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/build-id:build-id",
+                    "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:ureq-2.12.1",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11074,12 +11372,24 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:libc-0.2.186",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
                     ],
                 },
-                "deps": [],
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/build-id:build-id",
+                    "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:ureq-2.12.1",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11088,11 +11398,22 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
                     ],
                 },
-                "deps": [],
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/build-id:build-id",
+                    "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:ureq-2.12.1",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11101,11 +11422,22 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "local-tools": [
+                        "//crates/beui-html:beui-html",
+                        "//crates/build-id:build-id",
+                        "//crates/paint-snapshot:paint-snapshot",
+                        "//third-party/rust:image-0.25.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
                     ],
                 },
-                "deps": [],
+                "deps": [
+                    "//crates/beui-html:beui-html",
+                    "//crates/build-id:build-id",
+                    "//crates/paint-snapshot:paint-snapshot",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:ureq-2.12.1",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -11387,14 +11719,6 @@ crates = {
                 "crate_root": "examples/dump.rs",
                 "name": "dump",
             },
-            {
-                "crate_root": "examples/preview.rs",
-                "name": "preview",
-            },
-            {
-                "crate_root": "examples/rasterize.rs",
-                "name": "rasterize",
-            },
         ],
         "library": {
             "crate": "paint_snapshot",
@@ -11411,6 +11735,7 @@ crates = {
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {
@@ -11421,6 +11746,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11432,28 +11758,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11471,6 +11776,7 @@ crates = {
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {
@@ -11481,6 +11787,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11492,28 +11799,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11531,6 +11817,7 @@ crates = {
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {
@@ -11541,6 +11828,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11552,28 +11840,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11591,6 +11858,7 @@ crates = {
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {
@@ -11601,6 +11869,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11612,28 +11881,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11651,6 +11899,7 @@ crates = {
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {
@@ -11661,6 +11910,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11672,28 +11922,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11711,6 +11940,7 @@ crates = {
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {},
@@ -11726,6 +11956,7 @@ crates = {
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {
@@ -11736,6 +11967,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11747,28 +11979,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11786,6 +11997,7 @@ crates = {
                     "//third-party/rust:flate2-1.1.9",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:sha2-0.10.9",
                 ],
                 "examples": {
@@ -11796,6 +12008,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],
@@ -11807,28 +12020,7 @@ crates = {
                             "//third-party/rust:flate2-1.1.9",
                             "//third-party/rust:image-0.25.10",
                             "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "preview": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
-                            "//third-party/rust:sha2-0.10.9",
-                        ],
-                        "features": [],
-                    },
-                    "rasterize": {
-                        "deps": [
-                            "//crates/paint-format:paint-format",
-                            "//third-party/rust:bincode-1.3.3",
-                            "//third-party/rust:flate2-1.1.9",
-                            "//third-party/rust:image-0.25.10",
-                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
                             "//third-party/rust:sha2-0.10.9",
                         ],
                         "features": [],

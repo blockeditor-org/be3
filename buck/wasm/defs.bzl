@@ -1,6 +1,6 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
 load("@root//buck/app:defs.bzl", "plugin_data")
-load("@root//buck/cargo:defs.bzl", "cargo_wasm_facts")
+load("@root//buck/cargo:defs.bzl", "cargo_library_sources", "cargo_manifest_sources", "cargo_test_sources", "cargo_wasm_facts")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
 
@@ -121,9 +121,10 @@ def plugin_sdk():
         env = facts.env,
         features = facts.features,
         linker_flags = ["--be3-sdk"],
+        mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
         rustc_flags = plugin_exports,
-        srcs = native.glob(["src/**/*.rs"]),
+        srcs = cargo_library_sources(),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
     )
     wasi_module(
@@ -152,9 +153,10 @@ def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps
         env = facts.env,
         features = facts.features,
         linker_flags = ["--be3-plugin=$(location {})".format(PLUGIN_SDK)] if shared_sdk else [],
+        mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
         rustc_flags = plugin_exports,
-        srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
+        srcs = cargo_library_sources() + ["manifest.json"],
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
         visibility = visibility,
     )
@@ -178,7 +180,6 @@ def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps
         env = test_env,
         exports = plugin_exports,
         extra_deps = extra_deps,
-        srcs = native.glob(["src/**/*.rs", "src/**/*.wgsl", "manifest.json"]),
     )
 
 # A crate's tests compiled to wasm and run by plugin-test-runner, which gives
@@ -190,7 +191,7 @@ def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps
 # change to beui recompiles about thirty of them at once, and at opt-level 2
 # LLVM is most of that: the step took twice as long, though the tests run
 # faster and the modules are smaller to precompile.
-def plugin_tests(srcs, exports = [], env = {}, extra_deps = []):
+def plugin_tests(exports = [], env = {}, extra_deps = []):
     facts = cargo_wasm_facts()
     native.rust_binary(
         name = "test-module",
@@ -200,8 +201,9 @@ def plugin_tests(srcs, exports = [], env = {}, extra_deps = []):
         edition = facts.edition,
         env = facts.env | env,
         features = facts.test_features,
+        mapped_srcs = cargo_manifest_sources(),
         rustc_flags = exports + ["--test", "-Copt-level=0"],
-        srcs = srcs,
+        srcs = cargo_test_sources() + native.glob(["manifest.json"]),
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
     )
     wasi_test(

@@ -9,6 +9,21 @@ pub fn assert_accepted(name: &str, snapshot: &Snapshot, how_to_accept: &str) {
     let bytes = snapshot
         .encode()
         .expect("the painting could not be encoded");
+    assert_bytes(name, &bytes, how_to_accept, REVIEW, |previous| {
+        let previous = Snapshot::decode(previous).expect("the accepted painting is unreadable");
+        crate::difference(&previous, snapshot)
+            .map(|difference| difference.description)
+            .unwrap_or_else(|| "the encoded painting changed, though it looks the same".to_owned())
+    });
+}
+
+pub(crate) fn assert_bytes(
+    name: &str,
+    bytes: &[u8],
+    how_to_accept: &str,
+    review: &str,
+    describe: impl FnOnce(&[u8]) -> String,
+) {
     let accepted = accepted_path(name);
     record_use(&accepted);
     let updating = std::env::var_os("UPDATE_SNAPSHOTS").is_some();
@@ -16,11 +31,11 @@ pub fn assert_accepted(name: &str, snapshot: &Snapshot, how_to_accept: &str) {
     if !accepted.exists() {
         if !updating {
             panic!(
-                "there is no accepted painting at {}, {REVIEW}",
+                "there is no accepted painting at {}, {review}",
                 accepted.display()
             );
         }
-        accept(&accepted, &bytes, "there is no accepted painting");
+        accept(&accepted, bytes, "there is no accepted painting");
         return;
     }
 
@@ -28,16 +43,13 @@ pub fn assert_accepted(name: &str, snapshot: &Snapshot, how_to_accept: &str) {
     if previous_bytes == bytes {
         return;
     }
-    let previous = Snapshot::decode(&previous_bytes).expect("the accepted painting is unreadable");
-    let description = crate::difference(&previous, snapshot)
-        .map(|difference| difference.description)
-        .unwrap_or_else(|| "the encoded painting changed, though it looks the same".to_owned());
+    let description = describe(&previous_bytes);
     if updating {
-        accept(&accepted, &bytes, &description);
+        accept(&accepted, bytes, &description);
         return;
     }
 
-    panic!("the painting changed: {description}\nto accept it:\n  {how_to_accept}\nthen {REVIEW}");
+    panic!("the painting changed: {description}\nto accept it:\n  {how_to_accept}\nthen {review}");
 }
 
 fn accept(accepted: &Path, bytes: &[u8], why: &str) {

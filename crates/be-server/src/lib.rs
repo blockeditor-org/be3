@@ -1,3 +1,6 @@
+mod browser_auth;
+pub mod mail;
+mod portal;
 use std::{
     collections::BTreeSet,
     error::Error,
@@ -9,8 +12,7 @@ use std::{
 };
 
 use be_protocol::{
-    ClientMessage, ErrorCode, MAX_FRAME_BYTES, OrganizationRole, ServerMessage, decode, encode,
-    hello, read_hello,
+    ClientMessage, ErrorCode, MAX_FRAME_BYTES, ServerMessage, decode, encode, hello, read_hello,
 };
 use be_session::Claim;
 use futures_util::{
@@ -116,16 +118,20 @@ impl From<tokio_tungstenite::tungstenite::Error> for ServerError {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default)]
+#[derive(Clone, Debug, Default)]
 pub struct ServerConfig {
     pub allow_registration: bool,
     pub allow_login: bool,
+    pub local_profiles: bool,
+    pub auth_origin: Option<String>,
 }
 
 impl ServerConfig {
     pub const OPEN: Self = Self {
         allow_registration: true,
         allow_login: true,
+        local_profiles: false,
+        auth_origin: None,
     };
 }
 
@@ -142,14 +148,37 @@ pub async fn serve_with_config(
     config: ServerConfig,
     shutdown: impl Future<Output = impl Sized>,
 ) -> Result<(), ServerError> {
+    serve_with_mail(
+        listener,
+        data_dir,
+        config,
+        Arc::new(mail::LogDelivery),
+        shutdown,
+    )
+    .await
+}
+
+pub async fn serve_with_mail(
+    listener: TcpListener,
+    data_dir: impl Into<PathBuf>,
+    config: ServerConfig,
+    mail: Arc<dyn mail::Delivery>,
+    shutdown: impl Future<Output = impl Sized>,
+) -> Result<(), ServerError> {
+    if let Some(origin) = &config.auth_origin {
+        mail::validate_origin(origin).map_err(ServerError::Socket)?;
+    }
     let services = Services {
         store: Arc::new(ServerStore::open(data_dir.into())?),
         hub: Arc::new(WatchHub::new()),
         registry: Arc::new(SessionRegistry::new()),
         config,
+        mail,
         http: Arc::new(http::Sessions::default()),
+        browser_auth: Arc::new(browser_auth::Sessions::default()),
     };
     let slots = Arc::new(Semaphore::new(MAX_CONNECTIONS));
+    let mut session_changes = services.store.session_changes.subscribe();
     tokio::pin!(shutdown);
     loop {
         tokio::select! {
@@ -158,6 +187,7 @@ pub async fn serve_with_config(
                 services.store.checkpoint().await?;
                 return Ok(());
             }
+            _ = session_changes.changed() => { services.http.revoke_invalid(&services.store).await; }
             accepted = listener.accept() => {
                 let (stream, peer) = match accepted {
                     Ok(accepted) => accepted,
@@ -190,16 +220,20 @@ pub(crate) struct Services {
     hub: Arc<WatchHub>,
     registry: Arc<SessionRegistry>,
     config: ServerConfig,
+    mail: Arc<dyn mail::Delivery>,
     http: Arc<http::Sessions>,
+    browser_auth: Arc<browser_auth::Sessions>,
 }
 
 struct Connection {
+    browser_auth: Arc<browser_auth::Sessions>,
     store: Arc<ServerStore>,
     hub: Arc<WatchHub>,
     registry: Arc<SessionRegistry>,
     client: u64,
     account: Option<Uuid>,
     token: Option<String>,
+    header_token: Option<String>,
     identity: Option<Identity>,
     config: ServerConfig,
 }
@@ -215,14 +249,16 @@ impl Client {
         let client = services.hub.register(sender).await;
         Self {
             connection: Connection {
+                browser_auth: Arc::clone(&services.browser_auth),
                 store: Arc::clone(&services.store),
                 hub: Arc::clone(&services.hub),
                 registry: Arc::clone(&services.registry),
                 client,
                 account: None,
                 token: None,
+                header_token: None,
                 identity: None,
-                config: services.config,
+                config: services.config.clone(),
             },
             outbound,
         }
@@ -283,6 +319,7 @@ impl Client {
 #[derive(Default)]
 struct Handshake {
     forwarded: Option<String>,
+    authorization: Option<String>,
 }
 
 struct Forwarded(Arc<std::sync::Mutex<Handshake>>);
@@ -295,6 +332,11 @@ impl Callback for Forwarded {
             .and_then(|value| value.to_str().ok())
             .and_then(|value| value.split(',').next())
             .map(|value| value.trim().to_owned());
+        self.0.lock().unwrap().authorization = request
+            .headers()
+            .get("authorization")
+            .and_then(|value| value.to_str().ok())
+            .map(str::to_owned);
         Ok(response)
     }
 }
@@ -320,10 +362,13 @@ async fn handle_connection(
     let socket = tokio::time::timeout(HANDSHAKE_TIMEOUT, handshake)
         .await
         .map_err(|_| ServerError::Socket("the websocket handshake timed out".into()))??;
-    let Handshake { forwarded } = std::mem::take(&mut *held.lock().unwrap());
+    let Handshake {
+        forwarded,
+        authorization,
+    } = std::mem::take(&mut *held.lock().unwrap());
     let client = forwarded.unwrap_or_else(|| peer.ip().to_string());
     tracing::debug!(%client, "connected");
-    serve_socket(socket, &services).await
+    serve_socket(socket, &services, authorization).await
 }
 
 pub(crate) fn greeting(theirs: Option<&str>) -> Result<(Vec<u8>, bool), ServerError> {
@@ -371,6 +416,7 @@ where
 async fn serve_socket<S>(
     socket: tokio_tungstenite::WebSocketStream<S>,
     services: &Services,
+    authorization: Option<String>,
 ) -> Result<(), ServerError>
 where
     S: AsyncRead + AsyncWrite + Unpin + Send,
@@ -382,11 +428,20 @@ where
     let mut pings = tokio::time::interval(PING_INTERVAL);
     let mut heard = Instant::now();
     let mut client = Client::open(services).await;
+    let mut session_changes = services.store.session_changes.subscribe();
+    client.connection.header_token = bearer(authorization.as_deref());
 
     let outcome = async {
         loop {
             let frame = tokio::select! {
+                _ = session_changes.changed() => {
+                    if let Some(token) = &client.connection.token
+                        && services.store.resolve_token(token).await.is_err() { sink.send(Message::Close(None)).await?; return Ok(()); }
+                    continue;
+                }
                 notification = client.outbound.recv() => {
+                    if let Some(token) = &client.connection.token
+                        && services.store.resolve_token(token).await.is_err() { sink.send(Message::Close(None)).await?; return Ok(()); }
                     let Some(notification) = notification else { return Ok(()) };
                     sink.send(Message::Binary(
                         encode(&notification).map_err(|_| ServerError::Corrupt)?,
@@ -464,48 +519,69 @@ impl Connection {
     }
 
     async fn dispatch(&mut self, message: ClientMessage) -> Result<ServerMessage, ServerError> {
+        if let Some(token) = &self.token {
+            self.store.resolve_token(token).await?;
+        }
         if self.identity.is_some() {
             self.identity = self.hub.identity(self.client).await;
         }
         match message {
-            ClientMessage::Register {
-                request,
-                email,
-                display_name,
-                password,
-            } => {
-                if !self.config.allow_registration {
-                    return Err(ServerError::Refused(
-                        ErrorCode::RegistrationDisabled,
-                        "this server does not accept new accounts".into(),
-                    ));
-                }
-                let (profile, token) = self
-                    .store
-                    .register(&email, &display_name, &password)
-                    .await?;
-                Ok(self.authenticated(request, profile, token).await)
+            ClientMessage::BeginBrowserLogin { request } => {
+                let (code, secret) = self
+                    .browser_auth
+                    .begin(self.client, Arc::clone(&self.hub))?;
+                Ok(ServerMessage::BrowserLogin {
+                    request,
+                    code,
+                    secret,
+                })
             }
-            ClientMessage::Login {
+            ClientMessage::FinishBrowserLogin {
                 request,
-                email,
-                password,
+                code,
+                secret,
             } => {
                 if !self.config.allow_login {
-                    tracing::warn!(email, "refused a sign-in: sign-ins are off");
                     return Err(ServerError::Refused(
                         ErrorCode::LoginDisabled,
-                        "this server is not accepting sign-ins with a password; use a device that \
-                         is already signed in, or ask its operator to allow sign-ins for a while"
-                            .into(),
+                        "This server is not accepting sign-ins.".into(),
                     ));
                 }
-                let (profile, token) = self
-                    .store
-                    .login(&email, &password)
-                    .await
-                    .inspect_err(|error| tracing::warn!(email, %error, "a sign-in failed"))?;
+                let Some((account, issuer)) =
+                    self.browser_auth.finish(self.client, &code, &secret)?
+                else {
+                    return Ok(ServerMessage::Ok { request });
+                };
+                let token = self.store.claim_browser_session(account, &issuer).await?;
+                let profile = self.store.resolve_token(&token).await?;
                 Ok(self.authenticated(request, profile, token).await)
+            }
+            ClientMessage::CreateLocalProfile {
+                request,
+                display_name,
+            } => {
+                if !self.config.local_profiles {
+                    return Err(ServerError::Refused(
+                        ErrorCode::InvalidRequest,
+                        "local profiles are unavailable on this server".into(),
+                    ));
+                }
+                let (profile, token) = self.store.create_local_profile(&display_name).await?;
+                Ok(self.authenticated(request, profile, token).await)
+            }
+            ClientMessage::AuthenticateHeader { request } => {
+                let token = self.header_token.clone().ok_or_else(|| {
+                    ServerError::Refused(
+                        ErrorCode::NotAuthenticated,
+                        "no Bearer account token was supplied in Authorization".into(),
+                    )
+                })?;
+                let profile = self.store.resolve_token(&token).await?;
+                let mut response = self.authenticated(request, profile, token).await;
+                if let ServerMessage::Authenticated { token, .. } = &mut response {
+                    token.clear();
+                }
+                Ok(response)
             }
             ClientMessage::Authenticate { request, token } => {
                 let profile = self.store.resolve_token(&token).await?;
@@ -1309,22 +1385,13 @@ impl Connection {
     }
 }
 
-pub async fn add_account(
-    data_dir: impl Into<PathBuf>,
-    email: &str,
-    display_name: &str,
-    password: &str,
-    organization: &str,
-) -> Result<(Uuid, Uuid), ServerError> {
-    let store = ServerStore::open(data_dir.into())?;
-    let (profile, _) = store.register(email, display_name, password).await?;
-    let account = profile.account;
-    let organization = store.create_organization(account, organization).await?;
-    store
-        .add_member(organization.id, account, OrganizationRole::Administrator)
-        .await?;
-    Ok((account, organization.id))
-}
-
 #[cfg(test)]
 mod tests;
+
+fn bearer(header: Option<&str>) -> Option<String> {
+    let (scheme, token) = header?.split_once(' ')?;
+    (scheme.eq_ignore_ascii_case("Bearer")
+        && !token.is_empty()
+        && !token.chars().any(char::is_whitespace))
+    .then(|| token.to_owned())
+}

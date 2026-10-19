@@ -7,17 +7,11 @@ use std::time::Instant;
 use beui_core::geometry::{Pos2, Vec2, vec2};
 
 const RUBBER_BAND_FACTOR: f32 = 0.55;
-const SETTLED_DISTANCE: f32 = 0.25;
 const VELOCITY_WINDOW: f32 = 0.08;
 const GLIDE_FRICTION: f32 = 9.0;
 pub const MINIMUM_VELOCITY: f32 = 5.0;
-pub const MAX_ANIMATION_STEP: f32 = 0.05;
 
-#[derive(Clone, Copy)]
-pub struct Spring {
-    stiffness: f32,
-    damping: f32,
-}
+pub use beui_core::animation::Spring;
 
 pub const SCROLL_SPRING: Spring = Spring {
     stiffness: 180.0,
@@ -49,13 +43,7 @@ pub fn unband(overscroll: f32, dimension: f32) -> f32 {
 }
 
 pub fn spring_back(overscroll: &mut f32, velocity: &mut f32, elapsed: f32, spring: Spring) {
-    let acceleration = -spring.stiffness * *overscroll - spring.damping * *velocity;
-    *velocity += acceleration * elapsed;
-    *overscroll += *velocity * elapsed;
-    if overscroll.abs() < SETTLED_DISTANCE && velocity.abs() < MINIMUM_VELOCITY {
-        *overscroll = 0.0;
-        *velocity = 0.0;
-    }
+    spring.advance(overscroll, velocity, elapsed);
 }
 
 pub struct Band {
@@ -140,6 +128,11 @@ impl Band {
         (*to - *from) * elapsed.recip()
     }
 
+    pub fn settle(&mut self) {
+        self.offset = Vec2::ZERO;
+        self.velocity = Vec2::ZERO;
+    }
+
     pub fn moving(&self) -> bool {
         !self.held && (self.offset != Vec2::ZERO || self.velocity != Vec2::ZERO)
     }
@@ -154,10 +147,7 @@ impl Band {
         if !self.moving() {
             return false;
         }
-        let elapsed = now
-            .duration_since(self.stepped)
-            .as_secs_f32()
-            .min(MAX_ANIMATION_STEP);
+        let elapsed = now.duration_since(self.stepped).as_secs_f32();
         self.stepped = now;
         let mut raw = *position;
         for (offset, velocity, raw) in [
@@ -167,8 +157,9 @@ impl Band {
             if *offset != 0.0 {
                 spring_back(offset, velocity, elapsed, self.spring);
             } else if *velocity != 0.0 {
-                *raw += *velocity * elapsed;
-                *velocity *= (-GLIDE_FRICTION * elapsed).exp();
+                let decay = (-GLIDE_FRICTION * elapsed).exp();
+                *raw += *velocity * (1.0 - decay) / GLIDE_FRICTION;
+                *velocity *= decay;
                 if velocity.abs() < MINIMUM_VELOCITY {
                     *velocity = 0.0;
                 }

@@ -3,7 +3,12 @@ use super::*;
 #[test]
 fn a_link_carrying_a_share_opens_the_block_the_moment_it_is_accepted() {
     let harness = Harness::start();
-    let guest = Someone::register(&harness.url, "guest@example.com", "Guest");
+    let guest = Someone::register(
+        &harness.directory.join("server"),
+        &harness.url,
+        "guest@example.com",
+        "Guest",
+    );
     let personal = harness.connect_personal();
     let block = Uuid::new_v4();
     written(block, "the plan");

@@ -4,18 +4,9 @@
 # scripts/internal/common.sh, which is built from the same commit as the server
 # the tracker lives on. Arguments go to be unchanged.
 #
-# The credentials are read from external/.tracker-credentials, which git
-# ignores and ./scripts/setup fetches, and handed to this one process as the BE3_*
-# variables be reads. be itself never reads that file, so a be built from a
-# checkout to test a change cannot reach the real server by accident; point
-# one of those at a dev server with the BE3_* variables instead. The file holds
-# one KEY=VALUE per line:
-#
-#   server=https://blocks.pfg.pw
-#   organization=<the tracker organization's id> (or workspace=, its old name)
-#   token=<the agent's token>
-#   recovery_phrase=<the agent's recovery phrase>
-#   authorization=<an Authorization header a gateway in front of the server wants>
+# BE3_AGENT_CREDENTIALS holds the JSON copied from the app's Agents dialog.
+# Otherwise read that JSON from external/.tracker-credentials, fetched by setup.
+# BE3_AUTHORIZATION can supply a separate gateway Be3-Gateway-Authorization header.
 #
 # Usage:
 #   ./scripts/be ls
@@ -26,35 +17,13 @@ set -euo pipefail
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 
 credentials="$repository/external/.tracker-credentials"
-if [[ ! -f "$credentials" ]]; then
-    echo "No tracker credentials at $credentials." >&2
-    echo 'An administrator adds an agent from the app menu (Agents), and the four values it' >&2
-    echo 'shows go there as server=, organization=, token= and recovery_phrase= lines.' >&2
-    exit 1
-fi
-
-server='' organization='' token='' recovery_phrase='' authorization=''
-while IFS= read -r line || [[ -n "$line" ]]; do
-    line="${line%$'\r'}"
-    [[ -z "${line//[[:space:]]/}" || "$line" == \#* ]] && continue
-    key="${line%%=*}"
-    value="${line#*=}"
-    case "$key" in
-        server) server="$value" ;;
-        organization | workspace) organization="$value" ;;
-        token) token="$value" ;;
-        recovery_phrase) recovery_phrase="$value" ;;
-        authorization) authorization="$value" ;;
-        *)
-            echo "$credentials has a line for $key, which is not server, organization, token, recovery_phrase or authorization." >&2
-            exit 1
-            ;;
-    esac
-done < "$credentials"
-
-if [[ -z "$token" || -z "$recovery_phrase" ]]; then
-    echo "$credentials needs token= and recovery_phrase= lines." >&2
-    exit 1
+bundle="${BE3_AGENT_CREDENTIALS:-}"
+if [[ -z "$bundle" ]]; then
+    if [[ ! -f "$credentials" ]]; then
+        echo "Set BE3_AGENT_CREDENTIALS or save the copied agent JSON in $credentials." >&2
+        exit 1
+    fi
+    bundle="$(cat "$credentials")"
 fi
 
 be="$(be_path)"
@@ -62,15 +31,10 @@ if [[ -z "$be_release" ]]; then
     echo 'No be release is pinned yet (be_release in scripts/internal/common.sh).' >&2
     exit 1
 fi
-if [[ ! -x "$be" || ! -f "$(dirname "$be")/build-id" ]]; then
+if [[ ! -x "$be" || ! -f "$(dirname "$be")/$be_metadata_file" ]]; then
     "$internal/install-be.sh" >&2
 fi
 
-exec env -u BE3_SERVER -u BE3_ORGANIZATION -u BE3_WORKSPACE -u BE3_TOKEN -u BE3_RECOVERY_PHRASE -u BE3_AUTHORIZATION \
-    ${server:+BE3_SERVER="$server"} \
-    ${organization:+BE3_ORGANIZATION="$organization"} \
-    ${organization:+BE3_WORKSPACE="$organization"} \
-    ${authorization:+BE3_AUTHORIZATION="$authorization"} \
-    BE3_TOKEN="$token" \
-    BE3_RECOVERY_PHRASE="$recovery_phrase" \
+exec env -u BE3_SERVER -u BE3_ORGANIZATION -u BE3_WORKSPACE -u BE3_TOKEN -u BE3_RECOVERY_PHRASE \
+    BE3_AGENT_CREDENTIALS="$bundle" \
     "$be" "$@"

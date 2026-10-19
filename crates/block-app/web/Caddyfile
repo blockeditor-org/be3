@@ -4,7 +4,8 @@
 # this sets it from --domain or --listen. BE3_WEB_ROOT is the web bundle, and
 # BE3_BACKEND_URL where be-server listens.
 {$BE3_DOMAIN_NAME} {
-	handle /api* {
+	@backend path /api* /auth /auth/*
+	handle @backend {
 		reverse_proxy {$BE3_BACKEND_URL}
 	}
 	handle {

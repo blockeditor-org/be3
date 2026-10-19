@@ -1,6 +1,4 @@
 use super::*;
-use beui::reactive::*;
-use beui::styled::*;
 use beui::{Event, vec2};
 use beui::{TouchId, TouchPhase};
 use beui_macros::view;
@@ -11,11 +9,9 @@ fn a_long_sheet_fades_its_content_and_bounces_as_a_panel() {
         view! {
             <ModalSheet open=true rest=0.5 on_close={|| ()}>
                 <List spacing=0.0>
-                    <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize| {
-                        view! {
-                            <ActionRow label={format!("Row {row}")} />
-                        }
-                    }</ForEach>
+                    <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize|
+                        <ActionRow label={format!("Row {row}")} />
+                    </ForEach>
                 </List>
             </ModalSheet>
         }

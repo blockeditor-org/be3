@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::time::{Duration, Instant};
+use std::time::Duration;
 
 use beui_core::color::Color32;
 use beui_core::geometry::{Vec2, vec2};
@@ -8,8 +8,6 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
-
-use super::rubber_band::MAX_ANIMATION_STEP;
 
 pub const BACK_DRAG_SHARE: f32 = 0.3;
 const RETURN_SECONDS: f32 = 0.25;
@@ -23,21 +21,20 @@ const SHADE: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 110);
 enum Phase {
     Still,
     Dragging,
-    Returning { from: f32, elapsed: f32 },
-    Leaving { from: f32, elapsed: f32 },
-    Entering { elapsed: f32 },
+    Returning { from: f32 },
+    Leaving { from: f32 },
+    Entering,
 }
 
 struct State {
     phase: Phase,
     position: f32,
     direction: f32,
-    stepped: Instant,
 }
 
 struct Slide {
     state: RefCell<State>,
-    animation: Cell<Option<Timer>>,
+    animation: Cell<Option<Animation>>,
     set_shift: WriteSignal<Vec2>,
     set_behind_shift: WriteSignal<Vec2>,
     set_shade: WriteSignal<Color32>,
@@ -46,10 +43,6 @@ struct Slide {
     enters: bool,
     on_back: ClickCallback,
     on_presence: Callback<f32>,
-}
-
-fn ease_out(progress: f32, power: i32) -> f32 {
-    1.0 - (1.0 - progress).powi(power)
 }
 
 impl Slide {
@@ -80,10 +73,8 @@ impl Slide {
         };
         match animate {
             true => {
-                if !animation.running() {
-                    self.state.borrow_mut().stepped = beui_core::timer::now();
-                }
-                animation.start(Duration::ZERO);
+                animation.stop();
+                animation.start();
             }
             false => animation.stop(),
         }
@@ -123,20 +114,14 @@ impl Slide {
             }
             BackGesture::Cancelled => {
                 if phase == Phase::Dragging {
-                    self.start(Phase::Returning {
-                        from: position,
-                        elapsed: 0.0,
-                    });
+                    self.start(Phase::Returning { from: position });
                 }
             }
             BackGesture::Invoked => {
                 if phase == Phase::Still {
                     self.state.borrow_mut().direction = 1.0;
                 }
-                self.start(Phase::Leaving {
-                    from: position,
-                    elapsed: 0.0,
-                });
+                self.start(Phase::Leaving { from: position });
             }
         }
     }
@@ -151,62 +136,48 @@ impl Slide {
         match self.enters && !self.behind {
             true => {
                 self.state.borrow_mut().direction *= -1.0;
-                self.start(Phase::Entering { elapsed: 0.0 });
                 self.place(ENTER_SHARE);
+                self.start(Phase::Entering);
             }
             false => self.reset(),
         }
     }
 
-    fn step(&self) -> Option<Duration> {
-        let now = beui_core::timer::now();
-        let (phase, elapsed) = {
-            let mut state = self.state.borrow_mut();
-            let elapsed = now
-                .duration_since(state.stepped)
-                .as_secs_f32()
-                .min(MAX_ANIMATION_STEP);
-            state.stepped = now;
-            (state.phase, elapsed)
-        };
+    fn finish(&self) {
+        let phase = self.state.borrow().phase;
+        match phase {
+            Phase::Leaving { .. } => {
+                self.place(1.0);
+                self.gone();
+            }
+            Phase::Returning { .. } | Phase::Entering => self.reset(),
+            _ => {}
+        }
+    }
+
+    fn step(&self, frame: AnimationFrame) -> Option<Duration> {
+        let phase = self.state.borrow().phase;
+        let elapsed = frame.elapsed.as_secs_f32();
         let (position, next) = match phase {
             Phase::Still | Phase::Dragging => return None,
-            Phase::Returning {
-                from,
-                elapsed: before,
-            } => {
-                let elapsed = before + elapsed;
-                let progress = (elapsed / RETURN_SECONDS).min(1.0);
-                let next = match progress >= 1.0 {
-                    true => Phase::Still,
-                    false => Phase::Returning { from, elapsed },
-                };
-                (from * (1.0 - ease_out(progress, 3)), next)
+            Phase::Returning { from } => {
+                let progress = tween(elapsed, RETURN_SECONDS, Easing::OutCubic);
+                let next = if progress >= 1.0 { Phase::Still } else { phase };
+                (from * (1.0 - progress), next)
             }
-            Phase::Leaving {
-                from,
-                elapsed: before,
-            } => {
-                let elapsed = before + elapsed;
-                let progress = (elapsed / LEAVE_SECONDS).min(1.0);
+            Phase::Leaving { from } => {
+                let progress = tween(elapsed, LEAVE_SECONDS, Easing::OutQuad);
                 if progress >= 1.0 {
                     self.place(1.0);
                     self.gone();
                     return self.running();
                 }
-                (
-                    from + (1.0 - from) * ease_out(progress, 2),
-                    Phase::Leaving { from, elapsed },
-                )
+                (from + (1.0 - from) * progress, phase)
             }
-            Phase::Entering { elapsed: before } => {
-                let elapsed = before + elapsed;
-                let progress = (elapsed / ENTER_SECONDS).min(1.0);
-                let next = match progress >= 1.0 {
-                    true => Phase::Still,
-                    false => Phase::Entering { elapsed },
-                };
-                (ENTER_SHARE * (1.0 - ease_out(progress, 3)), next)
+            Phase::Entering => {
+                let progress = tween(elapsed, ENTER_SECONDS, Easing::OutCubic);
+                let next = if progress >= 1.0 { Phase::Still } else { phase };
+                (ENTER_SHARE * (1.0 - progress), next)
             }
         };
         self.state.borrow_mut().phase = next;
@@ -241,7 +212,6 @@ pub fn BackSlide(
             phase: Phase::Still,
             position: 0.0,
             direction: 1.0,
-            stepped: beui_core::timer::now(),
         }),
         animation: Cell::new(None),
         set_shift,
@@ -253,7 +223,10 @@ pub fn BackSlide(
         on_back,
         on_presence,
     });
-    let animation = create_timer(move || slide.get().step());
+    let animation = create_animation(
+        move |frame| slide.get().step(frame).is_some(),
+        move || slide.get().finish(),
+    );
     slide.with(|slide| slide.animation.set(Some(animation)));
     let watched = enabled;
     create_effect(move || {

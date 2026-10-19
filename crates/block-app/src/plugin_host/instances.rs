@@ -121,6 +121,7 @@ struct Instance {
     artifact_watch: Option<Vec<Uuid>>,
     reported_artifacts: Vec<block_plugin_api::ArtifactState>,
     history_watch: Vec<Uuid>,
+    revision_previews: HashSet<Uuid>,
     reported_history: Option<Vec<block_plugin_api::HistoryState>>,
     drag_accepted: bool,
     intrinsic: Option<Vec2>,
@@ -300,6 +301,7 @@ impl Instance {
             artifact_watch: None,
             reported_artifacts: Vec::new(),
             history_watch: Vec::new(),
+            revision_previews: HashSet::new(),
             reported_history: None,
             drag_accepted: false,
             intrinsic: None,
@@ -443,8 +445,9 @@ impl Instance {
     }
 
     fn follows(&self, block: Uuid) -> bool {
-        self.role.block().is_some_and(|own| own.id == block)
-            || self.watched.contains_key(&block)
+        self.role.block().is_some_and(|own| {
+            own.id == block || crate::be::revisions::source(own.id) == Some(block)
+        }) || self.watched.contains_key(&block)
             || self.history_watch.contains(&block)
     }
 }
@@ -460,6 +463,9 @@ impl Instance {
             .map(|block| {
                 let history = crate::be::history(*block);
                 block_plugin_api::HistoryState {
+                    head: crate::be::node(*block)
+                        .and_then(|node| node.head)
+                        .map(|head| *head.hash().as_bytes()),
                     block_id: block.into_bytes(),
                     can_undo: history.can_undo,
                     can_redo: history.can_redo,
@@ -477,6 +483,13 @@ impl Instance {
     }
 
     fn name_content(&mut self) {
+        if self
+            .role
+            .block()
+            .is_some_and(|block| crate::be::revisions::source(block.id).is_some())
+        {
+            return;
+        }
         if let (Some(block), Some(link)) = (self.role.block(), self.content.as_mut()) {
             link.describe(block.id);
         }
@@ -569,12 +582,16 @@ impl Instances {
             return;
         }
         let mut scopes: HashMap<EditorInstanceId, Option<crate::be::Scope>> = HashMap::new();
+        message.visit_block_ids(&mut |instance, _, _| {
+            scopes.entry(instance).or_insert_with(|| {
+                let block = self.entries.get(&instance)?.role.block()?.id;
+                let source = crate::be::revisions::source(block).unwrap_or(block);
+                crate::be::with_graph(|graph| graph.scope_of(source)).flatten()
+            });
+        });
         crate::be::with_graph(|graph| {
             message.visit_block_ids(&mut |instance, role, id| {
-                let scope = *scopes.entry(instance).or_insert_with(|| {
-                    let block = self.entries.get(&instance)?.role.block()?.id;
-                    graph.scope_of(block)
-                });
+                let scope = scopes.get(&instance).copied().flatten();
                 let Some(scope) = scope else {
                     return;
                 };
@@ -630,6 +647,9 @@ impl Instances {
         let Some(entry) = self.entries.remove(&instance) else {
             return false;
         };
+        for preview in &entry.revision_previews {
+            crate::be::revisions::release(*preview);
+        }
         for (block, kind) in &entry.shown {
             crate::be::show(*block, *kind, None);
         }
@@ -1372,9 +1392,11 @@ impl Instances {
             opened.extend(entry.blocks_messages(instance));
             if stale {
                 opened.extend(entry.content_messages(instance));
-                if let Some(message) = entry.history_message(instance) {
-                    opened.push(message);
-                }
+            }
+            if (stale || graph_moved)
+                && let Some(message) = entry.history_message(instance)
+            {
+                opened.push(message);
             }
             if stale || graph_moved {
                 entry.name_content();
@@ -1602,6 +1624,18 @@ impl Instances {
             }
         }
         for (index, child) in table.children.iter().enumerate() {
+            if self
+                .entries
+                .get(&instance)
+                .and_then(|entry| entry.role.block())
+                .is_some_and(|block| crate::be::revisions::source(block.id).is_some())
+                && !matches!(
+                    child.content,
+                    ChildContent::Block { .. } | ChildContent::WebView(_)
+                )
+            {
+                continue;
+            }
             let content = match &child.content {
                 ChildContent::Block {
                     block_id,
@@ -1609,9 +1643,27 @@ impl Instances {
                     view_block,
                     editor,
                 } => super::HostContent::Block {
-                    block_id: Uuid::from_bytes(*block_id),
+                    block_id: self
+                        .entries
+                        .get(&instance)
+                        .and_then(|entry| entry.role.block())
+                        .map_or_else(
+                            || Uuid::from_bytes(*block_id),
+                            |parent| {
+                                crate::be::revisions::alias(parent.id, Uuid::from_bytes(*block_id))
+                            },
+                        ),
                     block_type: Uuid::from_bytes(*block_type),
-                    view_block: view_block.map(Uuid::from_bytes),
+                    view_block: if self
+                        .entries
+                        .get(&instance)
+                        .and_then(|entry| entry.role.block())
+                        .is_some_and(|parent| crate::be::revisions::source(parent.id).is_some())
+                    {
+                        None
+                    } else {
+                        view_block.map(Uuid::from_bytes)
+                    },
                     editor: editor.map(Uuid::from_bytes),
                 },
                 ChildContent::Host(panel) => super::HostContent::Panel(*panel),
@@ -2311,11 +2363,20 @@ impl Instances {
         let mut messages = Vec::new();
         while let Ok(reply) = self.replies.receiver.try_recv() {
             if reply.epoch == self.epoch && self.entries.contains_key(&reply.instance) {
+                if let HostReply::RevisionPreviewed(Ok(preview)) = &reply.reply {
+                    self.entries
+                        .get_mut(&reply.instance)
+                        .unwrap()
+                        .revision_previews
+                        .insert(Uuid::from_bytes(*preview));
+                }
                 messages.push(Message::Editor(EditorMessage::Replied {
                     instance: reply.instance,
                     request_id: reply.request_id,
                     reply: reply.reply,
                 }));
+            } else if let HostReply::RevisionPreviewed(Ok(preview)) = reply.reply {
+                crate::be::revisions::release(Uuid::from_bytes(preview));
             }
         }
         let mut played: Vec<_> = self.audio_changes.receiver.try_iter().collect();
@@ -2356,6 +2417,24 @@ impl Instances {
             });
         };
         match request {
+            request @ (HostRequest::ListRevisions(_)
+            | HostRequest::PreviewRevision { .. }
+            | HostRequest::RestoreRevision { .. }) => {
+                let block = match &request {
+                    HostRequest::ListRevisions(block) => *block,
+                    HostRequest::PreviewRevision { block_id, .. }
+                    | HostRequest::RestoreRevision { block_id, .. } => *block_id,
+                    _ => unreachable!(),
+                };
+                crate::be::revisions::request(Uuid::from_bytes(block), request, reply);
+            }
+            HostRequest::ReleaseRevision(preview) => {
+                let preview = Uuid::from_bytes(preview);
+                if entry.revision_previews.remove(&preview) {
+                    crate::be::revisions::release(preview);
+                }
+                reply(HostReply::RevisionReleased);
+            }
             HostRequest::PickFile(filter) => {
                 let filter = beui::FileFilter {
                     name: filter.name,
@@ -2485,6 +2564,37 @@ impl Instances {
     }
 
     pub(super) fn editor_message(&mut self, message: EditorMessage) -> bool {
+        let preview = self
+            .entries
+            .get(&message.instance())
+            .and_then(|entry| entry.role.block())
+            .is_some_and(|block| crate::be::revisions::source(block.id).is_some());
+        if preview
+            && !matches!(
+                &message,
+                EditorMessage::WatchContent { .. }
+                    | EditorMessage::WatchBlocks { .. }
+                    | EditorMessage::ResendContent { .. }
+                    | EditorMessage::WatchHistory { .. }
+                    | EditorMessage::WatchArtifacts { .. }
+                    | EditorMessage::WatchHostValue { .. }
+                    | EditorMessage::Window { .. }
+                    | EditorMessage::Focused { .. }
+                    | EditorMessage::Menu { .. }
+                    | EditorMessage::ChangeView { .. }
+                    | EditorMessage::Stopped { .. }
+                    | EditorMessage::CopyText { .. }
+                    | EditorMessage::WebViewCommand { .. }
+                    | EditorMessage::Request {
+                        request: HostRequest::Fetch(_)
+                            | HostRequest::ReadData(_)
+                            | HostRequest::ListData,
+                        ..
+                    }
+            )
+        {
+            return false;
+        }
         match message {
             EditorMessage::PickAnswered {
                 instance,

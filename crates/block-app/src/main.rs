@@ -77,7 +77,11 @@ use ui::{AccountForm, AppView, AppViewStore, ErrorAction, UiCommand};
 use uuid::Uuid;
 
 #[cfg(not(target_arch = "wasm32"))]
-const APP_ID: &str = "Block";
+fn app_id() -> &'static str {
+    build_id::metadata()
+        .map(|info| info.app_id.as_str())
+        .unwrap_or("BlockDev")
+}
 
 pub(crate) fn build() -> &'static str {
     build_id::current().unwrap_or("no build id")
@@ -87,7 +91,7 @@ fn run_options() -> beui::RunOptions {
     let mut options = beui::RunOptions::new("Block");
     #[cfg(not(target_arch = "wasm32"))]
     {
-        options.app_id = Some(APP_ID.to_owned());
+        options.app_id = Some(app_id().to_owned());
     }
     options.size = beui::vec2(1100.0, 720.0);
     options
@@ -95,7 +99,7 @@ fn run_options() -> beui::RunOptions {
 
 #[cfg(not(target_arch = "wasm32"))]
 fn storage_dir() -> Option<PathBuf> {
-    directories_next::ProjectDirs::from("", "", APP_ID).map(|dirs| dirs.data_dir().to_path_buf())
+    directories_next::ProjectDirs::from("", "", app_id()).map(|dirs| dirs.data_dir().to_path_buf())
 }
 
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]
@@ -112,6 +116,7 @@ pub fn run() -> Result<(), Box<dyn Error>> {
     }
     panic_guard::install();
     let mut app = BlockApp::new(None).map_err(|error| error.to_string())?;
+    app.session_mode = arguments.session;
     let options = run_options();
     if arguments.dev_workspace {
         app.open_dev_workspace(None);
@@ -164,11 +169,13 @@ pub async fn run_web(canvas_id: String) -> Result<(), wasm_bindgen::JsValue> {
     }
     if location.hash()?.starts_with("#invite/") {
         app.open_invite(&location.href()?);
-        location.replace("#")?;
+        page.set_hash("");
+        location.replace(&page.href())?;
     }
     if location.hash()?.starts_with("#contact/") {
         app.contacts.open_from_address(&location.href()?);
-        location.replace("#")?;
+        page.set_hash("");
+        location.replace(&page.href())?;
     }
     if page.search_params().has("automation") {
         let inbox = beui::automation::Inbox::default();
@@ -424,6 +431,8 @@ struct BlockApp {
     add_account_open: bool,
     add_account_generation: u64,
     pending_account_request: Option<PendingAccountRequest>,
+    #[cfg(not(target_arch = "wasm32"))]
+    session_mode: bool,
     account_error: Option<String>,
     organization: Option<Organization>,
     organizations: Vec<Organization>,
@@ -511,7 +520,9 @@ struct BlockApp {
 type Account = SavedAccount;
 
 struct PendingAccountRequest {
-    receiver: platform::RequestResult<Result<Session, String>>,
+    receiver: platform::RequestResult<accounts::LoginEvent>,
+    browser: Option<accounts::BrowserLogin>,
+    _cancel: tokio::sync::oneshot::Sender<()>,
     server: ServerLocation,
     url: String,
     authorization: Option<String>,
@@ -549,7 +560,6 @@ type OrganizationRequestError = AccountError;
 
 struct ReauthState {
     account: Account,
-    pending: Option<platform::RequestResult<Result<Session, String>>>,
     error: Option<String>,
 }
 
@@ -586,7 +596,7 @@ const CACHES: [&str; 2] = ["be-objects", "plugin-cache"];
 
 #[cfg(not(target_arch = "wasm32"))]
 fn forget_caches_of_other_builds(data_dir: &Path) -> io::Result<()> {
-    let stamp = data_dir.join(build_id::FILE);
+    let stamp = data_dir.join("build-id");
     let current = build_id::current().map_err(io::Error::other)?;
     if std::fs::read_to_string(&stamp).is_ok_and(|cached| cached == current) {
         return Ok(());
@@ -675,6 +685,8 @@ impl BlockApp {
             add_account_open: false,
             add_account_generation: 0,
             pending_account_request: None,
+            #[cfg(not(target_arch = "wasm32"))]
+            session_mode: false,
             account_error: None,
             organization: None,
             organizations: Vec::new(),
@@ -917,7 +929,9 @@ impl BlockApp {
     }
 
     fn loading(&self) -> bool {
-        self.pending_account_request.is_some()
+        self.pending_account_request
+            .as_ref()
+            .is_some_and(|pending| pending.browser.is_none())
             || self.pending_organization_request.is_some()
             || !self.pending_transfers.is_empty()
             || !self.pending_copies.is_empty()
@@ -944,14 +958,12 @@ impl BlockApp {
             self.switch_account(account);
             return;
         }
+        self.add_account_open = remote_url.is_some();
         self.begin_account_request(AccountForm {
-            register: true,
             remote: remote_url.is_some(),
             remote_url: remote_url.unwrap_or_default(),
             authorization: String::new(),
-            email: "dev@localhost".to_owned(),
             display_name: "Dev".to_owned(),
-            password: "dev-password".to_owned(),
         });
     }
 
@@ -1038,37 +1050,40 @@ impl BlockApp {
             .filter(|header| remote && !header.is_empty());
         be_client::authorize(&url, authorization.clone());
         let requested = url.clone();
-        let AccountForm {
-            register,
-            email,
-            display_name,
-            password,
-            ..
-        } = form;
-        let dev = self.dev_workspace;
-        let receiver = platform::spawn_request(async move {
-            if !register {
-                return accounts::login(requested, email, password)
+        let display_name = form.display_name;
+        let default = platform::default_account_server();
+        let auth_url = default
+            .filter(|server| server.api_url == url)
+            .map(|server| server.auth_url)
+            .unwrap_or_else(|| format!("{}/auth", accounts::link_base(&url)));
+        let (sender, receiver) = host::waking_channel();
+        let (cancel, cancelled) = tokio::sync::oneshot::channel();
+        let _ = platform::spawn_request(async move {
+            let notify = sender.clone();
+            let result = if !remote {
+                accounts::create_local_profile(requested, display_name)
                     .await
-                    .map_err(|error| error.to_string());
-            }
-            match accounts::register(
-                requested.clone(),
-                email.clone(),
-                display_name,
-                password.clone(),
-            )
-            .await
-            {
-                Err(error) if dev => accounts::login(requested, email, password)
-                    .await
-                    .map_err(|_| error.to_string()),
-                registered => registered.map_err(|error| error.to_string()),
-            }
+                    .map_err(|error| error.to_string())
+            } else {
+                accounts::browser_login(
+                    requested,
+                    auth_url,
+                    move |browser| {
+                        let _ = notify.send(accounts::LoginEvent::Browser(browser));
+                    },
+                    Box::pin(async {
+                        let _ = cancelled.await;
+                    }),
+                )
+                .await
+            };
+            let _ = sender.send(accounts::LoginEvent::Finished(result));
         });
         self.account_error = None;
         self.pending_account_request = Some(PendingAccountRequest {
             receiver,
+            browser: None,
+            _cancel: cancel,
             server,
             url,
             authorization,
@@ -1080,19 +1095,41 @@ impl BlockApp {
             .pending_account_request
             .as_ref()
             .and_then(|pending| pending.receiver.try_recv().ok());
-        let Some(result) = result else {
+        let Some(event) = result else {
             return;
         };
+        let result = match event {
+            accounts::LoginEvent::Browser(browser) => {
+                #[cfg(not(target_arch = "wasm32"))]
+                if !self.session_mode {
+                    self.account_error = platform::open_browser(&browser.url).err();
+                }
+                self.pending_account_request.as_mut().unwrap().browser = Some(browser);
+                return;
+            }
+            accounts::LoginEvent::Finished(result) => result,
+        };
         let pending = self.pending_account_request.take().unwrap();
+        if self.reauth.is_some() {
+            self.add_account_open = false;
+            self.finish_reauth_request(result);
+            return;
+        }
         match result {
             Ok(session) => {
                 let saved = SavedAccount {
-                    server: pending.server,
+                    server: pending.server.clone(),
                     id: session.account,
                     email: session.email,
                     name: session.display_name,
                     token: session.token,
-                    last_organization_id: None,
+                    last_organization_id: self
+                        .accounts
+                        .iter()
+                        .find(|account| {
+                            account.server == pending.server && account.id == session.account
+                        })
+                        .and_then(|account| account.last_organization_id),
                     authorization: pending.authorization.clone(),
                 };
                 if let Err(error) = self.app_state.save_account(&saved) {
@@ -1122,6 +1159,10 @@ impl BlockApp {
     }
 
     fn log_out_account(&mut self, account: &Account) {
+        if account.server == ServerLocation::Local {
+            self.close_reauth();
+            return;
+        }
         let url = match &account.server {
             ServerLocation::Local => self.local_server_url.clone(),
             ServerLocation::Remote(url) => url.clone(),
@@ -1301,48 +1342,48 @@ impl BlockApp {
         }
         self.reauth = Some(ReauthState {
             account: self.account.clone(),
-            pending: None,
             error: None,
         });
     }
 
-    fn begin_reauth_request(&mut self, password: String) {
+    fn begin_reauth_request(&mut self) {
         let Some(reauth) = &self.reauth else {
             return;
         };
-        if reauth.pending.is_some() || password.is_empty() {
+        let account = reauth.account.clone();
+        if self.pending_account_request.is_some() {
             return;
         }
-        let url = match &reauth.account.server {
-            ServerLocation::Local => self.local_server_url.clone(),
-            ServerLocation::Remote(url) => url.clone(),
-        };
-        let email = reauth.account.email.clone();
-        let receiver = platform::spawn_request(async move {
-            accounts::login(url, email, password)
-                .await
-                .map_err(|error| error.to_string())
-        });
-        let reauth = self.reauth.as_mut().unwrap();
-        reauth.error = None;
-        reauth.pending = Some(receiver);
-    }
-
-    fn poll_reauth_request(&mut self) {
-        let result = self
-            .reauth
-            .as_ref()
-            .and_then(|reauth| reauth.pending.as_ref())
-            .and_then(|receiver| receiver.try_recv().ok());
-        let Some(result) = result else {
+        let ServerLocation::Remote(url) = account.server else {
+            self.reauth.as_mut().unwrap().error = Some(
+                "This local profile is no longer available. Create a new local account.".into(),
+            );
             return;
         };
+        self.add_account_open = true;
+        self.begin_account_request(AccountForm {
+            remote: true,
+            remote_url: url,
+            authorization: account.authorization.unwrap_or_default(),
+            display_name: String::new(),
+        });
+    }
+
+    fn finish_reauth_request(&mut self, result: Result<Session, String>) {
         let Some(mut reauth) = self.reauth.take() else {
             return;
         };
-        reauth.pending = None;
         match result {
             Ok(session) => {
+                if session.account != reauth.account.id {
+                    let url = self.server_url.clone();
+                    let token = session.token;
+                    let _ = platform::spawn_request(accounts::logout(url, token));
+                    reauth.error =
+                        Some("Sign in to the same account to restore this session.".into());
+                    self.reauth = Some(reauth);
+                    return;
+                }
                 let mut updated = reauth.account.clone();
                 updated.id = session.account;
                 updated.email = session.email;
@@ -2429,11 +2470,11 @@ impl BlockApp {
         performance::begin_frame();
         plugin_host::poll();
         self.watch_shell();
+        self.poll_account_request();
         #[cfg(target_os = "linux")]
         self.run_notifications();
         if !self.signed_in {
             be::stop();
-            self.poll_account_request();
             performance::end_frame();
             return;
         }
@@ -2448,7 +2489,6 @@ impl BlockApp {
         if self.organization.is_none() {
             be::stop();
             self.load_organizations_if_needed();
-            self.poll_reauth_request();
             performance::end_frame();
             return;
         }
@@ -2458,7 +2498,6 @@ impl BlockApp {
                 self.load_organizations_if_needed();
             }
             self.poll_organization_request();
-            self.poll_reauth_request();
             performance::end_frame();
             return;
         }
@@ -2475,7 +2514,6 @@ impl BlockApp {
         self.contacts.publish();
         self.members.poll();
         self.poll_organization_request();
-        self.poll_reauth_request();
         if self.choosing_session {
             self.root_settings.ensure();
             performance::end_frame();
@@ -2622,6 +2660,22 @@ impl BlockApp {
                     self.begin_account_request(form);
                 }
             }
+            UiCommand::OpenLoginBrowser => {
+                if let Some(browser) = self
+                    .pending_account_request
+                    .as_ref()
+                    .and_then(|pending| pending.browser.as_ref())
+                {
+                    self.account_error = platform::open_browser(&browser.url).err();
+                }
+            }
+            UiCommand::RetryAccount => {
+                self.pending_account_request = None;
+                self.account_error = None;
+                if self.reauth.is_some() {
+                    self.begin_reauth_request();
+                }
+            }
             UiCommand::CloseAddAccount => {
                 self.add_account_open = false;
                 self.pending_account_request = None;
@@ -2693,7 +2747,7 @@ impl BlockApp {
                 let account = self.account.clone();
                 self.log_out_account(&account);
             }
-            UiCommand::ReauthSubmit(password) => self.begin_reauth_request(password),
+            UiCommand::ReauthSubmit => self.begin_reauth_request(),
             UiCommand::ReauthLogOut => {
                 if let Some(account) = self.reauth.take().map(|reauth| reauth.account) {
                     self.log_out_account(&account);
@@ -2889,6 +2943,10 @@ impl BlockApp {
                 open: self.add_account_open,
                 generation: self.add_account_generation,
                 pending: self.pending_account_request.is_some(),
+                browser: self
+                    .pending_account_request
+                    .as_ref()
+                    .and_then(|pending| pending.browser.clone()),
                 error: self
                     .add_account_open
                     .then(|| self.account_error.clone())
@@ -2932,8 +2990,8 @@ impl BlockApp {
                 created: self.organization_created,
             },
             reauth: self.reauth.as_ref().map(|reauth| ui::ReauthView {
-                email: reauth.account.email.clone(),
-                busy: reauth.pending.is_some(),
+                name: reauth.account.name.clone(),
+                busy: self.pending_account_request.is_some(),
                 error: reauth.error.clone(),
             }),
             status: ui::StatusView {

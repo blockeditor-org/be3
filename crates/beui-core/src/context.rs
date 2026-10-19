@@ -59,6 +59,7 @@ struct Inner {
     fullscreen_shown: Cell<bool>,
     close_requested: Cell<bool>,
     touch_emulation: Cell<bool>,
+    motion: Cell<crate::animation::Motion>,
     input_simulation: RefCell<Option<Box<dyn InputSimulation>>>,
     keyboard: RefCell<crate::software_keyboard::KeyboardState>,
     simulation_area: Cell<(Rect, f32)>,
@@ -265,6 +266,7 @@ impl Context {
                 fullscreen_shown: Cell::new(false),
                 close_requested: Cell::new(false),
                 touch_emulation: Cell::new(false),
+                motion: Cell::new(crate::animation::Motion::default()),
                 input_simulation: RefCell::new(None),
                 keyboard: RefCell::new(Default::default()),
                 simulation_area: Cell::new((Rect::NOTHING, 1.0)),
@@ -747,6 +749,16 @@ impl Context {
             window.cursor = CursorIcon::Touch;
         }
         window
+    }
+
+    pub fn motion(&self) -> crate::animation::Motion {
+        self.inner.motion.get()
+    }
+
+    pub fn set_motion(&self, motion: crate::animation::Motion) {
+        if self.inner.motion.replace(motion) != motion {
+            self.request_repaint();
+        }
     }
 
     pub fn touch_emulation(&self) -> bool {

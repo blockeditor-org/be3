@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn import_file_builds_text_sample() {
-    let artifact = import_file("text.qxc", include_str!("../../../samples/text.qxc"))
+    let artifact = import_file("text.qxc", include_str!("samples/text.qxc"))
         .unwrap_or_else(|errors| panic!("text.qxc failed to build: {errors:?}"));
 
     let ComptimeValueBuildArtifact::Folder(folder) = artifact else {

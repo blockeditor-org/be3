@@ -24,16 +24,10 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.click("#file-tree.desktop-app-menu");
     app.click("#app.menu.accounts");
     app.click("Button \"Add account\"");
-    app.click("Tab \"Register\"");
-    for (field, value) in [
-        ("Email address", "ada@example.com"),
-        ("Display name", "Ada"),
-        ("Password", "correct horse battery"),
-    ] {
-        app.click(&format!("TextInput \"{field}\""));
-        app.type_text(value);
-    }
-    app.click("Button \"Register\"");
+    app.click("#account.local");
+    app.click("#account.name");
+    app.type_text("Ada");
+    app.click("#account.continue");
     app.wait("Label value=\"Check that you saved them\"");
     confirm_phrase(&mut app);
     app.click("Button \"Personal\"");
@@ -43,7 +37,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.type_text(&link);
     app.click("#app.contacts.open");
     app.click("#app.contacts.accept");
-    app.wait("Label value=\"dev@localhost\"");
+    app.wait("Label value=\"Dev\"");
     app.key("Escape");
     app.pause(500);
     app.gone("Dialog \"Contacts\"");
@@ -58,18 +52,18 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.click("#file-tree.section.share");
     app.click("#share.query");
     app.type_text("dev");
-    app.click("Button \"Dev (dev@localhost)\"");
+    app.click("Button \"Dev\"");
     app.click("#share.add");
-    app.wait("Label value=\"dev@localhost\"");
+    app.wait("Label value=\"Dev\"");
     app.click("Button \"Done\"");
 
     app.click("#file-tree.desktop-app-menu");
     app.click("#app.menu.accounts");
-    app.wait("Label value=\"dev@localhost\"");
+    app.wait("Label value=\"Dev\"");
     let tree = app.tree();
     let open = tree
         .lines()
-        .skip_while(|line| !line.contains("Label value=\"dev@localhost\""))
+        .skip_while(|line| !line.contains("Label value=\"Dev\""))
         .find(|line| line.contains("Button \"Open\""))
         .and_then(|line| line.split(" at ").nth(1))
         .and_then(|place| place.split(' ').next())

@@ -7,13 +7,13 @@ cargo_test()
 
 cargo_binary()
 
-# be with its build-id file beside it, which it greets the server with:
+# be with its build-info.json file beside it, which it greets the server with:
 # `./scripts/buck run //crates/be-cli:native -- ARGS`.
 app(
     name = "native",
     binary = ":bin",
     executable_name = "be",
-    files = ["//buck/app:build-id"],
+    files = ["//buck/app:build-info.json"],
     manifests = [],
     modules = [],
     visibility = ["//crates/local-tools:"],

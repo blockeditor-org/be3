@@ -313,7 +313,7 @@ fn Cell(
             false => TextAlign::Start,
         }
     });
-    let test_id = create_memo(move || format!("database-view.cell.{}.{id}", row.get()));
+    let element_test_id = create_memo(move || format!("database-view.cell.{}.{id}", row.get()));
     let click = move || {
         let row = row.get_untracked();
         data.select(row, Some(id));
@@ -348,7 +348,7 @@ fn Cell(
             fill={ColorRole::custom(fill)}
             border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(BORDER)))}
         >
-            <Interactive @test_id={test_id} on_click={click}>
+            <Interactive @test_id={element_test_id} on_click={click}>
                 <Frame padding={Sides::horizontal(CELL_PADDING)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=CELL_PADDING>
                         <Show condition={boolean}>

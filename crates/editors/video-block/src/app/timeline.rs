@@ -293,7 +293,7 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
     let trim_scale = scale;
     let trim_edge_scale = scale;
     let editor = state.editor();
-    let test_id = format!("video.clip.{}", row.id);
+    let element_test_id = format!("video.clip.{}", row.id);
     let grabbed_at = Rc::new(Cell::new(None::<Pos2>));
     let grabbing = Rc::clone(&grabbed_at);
 
@@ -302,7 +302,7 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
             <Draggable
                 payload={row.id}
                 cursor=CursorIcon::Grab
-                @test_id={test_id}
+                @test_id={element_test_id}
                 on_click={move || state.select(Some(row.id))}
                 on_drag_change={move |dragging: bool| {
                     if !dragging {

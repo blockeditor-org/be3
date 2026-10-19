@@ -30,7 +30,7 @@ configure_build_server "$buck2"
 
 command="${1:-}"
 
-# Every command that builds or queries first brings buck/app/build-id up to
+# Every command that builds or queries first brings buck/app/build-info.json up to
 # date (write_build_id in common.sh).
 case "$command" in
     build | run | test | bxl | install | targets | query | cquery | uquery | aquery | audit)

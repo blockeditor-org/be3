@@ -12,6 +12,7 @@ use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
 use crate::cli::{self, Invocation, Outcome};
+use crate::session::Settings;
 use crate::tracker::{Assignment, Body, RowView, Tracker};
 
 mod a_choice_option_takes_a_colour_an_icon_and_closes_rows;
@@ -25,11 +26,14 @@ mod a_pull_request_moves_the_rows_it_names;
 mod a_row_blocked_by_another_shows_as_blocking_there;
 mod a_spreadsheet_escaped_cell_is_read_as_written;
 mod a_token_is_never_sent_unencrypted_to_another_machine;
+mod agent_credentials_are_read_as_one_json_bundle;
 mod an_agent_reads_and_writes_the_rows_shared_with_it;
 mod an_edited_page_keeps_what_someone_else_changed_meanwhile;
 mod an_import_links_rows_to_each_other_by_their_old_ids;
 mod arguments_parse_into_commands;
 mod blocks_are_listed_and_found_by_short_id_or_name;
+mod malformed_agent_credentials_do_not_disclose_secrets;
+mod proxy_credentials_do_not_need_an_account_token;
 mod rows_are_added_filtered_changed_and_given_pages;
 mod two_databases_with_one_prefix_are_refused;
 
@@ -70,11 +74,14 @@ impl Harness {
             PeerConfig::new(
                 be_client::socket_url(&self.url),
                 be_keys::RecoveryPhrase::generate().secret(),
-                Credentials::Register {
-                    email: "owner@example.com".into(),
-                    display_name: "Owner".into(),
-                    password: "correct horse battery".into(),
-                },
+                Credentials::Token(
+                    be_server::ServerStore::open(&self.directory)
+                        .unwrap()
+                        .register("owner@example.com", "Owner", "correct horse battery")
+                        .await
+                        .unwrap()
+                        .1,
+                ),
             ),
             MemoryStore::new(),
         )

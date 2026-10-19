@@ -1,3 +1,5 @@
+pub(crate) mod portal;
+pub use portal::{AccountSession, MailLink};
 use std::{
     collections::{BTreeMap, HashMap, hash_map::Entry},
     path::{Path, PathBuf},
@@ -47,6 +49,7 @@ pub struct Profile {
 
 pub struct ServerStore {
     database: Mutex<Connection>,
+    pub(crate) session_changes: tokio::sync::watch::Sender<u64>,
     objects: FileStore,
     graphs: Mutex<HashMap<Uuid, BlockGraph>>,
     revision: std::sync::atomic::AtomicU64,
@@ -70,10 +73,13 @@ impl ServerStore {
         let root: PathBuf = root.as_ref().to_path_buf();
         std::fs::create_dir_all(&root)?;
         let connection = Connection::open(root.join("metadata.sqlite"))?;
+        connection.busy_timeout(Duration::from_secs(5))?;
         schema::initialize(&connection)?;
+        connection.execute("UPDATE sessions SET kind = 'app', public_id = lower(hex(randomblob(16))), created = ?1 WHERE kind = 'legacy' AND (account_id IN (SELECT account_id FROM agents) OR account_id IN (SELECT id FROM accounts WHERE local_profile = 1))", [portal::now()])?;
         let object_refs = load_object_refs(&connection)?;
         Ok(Self {
             database: Mutex::new(connection),
+            session_changes: tokio::sync::watch::channel(0).0,
             objects: FileStore::open(root.join("objects"))?,
             graphs: Mutex::new(HashMap::new()),
             revision: std::sync::atomic::AtomicU64::new(0),
@@ -81,6 +87,45 @@ impl ServerStore {
             hashing: tokio::sync::Semaphore::new(PASSWORD_CHECKS_AT_ONCE),
             failures: std::sync::Mutex::new(HashMap::new()),
         })
+    }
+
+    pub async fn create_local_profile(
+        &self,
+        display_name: &str,
+    ) -> Result<(Profile, String), ServerError> {
+        let display_name = display_name.trim();
+        if display_name.is_empty() {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidRequest,
+                "a display name is required".into(),
+            ));
+        }
+        let account = Uuid::new_v4();
+        let database = self.database.lock().await;
+        let transaction = database.unchecked_transaction()?;
+        transaction.execute(
+            "INSERT INTO accounts (id, email, display_name, password_hash, local_profile) VALUES (?1, ?2, ?3, '', 1)",
+            params![
+                account.to_string(),
+                format!("{account}@local.invalid"),
+                display_name
+            ],
+        )?;
+        let personal = personal_organization(&transaction)?;
+        transaction.execute(
+            "INSERT INTO memberships (organization_id, account_id, role) VALUES (?1, ?2, 'editor')",
+            params![personal.to_string(), account.to_string()],
+        )?;
+        let token = issue_token(&transaction, account)?;
+        transaction.commit()?;
+        Ok((
+            Profile {
+                account,
+                email: String::new(),
+                display_name: display_name.to_owned(),
+            },
+            token,
+        ))
     }
 
     pub async fn register(
@@ -142,7 +187,7 @@ impl ServerStore {
         ))
     }
 
-    pub async fn login(
+    pub async fn login_browser(
         &self,
         email: &str,
         password: &str,
@@ -171,7 +216,7 @@ impl ServerStore {
             .as_ref()
             .map_or_else(|| dummy_hash().to_owned(), |(_, _, hash)| hash.clone());
         let matches = self.verify(password.to_owned(), hash).await?;
-        let Some((id, display_name, _)) = row.filter(|_| matches) else {
+        let Some((id, display_name, previous_hash)) = row.filter(|_| matches) else {
             self.failed(&email);
             return Err(ServerError::Refused(
                 ErrorCode::InvalidCredentials,
@@ -180,7 +225,25 @@ impl ServerStore {
         };
         self.failures.lock().unwrap().remove(&email);
         let account = parse_uuid(&id)?;
-        let token = issue_token(&*self.database.lock().await, account)?;
+        let database = self.database.lock().await;
+        let transaction = database.unchecked_transaction()?;
+        let unchanged: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM accounts WHERE id = ?1 AND password_hash = ?2)",
+            params![id, previous_hash],
+            |row| row.get(0),
+        )?;
+        if !unchanged {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidCredentials,
+                "Your credentials changed. Sign in again.".into(),
+            ));
+        }
+        let token = issue_token(&transaction, account)?;
+        transaction.execute(
+            "UPDATE sessions SET kind = 'browser', expires = ?2 WHERE token_hash = ?1",
+            params![hash_token(&token), portal::now() + 30 * 86400],
+        )?;
+        transaction.commit()?;
         Ok((
             Profile {
                 account,
@@ -248,9 +311,9 @@ impl ServerStore {
         let database = self.database.lock().await;
         let row: Option<(String, String, String)> = database
             .query_row(
-                "SELECT accounts.id, accounts.email, accounts.display_name FROM sessions
+                "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name FROM sessions
                  JOIN accounts ON accounts.id = sessions.account_id
-                 WHERE sessions.token_hash = ?1",
+                 WHERE sessions.token_hash = ?1 AND sessions.kind = 'app'",
                 [hash_token(token)],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
@@ -271,7 +334,7 @@ impl ServerStore {
     pub async fn profile(&self, account: Uuid) -> Result<Profile, ServerError> {
         let database = self.database.lock().await;
         let (email, display_name): (String, String) = database.query_row(
-            "SELECT email, display_name FROM accounts WHERE id = ?1",
+            "SELECT CASE WHEN local_profile THEN '' ELSE email END, display_name FROM accounts WHERE id = ?1",
             [account.to_string()],
             |row| Ok((row.get(0)?, row.get(1)?)),
         )?;
@@ -288,6 +351,7 @@ impl ServerStore {
             "DELETE FROM sessions WHERE token_hash = ?1",
             [hash_token(token)],
         )?;
+        self.sessions_changed();
         Ok(())
     }
 
@@ -531,12 +595,7 @@ impl ServerStore {
         contact: Vec<u8>,
         escrow: Vec<u8>,
     ) -> Result<(Agent, String), ServerError> {
-        if self.membership(caller, organization).await? != OrganizationRole::Administrator {
-            return Err(ServerError::Refused(
-                ErrorCode::PermissionDenied,
-                "only an organization administrator can add an agent".into(),
-            ));
-        }
+        self.membership(caller, organization).await?;
         let name = name.trim().to_owned();
         if name.is_empty() {
             return Err(ServerError::Refused(
@@ -598,16 +657,19 @@ impl ServerStore {
         let mut statement = database.prepare(
             "SELECT accounts.id, accounts.display_name, accounts.email FROM agents
              JOIN accounts ON accounts.id = agents.account_id
-             WHERE agents.organization_id = ?1
+             WHERE agents.organization_id = ?1 AND agents.created_by = ?2
              ORDER BY accounts.display_name, accounts.id",
         )?;
-        let rows = statement.query_map([organization.to_string()], |row| {
-            Ok((
-                row.get::<_, String>(0)?,
-                row.get::<_, String>(1)?,
-                row.get::<_, String>(2)?,
-            ))
-        })?;
+        let rows = statement.query_map(
+            params![organization.to_string(), caller.to_string()],
+            |row| {
+                Ok((
+                    row.get::<_, String>(0)?,
+                    row.get::<_, String>(1)?,
+                    row.get::<_, String>(2)?,
+                ))
+            },
+        )?;
         let mut agents = Vec::new();
         for row in rows {
             let (account, name, email) = row?;
@@ -626,17 +688,12 @@ impl ServerStore {
         organization: Uuid,
         agent: Uuid,
     ) -> Result<Vec<crate::contacts::Granted>, ServerError> {
-        if self.membership(caller, organization).await? != OrganizationRole::Administrator {
-            return Err(ServerError::Refused(
-                ErrorCode::PermissionDenied,
-                "only an organization administrator can remove an agent".into(),
-            ));
-        }
+        self.membership(caller, organization).await?;
         self.with_graph(organization, move |graph, database| {
             let is_agent = database
                 .query_row(
-                    "SELECT 1 FROM agents WHERE account_id = ?1 AND organization_id = ?2",
-                    params![agent.to_string(), organization.to_string()],
+                    "SELECT 1 FROM agents WHERE account_id = ?1 AND organization_id = ?2 AND created_by = ?3",
+                    params![agent.to_string(), organization.to_string(), caller.to_string()],
                     |_| Ok(()),
                 )
                 .optional()?
@@ -670,7 +727,7 @@ impl ServerStore {
         let database = self.database.lock().await;
         let contacts = crate::contacts::contacts_of(&database, identity.account)?;
         let mut statement = database.prepare(
-            "SELECT accounts.id, accounts.email, accounts.display_name, memberships.role,
+            "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name, memberships.role,
                     agents.account_id IS NOT NULL
              FROM memberships
              JOIN accounts ON accounts.id = memberships.account_id
@@ -882,10 +939,17 @@ fn load_object_refs(connection: &Connection) -> Result<ObjectRefs, ServerError> 
 
 pub fn normalize_email(email: &str) -> Result<String, ServerError> {
     let email = email.trim().to_ascii_lowercase();
-    if !email.contains('@') || email.len() < 3 {
+    let valid = email.split_once('@').is_some_and(|(local, domain)| {
+        !local.is_empty()
+            && local.len() <= 64
+            && !domain.is_empty()
+            && !domain.contains('@')
+            && !domain.split('.').any(str::is_empty)
+    });
+    if !valid || email.len() > 254 || email.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return Err(ServerError::Refused(
             ErrorCode::InvalidRequest,
-            "that email address is not valid".into(),
+            "Email: enter a valid email address of at most 254 bytes.".into(),
         ));
     }
     Ok(email)
@@ -921,8 +985,8 @@ fn issue_token(database: &Connection, account: Uuid) -> Result<String, ServerErr
         .expect("the operating system has entropy");
     let token = Hash::from_bytes(bytes).to_hex();
     database.execute(
-        "INSERT INTO sessions (token_hash, account_id) VALUES (?1, ?2)",
-        params![hash_token(&token), account.to_string()],
+        "INSERT INTO sessions (token_hash, account_id, kind, public_id, created) VALUES (?1, ?2, 'app', ?3, ?4)",
+        params![hash_token(&token), account.to_string(), Uuid::new_v4().to_string(), portal::now()],
     )?;
     Ok(token)
 }

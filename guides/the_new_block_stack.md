@@ -170,7 +170,7 @@ time, so notifications wait for the next post.
   does not match.
 - A connection starts with a greeting outside the protocol: each side sends
   `be_protocol::hello` with its build id (`build_id::current()`, read from the
-  `build-id` file beside the executable, or `--build-id-file`), and the server
+  `build-info.json` file beside the executable, or `--build-info-file`), and the server
   closes the connection when the ids differ (`ClientError::Incompatible` on the
   client). A program with no id is an error, not a wildcard: the client fails
   with `ClientError::NoBuild`, the server does not start, and a test installs
@@ -238,27 +238,25 @@ time, so notifications wait for the next post.
   announcements interleave), and the revision is how the client puts them back
   in order. The counter restarts with the server, which a client sees as a
   reconnect and a reload.
-- Accounts live here. `Register` (refused unless the server runs with
-  `--allow-registration`; the app's embedded server and the dev targets do),
-  `Login` (refused unless the server runs with `--allow-login`, so a server
-  on the internet takes only the tokens of devices already signed in),
-  `Authenticate` with a token and `Logout`; organizations are created
+- Accounts live here. Remote password authentication and verified registration use
+  the `/auth` portal. The protocol uses browser sign-in handoff, `Authenticate`
+  with a token, header authentication, and `Logout`; organizations are created
   through it, and an administrator can `Invite` an email under an id the
   inviting client picks. Accepting an invitation makes inviter and invitee
   contacts. Only an account with that email can read the
   invitation (`GetInvitation`) or join with it (`AcceptInvitation`), once;
   inviting the same email again replaces it. There is no list of an account's
   invitations: the id only reaches the invitee in the link (see Keys).
-  `--add-account EMAIL NAME ORGANIZATION` provisions an account and its organization
-  from the command line, reading the password from standard input. Password
+  Remote accounts register and sign in through the server’s `/auth` portal;
+  registration verifies email ownership before creating the account. Password
   checks run off the database lock, a few at a time, and an email with five
   failed sign-ins in a row is locked out for a time that doubles with each
   further failure.
-  The server never reads `Authorization`, which is left to a gateway in front
-  of it. An administrator's `CreateAgent` makes an agent: an
+  The server never reads `Be3-Gateway-Authorization`, which is left to a gateway in front
+  of it. A member's `CreateAgent` makes an agent in either organization kind: an
   editor account with no password, with the recovery public key the caller made
   for it, and a token, answered once (guides/tracker.md); the agent and its
-  creator become contacts.
+  creator become contacts. Only the creator can list or remove that agent.
 - An object is served only to a member who can view a block that holds it, by
   a commit (`commit_objects`) or by `HoldObjects`; anything else reads as
   missing. A merge commit holds its extra parents' objects, so a `stash` that
@@ -337,7 +335,7 @@ tokio-tungstenite natively, the browser's own `WebSocket` in `web.rs` - plus the
 `spawn` each one's executor wants. Natively, an `http(s)://` URL (`http_url`)
 takes the server's HTTP posts instead of a websocket (`transport/native/http.rs`),
 and both go through `HTTPS_PROXY`. `be_client::authorize` registers an
-`Authorization` header for a server's origin, which every native connection to
+`Be3-Gateway-Authorization` header for a server's origin, which every native connection to
 it sends; a browser cannot add one to a websocket. `Connection` above it is the same code
 everywhere, and it waits on its command channel and its socket rather than
 polling either.
@@ -660,9 +658,12 @@ store of its own: history is be-store objects and be-commit commits.
 ## Running it
 
 ```
-echo hunter2hunter2 | ./scripts/buck run //crates/be-server:bin -- --add-account you@example.com "You" Organization
-./scripts/buck run //crates/be-server:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data
+./scripts/buck run //crates/be-server:bin -- --addr 127.0.0.1:9090 --data-dir be-server-data --allow-login --allow-registration
 ```
+
+Open `http://127.0.0.1:9090/auth` to register. Until email delivery is connected,
+verification messages are printed in the server log. Deployments also configure
+`--auth-origin` with the public HTTPS origin (guides/hosting.md).
 
 `--addr` (or `--address`) defaults to `127.0.0.1:9090` and `--data-dir` to
 `be-server-data`. The desktop app does not need a server of its own for a local

@@ -72,6 +72,22 @@ impl Sessions {
         }
     }
 
+    pub(crate) async fn revoke_invalid(&self, store: &crate::ServerStore) {
+        let sessions: Vec<_> = self.open.lock().unwrap().values().cloned().collect();
+        for session in sessions {
+            let mut session = session.lock().await;
+            let Some(client) = &session.client else {
+                continue;
+            };
+            if let Some(token) = &client.connection.token
+                && store.resolve_token(token).await.is_err()
+                && let Some(client) = session.client.take()
+            {
+                client.close().await;
+            }
+        }
+    }
+
     pub(crate) async fn close_all(&self) {
         let open: Vec<Arc<Mutex<Session>>> = self
             .open
@@ -100,6 +116,25 @@ pub(crate) async fn route(
         return Ok(None);
     }
     let head = Head::parse(&buffer)?;
+    if head
+        .path
+        .split('?')
+        .next()
+        .is_some_and(|path| path == "/auth" || path.starts_with("/auth/"))
+    {
+        serve_auth(stream, buffer, services).await?;
+        return Ok(None);
+    }
+    if services.config.local_profiles && head.origin.is_some() {
+        respond(
+            &mut stream,
+            403,
+            None,
+            b"browser access to local profiles is unavailable",
+        )
+        .await?;
+        return Ok(None);
+    }
     if head.method == "POST"
         && head
             .path
@@ -116,6 +151,112 @@ pub(crate) async fn route(
         position: 0,
         stream,
     }))
+}
+
+async fn serve_auth(
+    mut stream: TcpStream,
+    mut buffer: Vec<u8>,
+    services: &Services,
+) -> Result<(), ServerError> {
+    let head = Head::parse(&buffer)?;
+    if head.length > 16 * 1024 {
+        return respond(&mut stream, 413, None, b"the form is too large").await;
+    }
+    let host = head.host.as_deref().unwrap_or_default();
+    let local = host == "localhost"
+        || host.starts_with("localhost:")
+        || host == "127.0.0.1"
+        || host.starts_with("127.0.0.1:")
+        || host == "[::1]"
+        || host.starts_with("[::1]:");
+    let origin = services
+        .config
+        .auth_origin
+        .clone()
+        .unwrap_or_else(|| format!("{}://{host}", if local { "http" } else { "https" }));
+    if !local && services.config.auth_origin.is_none() {
+        return respond(
+            &mut stream,
+            503,
+            None,
+            b"The server operator must configure --auth-origin before using the account portal.",
+        )
+        .await;
+    }
+    let (path, query) = head.path.split_once('?').unwrap_or((&head.path, ""));
+    let query = crate::browser_auth::fields(query);
+    let mut fields = HashMap::new();
+    if head.method == "POST" {
+        if head.origin.as_deref() != Some(origin.as_str()) {
+            return respond(
+                &mut stream,
+                403,
+                None,
+                b"submit this form from the server's account portal",
+            )
+            .await;
+        }
+        if head
+            .content_type
+            .as_deref()
+            .and_then(|value| value.split(';').next())
+            != Some("application/x-www-form-urlencoded")
+        {
+            return respond(&mut stream, 415, None, b"use the account portal's form").await;
+        }
+        let mut body = buffer.split_off(head.size);
+        tokio::time::timeout(HANDSHAKE_TIMEOUT, async {
+            while body.len() < head.length {
+                let mut chunk = vec![0; head.length - body.len()];
+                let count = stream.read(&mut chunk).await?;
+                if count == 0 {
+                    return Err(ServerError::Socket("incomplete form".into()));
+                }
+                body.extend_from_slice(&chunk[..count]);
+            }
+            Ok(())
+        })
+        .await
+        .map_err(|_| ServerError::Socket("the form timed out".into()))??;
+        fields = crate::browser_auth::fields(
+            std::str::from_utf8(&body[..head.length]).unwrap_or_default(),
+        );
+    }
+    let token = head
+        .cookie
+        .as_deref()
+        .unwrap_or_default()
+        .split(';')
+        .filter_map(|part| part.trim().split_once('='))
+        .find(|(key, _)| *key == "be3-account")
+        .map(|(_, value)| value)
+        .unwrap_or_default();
+    let result = crate::portal::handle(
+        services,
+        &head.method,
+        path,
+        &query,
+        &fields,
+        token,
+        &origin,
+    )
+    .await?;
+    let mut extras = String::new();
+    if let Some(location) = result.location {
+        extras.push_str(&format!("Location: {location}\r\n"));
+    }
+    if let Some(cookie) = result.cookie {
+        extras.push_str(&format!("Set-Cookie: be3-account={cookie}; Path=/auth; HttpOnly; SameSite=Lax; Max-Age={}{}\r\n", if cookie.is_empty() { 0 } else { 30 * 86400 }, if origin.starts_with("https://") { "; Secure" } else { "" }));
+    }
+    let html = result.html;
+    let status = result.status;
+    let response = format!(
+        "HTTP/1.1 {status} Response\r\n{extras}Content-Type: text/html; charset=utf-8\r\nCache-Control: no-store\r\nContent-Security-Policy: default-src 'none'; style-src 'unsafe-inline'; form-action 'self'; frame-ancestors 'none'; base-uri 'none'\r\nX-Content-Type-Options: nosniff\r\nReferrer-Policy: strict-origin\r\nConnection: close\r\nContent-Length: {}\r\n\r\n{html}",
+        html.len()
+    );
+    stream.write_all(response.as_bytes()).await?;
+    stream.shutdown().await?;
+    Ok(())
 }
 
 async fn serve(
@@ -139,7 +280,13 @@ async fn serve(
         }
         buffer = body.split_off(head.length);
         services.http.sweep().await;
-        let answer = answer(head.session.as_deref(), &body, services).await?;
+        let answer = answer(
+            head.session.as_deref(),
+            head.authorization.as_deref(),
+            &body,
+            services,
+        )
+        .await?;
         respond(
             &mut stream,
             answer.status,
@@ -167,6 +314,7 @@ struct Answer {
 
 async fn answer(
     session: Option<&str>,
+    authorization: Option<&str>,
     body: &[u8],
     services: &Services,
 ) -> Result<Answer, ServerError> {
@@ -182,7 +330,11 @@ async fn answer(
         let theirs = frames.first().and_then(|frame| read_hello(frame));
         let (ours, compatible) = greeting(theirs.as_deref())?;
         let session = match compatible {
-            true => Some(services.http.insert(Client::open(services).await)),
+            true => {
+                let mut client = Client::open(services).await;
+                client.connection.header_token = crate::bearer(authorization);
+                Some(services.http.insert(client))
+            }
             false => None,
         };
         return Ok(Answer {
@@ -206,6 +358,22 @@ async fn answer(
     let Some(client) = held.client.as_mut() else {
         return Ok(gone);
     };
+    if client.connection.header_token != crate::bearer(authorization) {
+        return Ok(Answer {
+            status: 401,
+            session: None,
+            body: b"account authorization changed".to_vec(),
+            keep: false,
+        });
+    }
+    if let Some(token) = &client.connection.token
+        && services.store.resolve_token(token).await.is_err()
+    {
+        if let Some(client) = held.client.take() {
+            client.close().await;
+        }
+        return Ok(gone);
+    }
     let mut answers = Vec::new();
     for frame in frames {
         for message in client.answer(frame).await {
@@ -289,6 +457,11 @@ struct Head {
     length: usize,
     session: Option<String>,
     close: bool,
+    authorization: Option<String>,
+    origin: Option<String>,
+    host: Option<String>,
+    cookie: Option<String>,
+    content_type: Option<String>,
 }
 
 impl Head {
@@ -322,6 +495,11 @@ impl Head {
             length,
             session,
             close,
+            authorization: header("authorization").map(str::to_owned),
+            origin: header("origin").map(str::to_owned),
+            host: header("host").map(str::to_owned),
+            cookie: header("cookie").map(str::to_owned),
+            content_type: header("content-type").map(str::to_owned),
         })
     }
 }

@@ -464,9 +464,8 @@ fills in. A prop typed `Prop<T>` accepts
 either a plain `T` or a signal or memo of `T`; the base components bind each
 prop with `create_binding`, which keeps a reactive form in sync and costs a
 plain value nothing after it is set. Components return their base node
-directly. Every tag also accepts the framework slots `@test_id`, `@node_ref`,
-and `@sizing`, which live in their own `@` namespace so a component is free to
-name its own props whatever it likes.
+directly. Tags also accept `@` modifiers, ordinary functions applied to the
+built value. The GUI prelude supplies `test_id`, `node_ref`, and `sizing`.
 
 ## Writing attributes
 
@@ -491,12 +490,22 @@ means `visible={visible}`, never `visible={true}`.
 A prop typed `String`, `Option<String>`, or `Prop<String>` accepts a string
 literal directly, so `content="Inspector"` needs no `to_string()`.
 
-An attribute whose name starts with `@` is a framework slot rather than a prop
-of the component: `@test_id="toolbar.button"` names the node for
-`find_test_id`, `@node_ref=&panel` fills a `NodeRef` with the node once it is
-built, and `@sizing` gives the node its `ItemSize` among its siblings. Writing
-`test_id=` or `node_ref=` without the `@`, or an `@name` that is not one of
-those three, is a compile error from `view!`.
+An attribute whose name starts with `@` is a modifier rather than a prop:
+`<Button @decorate=value />` builds the button, then calls `decorate(button,
+value)`. The function is resolved in the caller's scope, and can be qualified
+(`@my_module::decorate=value`). Modifiers run in source order after all props
+and children have been built; repeated modifiers compose, and each may change
+the value's type. Modifier values are evaluated after building too: compute one
+before `view!` if its expression needs data that a child closure will move.
+Expression and string children accept the same modifiers,
+such as `{content.call(())} @sizing=ItemSize::Percent(100.0)`.
+
+The GUI modifiers `@test_id="toolbar.button"`, `@node_ref=&panel`, and `@sizing`
+respectively name the node for `find_test_id`, fill a `NodeRef`, and place the
+node with its sizing among siblings. They are imported from `beui::reactive`,
+usually through `use beui::reactive::*`. If a local binding shadows a modifier,
+qualify the function path. Ordinary `test_id` and `node_ref` props are allowed
+when the component declares them.
 
 A tag whose required props are missing is a compile error at the tag that wrote
 it, not a panic from inside the generated builder, and so is a prop written

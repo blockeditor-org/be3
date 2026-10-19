@@ -160,6 +160,7 @@ fn KeepChangesCard(
         node.set_label(label.get());
         node
     }));
+    let card_id = id.clone();
     view! {
         <Frame padding=inset align=Align::Start>
             <Frame width=width height=height align=Align::Center>
@@ -170,7 +171,7 @@ fn KeepChangesCard(
                         border={Border::DEFAULT}
                         radius=Radius::Lg
                         padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
-                        @test_id={id.clone()}
+                        @test_id=card_id
                     >
                         <List spacing=SPACING>
                             <Text style=TextStyle::TITLE string={title} />

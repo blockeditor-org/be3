@@ -44,12 +44,36 @@ def _env(crate, crate_name, env):
     base.update(env)
     return base
 
-def _srcs(kwargs):
-    return kwargs.pop("srcs", native.glob(["src/**/*.rs"]))
+def cargo_manifest_sources():
+    return {"Cargo.toml": native.package_name() + "/Cargo.toml"}
+
+def cargo_library_sources():
+    return native.glob(
+        ["src/**"],
+        exclude = [
+            "src/bin/**",
+            "src/**/tests.rs",
+            "src/**/tests/**",
+            "src/**/main_tests.rs",
+            "src/**/main_tests/**",
+        ],
+    )
+
+def cargo_test_sources():
+    return native.glob(["src/**"], exclude = ["src/bin/**"])
+
+def _target_sources(crate, root):
+    if crate["library"] == None:
+        return cargo_library_sources()
+    if root.endswith("/main.rs") and root != "src/main.rs":
+        return native.glob([root.removesuffix("main.rs") + "**"])
+    return [root]
 
 # Cargo.toml's [profile.dev.package] settings for the crate, ahead of the flags
 # its BUCK file passes.
 def _rustc_flags(crate, kwargs):
+    if "srcs" in kwargs:
+        fail("Rust sources are inferred; srcs is not supported")
     return dev_only(crate.get("profile_flags", [])) + kwargs.pop("rustc_flags", [])
 
 # The crate's library, named after the package. Another build of it, such as
@@ -65,9 +89,10 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], env = {}, *
         edition = crate["edition"],
         env = _env(crate, library["crate"], env),
         features = _per_platform(crate, lambda entry: entry["features"], extra_features),
+        mapped_srcs = cargo_manifest_sources(),
         proc_macro = library["proc_macro"],
         rustc_flags = _rustc_flags(crate, kwargs),
-        srcs = _srcs(kwargs),
+        srcs = cargo_library_sources(),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
         **kwargs,
     )
@@ -91,7 +116,8 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_env
         deps = _per_platform(crate, lambda entry: entry["deps"] + entry["test_deps"], extra_deps),
         edition = crate["edition"],
         features = _per_platform(crate, lambda entry: entry["test_features"]),
-        srcs = _srcs(kwargs),
+        mapped_srcs = cargo_manifest_sources(),
+        srcs = cargo_test_sources(),
     )
     if paints:
         native.rust_binary(
@@ -154,10 +180,17 @@ library_path_test = rule(
 # :test-run is the action ./scripts/verify builds on a worker, which accepts
 # every painting and outputs the ones that changed and the ones it compared.
 # crates/app-tests is one: block-app with its plugins, driven headless.
+def _painting_command(ctx, env):
+    command = cmd_args(ctx.attrs.harness[RunInfo])
+    if "LD_LIBRARY_PATH" in env:
+        env["BE3_LD_LIBRARY_PATH"] = env.pop("LD_LIBRARY_PATH")
+        command = cmd_args("sh", "-c", _restore_library_path, "sh", command)
+    return command
+
 def _painting_test_impl(ctx: AnalysisContext) -> list[Provider]:
     env = dict(ctx.attrs.env)
     env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
-    command = cmd_args(ctx.attrs.harness[RunInfo])
+    command = _painting_command(ctx, env)
     return inject_test_run_info(
         ctx,
         ExternalRunnerTestInfo(
@@ -186,6 +219,7 @@ def _painting_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
     env = dict(ctx.attrs.env)
     env["CARGO_MANIFEST_DIR"] = cmd_args(ctx.attrs.manifest, parent = 1)
     env["UPDATE_SNAPSHOTS"] = "1"
+    command = _painting_command(ctx, env)
     ctx.actions.run(
         cmd_args(
             "sh",
@@ -193,7 +227,7 @@ def _painting_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
             'mkdir -p "$1/used" "$1/changed" && USED_PAINTINGS="$1/used" CHANGED_PAINTINGS="$1/changed" && export USED_PAINTINGS CHANGED_PAINTINGS && shift && exec "$@"',
             "sh",
             paintings.as_output(),
-            ctx.attrs.harness[RunInfo],
+            command,
             hidden = ctx.attrs._inputs[DefaultInfo].default_outputs,
         ),
         category = "painting_test",
@@ -263,8 +297,9 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
         deps = _per_platform(crate, lambda entry: entry["binaries"].get(bin, []), own + extra_deps),
         edition = crate["edition"],
         env = _env(crate, crate_name, env),
+        mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
-        srcs = _srcs(kwargs),
+        srcs = _target_sources(crate, binary["crate_root"]),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
         **kwargs,
     )
@@ -289,8 +324,9 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         edition = crate["edition"],
         env = _env(crate, crate_name, env),
         features = _per_platform(crate, lambda entry: entry["examples"].get(example, {}).get("features", [])),
+        mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
-        srcs = kwargs.pop("srcs", native.glob(["src/**/*.rs", "examples/**/*.rs"])),
+        srcs = _target_sources(crate, examples[example]["crate_root"]),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
         **kwargs,
     )

@@ -70,38 +70,78 @@ fn session_of(response: ServerMessage) -> Result<Session, AccountError> {
     }
 }
 
-pub(crate) async fn register(
-    server_url: String,
-    email: String,
-    display_name: String,
-    password: String,
-) -> Result<Session, AccountError> {
-    let connection = Connection::connect(&socket_url(&server_url)).await?;
-    let response = connection
-        .request(|request| ClientMessage::Register {
-            request,
-            email,
-            display_name,
-            password,
-        })
-        .await?;
-    session_of(response)
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct BrowserLogin {
+    pub(crate) code: String,
+    pub(crate) url: String,
 }
 
-pub(crate) async fn login(
+pub(crate) enum LoginEvent {
+    Browser(BrowserLogin),
+    Finished(Result<Session, String>),
+}
+
+pub(crate) async fn create_local_profile(
     server_url: String,
-    email: String,
-    password: String,
+    display_name: String,
 ) -> Result<Session, AccountError> {
     let connection = Connection::connect(&socket_url(&server_url)).await?;
-    let response = connection
-        .request(|request| ClientMessage::Login {
-            request,
-            email,
-            password,
-        })
-        .await?;
-    session_of(response)
+    session_of(
+        connection
+            .request(|request| ClientMessage::CreateLocalProfile {
+                request,
+                display_name,
+            })
+            .await?,
+    )
+}
+
+pub(crate) async fn browser_login(
+    server_url: String,
+    auth_url: String,
+    notify: impl FnOnce(BrowserLogin),
+    cancelled: futures_util::future::BoxFuture<'static, ()>,
+) -> Result<Session, String> {
+    let login = async {
+        let connection = Connection::connect(&socket_url(&server_url))
+            .await
+            .map_err(|error| error.to_string())?;
+        let response = connection
+            .request(|request| ClientMessage::BeginBrowserLogin { request })
+            .await
+            .map_err(|error| error.to_string())?;
+        let ServerMessage::BrowserLogin { code, secret, .. } = response else {
+            return Err("Unexpected sign-in response".into());
+        };
+        notify(BrowserLogin {
+            code: code.clone(),
+            url: format!("{auth_url}?code={code}"),
+        });
+        drop(connection);
+        loop {
+            let result = async {
+                let connection = Connection::connect(&socket_url(&server_url)).await?;
+                connection
+                    .request(|request| ClientMessage::FinishBrowserLogin {
+                        request,
+                        code: code.clone(),
+                        secret: secret.clone(),
+                    })
+                    .await
+            }
+            .await;
+            match result {
+                Ok(ServerMessage::Ok { .. }) | Err(ClientError::Disconnected(_)) => {}
+                Ok(response) => return session_of(response).map_err(|error| error.to_string()),
+                Err(error) => return Err(error.to_string()),
+            }
+            crate::be::sleep(std::time::Duration::from_secs(2)).await;
+        }
+    };
+    match futures_util::future::select(Box::pin(login), cancelled).await {
+        futures_util::future::Either::Left((result, _)) => result,
+        futures_util::future::Either::Right(_) => Err("Sign-in cancelled".into()),
+    }
 }
 
 async fn authenticated(
@@ -437,3 +477,6 @@ pub(crate) fn authorize(saved: &[crate::app_state::SavedAccount]) {
         }
     }
 }
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+mod tests;

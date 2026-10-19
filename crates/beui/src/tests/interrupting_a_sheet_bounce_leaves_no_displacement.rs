@@ -3,7 +3,7 @@ use crate::input::BackGesture;
 
 #[test]
 fn interrupting_a_sheet_bounce_leaves_no_displacement() {
-    for interruption in 0..3 {
+    for interruption in 0..4 {
         let _root = RootScope::new();
         let sheet = NodeRef::new();
         let (closed, set_closed) = create_signal(0);
@@ -33,11 +33,12 @@ fn interrupting_a_sheet_bounce_leaves_no_displacement() {
                 harness.frame(vec![Event::Back(BackGesture::Progressed(0.2))]);
                 harness.frame(vec![Event::Back(BackGesture::Cancelled)]);
             }
-            _ => {
+            2 => {
                 harness.touch(TouchPhase::Start, pos2(200.0, 300.0));
                 harness.touch(TouchPhase::Move, pos2(200.0, 310.0));
                 harness.touch(TouchPhase::Cancel, pos2(200.0, 310.0));
             }
+            _ => harness.context.set_motion(Motion::Instant),
         }
         harness.settle();
         assert_eq!(harness.rect(handle).top(), top);

@@ -58,10 +58,16 @@ it there as a session:
 on its session menu. The app links GTK 3 and WebKitGTK (`webkit2gtk-4.1`), which pinenote-dist
 does not install. `BEUI_SCALE=2` suits the panel's 227 dpi.
 
-wgpu needs a newer panvk than Arch's: `devices/pinenote/vulkan-panfrost-26.3` is a PKGBUILD
-that builds panvk alone from Mesa 26.3 and replaces the `vulkan-panfrost` package. Build it on
-the PineNote with `makepkg -si`. panvk refuses the G52 (Bifrost, v7) unless
+`devices/pinenote/vulkan-panfrost-26.3` is an optional PKGBUILD that builds panvk alone from
+Mesa 26.3 and replaces the `vulkan-panfrost` package. It exposes Vulkan 1.3 on the G52;
+Mesa 26.2 exposes Vulkan 1.0. Build it on the PineNote with `makepkg -si`. The build overrides
+arch-meson's forced automatic features so unrelated graphics frontends stay optional.
+panvk refuses the G52 (Bifrost, v7) unless
 `PAN_I_WANT_A_BROKEN_VULKAN_DRIVER` is set, so the package also installs
-`/etc/profile.d/panvk.sh`, which greetd reads before it starts a session. Move `_tag` to the
+`/etc/profile.d/panvk.sh`, which greetd reads before it starts a session. Mesa 26.3.0-rc1 still
+reports conformance 0.0.0.0 for the G52, so also set
+`WGPU_ALLOW_UNDERLYING_NONCOMPLIANT_ADAPTER=1` when launching block-app. Its windowed and
+offscreen renderers read wgpu's instance environment settings. Allowing the adapter does not
+guarantee correct rendering with either Mesa version. Move `_tag` to the
 release once Mesa 26.3.0 is out, and drop the package once Arch's `vulkan-panfrost` is 26.3 or
 newer.

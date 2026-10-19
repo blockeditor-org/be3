@@ -60,7 +60,7 @@ pub(super) fn spawn_local(task: impl Future<Output = ()> + 'static) {
     tokio::task::spawn_local(task);
 }
 
-pub(super) async fn sleep(duration: Duration) {
+pub(crate) async fn sleep(duration: Duration) {
     tokio::time::sleep(duration).await;
 }
 

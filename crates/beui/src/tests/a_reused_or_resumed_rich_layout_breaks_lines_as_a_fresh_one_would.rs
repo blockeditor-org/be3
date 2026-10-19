@@ -1,7 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use beui_core::font::{FontId, Galley, TextLayout};
-use beui_core::rich::RichOptions;
+use beui_core::rich::{OBJECT, RichOptions};
 
 const WORDS: [&str; 12] = [
     "a ",
@@ -55,6 +55,7 @@ fn a_reused_or_resumed_rich_layout_breaks_lines_as_a_fresh_one_would() {
                 3 => Piece::Inline {
                     index: index / 7,
                     size: Vec2::new(18.0, 10.0),
+                    text: OBJECT,
                 },
                 5 => Piece::text(text, bold),
                 _ => Piece::text(text, style),
@@ -82,6 +83,7 @@ fn a_reused_or_resumed_rich_layout_breaks_lines_as_a_fresh_one_would() {
                 3 => Piece::Inline {
                     index: index / 7,
                     size: Vec2::new(18.0, 10.0),
+                    text: OBJECT,
                 },
                 5 => Piece::text(text, bold),
                 _ => Piece::text(text, style),

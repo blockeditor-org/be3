@@ -41,7 +41,6 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 Do:
 - Use commit messages of the form `type: message`, ending with a Co-Authored-By line naming your model.
 - When done, open a pull request on GitHub. Don't watch it, subscribe to it or check on it, and don't create routines or check-in timers.
-- To wait for a background command, end your turn: you are re-invoked when it exits. This includes a foreground command that outlives its timeout and is moved to the background. Never loop reading its output file or sleeping to check on it. If a stop hook then tells you to commit uncommitted changes while the command is still running, end your turn again: the hook blocks only once.
 - To stop a process, kill its PID, or use `pkill -x NAME` to match the process name. Never `pkill -f PATTERN` or `kill $(pgrep -f PATTERN)`: each command runs as `bash -c '<the command text>'`, so the pattern also matches the shell the command runs in, and pkill kills that shell and the rest of the command with it.
 - When updating GitHub Actions workflows, remember that the new version will run on old PRs that don't have main's new changes applied.
 
@@ -50,6 +49,7 @@ Design principles:
 - If a request seems to require violating one of these, confirm with the user using AskUserQuestion before going ahead.
 - If a request asks for a UI/UX feature that seems to violate standard conventions, use AskUserQuestion to confirm.
 - General:
+  - One obvious way to do things: prefer one canonical API for a concept. Don’t add parallel forms that users must choose between and we must maintain.
   - Keep reading whatever a frozen format saved, forever (guides/frozen_formats.md: the server's data and backups, and text, folder and database blocks), and change one only by adding to it. Don't keep backward compatibility in any other serialization format or in network requests: the project is early, and users can delete that data.
   - Treat everything in the repo as in scope for any task. Fix bugs and missing features at their source (in beui, for example) rather than working around them, and update any guide you find out of date.
   - Do not edit files named README.md.

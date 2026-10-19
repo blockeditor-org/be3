@@ -14,6 +14,9 @@ use beui_core::document::Document;
 use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 
+pub use beui_core::animation::{
+    Animation, AnimationFrame, Easing, Fling, Motion, Spring, create_animation, motion, tween,
+};
 pub use beui_core::callback::NodeRef;
 pub use beui_core::timer::{Timer, create_timer, now, pin_wall_clock, wall_clock};
 
@@ -26,20 +29,16 @@ pub type Render<H = (), C = NodeId> = beui_tree::reactive::Render<H, C>;
 
 pub type RenderFn<H, C = NodeId> = beui_tree::reactive::RenderFn<H, C>;
 
-pub fn with_test_id<B: ComponentBuilder>(builder: B, value: impl IntoProp<String>) -> B
-where
-    B::Output: BuildsNode,
-{
-    let test_id = value.into_prop();
-    builder.with_built(move |built| bind_test_id(built.built_node(), test_id))
+pub use beui_core::tree::with_sizing as sizing;
+
+pub fn test_id<T: BuildsNode>(built: T, value: impl IntoProp<String>) -> T {
+    bind_test_id(built.built_node(), value.into_prop());
+    built
 }
 
-pub fn with_node_ref<B: ComponentBuilder>(builder: B, value: &NodeRef) -> B
-where
-    B::Output: BuildsNode,
-{
-    let node_ref = *value;
-    builder.with_built(move |built| node_ref.fill(built.built_node()))
+pub fn node_ref<T: BuildsNode>(built: T, reference: &NodeRef) -> T {
+    reference.fill(built.built_node());
+    built
 }
 
 pub fn build(f: impl FnOnce() -> NodeId) -> Document {

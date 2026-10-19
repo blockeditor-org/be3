@@ -45,12 +45,17 @@ one build can hold both, and every transition keeps it. Every other build is car
 crypto crates), which `crates.bzl` carries as each crate's rustc flags.
 
 Which build a program is lives in a file beside it, never in its code:
-`//buck/app:build-id` is the file `buck/app/build-id`, and every bundle
+`//buck/app:build-info.json` is the JSON file `buck/app/build-info.json`, and every bundle
 (`:native`, `:native-dist`, `:web`, `:web-dist`, the APK's assets, be-cli's
 `:native`, be-server's `:dist`)
 carries it. A client and a server refuse each other unless their ids match, a
 program that finds no id refuses to connect or serve, and the app shows the id
-as its build. The id is the hash of the tree, not of a commit, so two commits
+as its build. The metadata contains `id` (the compatibility identity) and `app_id` (`BlockDev`
+by default, `Block` for deploy). The app reads `app_id` at startup for its window
+and data directory, so deployment identity changes only packaging. `BE3_APP_ID`
+selects it when generating the file. `./scripts/deploy` also includes an optional
+`default_server` descriptor (public name, API and authentication URLs, and whether
+native clients need a gateway token); ordinary local and CI builds omit it. The id is the hash of the tree, not of a commit, so two commits
 of the same tree (a pull request's head and the merge queue's commit of it)
 share every cached bundle, APK and app test run. Since only the bundles read the
 file, a new id rebuilds nothing else.
@@ -88,8 +93,8 @@ these in front of the pinned buck2:
   Windows would miss every cache entry Linux wrote. Scripts are run with `sh`,
   and `./scripts/verify`'s lint clears the bit from anything outside `scripts/`.
 - **The build id.** Every command that builds or queries first writes the
-  working tree's hash into `buck/app/build-id`, which git ignores, if it
-  changed. The hash is taken through a throwaway index, so untracked files
+  working tree's hash into the `id` field of `buck/app/build-info.json`, which git ignores, if it
+  changed. The `app_id` field comes from `BE3_APP_ID` (`BlockDev` by default). The hash is taken through a throwaway index, so untracked files
   count and the same tree always gives the same id. As a source file, a new id
   invalidates only what reads it. `BE3_BUILD_ID` overrides it.
 - **Retries.** buck2 exits with 2 for an infrastructure error, such as a
@@ -171,9 +176,22 @@ cargo_binary()
 Dependencies, features, edition and roots come from `crates.bzl`. The library
 is named after the package, its tests are `:test`, its binary `:bin`, and an
 example is `cargo_example("<name>")`, which makes `:example-<name>`. What
-`Cargo.toml` cannot say is passed as arguments: `srcs` for non-Rust files the
-crate reads at compile time (default `src/**/*.rs`), `env`, `extra_deps`, or any
+`Cargo.toml` cannot say is passed as arguments: `env`, `extra_deps`, or any
 rule attribute such as a test's `remote_execution = "disabled"`.
+
+Sources are inferred, including non-Rust files read at compile time. The common
+library, binary, example and test rules also carry the manifest at
+`CARGO_MANIFEST_DIR/Cargo.toml`, so procedural macros can discover dependency
+names during remote compilation. Libraries
+use `src/**` except `src/bin/**`, `tests.rs`, `tests/**`, `main_tests.rs` and
+`main_tests/**` at any depth. Tests use all of `src/**` except `src/bin/**`.
+Keep test-only assets under a `tests/` directory. Binaries and examples in a
+crate with a library use only their root file, or the root's whole directory
+when it is a `main.rs` in a subdirectory below `src/` or `examples/`.
+Binary-only crates use the library's source rules.
+Roots come from `crates.bzl`, including block-app's `src/main.rs` library and
+`src/desktop.rs` binary. The wasm SDK and editors use the same library rules,
+and plugin tests use the test rules; editors also include `manifest.json`.
 
 **An editor**: `crates/editors/<name>/BUCK` is one `editor(module)` call
 from `buck/wasm/defs.bzl`, which makes the guest cdylib `:wasm`, linked against the
@@ -221,8 +239,11 @@ deletes the paintings no test named.
 **Native tests that paint**, `cargo_test(paints = True, run_env = ...)`, are
 treated the same way: `:test` runs here and `:test-run` is the action
 `./scripts/verify` reads paintings from. `run_env` is the environment the test
-runs with, kept out of its compile. crates/app-tests is the one: it runs
-block-app's `:native` headless, so it runs on Linux x86_64 only.
+runs with, kept out of its compile. crates/app-tests runs block-app's `:native` headless, so it runs on Linux x86_64 only.
+crates/be-server captures its SSR portal as text browser paintings without a browser.
+
+Each compile-fail suite keeps a `Cargo.toml` listing its dependencies. The rule
+maps it into the compiler sandbox for automatic macro support-crate discovery.
 
 `compile_fail/` holds code that must not compile: `compile_fail(name, deps)`
 in its `BUCK` makes `<name>/lib.rs` a crate and `:<name>-test`, which reads
@@ -283,12 +304,12 @@ A native target depends on a wasm one through a transition in
   through `wasm-bindgen` (`buck/cargo:wasm-bindgen`, pinned to `Cargo.lock`'s
   version), with the page and shims from `crates/block-app/web`. `buck2 run` on it runs Caddy
   (`buck/tools:caddy`) with `web/Caddyfile` and be-server behind it, and `-- --domain DOMAIN` serves
-  that domain over https, which is how the app is deployed.
+  that domain over HTTPS. Production deployment uses Bunny (guides/hosting.md).
 - The APK is assembled on a worker without Gradle (`buck-tools apk`):
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is
   the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
-  platform alone: the APK carries no libraries. `:android` is it unsigned, and
+  platform alone: the APK carries no libraries. `:android` is the unsigned dev APK (`com.be3.block.dev`, `Block (Dev)`), and
   `buck2 run` on it signs it locally with `target/android-debug.keystore`,
   made on first use. `:android-dist` signs on a worker with CI's keystore,
   `buck/android/ci-keystore.base64` (guides/build_server.md), with its

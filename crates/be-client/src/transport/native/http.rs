@@ -205,7 +205,7 @@ impl Client {
             body.len()
         );
         if let Some(authorization) = &self.authorization {
-            head.push_str(&format!("Authorization: {authorization}\r\n"));
+            head.push_str(&format!("Be3-Gateway-Authorization: {authorization}\r\n"));
         }
         if let Some(session) = &self.session {
             head.push_str(&format!("{SESSION_HEADER}: {session}\r\n"));

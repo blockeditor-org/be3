@@ -5,7 +5,7 @@ use be_protocol::{ClientMessage, ServerMessage};
 use be_store::FileStore;
 use uuid::Uuid;
 
-pub const DEFAULT_SERVER: &str = "https://blocks.pfg.pw";
+pub const DEFAULT_SERVER: &str = "https://api.be3.pfg.pw";
 
 #[derive(Clone, Debug)]
 pub struct Settings {
@@ -19,21 +19,78 @@ pub struct Settings {
 
 impl Settings {
     pub fn from_env() -> Result<Self, String> {
-        let read = |name: &str| {
-            std::env::var(name)
-                .ok()
+        Self::from_values(|name| std::env::var(name).ok())
+    }
+
+    pub(crate) fn from_values(
+        environment: impl Fn(&str) -> Option<String>,
+    ) -> Result<Self, String> {
+        let env = |name: &str| {
+            environment(name)
                 .map(|value| value.trim().to_owned())
                 .filter(|value| !value.is_empty())
+        };
+        let bundle = env("BE3_AGENT_CREDENTIALS")
+            .map(|text| {
+                let value: serde_json::Value = serde_json::from_str(&text)
+                    .map_err(|_| "BE3_AGENT_CREDENTIALS must be a JSON object".to_owned())?;
+                if !value.is_object() {
+                    return Err("BE3_AGENT_CREDENTIALS must be a JSON object".to_owned());
+                }
+                for key in ["server", "organization", "recovery_phrase"] {
+                    if value
+                        .get(key)
+                        .and_then(|value| value.as_str())
+                        .is_none_or(|value| value.trim().is_empty())
+                    {
+                        return Err(format!(
+                            "BE3_AGENT_CREDENTIALS needs a nonempty {key} string"
+                        ));
+                    }
+                }
+                if value.get("authentication").and_then(|v| v.as_str()) != Some("proxy")
+                    && value
+                        .get("token")
+                        .and_then(|v| v.as_str())
+                        .is_none_or(|v| v.trim().is_empty())
+                {
+                    return Err(
+                        "BE3_AGENT_CREDENTIALS needs a token or authentication set to proxy"
+                            .to_owned(),
+                    );
+                }
+                Ok(value)
+            })
+            .transpose()?;
+        let read = |name: &str| {
+            let key = match name {
+                "BE3_SERVER" => Some("server"),
+                "BE3_ORGANIZATION" => Some("organization"),
+                "BE3_TOKEN" => Some("token"),
+                "BE3_RECOVERY_PHRASE" => Some("recovery_phrase"),
+                _ => None,
+            };
+            if let (Some(bundle), Some(key)) = (&bundle, key) {
+                return bundle[key].as_str().map(|value| value.trim().to_owned());
+            }
+            env(name)
         };
         let organization = match read("BE3_ORGANIZATION") {
             Some(text) => Some(
                 Uuid::parse_str(&text)
-                    .map_err(|_| format!("BE3_ORGANIZATION is not an organization id: {text}"))?,
+                    .map_err(|_| "BE3_ORGANIZATION must be an organization id".to_owned())?,
             ),
             None => None,
         };
-        let token = read("BE3_TOKEN")
-            .ok_or("set BE3_TOKEN to the token the app showed when it added this agent")?;
+        let proxy = bundle
+            .as_ref()
+            .is_some_and(|v| v["authentication"] == "proxy");
+        let token = if proxy {
+            Some(String::new())
+        } else {
+            read("BE3_TOKEN")
+        }
+        .ok_or("set BE3_TOKEN to the token the app showed when it added this agent")?;
         let phrase = read("BE3_RECOVERY_PHRASE").ok_or(
             "set BE3_RECOVERY_PHRASE to the recovery phrase the app showed when it added this agent",
         )?;
@@ -56,7 +113,11 @@ impl Settings {
     }
 
     fn credentials(&self) -> Credentials {
-        Credentials::Token(self.token.clone())
+        if self.token.is_empty() {
+            Credentials::Header
+        } else {
+            Credentials::Token(self.token.clone())
+        }
     }
 }
 
@@ -85,12 +146,23 @@ pub async fn connect(settings: &Settings) -> Result<Peer<FileStore>, String> {
     }
     let connection = Connection::connect(&url).await.map_err(explain)?;
     let signed_in = connection
-        .request(|request| ClientMessage::Authenticate {
-            request,
-            token: settings.token.clone(),
+        .request(|request| {
+            if settings.token.is_empty() {
+                ClientMessage::AuthenticateHeader { request }
+            } else {
+                ClientMessage::Authenticate {
+                    request,
+                    token: settings.token.clone(),
+                }
+            }
         })
         .await
-        .map_err(|error| format!("the server refused BE3_TOKEN: {}", explain(error)))?;
+        .map_err(|error| {
+            format!(
+                "the server refused account authentication: {}",
+                explain(error)
+            )
+        })?;
     let ServerMessage::Authenticated { account, token, .. } = signed_in else {
         return Err("the server did not sign this connection in".to_owned());
     };

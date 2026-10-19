@@ -31,9 +31,11 @@ and its plugins' workers log to the console goes to `~/.cache/be3/web-dev/browse
 
 What the launcher opens is `http://127.0.0.1:8090/?dev-workspace&automation`; those
 two parameters work on any page serving the bundle:
-- `dev-workspace`: sign in to the page's own server as `dev@localhost`, registering it
-  unless it is registered already. Then open the last organization, or the first one (the
-  personal organization registering joins).
+- `dev-workspace`: start browser sign-in against the page's own server, then open the
+  last organization or the personal organization. The launcher drives the ordinary
+  portal as `dev@localhost`, reads its verification message from the development server
+  log when registering, and explicitly approves the device request. The parameter
+  alone requires completing that portal flow manually.
 - `automation`: answer `drive`'s commands through the bundle's `automate` export.
 
 ## Driving the page
@@ -48,3 +50,13 @@ commands take their place (`drive` with no command lists them):
 
 The tree's coordinates are the page's CSS pixels when the device pixel ratio is 1, as it is in
 the launcher's browser.
+
+## Hosted web build
+
+The deployed bundle lives at `https://be3.pfg.pw/data/BUILD/web/index.html`; the
+`/web` entry point selects the build that matches the deployed server, loading
+versioned assets while keeping the address at `/web` so reloads update. Add account offers the default server from the deployed `build-info.json`; ordinary local and CI builds omit that default. Remote sign-in opens the selected server’s `/auth` page. The web-dev launcher's explicit development-server
+selection stays local. Bunny's headers, caching and gateway setup are described
+in guides/hosting.md. Relative asset URLs resolve against the document base,
+which points at the build directory; page navigation and fragment cleanup must
+use the current page URL instead.
