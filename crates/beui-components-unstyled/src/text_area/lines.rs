@@ -524,11 +524,9 @@ fn RowText(
             marks={marks}
             carets={carets}
         >
-            <ForEach keys={keys}>|(key, _): (PieceKey, usize)| {
-                view! {
-                    <RowPiece cx model={item_model} cursors layer key />
-                }
-            }</ForEach>
+            <ForEach keys={keys}>|(key, _): (PieceKey, usize)|
+                <RowPiece cx model={item_model} cursors layer key />
+            </ForEach>
             <Show condition={anchored}>
                 <TextItem at={anchor_position}>
                     <Portal node={anchor_node} />

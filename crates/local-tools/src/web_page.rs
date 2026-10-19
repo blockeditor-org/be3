@@ -6,7 +6,20 @@ pub fn main(args: Vec<String>) -> std::process::ExitCode {
         Some("block") => false,
         _ => panic!("usage: web-page block|demo OUTPUT"),
     };
-    let html = render(|| {
+    let html = page(demo, None);
+    std::fs::write(args.get(1).expect("output path"), html).expect("write HTML");
+    std::process::ExitCode::SUCCESS
+}
+
+pub(crate) fn page(demo: bool, base: Option<String>) -> String {
+    render(|| {
+        let base: Children<Node> = match base {
+            Some(href) => view! {
+                <Element tag="base" @attr={("href", href)} />
+            }
+            .into(),
+            None => view! {},
+        };
         let (title, css, imports, js, content) = if demo {
             (
                 "beui demo",
@@ -43,6 +56,7 @@ pub fn main(args: Vec<String>) -> std::process::ExitCode {
         view! {
             <Element tag="html" @attr={("lang", "en")}>
                 <Element tag="head">
+                    {base}
                     <Element tag="meta" @attr={("charset", "utf-8")} />
                     <Element
                         tag="meta"
@@ -60,7 +74,5 @@ pub fn main(args: Vec<String>) -> std::process::ExitCode {
                 </Element>
             </Element>
         }
-    });
-    std::fs::write(args.get(1).expect("output path"), html).expect("write HTML");
-    std::process::ExitCode::SUCCESS
+    })
 }

@@ -178,7 +178,9 @@ pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<Strin
                                 "Sign in and authorize"
                             </Element>
                         </Show>
-                        <Registration enabled={allow_registration} />
+                        <Show condition={allow_registration}>
+                            <Registration />
+                        </Show>
                         <Element
                             tag="button"
                             @attr={("name", "action")}
@@ -214,10 +216,7 @@ fn Shell(children: Children<Node>) -> Node {
 }
 
 #[component]
-fn Registration(enabled: bool) -> Children<Node> {
-    if !enabled {
-        return view! {};
-    }
+fn Registration() -> Children<Node> {
     view! {
         <Element tag="label">
             "Display name (for a new account)"

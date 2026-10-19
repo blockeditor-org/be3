@@ -1,4 +1,4 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
@@ -363,6 +363,38 @@ impl<C: SlotChild> ChildSlot<C> {
     }
 }
 
+struct NestedHost<C: SlotChild> {
+    slot: ChildSlot<C>,
+    items: RefCell<ChildList<C::Stored>>,
+    mounting: Cell<bool>,
+}
+
+impl<C: SlotChild> NestedHost<C> {
+    fn publish(&self) {
+        if !self.mounting.get() {
+            self.slot
+                .fill(self.items.borrow().iter().cloned().collect());
+        }
+    }
+}
+
+impl<C: SlotChild> SlotHost<C> for NestedHost<C> {
+    fn store(&self, child: C) -> C::Stored {
+        self.slot.store(child)
+    }
+    fn append(&self, stored: C::Stored) {
+        self.items.borrow_mut().push(stored);
+        self.publish();
+    }
+    fn open(&self) -> SlotId {
+        self.items.borrow_mut().open()
+    }
+    fn fill(&self, slot: SlotId, items: Vec<C::Stored>) {
+        self.items.borrow_mut().fill(slot, items);
+        self.publish();
+    }
+}
+
 #[diagnostic::on_unimplemented(
     message = "a `{Self}` cannot be written between these tags",
     label = "this component takes `{T}` children"
@@ -515,6 +547,17 @@ impl<T: SlotChild> Children<T> {
         for segment in self.0 {
             mount_segment(&host, segment);
         }
+    }
+
+    pub(crate) fn mount_in(self, slot: ChildSlot<T>) {
+        let host = Rc::new(NestedHost {
+            slot,
+            items: RefCell::default(),
+            mounting: Cell::new(true),
+        });
+        self.mount(host.clone() as Rc<dyn SlotHost<T>>);
+        host.mounting.set(false);
+        host.publish();
     }
 
     pub fn from_block(block: impl IntoSegments<T>) -> Self {

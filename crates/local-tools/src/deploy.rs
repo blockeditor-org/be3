@@ -296,13 +296,7 @@ fn run(options: &Options) -> Result<(), String> {
             return Err(format!("the web bundle is build {id}, not {build}"));
         }
     }
-    let web_entry = web
-        .map(|web| {
-            let html = std::fs::read_to_string(web.join("index.html"))
-                .map_err(|error| format!("cannot read web index: {error}"))?;
-            web_entry_point(&html, &build)
-        })
-        .transpose()?;
+    let web_entry = web.map(|_| web_entry_point(&build));
     let agents = Agents::new();
     let store = Store {
         options,
@@ -691,17 +685,8 @@ impl Agents {
     }
 }
 
-fn web_entry_point(html: &str, build: &str) -> Result<String, String> {
-    let (before, after) = html
-        .split_once("<head>")
-        .ok_or("the web entry point has no head element")?;
-    use beui_html::{Element, attr, render_fragment, view};
-    let base = render_fragment(|| {
-        view! {
-            <Element tag="base" @attr={("href", format!("/data/{build}/web/"))} />
-        }
-    });
-    Ok(format!("{before}<head>{base}{after}"))
+fn web_entry_point(build: &str) -> String {
+    crate::web_page::page(false, Some(format!("/data/{build}/web/")))
 }
 
 fn upload_web(

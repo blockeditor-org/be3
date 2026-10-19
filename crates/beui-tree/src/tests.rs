@@ -14,6 +14,7 @@ mod a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden;
 mod components_can_return_and_collect_child_runs;
 mod modifiers_are_functions_on_built_values;
 mod modifiers_run_after_props_and_inside_render_slots;
+mod show_can_wrap_a_component_returning_multiple_children;
 
 thread_local! {
     static NEXT_ID: Cell<usize> = const { Cell::new(0) };

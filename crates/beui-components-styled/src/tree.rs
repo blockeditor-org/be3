@@ -367,11 +367,9 @@ fn Chevron(
                     item
                     toggle={toggle}
                     button_test_id=named
-                >|handle: TreeToggleHandle| {
-                    view! {
-                        <ChevronFace handle item marked={marked} sized={sized} />
-                    }
-                }</unstyled::TreeToggle>
+                >|handle: TreeToggleHandle|
+                    <ChevronFace handle item marked={marked} sized={sized} />
+                </unstyled::TreeToggle>
             </List>
         </Frame>
     }

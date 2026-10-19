@@ -307,9 +307,24 @@ impl Parser<'_> {
             });
         }
         self.expect(">")?;
-        let head = self.head()?;
-        let children = if head.as_ref().is_some_and(|head| head.block.is_some()) {
-            Vec::new()
+        let mut head = self.head()?;
+        let children = if let Some(block) = head.as_ref().and_then(|head| head.block.as_ref()) {
+            let start = self
+                .tokens
+                .partition_point(|token| token.range.start < block.start);
+            let end = self
+                .tokens
+                .partition_point(|token| token.range.end <= block.end);
+            let nested = view_call_end(self.tokens, start, end)
+                .filter(|last| last + 1 == end)
+                .and_then(|last| parse_view(&self.tokens[start + 3..last]));
+            match nested {
+                Some(children) => {
+                    head.as_mut()?.block = None;
+                    children
+                }
+                None => Vec::new(),
+            }
         } else {
             self.children()?
         };

@@ -103,8 +103,9 @@ obscures which component's scope owns it. This is not enforced; break it where
 another shape is clearer.
 
 When part of the tree depends on something, express it in the view rather than
-in Rust control flow around it. `Show` takes a condition, builds its child each
-time it becomes true and disposes of it when it turns false, as SolidJS's does;
+in Rust control flow around it. `Show` takes a condition, builds its children each
+time it becomes true and disposes of them when it turns false, as SolidJS's does.
+It accepts sibling children and components returning `Children<_>` without a wrapper;
 `ShowKeepAlive` is the opt-in for a child worth keeping while it is hidden, such
 as a tab's panel whose scroll position and state should survive switching away:
 it builds the child the first time it is shown and only hides it after that,
@@ -136,6 +137,10 @@ runs rather than a single node.
 The exception is a component whose root is a base node it creates directly —
 the base layer itself, where `List` calls `create_list` and binds setters with
 effects. Above the base layer, one `view!` is the shape.
+
+Render-slot closures can write markup directly: `<ForEach keys={keys}>|key: Key|
+<Row key /></ForEach>`. Do not wrap that markup in `{ view! { ... } }`; the
+formatter removes a redundant macro when the block has no setup statements.
 
 ### Call components from `view!`, never their builders
 
