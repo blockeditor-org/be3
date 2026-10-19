@@ -30,8 +30,12 @@ fn a_tab_hidden_while_it_has_the_focus_hands_the_focus_to_the_tab_shown() {
         view! {
             <styled::Docking layout>
                 <DockPane id="tabs">
-                    <DockTab id=1u64 title="One"><Control id=1 heard=Rc::clone(&one) /></DockTab>
-                    <DockTab id=2u64 title="Two"><Control id=2 heard=Rc::clone(&two) /></DockTab>
+                    <DockTab id=1u64 title="One">
+                        <Control id=1 heard=Rc::clone(&one) />
+                    </DockTab>
+                    <DockTab id=2u64 title="Two">
+                        <Control id=2 heard=Rc::clone(&two) />
+                    </DockTab>
                 </DockPane>
             </styled::Docking>
         }

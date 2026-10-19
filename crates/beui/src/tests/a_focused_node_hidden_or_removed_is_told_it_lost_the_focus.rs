@@ -29,8 +29,12 @@ fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
     let mut controls = None;
     let listening = Rc::clone(&heard);
     let document = build(|| {
-        let first = view! {<Control name="first" heard=Rc::clone(&listening) />};
-        let second = view! {<Control name="second" heard=Rc::clone(&listening) />};
+        let first = view! {
+            <Control name="first" heard=Rc::clone(&listening) />
+        };
+        let second = view! {
+            <Control name="second" heard=Rc::clone(&listening) />
+        };
         controls = Some((first, second));
         let removable = Rc::clone(&listening);
         view! {
