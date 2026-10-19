@@ -12,9 +12,9 @@ fn download_pages_escape_values_and_preserve_download_links() {
         }],
         "/releases/",
     );
-    assert!(page.starts_with("<!doctype html><html lang=\"en\"><head>"));
-    assert!(page.contains("Build <code>&lt;build&gt;</code>"));
+    assert!(page.starts_with("<!doctype html><html lang=\"en\" class=\"bht-"));
+    assert!(page.contains(">&lt;build&gt;</code>"));
     assert!(page.contains("href=\"/releases/block&amp;app.zip\">block&amp;app.zip</a>"));
     assert!(page.contains("<td>1.5 MB</td>"));
-    assert!(page.contains("<code>&lt;hash&gt;</code>"));
+    assert!(page.contains(">&lt;hash&gt;</code>"));
 }

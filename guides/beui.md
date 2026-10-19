@@ -3069,6 +3069,52 @@ let page = render(|| view! {
 });
 ```
 
+### Typed CSS
+
+Use `beui_html::tw` style components in an element's `css` prop. Bracket-valued
+props are nested views: `prop=[...]` works on any component prop and expands
+like `prop={view! { ... }}`. It is not specific to CSS. Empty brackets build
+empty children; expressions, reusable components and control flow work inside.
+
+```rust
+use beui_html::{elements as html, tw, view};
+
+view! {
+    <html::Html>
+        <html::Head><tw::Styles /></html::Head>
+        <html::Body css=[<tw::FontSans /><tw::BgSurface /><tw::TextForeground />]>
+            <html::Button css=[
+                <tw::InlineFlex /><tw::ItemsCenter /><tw::Px4 /><tw::Py2 />
+                <tw::BgAccent /><tw::TextOnAccent /><tw::RoundedMd />
+                <tw::Hover><tw::BgAccentHover /></tw::Hover>
+                <tw::Md><tw::Px4 /></tw::Md>
+            ]>"Continue"</html::Button>
+        </html::Body>
+    </html::Html>
+}
+```
+
+Style components return `tw::Style`; reusable compositions return
+`Children<tw::Style>`. HTML and style children are different types. `Show` and
+`ForEach` work with both; removing a style contribution removes its declarations
+on the next serialization. Static styling needs no signals or effects.
+
+Put one `<tw::Styles />` in the document head, or at the beginning of a fragment.
+Serialization first collects CSS from the mounted tree, including current style
+branches, then fills the outlet. Constructed but unmounted nodes contribute
+nothing. A styled tree without an outlet is an error. Output is buffered, not
+streamed. Rendering remains string serialization, not browser DOM binding.
+
+Each distinct ordered style composition gets a deterministic generated class;
+identical compositions share rules. Existing `class` attributes are preserved.
+Within a composition, declarations keep their source order, so later declarations
+win at equal specificity. Pseudo-class and descendant selectors still follow
+normal CSS specificity. Nested breakpoint and pseudo-class components compose;
+`Descendants target=tw::Target::Input` styles matching descendants, including
+children added later by scripts. Semantic colors reference `--bht-*` CSS custom
+properties with defaults; this theme is independent of GUI beui crates. Utilities
+use rem spacing and text sizes. No reset is installed implicitly.
+
 `render` builds in a fresh reactive scope, flushes bindings, writes the doctype
 and HTML, then disposes the scope. For a retained tree, build inside a scope you
 keep and call `Node::to_html` after updates. String children are escaped static

@@ -1207,7 +1207,12 @@ impl Parse for ViewAttr {
             return Ok(ViewAttr { key, value });
         }
         input.parse::<Token![=]>()?;
-        let value = if input.peek(syn::token::Brace) {
+        let value = if input.peek(syn::token::Bracket) {
+            let content;
+            syn::bracketed!(content in input);
+            let view = content.parse::<View>()?;
+            syn::parse2(expand_view(&view))?
+        } else if input.peek(syn::token::Brace) {
             let content;
             braced!(content in input);
             content.parse::<Expr>()?

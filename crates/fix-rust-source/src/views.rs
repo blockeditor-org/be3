@@ -68,6 +68,7 @@ struct Attribute {
 }
 
 enum Value {
+    View(Vec<Child>),
     Braced(Range<usize>),
     Bare(Range<usize>),
 }
@@ -272,7 +273,13 @@ impl Parser<'_> {
             self.identifier()?
         };
         let value = if self.eat("=") {
-            if self.at(0, "{") {
+            if self.at(0, "[") {
+                let open = self.index;
+                let close = matching(self.tokens, open)?;
+                let children = parse_view(&self.tokens[open + 1..close])?;
+                self.index = close + 1;
+                Some(Value::View(children))
+            } else if self.at(0, "{") {
                 Some(Value::Braced(self.group()?))
             } else {
                 Some(Value::Bare(self.bare_value()?))
@@ -503,6 +510,15 @@ impl Formatter<'_> {
         let column = column + key.chars().count() + 1;
         match &attribute.value {
             None => vec![key],
+            Some(Value::View(children)) => {
+                let mut lines = vec![format!("{key}=[")];
+                for child in children {
+                    let parts = self.child_lines(child, indent + INDENT, indent + INDENT);
+                    push_block(&mut lines, indent + INDENT, parts);
+                }
+                lines.push(format!("{}]", spaces(indent)));
+                lines
+            }
             Some(Value::Bare(range)) => {
                 prefix(self.expr_lines(range, indent, column), &format!("{key}="))
             }
@@ -578,6 +594,7 @@ impl Formatter<'_> {
         let key = attribute_key(attribute);
         match &attribute.value {
             None => Some(key),
+            Some(Value::View(_)) => None,
             Some(Value::Bare(range)) => Some(format!("{key}={}", self.expr_text(range)?)),
             Some(Value::Braced(range)) => Some(format!("{key}={{{}}}", self.expr_text(range)?)),
         }
