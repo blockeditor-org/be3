@@ -31,7 +31,11 @@ incompatible schemas. This directory and its backups are frozen formats
 
 Password sign-ins are disabled unless the host starts the server with
 `--allow-login`; registration requires `--allow-registration`. Devices already
-signed in reconnect with their session tokens. To create an account directly,
+signed in reconnect with their session tokens. Browser authorization lasts ten
+minutes independently of the initiating connection. The app retains a private
+secret separately from the displayed code and checks completion on fresh
+connections, retrying when the network is unavailable. Only that secret can
+redeem the approved authorization, once. To create an account directly,
 stop the server and run its executable with the same `--data-dir` and
 `--add-account EMAIL NAME ORGANIZATION`, passing the password on standard input.
 

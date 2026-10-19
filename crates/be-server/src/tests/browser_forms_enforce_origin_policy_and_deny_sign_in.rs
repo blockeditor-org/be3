@@ -4,7 +4,7 @@ use super::*;
 async fn browser_forms_enforce_origin_policy_and_deny_sign_in() {
     let harness = Harness::start().await;
     let mut app = harness.client().await;
-    let code = begin(&mut app).await;
+    let (code, secret) = begin_session(&mut app).await;
     let csrf = form(&harness, &code).await;
     let body = format!("csrf={csrf}&code={code}&action=deny");
     assert_eq!(
@@ -28,8 +28,12 @@ async fn browser_forms_enforce_origin_policy_and_deny_sign_in() {
         }
     ));
     assert!(matches!(
-        app.send(|request| ClientMessage::FinishBrowserLogin { request, code })
-            .await,
+        app.send(|request| ClientMessage::FinishBrowserLogin {
+            request,
+            code,
+            secret
+        })
+        .await,
         ServerMessage::Failed { .. }
     ));
 }

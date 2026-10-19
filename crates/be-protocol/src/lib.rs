@@ -324,6 +324,7 @@ pub enum ClientMessage {
     FinishBrowserLogin {
         request: u64,
         code: String,
+        secret: String,
     },
     CreateLocalProfile {
         request: u64,
@@ -751,6 +752,7 @@ pub enum ServerMessage {
     BrowserLogin {
         request: u64,
         code: String,
+        secret: String,
     },
     BrowserLoginFinished {
         approved: bool,

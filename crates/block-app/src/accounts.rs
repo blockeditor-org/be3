@@ -151,47 +151,36 @@ pub(crate) async fn browser_login(
         let connection = Connection::connect(&socket_url(&server_url))
             .await
             .map_err(|error| error.to_string())?;
-        let mut events = connection.subscribe();
-        let mut closed = connection.closed();
         let response = connection
             .request(|request| ClientMessage::BeginBrowserLogin { request })
             .await
             .map_err(|error| error.to_string())?;
-        let ServerMessage::BrowserLogin { code, .. } = response else {
+        let ServerMessage::BrowserLogin { code, secret, .. } = response else {
             return Err("Unexpected sign-in response".into());
         };
         notify(BrowserLogin {
             code: code.clone(),
             url: format!("{auth_url}?code={code}"),
         });
+        drop(connection);
         loop {
-            let event =
-                futures_util::future::select(Box::pin(events.recv()), Box::pin(closed.changed()))
-                    .await;
-            match event {
-                futures_util::future::Either::Left((
-                    Ok(ServerMessage::BrowserLoginFinished { approved, message }),
-                    _,
-                )) => {
-                    if !approved {
-                        return Err(message);
-                    }
-                    return session_of(
-                        connection
-                            .request(|request| ClientMessage::FinishBrowserLogin { request, code })
-                            .await
-                            .map_err(|error| error.to_string())?,
-                    )
-                    .map_err(|error| error.to_string());
-                }
-                futures_util::future::Either::Left((Ok(_), _)) => {}
-                _ => {
-                    return Err(
-                        "The connection closed while waiting for browser authorization. Try again."
-                            .into(),
-                    );
-                }
+            let result = async {
+                let connection = Connection::connect(&socket_url(&server_url)).await?;
+                connection
+                    .request(|request| ClientMessage::FinishBrowserLogin {
+                        request,
+                        code: code.clone(),
+                        secret: secret.clone(),
+                    })
+                    .await
             }
+            .await;
+            match result {
+                Ok(ServerMessage::Ok { .. }) | Err(ClientError::Disconnected(_)) => {}
+                Ok(response) => return session_of(response).map_err(|error| error.to_string()),
+                Err(error) => return Err(error.to_string()),
+            }
+            crate::be::sleep(std::time::Duration::from_secs(2)).await;
         }
     };
     match futures_util::future::select(Box::pin(login), cancelled).await {

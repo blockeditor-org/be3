@@ -22,6 +22,8 @@ pub(crate) struct Sessions {
 
 struct Pending {
     client: u64,
+    secret: String,
+    denied: bool,
     expires: Instant,
     account: Option<Uuid>,
     _cancel: tokio::sync::oneshot::Sender<()>,
@@ -36,7 +38,7 @@ impl Sessions {
         self: &Arc<Self>,
         client: u64,
         hub: Arc<WatchHub>,
-    ) -> Result<String, ServerError> {
+    ) -> Result<(String, String), ServerError> {
         let mut pending = self.pending.lock().unwrap();
         pending.retain(|_, entry| entry.client != client && entry.expires > Instant::now());
         if pending.len() >= LIMIT {
@@ -44,11 +46,14 @@ impl Sessions {
         }
         let random = Uuid::new_v4().simple().to_string();
         let code = format!("{}-{}-{}", &random[..4], &random[4..8], &random[8..12]);
+        let secret = Uuid::new_v4().to_string();
         let (cancel, cancelled) = tokio::sync::oneshot::channel();
         pending.insert(
             code.clone(),
             Pending {
                 client,
+                secret: secret.clone(),
+                denied: false,
                 expires: Instant::now() + LIFETIME,
                 account: None,
                 _cancel: cancel,
@@ -72,27 +77,29 @@ impl Sessions {
                 }
             }
         });
-        Ok(code)
+        Ok((code, secret))
     }
 
-    pub(crate) fn cancel(&self, client: u64) {
-        self.pending
-            .lock()
-            .unwrap()
-            .retain(|_, entry| entry.client != client);
-    }
-
-    pub(crate) fn finish(&self, client: u64, code: &str) -> Result<Uuid, ServerError> {
+    pub(crate) fn finish(
+        &self,
+        client: u64,
+        code: &str,
+        secret: &str,
+    ) -> Result<Option<Uuid>, ServerError> {
         let mut pending = self.pending.lock().unwrap();
         let entry = pending
-            .get(code)
-            .filter(|entry| entry.client == client && entry.expires > Instant::now())
+            .get_mut(code)
+            .filter(|entry| entry.secret == secret && entry.expires > Instant::now())
             .ok_or_else(|| invalid("this sign-in expired or was cancelled"))?;
-        let account = entry
-            .account
-            .ok_or_else(|| invalid("approve this sign-in in the browser first"))?;
+        if entry.denied {
+            return Err(invalid("Sign-in was denied in the browser."));
+        }
+        entry.client = client;
+        let Some(account) = entry.account else {
+            return Ok(None);
+        };
         pending.remove(code);
-        Ok(account)
+        Ok(Some(account))
     }
 
     fn form(&self) -> Result<String, ServerError> {
@@ -250,17 +257,25 @@ pub(crate) async fn submit(
         let pending = services.browser_auth.pending.lock().unwrap();
         let entry = pending
             .get(&code)
-            .filter(|entry| entry.expires > Instant::now() && entry.account.is_none())
+            .filter(|entry| {
+                entry.expires > Instant::now() && entry.account.is_none() && !entry.denied
+            })
             .ok_or_else(|| invalid("this code is invalid, expired, or already approved"))?;
         let _ = entry;
     }
     if field("action") == "deny" {
-        let entry = services.browser_auth.pending.lock().unwrap().remove(&code);
+        let entry = {
+            let mut pending = services.browser_auth.pending.lock().unwrap();
+            pending.get_mut(&code).map(|entry| {
+                entry.denied = true;
+                entry.client
+            })
+        };
         if let Some(entry) = entry {
             services
                 .hub
                 .send_to(
-                    entry.client,
+                    entry,
                     ServerMessage::BrowserLoginFinished {
                         approved: false,
                         message: "Sign-in was denied in the browser.".into(),
@@ -290,7 +305,9 @@ pub(crate) async fn submit(
         let mut pending = services.browser_auth.pending.lock().unwrap();
         let entry = pending
             .get_mut(&code)
-            .filter(|entry| entry.expires > Instant::now() && entry.account.is_none())
+            .filter(|entry| {
+                entry.expires > Instant::now() && entry.account.is_none() && !entry.denied
+            })
             .ok_or_else(|| invalid("this sign-in expired or was cancelled"))?;
         entry.account = Some(profile.account);
         entry.client

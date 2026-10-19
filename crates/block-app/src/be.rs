@@ -21,6 +21,8 @@ use native as platform;
 #[cfg(target_arch = "wasm32")]
 use web as platform;
 
+pub(crate) use platform::sleep;
+
 pub(crate) use graph::{Graph, Node, Query, Scope};
 pub(crate) use worker::{History, PairingRequest, Presence, Shared};
 
