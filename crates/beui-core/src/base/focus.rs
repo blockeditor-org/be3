@@ -663,10 +663,11 @@ impl Document {
             self.note_focus_outside_scopes(new);
         }
         self.watch_focus();
-        self.keyboard_held = new_focus.is_some_and(|focused| {
-            self.contains(focused)
-                && focus_of(self.arena.get(focused)).is_some_and(|node| !node.keyboard_on_focus)
-        });
+        self.keyboard_held = self.touched
+            && new_focus.is_some_and(|focused| {
+                self.contains(focused)
+                    && focus_of(self.arena.get(focused)).is_some_and(|node| !node.keyboard_on_focus)
+            });
         for id in [old, new_focus].into_iter().flatten() {
             self.arena.invalidate_node(id);
         }
