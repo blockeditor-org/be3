@@ -2,7 +2,8 @@ use super::*;
 use crate::styled::*;
 use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
 
-fn input(id: u64) -> NodeId {
+#[component]
+fn Input(id: u64) -> NodeId {
     let (typed, set_typed) = create_signal(String::new());
     view! {
         <styled::TextInput
@@ -23,14 +24,18 @@ fn pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows() {
         view! {
             <styled::Docking @node_ref=&dock layout>
                 <DockPane id="main">
-                    <DockTab id=1u64 title="Main" content={move || input(1)} />
+                    <DockTab id=1u64 title="Main">
+                        <Input id=1 />
+                    </DockTab>
                 </DockPane>
                 <DockWindow
                     id="window"
                     rect={Rect::from_min_size(pos2(500.0, 100.0), vec2(400.0, 300.0))}
                 >
                     <DockPane id="floating">
-                        <DockTab id=2u64 title="Floating" content={move || input(2)} />
+                        <DockTab id=2u64 title="Floating">
+                            <Input id=2 />
+                        </DockTab>
                     </DockPane>
                 </DockWindow>
             </styled::Docking>
