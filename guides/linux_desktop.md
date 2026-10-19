@@ -71,7 +71,9 @@ in `PREFIX/share/wayland-sessions`. greetd's greeters (gtkgreet, regreet) list t
 In session mode stdout and stderr, and so every `eprintln!`, every panic with its backtrace
 and the output of every program the app starts, go to `$XDG_STATE_HOME/block/session.log`
 (`~/.local/state/block/session.log`); the previous session's is kept beside it as
-`session.previous.log`. Problems a person should see at once also show as toasts in the
+`session.previous.log`. The directory is the app id in lower case (`blockdev` for a build
+without bundle metadata). The error that ends a session is also written to the stderr the app
+started with, so a session run by systemd or greetd shows it in the journal. Problems a person should see at once also show as toasts in the
 corner of the screen: `beui_adapter_drm::Problems` carries the display and input ones,
 `be_wayland::Compositor::on_failure` a program that could not be run, and `notices::report`
 puts each in front of the person, as an error toast that stays until it is dismissed;
