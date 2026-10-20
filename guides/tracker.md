@@ -15,7 +15,7 @@ once it is deployed from another build and the pin has to move with it. Set
 `BE3_AGENT_CREDENTIALS` to the JSON copied from the app's Agents dialog, or save
 that JSON in `external/.tracker-credentials`. The file is ignored by git and
 `./scripts/setup` fetches it from
-`https://blocks.pfg.pw/authorized-storage/tracker-credentials` behind the gateway.
+`https://api.be3.pfg.pw/authorized-storage/tracker-credentials` behind the gateway.
 The wrapper passes it to `be` as `BE3_AGENT_CREDENTIALS`; `be` reads environment
 variables, never that file.
 

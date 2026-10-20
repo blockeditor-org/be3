@@ -8,7 +8,7 @@
 # given --allow-login and --allow-registration.
 #
 #   ./scripts/buck run //crates/block-app:web [-- --listen HOST:PORT] [--backend HOST:PORT]
-#   ./scripts/buck run //crates/block-app:web -- --domain blocks.pfg.pw [--data-dir DIR]
+#   ./scripts/buck run //crates/block-app:web -- --domain api.be3.pfg.pw [--data-dir DIR]
 set -eu
 caddy="$1" caddyfile="$2" server="$3" bundle="$4"
 shift 4
