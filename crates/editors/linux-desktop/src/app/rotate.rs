@@ -17,9 +17,8 @@ const SPACING: f32 = 8.0;
 pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -> NodeId {
     let client = editor.host().client_id();
     let effective = editor.effective_settings::<DisplaySettings>();
-    let top = create_memo(move || {
-        RootSetting::<DisplaySettingsContent>::default().find(&editor, client)
-    });
+    let top =
+        create_memo(move || RootSetting::<DisplaySettingsContent>::default().find(&editor, client));
     let settled = editor
         .related_content::<DisplaySettingsContent>(top)
         .settled();
@@ -36,9 +35,9 @@ pub(crate) fn RotateButton(editor: Editor, display: Memo<Option<HostDisplay>>) -
         else {
             return;
         };
-        let block = top.get_untracked().or_else(|| {
-            RootSetting::<DisplaySettingsContent>::default().ensure(&editor, client)
-        });
+        let block = top
+            .get_untracked()
+            .or_else(|| RootSetting::<DisplaySettingsContent>::default().ensure(&editor, client));
         let Some(block) = block else {
             return;
         };

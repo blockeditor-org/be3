@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{
@@ -8,7 +9,6 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
-use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::{Displays, Epaper, EpaperRequest, Media, Power, Wifi, utc_offset};
 use block_shell::Workspace;
 

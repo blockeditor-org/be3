@@ -1,9 +1,9 @@
 use block_editor_beui::be_block::DisplaySettings;
+use block_editor_beui::be_block::display_settings::Rotation;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
-use block_editor_beui::be_block::display_settings::Rotation;
 use block_editor_beui::{HostDisplay, HostDisplayMode, RotationPicker};
 
 use super::modes::{

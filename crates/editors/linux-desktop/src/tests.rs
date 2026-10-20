@@ -5,12 +5,12 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    AudioOutput, BlockInfo, BlockParent, ChildContent, Displays, EditorHost, Epaper,
-    EpaperRequest, HostDisplay, HostDisplayMode, HostImage, HostProgram, HostWindow, HostWindowId, HostWindows, IncomingNotification, Media,
-    MediaLevel, MediaLevels, MediaRequest, NotificationInbox, NotificationReport,
-    NotificationRequest, NotificationSignal, Notifications, OwnedEditor, PlayerCommand, Power,
-    PowerAction, PowerAvailability, ProgramAction, Programs, Wifi, WifiLink, WifiNetwork,
-    WifiRequest, WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
+    AudioOutput, BlockInfo, BlockParent, ChildContent, Displays, EditorHost, Epaper, EpaperRequest,
+    HostDisplay, HostDisplayMode, HostImage, HostProgram, HostWindow, HostWindowId, HostWindows,
+    IncomingNotification, Media, MediaLevel, MediaLevels, MediaRequest, NotificationInbox,
+    NotificationReport, NotificationRequest, NotificationSignal, Notifications, OwnedEditor,
+    PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs, Wifi, WifiLink,
+    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
 };
 use block_plugin_api::Size;
 use block_shell::{KeptWindow, saved_windows};
@@ -46,6 +46,7 @@ mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
 mod escape_closes_the_launcher_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
+mod picking_a_turned_screen_writes_its_rotation_into_this_devices_display_settings;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod the_calendar_popup_fits_a_narrow_screen;
 mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
@@ -57,7 +58,6 @@ mod the_power_menu_asks_before_ending_the_session;
 mod the_power_menu_locks_the_screen_without_asking;
 mod the_power_menu_offers_only_what_the_host_allows;
 mod the_programs_button_opens_the_launcher_on_the_programs_the_host_lists;
-mod picking_a_turned_screen_writes_its_rotation_into_this_devices_display_settings;
 mod the_refresh_button_shows_on_an_epaper_display_and_asks_the_host_to_refresh;
 mod the_rotate_button_shows_when_the_display_settings_ask_for_it_and_a_screen_is_reported;
 mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
