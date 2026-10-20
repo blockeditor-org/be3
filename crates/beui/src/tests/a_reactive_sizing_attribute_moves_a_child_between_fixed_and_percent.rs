@@ -12,7 +12,7 @@ fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
 
     let document = build({
         move || {
-            let (shared, set_shared) = create_signal(false);
+            let shared = create_signal(false);
             let sizing = create_memo(move || {
                 if shared.get() {
                     ItemSize::Percent(100.0)
@@ -24,7 +24,7 @@ fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
                 <List spacing=0.0>
                     <Button
                         @node_ref=&toggle
-                        on_click={move || set_shared.update(|shared| *shared = !*shared)}
+                        on_click={move || shared.update(|shared| *shared = !*shared)}
                     >
                         <Text string="toggle" />
                     </Button>

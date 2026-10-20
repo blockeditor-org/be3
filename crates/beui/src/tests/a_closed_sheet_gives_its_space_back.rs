@@ -5,7 +5,7 @@ use crate::reactive::*;
 fn a_closed_sheet_gives_its_space_back() {
     let _root = crate::reactive::RootScope::new();
     let filler = NodeRef::new();
-    let (open, set_open) = create_signal(true);
+    let open = create_signal(true);
     let document = build({
         move || {
             view! {
@@ -26,7 +26,7 @@ fn a_closed_sheet_gives_its_space_back() {
         "an open sheet takes its share"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(false));
+    with_reactive_scope(harness.document_mut(), move || open.set(false));
     harness.settle();
     assert_eq!(
         harness.rect(filler.get()).height(),

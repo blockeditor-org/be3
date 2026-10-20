@@ -7,18 +7,18 @@ use crate::reactive::*;
 #[test]
 fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
     let _root = crate::reactive::RootScope::new();
-    let (forwarded, set_forwarded) = create_signal(Vec::<Key>::new());
-    let (ran, set_ran) = create_signal(Vec::new());
+    let forwarded = create_signal(Vec::<Key>::new());
+    let ran = create_signal(Vec::new());
     let document = build({
         move || {
             Action::new("test.global", "Global", move || {
-                set_ran.update(|ran| ran.push("global"))
+                ran.update(|ran| ran.push("global"))
             })
             .shortcut(Chord::logo(Key::G))
             .at(KeyAt::Window)
             .register();
             Action::new("test.intercepting", "Intercepting", move || {
-                set_ran.update(|ran| ran.push("intercepting"))
+                ran.update(|ran| ran.push("intercepting"))
             })
             .shortcut(Chord::logo(Key::H))
             .at(KeyAt::Window)
@@ -31,7 +31,7 @@ fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    set_forwarded.update(|forwarded| forwarded.extend(input.inputs().filter_map(
+                                    forwarded.update(|forwarded| forwarded.extend(input.inputs().filter_map(
                                         |event| match event {
                                             Event::Key { press, .. } if press.pressed => {
                                                 Some(press.key)

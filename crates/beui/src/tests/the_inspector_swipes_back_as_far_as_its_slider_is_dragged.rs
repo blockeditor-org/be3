@@ -8,7 +8,7 @@ const REVEAL: f32 = 200.0;
 #[test]
 fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
     let _root = crate::reactive::RootScope::new();
-    let (depth, set_depth) = create_signal(1_u32);
+    let depth = create_signal(1_u32);
     let page = NodeRef::new();
     let document = build({
         move || {
@@ -16,7 +16,7 @@ fn the_inspector_swipes_back_as_far_as_its_slider_is_dragged() {
             view! {
                 <BackSlide
                     enabled={nested}
-                    on_back={move || set_depth.set(depth.get_untracked() - 1)}
+                    on_back={move || depth.set(depth.get_untracked() - 1)}
                     behind={|| view! {
                         <Text string="Previous" color=Color32::WHITE />
                     }}

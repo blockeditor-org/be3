@@ -3,8 +3,8 @@ use std::rc::Rc;
 
 use crate::arena::{self, Key};
 use crate::computation::Computation;
-use crate::runtime::{probe, untrack};
-use crate::signal::{Tracked, Value, track};
+use crate::runtime::probe;
+use crate::signal::{Get, Tracked, Value, track};
 
 pub struct Memo<T> {
     key: Key,
@@ -49,8 +49,8 @@ impl<T> Clone for Memo<T> {
 
 impl<T> Copy for Memo<T> {}
 
-impl<T: 'static> Memo<T> {
-    pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+impl<T: 'static> Get<T> for Memo<T> {
+    fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         let output = arena::get::<Value<Option<T>>>(self.key)
             .expect("memo used after the scope that owns it was disposed");
         let producer = output.source.producer.borrow().upgrade();
@@ -60,25 +60,9 @@ impl<T: 'static> Memo<T> {
         track(output.clone());
         f(output.value.borrow().as_ref().expect("memo has no value"))
     }
+}
 
-    pub fn get(&self) -> T
-    where
-        T: Clone,
-    {
-        self.with(Clone::clone)
-    }
-
-    pub fn get_untracked(&self) -> T
-    where
-        T: Clone,
-    {
-        untrack(|| self.get())
-    }
-
-    pub fn with_untracked<R>(&self, f: impl FnOnce(&T) -> R) -> R {
-        untrack(|| self.with(f))
-    }
-
+impl<T: 'static> Memo<T> {
     pub fn is_alive(&self) -> bool {
         arena::get::<Value<Option<T>>>(self.key).is_some()
     }

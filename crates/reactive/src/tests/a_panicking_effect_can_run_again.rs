@@ -4,7 +4,7 @@ use super::*;
 fn a_panicking_effect_can_run_again() {
     let _root = RootScope::new();
     let scope = Scope::new();
-    let (value, set_value) = create_signal(0);
+    let value = create_signal(0);
     let seen = Rc::new(RefCell::new(Vec::new()));
     scope.run(|| {
         let seen = seen.clone();
@@ -14,7 +14,7 @@ fn a_panicking_effect_can_run_again() {
             seen.borrow_mut().push(value);
         });
     });
-    assert!(catch_unwind(AssertUnwindSafe(|| set_value.set(1))).is_err());
-    set_value.set(2);
+    assert!(catch_unwind(AssertUnwindSafe(|| value.set(1))).is_err());
+    value.set(2);
     assert_eq!(*seen.borrow(), [0, 2]);
 }

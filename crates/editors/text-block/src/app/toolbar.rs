@@ -22,13 +22,13 @@ const FORMAT_PADDING: f32 = 6.0;
 
 #[component]
 pub(crate) fn EditorMenu(state: State) -> NodeId {
-    let (settings, set_settings) = create_signal(false);
-    menu_actions(state, set_settings);
+    let settings = create_signal(false);
+    menu_actions(state, settings);
     let hex = state.hex_view;
     let text_view = create_memo(move || !hex.get());
     let hex_view = create_memo(move || hex.get());
     view! {
-        <Dialog open={settings} title="Text settings" on_dismiss={move || set_settings.set(false)}>
+        <Dialog open={settings} title="Text settings" on_dismiss={move || settings.set(false)}>
             <List spacing=SETTINGS_SPACING>
                 <Show condition={text_view}>
                     <TextSettings state={state} />
@@ -41,7 +41,7 @@ pub(crate) fn EditorMenu(state: State) -> NodeId {
     }
 }
 
-fn menu_actions(state: State, set_settings: WriteSignal<bool>) {
+fn menu_actions(state: State, settings: Signal<bool>) {
     let hex = state.hex_view;
     let in_text = create_memo(move || !hex.get());
     Action::new("text.hex", "Toggle hex view", move || {
@@ -58,12 +58,10 @@ fn menu_actions(state: State, set_settings: WriteSignal<bool>) {
     .enabled(in_text)
     .in_menu()
     .register();
-    Action::new("text.settings", "Text settings", move || {
-        set_settings.set(true)
-    })
-    .glyph(ICON_SETTINGS)
-    .in_menu()
-    .register();
+    Action::new("text.settings", "Text settings", move || settings.set(true))
+        .glyph(ICON_SETTINGS)
+        .in_menu()
+        .register();
 }
 
 const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [
@@ -253,7 +251,7 @@ fn HexSettings(state: State) -> NodeId {
                 on={insert}
                 @test_id={"text.hex-insert"}
                 on_change={move |pressed: bool| {
-                    state.set_hex_insert_mode.set(pressed);
+                    state.hex_insert_mode.set(pressed);
                     state.inner().hex_pending_nibble.set(None);
                 }}
             />

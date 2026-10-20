@@ -7,30 +7,30 @@ use crate::unstyled::{command_palette_highlighted, command_palette_row, command_
 #[test]
 fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones() {
     let _root = crate::reactive::RootScope::new();
-    let (ran, set_ran) = create_signal(Vec::new());
+    let ran = create_signal(Vec::new());
     let palette = NodeRef::new();
     let document = build(move || {
         Action::new("test.lock", "Lock selection", move || {
-            set_ran.update(|ran| ran.push("lock"))
+            ran.update(|ran| ran.push("lock"))
         })
         .enabled(false)
         .register();
         Action::new("test.zoom-in", "Zoom in", move || {
-            set_ran.update(|ran| ran.push("zoom-in"))
+            ran.update(|ran| ran.push("zoom-in"))
         })
         .register();
         Action::new("test.reset", "Reset zoom", move || {
-            set_ran.update(|ran| ran.push("reset"))
+            ran.update(|ran| ran.push("reset"))
         })
         .register();
-        let (open, set_open) = create_signal(false);
+        let open = create_signal(false);
         on_shortcut(move |press: KeyPress| {
             let wanted = press.pressed
                 && press.key == Key::P
                 && press.modifiers.ctrl
                 && press.modifiers.shift;
             if wanted {
-                set_open.set(true);
+                open.set(true);
             }
             wanted
         });
@@ -39,7 +39,7 @@ fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones
                 <unstyled::Button @test_id={"button"}>
                     <ButtonFace label="Canvas" />
                 </unstyled::Button>
-                <CommandPalette @node_ref=&palette open on_close={move || set_open.set(false)} />
+                <CommandPalette @node_ref=&palette open on_close={move || open.set(false)} />
             </List>
         }
     });

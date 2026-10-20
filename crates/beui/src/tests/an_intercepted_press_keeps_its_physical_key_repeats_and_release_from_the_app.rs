@@ -35,12 +35,12 @@ fn logo(pressed: bool) -> Event {
 #[test]
 fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app() {
     let _root = crate::reactive::RootScope::new();
-    let (ran, set_ran) = create_signal(0);
-    let (forwarded, set_forwarded) = create_signal(Vec::<Event>::new());
+    let ran = create_signal(0);
+    let forwarded = create_signal(Vec::<Event>::new());
     let document = build({
         move || {
             Action::new("test.fullscreen", "Fullscreen", move || {
-                set_ran.update(|ran| *ran += 1)
+                ran.update(|ran| *ran += 1)
             })
             .shortcut(Chord::logo(Key::F))
             .at(KeyAt::Window)
@@ -52,7 +52,7 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
                         <Interactive
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
-                                set_forwarded.update(|forwarded| forwarded.extend(flattened(input)));
+                                forwarded.update(|forwarded| forwarded.extend(flattened(input)));
                             }}
                         >
                             <Frame />
@@ -70,7 +70,7 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.click(pos2(50.0, 50.0));
-    set_forwarded.update(|forwarded| forwarded.clear());
+    forwarded.update(|forwarded| forwarded.clear());
 
     harness.frame(vec![
         logo(true),
@@ -99,7 +99,7 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
         "the app hears Super, but no part of the F that ran the action"
     );
 
-    set_forwarded.update(|forwarded| forwarded.clear());
+    forwarded.update(|forwarded| forwarded.clear());
     harness.frame(vec![f(true, false, Modifiers::NONE)]);
     harness.frame(vec![f(false, false, Modifiers::NONE)]);
     assert!(

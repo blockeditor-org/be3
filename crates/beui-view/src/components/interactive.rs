@@ -2,7 +2,8 @@ use std::cell::Cell;
 use std::rc::Rc;
 
 use crate::reactive::{
-    Callback, Child, ClickCallback, Prop, create_binding, create_effect, on_cleanup, with_document,
+    Callback, Child, ClickCallback, Get, Prop, create_binding, create_effect, on_cleanup,
+    with_document,
 };
 use beui_core::base::list::Direction;
 use beui_core::clipboard::{PasteKind, Pasted};

@@ -9,7 +9,7 @@ use crate::unstyled::{Tooltip, TooltipHandle};
 #[test]
 fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
     let _root = crate::reactive::RootScope::new();
-    let (clicked, set_clicked) = create_signal(0u32);
+    let clicked = create_signal(0u32);
     let button = NodeRef::new();
     let document = build({
         move || {
@@ -26,7 +26,7 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
                     >
                         <Button
                             @node_ref=&button
-                            on_click={move || set_clicked.update(|clicked| *clicked += 1)}
+                            on_click={move || clicked.update(|clicked| *clicked += 1)}
                         >
                             <Text string="add" />
                         </Button>

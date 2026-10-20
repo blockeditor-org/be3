@@ -7,8 +7,8 @@ use crate::unstyled::Scroll;
 #[test]
 fn a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
-    let (cancels, set_cancels) = create_signal(0);
+    let clicks = create_signal(0);
+    let cancels = create_signal(0);
     let scroll = NodeRef::new();
     let document = build({
         move || {
@@ -18,8 +18,8 @@ fn a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it() {
                         <ForEach keys={indices(100)}>|_: usize|
                             <Interactive
                                 capture_presses=true
-                                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
-                                on_cancel={move || set_cancels.update(|cancels| *cancels += 1)}
+                                on_click={move || clicks.update(|clicks| *clicks += 1)}
+                                on_cancel={move || cancels.update(|cancels| *cancels += 1)}
                             >
                                 <Frame height=30.0 />
                             </Interactive>

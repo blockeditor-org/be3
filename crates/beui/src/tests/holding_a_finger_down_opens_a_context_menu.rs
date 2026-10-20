@@ -20,8 +20,8 @@ fn sheet_shown(harness: &Harness) -> bool {
 fn holding_a_finger_down_opens_a_context_menu() {
     let _root = crate::reactive::RootScope::new();
     let menu = NodeRef::new();
-    let (clicked, set_clicked) = create_signal(0);
-    let (cancelled, set_cancelled) = create_signal(0);
+    let clicked = create_signal(0);
+    let cancelled = create_signal(0);
     let document = crate::reactive::build({
         move || {
             view! {
@@ -32,8 +32,8 @@ fn holding_a_finger_down_opens_a_context_menu() {
                     }}
                 >
                     <Interactive
-                        on_click={move || set_clicked.update(|clicked| *clicked += 1)}
-                        on_cancel={move || set_cancelled.update(|cancelled| *cancelled += 1)}
+                        on_click={move || clicked.update(|clicked| *clicked += 1)}
+                        on_cancel={move || cancelled.update(|cancelled| *cancelled += 1)}
                     >
                         <Frame width=300.0 height=300.0 />
                     </Interactive>

@@ -6,13 +6,13 @@ use crate::styled::*;
 #[test]
 fn a_driver_clicks_a_button_by_its_label_and_hears_what_changed() {
     let document = build(|| {
-        let (added, set_added) = create_signal(false);
+        let added = create_signal(false);
         view! {
             <List spacing=8.0>
                 <Button
                     label="Add"
                     variant=ButtonVariant::Primary
-                    on_click={move || set_added.set(true)}
+                    on_click={move || added.set(true)}
                 />
                 <ShowKeepAlive condition={added}>
                     <Text string="Added" />

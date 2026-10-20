@@ -59,27 +59,18 @@ struct MapInner {
 pub(crate) struct MapState {
     editor: Editor,
     preview: bool,
-    fit_requested: ReadSignal<bool>,
-    set_fit_requested: WriteSignal<bool>,
+    fit_requested: Signal<bool>,
     pub(crate) points: ReadSignal<Vec<MapPoint>>,
     pub(crate) preview_region: ReadSignal<Option<MapRegion>>,
     pub(crate) displayed_region: ReadSignal<MapRegion>,
-    pub(crate) selected: ReadSignal<Option<Uuid>>,
-    set_selected: WriteSignal<Option<Uuid>>,
-    pub(crate) visible_region: ReadSignal<MapRegion>,
-    set_visible_region: WriteSignal<MapRegion>,
-    pub(crate) last_error: ReadSignal<Option<String>>,
-    set_last_error: WriteSignal<Option<String>>,
-    pub(crate) import_error: ReadSignal<Option<String>>,
-    set_import_error: WriteSignal<Option<String>>,
-    pub(crate) labels: ReadSignal<HashMap<Uuid, BlockLabel>>,
-    set_labels: WriteSignal<HashMap<Uuid, BlockLabel>>,
-    pub(crate) revision: ReadSignal<u64>,
-    set_revision: WriteSignal<u64>,
-    pub(crate) reloads: ReadSignal<u64>,
-    set_reloads: WriteSignal<u64>,
-    pub(crate) anchor: ReadSignal<[f64; 2]>,
-    set_anchor: WriteSignal<[f64; 2]>,
+    pub(crate) selected: Signal<Option<Uuid>>,
+    pub(crate) visible_region: Signal<MapRegion>,
+    pub(crate) last_error: Signal<Option<String>>,
+    pub(crate) import_error: Signal<Option<String>>,
+    pub(crate) labels: Signal<HashMap<Uuid, BlockLabel>>,
+    pub(crate) revision: Signal<u64>,
+    pub(crate) reloads: Signal<u64>,
+    pub(crate) anchor: Signal<[f64; 2]>,
     inner: Stored<MapInner>,
 }
 
@@ -89,39 +80,30 @@ impl MapState {
         let points = block.project(|map| map.root().points());
         let preview_region = block.project(|map| map.root().preview_region);
         let displayed_region = block.project(|map| map.root().displayed_region());
-        let (selected, set_selected) = create_signal(None);
-        let (visible_region, set_visible_region) = create_signal(MapRegion::WORLD);
-        let (last_error, set_last_error) = create_signal(None);
-        let (import_error, set_import_error) = create_signal(None);
-        let (labels, set_labels) = create_signal(HashMap::new());
-        let (revision, set_revision) = create_signal(0);
-        let (reloads, set_reloads) = create_signal(0);
-        let (fit_requested, set_fit_requested) = create_signal(true);
-        let (anchor, set_anchor) = create_signal([0.0, 0.0]);
+        let selected = create_signal(None);
+        let visible_region = create_signal(MapRegion::WORLD);
+        let last_error = create_signal(None);
+        let import_error = create_signal(None);
+        let labels = create_signal(HashMap::new());
+        let revision = create_signal(0);
+        let reloads = create_signal(0);
+        let fit_requested = create_signal(true);
+        let anchor = create_signal([0.0, 0.0]);
         Self {
             editor,
             preview,
             fit_requested,
-            set_fit_requested,
             points,
             preview_region,
             displayed_region,
             selected,
-            set_selected,
             visible_region,
-            set_visible_region,
             last_error,
-            set_last_error,
             import_error,
-            set_import_error,
             labels,
-            set_labels,
             revision,
-            set_revision,
             reloads,
-            set_reloads,
             anchor,
-            set_anchor,
             inner: store(MapInner {
                 dependencies: editor
                     .blocks()
@@ -156,41 +138,41 @@ impl MapState {
     }
 
     pub(crate) fn select(&self, id: Option<Uuid>) {
-        self.set_selected.set(id);
+        self.selected.set(id);
     }
 
     pub(crate) fn dismiss_import_error(&self) {
-        self.set_import_error.set(None);
+        self.import_error.set(None);
     }
 
     pub(crate) fn request_fit(&self) {
-        self.set_fit_requested.set(true);
+        self.fit_requested.set(true);
     }
 
     pub(crate) fn reload_tiles(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         if let Some(worker) = inner.worker.borrow_mut().take() {
             worker.forget(&self.editor.host());
         }
         inner.tiles.borrow_mut().clear();
         inner.used.borrow_mut().clear();
-        self.set_last_error.set(None);
+        self.last_error.set(None);
         self.bump();
-        self.set_reloads.update(|reloads| *reloads += 1);
+        self.reloads.update(|reloads| *reloads += 1);
     }
 
     fn bump(&self) {
-        self.set_revision.update(|revision| *revision += 1);
+        self.revision.update(|revision| *revision += 1);
     }
 
     pub(crate) fn record(&self, edit: Edit) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         inner.block.operate(edit);
     }
 
     pub(crate) fn remove_point(&self, id: Uuid) {
         if self.selected.get_untracked() == Some(id) {
-            self.set_selected.set(None);
+            self.selected.set(None);
         }
         self.record(Map::remove(&[id]));
     }
@@ -203,7 +185,7 @@ impl MapState {
             position,
             color: MapColor::Default,
         }));
-        self.set_selected.set(Some(point_id));
+        self.selected.set(Some(point_id));
     }
 
     pub(crate) fn open_picker(self, at: Option<MapCoordinate>) {
@@ -216,7 +198,7 @@ impl MapState {
     }
 
     fn place_picked(&self, block_id: Uuid, at: Option<MapCoordinate>) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         self.editor
             .blocks()
             .set_parent(block_id, BlockParent::Block(self.block_id()));
@@ -328,7 +310,7 @@ impl MapState {
         let zoom = super::tiles::tile_zoom(world, host.scale);
         let anchor = world.tile_anchor(zoom, centre);
         if self.anchor.get_untracked() != anchor {
-            self.set_anchor.set(anchor);
+            self.anchor.set(anchor);
         }
     }
 
@@ -337,12 +319,12 @@ impl MapState {
     }
 
     pub(crate) fn press(&self, at: Pos2) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let view = self.view();
         let points = self.points.get_untracked();
         let tip = |point: &MapPoint| self.screen(view.position(point.position));
         let hit = crate::points::point_at(&points, tip, at);
-        self.set_selected.set(hit);
+        self.selected.set(hit);
         inner.dragged.set(hit.and_then(|id| {
             let point = points.iter().find(|point| point.id == id)?;
             Some((id, tip(point) - at))
@@ -350,7 +332,7 @@ impl MapState {
     }
 
     pub(crate) fn drag(&self, at: Pos2) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let Some((id, offset)) = inner.dragged.get() else {
             return;
         };
@@ -368,12 +350,12 @@ impl MapState {
     }
 
     pub(crate) fn release(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         inner.dragged.take();
     }
 
     pub(crate) fn pan(&self, delta: Vec2) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         if inner.dragged.get().is_none() {
             self.editor.pan(delta);
         }
@@ -384,7 +366,7 @@ impl MapState {
     }
 
     pub(crate) fn watch(self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let (waker, woken) = self.editor.woken();
         *inner.waker.borrow_mut() = waker;
         create_effect(move || {
@@ -434,12 +416,12 @@ impl MapState {
     }
 
     fn settle_view(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let view = self.view();
         let visible = untrack(|| self.visible());
         let region = view.region(visible);
         if self.visible_region.get_untracked() != region {
-            self.set_visible_region.set(region);
+            self.visible_region.set(region);
         }
         inner.view_center.set(view.coordinate(visible.center()));
         if self.sized()
@@ -447,7 +429,7 @@ impl MapState {
             && self.fit_requested.get_untracked()
             && let Some(preview) = self.preview_region.get_untracked()
         {
-            self.set_fit_requested.set(false);
+            self.fit_requested.set(false);
             self.fit_preview_region(view, preview);
         }
     }
@@ -464,7 +446,7 @@ impl MapState {
     }
 
     fn publish_references(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let types = self.types();
         let labels: HashMap<Uuid, BlockLabel> = inner
             .dependencies
@@ -473,7 +455,7 @@ impl MapState {
             .map(|reference: BlockInfo| (reference.id, reference.label(types.as_ref())))
             .collect();
         if self.labels.get_untracked() != labels {
-            self.set_labels.set(labels);
+            self.labels.set(labels);
         }
     }
 
@@ -496,7 +478,7 @@ impl MapState {
     }
 
     fn take_files(&self, drop: Option<FileDrop>) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let Some(drop) = drop else {
             inner.pending_file_drop.set(None);
             return;
@@ -507,7 +489,7 @@ impl MapState {
             inner.pending_file_drop.set(Some(at(drop.position)));
             return;
         }
-        self.set_import_error.set(None);
+        self.import_error.set(None);
         let base = inner
             .pending_file_drop
             .take()
@@ -524,9 +506,9 @@ impl MapState {
     }
 
     pub(crate) fn take_paste(&self, pasted: Pasted) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         if let Pasted::Image(file) = pasted {
-            self.set_import_error.set(None);
+            self.import_error.set(None);
             let position = inner.view_center.get();
             self.import(ImageContent::from_file(file.name, file.data), position);
         }
@@ -538,7 +520,7 @@ impl MapState {
     }
 
     pub(crate) fn unwant_tile(&self, id: TileId) {
-        let Some(inner) = self.inner.try_get() else {
+        let Some(inner) = self.inner.try_value() else {
             return;
         };
         if !matches!(inner.tiles.borrow().get(&id), Some(TileState::Loading)) {
@@ -555,7 +537,7 @@ impl MapState {
     }
 
     pub(crate) fn use_tiles(&self, shown: &[TileId]) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let uses = inner.uses.get() + 1;
         inner.uses.set(uses);
         let mut used = inner.used.borrow_mut();
@@ -585,7 +567,7 @@ impl MapState {
     }
 
     pub(crate) fn want_tile(&self, id: TileId) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let mut tiles = inner.tiles.borrow_mut();
         if tiles.contains_key(&id) {
             return;
@@ -600,7 +582,7 @@ impl MapState {
     }
 
     fn collect_tiles(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let host = self.editor.host();
         let results = match inner.worker.borrow_mut().as_mut() {
             Some(worker) => worker.poll(&host),
@@ -616,7 +598,7 @@ impl MapState {
                     labels: Rc::new(raster.labels),
                 },
                 Err(message) => {
-                    self.set_last_error.set(Some(message));
+                    self.last_error.set(Some(message));
                     TileState::Failed
                 }
             };

@@ -7,8 +7,8 @@ use crate::reactive::*;
 #[test]
 fn an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was() {
     let _root = crate::reactive::RootScope::new();
-    let (tip, set_tip) = create_signal(false);
-    let (menu, set_menu) = create_signal(false);
+    let tip = create_signal(false);
+    let menu = create_signal(false);
     let (below, above, inert, blocking) = (
         NodeRef::new(),
         NodeRef::new(),
@@ -75,7 +75,7 @@ fn an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was() {
     let (start_below, start_above) = order(&harness);
     assert!(start_below < start_above, "the later window starts on top");
 
-    with_reactive_scope(harness.document_mut(), move || set_tip.set(true));
+    with_reactive_scope(harness.document_mut(), move || tip.set(true));
     harness.frame(Vec::new());
     let (now_below, now_above) = order(&harness);
     assert!(
@@ -88,7 +88,7 @@ fn an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was() {
         "while the tooltip itself rises over the window it hangs in"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_menu.set(true));
+    with_reactive_scope(harness.document_mut(), move || menu.set(true));
     harness.frame(Vec::new());
     let (now_below, now_above) = order(&harness);
     assert!(

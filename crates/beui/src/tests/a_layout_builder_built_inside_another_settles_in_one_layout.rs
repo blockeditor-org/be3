@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn a_layout_builder_built_inside_another_settles_in_one_layout() {
     let _root = crate::reactive::RootScope::new();
-    let (seen, set_seen) = create_signal(Vec::new());
+    let seen = create_signal(Vec::new());
     let document = build({
         move || {
             view! {
@@ -17,7 +17,7 @@ fn a_layout_builder_built_inside_another_settles_in_one_layout() {
                                 <List spacing=0.0>
                                     <Show condition={wide}>
                                         <LayoutBuilder>|inner: ReadSignal<Vec2>| {
-                                            create_effect(move || set_seen.update(|seen| seen.push(inner.get().x)));
+                                            create_effect(move || seen.update(|seen| seen.push(inner.get().x)));
                                             view! {
                                                 <Frame height=20.0 />
                                             }

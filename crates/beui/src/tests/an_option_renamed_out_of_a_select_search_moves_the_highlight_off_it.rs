@@ -6,8 +6,8 @@ use crate::styled::*;
 fn an_option_renamed_out_of_a_select_search_moves_the_highlight_off_it() {
     let mut rename = None;
     let (document, [select]) = toolbar_of(|| {
-        let (label, set_label) = create_signal("Mango".to_owned());
-        rename = Some(set_label);
+        let label = create_signal("Mango".to_owned());
+        rename = Some(label);
         let options = view! {
             <unstyled::ChoiceOption label="Apple" />
             <unstyled::ChoiceOption label="Banana" />

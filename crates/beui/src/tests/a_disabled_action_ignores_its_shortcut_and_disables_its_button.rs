@@ -5,12 +5,12 @@ use crate::styled::*;
 #[test]
 fn a_disabled_action_ignores_its_shortcut_and_disables_its_button() {
     let _root = crate::reactive::RootScope::new();
-    let (runs, set_runs) = create_signal(0);
-    let (enabled, set_enabled) = create_signal(false);
+    let runs = create_signal(0);
+    let enabled = create_signal(false);
     let document = build(move || {
         let enabled = create_memo(move || enabled.get());
         let group = Action::new("test.group", "Group", move || {
-            set_runs.update(|runs| *runs += 1)
+            runs.update(|runs| *runs += 1)
         })
         .shortcut(Chord::ctrl(Key::G))
         .enabled(enabled)
@@ -33,7 +33,7 @@ fn a_disabled_action_ignores_its_shortcut_and_disables_its_button() {
     assert_eq!(runs.get_untracked(), 0);
     assert!(text_within(harness.document(), harness.find("group"), "Group").is_some());
 
-    with_reactive_scope(harness.document_mut(), move || set_enabled.set(true));
+    with_reactive_scope(harness.document_mut(), move || enabled.set(true));
     harness.frame(Vec::new());
     harness.key(Key::G, ctrl);
     harness.click(harness.center(harness.find("group")));

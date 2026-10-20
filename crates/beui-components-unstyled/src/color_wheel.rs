@@ -189,13 +189,13 @@ pub fn ColorWheel(
     on_drag_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
-    let (point, set_point) = create_signal(value.peek());
-    create_effect(move || set_point.set(value.get()));
-    let (dragging, set_dragging) = create_signal(false);
-    let (hovered, set_hovered) = create_signal(false);
-    let (has_focus, set_has_focus) = create_signal(false);
+    let point = create_signal(value.get_untracked());
+    create_effect(move || point.set(value.get()));
+    let dragging = create_signal(false);
+    let hovered = create_signal(false);
+    let has_focus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
-    set_component_state(point);
+    set_component_state(point.read_only());
 
     match accessibility {
         Some(accessibility) => component_accessibility(accessibility),
@@ -231,7 +231,7 @@ pub fn ColorWheel(
                 return;
             }
             if next != point.get_untracked() {
-                set_point.set(next);
+                point.set(next);
                 on_change.call(next);
             }
         }
@@ -290,7 +290,7 @@ pub fn ColorWheel(
             },
         }
     };
-    let (pointer, set_pointer) = create_signal(None::<PointerPress>);
+    let pointer = create_signal(None::<PointerPress>);
     let cursor = create_memo(move || {
         if dragging.get() {
             return CursorIcon::Grabbing;
@@ -307,10 +307,10 @@ pub fn ColorWheel(
     });
     let (key_point, step_point) = (point, point);
     let content_node = content.call(ColorWheelHandle {
-        point,
-        dragging,
-        hovered,
-        focused: has_focus,
+        point: point.read_only(),
+        dragging: dragging.read_only(),
+        hovered: hovered.read_only(),
+        focused: has_focus.read_only(),
         disabled,
     });
     let tab_stop = create_memo(move || !disabled.get());
@@ -319,7 +319,7 @@ pub fn ColorWheel(
             focusable=true
             tab_stop
             focused
-            on_focus_change={move |focused: bool| set_has_focus.set(focused)}
+            on_focus_change={move |focused: bool| has_focus.set(focused)}
             on_step={move |delta: f32| {
                 let point = step_point.get_untracked();
                 step_set(WheelPoint::new(point.hue + delta * HUE_STEP, point.saturation, point.value));
@@ -349,12 +349,12 @@ pub fn ColorWheel(
             }}
             cursor
             touch_drags=true
-            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-            on_hover_move={move |press: PointerPress| set_pointer.set(Some(press))}
+            on_hover_change={move |next: bool| hovered.set(next)}
+            on_hover_move={move |press: PointerPress| pointer.set(Some(press))}
             on_press={grabbed}
             on_drag={move |press: PointerPress| drag_set(dragged_to(press))}
             on_active_change={move |active: bool| {
-                set_dragging.set(active);
+                dragging.set(active);
                 on_drag_change.call(active);
             }}
             children={content_node}

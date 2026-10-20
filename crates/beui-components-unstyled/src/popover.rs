@@ -50,25 +50,25 @@ pub fn Popover(
     on_open_change: Callback<bool>,
 ) -> NodeId {
     let requested = open;
-    let (open, set_open) = create_signal(false);
+    let open = create_signal(false);
     create_effect(move || {
         if requested.get() {
-            set_open.set(true);
+            open.set(true);
         }
     });
-    let (refocus, set_refocus) = create_signal(false);
+    let refocus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
     let label = create_memo(move || label.get());
     let trigger_ref = NodeRef::new();
     set_component_state(State {
-        open,
+        open: open.read_only(),
         trigger: trigger_ref,
     });
 
     create_effect(move || on_open_change.call(open.get()));
     create_effect(move || {
         if disabled.get() {
-            set_open.set(false);
+            open.set(false);
         }
     });
 
@@ -83,10 +83,10 @@ pub fn Popover(
         node
     });
 
-    let (built, set_built) = create_signal(false);
+    let built = create_signal(false);
     create_effect(move || {
         if open.get() {
-            set_built.set(true);
+            built.set(true);
         }
     });
 
@@ -94,9 +94,9 @@ pub fn Popover(
     let close = Callback::new(move |()| {
         if open.get_untracked() {
             if refocus_trigger.get_untracked() {
-                set_refocus.set(true);
+                refocus.set(true);
             }
-            set_open.set(false);
+            open.set(false);
         }
     });
     let anchor = anchor.unwrap_or(trigger_ref);
@@ -104,12 +104,15 @@ pub fn Popover(
         PopoverPlacement::Below => Placement::BelowStart,
         PopoverPlacement::Over(inset) => Placement::Over(inset),
     };
-    let handle = PopoverHandle { open, close };
+    let handle = PopoverHandle {
+        open: open.read_only(),
+        close,
+    };
     let trigger_label = label;
     let trigger_open = open;
     let toggle = move || {
         if !disabled.get_untracked() {
-            set_open.update(|open| *open = !*open);
+            open.update(|open| *open = !*open);
         }
     };
     view! {
@@ -123,13 +126,13 @@ pub fn Popover(
                 accessibility={trigger_accessibility}
                 on_focus_change={move |focused: bool| {
                     if !focused {
-                        set_refocus.set(false);
+                        refocus.set(false);
                     }
                 }}
                 on_click={toggle}
             >|button: ButtonHandle| {
                 trigger.call(PopoverTriggerHandle {
-                    open: trigger_open,
+                    open: trigger_open.read_only(),
                     button,
                 })
             }</unstyled::Button>
@@ -140,9 +143,9 @@ pub fn Popover(
                 trigger={trigger_ref}
                 open={open}
                 on_dismiss={move |_: Dismiss| {
-                    set_open.set(false);
+                    open.set(false);
                     if refocus_trigger.get_untracked() {
-                        set_refocus.set(true);
+                        refocus.set(true);
                     }
                 }}
             >

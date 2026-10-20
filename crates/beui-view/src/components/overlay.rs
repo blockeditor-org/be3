@@ -3,7 +3,7 @@ use beui_core::color::Color32;
 use std::cell::RefCell;
 
 use crate::reactive::{
-    Callback, Child, NodeRef, Prop, Render, child_scope, create_binding, create_effect,
+    Callback, Child, Get, NodeRef, Prop, Render, child_scope, create_binding, create_effect,
     with_document,
 };
 use beui_core::base::overlay::{OverlayAnchor, Placement};
@@ -28,7 +28,7 @@ pub fn Overlay(
     let lazy = RefCell::new(content.map(|content| (content, child_scope(|| ()).1)));
     let content = children;
     let overlay = with_document(|document| {
-        let overlay = document.create_overlay(anchor.peek(), Placement::BelowStart);
+        let overlay = document.create_overlay(anchor.get_untracked(), Placement::BelowStart);
         if let Some(content) = content {
             document.set_overlay_content(overlay, content);
         }

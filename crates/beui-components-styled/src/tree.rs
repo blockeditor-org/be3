@@ -237,14 +237,14 @@ where
     let body = match menu {
         None => area,
         Some(TreeMenu { items, on_select }) => {
-            let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
+            let menu_at = create_signal(None::<Pos2>);
             let more = more_id(&named);
             view! {
                 <ContextMenu
                     child_size=ItemSize::Percent(100.0)
                     items
                     open_at={menu_at}
-                    on_close={move || set_menu_at.set(None)}
+                    on_close={move || menu_at.set(None)}
                     on_select
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -252,7 +252,7 @@ where
                         <RowMenuButton
                             named={more}
                             sized={sized}
-                            on_open={move |at: Pos2| set_menu_at.set(Some(at))}
+                            on_open={move |at: Pos2| menu_at.set(Some(at))}
                         />
                     </List>
                 </ContextMenu>

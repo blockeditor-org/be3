@@ -6,7 +6,7 @@ use crate::reactive::*;
 #[test]
 fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal(Vec::<PointerPress>::new());
+    let heard = create_signal(Vec::<PointerPress>::new());
     let target = NodeRef::new();
     let document = build({
         move || {
@@ -16,7 +16,7 @@ fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {
                     <Frame padding={Sides::horizontal(30.0)}>
                         <Interactive
                             @node_ref={&target}
-                            on_click_at={move |press: PointerPress| set_heard.update(|heard| heard.push(press))}
+                            on_click_at={move |press: PointerPress| heard.update(|heard| heard.push(press))}
                         >
                             <Frame height=40.0 />
                         </Interactive>

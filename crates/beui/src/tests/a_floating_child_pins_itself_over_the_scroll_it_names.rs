@@ -7,28 +7,28 @@ use crate::unstyled::{Edge, Floating, Scroll};
 #[test]
 fn a_floating_child_pins_itself_over_the_scroll_it_names() {
     let _root = crate::reactive::RootScope::new();
-    let (pressed, set_pressed) = create_signal(0u32);
+    let pressed = create_signal(0u32);
     let scroll = NodeRef::new();
     let button = NodeRef::new();
-    let (rows, set_rows) = create_signal(0u32);
-    let (hovered, set_hovered) = create_signal(0usize);
+    let rows = create_signal(0u32);
+    let hovered = create_signal(0usize);
     let document = build({
         move || {
-            let (over, set_over) = create_signal(0usize);
-            create_effect(move || set_hovered.set(over.get()));
+            let over = create_signal(0usize);
+            create_effect(move || hovered.set(over.get()));
             view! {
                 <List spacing=0.0>
                     <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
                         <ForEach keys={(0..20).collect::<Vec<i64>>()}>|row: i64|
                             <Interactive
-                                on_hover_change={move |over: bool| {
-                                    set_over.update(|count| match over {
+                                on_hover_change={move |next: bool| {
+                                    over.update(|count| match next {
                                         true => *count += 1,
                                         false => *count -= 1,
                                     });
                                 }}
                             >
-                                <Button on_click={move || set_rows.update(|rows| *rows += 1)}>
+                                <Button on_click={move || rows.update(|rows| *rows += 1)}>
                                     <Text string={format!("row {row}")} />
                                 </Button>
                             </Interactive>
@@ -37,7 +37,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                     <Floating anchor={scroll} edge=Edge::Bottom>
                         <Button
                             @node_ref=&button
-                            on_click={move || set_pressed.update(|pressed| *pressed += 1)}
+                            on_click={move || pressed.update(|pressed| *pressed += 1)}
                         >
                             <Text string="reveal" />
                         </Button>

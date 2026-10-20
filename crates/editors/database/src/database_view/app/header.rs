@@ -84,14 +84,14 @@ fn WideHeader(data: Data) -> NodeId {
 
 #[component]
 fn NarrowHeader(data: Data) -> NodeId {
-    let (sheet, set_sheet) = create_signal(false);
+    let sheet = create_signal(false);
     let filtered = create_memo(move || match data.filter_items.with(Vec::len) {
         0 => "Filter and display".to_owned(),
         count => format!("Filter and display · {count}"),
     });
     let count = row_count(data);
-    let open = move || set_sheet.set(true);
-    let close = move || set_sheet.set(false);
+    let open = move || sheet.set(true);
+    let close = move || sheet.set(false);
     let done = close;
     view! {
         <Frame padding={Sides::horizontal(GUTTER).top(8.0).bottom(8.0)}>

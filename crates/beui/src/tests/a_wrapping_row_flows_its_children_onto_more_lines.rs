@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn a_wrapping_row_flows_its_children_onto_more_lines() {
     let _root = crate::reactive::RootScope::new();
-    let (tiles, set_tiles) = create_signal(Vec::new());
+    let tiles = create_signal(Vec::new());
 
     let document = build(move || {
         let row = view! {
@@ -15,7 +15,7 @@ fn a_wrapping_row_flows_its_children_onto_more_lines() {
                 <Frame @sizing=ItemSize::Fixed(40.0) height=20.0 />
             </List>
         };
-        set_tiles.set(with_document(|document| document.children(row)));
+        tiles.set(with_document(|document| document.children(row)));
         row
     });
 

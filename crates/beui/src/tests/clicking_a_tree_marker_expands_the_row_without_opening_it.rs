@@ -7,10 +7,10 @@ use crate::unstyled::TreeItem;
 #[test]
 fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
     let _root = crate::reactive::RootScope::new();
-    let (opened, set_opened) = create_signal::<Vec<usize>>(Vec::new());
+    let opened = create_signal::<Vec<usize>>(Vec::new());
     let document = build({
         move || {
-            let (expanded, set_expanded) = create_signal(false);
+            let expanded = create_signal(false);
             let keys = create_memo(move || match expanded.get() {
                 true => vec![0usize, 1],
                 false => vec![0usize],
@@ -26,8 +26,8 @@ fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
                     keys
                     item
                     selected=None
-                    on_select={move |key: usize| set_opened.update(|opened| opened.push(key))}
-                    on_expand={move |(_, open): (usize, bool)| set_expanded.set(open)}
+                    on_select={move |key: usize| opened.update(|opened| opened.push(key))}
+                    on_expand={move |(_, open): (usize, bool)| expanded.set(open)}
                 >|row: TreeRowFace<usize>|
                     <Text
                         @test_id={format!("row.{}", row.key)}

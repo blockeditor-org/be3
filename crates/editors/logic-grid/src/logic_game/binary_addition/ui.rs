@@ -19,9 +19,9 @@ const PADDING: f32 = 8.0;
 #[component]
 pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::GameBlock) -> NodeId {
     let quiz = store(BinaryAdditionQuiz::default());
-    let count = quiz.get().problems().len();
-    let (page, set_page) = create_signal(0usize);
-    let (checked, set_checked) = create_signal(false);
+    let count = quiz.value().problems().len();
+    let page = create_signal(0usize);
+    let checked = create_signal(false);
     let stored = block.project(move |game| {
         (0..count)
             .map(|problem| {
@@ -36,16 +36,16 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     let answers = create_memo(move || {
         let problem = page.get();
         let (carries, sums) = stored.with(|stored| stored[problem].clone());
-        quiz.get().fit(problem, carries, sums)
+        quiz.value().fit(problem, carries, sums)
     });
     let correct = create_memo(move || {
-        answers.with(|(carries, sums)| quiz.get().is_correct(carries, sums, page.get()))
+        answers.with(|(carries, sums)| quiz.value().is_correct(carries, sums, page.get()))
     });
     let finished = create_memo(move || {
         stored.with(|stored| {
             stored.iter().enumerate().all(|(problem, (carries, sums))| {
-                let (carries, sums) = quiz.get().fit(problem, carries.clone(), sums.clone());
-                quiz.get().is_correct(&carries, &sums, problem)
+                let (carries, sums) = quiz.value().fit(problem, carries.clone(), sums.clone());
+                quiz.value().is_correct(&carries, &sums, problem)
             })
         })
     });
@@ -61,22 +61,22 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     let failed = create_memo(move || checked.get() && !correct.get());
     let done = create_memo(move || last.get() && correct.get() && finished.get());
 
-    let check = move || set_checked.set(true);
+    let check = move || checked.set(true);
     let reset = move || {
         let problem = page.get_untracked();
-        quiz.get()
+        quiz.value()
             .write_row(&block, problem, QuizRow::Carries, Vec::new());
-        quiz.get()
+        quiz.value()
             .write_row(&block, problem, QuizRow::Sums, Vec::new());
-        set_checked.set(false);
+        checked.set(false);
     };
     let back = move || {
-        set_page.set(page.get_untracked().saturating_sub(1));
-        set_checked.set(false);
+        page.set(page.get_untracked().saturating_sub(1));
+        checked.set(false);
     };
     let forward = move || {
-        set_page.set((page.get_untracked() + 1).min(count - 1));
-        set_checked.set(false);
+        page.set((page.get_untracked() + 1).min(count - 1));
+        checked.set(false);
     };
 
     view! {
@@ -87,9 +87,9 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                     <ProblemGrid
                         quiz={quiz}
                         block={block}
-                        page={page}
+                        page={page.read_only()}
                         answers={answers}
-                        checked={checked}
+                        checked={checked.read_only()}
                         read_only={grid_read_only}
                     />
                 </Frame>
@@ -162,16 +162,16 @@ fn ProblemGrid(
     checked: ReadSignal<bool>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let operands = create_memo(move || quiz.get().problems()[page.get()].operands().to_vec());
+    let operands = create_memo(move || quiz.value().problems()[page.get()].operands().to_vec());
     let write = move |row: QuizRow, values: Vec<Option<bool>>| {
-        quiz.get()
+        quiz.value()
             .write_row(&block, page.get_untracked(), row, values);
     };
     let carries = create_memo(move || answers.with(|(carries, _)| carries.clone()));
     let sums = create_memo(move || answers.with(|(_, sums)| sums.clone()));
     let carry_expected =
-        create_memo(move || quiz.get().problems()[page.get()].carry_bits().to_vec());
-    let sum_expected = create_memo(move || quiz.get().problems()[page.get()].sum_bits().to_vec());
+        create_memo(move || quiz.value().problems()[page.get()].carry_bits().to_vec());
+    let sum_expected = create_memo(move || quiz.value().problems()[page.get()].sum_bits().to_vec());
     view! {
         <List spacing=ROW_SPACING>
             <BitRow

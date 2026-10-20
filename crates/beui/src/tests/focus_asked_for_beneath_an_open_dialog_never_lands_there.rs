@@ -6,7 +6,7 @@ use crate::styled::*;
 #[test]
 fn focus_asked_for_beneath_an_open_dialog_never_lands_there() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let (outside, field) = (NodeRef::new(), NodeRef::new());
     let document = build(move || {
         view! {
@@ -14,7 +14,7 @@ fn focus_asked_for_beneath_an_open_dialog_never_lands_there() {
                 <Interactive
                     @node_ref=&outside
                     focusable=true
-                    on_focus_change={move |focused: bool| set_changes.update(|changes| changes.push(focused))}
+                    on_focus_change={move |focused: bool| changes.update(|changes| changes.push(focused))}
                 >
                     <Frame />
                 </Interactive>

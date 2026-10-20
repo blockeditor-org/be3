@@ -6,8 +6,8 @@ use crate::{ForwardedInput, PasteKind, PasteRequest, Pasted, PickedFile};
 #[test]
 fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal(Vec::new());
-    let (forwarded, set_forwarded) = create_signal(Vec::new());
+    let heard = create_signal(Vec::new());
+    let forwarded = create_signal(Vec::new());
     let document = build({
         move || {
             view! {
@@ -16,8 +16,8 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
                         <Interactive
                             focusable=true
                             pastes={vec![PasteKind::Image]}
-                            on_paste={move |paste: Pasted| set_heard.update(|heard| heard.push(format!("{:?}", paste.kind())))}
-                            on_text={move |text: String| set_heard.update(|heard| heard.push(text))}
+                            on_paste={move |paste: Pasted| heard.update(|heard| heard.push(format!("{:?}", paste.kind())))}
+                            on_text={move |text: String| heard.update(|heard| heard.push(text))}
                         >
                             <Frame />
                         </Interactive>
@@ -26,7 +26,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
                         <Interactive
                             focusable=true
                             pastes={vec![PasteKind::Text, PasteKind::Image]}
-                            on_forward={move |input: ForwardedInput| set_forwarded.update(|forwarded| forwarded.extend(flattened(input)))}
+                            on_forward={move |input: ForwardedInput| forwarded.update(|forwarded| forwarded.extend(flattened(input)))}
                         >
                             <Frame />
                         </Interactive>
@@ -81,7 +81,7 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
         output.window.paste_kinds,
         [PasteKind::Text, PasteKind::Image]
     );
-    set_forwarded.update(|forwarded| forwarded.clear());
+    forwarded.update(|forwarded| forwarded.clear());
     harness.frame(vec![Event::Paste(Pasted::Image(image.clone()))]);
     assert_eq!(
         forwarded.get_untracked(),

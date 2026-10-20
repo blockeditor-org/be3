@@ -6,14 +6,14 @@ use crate::reactive::*;
 #[test]
 fn a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch() {
     let _root = crate::reactive::RootScope::new();
-    let (drags, set_drags) = create_signal::<Vec<SecondaryDrag>>(Vec::new());
-    let (zoomed, set_zoomed) = create_signal(false);
+    let drags = create_signal::<Vec<SecondaryDrag>>(Vec::new());
+    let zoomed = create_signal(false);
     let document = build({
         move || {
             view! {
                 <Interactive
-                    on_secondary_drag={move |drag| set_drags.update(|drags| drags.push(drag))}
-                    on_zoom={move |_: ZoomGesture| set_zoomed.set(true)}
+                    on_secondary_drag={move |drag| drags.update(|drags| drags.push(drag))}
+                    on_zoom={move |_: ZoomGesture| zoomed.set(true)}
                 >
                     <Frame width=300.0 height=300.0 />
                 </Interactive>

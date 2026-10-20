@@ -290,17 +290,17 @@ pub(super) fn AddAccountDialog(
     let has_default = default.get_untracked().is_some();
     let default_name =
         create_memo(move || default.get().map(|server| server.name).unwrap_or_default());
-    let (selection, set_selection) = create_signal(None::<u8>);
-    let (remote_url, set_remote_url) = create_signal(String::new());
-    let (authorization, set_authorization) = create_signal(String::new());
-    let (display_name, set_display_name) = create_signal(String::new());
+    let selection = create_signal(None::<u8>);
+    let remote_url = create_signal(String::new());
+    let authorization = create_signal(String::new());
+    let display_name = create_signal(String::new());
     create_effect(move || {
         generation.get();
         untrack(|| {
-            set_selection.set(None);
-            set_remote_url.set(String::new());
-            set_authorization.set(String::new());
-            set_display_name.set(String::new());
+            selection.set(None);
+            remote_url.set(String::new());
+            authorization.set(String::new());
+            display_name.set(String::new());
         });
     });
     let choosing = create_memo(move || selection.get().is_none() && !pending.get());
@@ -424,7 +424,7 @@ pub(super) fn AddAccountDialog(
                                         detail={default_address}
                                         glyph={ICON_CLOUD.to_owned()}
                                         @test_id="account.default"
-                                        on_click={move || set_selection.set(Some(0))}
+                                        on_click={move || selection.set(Some(0))}
                                     />
                                 </Show>
                                 <Show condition={platform::HAS_EMBEDDED_SERVER}>
@@ -433,7 +433,7 @@ pub(super) fn AddAccountDialog(
                                         detail="A local account, stored on this device"
                                         glyph={ICON_COMPUTER.to_owned()}
                                         @test_id="account.local"
-                                        on_click={move || set_selection.set(Some(1))}
+                                        on_click={move || selection.set(Some(1))}
                                     />
                                 </Show>
                                 <ActionRow
@@ -441,7 +441,7 @@ pub(super) fn AddAccountDialog(
                                     detail="Connect using a server address"
                                     glyph={ICON_ADD.to_owned()}
                                     @test_id="account.custom"
-                                    on_click={move || set_selection.set(Some(2))}
+                                    on_click={move || selection.set(Some(2))}
                                 />
                             </List>
                         </Frame>
@@ -463,7 +463,7 @@ pub(super) fn AddAccountDialog(
                                         label="Display name"
                                         placeholder="Your name"
                                         @test_id="account.name"
-                                        on_change={move |value: String| set_display_name.set(value)}
+                                        on_change={move |value: String| display_name.set(value)}
                                         on_submit={move |_| submit()}
                                     />
                                 </List>
@@ -483,7 +483,7 @@ pub(super) fn AddAccountDialog(
                                     label="Server address"
                                     placeholder="https://example.com"
                                     @test_id="account.server"
-                                    on_change={move |value: String| set_remote_url.set(value)}
+                                    on_change={move |value: String| remote_url.set(value)}
                                     on_submit={move |_| submit()}
                                 />
                             </List>
@@ -496,7 +496,7 @@ pub(super) fn AddAccountDialog(
                                     label={gateway_label}
                                     password=true
                                     @test_id="account.gateway"
-                                    on_change={move |value: String| set_authorization.set(value)}
+                                    on_change={move |value: String| authorization.set(value)}
                                     on_submit={move |_| submit()}
                                 />
                             </List>
@@ -594,7 +594,7 @@ pub(super) fn AddAccountDialog(
                         <Button
                             label="Back"
                             variant=ButtonVariant::Secondary
-                            on_click={move || { set_selection.set(None); send(UiCommand::RetryAccount); }}
+                            on_click={move || { selection.set(None); send(UiCommand::RetryAccount); }}
                         />
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -741,7 +741,7 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
             .map(|row| format!("Invited as {}", row.email))
             .unwrap_or_default()
     });
-    let (link, set_link) = create_signal(String::new());
+    let link = create_signal(String::new());
     let cannot = create_memo(move || busy.get() || link.get().trim().is_empty());
     let open = move || {
         if !cannot.get_untracked() {
@@ -788,7 +788,7 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                             label="Invite link"
                             placeholder="https://…/#invite/…"
                             @test_id={"app.join.link"}
-                            on_change={move |value: String| set_link.set(value)}
+                            on_change={move |value: String| link.set(value)}
                             on_submit={move |_value: String| submit()}
                         />
                         <Button
@@ -985,10 +985,10 @@ fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
 
 #[component]
 fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
-    let (name, set_name) = create_signal(String::new());
+    let name = create_signal(String::new());
     create_effect(move || {
         created.get();
-        untrack(|| set_name.set(String::new()));
+        untrack(|| name.set(String::new()));
     });
     let cannot = create_memo(move || busy.get() || name.get().trim().is_empty());
     let create = move || {
@@ -1004,7 +1004,7 @@ fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
                 value={name}
                 placeholder="Organization name"
                 label="Organization name"
-                on_change={move |value: String| set_name.set(value)}
+                on_change={move |value: String| name.set(value)}
                 on_submit={move |_value: String| submit()}
             />
             <Button

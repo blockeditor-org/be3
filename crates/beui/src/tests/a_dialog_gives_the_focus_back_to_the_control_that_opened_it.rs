@@ -13,9 +13,9 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
     );
     let document = build({
         move || {
-            let (open, set_open) = create_signal(false);
-            let (aimed, set_aimed) = create_signal(false);
-            let (opening, closing, aiming) = (set_open, set_open, set_open);
+            let open = create_signal(false);
+            let aimed = create_signal(false);
+            let (opening, closing, aiming) = (open, open, open);
             view! {
                 <List spacing=8.0>
                     <Button
@@ -38,7 +38,7 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
                                 variant=ButtonVariant::Primary
                                 label="Go elsewhere"
                                 on_click={move || {
-                                    set_aimed.set(true);
+                                    aimed.set(true);
                                     aiming.set(false);
                                 }}
                             />

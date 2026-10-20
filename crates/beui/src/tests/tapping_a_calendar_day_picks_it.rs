@@ -8,13 +8,13 @@ use crate::styled::*;
 #[test]
 fn tapping_a_calendar_day_picks_it() {
     let _root = crate::reactive::RootScope::new();
-    let (picked, set_picked) = create_signal(Vec::new());
+    let picked = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <Calendar
                 selected=None
                 today={Some(Date::new(2026, 1, 1))}
-                on_change={move |date| set_picked.update(|picked| picked.push(date))}
+                on_change={move |date| picked.update(|picked| picked.push(date))}
             />
         }
     });

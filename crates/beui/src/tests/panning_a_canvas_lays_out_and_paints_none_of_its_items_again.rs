@@ -6,7 +6,7 @@ use crate::reactive::*;
 #[test]
 fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
     let _root = crate::reactive::RootScope::new();
-    let (view, set_view) = create_signal(Some(CanvasView::new(pos2(0.0, 0.0), 1.0)));
+    let view = create_signal(Some(CanvasView::new(pos2(0.0, 0.0), 1.0)));
     let document = build(move || {
         view! {
             <Canvas view={view}>
@@ -26,7 +26,7 @@ fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
     let first = harness.frame(Vec::new()).shapes().len();
 
     with_reactive_scope(harness.document_mut(), move || {
-        set_view.set(Some(CanvasView::new(pos2(25.0, 15.0), 1.0)))
+        view.set(Some(CanvasView::new(pos2(25.0, 15.0), 1.0)))
     });
     let output = harness.frame(Vec::new());
     let work = harness.document().performance().latest.work;

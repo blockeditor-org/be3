@@ -7,8 +7,8 @@ use crate::unstyled::Scroll;
 #[test]
 fn a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips() {
     let _root = crate::reactive::RootScope::new();
-    let (hovers, set_hovers) = create_signal::<Vec<bool>>(Vec::new());
-    let (clicks, set_clicks) = create_signal(0);
+    let hovers = create_signal::<Vec<bool>>(Vec::new());
+    let clicks = create_signal(0);
     let scroll = NodeRef::new();
     let document = build({
         move || {
@@ -17,8 +17,8 @@ fn a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips() {
                     <Frame height=100.0 />
                     <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <Interactive
-                            on_hover_change={move |hovered: bool| set_hovers.update(|hovers| hovers.push(hovered))}
-                            on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                            on_hover_change={move |hovered: bool| hovers.update(|hovers| hovers.push(hovered))}
+                            on_click={move || clicks.update(|clicks| *clicks += 1)}
                         >
                             <Frame height=100.0 />
                         </Interactive>

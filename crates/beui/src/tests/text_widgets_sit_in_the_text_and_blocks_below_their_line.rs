@@ -11,7 +11,7 @@ const BLOCK: Vec2 = Vec2::new(120.0, 60.0);
 #[test]
 fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
     let _root = crate::reactive::RootScope::new();
-    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
+    let held = create_signal::<Option<TextAreaState>>(None);
     let block = NodeRef::new();
     let popup = NodeRef::new();
     let document = build({
@@ -19,7 +19,7 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
             let document =
                 Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
             let state = TextAreaState::new(document);
-            set_held.update(|held| *held = Some(state));
+            held.update(|held| *held = Some(state));
             let widgets = vec![
                 TextWidget {
                     range: 4..7,

@@ -62,7 +62,7 @@ impl Bench {
     }
 }
 
-fn writer<T: 'static>() -> Rc<RefCell<Option<WriteSignal<T>>>> {
+fn writer<T: 'static>() -> Rc<RefCell<Option<Signal<T>>>> {
     Rc::new(RefCell::new(None))
 }
 
@@ -125,8 +125,8 @@ fn resize_paragraphs(frames: usize) -> Report {
     let document = build({
         let width = width.clone();
         move || {
-            let (read, write) = create_signal(VIEWPORT.x);
-            *width.borrow_mut() = Some(write);
+            let read = create_signal(VIEWPORT.x);
+            *width.borrow_mut() = Some(read);
             let text = PARAGRAPH.repeat(4);
             view! {
                 <Frame width={create_memo(move || Some(read.get()))}>
@@ -158,8 +158,8 @@ fn resize_labels(frames: usize) -> Report {
     let document = build({
         let width = width.clone();
         move || {
-            let (read, write) = create_signal(VIEWPORT.x);
-            *width.borrow_mut() = Some(write);
+            let read = create_signal(VIEWPORT.x);
+            *width.borrow_mut() = Some(read);
             view! {
                 <Frame width={create_memo(move || Some(read.get()))}>
                     <List spacing=0.0>
@@ -190,8 +190,8 @@ fn edit_plain_paragraph(frames: usize) -> Report {
     let document = build({
         let content = content.clone();
         move || {
-            let (read, write) = create_signal(PARAGRAPH.repeat(40));
-            *content.borrow_mut() = Some(write);
+            let read = create_signal(PARAGRAPH.repeat(40));
+            *content.borrow_mut() = Some(read);
             view! {
                 <Text string={read} wrap=true />
             }
@@ -229,8 +229,8 @@ fn edit_one_span(frames: usize) -> Report {
         let words = words.clone();
         let initial = initial.clone();
         move || {
-            let (read, write) = create_signal(initial.clone());
-            *words.borrow_mut() = Some(write);
+            let read = create_signal(initial.clone());
+            *words.borrow_mut() = Some(read);
             let keys = (0..initial.len()).collect::<Vec<usize>>();
             view! {
                 <Text wrap=true>

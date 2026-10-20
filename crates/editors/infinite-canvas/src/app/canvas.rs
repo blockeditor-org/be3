@@ -139,7 +139,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
 fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
-    let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
+    let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<Overlay>);
     create_effect(move || {
         let overlay = Overlay {
@@ -167,7 +167,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>
             return;
         }
         *shown.borrow_mut() = Some(overlay.clone());
-        set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
             overlay.draw(&painter.in_document())
         }));
     });
@@ -186,7 +186,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>
 fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
-    let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
+    let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<Backdrop>);
     create_effect(move || {
         let artboards = state
@@ -216,7 +216,7 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
             return;
         }
         *shown.borrow_mut() = Some(backdrop.clone());
-        set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
             backdrop.draw(&painter.in_document())
         }));
     });
@@ -248,7 +248,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
     let thumbhash = create_memo(move || state.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
-    let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
+    let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<EntityPaint>);
     create_effect(move || {
         let Some(entity) = entity.get() else {
@@ -280,7 +280,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             return;
         }
         *shown.borrow_mut() = Some(paint.clone());
-        set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
             paint.draw(&painter.in_document())
         }));
     });

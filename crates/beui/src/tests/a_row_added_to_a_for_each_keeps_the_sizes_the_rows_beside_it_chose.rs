@@ -4,8 +4,8 @@ use crate::reactive::*;
 #[test]
 fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
     let _root = crate::reactive::RootScope::new();
-    let (keys, set_keys) = create_signal(vec![0usize]);
-    let (shown, set_shown) = create_signal(0usize);
+    let keys = create_signal(vec![0usize]);
+    let shown = create_signal(0usize);
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -30,13 +30,13 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
     );
 
     with_reactive_scope(harness.document_mut(), move || {
-        set_keys.set(vec![0, 1]);
-        set_shown.set(1);
+        keys.set(vec![0, 1]);
+        shown.set(1);
     });
     harness.frame(Vec::new());
     with_reactive_scope(harness.document_mut(), move || {
-        set_keys.set(vec![0, 1, 2]);
-        set_shown.set(2);
+        keys.set(vec![0, 1, 2]);
+        shown.set(2);
     });
     harness.frame(Vec::new());
 

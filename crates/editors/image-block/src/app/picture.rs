@@ -20,30 +20,30 @@ fn digest(data: &[u8]) -> u64 {
 }
 
 pub(crate) fn watch(editor: Editor, block: ContentProjection<ImageContent>) -> Memo<Shown> {
-    let (shown, set_shown) = create_signal(Shown::default());
+    let shown = create_signal(Shown::default());
     let key = block.project(|image| (image.header().clone(), digest(image.data())));
     let decoded: RefCell<Option<(u64, Shown)>> = RefCell::new(None);
     let editable = editor.editable();
     create_effect(move || {
         let (header, fingerprint) = key.get();
         if let Some(failure) = &header.failure {
-            set_shown.set(Shown {
+            shown.set(Shown {
                 image: None,
                 error: Some(failure.clone()),
             });
             return;
         }
         let mut decoded = decoded.borrow_mut();
-        if let Some((held, shown)) = decoded.as_ref()
+        if let Some((held, cached)) = decoded.as_ref()
             && *held == fingerprint
         {
-            set_shown.set(shown.clone());
+            shown.set(cached.clone());
             return;
         }
         let Some(result) = block.read(|image| crate::decode::decode(image.data())) else {
             return;
         };
-        let (found, shown) = match result {
+        let (found, decoded_shown) = match result {
             Ok(found) => {
                 let image = Image::from_rgba(found.width, found.height, found.pixels);
                 let recorded = ImageHeader {
@@ -72,9 +72,9 @@ pub(crate) fn watch(editor: Editor, block: ContentProjection<ImageContent>) -> M
                 },
             ),
         };
-        *decoded = Some((fingerprint, shown.clone()));
+        *decoded = Some((fingerprint, decoded_shown.clone()));
         drop(decoded);
-        set_shown.set(shown);
+        shown.set(decoded_shown);
         if editable.get_untracked() && found != header {
             block.operate(ImageOp::SetHeader(found));
         }

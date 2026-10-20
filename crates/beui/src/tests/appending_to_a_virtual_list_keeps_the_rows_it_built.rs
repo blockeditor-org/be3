@@ -3,8 +3,8 @@ use super::*;
 #[test]
 fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(Vec::new());
-    let (keys, set_keys) = create_signal(indices(VIRTUAL_ITEM_COUNT));
+    let built = create_signal(Vec::new());
+    let keys = create_signal(indices(VIRTUAL_ITEM_COUNT));
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
@@ -18,7 +18,7 @@ fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
                         >|index: ReadSignal<usize>| {
                             create_binding(move || {
                                 let index = index.get();
-                                set_built.update(|built| built.push(index));
+                                built.update(|built| built.push(index));
                             });
                             view! {
                                 <Frame height=VIRTUAL_ITEM_HEIGHT>
@@ -37,9 +37,9 @@ fn appending_to_a_virtual_list_keeps_the_rows_it_built() {
     harness.frame(Vec::new());
     let rows = harness.document.children(list);
 
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
     with_installed(harness.document_mut(), |_| {
-        set_keys.set(indices(VIRTUAL_ITEM_COUNT + 1))
+        keys.set(indices(VIRTUAL_ITEM_COUNT + 1))
     });
     harness.frame(Vec::new());
     assert!(built.with_untracked(|built| built.is_empty()));

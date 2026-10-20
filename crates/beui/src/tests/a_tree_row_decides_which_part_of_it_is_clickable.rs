@@ -8,7 +8,7 @@ const MARGIN: f32 = 40.0;
 #[test]
 fn a_tree_row_decides_which_part_of_it_is_clickable() {
     let _root = crate::reactive::RootScope::new();
-    let (chosen, set_chosen) = create_signal::<Vec<usize>>(Vec::new());
+    let chosen = create_signal::<Vec<usize>>(Vec::new());
     let tree = NodeRef::new();
     let document = build({
         move || {
@@ -24,7 +24,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
                     keys={vec![0usize, 1]}
                     item
                     selected=None
-                    on_select={move |key: usize| set_chosen.update(|chosen| chosen.push(key))}
+                    on_select={move |key: usize| chosen.update(|chosen| chosen.push(key))}
                     on_expand={move |_: (usize, bool)| {}}
                 >|handle: TreeRowHandle<usize>| {
                     let TreeRowHandle { key, select, .. } = handle;

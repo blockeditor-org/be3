@@ -6,15 +6,15 @@ use crate::reactive::*;
 #[test]
 fn a_pen_presses_and_drags_like_a_mouse_and_reports_its_pressure() {
     let _root = crate::reactive::RootScope::new();
-    let (presses, set_presses) = create_signal::<Vec<PointerPress>>(Vec::new());
-    let (hovered, set_hovered) = create_signal(false);
+    let presses = create_signal::<Vec<PointerPress>>(Vec::new());
+    let hovered = create_signal(false);
     let document = build({
         move || {
             view! {
                 <Interactive
-                    on_hover_change={move |hover: bool| set_hovered.set(hover)}
-                    on_press={move |press: PointerPress| set_presses.update(|presses| presses.push(press))}
-                    on_drag={move |press: PointerPress| set_presses.update(|presses| presses.push(press))}
+                    on_hover_change={move |hover: bool| hovered.set(hover)}
+                    on_press={move |press: PointerPress| presses.update(|presses| presses.push(press))}
+                    on_drag={move |press: PointerPress| presses.update(|presses| presses.push(press))}
                 >
                     <Frame width=300.0 height=300.0 />
                 </Interactive>

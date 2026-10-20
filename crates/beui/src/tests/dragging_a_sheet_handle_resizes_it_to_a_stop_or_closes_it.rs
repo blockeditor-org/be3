@@ -8,7 +8,7 @@ use crate::styled::*;
 fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
-    let (closed, set_closed) = create_signal(0);
+    let closed = create_signal(0);
     let document = build({
         move || {
             view! {
@@ -17,7 +17,7 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
                     <Sheet
                         @node_ref=&sheet
                         extent=600.0
-                        on_close={move || set_closed.update(|closed| *closed += 1)}
+                        on_close={move || closed.update(|closed| *closed += 1)}
                     >
                         <Frame height=1000.0 />
                     </Sheet>

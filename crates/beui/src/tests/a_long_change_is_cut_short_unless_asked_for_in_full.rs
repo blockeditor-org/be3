@@ -6,13 +6,13 @@ use crate::styled::*;
 #[test]
 fn a_long_change_is_cut_short_unless_asked_for_in_full() {
     let document = build(|| {
-        let (shown, set_shown) = create_signal(false);
+        let shown = create_signal(false);
         view! {
             <List spacing=0.0>
                 <Button
                     label="Toggle"
                     variant=ButtonVariant::Primary
-                    on_click={move || set_shown.update(|shown| *shown = !*shown)}
+                    on_click={move || shown.update(|shown| *shown = !*shown)}
                 />
                 <ShowKeepAlive condition={shown}>
                     <List spacing=0.0>

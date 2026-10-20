@@ -60,17 +60,17 @@ where
     }
 
     pub fn settled(&self) -> Memo<bool> {
-        let (settled, set_settled) = create_signal(false);
+        let settled = create_signal(false);
         let id = self.id;
         let editor = self.editor;
         create_effect(move || {
             let Some(block) = id.get() else {
-                set_settled.set(false);
+                settled.set(false);
                 return;
             };
             let loaded = editor.content_of::<C>(block).loaded();
             let held = content_settled(editor, block, loaded);
-            create_effect(move || set_settled.set(held.get()));
+            create_effect(move || settled.set(held.get()));
         });
         create_memo(move || settled.get())
     }
@@ -86,21 +86,21 @@ where
         T: Clone + Default + PartialEq + 'static,
     {
         let project = Rc::new(project);
-        let (read, write) = create_signal(T::default());
+        let read = create_signal(T::default());
         let id = self.id;
         let editor = self.editor;
         create_effect(move || {
             let Some(block) = id.get() else {
-                write.set(T::default());
+                read.set(T::default());
                 return;
             };
             let project = Rc::clone(&project);
             let inner = editor
                 .content_of::<C>(block)
                 .project(move |content| project(content));
-            create_effect(move || write.set(inner.get()));
+            create_effect(move || read.set(inner.get()));
         });
-        read
+        read.read_only()
     }
 }
 
@@ -113,37 +113,37 @@ where
         owner: ObjectId,
         field: FieldRef<M, List<T>>,
     ) -> ReadSignal<Objects<T>> {
-        let (read, write) = create_signal(Objects::default());
+        let read = create_signal(Objects::default());
         let id = self.id;
         let editor = self.editor;
         create_effect(move || {
             let Some(block) = id.get() else {
-                write.set(Objects::default());
+                read.set(Objects::default());
                 return;
             };
             let inner = editor
                 .content_of::<Document<R>>(block)
                 .objects(owner, field);
-            create_effect(move || write.set(inner.get()));
+            create_effect(move || read.set(inner.get()));
         });
-        read
+        read.read_only()
     }
 
     pub fn field<M: 'static, F>(&self, object: ObjectId, field: FieldRef<M, F>) -> ReadSignal<F>
     where
         F: Field + Clone + Default + PartialEq + 'static,
     {
-        let (read, write) = create_signal(F::default());
+        let read = create_signal(F::default());
         let id = self.id;
         let editor = self.editor;
         create_effect(move || {
             let Some(block) = id.get() else {
-                write.set(F::default());
+                read.set(F::default());
                 return;
             };
             let inner = editor.content_of::<Document<R>>(block).field(object, field);
-            create_effect(move || write.set(inner.get()));
+            create_effect(move || read.set(inner.get()));
         });
-        read
+        read.read_only()
     }
 }

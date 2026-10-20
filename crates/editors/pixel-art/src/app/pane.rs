@@ -36,13 +36,12 @@ struct PaneCells {
 #[derive(Clone, Copy)]
 pub(crate) struct Pane {
     cells: Stored<PaneCells>,
-    shown: Memo<Shown>,
-    set_shown: block_editor_beui::beui::reactive::WriteSignal<Shown>,
+    shown: Signal<Shown>,
 }
 
 impl Pane {
     pub(crate) fn new() -> Self {
-        let (shown, set_shown) = create_signal(Shown::default());
+        let shown = create_signal(Shown::default());
         Self {
             cells: store(PaneCells {
                 held: RefCell::new(Held {
@@ -51,13 +50,12 @@ impl Pane {
                 }),
                 art: RefCell::new(None),
             }),
-            shown: create_memo(move || shown.get()),
-            set_shown,
+            shown,
         }
     }
 
-    pub(crate) fn shown(&self) -> Memo<Shown> {
-        self.shown
+    pub(crate) fn shown(&self) -> ReadSignal<Shown> {
+        self.shown.read_only()
     }
 
     pub(crate) fn refresh(
@@ -70,7 +68,7 @@ impl Pane {
         let Some(revision) = block.revision() else {
             return;
         };
-        let cells = self.cells.get();
+        let cells = self.cells.value();
         let mut held = cells.held.borrow_mut();
         let Some(art) = artwork_of(block, &cells.art) else {
             return;
@@ -106,6 +104,6 @@ impl Pane {
         }
         let shown = held.shown.clone();
         drop(held);
-        self.set_shown.set(shown);
+        self.shown.set(shown);
     }
 }

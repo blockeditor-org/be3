@@ -6,7 +6,7 @@ use crate::styled::*;
 fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
     let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
-    let (selected, set_selected) = create_signal(Vec::new());
+    let selected = create_signal(Vec::new());
     let (document, _) = toolbar_of({
         move || {
             let items = view! {
@@ -21,7 +21,7 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
                     label="More"
                     items
                     on_select={move |path: Vec<usize>| {
-                        set_selected.update(|selected| selected.push(path));
+                        selected.update(|selected| selected.push(path));
                     }}
                 />
             }]

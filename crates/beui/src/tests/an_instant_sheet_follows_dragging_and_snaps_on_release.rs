@@ -4,8 +4,8 @@ use super::*;
 fn an_instant_sheet_follows_dragging_and_snaps_on_release() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
-    let (closed, set_closed) = create_signal(0);
-    let document = sheet_of_rows(0.5, sheet, set_closed);
+    let closed = create_signal(0);
+    let document = sheet_of_rows(0.5, sheet, closed);
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.context.set_motion(Motion::Instant);
     harness.settle();

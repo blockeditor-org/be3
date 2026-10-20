@@ -34,26 +34,17 @@ pub(crate) struct State {
     pub organization_id: Uuid,
     link_base: Memo<String>,
     pub text: TextAreaState,
-    pub embed_sizes: ReadSignal<HashMap<Uuid, Vec2>>,
-    pub set_embed_sizes: WriteSignal<HashMap<Uuid, Vec2>>,
-    pub focused_embed: ReadSignal<Option<FocusedEmbed>>,
-    pub set_focused_embed: WriteSignal<Option<FocusedEmbed>>,
+    pub embed_sizes: Signal<HashMap<Uuid, Vec2>>,
+    pub focused_embed: Signal<Option<FocusedEmbed>>,
 
-    pub embeds: ReadSignal<Vec<ResolvedEmbed>>,
-    pub set_embeds: WriteSignal<Vec<ResolvedEmbed>>,
-    pub hex_view: ReadSignal<bool>,
-    pub set_hex_view: WriteSignal<bool>,
-    pub typing: ReadSignal<bool>,
-    pub set_typing: WriteSignal<bool>,
-    pub hex_insert_mode: ReadSignal<bool>,
-    pub set_hex_insert_mode: WriteSignal<bool>,
-    pub import_error: ReadSignal<Option<String>>,
-    pub set_import_error: WriteSignal<Option<String>>,
-    pub presence_revision: ReadSignal<u64>,
-    set_presence_revision: WriteSignal<u64>,
+    pub embeds: Signal<Vec<ResolvedEmbed>>,
+    pub hex_view: Signal<bool>,
+    pub typing: Signal<bool>,
+    pub hex_insert_mode: Signal<bool>,
+    pub import_error: Signal<Option<String>>,
+    pub presence_revision: Signal<u64>,
     pub peers: ReadSignal<Vec<(u64, TextCursor)>>,
-    pub loaded: ReadSignal<bool>,
-    set_loaded: WriteSignal<bool>,
+    pub loaded: Signal<bool>,
     inner: Stored<Inner>,
 }
 
@@ -82,15 +73,15 @@ impl State {
         let text = TextAreaState::new(Arc::clone(&document) as Arc<dyn text_editor_core::Document>);
         text.with_core_mut(|core| core.config.inside_atomic_unit = inside_block_url);
         let dependencies = client.watch(BlockQuery::References(block_id));
-        let (embeds, set_embeds) = create_signal(Vec::new());
-        let (hex_view, set_hex_view) = create_signal(false);
-        let (typing, set_typing) = create_signal(false);
-        let (hex_insert_mode, set_hex_insert_mode) = create_signal(false);
-        let (import_error, set_import_error) = create_signal(None);
-        let (presence_revision, set_presence_revision) = create_signal(0);
-        let (focused_embed, set_focused_embed) = create_signal(None);
-        let (embed_sizes, set_embed_sizes) = create_signal(HashMap::new());
-        let (loaded, set_loaded) = create_signal(false);
+        let embeds = create_signal(Vec::new());
+        let hex_view = create_signal(false);
+        let typing = create_signal(false);
+        let hex_insert_mode = create_signal(false);
+        let import_error = create_signal(None);
+        let presence_revision = create_signal(0);
+        let focused_embed = create_signal(None);
+        let embed_sizes = create_signal(HashMap::new());
+        let loaded = create_signal(false);
         let state = Self {
             organization_id: editor.host().organization_id(),
             link_base: editor.host_value::<LinkBase>(),
@@ -99,23 +90,14 @@ impl State {
             block_id,
             text,
             embed_sizes,
-            set_embed_sizes,
             focused_embed,
-            set_focused_embed,
             embeds,
-            set_embeds,
             hex_view,
-            set_hex_view,
             typing,
-            set_typing,
             hex_insert_mode,
-            set_hex_insert_mode,
             import_error,
-            set_import_error,
             presence_revision,
-            set_presence_revision,
             loaded,
-            set_loaded,
             inner: store(Inner {
                 client,
                 content,
@@ -134,7 +116,7 @@ impl State {
         let edited = state.text.content();
         create_effect(move || {
             edited.get();
-            let Some(inner) = state.inner.try_get() else {
+            let Some(inner) = state.inner.try_value() else {
                 return;
             };
             inner.content.revision();
@@ -144,7 +126,7 @@ impl State {
     }
 
     pub fn inner(&self) -> Rc<Inner> {
-        self.inner.get()
+        self.inner.value()
     }
 
     pub fn is_alive(&self) -> bool {
@@ -200,7 +182,7 @@ impl State {
             self.text.sync();
         }
         if first {
-            self.set_loaded.set(true);
+            self.loaded.set(true);
             let start = self.text.with_core(|core| core.position(0));
             self.text.execute(EditorCommand::SetSelection {
                 anchor: start,
@@ -212,17 +194,17 @@ impl State {
     pub fn refresh_embeds(&self) {
         let resolved = resolve_embeds(self);
         if self.embeds.get_untracked() != resolved {
-            self.set_embeds.set(resolved);
+            self.embeds.set(resolved);
         }
     }
 
     pub fn toggle_hex_view(&self) {
         let inner = self.inner();
         let next = !self.hex_view.get_untracked();
-        self.set_hex_view.set(next);
+        self.hex_view.set(next);
         inner.hex_pending_nibble.set(None);
         inner.hex_selection_anchor.set(None);
-        self.set_focused_embed.set(None);
+        self.focused_embed.set(None);
         inner.focus_confirmed.set(false);
         if next {
             self.text.close_find();
@@ -296,7 +278,7 @@ impl State {
     fn bump_presence(&self) {
         let inner = self.inner();
         inner.presence_counter.set(inner.presence_counter.get() + 1);
-        self.set_presence_revision.set(inner.presence_counter.get());
+        self.presence_revision.set(inner.presence_counter.get());
     }
 
     pub fn presence_cursor_rect(&self, client_id: u64) -> Option<Rect> {

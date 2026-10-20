@@ -38,12 +38,12 @@ pub fn KeepChanges(
     on_revert: ClickCallback,
 ) -> NodeId {
     let deadline = StoredCell::new(None::<Instant>);
-    let (left, set_left) = create_signal(timeout.peek());
+    let left = create_signal(timeout.get_untracked());
     let expire = on_revert;
     let ticking = create_timer(move || {
         let due = deadline.get()?;
         let remaining = due.saturating_duration_since(now());
-        set_left.set(remaining);
+        left.set(remaining);
         if remaining.is_zero() {
             deadline.set(None);
             expire.call();
@@ -59,7 +59,7 @@ pub fn KeepChanges(
             true => {
                 let timeout = timeout.get();
                 deadline.set(Some(now() + timeout));
-                set_left.set(timeout);
+                left.set(timeout);
                 ticking.restart(until_next_second(timeout));
             }
             false => {

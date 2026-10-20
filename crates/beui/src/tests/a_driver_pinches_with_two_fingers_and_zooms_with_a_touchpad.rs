@@ -6,13 +6,13 @@ use crate::reactive::*;
 #[test]
 fn a_driver_pinches_with_two_fingers_and_zooms_with_a_touchpad() {
     let _root = crate::reactive::RootScope::new();
-    let (zoom, set_zoom) = create_signal(1.0_f32);
+    let zoom = create_signal(1.0_f32);
     let document = build({
         move || {
             view! {
                 <Interactive
                     @test_id={"surface"}
-                    on_zoom={move |gesture: ZoomGesture| set_zoom.set(zoom.get_untracked() * gesture.factor)}
+                    on_zoom={move |gesture: ZoomGesture| zoom.set(zoom.get_untracked() * gesture.factor)}
                 >
                     <Frame width=300.0 height=300.0 />
                 </Interactive>

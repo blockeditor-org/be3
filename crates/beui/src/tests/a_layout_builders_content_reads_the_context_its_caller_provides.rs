@@ -6,7 +6,7 @@ use crate::reactive::*;
 struct Accent(Color32);
 
 #[component]
-fn Provider(seen: WriteSignal<Option<Color32>>) -> NodeId {
+fn Provider(seen: Signal<Option<Color32>>) -> NodeId {
     provide_context(Accent(Color32::WHITE));
     view! {
         <LayoutBuilder>|_size: ReadSignal<Vec2>| {
@@ -21,11 +21,11 @@ fn Provider(seen: WriteSignal<Option<Color32>>) -> NodeId {
 #[test]
 fn a_layout_builders_content_reads_the_context_its_caller_provides() {
     let _root = crate::reactive::RootScope::new();
-    let (seen, set_seen) = create_signal(None);
+    let seen = create_signal(None);
     let document = build({
         move || {
             view! {
-                <Provider seen={set_seen} />
+                <Provider seen={seen} />
             }
         }
     });

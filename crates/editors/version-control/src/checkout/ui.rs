@@ -124,21 +124,21 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
     });
     let log = create_memo(move || status.with(|status| status.log.clone()));
 
-    let (message, set_message) = create_signal(String::new());
+    let message = create_signal(String::new());
     let commit_blocked = create_memo(move || {
         blocked.get()
             || unchanged.get()
             || conflicted.get()
             || message.with(|message| message.trim().is_empty())
     });
-    let (branch_name, set_branch_name) = create_signal(String::new());
+    let branch_name = create_signal(String::new());
     let branch_blocked =
         create_memo(move || blocked.get() || branch_name.with(|name| name.trim().is_empty()));
 
     let commit_message = message;
-    let clear_message = set_message;
+    let clear_message = message;
     let new_branch = branch_name;
-    let clear_branch = set_branch_name;
+    let clear_branch = branch_name;
     let change_rows = move |row: ChangeRow| {
         view! {
             <ChangeLine editor row />
@@ -235,7 +235,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         placeholder="What changed?"
                                         label="Commit message"
                                         @test_id={"checkout.message"}
-                                        on_change={move |value| set_message.set(value)}
+                                        on_change={move |value| message.set(value)}
                                     />
                                     <Button
                                         label="Commit"
@@ -266,7 +266,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         placeholder="New branch"
                                         label="New branch name"
                                         @test_id={"checkout.branch-name"}
-                                        on_change={move |value| set_branch_name.set(value)}
+                                        on_change={move |value| branch_name.set(value)}
                                     />
                                     <Button
                                         label="Make branch"

@@ -70,17 +70,20 @@ pub fn NumberInput(
     on_change: Callback<f64>,
     on_preview: Callback<Option<f64>>,
 ) -> NodeId {
-    let (text, set_text) = create_signal(format_number(value.peek(), decimals.peek()));
-    let (editing, set_editing) = create_signal(false);
-    let (refocus, set_refocus) = create_signal(false);
-    let (hovered, set_hovered) = create_signal(false);
-    let (active, set_active) = create_signal(false);
-    let (focused, set_focused) = create_signal(false);
+    let text = create_signal(format_number(
+        value.get_untracked(),
+        decimals.get_untracked(),
+    ));
+    let editing = create_signal(false);
+    let refocus = create_signal(false);
+    let hovered = create_signal(false);
+    let active = create_signal(false);
+    let focused = create_signal(false);
     create_effect(move || {
         let next = value.get();
         let held = text.get_untracked();
         if parse(&held) != Some(next) {
-            set_text.set(format_number(next, decimals.peek()));
+            text.set(format_number(next, decimals.get_untracked()));
         }
     });
     let off = create_memo(move || disabled.get());
@@ -108,7 +111,7 @@ pub fn NumberInput(
         if off.get_untracked() {
             return;
         }
-        held.set(Some((press.pos, value.peek(), false)));
+        held.set(Some((press.pos, value.get_untracked(), false)));
     };
     let changed = on_change;
     let dragged = move |at: PointerPress| {
@@ -124,12 +127,12 @@ pub fn NumberInput(
         };
         held.set(Some((origin, start, true)));
         let next = next.clamp(min, max);
-        set_text.set(format_number(next, decimals.peek()));
+        text.set(format_number(next, decimals.get_untracked()));
         changed.call(next);
     };
     let open = move || {
         if !off.get_untracked() {
-            set_editing.set(true);
+            editing.set(true);
         }
     };
     let clicked = move || {
@@ -145,29 +148,29 @@ pub fn NumberInput(
         if !editing.get_untracked() {
             return;
         }
-        set_text.set(typed.clone());
+        text.set(typed.clone());
         previewed.call(parse(&typed).map(|parsed| parsed.clamp(min, max)));
     };
     let finish = move |keep: bool| {
         if !editing.get_untracked() {
             return;
         }
-        set_editing.set(false);
+        editing.set(false);
         let typed = parse(&text.get_untracked())
             .filter(|_| keep)
             .map(|typed| typed.clamp(min, max));
-        let shown = value.peek();
+        let shown = value.get_untracked();
         match typed {
             Some(typed) if typed != shown => {
-                set_text.set(format_number(typed, decimals.peek()));
+                text.set(format_number(typed, decimals.get_untracked()));
                 on_change.call(typed);
             }
-            _ => set_text.set(format_number(shown, decimals.peek())),
+            _ => text.set(format_number(shown, decimals.get_untracked())),
         }
         on_preview.call(None);
     };
     let submitted = move |_: String| {
-        set_refocus.set(true);
+        refocus.set(true);
         finish(true);
     };
     let focus_changed = move |focused: bool| {
@@ -185,29 +188,29 @@ pub fn NumberInput(
             if !escaped || !editing.get_untracked() {
                 return false;
             }
-            set_refocus.set(true);
+            refocus.set(true);
             finish(false);
             true
         },
     );
     let button_focus = move |has_focus: bool| {
-        set_focused.set(has_focus);
+        focused.set(has_focus);
         if !has_focus {
-            set_refocus.set(false);
+            refocus.set(false);
         }
     };
     let tab_stop = off.into_prop().map(|off: bool| !off);
 
     let face = face.call(NumberFaceHandle {
-        text,
-        hovered,
-        active,
-        focused,
+        text: text.read_only(),
+        hovered: hovered.read_only(),
+        active: active.read_only(),
+        focused: focused.read_only(),
         disabled: off,
     });
     let field = field.call(NumberFieldHandle {
-        text,
-        editing,
+        text: text.read_only(),
+        editing: editing.read_only(),
         on_change: Callback::new(edited),
         on_submit: Callback::new(submitted),
         on_focus_change: Callback::new(focus_changed),
@@ -215,7 +218,7 @@ pub fn NumberInput(
     set_component_state(Parts {
         face,
         field,
-        editing,
+        editing: editing.read_only(),
     });
     view! {
         <List spacing=0.0>
@@ -231,8 +234,8 @@ pub fn NumberInput(
                     on_press={pressed}
                     on_drag={dragged}
                     on_click={clicked}
-                    on_hover_change={move |is_hovered: bool| set_hovered.set(is_hovered)}
-                    on_active_change={move |is_active: bool| set_active.set(is_active)}
+                    on_hover_change={move |is_hovered: bool| hovered.set(is_hovered)}
+                    on_active_change={move |is_active: bool| active.set(is_active)}
                     children={Some(face)}
                 />
             </ShowKeepAlive>

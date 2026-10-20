@@ -39,7 +39,7 @@ pub fn TextContextMenu(
     #[prop(default = ItemSize::Intrinsic)] child_size: Prop<ItemSize>,
     #[prop(children)] content: Render<Callback<Option<Rect>>>,
 ) -> NodeId {
-    let (requested, set_requested) = create_signal(None::<(Rect, u64)>);
+    let requested = create_signal(None::<(Rect, u64)>);
     let cursors = state.cursors();
     let toolbar_at = create_memo(move || {
         requested
@@ -68,7 +68,7 @@ pub fn TextContextMenu(
     let off = create_memo(move || no_menu || disabled.get());
     let open = Callback::new(move |at: Option<Rect>| {
         let at = at.filter(|_| !off.get_untracked());
-        set_requested.set(at.map(|rect| (rect, cursors.get_untracked())));
+        requested.set(at.map(|rect| (rect, cursors.get_untracked())));
     });
     view! {
         <ContextMenu
@@ -78,7 +78,7 @@ pub fn TextContextMenu(
             selection=true
             toolbar_at
             opens_on_hold=false
-            on_toolbar_close={move || set_requested.set(None)}
+            on_toolbar_close={move || requested.set(None)}
             items={view! {
                 <ForEach keys={actions}>|action: MenuAction|
                     <MenuItem label={action.label().to_owned()} />

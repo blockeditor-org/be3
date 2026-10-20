@@ -6,30 +6,30 @@ use crate::unstyled::Button;
 #[test]
 fn a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
-    let (go_id, set_go_id) = create_signal(None);
-    let (toggle_id, set_toggle_id) = create_signal(None);
+    let clicks = create_signal(0);
+    let go_id = create_signal(None);
+    let toggle_id = create_signal(None);
 
     let document = build(move || {
-        let (disabled, set_disabled) = create_signal(true);
+        let disabled = create_signal(true);
 
         let toggle = view! {
             <Button
                 on_click={move || {
-                    set_disabled.update(|disabled| *disabled = !*disabled)
+                    disabled.update(|disabled| *disabled = !*disabled)
                 }}
             >
                 <Text string="toggle" />
             </Button>
         };
-        set_toggle_id.set(Some(toggle));
+        toggle_id.set(Some(toggle));
 
         let go = view! {
-            <Button disabled on_click={move || set_clicks.update(|clicks| *clicks += 1)}>
+            <Button disabled on_click={move || clicks.update(|clicks| *clicks += 1)}>
                 <Text string="go" />
             </Button>
         };
-        set_go_id.set(Some(go));
+        go_id.set(Some(go));
 
         view! {
             <List spacing=0.0>{toggle}{go}</List>

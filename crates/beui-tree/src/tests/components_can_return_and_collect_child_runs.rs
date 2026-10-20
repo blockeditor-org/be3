@@ -24,8 +24,8 @@ fn components_can_return_and_collect_child_runs() {
     let _root = ::reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
-    let (label, set_label) = create_signal("one".to_string());
-    let (visible, set_visible) = create_signal(false);
+    let label = create_signal("one".to_string());
+    let visible = create_signal(false);
     let page = scope.run(|| {
         let groups: Children<DomNode> = [view! {
             <Siblings label={label} visible={visible} />
@@ -38,12 +38,12 @@ fn components_can_return_and_collect_child_runs() {
     });
     assert!(page.html().contains(">one</p>"));
     assert_eq!(page.0.children.borrow().len(), 1);
-    set_visible.set(true);
-    set_label.set("two".to_string());
+    visible.set(true);
+    label.set("two".to_string());
     assert!(page.html().contains(">two</p>"));
     assert!(page.html().contains(">tail</span>"));
     assert_eq!(page.0.children.borrow().len(), 2);
-    set_visible.set(false);
+    visible.set(false);
     assert_eq!(page.0.children.borrow().len(), 1);
     assert!(
         scope

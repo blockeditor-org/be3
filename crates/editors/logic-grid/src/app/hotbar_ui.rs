@@ -244,7 +244,7 @@ fn HotbarColumn(session: Session, column: usize) -> NodeId {
 #[component]
 fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
     let path = store(path);
-    let shown = create_memo(move || session.read(|model| model.slot_view(&path.get())));
+    let shown = create_memo(move || session.read(|model| model.slot_view(&path.value())));
     let label = create_memo(move || shown.get().map(|slot| slot.label).unwrap_or_default());
     let menu_disabled = create_memo(move || {
         !shown
@@ -255,21 +255,21 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
     let not_folder = create_memo(move || !shown.get().is_some_and(|slot| slot.folder));
     let not_removable = create_memo(move || !shown.get().is_some_and(|slot| slot.removable));
     let chose = move |chosen: Vec<usize>| match chosen.first() {
-        Some(0) => session.update(|model| model.remove_hotbar_slot(&path.get())),
-        Some(1) => session.update(|model| model.toggle_hotbar_folder(path.get().to_vec())),
-        Some(2) => session.update(|model| model.remove_hotbar_folder(&path.get())),
+        Some(0) => session.update(|model| model.remove_hotbar_slot(&path.value())),
+        Some(1) => session.update(|model| model.toggle_hotbar_folder(path.value().to_vec())),
+        Some(2) => session.update(|model| model.remove_hotbar_folder(&path.value())),
         _ => {}
     };
-    let (hovered, set_hovered) = create_signal(false);
+    let hovered = create_signal(false);
     let disabled = create_memo(move || shown.get().is_none_or(|slot| slot.disabled));
-    let payload = create_memo(move || (!disabled.get()).then(|| path.get().to_vec()));
+    let payload = create_memo(move || (!disabled.get()).then(|| path.value().to_vec()));
     let clicked = move || {
         if !disabled.get_untracked() {
-            session.update(|model| model.click_hotbar_slot(path.get().to_vec()));
+            session.update(|model| model.click_hotbar_slot(path.value().to_vec()));
         }
     };
     let carried = move |dragging: bool| {
-        session.update(|model| model.hotbar_drag = dragging.then(|| path.get().to_vec()));
+        session.update(|model| model.hotbar_drag = dragging.then(|| path.value().to_vec()));
     };
     let ghost = move |dragged: Vec<usize>| {
         let shown = create_memo(move || {
@@ -281,17 +281,17 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                     ..slot
                 })
         });
-        let (hovered, _) = create_signal(false);
+        let hovered = create_signal(false);
         view! {
             <Frame @test_id="logic-grid.slot-ghost">
-                <SlotFace shown={shown} hovered={hovered} />
+                <SlotFace shown={shown} hovered={hovered.read_only()} />
             </Frame>
         }
     };
-    let target = create_memo(move || path.get().to_vec());
+    let target = create_memo(move || path.value().to_vec());
     let element_test_id = format!(
         "logic-grid.slot.{}",
-        path.get()
+        path.value()
             .iter()
             .map(usize::to_string)
             .collect::<Vec<_>>()
@@ -312,7 +312,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                     <Interactive
                         focusable=true
                         on_activate={clicked}
-                        on_hover_change={move |over: bool| set_hovered.set(over)}
+                        on_hover_change={move |over: bool| hovered.set(over)}
                     >
                         <Draggable
                             @test_id={element_test_id}
@@ -322,7 +322,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                             on_click={clicked}
                             on_drag_change={carried}
                         >|_: DragHandle|
-                            <SlotFace shown={shown} hovered={hovered} />
+                            <SlotFace shown={shown} hovered={hovered.read_only()} />
                         </Draggable>
                     </Interactive>
                 </Tooltip>

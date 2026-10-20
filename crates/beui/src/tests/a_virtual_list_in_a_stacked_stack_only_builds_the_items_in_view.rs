@@ -10,7 +10,7 @@ const STACKED_LIST_HEIGHT: f32 = 100.0;
 #[test]
 fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(Vec::new());
+    let built = create_signal(Vec::new());
     let scroll = NodeRef::new();
     let document = build({
         move || {
@@ -35,7 +35,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
                                     >|index: ReadSignal<usize>| {
                                         create_binding(move || {
                                             let index = index.get();
-                                            set_built.update(|built| built.push(index));
+                                            built.update(|built| built.push(index));
                                         });
                                         view! {
                                             <Frame
@@ -60,7 +60,7 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
     let wide = (WIDE_VIEWPORT.y / VIRTUAL_ITEM_HEIGHT) as usize;
     assert_eq!(harness.document.children(scroll.get()).len(), wide);
 
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
     *harness.viewport_mut() = VIEWPORT;
     harness.frame(Vec::new());
 

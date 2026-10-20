@@ -4,8 +4,8 @@ use crate::create_binding;
 #[test]
 fn a_binding_inside_an_effect_tracks_for_itself() {
     let _root = RootScope::new();
-    let (outer, set_outer) = create_signal(0);
-    let (inner, set_inner) = create_signal(0);
+    let outer = create_signal(0);
+    let inner = create_signal(0);
     let outer_runs = Rc::new(Cell::new(0));
     let inner_runs = Rc::new(Cell::new(0));
 
@@ -21,7 +21,7 @@ fn a_binding_inside_an_effect_tracks_for_itself() {
             });
         }
     });
-    set_inner.set(1);
+    inner.set(1);
 
     assert_eq!(
         outer_runs.get(),
@@ -30,8 +30,8 @@ fn a_binding_inside_an_effect_tracks_for_itself() {
     );
     assert_eq!(inner_runs.get(), 2);
 
-    set_outer.set(1);
-    set_inner.set(2);
+    outer.set(1);
+    inner.set(2);
     assert_eq!(outer_runs.get(), 2);
     assert_eq!(
         inner_runs.get(),

@@ -5,13 +5,13 @@ use super::*;
 use crate::test_client::{pattern, read};
 
 thread_local! {
-    static PANE: RefCell<Option<WriteSignal<Vec2>>> = const { RefCell::new(None) };
+    static PANE: RefCell<Option<Signal<Vec2>>> = const { RefCell::new(None) };
 }
 
 #[component]
 fn Pane(windows: Windows) -> NodeId {
-    let (size, set_size) = create_signal(SHOWN);
-    PANE.with(|pane| *pane.borrow_mut() = Some(set_size));
+    let size = create_signal(SHOWN);
+    PANE.with(|pane| *pane.borrow_mut() = Some(size));
     let ids = create_memo(clone_list(&windows));
     let width = create_memo(move || Some(size.get().x));
     let height = create_memo(move || Some(size.get().y));

@@ -12,19 +12,17 @@ const ICON_POINTS: f32 = 32.0;
 #[derive(Clone, Copy)]
 pub(crate) struct ProgramLauncher {
     editor: Editor,
-    open: ReadSignal<bool>,
-    set_open: WriteSignal<bool>,
+    open: Signal<bool>,
     scale: ReadSignal<f32>,
     pub(crate) offered: Memo<bool>,
 }
 
 impl ProgramLauncher {
     pub(crate) fn new(editor: Editor) -> Self {
-        let (open, set_open) = create_signal(false);
+        let open = create_signal(false);
         Self {
             editor,
             open,
-            set_open,
             scale: pixels_per_point(),
             offered: editor.host_offers::<Programs>(),
         }
@@ -35,7 +33,7 @@ impl ProgramLauncher {
             let icon_size = (ICON_POINTS * self.scale.get_untracked()).ceil() as u32;
             self.editor.act(ProgramAction::List { icon_size });
         }
-        self.set_open.set(open);
+        self.open.set(open);
     }
 
     fn toggle(&self) {

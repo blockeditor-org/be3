@@ -1524,7 +1524,7 @@ pub(crate) struct VirtualScroll {
     pub(crate) list: NodeId,
 }
 
-pub(crate) fn virtual_list(built: WriteSignal<Vec<usize>>) -> VirtualScroll {
+pub(crate) fn virtual_list(built: Signal<Vec<usize>>) -> VirtualScroll {
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
@@ -1562,13 +1562,13 @@ pub(crate) struct KeyedVirtualScroll {
     pub(crate) document: Document,
     pub(crate) scroll: NodeId,
     pub(crate) list: NodeId,
-    pub(crate) set_keys: crate::reactive::WriteSignal<Vec<usize>>,
+    pub(crate) keys: Signal<Vec<usize>>,
     _keys: crate::reactive::OwnedSignal<Vec<usize>>,
 }
 
-pub(crate) fn keyed_virtual_list(built: WriteSignal<Vec<usize>>) -> KeyedVirtualScroll {
+pub(crate) fn keyed_virtual_list(built: Signal<Vec<usize>>) -> KeyedVirtualScroll {
     let owned_keys = crate::reactive::OwnedSignal::new(indices(VIRTUAL_ITEM_COUNT));
-    let (keys, set_keys) = (owned_keys.read(), owned_keys.write());
+    let keys = owned_keys.handle();
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
@@ -1599,7 +1599,7 @@ pub(crate) fn keyed_virtual_list(built: WriteSignal<Vec<usize>>) -> KeyedVirtual
         document,
         scroll: scroll.get(),
         list: list.get(),
-        set_keys,
+        keys,
         _keys: owned_keys,
     }
 }
@@ -1754,7 +1754,7 @@ pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32)
 pub(crate) const SHEET_ROWS: usize = 20;
 pub(crate) const SHEET_ROW_HEIGHT: f32 = 60.0;
 
-pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: WriteSignal<usize>) -> Document {
+pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: Signal<usize>) -> Document {
     build(move || {
         view! {
             <List spacing=0.0>
@@ -1795,7 +1795,7 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
-        let (open, set_open) = create_signal((1..=tabs as u64).collect::<Vec<_>>());
+        let open = create_signal((1..=tabs as u64).collect::<Vec<_>>());
         view! {
             <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">
@@ -1803,7 +1803,7 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
                         <unstyled::DockTab
                             id
                             title={format!("Tab {id}")}
-                            on_close={move || set_open.update(|open| open.retain(|other| *other != id))}
+                            on_close={move || open.update(|open| open.retain(|other| *other != id))}
                         >
                             <Frame @test_id={format!("content.{id}")} />
                         </unstyled::DockTab>
@@ -1818,24 +1818,23 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
 pub(crate) struct SplitDock {
     pub(crate) document: Document,
     pub(crate) dock: NodeId,
-    pub(crate) presses: ReadSignal<u32>,
-    pub(crate) set_presses: WriteSignal<u32>,
+    pub(crate) presses: Signal<u32>,
 }
 
 pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
     let dock = NodeRef::new();
-    let (presses, set_presses) = create_signal(0);
+    let presses = create_signal(0);
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout drag_modifier>
                 <unstyled::DockSplit id="split">
                     <unstyled::DockPane id="left">
-                        <CountingTab id=1 presses={set_presses} />
+                        <CountingTab id=1 presses={presses} />
                     </unstyled::DockPane>
                     <unstyled::DockPane id="right">
-                        <CountingTab id=2 presses={set_presses} />
-                        <CountingTab id=3 presses={set_presses} />
+                        <CountingTab id=2 presses={presses} />
+                        <CountingTab id=3 presses={presses} />
                     </unstyled::DockPane>
                 </unstyled::DockSplit>
             </styled::Docking>
@@ -1845,12 +1844,11 @@ pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
         document,
         dock: dock.get(),
         presses,
-        set_presses,
     }
 }
 
 #[component]
-fn CountingTab(id: u64, presses: WriteSignal<u32>) -> unstyled::DockEntry<u64> {
+fn CountingTab(id: u64, presses: Signal<u32>) -> unstyled::DockEntry<u64> {
     view! {
         <unstyled::DockTab id title={format!("Tab {id}")}>
             <CountingPanel id presses />
@@ -1859,7 +1857,7 @@ fn CountingTab(id: u64, presses: WriteSignal<u32>) -> unstyled::DockEntry<u64> {
 }
 
 #[component]
-fn CountingPanel(id: u64, presses: WriteSignal<u32>) -> NodeId {
+fn CountingPanel(id: u64, presses: Signal<u32>) -> NodeId {
     view! {
         <Interactive
             on_press={move |_: crate::input::PointerPress| presses.update(|presses| *presses += 1)}
@@ -1959,17 +1957,17 @@ pub(crate) fn toolbar_of<const N: usize>(
     controls: impl FnOnce() -> [NodeId; N],
 ) -> (Document, [NodeId; N]) {
     let built = crate::reactive::OwnedSignal::new(None);
-    let set_built = built.write();
+    let handle = built.handle();
     let document = build(move || {
         let nodes = controls();
-        set_built.set(Some(nodes));
+        handle.set(Some(nodes));
         view! {
             <List spacing=8.0>
                 <ForEach keys={indices(N)}>|index: usize| { nodes[index] }</ForEach>
             </List>
         }
     });
-    let nodes = built.read().get_untracked().expect("the toolbar was built");
+    let nodes = built.get_untracked().expect("the toolbar was built");
     (document, nodes)
 }
 
@@ -1980,10 +1978,10 @@ use std::time::Duration;
 
 struct Counted {
     inner: Box<dyn Element>,
-    layouts: WriteSignal<usize>,
-    paints: WriteSignal<usize>,
-    measures: WriteSignal<usize>,
-    visits: WriteSignal<usize>,
+    layouts: Signal<usize>,
+    paints: Signal<usize>,
+    measures: Signal<usize>,
+    visits: Signal<usize>,
 }
 
 impl Element for Counted {
@@ -2040,8 +2038,7 @@ struct Counts {
     layouts: ReadSignal<usize>,
     paints: ReadSignal<usize>,
     measures: ReadSignal<usize>,
-    visits: ReadSignal<usize>,
-    set_visits: WriteSignal<usize>,
+    visits: Signal<usize>,
 }
 
 const BLINK: Duration = Duration::from_millis(530);
@@ -2069,27 +2066,26 @@ fn counted(
 
 fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Counts {
     let node = node.into();
-    let (layouts, set_layouts) = create_signal(0);
-    let (paints, set_paints) = create_signal(0);
-    let (measures, set_measures) = create_signal(0);
-    let (visits, set_visits) = create_signal(0);
+    let layouts = create_signal(0);
+    let paints = create_signal(0);
+    let measures = create_signal(0);
+    let visits = create_signal(0);
     let inner = document.arena.take(node);
     document.arena.put_back(
         node,
         Box::new(Counted {
             inner,
-            layouts: set_layouts,
-            paints: set_paints,
-            measures: set_measures,
-            visits: set_visits,
+            layouts,
+            paints,
+            measures,
+            visits,
         }),
     );
     Counts {
-        layouts,
-        paints,
-        measures,
+        layouts: layouts.read_only(),
+        paints: paints.read_only(),
+        measures: measures.read_only(),
         visits,
-        set_visits,
     }
 }
 
@@ -2129,8 +2125,8 @@ fn Rows(count: usize) -> DynamicSegment<ListChild> {
 
 fn reopens_after(close: impl Fn(&mut Harness)) {
     let _root = crate::reactive::RootScope::new();
-    let (open, set_open) = create_signal(true);
-    let (heard, set_heard) = create_signal(Vec::<String>::new());
+    let open = create_signal(true);
+    let heard = create_signal(Vec::<String>::new());
     let document = build({
         move || {
             view! {
@@ -2139,7 +2135,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
                         label="Programs"
                         variant=ButtonVariant::Secondary
                         @test_id={"reopen"}
-                        on_click={move || set_open.set(true)}
+                        on_click={move || open.set(true)}
                     />
                     <Launcher
                         open={open}
@@ -2149,10 +2145,10 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
                             ..LauncherItem::default()
                         }])}
                         on_launch={|_: String| {}}
-                        on_run={move |line: String| set_heard.update(|heard| heard.push(format!("run {line}")))}
+                        on_run={move |line: String| heard.update(|heard| heard.push(format!("run {line}")))}
                         on_close={move || {
-                            set_heard.update(|heard| heard.push("close".to_owned()));
-                            set_open.set(false);
+                            heard.update(|heard| heard.push("close".to_owned()));
+                            open.set(false);
                         }}
                     />
                 </List>
@@ -2323,11 +2319,10 @@ pub(crate) struct DialogDock {
     pub(crate) document: Document,
     pub(crate) dock: NodeId,
     pub(crate) layout: unstyled::DockingLayout<u64>,
-    pub(crate) pressed: ReadSignal<Vec<u64>>,
-    pub(crate) set_pressed: WriteSignal<Vec<u64>>,
+    pub(crate) pressed: Signal<Vec<u64>>,
     pub(crate) keyed: ReadSignal<Vec<u64>>,
     pub(crate) attended: ReadSignal<Vec<u64>>,
-    pub(crate) set_dialogs: crate::reactive::WriteSignal<Dialogs>,
+    pub(crate) dialogs: Signal<Dialogs>,
     _dialogs: crate::reactive::OwnedSignal<Dialogs>,
 }
 
@@ -2340,12 +2335,12 @@ pub(crate) fn dialog_size(id: u64) -> Vec2 {
 
 pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let dock = NodeRef::new();
-    let (pressed, set_pressed) = create_signal(Vec::new());
-    let (keyed, set_keyed) = create_signal(Vec::new());
-    let (attended, set_attended) = create_signal(Vec::new());
+    let pressed = create_signal(Vec::new());
+    let keyed = create_signal(Vec::new());
+    let attended = create_signal(Vec::new());
     let layout = unstyled::DockingLayout::new();
     let owned_dialogs = crate::reactive::OwnedSignal::new(dialogs);
-    let (listed, set_dialogs) = (owned_dialogs.read(), owned_dialogs.write());
+    let listed = owned_dialogs.handle();
     let document = build(move || {
         let keys = crate::reactive::create_memo(move || {
             listed.with(|listed| {
@@ -2363,8 +2358,8 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                             <FocusPanel
                                 name={format!("content.{id}")}
                                 owner=id
-                                pressed={set_pressed}
-                                keyed={set_keyed}
+                                pressed={pressed}
+                                keyed={keyed}
                                 attended={None}
                                 size={None}
                             />
@@ -2386,9 +2381,9 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                             <FocusPanel
                                 name={format!("dialog.{id}.field")}
                                 owner=id
-                                pressed={set_pressed}
-                                keyed={set_keyed}
-                                attended={Some(set_attended)}
+                                pressed={pressed}
+                                keyed={keyed}
+                                attended={Some(attended)}
                                 size={Some(dialog_size(id))}
                             />
                         </unstyled::DockDialog>
@@ -2402,10 +2397,9 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
         dock: dock.get(),
         layout,
         pressed,
-        set_pressed,
-        keyed,
-        attended,
-        set_dialogs,
+        keyed: keyed.read_only(),
+        attended: attended.read_only(),
+        dialogs: listed,
         _dialogs: owned_dialogs,
     }
 }
@@ -2414,9 +2408,9 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
 fn FocusPanel(
     name: String,
     owner: u64,
-    pressed: WriteSignal<Vec<u64>>,
-    keyed: WriteSignal<Vec<u64>>,
-    attended: Option<WriteSignal<Vec<u64>>>,
+    pressed: Signal<Vec<u64>>,
+    keyed: Signal<Vec<u64>>,
+    attended: Option<Signal<Vec<u64>>>,
     size: Option<Vec2>,
 ) -> NodeId {
     if let (Some(attended), Some(tab)) = (attended, unstyled::use_dock_tab()) {

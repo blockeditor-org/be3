@@ -29,10 +29,8 @@ pub struct TimeOptionHandle {
 #[derive(Clone, Copy)]
 struct State {
     times: Memo<Vec<u32>>,
-    selected: ReadSignal<Option<Time>>,
-    set_selected: WriteSignal<Option<Time>>,
-    focus: ReadSignal<Option<u32>>,
-    set_focus: WriteSignal<Option<u32>>,
+    selected: Signal<Option<Time>>,
+    focus: Signal<Option<u32>>,
     anchor: Memo<u32>,
     columns: usize,
     on_change: Callback<Time>,
@@ -54,8 +52,8 @@ pub fn TimeList(
 ) -> NodeId {
     let step_minutes = step_minutes.clamp(1, MINUTES_PER_DAY);
     let columns = grid_columns(step_minutes, max_columns);
-    let (selected, set_selected) = create_signal(value.peek());
-    create_effect(move || set_selected.set(value.get()));
+    let selected = create_signal(value.get_untracked());
+    create_effect(move || selected.set(value.get()));
     let times = create_memo(move || {
         let mut times: Vec<u32> = (0..MINUTES_PER_DAY)
             .step_by(step_minutes as usize)
@@ -68,7 +66,7 @@ pub fn TimeList(
         }
         times
     });
-    let (focus, set_focus) = create_signal(None);
+    let focus = create_signal(None);
     let anchor = create_memo(move || {
         if let Some(focused) = focus.get() {
             return focused;
@@ -92,9 +90,7 @@ pub fn TimeList(
     let state = State {
         times,
         selected,
-        set_selected,
         focus,
-        set_focus,
         anchor,
         columns,
         on_change,
@@ -102,7 +98,7 @@ pub fn TimeList(
     set_component_state(state);
     create_effect(move || {
         if focused.get() {
-            state.set_focus.set(Some(state.anchor.get_untracked()));
+            state.focus.set(Some(state.anchor.get_untracked()));
         }
     });
     let rows =
@@ -198,9 +194,9 @@ fn TimeOption(
             accessibility
             on_focus_change={move |has_focus: bool| {
                 if has_focus {
-                    state.set_focus.set(Some(minutes));
+                    state.focus.set(Some(minutes));
                 } else if state.focus.get_untracked() == Some(minutes) {
-                    state.set_focus.set(None);
+                    state.focus.set(None);
                 }
             }}
             on_click={move || choose(state, time)}
@@ -226,7 +222,7 @@ pub fn time_list_selected(document: &Document, list: NodeId) -> Option<Time> {
 }
 
 fn choose(state: State, time: Time) {
-    state.set_selected.set(Some(time));
+    state.selected.set(Some(time));
     state.on_change.call(time);
 }
 
@@ -261,7 +257,7 @@ fn option_key(state: State, minutes: u32, press: KeyPress) -> bool {
         _ => return false,
     };
     if press.pressed {
-        state.set_focus.set(Some(times[next]));
+        state.focus.set(Some(times[next]));
     }
     true
 }

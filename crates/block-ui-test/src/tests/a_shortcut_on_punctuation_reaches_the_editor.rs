@@ -6,12 +6,12 @@ struct ShortcutApp;
 
 impl BeuiApp for ShortcutApp {
     fn view(_editor: Editor) -> NodeId {
-        let (pressed, set_pressed) = create_signal(String::new());
+        let pressed = create_signal(String::new());
         on_shortcut(move |press: KeyPress| {
             if !press.pressed || !press.modifiers.ctrl {
                 return false;
             }
-            set_pressed.set(format!("{:?}", press.key));
+            pressed.set(format!("{:?}", press.key));
             true
         });
         let text = create_memo(move || pressed.get());

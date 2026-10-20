@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn evicting_a_virtual_scroll_row_disposes_its_effects() {
     let _root = crate::reactive::RootScope::new();
-    let (shown, set_shown) = create_signal(true);
+    let shown = create_signal(true);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
@@ -37,10 +37,10 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
 
     harness.document.set_scroll_offset(scroll, f32::MAX);
     harness.frame(Vec::new());
-    let shown = harness.document().children(list);
-    let last = harness.document().children(*shown.last().unwrap())[0];
+    let rows = harness.document().children(list);
+    let last = harness.document().children(*rows.last().unwrap())[0];
     assert_eq!(text_of(harness.document(), last), "Row 99");
 
-    with_installed(harness.document_mut(), |_| set_shown.set(false));
+    with_installed(harness.document_mut(), |_| shown.set(false));
     harness.frame(Vec::new());
 }

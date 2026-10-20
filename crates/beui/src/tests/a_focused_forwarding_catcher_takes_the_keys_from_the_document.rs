@@ -6,7 +6,7 @@ use crate::reactive::*;
 #[test]
 fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
     let _root = crate::reactive::RootScope::new();
-    let (keys, set_keys) = create_signal(Vec::<Event>::new());
+    let keys = create_signal(Vec::<Event>::new());
     let document = build({
         move || {
             view! {
@@ -16,7 +16,7 @@ fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    set_keys.update(|keys| keys.extend(flattened(input)));
+                                    keys.update(|keys| keys.extend(flattened(input)));
                                 }
                             }}
                         >
@@ -37,7 +37,7 @@ fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
     harness.click(pos2(50.0, 50.0));
     let focused = harness.document().focused_node();
     assert!(focused.is_some());
-    set_keys.update(|keys| keys.clear());
+    keys.update(|keys| keys.clear());
 
     let tab = Event::key(beui::KeyPress {
         key: Key::Tab,

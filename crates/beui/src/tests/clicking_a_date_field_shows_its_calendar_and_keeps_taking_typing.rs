@@ -9,7 +9,7 @@ use crate::unstyled::{Container, DateTimeParts};
 #[test]
 fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
     let _root = crate::reactive::RootScope::new();
-    let (reported, set_reported) = create_signal(Vec::new());
+    let reported = create_signal(Vec::new());
     let field = NodeRef::new();
     let document = build(move || {
         view! {
@@ -22,7 +22,7 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
                         parts=DateTimeParts::Date
                         label="Due"
                         on_change={move |value: Option<DateTime>| {
-                            set_reported.update(|reported| reported.push(value.map(|value| value.date)))
+                            reported.update(|reported| reported.push(value.map(|value| value.date)))
                         }}
                     />
                 </List>

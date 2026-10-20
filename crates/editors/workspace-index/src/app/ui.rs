@@ -44,8 +44,7 @@ impl FolderView {
 struct Cells {
     editor: Editor,
     entries: Memo<Vec<Entry>>,
-    selected: ReadSignal<Option<Uuid>>,
-    set_selected: WriteSignal<Option<Uuid>>,
+    selected: Signal<Option<Uuid>>,
 }
 
 impl Cells {
@@ -79,12 +78,12 @@ impl Cells {
 #[component]
 pub fn FolderEditor(editor: Editor) -> NodeId {
     let index = Listing::of(editor);
-    let (mode, set_mode) = create_signal(FolderView::default());
-    let (sort, set_sort) = create_signal(FolderSort::default());
-    let (descending, set_descending) = create_signal(false);
-    let (selected, set_selected) = create_signal(None::<Uuid>);
+    let mode = create_signal(FolderView::default());
+    let sort = create_signal(FolderSort::default());
+    let descending = create_signal(false);
+    let selected = create_signal(None::<Uuid>);
 
-    let folder = Folder::watch(editor, index, sort, descending);
+    let folder = Folder::watch(editor, index, sort.read_only(), descending.read_only());
     let entries = folder.entries();
     let drop = super::drop::watch(editor, folder);
 
@@ -119,13 +118,12 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
             .position(|order| *order == sort.get())
     });
     let flip = move || {
-        set_descending.set(!descending.get_untracked());
+        descending.set(!descending.get_untracked());
     };
     let cells = Cells {
         editor,
         entries,
         selected,
-        set_selected,
     };
 
     let chrome = editor.chrome_shown();
@@ -153,7 +151,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         on_change={move |chosen: Option<usize>| {
                             if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
                             {
-                                set_mode.set(*shown);
+                                mode.set(*shown);
                             }
                         }}
                     />
@@ -169,7 +167,7 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                         on_change={move |chosen: Option<usize>| {
                             if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
                             {
-                                set_sort.set(*order);
+                                sort.set(*order);
                             }
                         }}
                     />
@@ -236,13 +234,12 @@ fn EntryRows(cells: Cells) -> NodeId {
             <ForEach keys={keys}>|key: Uuid| {
                 let entry = cells.entry(key);
                 let open = cells.open(entry);
-                let set_selected = cells.set_selected;
                 let here = chosen.memo(Some(key));
                 view! {
                     <ListRow
                         selected={here}
                         @test_id={entry_test_id(key)}
-                        on_click={move || set_selected.set(Some(key))}
+                        on_click={move || selected.set(Some(key))}
                         on_activate={open}
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -271,14 +268,13 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
             <ForEach keys={keys}>|key: Uuid| {
                 let entry = cells.entry(key);
                 let open = cells.open(entry);
-                let set_selected = cells.set_selected;
                 let here = chosen.memo(Some(key));
                 view! {
                     <ListRow
                         @sizing=ItemSize::Fixed(tile.x)
                         selected={here}
                         @test_id={entry_test_id(key)}
-                        on_click={move || set_selected.set(Some(key))}
+                        on_click={move || selected.set(Some(key))}
                         on_activate={open}
                     >
                         <Frame height={tile.y}>

@@ -48,7 +48,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                 rows.get().iter().map(|row| row.lane + 1).max().unwrap_or(1) + 1
             });
 
-            let (offset, set_offset) = create_signal(Vec2::ZERO);
+            let offset = create_signal(Vec2::ZERO);
             let camera = create_memo(move || {
                 Some(CanvasView::new(placed.get().min - offset.get(), 1.0))
             });
@@ -74,15 +74,15 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                 let viewport = scroll_placed.get_untracked().size();
                 let room = (content - viewport).max(Vec2::ZERO);
                 let next = scroll_offset.get_untracked() - gesture.delta;
-                set_offset.set(Vec2::new(
+                offset.set(Vec2::new(
                     next.x.clamp(0.0, room.x),
                     next.y.clamp(0.0, room.y),
                 ));
             };
 
-            let (pointer, set_pointer) = create_signal(None::<Pos2>);
+            let pointer = create_signal(None::<Pos2>);
             let hover_offset = offset;
-            let hover_pointer = set_pointer;
+            let hover_pointer = pointer;
             let on_hover = move |press: PointerPress| {
                 hover_pointer.set(Some(press.local + hover_offset.get_untracked()));
             };
@@ -134,7 +134,7 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
             };
 
             let drag_offset = offset;
-            let drag_pointer = set_pointer;
+            let drag_pointer = pointer;
             let on_over = move |over: Option<(Uuid, DragPoint)>| {
                 if let Some((_, point)) = over {
                     drag_pointer.set(Some(point.local + drag_offset.get_untracked()));
@@ -196,10 +196,10 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                                 let selected = selection.memo(Some(row.id));
                                 let scale = row_scale;
                                 view! {
-                                    <Clip state row selected scale />
+                                    <Clip state row selected scale={scale.read_only()} />
                                 }
                             }</ForEach>
-                            <DropMarker target={target} scale={pixels_per_frame} />
+                            <DropMarker target={target} scale={pixels_per_frame.read_only()} />
                             <CanvasItem x={playhead_x} y=0.0 width=1.5 height={playhead_height}>
                                 <Frame fill=ColorRole::Accent />
                             </CanvasItem>

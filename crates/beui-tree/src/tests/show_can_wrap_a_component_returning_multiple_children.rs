@@ -16,9 +16,9 @@ fn show_can_wrap_a_component_returning_multiple_children() {
     let _root = ::reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
-    let (shown, set_shown) = create_signal(false);
-    let (tail, set_tail) = create_signal(false);
-    let (label, set_label) = create_signal("one".to_string());
+    let shown = create_signal(false);
+    let tail = create_signal(false);
+    let label = create_signal("one".to_string());
     let disposed = Rc::new(Cell::new(0));
     let counter = disposed.clone();
     let page = scope.run(|| {
@@ -33,20 +33,20 @@ fn show_can_wrap_a_component_returning_multiple_children() {
         }
     });
     assert_eq!(page.0.children.borrow().len(), 2);
-    set_shown.set(true);
+    shown.set(true);
     assert_eq!(page.0.children.borrow().len(), 3);
-    set_tail.set(true);
-    set_label.set("two".to_string());
+    tail.set(true);
+    label.set("two".to_string());
     assert_eq!(page.0.children.borrow().len(), 4);
     let html = page.html();
     assert!(html.find("before").unwrap() < html.find("two").unwrap());
     assert!(html.find("two").unwrap() < html.find("tail").unwrap());
     assert!(html.find("tail").unwrap() < html.find("after").unwrap());
-    set_shown.set(false);
+    shown.set(false);
     assert_eq!(disposed.get(), 1);
     assert_eq!(page.0.children.borrow().len(), 2);
-    set_tail.set(false);
-    set_shown.set(true);
+    tail.set(false);
+    shown.set(true);
     assert_eq!(page.0.children.borrow().len(), 3);
     drop(scope);
     assert_eq!(disposed.get(), 2);

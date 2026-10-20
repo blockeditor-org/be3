@@ -4,11 +4,11 @@ use crate::reactive::*;
 #[test]
 fn a_timer_asks_for_frames_until_its_work_settles() {
     let _root = crate::reactive::RootScope::new();
-    let (runs, set_runs) = create_signal(0);
+    let runs = create_signal(0);
     let document = build({
         move || {
             let timer = create_timer(move || {
-                set_runs.update(|runs| *runs += 1);
+                runs.update(|runs| *runs += 1);
                 (runs.get_untracked() < 3).then_some(Duration::ZERO)
             });
             timer.start(Duration::ZERO);

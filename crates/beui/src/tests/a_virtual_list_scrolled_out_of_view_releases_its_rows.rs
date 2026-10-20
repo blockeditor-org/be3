@@ -6,7 +6,7 @@ const BELOW: f32 = 1000.0;
 #[test]
 fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(Vec::new());
+    let built = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
@@ -21,7 +21,7 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
                             >|key: ReadSignal<usize>| {
                                 create_binding(move || {
                                     let key = key.get();
-                                    set_built.update(|built| built.push(key));
+                                    built.update(|built| built.push(key));
                                 });
                                 view! {
                                     <Frame height=VIRTUAL_ITEM_HEIGHT>
@@ -45,7 +45,7 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
     let rows = harness.document.children(list);
     assert_eq!(rows.len(), ROWS);
 
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
     harness.document.set_scroll_offset(scroll, BELOW / 2.0);
     harness.frame(Vec::new());
     assert!(harness.document.children(list).is_empty());

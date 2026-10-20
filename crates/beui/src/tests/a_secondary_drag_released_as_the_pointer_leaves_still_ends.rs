@@ -6,12 +6,12 @@ use crate::reactive::*;
 #[test]
 fn a_secondary_drag_released_as_the_pointer_leaves_still_ends() {
     let _root = crate::reactive::RootScope::new();
-    let (drags, set_drags) = create_signal(Vec::<SecondaryDrag>::new());
+    let drags = create_signal(Vec::<SecondaryDrag>::new());
     let document = build({
         move || {
             view! {
                 <Interactive
-                    on_secondary_drag={move |drag: SecondaryDrag| set_drags.update(|drags| drags.push(drag))}
+                    on_secondary_drag={move |drag: SecondaryDrag| drags.update(|drags| drags.push(drag))}
                 >
                     <Frame />
                 </Interactive>

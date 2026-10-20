@@ -9,10 +9,10 @@ fn removing_a_keyed_node_drops_the_test_ids_it_registered() {
     let drop_two = NodeRef::new();
     let document = build({
         move || {
-            let (items, set_items) = create_signal(vec![1i64, 2]);
+            let items = create_signal(vec![1i64, 2]);
             view! {
                 <List spacing=0.0>
-                    <Button @node_ref=&drop_two on_click={move || set_items.set(vec![1])}>
+                    <Button @node_ref=&drop_two on_click={move || items.set(vec![1])}>
                         <Text string="drop" />
                     </Button>
                     <ForEach keys={items}>|value: i64|

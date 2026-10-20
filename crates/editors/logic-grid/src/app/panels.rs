@@ -17,11 +17,11 @@ const GRAPH_DETAIL_COLOR: Color32 = Color32::from_rgb(225, 225, 225);
 
 #[component]
 pub(super) fn Panels(session: Session) -> NodeId {
-    let (challenge_open, set_challenge_open) = create_signal(true);
-    let (simulation_open, set_simulation_open) = create_signal(true);
-    let (metrics_open, set_metrics_open) = create_signal(true);
-    let (debugger_open, set_debugger_open) = create_signal(false);
-    let (graph_open, set_graph_open) = create_signal(false);
+    let challenge_open = create_signal(true);
+    let simulation_open = create_signal(true);
+    let metrics_open = create_signal(true);
+    let debugger_open = create_signal(false);
+    let graph_open = create_signal(false);
     let challenged = create_memo(move || session.read(|model| model.challenge.is_some()));
     view! {
         <List spacing=SPACING>
@@ -29,7 +29,7 @@ pub(super) fn Panels(session: Session) -> NodeId {
                 <Accordion
                     title="Challenge"
                     open={challenge_open}
-                    on_toggle={move |open| set_challenge_open.set(open)}
+                    on_toggle={move |open| challenge_open.set(open)}
                 >
                     <ChallengePanel session={session} />
                 </Accordion>
@@ -37,28 +37,28 @@ pub(super) fn Panels(session: Session) -> NodeId {
             <Accordion
                 title="Simulation"
                 open={simulation_open}
-                on_toggle={move |open| set_simulation_open.set(open)}
+                on_toggle={move |open| simulation_open.set(open)}
             >
                 <SimulationPanel session={session} />
             </Accordion>
             <Accordion
                 title="Metrics"
                 open={metrics_open}
-                on_toggle={move |open| set_metrics_open.set(open)}
+                on_toggle={move |open| metrics_open.set(open)}
             >
                 <MetricsPanel session={session} />
             </Accordion>
             <Accordion
                 title="Grid debugger"
                 open={debugger_open}
-                on_toggle={move |open| set_debugger_open.set(open)}
+                on_toggle={move |open| debugger_open.set(open)}
             >
                 <DebuggerPanel session={session} />
             </Accordion>
             <Accordion
                 title="Generated graph"
                 open={graph_open}
-                on_toggle={move |open| set_graph_open.set(open)}
+                on_toggle={move |open| graph_open.set(open)}
             >
                 <GraphPanel session={session} />
             </Accordion>
@@ -888,20 +888,20 @@ fn DebuggerPanel(session: Session) -> NodeId {
 
 #[component]
 fn EntityPanel(session: Session, row: Memo<Option<EntityRow>>, entity: DebugEntity) -> NodeId {
-    let (open, set_open) = create_signal(false);
+    let open = create_signal(false);
     let title = create_memo(move || row.get().map(|row| row.title).unwrap_or_default());
     let details = create_memo(move || row.get().map(|row| row.details).unwrap_or_default());
     let hovered = move |over: bool| {
         let current = session.debug_hover.get_untracked();
         if over {
-            session.set_debug_hover.set(Some(entity));
+            session.debug_hover.set(Some(entity));
         } else if current == Some(entity) {
-            session.set_debug_hover.set(None);
+            session.debug_hover.set(None);
         }
     };
     view! {
         <Interactive on_hover_change={hovered}>
-            <Accordion title={title} open={open} on_toggle={move |open| set_open.set(open)}>
+            <Accordion title={title} open={open} on_toggle={move |next| open.set(next)}>
                 <Rows rows={details} />
             </Accordion>
         </Interactive>
@@ -1026,19 +1026,19 @@ fn GraphCanvas(
             (local.x - center.x).abs() <= GRAPH_NODE_SIZE.x * 0.5
                 && (local.y - center.y).abs() <= GRAPH_NODE_SIZE.y * 0.5
         });
-        if hovered.get().replace(node) == node {
+        if hovered.value().replace(node) == node {
             return;
         }
         let mut hover = GraphHover::default();
         if let Some(node) = node.and_then(|node| shape.graph.nodes.get(node)) {
             hover.include_node(node);
         }
-        session.set_graph_hover.set(hover);
+        session.graph_hover.set(hover);
     };
     let left = move |inside: bool| {
         if !inside {
-            hovered.get().set(None);
-            session.set_graph_hover.set(GraphHover::default());
+            hovered.value().set(None);
+            session.graph_hover.set(GraphHover::default());
         }
     };
     view! {

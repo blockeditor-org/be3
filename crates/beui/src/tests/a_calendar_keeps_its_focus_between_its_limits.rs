@@ -8,7 +8,7 @@ use crate::styled::*;
 #[test]
 fn a_calendar_keeps_its_focus_between_its_limits() {
     let _root = crate::reactive::RootScope::new();
-    let (picked, set_picked) = create_signal(Vec::new());
+    let picked = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <Calendar
@@ -17,7 +17,7 @@ fn a_calendar_keeps_its_focus_between_its_limits() {
                 min={Some(Date::new(2026, 5, 8))}
                 max={Some(Date::new(2026, 5, 12))}
                 focused=true
-                on_change={move |date| set_picked.update(|picked| picked.push(date))}
+                on_change={move |date| picked.update(|picked| picked.push(date))}
             />
         }
     });

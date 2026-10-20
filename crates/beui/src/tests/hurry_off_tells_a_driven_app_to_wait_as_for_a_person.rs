@@ -1,6 +1,6 @@
 use super::*;
 
-struct Hurrying(WriteSignal<Vec<bool>>);
+struct Hurrying(Signal<Vec<bool>>);
 
 impl App for Hurrying {
     fn update(&mut self, context: &Context, _rect: Rect) {
@@ -12,8 +12,8 @@ impl App for Hurrying {
 #[test]
 fn hurry_off_tells_a_driven_app_to_wait_as_for_a_person() {
     let _root = crate::reactive::RootScope::new();
-    let (seen, set_seen) = create_signal(Vec::new());
-    let mut driven = Driven::with_app(Hurrying(set_seen), true);
+    let seen = create_signal(Vec::new());
+    let mut driven = Driven::with_app(Hurrying(seen), true);
 
     driven.ask(&["settle"]).expect("the app settles");
     assert_eq!(

@@ -11,26 +11,20 @@ type Step = Box<dyn Fn(&Setters)>;
 
 #[derive(Clone, Copy)]
 struct Setters {
-    title: WriteSignal<String>,
-    rows: WriteSignal<Vec<u32>>,
-    panel: WriteSignal<bool>,
+    title: Signal<String>,
+    rows: Signal<Vec<u32>>,
+    panel: Signal<bool>,
 }
 
 #[test]
 fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
     let _root = crate::reactive::RootScope::new();
-    let (taken, set_taken) = create_signal::<Option<Setters>>(None);
+    let taken = create_signal::<Option<Setters>>(None);
     let document = build(move || {
-        let (title, set_title) = create_signal("Inbox".to_owned());
-        let (rows, set_rows) = create_signal(vec![1u32, 2, 3]);
-        let (panel, set_panel) = create_signal(true);
-        set_taken.update(|taken| {
-            *taken = Some(Setters {
-                title: set_title,
-                rows: set_rows,
-                panel: set_panel,
-            })
-        });
+        let title = create_signal("Inbox".to_owned());
+        let rows = create_signal(vec![1u32, 2, 3]);
+        let panel = create_signal(true);
+        taken.update(|taken| *taken = Some(Setters { title, rows, panel }));
         view! {
             <List spacing=0.0>
                 <Text string={create_memo(move || title.get())} />

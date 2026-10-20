@@ -9,10 +9,10 @@ fn a_keyed_row_kept_across_a_rerun_still_reads_context() {
     let root = Scope::new();
     let seen: Rc<RefCell<Vec<Option<Theme>>>> = Rc::default();
     let sink = seen.clone();
-    let (set_keys, set_poke) = root.run(move || {
+    let (keys, poke) = root.run(move || {
         provide_context(Theme(7));
-        let (keys, set_keys) = create_signal(vec![1u32]);
-        let (poke, set_poke) = create_signal(0);
+        let keys = create_signal(vec![1u32]);
+        let poke = create_signal(0);
         let rows = Rc::new(KeyedItems::new(move |_: u32| {
             let sink = sink.clone();
             create_effect(move || {
@@ -23,12 +23,12 @@ fn a_keyed_row_kept_across_a_rerun_still_reads_context() {
         create_effect(move || {
             let _ = rows.map(keys.get()).items().len();
         });
-        (set_keys, set_poke)
+        (keys, poke)
     });
     assert_eq!(*seen.borrow(), [Some(Theme(7))]);
 
-    set_keys.set(vec![1, 2]);
-    set_poke.set(1);
+    keys.set(vec![1, 2]);
+    poke.set(1);
     assert_eq!(
         *seen.borrow(),
         [

@@ -44,9 +44,9 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
         })
     };
     let (first_label, second_label, third_label) = (label(0), label(1), label(2));
-    let (first, set_first) = create_signal(String::new());
-    let (second, set_second) = create_signal(String::new());
-    let (third, set_third) = create_signal(String::new());
+    let first = create_signal(String::new());
+    let second = create_signal(String::new());
+    let third = create_signal(String::new());
     let cannot = create_memo(move || {
         busy.get()
             || first.get().trim().is_empty()
@@ -86,19 +86,19 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
             <TextInput
                 value={first}
                 label={first_label}
-                on_change={move |value: String| set_first.set(value)}
+                on_change={move |value: String| first.set(value)}
             />
             <Text style=TextStyle::CAPTION string={second_label} />
             <TextInput
                 value={second}
                 label={second_label}
-                on_change={move |value: String| set_second.set(value)}
+                on_change={move |value: String| second.set(value)}
             />
             <Text style=TextStyle::CAPTION string={third_label} />
             <TextInput
                 value={third}
                 label={third_label}
-                on_change={move |value: String| set_third.set(value)}
+                on_change={move |value: String| third.set(value)}
                 on_submit={move |_value: String| submit()}
             />
             <ErrorText text={error} />
@@ -140,7 +140,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
     let waiting = create_memo(move || unlock.get().code.is_some());
     let idle = create_memo(move || !waiting.get());
     let error = create_memo(move || unlock.get().error);
-    let (phrase, set_phrase) = create_signal(String::new());
+    let phrase = create_signal(String::new());
     let cannot = create_memo(move || phrase.get().trim().is_empty());
     let open = move || {
         if !cannot.get_untracked() {
@@ -162,7 +162,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                     value={phrase}
                     label="Recovery phrase"
                     placeholder="twelve words"
-                    on_change={move |value: String| set_phrase.set(value)}
+                    on_change={move |value: String| phrase.set(value)}
                     on_submit={move |_value: String| submit()}
                 />
                 <List direction=Direction::Horizontal spacing=8.0>
@@ -237,10 +237,10 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
             "A {device} device wants this account's key. If it is yours, type the code it shows."
         )
     });
-    let (code, set_code) = create_signal(String::new());
+    let code = create_signal(String::new());
     create_effect(move || {
         request.get();
-        untrack(|| set_code.set(String::new()));
+        untrack(|| code.set(String::new()));
     });
     let cannot = create_memo(move || code.get().trim().is_empty());
     let approve = move || {
@@ -268,7 +268,7 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
                     value={code}
                     label="Code"
                     placeholder="XXXX-XXXX"
-                    on_change={move |value: String| set_code.set(value)}
+                    on_change={move |value: String| code.set(value)}
                     on_submit={move |_value: String| submit()}
                 />
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

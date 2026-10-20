@@ -81,29 +81,18 @@ pub(crate) enum Shown {
 pub(crate) struct Review {
     editor: Editor,
     loaded: ReadSignal<bool>,
-    pub(crate) found: ReadSignal<Vec<Painting>>,
-    set_found: WriteSignal<Vec<Painting>>,
+    pub(crate) found: Signal<Vec<Painting>>,
     pub(crate) approved: ReadSignal<Vec<ApprovedPainting>>,
-    pub(crate) error: ReadSignal<Option<String>>,
-    set_error: WriteSignal<Option<String>>,
-    pub(crate) selected: ReadSignal<Option<String>>,
-    set_selected: WriteSignal<Option<String>>,
-    pub(crate) showing: ReadSignal<Showing>,
-    set_showing: WriteSignal<Showing>,
-    pub(crate) pending: ReadSignal<Option<String>>,
-    set_pending: WriteSignal<Option<String>>,
-    pub(crate) frame: ReadSignal<usize>,
-    set_frame: WriteSignal<usize>,
-    pub(crate) playing: ReadSignal<bool>,
-    set_playing: WriteSignal<bool>,
-    pub(crate) downloading: ReadSignal<bool>,
-    set_downloading: WriteSignal<bool>,
-    pub(crate) scale: ReadSignal<Option<f32>>,
-    set_scale: WriteSignal<Option<f32>>,
-    pub(crate) description: ReadSignal<Option<String>>,
-    set_description: WriteSignal<Option<String>>,
-    pub(crate) revision: ReadSignal<u64>,
-    set_revision: WriteSignal<u64>,
+    pub(crate) error: Signal<Option<String>>,
+    pub(crate) selected: Signal<Option<String>>,
+    pub(crate) showing: Signal<Showing>,
+    pub(crate) pending: Signal<Option<String>>,
+    pub(crate) frame: Signal<usize>,
+    pub(crate) playing: Signal<bool>,
+    pub(crate) downloading: Signal<bool>,
+    pub(crate) scale: Signal<Option<f32>>,
+    pub(crate) description: Signal<Option<String>>,
+    pub(crate) revision: Signal<u64>,
     inner: Stored<Inner>,
 }
 
@@ -122,43 +111,32 @@ impl Review {
         let block = editor.block_content::<PaintReviewContent>();
         let approved = block.project(|review| review.root().approved());
         let loaded = block.loaded();
-        let (found, set_found) = create_signal(Vec::new());
-        let (error, set_error) = create_signal(None);
-        let (selected, set_selected) = create_signal(None);
-        let (showing, set_showing) = create_signal(Showing::default());
-        let (pending, set_pending) = create_signal(None);
-        let (frame, set_frame) = create_signal(0);
-        let (playing, set_playing) = create_signal(false);
-        let (downloading, set_downloading) = create_signal(false);
-        let (scale, set_scale) = create_signal(None);
-        let (description, set_description) = create_signal(None);
-        let (revision, set_revision) = create_signal(0);
+        let found = create_signal(Vec::new());
+        let error = create_signal(None);
+        let selected = create_signal(None);
+        let showing = create_signal(Showing::default());
+        let pending = create_signal(None);
+        let frame = create_signal(0);
+        let playing = create_signal(false);
+        let downloading = create_signal(false);
+        let scale = create_signal(None);
+        let description = create_signal(None);
+        let revision = create_signal(0);
         Self {
             editor,
             loaded,
             found,
-            set_found,
             approved,
             error,
-            set_error,
             selected,
-            set_selected,
             showing,
-            set_showing,
             pending,
-            set_pending,
             frame,
-            set_frame,
             playing,
-            set_playing,
             downloading,
-            set_downloading,
             scale,
-            set_scale,
             description,
-            set_description,
             revision,
-            set_revision,
             inner: store(Inner {
                 block,
                 source,
@@ -180,7 +158,7 @@ impl Review {
     }
 
     pub(crate) fn rastered(&self) -> usize {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         inner.paintings.borrow().rastered()
     }
 
@@ -219,7 +197,7 @@ impl Review {
     }
 
     fn fetch(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         if inner.download.borrow().is_none() {
             *inner.download.borrow_mut() =
                 Some(crate::download::start(&inner.source, &self.editor.host()));
@@ -232,12 +210,12 @@ impl Review {
         if let Some(result) = result {
             match result {
                 Ok(found) => {
-                    self.set_found.set(found);
-                    self.set_error.set(None);
+                    self.found.set(found);
+                    self.error.set(None);
                 }
                 Err(error) => {
-                    self.set_found.set(Vec::new());
-                    self.set_error.set(Some(error));
+                    self.found.set(Vec::new());
+                    self.error.set(Some(error));
                 }
             }
         }
@@ -246,11 +224,11 @@ impl Review {
             .borrow()
             .as_ref()
             .is_none_or(Download::finished);
-        self.set_downloading.set(!finished);
+        self.downloading.set(!finished);
     }
 
     pub(crate) fn raster(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let waker = inner.waker.borrow().clone();
         let changed = inner.paintings.borrow_mut().settle(&waker);
         if changed {
@@ -259,11 +237,11 @@ impl Review {
     }
 
     fn bump(&self) {
-        self.set_revision.update(|revision| *revision += 1);
+        self.revision.update(|revision| *revision += 1);
     }
 
     pub(crate) fn refresh(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         inner.download.borrow_mut().take();
         self.fetch();
     }
@@ -324,22 +302,22 @@ impl Review {
     }
 
     pub(crate) fn select(&self, path: &str) {
-        let inner = self.inner.get();
-        self.set_selected.set(Some(path.to_owned()));
-        self.set_showing.set(Showing::Current);
-        self.set_frame.set(0);
-        self.set_playing.set(false);
+        let inner = self.inner.value();
+        self.selected.set(Some(path.to_owned()));
+        self.showing.set(Showing::Current);
+        self.frame.set(0);
+        self.playing.set(false);
         inner.advanced.set(None);
         self.editor.fit();
     }
 
     pub(crate) fn show(&self, showing: Showing) {
-        self.set_showing.set(showing);
+        self.showing.set(showing);
     }
 
     pub(crate) fn approve(&self, path: &str) {
-        self.set_showing.set(Showing::Current);
-        self.set_pending.set(Some(path.to_owned()));
+        self.showing.set(Showing::Current);
+        self.pending.set(Some(path.to_owned()));
         self.settle();
     }
 
@@ -348,12 +326,12 @@ impl Review {
             return;
         };
         if self.approve_now(&path) {
-            self.set_pending.set(None);
+            self.pending.set(None);
         }
     }
 
     fn approve_now(&self, path: &str) -> bool {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         if !self.editable() {
             return true;
         }
@@ -390,11 +368,11 @@ impl Review {
     }
 
     pub(crate) fn unapprove(&self, path: &str) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         if self.pending.get_untracked().as_deref() == Some(path) {
-            self.set_pending.set(None);
+            self.pending.set(None);
         }
-        self.set_showing.set(Showing::Current);
+        self.showing.set(Showing::Current);
         if !self.editable() {
             return;
         }
@@ -448,7 +426,7 @@ impl Review {
     }
 
     pub(crate) fn request(&self, path: &str) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let mut kept = vec![self.difference_key(path)];
         for wanted in self.showing.get_untracked().wanted() {
             let Ok(hash) = self.hash(path, wanted) else {
@@ -467,7 +445,7 @@ impl Review {
     }
 
     pub(crate) fn forget(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         inner.paintings.borrow_mut().keep(Vec::new());
     }
 
@@ -480,7 +458,7 @@ impl Review {
     }
 
     pub(crate) fn count(&self, path: &str, showing: Showing) -> usize {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let paintings = inner.paintings.borrow();
         let counts = showing
             .wanted()
@@ -495,12 +473,12 @@ impl Review {
     }
 
     pub(crate) fn rastering(&self) -> bool {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         inner.paintings.borrow().working()
     }
 
     pub(crate) fn loading(&self) -> Option<(usize, usize)> {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let path = self.selected.get()?;
         let status = self.status(&path)?;
         let hash = self.hash(&path, self.shown_as(status)).ok()?;
@@ -515,7 +493,7 @@ impl Review {
     }
 
     fn change(&self, path: &str) -> Option<(String, Option<usize>)> {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let current_hash = self.hash(path, Showing::Current).ok()?;
         let approved_hash = self.hash(path, Showing::Approved).ok()?;
         let key = format!("{approved_hash}\u{1}{current_hash}");
@@ -542,26 +520,26 @@ impl Review {
     }
 
     pub(crate) fn seek(&self, frame: usize) {
-        self.set_frame.set(frame);
-        self.set_playing.set(false);
+        self.frame.set(frame);
+        self.playing.set(false);
     }
 
     pub(crate) fn clamp_frame(&self, count: usize) {
         let frame = self.frame.get_untracked().min(count.max(1) - 1);
         if frame != self.frame.get_untracked() {
-            self.set_frame.set(frame);
+            self.frame.set(frame);
         }
     }
 
     pub(crate) fn toggle_playback(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let playing = !self.playing.get_untracked();
-        self.set_playing.set(playing);
+        self.playing.set(playing);
         inner.advanced.set(None);
     }
 
     pub(crate) fn next_advance(&self, count: usize, rendered: bool) -> Option<Duration> {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         if !self.playing.get_untracked() || count < 2 {
             inner.advanced.set(None);
             return None;
@@ -575,22 +553,22 @@ impl Review {
     }
 
     pub(crate) fn advance(&self, count: usize, rendered: bool) -> Option<Duration> {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let wait = self.next_advance(count, rendered)?;
         if !wait.is_zero() {
             return Some(wait);
         }
-        self.set_frame.set((self.frame.get_untracked() + 1) % count);
+        self.frame.set((self.frame.get_untracked() + 1) % count);
         inner.advanced.set(Some(Instant::now()));
         None
     }
 
     pub(crate) fn report(&self, scale: Option<f32>, description: Option<String>) {
         if self.scale.get_untracked() != scale {
-            self.set_scale.set(scale);
+            self.scale.set(scale);
         }
         if self.description.get_untracked() != description {
-            self.set_description.set(description);
+            self.description.set(description);
         }
     }
 
@@ -603,7 +581,7 @@ impl Review {
     }
 
     fn single(&self, path: &str, showing: Showing, frame: usize) -> Shown {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let hash = match self.hash(path, showing) {
             Ok(hash) => hash,
             Err(error) => return Shown::Waiting(error),
@@ -619,7 +597,7 @@ impl Review {
     }
 
     fn pair(&self, path: &str, frame: usize) -> Result<(Rendered, Rendered), Shown> {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let mut sides = Vec::new();
         for wanted in [Showing::Approved, Showing::Current] {
             let hash = match self.hash(path, wanted) {
@@ -653,7 +631,7 @@ impl Review {
     }
 
     fn difference(&self, path: &str, frame: usize) -> Shown {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let (approved, current) = match self.pair(path, frame) {
             Ok(pair) => pair,
             Err(shown) => return shown,

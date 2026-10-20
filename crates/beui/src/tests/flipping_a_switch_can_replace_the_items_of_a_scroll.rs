@@ -12,11 +12,11 @@ fn flipping_a_switch_can_replace_the_items_of_a_scroll() {
 }
 
 fn check_compact_rows(inset: f32) {
-    let (built, set_built) = create_signal(Vec::new());
+    let built = create_signal(Vec::new());
     let (switch, scroll, list) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
-            let (compact, set_compact) = create_signal(false);
+            let compact = create_signal(false);
             let item_height = create_memo(move || {
                 if compact.get() {
                     VIRTUAL_ITEM_HEIGHT / 2.0
@@ -30,7 +30,7 @@ fn check_compact_rows(inset: f32) {
                     <Switch
                         @node_ref=&switch
                         on=false
-                        on_change={move |on: bool| set_compact.set(on)}
+                        on_change={move |on: bool| compact.set(on)}
                     />
                     <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                         <VirtualList
@@ -40,7 +40,7 @@ fn check_compact_rows(inset: f32) {
                         >|index: ReadSignal<usize>| {
                             create_binding(move || {
                                 let index = index.get();
-                                set_built.update(|built| built.push(index));
+                                built.update(|built| built.push(index));
                             });
                             view! {
                                 <Frame
@@ -66,7 +66,7 @@ fn check_compact_rows(inset: f32) {
     harness.frame(Vec::new());
     let rows = harness.document.children(list);
     let top = harness.rect(rows[0]).top();
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
 
     harness.click(harness.center(switch));
     harness.frame(Vec::new());
@@ -92,7 +92,7 @@ fn check_compact_rows(inset: f32) {
         index as f32 * VIRTUAL_ITEM_HEIGHT / 2.0 + inset
     );
 
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
     harness.click(harness.center(switch));
     harness.frame(Vec::new());
 

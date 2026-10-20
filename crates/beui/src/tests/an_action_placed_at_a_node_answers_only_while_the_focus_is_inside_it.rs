@@ -5,12 +5,12 @@ use crate::reactive::*;
 #[test]
 fn an_action_placed_at_a_node_answers_only_while_the_focus_is_inside_it() {
     let _root = crate::reactive::RootScope::new();
-    let (runs, set_runs) = create_signal(0);
+    let runs = create_signal(0);
     let (inside, outside, area) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
             Action::new("test.placed", "Placed", move || {
-                set_runs.update(|runs| *runs += 1)
+                runs.update(|runs| *runs += 1)
             })
             .shortcut(Chord::ctrl(Key::J))
             .at(KeyAt::Node(area))

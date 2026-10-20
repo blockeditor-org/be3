@@ -8,7 +8,7 @@ fn a_dynamic_child_can_fill_its_available_height() {
     let scroll = NodeRef::new();
     let document = build({
         move || {
-            let (state, _) = create_signal(false);
+            let state = create_signal(false);
             view! {
                 <Frame>
                     <List spacing=0.0>

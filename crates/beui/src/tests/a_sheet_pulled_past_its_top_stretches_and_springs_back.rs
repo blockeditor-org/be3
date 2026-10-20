@@ -7,7 +7,7 @@ use crate::styled::*;
 fn a_sheet_pulled_past_its_top_stretches_and_springs_back() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
-    let (open, set_open) = create_signal(false);
+    let open = create_signal(false);
     let document = build({
         move || {
             view! {
@@ -22,7 +22,7 @@ fn a_sheet_pulled_past_its_top_stretches_and_springs_back() {
     });
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     harness.settle();
     let handle = harness.find("sheet.handle");
     let fitted = harness.rect(handle).top();

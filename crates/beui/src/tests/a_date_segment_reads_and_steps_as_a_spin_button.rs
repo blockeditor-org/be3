@@ -9,7 +9,7 @@ use crate::unstyled::{Container, DateTimeParts};
 #[test]
 fn a_date_segment_reads_and_steps_as_a_spin_button() {
     let _root = crate::reactive::RootScope::new();
-    let (reported, set_reported) = create_signal(Vec::new());
+    let reported = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <Container>|_size|
@@ -18,7 +18,7 @@ fn a_date_segment_reads_and_steps_as_a_spin_button() {
                     parts=DateTimeParts::Date
                     label="Due"
                     on_change={move |value: Option<DateTime>| {
-                        set_reported.update(|reported| reported.push(value.map(|value| value.date)))
+                        reported.update(|reported| reported.push(value.map(|value| value.date)))
                     }}
                 />
             </Container>

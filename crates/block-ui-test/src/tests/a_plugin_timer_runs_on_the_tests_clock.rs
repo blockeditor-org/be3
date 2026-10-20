@@ -17,9 +17,9 @@ impl BeuiApp for AlarmApp {
 #[component]
 fn Alarm() -> NodeId {
     let start = now();
-    let (rang, set_rang) = create_signal(None::<Duration>);
+    let rang = create_signal(None::<Duration>);
     let alarm = create_timer(move || {
-        set_rang.set(Some(now() - start));
+        rang.set(Some(now() - start));
         None
     });
     alarm.start(ALARM);

@@ -7,7 +7,7 @@ use crate::styled::*;
 fn a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls() {
     let _root = crate::reactive::RootScope::new();
     let rows = NodeRef::new();
-    let (open, set_open) = create_signal(false);
+    let open = create_signal(false);
     let document = build({
         move || {
             view! {
@@ -26,7 +26,7 @@ fn a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls() {
     });
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     harness.settle();
     let top = harness.rect(rows.get()).top();
     assert!(

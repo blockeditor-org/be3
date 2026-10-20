@@ -6,8 +6,8 @@ use crate::styled::*;
 #[test]
 fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
     let _root = crate::reactive::RootScope::new();
-    let (open, set_open) = create_signal(false);
-    let (dismissed, set_dismissed) = create_signal(0);
+    let open = create_signal(false);
+    let dismissed = create_signal(0);
     let content = NodeRef::new();
     let document = build({
         move || {
@@ -15,7 +15,7 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
                 <List spacing=0.0>
                     <Fullscreen
                         open={open}
-                        on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
+                        on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
                     >
                         <Frame fill=Color32::WHITE @node_ref={&content} />
                     </Fullscreen>
@@ -28,7 +28,7 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
     harness.frame(Vec::new());
     assert!(harness.document().node_rect(content.get()).is_none());
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     harness.frame(Vec::new());
     let filled = harness.rect(content.get());
     assert_eq!(filled.size(), VIEWPORT);

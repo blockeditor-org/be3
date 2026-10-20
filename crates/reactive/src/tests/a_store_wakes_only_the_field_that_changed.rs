@@ -30,7 +30,7 @@ fn a_store_wakes_only_the_field_that_changed() {
     });
     assert_eq!(*runs.borrow(), ["label right".to_owned()]);
     runs.borrow_mut().clear();
-    settings.set_width(9);
+    settings.width.set(9);
     assert_eq!(*runs.borrow(), ["width 9".to_owned()]);
     assert_eq!(settings.get().label, "right");
 }

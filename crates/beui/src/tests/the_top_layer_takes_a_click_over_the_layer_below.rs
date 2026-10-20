@@ -5,22 +5,22 @@ use crate::reactive::*;
 #[test]
 fn the_top_layer_takes_a_click_over_the_layer_below() {
     let _root = crate::reactive::RootScope::new();
-    let (below, set_below) = create_signal(0);
-    let (above, set_above) = create_signal(0);
+    let below = create_signal(0);
+    let above = create_signal(0);
     let document = build({
         move || {
             view! {
                 <Layers>
                     <Interactive
                         capture_presses=true
-                        on_click={move || set_below.update(|below| *below += 1)}
+                        on_click={move || below.update(|below| *below += 1)}
                     >
                         <Frame width=100.0 height=100.0 />
                     </Interactive>
                     <Frame align={Align2::new(Align::End, Align::Start)}>
                         <Interactive
                             capture_presses=true
-                            on_click={move || set_above.update(|above| *above += 1)}
+                            on_click={move || above.update(|above| *above += 1)}
                         >
                             <Frame width=20.0 height=20.0 />
                         </Interactive>

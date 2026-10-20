@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn ctrl_v_taken_by_a_listener_asks_for_no_paste_unless_it_asks_itself() {
     let _root = crate::reactive::RootScope::new();
-    let (asks, set_asks) = create_signal(false);
+    let asks = create_signal(false);
     let field = NodeRef::new();
     let document = build(move || {
         Action::new("test.paste", "Paste", move || {
@@ -41,7 +41,7 @@ fn ctrl_v_taken_by_a_listener_asks_for_no_paste_unless_it_asks_itself() {
         "an action took Ctrl+V for something else"
     );
 
-    set_asks.set(true);
+    asks.set(true);
     let output = harness.frame(vec![ctrl_v()]);
     assert_eq!(
         output.paste,

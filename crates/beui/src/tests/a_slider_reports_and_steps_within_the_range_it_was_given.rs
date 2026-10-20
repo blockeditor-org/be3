@@ -5,7 +5,7 @@ use crate::styled::*;
 #[test]
 fn a_slider_reports_and_steps_within_the_range_it_was_given() {
     let _root = crate::reactive::RootScope::new();
-    let (reported, set_reported) = create_signal(Vec::new());
+    let reported = create_signal(Vec::new());
     let (document, [slider]) = toolbar_of(|| {
         [view! {
             <Slider
@@ -13,7 +13,7 @@ fn a_slider_reports_and_steps_within_the_range_it_was_given() {
                 min=0.5
                 max=3.0
                 label="Zoom"
-                on_change={move |value| set_reported.update(|reported| reported.push(value))}
+                on_change={move |value| reported.update(|reported| reported.push(value))}
             />
         }]
     });

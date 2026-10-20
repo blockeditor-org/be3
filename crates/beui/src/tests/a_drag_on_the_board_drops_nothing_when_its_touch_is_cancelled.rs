@@ -6,7 +6,7 @@ use crate::unstyled::{DragPoint, DropHandle, DropTarget};
 #[test]
 fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
     let _root = crate::reactive::RootScope::new();
-    let (dropped, set_dropped) = create_signal(None::<u32>);
+    let dropped = create_signal(None::<u32>);
     let (document, [source, target]) = toolbar_of(move || {
         [
             view! {
@@ -14,7 +14,7 @@ fn a_drag_on_the_board_drops_nothing_when_its_touch_is_cancelled() {
             },
             view! {
                 <DropTarget
-                    on_drop={move |(payload, _): (u32, DragPoint)| set_dropped.set(Some(payload))}
+                    on_drop={move |(payload, _): (u32, DragPoint)| dropped.set(Some(payload))}
                 >|_: DropHandle|
                     <Frame width=100.0 height=100.0 />
                 </DropTarget>

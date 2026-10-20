@@ -7,7 +7,7 @@ use crate::reactive::*;
 #[test]
 fn a_forwarding_catcher_in_a_menu_under_its_open_submenu_still_hears_the_pointer() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal(Vec::<ForwardedInput>::new());
+    let heard = create_signal(Vec::<ForwardedInput>::new());
     let document = build({
         move || {
             view! {
@@ -19,7 +19,7 @@ fn a_forwarding_catcher_in_a_menu_under_its_open_submenu_still_hears_the_pointer
                     >
                         <List spacing=0.0>
                             <Interactive
-                                on_forward={move |input| set_heard.update(|heard| heard.push(input))}
+                                on_forward={move |input| heard.update(|heard| heard.push(input))}
                             >
                                 <Frame width=80.0 height=60.0 />
                             </Interactive>

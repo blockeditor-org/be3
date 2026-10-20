@@ -127,10 +127,10 @@ pub fn Scrollbar(
     #[prop(children)] content: Render<ScrollbarHandle>,
 ) -> NodeId {
     let position = create_memo(move || position.get());
-    let (hovered, set_hovered) = create_signal(false);
-    let (over_bar, set_over_bar) = create_signal(false);
-    let (dragging, set_dragging) = create_signal(false);
-    let (held, set_held) = create_signal(false);
+    let hovered = create_signal(false);
+    let over_bar = create_signal(false);
+    let dragging = create_signal(false);
+    let held = create_signal(false);
     let engaged = create_memo(move || over_bar.get() || held.get());
     create_effect(move || on_engage.call(engaged.get()));
     let grab = Rc::new(Cell::new(None::<f32>));
@@ -138,8 +138,8 @@ pub fn Scrollbar(
     let content_node = content.call(ScrollbarHandle {
         position,
         direction,
-        hovered,
-        dragging,
+        hovered: hovered.read_only(),
+        dragging: dragging.read_only(),
         engaged,
     });
 
@@ -180,20 +180,20 @@ pub fn Scrollbar(
             on_hover_move={move |press: PointerPress| {
                 let position = untrack(|| hovered_at.get());
                 let at = along(&hovered_axis, press);
-                set_hovered.set(position.max_offset() > 0.0 && over_thumb(position, at));
+                hovered.set(position.max_offset() > 0.0 && over_thumb(position, at));
             }}
             on_hover_change={move |inside: bool| {
-                set_over_bar.set(inside);
+                over_bar.set(inside);
                 if !inside {
-                    set_hovered.set(false);
+                    hovered.set(false);
                 }
             }}
             hit_at={move |_: Pos2| {
                 untrack(|| shown.get() && hit_position.get().max_offset() > 0.0)
             }}
             on_active_change={move |active: bool| {
-                set_held.set(active);
-                set_dragging.set(active && active_grab.get().is_some());
+                held.set(active);
+                dragging.set(active && active_grab.get().is_some());
                 if !active {
                     active_grab.set(None);
                 }

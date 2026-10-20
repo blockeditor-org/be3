@@ -15,29 +15,29 @@ fn item(key: &str, title: &str, terms: &[&str]) -> LauncherItem {
 #[test]
 fn the_launcher_filters_as_it_is_typed_and_launches_with_enter() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal(Vec::<String>::new());
+    let heard = create_signal(Vec::<String>::new());
     let items = Rc::new(vec![
         item("files", "Files", &["folder"]),
         item("foot", "Foot", &["terminal"]),
         item("term", "Terminal", &["shell"]),
     ]);
     let document = build(move || {
-        let (open, set_open) = create_signal(true);
-        let (closing, launching, running) = (set_open, set_open, set_open);
+        let open = create_signal(true);
+        let (closing, launching, running) = (open, open, open);
         view! {
             <Launcher
                 open
                 items
                 on_launch={move |key: String| {
-                    set_heard.update(|heard| heard.push(format!("launch {key}")));
+                    heard.update(|heard| heard.push(format!("launch {key}")));
                     launching.set(false);
                 }}
                 on_run={move |line: String| {
-                    set_heard.update(|heard| heard.push(format!("run {line}")));
+                    heard.update(|heard| heard.push(format!("run {line}")));
                     running.set(false);
                 }}
                 on_close={move || {
-                    set_heard.update(|heard| heard.push("close".to_owned()));
+                    heard.update(|heard| heard.push("close".to_owned()));
                     closing.set(false);
                 }}
             />

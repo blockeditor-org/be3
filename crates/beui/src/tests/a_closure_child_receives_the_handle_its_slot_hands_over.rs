@@ -9,7 +9,7 @@ const ITEM_HEIGHT: f32 = 20.0;
 #[test]
 fn a_closure_child_receives_the_handle_its_slot_hands_over() {
     let _root = crate::reactive::RootScope::new();
-    let (measured, set_measured) = create_signal::<Option<ReadSignal<Vec2>>>(None);
+    let measured = create_signal::<Option<ReadSignal<Vec2>>>(None);
     let item = NodeRef::new();
 
     let document = build({
@@ -17,7 +17,7 @@ fn a_closure_child_receives_the_handle_its_slot_hands_over() {
             view! {
                 <Frame width=PANEL_WIDTH>
                     <Container>|size: ReadSignal<Vec2>| {
-                        set_measured.update(|measured| *measured = Some(size));
+                        measured.update(|measured| *measured = Some(size));
                         view! {
                             <Frame @node_ref=&item height=ITEM_HEIGHT>
                                 <Spacer />

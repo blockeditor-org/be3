@@ -16,7 +16,7 @@ const SPACING: f32 = 10.0;
 
 #[component]
 pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
-    let (open, set_open) = create_signal(true);
+    let open = create_signal(true);
     let schemas = create_memo(move || {
         let mut seen = Vec::new();
         for entity in state.selected_entities() {
@@ -30,7 +30,7 @@ pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
     });
     let add = move || state.open_component_picker();
     view! {
-        <Accordion title="Components" open={open} on_toggle={move |open| set_open.set(open)}>
+        <Accordion title="Components" open={open} on_toggle={move |next| open.set(next)}>
             <List spacing=SPACING>
                 <ForEach keys={schemas}>|schema_id: Uuid|
                     <ComponentRow state schema_id />

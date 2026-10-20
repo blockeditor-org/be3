@@ -5,7 +5,7 @@ use crate::styled::*;
 #[test]
 fn clicking_a_tab_selects_the_panel_it_names() {
     let _root = crate::reactive::RootScope::new();
-    let (reported, set_reported) = create_signal(0);
+    let reported = create_signal(0);
     let (document, [tabs]) = toolbar_of(|| {
         [view! {
             <Tabs
@@ -15,7 +15,7 @@ fn clicking_a_tab_selects_the_panel_it_names() {
                 }}
                 selected=0
                 on_change={move |selected| {
-                    set_reported.set(selected);
+                    reported.set(selected);
                 }}
             />
         }]

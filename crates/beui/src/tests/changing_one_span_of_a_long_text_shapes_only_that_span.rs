@@ -13,11 +13,11 @@ fn words() -> Vec<String> {
 fn changing_one_span_of_a_long_text_shapes_only_that_span() {
     let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
-    let (writer, set_writer) = create_signal::<Option<WriteSignal<Vec<String>>>>(None);
+    let writer = create_signal::<Option<Signal<Vec<String>>>>(None);
     let document = build({
         move || {
-            let (words, set_words) = create_signal(words());
-            set_writer.update(|writer| *writer = Some(set_words));
+            let words = create_signal(words());
+            writer.update(|writer| *writer = Some(words));
             let keys = create_memo(move || (0..words.get().len()).collect::<Vec<usize>>());
             view! {
                 <Frame width=200.0>
@@ -35,7 +35,7 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
             }
         }
     });
-    let set_words = writer.get_untracked().expect("the words were made");
+    let written = writer.get_untracked().expect("the words were made");
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     let text = kind_of::<TextNode>(harness.document(), text.get());
@@ -52,7 +52,7 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
 
     let mut changed = words();
     changed[WORDS / 2] = "changed ".to_owned();
-    enter(harness.document_mut(), || set_words.set(changed.clone()));
+    enter(harness.document_mut(), || written.set(changed.clone()));
     harness.frame(Vec::new());
     assert_eq!(
         harness.document().text_shapings(text) - shaped,
@@ -69,7 +69,7 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
 
     let shaped = harness.document().text_shapings(text);
     changed.push("added".to_owned());
-    enter(harness.document_mut(), || set_words.set(changed.clone()));
+    enter(harness.document_mut(), || written.set(changed.clone()));
     harness.frame(Vec::new());
     assert_eq!(
         harness.document().text_shapings(text) - shaped,

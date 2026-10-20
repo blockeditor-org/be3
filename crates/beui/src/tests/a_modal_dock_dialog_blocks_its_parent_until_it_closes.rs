@@ -4,8 +4,7 @@ use super::*;
 fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     let _root = crate::reactive::RootScope::new();
     let dock = dialog_dock(vec![1, 2], Vec::new());
-    let (pressed, set_pressed, keyed, set_dialogs) =
-        (dock.pressed, dock.set_pressed, dock.keyed, dock.set_dialogs);
+    let (pressed, keyed, dialogs) = (dock.pressed, dock.keyed, dock.dialogs);
     let attended = dock.attended;
     let mut harness = Harness::sized(dock.document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
@@ -14,10 +13,10 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
     harness.click(corner);
     let field = harness.find("content.1");
     assert_eq!(harness.document().focused_node(), Some(field));
-    set_pressed.update(|pressed| pressed.clear());
+    pressed.update(|pressed| pressed.clear());
 
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
-        set_dialogs.set(vec![(10, 1, false)]);
+        dialogs.set(vec![(10, 1, false)]);
     });
     harness.frame(Vec::new());
     harness.frame(Vec::new());
@@ -43,10 +42,10 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
         attended.with_untracked(|attended| attended.is_empty()),
         "without calling the dialog's attention"
     );
-    set_pressed.update(|pressed| pressed.clear());
+    pressed.update(|pressed| pressed.clear());
 
     crate::reactive::with_reactive_scope(harness.document_mut(), || {
-        set_dialogs.set(vec![(10, 1, true)]);
+        dialogs.set(vec![(10, 1, true)]);
     });
     harness.frame(Vec::new());
     assert_eq!(
@@ -61,7 +60,7 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
         vec![10],
         "the dialog stays above what blocks its parent"
     );
-    set_pressed.update(|pressed| pressed.clear());
+    pressed.update(|pressed| pressed.clear());
 
     harness.click(corner);
     harness.frame(Vec::new());
@@ -95,7 +94,7 @@ fn a_modal_dock_dialog_blocks_its_parent_until_it_closes() {
         "keys reach the dialog, not the parent"
     );
 
-    crate::reactive::with_reactive_scope(harness.document_mut(), || set_dialogs.set(Vec::new()));
+    crate::reactive::with_reactive_scope(harness.document_mut(), || dialogs.set(Vec::new()));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(

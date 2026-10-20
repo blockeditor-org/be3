@@ -255,13 +255,13 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
 
 #[component]
 fn AddFilter(data: Data) -> NodeId {
-    let (adding, set_adding) = create_signal(None::<ObjectId>);
+    let adding = create_signal(None::<ObjectId>);
     let choosing = create_memo(move || adding.get().is_none());
     let editing = create_memo(move || adding.get());
     let has_editing = create_memo(move || adding.get().is_some());
     let reset = move |open: bool| {
         if !open {
-            set_adding.set(None);
+            adding.set(None);
         }
     };
     let read_only = data.read_only;
@@ -282,7 +282,6 @@ fn AddFilter(data: Data) -> NodeId {
                 </ControlFace>
             }}
         >|_: PopoverHandle| {
-            let set_adding = set_adding;
             let editing = editing;
             view! {
                 <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
@@ -290,7 +289,7 @@ fn AddFilter(data: Data) -> NodeId {
                         <Show condition={choosing}>
                             <FieldChoices
                                 data={data}
-                                on_pick={move |id: ObjectId| set_adding.set(Some(id))}
+                                on_pick={move |id: ObjectId| adding.set(Some(id))}
                             />
                         </Show>
                         <Show condition={has_editing}>|| {
@@ -526,7 +525,7 @@ fn ValueChoices(
     filter: Memo<ViewFilter>,
     field: Memo<Option<DatabaseField>>,
 ) -> NodeId {
-    let (query, set_query) = create_signal(String::new());
+    let query = create_signal(String::new());
     let choices = create_memo(move || {
         let Some(field) = field.get() else {
             return Vec::new();
@@ -605,7 +604,7 @@ fn ValueChoices(
     let keys =
         create_memo(move || choices.with(|choices| (0..choices.len()).collect::<Vec<usize>>()));
     let read_only = data.read_only;
-    let typed = move |text: String| set_query.set(text);
+    let typed = move |text: String| query.set(text);
     view! {
         <List spacing=SPACING>
             <Show condition={many}>

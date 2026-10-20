@@ -57,9 +57,9 @@ where
 {
     let board = store(board());
     let pressed_at = StoredCell::new(None::<Pos2>);
-    let (carried, set_carried) = create_signal(None::<P>);
-    let (pointer, set_pointer) = create_signal(Pos2::ZERO);
-    let (touched, set_touched) = create_signal(false);
+    let carried = create_signal(None::<P>);
+    let pointer = create_signal(Pos2::ZERO);
+    let touched = create_signal(false);
     let dragging = create_memo(move || carried.with(Option::is_some));
 
     let moved = move |point: DragPoint| {
@@ -72,27 +72,27 @@ where
         };
         if carried.with_untracked(Option::is_some)
             || (point.pos - origin).length() < threshold
-            || board.get().carrying()
+            || board.value().carrying()
         {
             return;
         }
-        let Some(payload) = payload.peek() else {
+        let Some(payload) = payload.get_untracked() else {
             return;
         };
-        let follow = set_pointer;
-        set_carried.set(Some(payload.clone()));
+        let follow = pointer;
+        carried.set(Some(payload.clone()));
         on_drag_change.call(true);
         board
-            .get()
+            .value()
             .begin(Rc::new(payload), point, Rc::new(move |pos| follow.set(pos)));
     };
     let moved: Pending = Rc::new(moved);
     let pending = Rc::clone(&moved);
     let pressed = move |press: PointerPress| {
         pressed_at.set(Some(press.pos));
-        set_touched.set(press.touch);
+        touched.set(press.touch);
         if !press.touch {
-            board.get().press(Rc::clone(&pending));
+            board.value().press(Rc::clone(&pending));
         }
     };
     let dragged = move |press: PointerPress| moved(DragPoint::of(press));
@@ -106,18 +106,18 @@ where
             return;
         }
         pressed_at.set(None);
-        let board = board.get();
+        let board = board.value();
         board.release();
         if carried.with_untracked(Option::is_none) {
             return;
         }
         board.finish();
-        set_carried.set(None);
+        carried.set(None);
         on_drag_change.call(false);
     };
     on_cleanup(move || {
         if carried.with_untracked(Option::is_some) {
-            board.get().end(None);
+            board.value().end(None);
         }
     });
 
@@ -188,8 +188,8 @@ where
     let depth = use_context::<DropDepth>().map_or(0, |DropDepth(depth)| depth + 1);
     provide_context(DropDepth(depth));
     let accepts = accepts.unwrap_or_else(|| Func::new(|_| true));
-    let (carrying, set_carrying) = create_signal(false);
-    let (pointer, set_pointer) = create_signal(None::<DragPoint>);
+    let carrying = create_signal(false);
+    let pointer = create_signal(None::<DragPoint>);
     let reported = on_over;
     let board = board();
     let id = board.register(Target {
@@ -201,14 +201,14 @@ where
                 .downcast_ref::<P>()
                 .is_some_and(|payload| accepts.call(payload.clone()))
         }),
-        carrying: Rc::new(move |carrying| set_carrying.set(carrying)),
+        carrying: Rc::new(move |next| carrying.set(next)),
         over: Rc::new(move |over: Option<(&dyn Any, DragPoint)>| {
             let over = over.and_then(|(payload, point)| {
                 payload
                     .downcast_ref::<P>()
                     .map(|payload| (payload.clone(), point))
             });
-            set_pointer.set(over.as_ref().map(|(_, point)| *point));
+            pointer.set(over.as_ref().map(|(_, point)| *point));
             reported.call(over);
         }),
         dropped: Rc::new(move |payload: &dyn Any, point| {
@@ -223,7 +223,7 @@ where
     let face = content.call(DropHandle {
         carrying,
         over,
-        pointer,
+        pointer: pointer.read_only(),
     });
     view! {
         <Frame>{face}</Frame>

@@ -5,8 +5,8 @@ use crate::enter_zone;
 fn an_effect_keeps_its_zone_for_the_effects_it_creates() {
     let _root = RootScope::new();
     let seen = Rc::new(RefCell::new(Vec::new()));
-    let (outer, set_outer) = create_signal(0);
-    let (inner, set_inner) = create_signal(0);
+    let outer = create_signal(0);
+    let inner = create_signal(0);
     let scope = Scope::new();
     {
         let _zone = enter_zone(1);
@@ -20,12 +20,12 @@ fn an_effect_keeps_its_zone_for_the_effects_it_creates() {
             });
         });
     }
-    set_outer.set(1);
+    outer.set(1);
     seen.borrow_mut().clear();
 
     {
         let _zone = enter_zone(2);
-        set_inner.set(9);
+        inner.set(9);
     }
     assert!(seen.borrow().is_empty());
 

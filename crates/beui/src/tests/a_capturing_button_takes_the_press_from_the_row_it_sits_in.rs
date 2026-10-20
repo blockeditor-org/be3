@@ -5,8 +5,8 @@ use crate::reactive::*;
 #[test]
 fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
     let _root = crate::reactive::RootScope::new();
-    let (row_clicks, set_row_clicks) = create_signal(0u32);
-    let (inner_clicks, set_inner_clicks) = create_signal(0u32);
+    let row_clicks = create_signal(0u32);
+    let inner_clicks = create_signal(0u32);
     let inner = NodeRef::new();
     let row = NodeRef::new();
     let document = build({
@@ -15,7 +15,7 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
                 <List spacing=0.0>
                     <unstyled::Button
                         @node_ref=&row
-                        on_click={move || set_row_clicks.update(|row_clicks| *row_clicks += 1)}
+                        on_click={move || row_clicks.update(|row_clicks| *row_clicks += 1)}
                     >|_: unstyled::ButtonHandle|
                         <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                             <Text string="a row that opens something" />
@@ -25,7 +25,7 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
                                 tab_stop=false
                                 capture_presses=true
                                 on_click={move || {
-                                    set_inner_clicks.update(|inner_clicks| *inner_clicks += 1)
+                                    inner_clicks.update(|inner_clicks| *inner_clicks += 1)
                                 }}
                                 content={move |_: unstyled::ButtonHandle| view! {
                                     <Text string="add" />

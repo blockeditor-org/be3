@@ -5,8 +5,8 @@ fn a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back() {
     let _root = ::reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
-    let (open, set_open) = create_signal(true);
-    let (note, set_note) = create_signal("draft".to_string());
+    let open = create_signal(true);
+    let note = create_signal("draft".to_string());
     let page = scope.run(|| {
         view! {
             <Element tag="div">
@@ -24,11 +24,11 @@ fn a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back() {
         "<div id=0><p id=1>rebuilt</p><textarea id=2>draft</textarea></div>"
     );
 
-    set_open.set(false);
+    open.set(false);
     assert_eq!(page.html(), "<div id=0></div>");
 
-    set_note.set("edited while hidden".to_string());
-    set_open.set(true);
+    note.set("edited while hidden".to_string());
+    open.set(true);
     assert_eq!(
         page.html(),
         "<div id=0><p id=3>rebuilt</p><textarea id=2>edited while hidden</textarea></div>",

@@ -14,7 +14,7 @@ fn a_stored_value_is_shared_by_its_copies_and_freed_with_its_scope() {
     scope.dispose();
     assert!(!count.is_alive());
     assert_eq!(count.try_with(Cell::get), None);
-    assert_eq!(*handle.get(), "kept");
+    assert_eq!(*handle.value(), "kept");
     drop(owned);
     assert!(!handle.is_alive());
 }

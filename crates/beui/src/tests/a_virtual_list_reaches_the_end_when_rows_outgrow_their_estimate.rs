@@ -10,7 +10,7 @@ const SETTLING_FRAMES: usize = 8;
 #[test]
 fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(Vec::new());
+    let built = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
@@ -24,7 +24,7 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
                         >|index: ReadSignal<usize>| {
                             create_binding(move || {
                                 let index = index.get();
-                                set_built.update(|built| built.push(index));
+                                built.update(|built| built.push(index));
                             });
                             view! {
                                 <Frame height=ACTUAL>

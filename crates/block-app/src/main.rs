@@ -1,3 +1,4 @@
+use reactive::Set;
 mod accounts;
 mod app_state;
 #[cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))]

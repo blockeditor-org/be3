@@ -112,12 +112,12 @@ fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) 
     let completion = create_memo(move || items.get().get(index).cloned());
     let highlighted = cx.highlighted;
     let highlighted = create_memo(move || highlighted.get() == index);
-    let (hovered, set_hovered) = create_signal(false);
+    let hovered = create_signal(false);
     let content = row.call(CompletionRowHandle {
         index,
         completion,
         highlighted,
-        hovered,
+        hovered: hovered.read_only(),
     });
     view! {
         <Interactive
@@ -125,9 +125,9 @@ fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) 
             cursor=CursorIcon::PointingHand
             on_click={move || cx.complete(index)}
             on_hover_change={move |inside: bool| {
-                set_hovered.set(inside);
+                hovered.set(inside);
                 if inside {
-                    cx.set_highlighted.set(index);
+                    cx.highlighted.set(index);
                 }
             }}
             children={Some(content)}

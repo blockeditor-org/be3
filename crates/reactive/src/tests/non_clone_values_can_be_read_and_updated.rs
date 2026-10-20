@@ -4,9 +4,9 @@ use super::*;
 fn non_clone_values_can_be_read_and_updated() {
     let _root = RootScope::new();
     struct Value(usize);
-    let (read, write) = create_signal(Value(1));
+    let read = create_signal(Value(1));
     let copied_handle = read;
-    let copied_writer = write;
+    let copied_writer = read;
     assert_eq!(
         copied_writer.update(|value| {
             value.0 += 1;
@@ -15,6 +15,6 @@ fn non_clone_values_can_be_read_and_updated() {
         2
     );
     assert_eq!(copied_handle.with(|value| value.0), 2);
-    write.set_unconditionally(Value(3));
+    read.set_unconditionally(Value(3));
     assert_eq!(read.with_untracked(|value| value.0), 3);
 }

@@ -37,8 +37,7 @@ impl PartialEq for HostedRegion {
 
 #[derive(Clone)]
 struct Hosted {
-    region: ReadSignal<Option<HostedRegion>>,
-    set_region: WriteSignal<Option<HostedRegion>>,
+    region: Signal<Option<HostedRegion>>,
 }
 
 #[derive(Default)]
@@ -56,8 +55,8 @@ pub(crate) fn create_handles() {
         let mut hosted = hosted.borrow_mut();
         hosted.clear();
         for id in HOSTING {
-            let (region, set_region) = create_signal(None);
-            hosted.insert(id, Hosted { region, set_region });
+            let region = create_signal(None);
+            hosted.insert(id, Hosted { region });
         }
     });
 }
@@ -88,7 +87,7 @@ pub(crate) fn apply() {
         let hosted = hosted(id);
         let region = declared.regions.get(&id).cloned();
         if hosted.region.with_untracked(|held| *held != region) {
-            hosted.set_region.set(region);
+            hosted.region.set(region);
         }
     }
 }

@@ -104,13 +104,13 @@ impl super::State {
             current = Some(child);
         }
         if current != self.dialog_focus.get_untracked() {
-            self.set_dialog_focus.set(current);
+            self.dialog_focus.set(current);
         }
     }
 
     pub(super) fn release_dialog_focus(&self) {
         if self.dialog_focus.get_untracked().is_some() {
-            self.set_dialog_focus.set(None);
+            self.dialog_focus.set(None);
         }
         self.settle_dialog_focus();
     }
@@ -124,13 +124,13 @@ impl super::State {
                 state.show(root);
             }
         });
-        self.set_dialog_focus.set(Some(tab));
+        self.dialog_focus.set(Some(tab));
         self.settle_dialog_focus();
     }
 
     pub(super) fn call_attention(&self) {
         if let Some(dialog) = self.dialog_focus.get_untracked() {
-            self.set_attention.update(|(count, target)| {
+            self.attention.update(|(count, target)| {
                 *count += 1;
                 *target = Some(dialog);
             });
@@ -143,7 +143,7 @@ impl super::State {
         };
         let Some(frame) = self
             .dialog_bodies
-            .get()
+            .value()
             .borrow()
             .get(&tab)
             .and_then(NodeRef::try_get)
@@ -162,7 +162,7 @@ impl super::State {
 
     fn anchor_node(&self, parent: TabId) -> Option<NodeId> {
         if self.is_dialog(parent) {
-            return self.dialog_frames.get().borrow().get(&parent)?.try_get();
+            return self.dialog_frames.value().borrow().get(&parent)?.try_get();
         }
         let shown = self.state.with_untracked(|state| state.contains(parent));
         shown.then(|| self.panel(parent))
@@ -209,9 +209,9 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         content,
     } = parts;
     let frame = NodeRef::new();
-    dock.dialog_frames.get().borrow_mut().insert(tab, frame);
+    dock.dialog_frames.value().borrow_mut().insert(tab, frame);
     let inside = NodeRef::new();
-    dock.dialog_bodies.get().borrow_mut().insert(tab, inside);
+    dock.dialog_bodies.value().borrow_mut().insert(tab, inside);
     on_cleanup(move || {
         dock.dialog_frames.try_with(|frames| {
             let mut frames = frames.borrow_mut();
@@ -222,7 +222,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             }
         });
         if dock.dialog_focus.get_untracked() == Some(tab) {
-            dock.set_dialog_focus.set(None);
+            dock.dialog_focus.set(None);
         }
     });
     let shown = create_memo(move || dock.dialog_shown(tab));
@@ -242,8 +242,8 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     });
     let focus = dock.dialog_focus;
     let focused = create_memo(move || focus.get() == Some(tab));
-    let (attention, set_attention) = create_signal(false);
-    let calm = set_attention;
+    let attention = create_signal(false);
+    let calm = attention;
     let settle = create_timer(move || {
         calm.set(false);
         None
@@ -253,7 +253,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         let (_, target) = requests.get();
         if target == Some(tab) {
             untrack(|| {
-                set_attention.set(true);
+                attention.set(true);
                 settle.start(ATTENTION);
             });
         }
@@ -261,7 +261,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let scope = dock.open_scope();
     let control = DockTabControl {
         tab,
-        state: dock.state,
+        state: dock.state.read_only(),
         dock,
     };
     let body = scope.context().run(|| {
@@ -289,7 +289,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         size,
         modal,
         focused,
-        attention,
+        attention: attention.read_only(),
         closable: on_close.is_some(),
         close: ClickCallback::new(move || {
             if let Some(close) = &closing {

@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(0usize);
+    let built = create_signal(0usize);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
@@ -17,7 +17,7 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
                             keys={indices(VIRTUAL_ITEM_COUNT)}
                             item_size=VIRTUAL_ITEM_HEIGHT
                         >|key: ReadSignal<usize>| {
-                            set_built.update(|built| *built += 1);
+                            built.update(|built| *built += 1);
                             let label = create_memo(move || format!("Row {}", key.get()));
                             view! {
                                 <Interactive focusable=true>

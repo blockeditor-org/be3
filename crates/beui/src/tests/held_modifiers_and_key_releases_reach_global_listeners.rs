@@ -6,17 +6,17 @@ use crate::styled::*;
 #[test]
 fn held_modifiers_and_key_releases_reach_global_listeners() {
     let _root = crate::reactive::RootScope::new();
-    let (seen, set_seen) = create_signal(Vec::new());
-    let (holds, set_holds) = create_signal(Vec::new());
+    let seen = create_signal(Vec::new());
+    let holds = create_signal(Vec::new());
     let document = build(move || {
         on_global_key(move |event: KeyEvent| {
             if let Some(press) = event.press() {
-                set_seen.update(|seen| seen.push((press.key, press.pressed)));
+                seen.update(|seen| seen.push((press.key, press.pressed)));
             }
             false
         });
         let modifiers = held_modifiers();
-        create_effect(move || set_holds.update(|holds| holds.push(modifiers.get())));
+        create_effect(move || holds.update(|holds| holds.push(modifiers.get())));
         view! {
             <List spacing=0.0>
                 <TextInput @test_id={"field"} value="" />

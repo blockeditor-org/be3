@@ -18,22 +18,22 @@ fn moves(log: ReadSignal<Vec<ForwardedInput>>) -> Vec<Pos2> {
 #[test]
 fn forwarded_input_reaches_only_the_topmost_catcher_under_it() {
     let _root = crate::reactive::RootScope::new();
-    let (below, set_below) = create_signal(Vec::<ForwardedInput>::new());
-    let (above, set_above) = create_signal(Vec::<ForwardedInput>::new());
+    let below = create_signal(Vec::<ForwardedInput>::new());
+    let above = create_signal(Vec::<ForwardedInput>::new());
     let document = build({
         move || {
             view! {
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>
                         <Interactive
-                            on_forward={move |input| set_below.update(|below| below.push(input))}
+                            on_forward={move |input| below.update(|below| below.push(input))}
                         >
                             <Frame />
                         </Interactive>
                     </CanvasItem>
                     <CanvasItem x=50.0 y=50.0 width=50.0 height=50.0>
                         <Interactive
-                            on_forward={move |input| set_above.update(|above| above.push(input))}
+                            on_forward={move |input| above.update(|above| above.push(input))}
                         >
                             <Frame />
                         </Interactive>
@@ -46,8 +46,11 @@ fn forwarded_input_reaches_only_the_topmost_catcher_under_it() {
     harness.frame(Vec::new());
 
     harness.frame(vec![Event::PointerMoved(pos2(60.0, 60.0))]);
-    assert_eq!(moves(above), [pos2(60.0, 60.0)]);
-    assert!(moves(below).is_empty(), "the catcher beneath is covered");
+    assert_eq!(moves(above.read_only()), [pos2(60.0, 60.0)]);
+    assert!(
+        moves(below.read_only()).is_empty(),
+        "the catcher beneath is covered"
+    );
     assert!(
         above
             .get_untracked()
@@ -56,7 +59,7 @@ fn forwarded_input_reaches_only_the_topmost_catcher_under_it() {
     );
 
     harness.frame(vec![Event::PointerMoved(pos2(150.0, 150.0))]);
-    assert_eq!(moves(below), [pos2(150.0, 150.0)]);
+    assert_eq!(moves(below.read_only()), [pos2(150.0, 150.0)]);
     assert!(
         above
             .get_untracked()

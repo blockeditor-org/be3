@@ -1,6 +1,6 @@
 use std::cell::RefCell;
 
-use reactive::{Stored, store};
+use reactive::{Stored, store, untrack};
 
 type Handler<V, R> = Box<dyn FnMut(V) -> R>;
 type ClickHandler = Box<dyn FnMut()>;
@@ -27,13 +27,13 @@ impl<V: 'static, R: 'static> Callback<V, R> {
     where
         R: Default,
     {
-        let Some(slot) = self.0.and_then(|slot| slot.try_get()) else {
+        let Some(slot) = self.0.and_then(|slot| slot.try_value()) else {
             return R::default();
         };
         let Some(mut handler) = slot.borrow_mut().take() else {
             return R::default();
         };
-        let result = handler(value);
+        let result = untrack(|| handler(value));
         let mut slot = slot.borrow_mut();
         if slot.is_none() {
             *slot = Some(handler);
@@ -75,13 +75,13 @@ impl ClickCallback {
     }
 
     pub fn call(&self) {
-        let Some(slot) = self.0.and_then(|slot| slot.try_get()) else {
+        let Some(slot) = self.0.and_then(|slot| slot.try_value()) else {
             return;
         };
         let Some(mut handler) = slot.borrow_mut().take() else {
             return;
         };
-        handler();
+        untrack(&mut handler);
         let mut slot = slot.borrow_mut();
         if slot.is_none() {
             *slot = Some(handler);

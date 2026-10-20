@@ -8,9 +8,9 @@ use crate::styled::*;
 #[test]
 fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
     let _root = crate::reactive::RootScope::new();
-    let (open, _set_open) = create_signal(true);
-    let (above, set_above) = create_signal(false);
-    let (heard, set_heard) = create_signal(Vec::<Event>::new());
+    let open = create_signal(true);
+    let above = create_signal(false);
+    let heard = create_signal(Vec::<Event>::new());
     let catcher = NodeRef::new();
     let document = build({
         move || {
@@ -20,7 +20,7 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
                         <Interactive
                             @node_ref={&catcher}
                             on_forward={move |input: ForwardedInput| {
-                                set_heard.update(|heard| heard.extend(flattened(input)))
+                                heard.update(|heard| heard.extend(flattened(input)))
                             }}
                         >
                             <Frame height=300.0 />
@@ -36,10 +36,10 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    with_reactive_scope(harness.document_mut(), move || set_above.set(true));
+    with_reactive_scope(harness.document_mut(), move || above.set(true));
     harness.frame(Vec::new());
     let below = harness.rect(catcher.get());
-    set_heard.update(|heard| heard.clear());
+    heard.update(|heard| heard.clear());
     harness.frame(vec![Event::PointerMoved(below.min + vec2(10.0, 10.0))]);
 
     assert!(

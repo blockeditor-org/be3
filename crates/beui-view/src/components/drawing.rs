@@ -1,6 +1,6 @@
 use beui_macros::component;
 
-use crate::reactive::{Prop, create_effect, with_document};
+use crate::reactive::{Get, Prop, create_effect, with_document};
 use beui_core::base::drawing::Draw;
 use beui_core::document::Document;
 use beui_core::geometry::Vec2;

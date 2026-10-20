@@ -19,7 +19,7 @@ impl rwh::HasDisplayHandle for Window {
     }
 }
 
-type Log = WriteSignal<Vec<String>>;
+type Log = Signal<Vec<String>>;
 
 struct Recording {
     name: &'static str,
@@ -89,7 +89,7 @@ fn glyphs(context: &Context) -> usize {
 #[test]
 fn switching_renderers_moves_the_window_and_the_fonts_to_the_chosen_one() {
     let _root = crate::reactive::RootScope::new();
-    let (_, log) = create_signal(Vec::new());
+    let log = create_signal(Vec::new());
     let context = Context::new(FreetypeFonts::default());
     let empty = FreetypeFonts::new(FontLibrary::new(FontSources::default()));
     let loaded = vec![

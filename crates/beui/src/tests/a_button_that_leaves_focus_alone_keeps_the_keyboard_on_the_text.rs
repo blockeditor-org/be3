@@ -7,17 +7,14 @@ use crate::unstyled::Button;
 #[test]
 fn a_button_that_leaves_focus_alone_keeps_the_keyboard_on_the_text() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let (document, [input, button]) = toolbar_of(move || {
         [
             view! {
                 <TextInput value="" />
             },
             view! {
-                <Button
-                    press_focus=false
-                    on_click={move || set_clicks.update(|clicks| *clicks += 1)}
-                >
+                <Button press_focus=false on_click={move || clicks.update(|clicks| *clicks += 1)}>
                     <Text string="Bold" />
                 </Button>
             },

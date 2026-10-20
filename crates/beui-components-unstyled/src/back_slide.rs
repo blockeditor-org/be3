@@ -35,10 +35,10 @@ struct State {
 struct Slide {
     state: RefCell<State>,
     animation: Cell<Option<Animation>>,
-    set_shift: WriteSignal<Vec2>,
-    set_behind_shift: WriteSignal<Vec2>,
-    set_shade: WriteSignal<Color32>,
-    set_revealing: WriteSignal<bool>,
+    shift: Signal<Vec2>,
+    behind_shift: Signal<Vec2>,
+    shade: Signal<Color32>,
+    revealing: Signal<bool>,
     behind: bool,
     enters: bool,
     on_back: ClickCallback,
@@ -53,10 +53,10 @@ impl Slide {
             state.direction
         };
         let width = with_document(|document| document.viewport_rect().width());
-        self.set_shift.set(vec2(direction * position * width, 0.0));
+        self.shift.set(vec2(direction * position * width, 0.0));
         let behind = -direction * BEHIND_SHARE * (1.0 - position.clamp(0.0, 1.0)) * width;
-        self.set_behind_shift.set(vec2(behind, 0.0));
-        self.set_shade
+        self.behind_shift.set(vec2(behind, 0.0));
+        self.shade
             .set(SHADE.scale_alpha(1.0 - position.clamp(0.0, 1.0)));
         self.on_presence.call(1.0 - position.clamp(0.0, 1.0));
     }
@@ -81,7 +81,7 @@ impl Slide {
     }
 
     fn reveal(&self, phase: Phase) {
-        self.set_revealing.set(
+        self.revealing.set(
             self.behind
                 && matches!(
                     phase,
@@ -203,10 +203,10 @@ pub fn BackSlide(
     #[prop(default = None)] behind: Option<RenderFn<()>>,
     children: Child,
 ) -> NodeId {
-    let (shift, set_shift) = create_signal(Vec2::ZERO);
-    let (behind_shift, set_behind_shift) = create_signal(Vec2::ZERO);
-    let (shade, set_shade) = create_signal(SHADE);
-    let (revealing, set_revealing) = create_signal(false);
+    let shift = create_signal(Vec2::ZERO);
+    let behind_shift = create_signal(Vec2::ZERO);
+    let shade = create_signal(SHADE);
+    let revealing = create_signal(false);
     let slide = store(Slide {
         state: RefCell::new(State {
             phase: Phase::Still,
@@ -214,25 +214,25 @@ pub fn BackSlide(
             direction: 1.0,
         }),
         animation: Cell::new(None),
-        set_shift,
-        set_behind_shift,
-        set_shade,
-        set_revealing,
+        shift,
+        behind_shift,
+        shade,
+        revealing,
         behind: behind.is_some(),
         enters,
         on_back,
         on_presence,
     });
     let animation = create_animation(
-        move |frame| slide.get().step(frame).is_some(),
-        move || slide.get().finish(),
+        move |frame| slide.value().step(frame).is_some(),
+        move || slide.value().finish(),
     );
     slide.with(|slide| slide.animation.set(Some(animation)));
     let watched = enabled;
     create_effect(move || {
         if !watched.get() {
             untrack(|| {
-                let slide = slide.get();
+                let slide = slide.value();
                 let phase = slide.state.borrow().phase;
                 if matches!(
                     phase,
@@ -246,7 +246,7 @@ pub fn BackSlide(
     let page = view! {
         <BackHandler
             enabled={enabled}
-            on_gesture={move |gesture: BackGesture| slide.get().gesture(gesture)}
+            on_gesture={move |gesture: BackGesture| slide.value().gesture(gesture)}
         >
             <Shift by={shift}>{children}</Shift>
         </BackHandler>

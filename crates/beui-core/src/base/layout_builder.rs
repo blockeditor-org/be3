@@ -1,7 +1,7 @@
 use std::any::Any;
 use std::cell::Cell;
 
-use ::reactive::{ReadSignal, ScopeContext, WriteSignal};
+use ::reactive::{Get, ReadSignal, ScopeContext, Set, Signal};
 
 use crate::document::Document;
 use crate::geometry::{Rect, Vec2, vec2};
@@ -9,7 +9,7 @@ use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::painter::Painter;
 
 enum Builds {
-    Size(ReadSignal<Vec2>, WriteSignal<Vec2>),
+    Size(Signal<Vec2>),
     Placement(ReadSignal<Rect>),
 }
 
@@ -21,12 +21,12 @@ pub struct LayoutBuilderNode {
 }
 
 impl LayoutBuilderNode {
-    fn given(&self, size: Vec2) -> Option<(WriteSignal<Vec2>, Vec2)> {
-        let Builds::Size(held, set_size) = &self.builds else {
+    fn given(&self, size: Vec2) -> Option<(Signal<Vec2>, Vec2)> {
+        let Builds::Size(held_size) = &self.builds else {
             return None;
         };
         let offered = self.offered.get();
-        let held = held.get_untracked();
+        let held = held_size.get_untracked();
         let given = vec2(
             match offered.x.is_finite() {
                 true => size.x,
@@ -37,24 +37,18 @@ impl LayoutBuilderNode {
                 false => held.y,
             },
         );
-        (given != held).then_some((*set_size, given))
+        (given != held).then_some((*held_size, given))
     }
 }
 
 impl LayoutBuilderNode {
-    fn rebuild(
-        &self,
-        doc: &mut Document,
-        painter: &Painter,
-        set_size: WriteSignal<Vec2>,
-        size: Vec2,
-    ) {
+    fn rebuild(&self, doc: &mut Document, painter: &Painter, held: Signal<Vec2>, size: Vec2) {
         let builder = doc
             .laying_out()
             .expect("a layout builder is laid out as itself");
         let content = self.content.clone();
         doc.build_within(builder, move || {
-            set_size.set(size);
+            held.set(size);
             if let Some(content) = content {
                 content.flush_owned();
             }
@@ -87,8 +81,8 @@ impl Element for LayoutBuilderNode {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        if let Some((set_size, size)) = self.given(rect.size()) {
-            self.rebuild(doc, painter, set_size, size);
+        if let Some((held, size)) = self.given(rect.size()) {
+            self.rebuild(doc, painter, held, size);
         }
         if let Some(child) = self.child {
             crate::layout::layout(doc, painter, child, rect, out);
@@ -131,7 +125,7 @@ impl Element for LayoutBuilderNode {
 
     fn detail(&self) -> Option<String> {
         Some(match &self.builds {
-            Builds::Size(size, _) => {
+            Builds::Size(size) => {
                 let size = size.get_untracked();
                 format!("{:.0}x{:.0}", size.x, size.y)
             }
@@ -158,22 +152,18 @@ impl Element for LayoutBuilderNode {
 }
 
 impl Document {
-    pub fn create_layout_builder(
-        &mut self,
-        size: ReadSignal<Vec2>,
-        set_size: WriteSignal<Vec2>,
-    ) -> NodeOf<LayoutBuilderNode> {
+    pub fn create_layout_builder(&mut self, size: Signal<Vec2>) -> NodeOf<LayoutBuilderNode> {
         self.arena.insert(LayoutBuilderNode {
             child: None,
             content: None,
-            builds: Builds::Size(size, set_size),
+            builds: Builds::Size(size),
             offered: Cell::new(Vec2::ZERO),
         })
     }
 
     pub fn create_placement_builder(&mut self) -> (NodeOf<LayoutBuilderNode>, ReadSignal<Rect>) {
         let watched = ::reactive::OwnedSignal::new(Rect::ZERO);
-        let placed = watched.read();
+        let placed = watched.read_only();
         let builder = self.arena.insert(LayoutBuilderNode {
             child: None,
             content: None,

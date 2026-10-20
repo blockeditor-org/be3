@@ -7,7 +7,7 @@ use crate::geometry::{Rect, Vec2, vec2};
 use crate::node::{Element, NodeId, NodeOf, Outlined, Rects};
 use crate::painter::{Corners, Painter};
 use crate::pixel_grid::PixelGrid;
-use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal};
+use beui_tree::reactive::{IntoProp, Memo, Prop, ReadSignal, Signal};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct Outline {
@@ -656,6 +656,12 @@ macro_rules! into_prop_via {
         }
 
         impl IntoProp<$target> for ReadSignal<$value> {
+            fn into_prop(self) -> Prop<$target> {
+                IntoProp::<$value>::into_prop(self).map($convert)
+            }
+        }
+
+        impl IntoProp<$target> for Signal<$value> {
             fn into_prop(self) -> Prop<$target> {
                 IntoProp::<$value>::into_prop(self).map($convert)
             }

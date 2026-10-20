@@ -9,7 +9,7 @@ const ROWS: usize = 500;
 #[test]
 fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(Vec::new());
+    let built = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
@@ -28,7 +28,7 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
                                 >|index: ReadSignal<usize>| {
                                     create_binding(move || {
                                         let index = index.get();
-                                        set_built.update(|built| built.push(index));
+                                        built.update(|built| built.push(index));
                                     });
                                     view! {
                                         <Frame height=VIRTUAL_ITEM_HEIGHT>

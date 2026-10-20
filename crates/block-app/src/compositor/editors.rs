@@ -121,7 +121,7 @@ impl OwnedEditors {
 
 impl Editors {
     pub(crate) fn reset(&self, registry: Rc<EditorRegistry>) {
-        let state = self.0.get();
+        let state = self.0.value();
         *state.registry.borrow_mut() = registry;
         let closed: Vec<PluginEditor> =
             self.with(|open| open.drain().map(|(_, editor)| editor).collect());
@@ -136,34 +136,34 @@ impl Editors {
     }
 
     pub(crate) fn simulated(&self, id: Uuid) -> Option<Access> {
-        let state = self.0.get();
+        let state = self.0.value();
         state.simulated.borrow().get(&id).copied()
     }
 
     pub(crate) fn registry(&self) -> Rc<EditorRegistry> {
-        let state = self.0.get();
+        let state = self.0.value();
         Rc::clone(&state.registry.borrow())
     }
 
     pub(crate) fn client_id(&self) -> Uuid {
-        let state = self.0.get();
+        let state = self.0.value();
         state.client_id.get()
     }
 
     pub(crate) fn with<R>(&self, act: impl FnOnce(&mut HashMap<Uuid, PluginEditor>) -> R) -> R {
-        let state = self.0.get();
+        let state = self.0.value();
         act(&mut state.open.borrow_mut())
     }
 
     pub(crate) fn with_simulated<R>(&self, act: impl FnOnce(&mut HashMap<Uuid, Access>) -> R) -> R {
-        let state = self.0.get();
+        let state = self.0.value();
         let result = act(&mut state.simulated.borrow_mut());
         super::changed();
         result
     }
 
     fn access(&self, id: Uuid, above: Access) -> Access {
-        let state = self.0.get();
+        let state = self.0.value();
         let simulated = state
             .simulated
             .borrow()
@@ -174,12 +174,12 @@ impl Editors {
     }
 
     pub(crate) fn parent_of(&self, id: Uuid) -> Option<Uuid> {
-        let state = self.0.get();
+        let state = self.0.value();
         state.parents.borrow().get(&id).copied()
     }
 
     pub(crate) fn forget_parent(&self, id: Uuid) {
-        let state = self.0.get();
+        let state = self.0.value();
 
         state.parents.borrow_mut().remove(&id);
     }
@@ -205,7 +205,7 @@ impl Editors {
         editor: Option<Uuid>,
         parent: Uuid,
     ) {
-        let state = self.0.get();
+        let state = self.0.value();
         if parent != id {
             state.parents.borrow_mut().insert(id, parent);
         }
@@ -229,7 +229,7 @@ impl Editors {
     }
 
     fn ensure_creation(&self, key: CreationKey, editor: Uuid, template: &str) -> bool {
-        let state = self.0.get();
+        let state = self.0.value();
         if state.creations.borrow().contains_key(&key) {
             return true;
         }
@@ -250,7 +250,7 @@ impl Editors {
     }
 
     fn forget_creation(&self, key: &CreationKey) {
-        let state = self.0.get();
+        let state = self.0.value();
         let (parent, _, child) = key;
         state.commits.borrow_mut().remove(&(*parent, *child));
         let forgotten = state.creations.borrow_mut().remove(key);
@@ -258,7 +258,7 @@ impl Editors {
     }
 
     fn creation_region(&self, key: &CreationKey) -> Option<HostedRegion> {
-        let state = self.0.get();
+        let state = self.0.value();
         let registry = self.registry();
         state
             .creations
@@ -272,14 +272,14 @@ impl Editors {
         &self,
         key: &CreationKey,
     ) -> Option<(Option<CreationProgress>, Option<f32>)> {
-        let state = self.0.get();
+        let state = self.0.value();
         let creations = state.creations.borrow();
         let child = creations.get(key)?;
         Some((child.progress.clone(), child.creation.height()))
     }
 
     pub(crate) fn commit_creations(&self, parent: Uuid, commits: Vec<ChildCommit>) {
-        let state = self.0.get();
+        let state = self.0.value();
         let mut creations = state.creations.borrow_mut();
         for commit in commits {
             let held = creations
@@ -298,7 +298,7 @@ impl Editors {
     }
 
     fn show_settings(&self, key: CreationKey, block: Uuid) {
-        let state = self.0.get();
+        let state = self.0.value();
         let (parent, _, child) = key;
         state
             .settings_children
@@ -308,12 +308,12 @@ impl Editors {
     }
 
     fn hide_settings(&self, key: &CreationKey) {
-        let state = self.0.get();
+        let state = self.0.value();
         state.settings_shown.borrow_mut().remove(key);
     }
 
     pub(crate) fn forget_hidden_settings(&self) {
-        let state = self.0.get();
+        let state = self.0.value();
         let shown: Vec<(Uuid, ChildId)> = state
             .settings_shown
             .borrow()
@@ -327,12 +327,12 @@ impl Editors {
     }
 
     pub(crate) fn requested_settings(&self) -> Option<Uuid> {
-        let state = self.0.get();
+        let state = self.0.value();
         state.settings_shown.borrow().values().next().copied()
     }
 
     pub(crate) fn settings_block(&self, parent: Uuid, child: ChildId) -> Option<Uuid> {
-        let state = self.0.get();
+        let state = self.0.value();
         state
             .settings_children
             .borrow()
@@ -341,7 +341,7 @@ impl Editors {
     }
 
     pub(crate) fn set_settings_status(&self, status: Option<(Uuid, SettingsProgress, f32)>) {
-        let state = self.0.get();
+        let state = self.0.value();
         if *state.settings_status.borrow() == status {
             return;
         }
@@ -350,7 +350,7 @@ impl Editors {
     }
 
     fn settings_status(&self, block: Uuid) -> Option<(SettingsProgress, f32)> {
-        let state = self.0.get();
+        let state = self.0.value();
         state
             .settings_status
             .borrow()
@@ -360,7 +360,7 @@ impl Editors {
     }
 
     pub(crate) fn creation_pick_sources(&self) -> Vec<PickSource> {
-        let state = self.0.get();
+        let state = self.0.value();
         state
             .creations
             .borrow()
@@ -370,7 +370,7 @@ impl Editors {
     }
 
     pub(crate) fn step_creations(&self) {
-        let state = self.0.get();
+        let state = self.0.value();
         let registry = self.registry();
         let client_id = self.client_id();
         let mut changed = false;
@@ -485,7 +485,7 @@ impl Nesting {
 struct TabContext {
     stack: Memo<Vec<Uuid>>,
     top_bar: Prop<TopBar>,
-    portals: WriteSignal<Vec<(Uuid, NodeId)>>,
+    portals: Signal<Vec<(Uuid, NodeId)>>,
     exit: ClickCallback,
 }
 
@@ -502,7 +502,7 @@ struct FocusedWithin(Callback<()>);
 #[derive(Clone, Copy)]
 pub(crate) struct ChildReports {
     statuses: Stored<RefCell<BTreeMap<u64, HostChildStatus>>>,
-    tick: WriteSignal<u64>,
+    tick: Signal<u64>,
 }
 
 #[component]
@@ -654,7 +654,7 @@ fn TabFrame(
         }
         stack
     });
-    let (portals, set_portals) = create_signal(Vec::<(Uuid, NodeId)>::new());
+    let portals = create_signal(Vec::<(Uuid, NodeId)>::new());
     let exit = ClickCallback::new(move || {
         let stack = stack.get_untracked();
         let parent = match stack.len() {
@@ -667,7 +667,7 @@ fn TabFrame(
     provide_context(TabContext {
         stack,
         top_bar,
-        portals: set_portals,
+        portals,
         exit,
     });
     let shown = create_memo(move || {
@@ -1048,16 +1048,16 @@ fn BlockFrameView(
     let framed = create_memo(move || content.get().is_some());
     create_effect(move || {
         let _ = framed.get();
-        plugin_host::hold(&plugin_id.get(), instance, EditorRegion::Frame);
+        plugin_host::hold(&plugin_id.value(), instance, EditorRegion::Frame);
     });
-    let revision = super::listen(&plugin_id.get());
+    let revision = super::listen(&plugin_id.value());
     view! {
         <PlacementBuilder>|rect: ReadSignal<Rect>| {
             let read_only = !access.can_edit();
-            let placed = embedded || content.peek().is_some();
+            let placed = embedded || content.get_untracked().is_some();
             let pan_and_zoom = handle.pan_and_zoom && !placed;
             let max_zoom = handle.max_zoom.map_or(MAX_ZOOM, |zoom| zoom as f32);
-            let (viewport, set_viewport) = create_signal(
+            let viewport = create_signal(
                 VIEWPORTS
                     .with(|viewports| viewports.borrow().get(&block).copied())
                     .unwrap_or_default(),
@@ -1069,7 +1069,7 @@ fn BlockFrameView(
             let viewport_rect = create_memo(move || {
                 revision.get();
                 let rect = rect.get();
-                plugin_host::frame_rects(&plugin_id.get(), instance)
+                plugin_host::frame_rects(&plugin_id.value(), instance)
                     .map(|rects| rects.content.translate(rect.min.to_vec2()))
                     .filter(Rect::is_positive)
                     .unwrap_or(rect)
@@ -1077,7 +1077,7 @@ fn BlockFrameView(
             let content_size = create_memo(move || {
                 revision.get();
                 let size = viewport_rect.get().size().max(Vec2::splat(1.0));
-                let intrinsic = plugin_host::intrinsic_size(&plugin_id.get(), instance)
+                let intrinsic = plugin_host::intrinsic_size(&plugin_id.value(), instance)
                     .unwrap_or(vec2(420.0, 240.0));
                 vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
             });
@@ -1099,7 +1099,7 @@ fn BlockFrameView(
                     let mut state = viewport.get_untracked();
                     settle(&mut state, command, viewport_rect.get_untracked(), content_size.get_untracked(), max_zoom);
                     if state != viewport.get_untracked() {
-                        set_viewport.set(state);
+                        viewport.set(state);
                     }
             };
             create_effect(
@@ -1121,7 +1121,7 @@ fn BlockFrameView(
                         fit(&mut state, rect.size().max(Vec2::splat(1.0)), content);
                     }
                     if state != viewport.get_untracked() {
-                        set_viewport.set(state);
+                        viewport.set(state);
                     }
                 },
             );
@@ -1129,7 +1129,7 @@ fn BlockFrameView(
                 move || {
                     revision.get();
                     let rect = rect.get_untracked();
-                    for change in plugin_host::take_view_changes(&plugin_id.get(), instance) {
+                    for change in plugin_host::take_view_changes(&plugin_id.value(), instance) {
                         command(match change {
                             ViewChange::Pan { x, y } => Command::Pan(vec2(x, y)),
                             ViewChange::Zoom { factor, anchor } => Command::Zoom {
@@ -1140,7 +1140,7 @@ fn BlockFrameView(
                             ViewChange::ResumeAutoFit => Command::ResumeAutoFit,
                         });
                     }
-                    let actions = plugin_host::take_bar_actions(&plugin_id.get(), instance);
+                    let actions = plugin_host::take_bar_actions(&plugin_id.value(), instance);
                     for action in actions {
                         on_bar_action.call(action);
                     }
@@ -1149,7 +1149,7 @@ fn BlockFrameView(
             if let Some(tab) = use_context::<TabContext>() {
                 create_effect(move || {
                     revision.get();
-                    if plugin_host::take_leaving(&plugin_id.get(), instance) {
+                    if plugin_host::take_leaving(&plugin_id.value(), instance) {
                         tab.exit.call();
                     }
                 });
@@ -1175,7 +1175,7 @@ fn BlockFrameView(
                     }
                     revision.get();
                     let shown = content.get().unwrap_or(rect.get());
-                    let scale = plugin_host::intrinsic_size(&plugin_id.get(), instance)
+                    let scale = plugin_host::intrinsic_size(&plugin_id.value(), instance)
                         .filter(|intrinsic| intrinsic.x > 0.0 && intrinsic.y > 0.0)
                         .map_or(1.0, |intrinsic| {
                             (shown.width() / intrinsic.x).min(shown.height() / intrinsic.y)
@@ -1239,7 +1239,7 @@ fn BlockFrameView(
                 gestures
                     && viewport_rect.get_untracked().contains(pos)
                     && !steered.get_untracked().is_some_and(|rect| rect.contains(pos))
-                    && !plugin_host::frame_rects(&plugin_id.get(), instance).is_some_and(|frame| {
+                    && !plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(|frame| {
                         frame
                             .floating
                             .iter()
@@ -1252,7 +1252,7 @@ fn BlockFrameView(
                 }
                 revision.get();
                 let shown = rect.get();
-                plugin_host::assigned_size(&plugin_id.get(), instance)
+                plugin_host::assigned_size(&plugin_id.value(), instance)
                     .filter(|assigned| assigned.x > 0.0 && assigned.y > 0.0)
                     .map_or(1.0, |assigned| {
                         (shown.width() / assigned.x).min(shown.height() / assigned.y)
@@ -1752,13 +1752,13 @@ fn BlockPreview(block: Uuid, rotation: Prop<f32>, opacity: Prop<f32>) -> NodeId 
 }
 
 pub(super) fn reports() -> (ChildReports, ReadSignal<u64>) {
-    let (tick, set_tick) = create_signal(0u64);
+    let tick = create_signal(0u64);
     (
         ChildReports {
             statuses: store(RefCell::new(BTreeMap::new())),
-            tick: set_tick,
+            tick,
         },
-        tick,
+        tick.read_only(),
     )
 }
 

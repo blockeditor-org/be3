@@ -1,3 +1,5 @@
+use beui::reactive::Get;
+use beui::reactive::Set;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::marker::PhantomData;
@@ -196,7 +198,7 @@ impl<A: BeuiApp> Views<A> {
             .chrome
             .as_mut()
             .expect("the frame chrome is built before its region runs");
-        let set_bar = chrome.set_bar();
+        let shown_bar = chrome.bar();
         let bar = FrameBar {
             shown: region.chrome_drawn() && (spec.top_bar.shown() || spec.content.is_some()),
             framed: region.chrome_drawn(),
@@ -206,7 +208,7 @@ impl<A: BeuiApp> Views<A> {
         let menu = chrome.menu();
         let editor = self.editor.as_deref().copied();
         beui::reactive::with_reactive_scope(chrome.document_mut(), || {
-            set_bar.set(bar);
+            shown_bar.set(bar);
             for id in picks {
                 beui_frame::run_menu_pick(&menu, id);
             }

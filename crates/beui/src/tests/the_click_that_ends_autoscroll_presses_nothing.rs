@@ -6,7 +6,7 @@ use crate::unstyled::Scroll;
 #[test]
 fn the_click_that_ends_autoscroll_presses_nothing() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let scroll = NodeRef::new();
     let document = build(move || {
         view! {
@@ -15,7 +15,7 @@ fn the_click_that_ends_autoscroll_presses_nothing() {
                     <ForEach keys={indices(100)}>|index: usize|
                         <LabelledButton
                             label={format!("Row {index}")}
-                            on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                            on_click={move || clicks.update(|clicks| *clicks += 1)}
                         />
                     </ForEach>
                 </Scroll>

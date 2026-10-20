@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn a_mouse_away_from_a_held_finger_still_moves_the_pointer() {
     let _root = crate::reactive::RootScope::new();
-    let (hovered, set_hovered) = create_signal(false);
+    let hovered = create_signal(false);
     let target = NodeRef::new();
     let document = build({
         move || {
@@ -14,7 +14,7 @@ fn a_mouse_away_from_a_held_finger_still_moves_the_pointer() {
                     <Frame width=200.0 height=200.0 />
                     <Interactive
                         @node_ref=&target
-                        on_hover_change={move |is_hovered: bool| set_hovered.set(is_hovered)}
+                        on_hover_change={move |is_hovered: bool| hovered.set(is_hovered)}
                     >
                         <Frame width=200.0 height=200.0 />
                     </Interactive>

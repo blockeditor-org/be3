@@ -9,10 +9,10 @@ fn for_each_reuses_nodes_for_keys_that_persist_across_an_update() {
     let (list, shuffle) = (NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
-            let (items, set_items) = create_signal(vec![1i64, 2, 3]);
+            let items = create_signal(vec![1i64, 2, 3]);
             view! {
                 <List spacing=0.0>
-                    <Button @node_ref=&shuffle on_click={move || set_items.set(vec![3, 2, 4])}>
+                    <Button @node_ref=&shuffle on_click={move || items.set(vec![3, 2, 4])}>
                         <Text string="shuffle" />
                     </Button>
                     <List @node_ref=&list spacing=0.0>

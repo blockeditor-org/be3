@@ -6,8 +6,8 @@ use crate::reactive::*;
 #[test]
 fn a_catcher_that_lost_its_release_lets_go_of_the_pointer() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal::<Vec<(usize, Event)>>(Vec::new());
-    let catcher = |index: usize, heard: WriteSignal<Vec<(usize, Event)>>| {
+    let heard = create_signal::<Vec<(usize, Event)>>(Vec::new());
+    let catcher = |index: usize, heard: Signal<Vec<(usize, Event)>>| {
         move |input: ForwardedInput| {
             heard.update(|heard| {
                 heard.extend(flattened(input).into_iter().map(|event| (index, event)))
@@ -16,8 +16,8 @@ fn a_catcher_that_lost_its_release_lets_go_of_the_pointer() {
     };
     let document = build({
         move || {
-            let first = catcher(0, set_heard);
-            let second = catcher(1, set_heard);
+            let first = catcher(0, heard);
+            let second = catcher(1, heard);
             view! {
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
@@ -39,7 +39,7 @@ fn a_catcher_that_lost_its_release_lets_go_of_the_pointer() {
 
     harness.press_at(pos2(50.0, 50.0));
     harness.frame(vec![Event::Focus(false)]);
-    set_heard.update(|heard| heard.clear());
+    heard.update(|heard| heard.clear());
     harness.frame(vec![Event::PointerMoved(pos2(250.0, 50.0))]);
 
     assert_eq!(

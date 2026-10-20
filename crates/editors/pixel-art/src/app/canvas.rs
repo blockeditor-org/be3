@@ -25,10 +25,9 @@ const HOVER_LABEL_HEIGHT: f32 = 24.0;
 pub(crate) fn ArtworkCanvas(
     tools: Tools,
     pane: Pane,
-    shown: Memo<Shown>,
+    shown: ReadSignal<Shown>,
     size: Memo<(u16, u16)>,
-    hovered: ReadSignal<Option<(u16, u16)>>,
-    set_hovered: WriteSignal<Option<(u16, u16)>>,
+    hovered: Signal<Option<(u16, u16)>>,
 ) -> NodeId {
     let editor = tools.editor();
     let view = editor.canvas();
@@ -52,7 +51,7 @@ pub(crate) fn ArtworkCanvas(
             let held = held_modifiers();
             create_effect(move || {
                 let shift = held.get().shift;
-                untrack(|| tools.set_constrained.set(shift));
+                untrack(|| tools.constrained.set(shift));
             });
 
             let press_size = size;
@@ -63,7 +62,7 @@ pub(crate) fn ArtworkCanvas(
                 if width == 0 || tools.busy() || !tools.editable() {
                     return;
                 }
-                tools.set_constrained.set(press.modifiers.shift);
+                tools.constrained.set(press.modifiers.shift);
                 let Some(pixel) = pixel_of(
                     press.pos,
                     press_view.get_untracked(),
@@ -85,7 +84,7 @@ pub(crate) fn ArtworkCanvas(
                 if width == 0 || tools.busy() || !tools.editable() {
                     return;
                 }
-                tools.set_constrained.set(press.modifiers.shift);
+                tools.constrained.set(press.modifiers.shift);
                 let Some(pixel) = pixel_of(
                     press.pos,
                     drag_view.get_untracked(),
@@ -111,7 +110,7 @@ pub(crate) fn ArtworkCanvas(
                 if width == 0 || tools.busy() || !tools.editable() {
                     return;
                 }
-                tools.set_constrained.set(press.modifiers.shift);
+                tools.constrained.set(press.modifiers.shift);
                 if let Some(pixel) = pixel_of(
                     press.pos,
                     release_view.get_untracked(),
@@ -147,14 +146,13 @@ pub(crate) fn ArtworkCanvas(
             let hover_size = size;
             let hover_view = view;
             let hover_artwork = artwork;
-            let set_hover = set_hovered;
             let on_hover_move = move |press: PointerPress| {
                 let (width, height) = hover_size.get_untracked();
                 if width == 0 {
                     return;
                 }
-                tools.set_constrained.set(press.modifiers.shift);
-                set_hover.set(pixel_of(
+                tools.constrained.set(press.modifiers.shift);
+                hovered.set(pixel_of(
                     press.pos,
                     hover_view.get_untracked(),
                     editor.content_rect(),
@@ -163,7 +161,7 @@ pub(crate) fn ArtworkCanvas(
                     height,
                 ));
             };
-            let left = set_hovered;
+            let left = hovered;
             let on_hover_change = move |hovered: bool| {
                 if !hovered {
                     left.set(None);
@@ -208,8 +206,8 @@ pub(crate) fn ArtworkCanvas(
                                 view={view}
                                 scale={scale}
                                 artwork={artwork}
-                                show_grid={tools.show_grid}
-                                hovered={hovered}
+                                show_grid={tools.show_grid.read_only()}
+                                hovered={hovered.read_only()}
                             />
                         </List>
                     </Interactive>
@@ -228,11 +226,11 @@ fn shortcut(tools: Tools, editor: block_editor_beui::Editor, press: KeyPress) ->
         Shortcut::Cancel => return tools.draw(|drawing| drawing.take()).is_some(),
         Shortcut::Larger => {
             let size = tools.brush_size.get_untracked();
-            tools.set_brush_size.set((size + 1).min(MAX_BRUSH_SIZE));
+            tools.brush_size.set((size + 1).min(MAX_BRUSH_SIZE));
         }
         Shortcut::Smaller => {
             let size = tools.brush_size.get_untracked();
-            tools.set_brush_size.set(size.saturating_sub(1).max(1));
+            tools.brush_size.set(size.saturating_sub(1).max(1));
         }
         Shortcut::Fill => {
             if matches!(
@@ -240,16 +238,16 @@ fn shortcut(tools: Tools, editor: block_editor_beui::Editor, press: KeyPress) ->
                 PixelTool::Rectangle | PixelTool::Ellipse
             ) {
                 let filled = tools.shapes_filled.get_untracked();
-                tools.set_shapes_filled.set(!filled);
+                tools.shapes_filled.set(!filled);
             }
         }
         Shortcut::MirrorHorizontal => {
             let on = tools.mirror_horizontal.get_untracked();
-            tools.set_mirror_horizontal.set(!on);
+            tools.mirror_horizontal.set(!on);
         }
         Shortcut::MirrorVertical => {
             let on = tools.mirror_vertical.get_untracked();
-            tools.set_mirror_vertical.set(!on);
+            tools.mirror_vertical.set(!on);
         }
         Shortcut::ZoomIn => editor.zoom(ZOOM_STEP),
         Shortcut::ZoomOut => editor.zoom(1.0 / ZOOM_STEP),
@@ -298,7 +296,7 @@ fn shortcut_kind(key: Key) -> Shortcut {
 
 #[component]
 fn Artwork(
-    shown: Memo<Shown>,
+    shown: ReadSignal<Shown>,
     view: ReadSignal<Option<CanvasView>>,
     scale: ReadSignal<f32>,
     artwork: Memo<Rect>,

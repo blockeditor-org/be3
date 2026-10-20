@@ -28,7 +28,7 @@ pub fn Dialog(
     #[prop(children)] content: Render,
 ) -> NodeId {
     let closing = on_dismiss;
-    let (presence, set_presence) = create_signal(1.0_f32);
+    let presence = create_signal(1.0_f32);
     let scrim = create_memo(move || SCRIM.scale_alpha(presence.get()));
     view! {
         <Overlay
@@ -41,7 +41,7 @@ pub fn Dialog(
                 <BackSlide
                     enters=false
                     on_back={closing}
-                    on_presence={move |presence: f32| set_presence.set(presence)}
+                    on_presence={move |next: f32| presence.set(next)}
                 >
                     <DialogSurface width={width} title={title}>{content.call(())}</DialogSurface>
                 </BackSlide>

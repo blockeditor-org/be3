@@ -53,16 +53,11 @@ struct State {
     search: NodeRef,
     options: Stored<Run<ChoiceOption>>,
     rows: Stored<RefCell<Vec<Row>>>,
-    open: ReadSignal<bool>,
-    set_open: WriteSignal<bool>,
-    focus: ReadSignal<Focus>,
-    set_focus: WriteSignal<Focus>,
-    search_text: ReadSignal<String>,
-    set_search_text: WriteSignal<String>,
-    selected: ReadSignal<Option<usize>>,
-    set_selected: WriteSignal<Option<usize>>,
-    highlighted: ReadSignal<Option<usize>>,
-    set_highlighted: WriteSignal<Option<usize>>,
+    open: Signal<bool>,
+    focus: Signal<Focus>,
+    search_text: Signal<String>,
+    selected: Signal<Option<usize>>,
+    highlighted: Signal<Option<usize>>,
     on_change: Callback<Option<usize>>,
 }
 
@@ -85,7 +80,7 @@ pub fn Select(
     let selected_prop = selected;
     let options = options.into_run();
     let initial = selected_prop
-        .peek()
+        .get_untracked()
         .filter(|index| *index < options.peek().len());
     let option = option.unwrap_or_else(|| {
         RenderFn::new(|_| {
@@ -96,13 +91,13 @@ pub fn Select(
     });
     let popup = popup.unwrap_or_else(|| Render::new(|content| content));
 
-    let (highlighted, set_highlighted) = create_signal(initial);
+    let highlighted = create_signal(initial);
     let highlight = create_selector(move || highlighted.get());
-    let (selected, set_selected) = create_signal(initial);
-    let (is_open, set_open) = create_signal(false);
-    let (focus, set_focus) = create_signal(Focus::Away);
+    let selected = create_signal(initial);
+    let is_open = create_signal(false);
+    let focus = create_signal(Focus::Away);
     let focused = create_selector(move || focus.get());
-    let (search_text, set_search_text) = create_signal(String::new());
+    let search_text = create_signal(String::new());
     let disabled = create_memo(move || disabled.get());
 
     let state = State {
@@ -111,15 +106,10 @@ pub fn Select(
         options: store(options.clone()),
         rows: store(RefCell::default()),
         open: is_open,
-        set_open,
         focus,
-        set_focus,
         search_text,
-        set_search_text,
         selected,
-        set_selected,
         highlighted,
-        set_highlighted,
         on_change,
     };
     set_component_state(state);
@@ -152,7 +142,7 @@ pub fn Select(
     });
     let trigger_content = move |handle: ButtonHandle| {
         trigger_view.call(SelectTriggerHandle {
-            selected,
+            selected: selected.read_only(),
             label,
             hovered: handle.hovered,
             active: handle.active,
@@ -175,14 +165,14 @@ pub fn Select(
     );
 
     create_effect(move || {
-        state.options.get().len();
+        state.options.value().len();
         apply_requested_selection(state, selected_prop.get());
     });
     create_effect(move || {
         let query = state.search_text.get().to_lowercase();
         let shown: Vec<usize> = state
             .options
-            .get()
+            .value()
             .items()
             .iter()
             .enumerate()
@@ -192,7 +182,7 @@ pub fn Select(
         let hidden =
             untrack(|| state.highlighted.get()).is_some_and(|index| !shown.contains(&index));
         if hidden {
-            untrack(|| state.set_highlighted.set(shown.first().copied()));
+            untrack(|| state.highlighted.set(shown.first().copied()));
         }
     });
 
@@ -255,7 +245,7 @@ fn SelectRow(
     highlight: Selector<Option<usize>>,
 ) -> NodeId {
     let (button, label) = {
-        let rows = state.rows.get();
+        let rows = state.rows.value();
         let row = &rows.borrow()[index];
         (row.button, row.label)
     };
@@ -278,7 +268,7 @@ fn SelectRow(
                 let hovered = button.hovered;
                 create_effect(move || {
                     if hovered.get() {
-                        state.set_highlighted.set(Some(index));
+                        state.highlighted.set(Some(index));
                     }
                 });
                 option.call(SelectOptionHandle {
@@ -308,7 +298,7 @@ fn visible_rows(state: State) -> Vec<usize> {
     let query = state.search_text.get_untracked().to_lowercase();
     state
         .options
-        .get()
+        .value()
         .peek()
         .iter()
         .enumerate()
@@ -319,7 +309,7 @@ fn visible_rows(state: State) -> Vec<usize> {
 
 fn blur(state: State, has_focus: bool, target: Focus) {
     if !has_focus && state.focus.get_untracked() == target {
-        state.set_focus.set(Focus::Away);
+        state.focus.set(Focus::Away);
     }
 }
 
@@ -343,7 +333,7 @@ pub fn select_option_button(document: &Document, select: NodeId, index: usize) -
     document
         .component_state::<State>(select)
         .rows
-        .get()
+        .value()
         .borrow()[index]
         .button
         .get()
@@ -357,9 +347,9 @@ pub fn select_highlighted(document: &Document, select: NodeId) -> Option<usize> 
 }
 
 fn apply_requested_selection(state: State, selected: Option<usize>) {
-    let selected = selected.filter(|index| *index < state.options.get().peek().len());
+    let selected = selected.filter(|index| *index < state.options.value().peek().len());
     if state.selected.get_untracked() != selected {
-        state.set_selected.set(selected);
+        state.selected.set(selected);
     }
 }
 
@@ -384,15 +374,15 @@ fn trigger_key(state: State, press: KeyPress) -> bool {
 }
 
 fn open(state: State) {
-    state.set_open.set(true);
+    state.open.set(true);
     filter(state, "");
-    state.set_highlighted.set(state.selected.get_untracked());
-    state.set_focus.set(Focus::Search);
+    state.highlighted.set(state.selected.get_untracked());
+    state.focus.set(Focus::Search);
 }
 
 fn dismiss(state: State) {
-    state.set_open.set(false);
-    state.set_focus.set(Focus::Away);
+    state.open.set(false);
+    state.focus.set(Focus::Away);
 }
 
 fn confirm(state: State, index: usize) {
@@ -401,19 +391,19 @@ fn confirm(state: State, index: usize) {
 }
 
 fn apply_selection(state: State, selected: Option<usize>) {
-    state.set_selected.set(selected);
+    state.selected.set(selected);
     state.on_change.call(selected);
 }
 
 fn filter(state: State, text: &str) {
-    state.set_search_text.set(text.to_owned());
+    state.search_text.set(text.to_owned());
     let shown = visible_rows(state);
     let still_shown = state
         .highlighted
         .get_untracked()
         .is_some_and(|index| shown.contains(&index));
     if !still_shown {
-        state.set_highlighted.set(shown.first().copied());
+        state.highlighted.set(shown.first().copied());
     }
 }
 
@@ -434,6 +424,6 @@ fn navigate(state: State, press: KeyPress) -> bool {
         Key::End => *visible.last().expect("checked non-empty"),
         _ => return false,
     };
-    state.set_highlighted.set(Some(next));
+    state.highlighted.set(Some(next));
     true
 }

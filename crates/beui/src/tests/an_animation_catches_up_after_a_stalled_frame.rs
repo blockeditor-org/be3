@@ -4,15 +4,15 @@ use crate::reactive::*;
 #[test]
 fn an_animation_catches_up_after_a_stalled_frame() {
     let _root = RootScope::new();
-    let (progress, set_progress) = create_signal(0.0_f32);
+    let progress = create_signal(0.0_f32);
     let document = build(move || {
         let animation = create_animation(
             move |frame| {
-                let progress = tween(frame.elapsed.as_secs_f32(), 0.3, Easing::OutCubic);
-                set_progress.set(progress);
-                progress < 1.0
+                let eased = tween(frame.elapsed.as_secs_f32(), 0.3, Easing::OutCubic);
+                progress.set(eased);
+                eased < 1.0
             },
-            move || set_progress.set(1.0),
+            move || progress.set(1.0),
         );
         animation.start();
         view! {

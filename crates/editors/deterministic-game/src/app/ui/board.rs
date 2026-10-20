@@ -68,14 +68,14 @@ pub(crate) fn Stage(
 ) -> NodeId {
     let canvas = editor.canvas();
     let world_size = editor.world();
-    let (annotations, set_annotations) = create_signal(Vec::<Annotation>::new());
-    let (pending, set_pending) = create_signal(None::<Annotation>);
+    let annotations = create_signal(Vec::<Annotation>::new());
+    let pending = create_signal(None::<Annotation>);
     create_effect(move || {
         layout.with(|_| {});
-        set_annotations.set(Vec::new());
-        set_pending.set(None);
+        annotations.set(Vec::new());
+        pending.set(None);
     });
-    let (bar, set_bar) = create_signal(Rect::ZERO);
+    let bar = create_signal(Rect::ZERO);
 
     let view_now = move || {
         canvas
@@ -98,9 +98,9 @@ pub(crate) fn Stage(
         let now_drawn = drawn.get();
         let now_hand = hand.get();
         let earlier = previous
-            .get()
+            .value()
             .replace(Some((now_drawn.clone(), now_hand.clone())));
-        let dropped = dropped.get().take().filter(|(id, _, onto)| {
+        let dropped = dropped.value().take().filter(|(id, _, onto)| {
             now_drawn.item(*id).and_then(|placed| placed.spot) == Some(*onto)
         });
         let Some((was_drawn, was_hand)) = earlier else {
@@ -156,20 +156,20 @@ pub(crate) fn Stage(
     let finish = move |pos: Pos2| {
         let from = play.dragging.get_untracked().map(|dragging| dragging.from);
         let carried = lifted.get_untracked();
-        play.set_dragging.set(None);
-        play.set_over.set(None);
+        play.dragging.set(None);
+        play.over.set(None);
         if let (Some(from), Some(to)) = (from, hit(pos))
             && from != to
         {
             dropped
-                .get()
+                .value()
                 .set(carried.map(|carried| (carried.id, carried.rect, to)));
             play.dropped(from, to);
         }
     };
 
     let on_press = move |pointer: PointerPress| {
-        *press.get().borrow_mut() = Some(Press {
+        *press.value().borrow_mut() = Some(Press {
             start: pointer.pos,
             last: pointer.pos,
             spot: hit(pointer.pos),
@@ -178,7 +178,7 @@ pub(crate) fn Stage(
         });
     };
     let on_drag = move |pointer: PointerPress| {
-        let pressed = press.get();
+        let pressed = press.value();
         let mut held = pressed.borrow_mut();
         let Some(state) = held.as_mut() else {
             return;
@@ -187,12 +187,12 @@ pub(crate) fn Stage(
         state.last = pointer.pos;
         if state.dragging {
             if let Some(dragging) = play.dragging.get_untracked() {
-                play.set_dragging.set(Some(Dragging {
+                play.dragging.set(Some(Dragging {
                     at: pointer.pos,
                     ..dragging
                 }));
             }
-            play.set_over.set(hit(pointer.pos));
+            play.over.set(hit(pointer.pos));
             return;
         }
         if state.panning {
@@ -205,9 +205,9 @@ pub(crate) fn Stage(
         match state.spot.filter(|spot| play.can_drag(*spot)) {
             Some(from) => {
                 state.dragging = true;
-                play.set_choices.set(Vec::new());
-                play.set_selected.set(Some(from));
-                play.set_dragging.set(Some(Dragging {
+                play.choices.set(Vec::new());
+                play.selected.set(Some(from));
+                play.dragging.set(Some(Dragging {
                     from,
                     at: pointer.pos,
                 }));
@@ -220,8 +220,8 @@ pub(crate) fn Stage(
         }
     };
     let on_click_at = move |pointer: PointerPress| {
-        let state = press.get().borrow_mut().take();
-        set_annotations.set(Vec::new());
+        let state = press.value().borrow_mut().take();
+        annotations.set(Vec::new());
         match state {
             Some(state) if state.dragging => finish(pointer.pos),
             Some(state) if state.panning => {}
@@ -235,14 +235,14 @@ pub(crate) fn Stage(
         if active {
             return;
         }
-        let state = press.get().borrow_mut().take();
+        let state = press.value().borrow_mut().take();
         if let Some(state) = state.filter(|state| state.dragging) {
             finish(state.last);
         }
     };
     let on_secondary_drag = move |drag: SecondaryDrag| {
         let Some(from) = table_hit(drag.from) else {
-            set_pending.set(None);
+            pending.set(None);
             return;
         };
         let drawn = table_hit(drag.pos).map(|to| Annotation {
@@ -251,14 +251,14 @@ pub(crate) fn Stage(
             brush: Brush::of(drag.modifiers),
         });
         if drag.cancelled {
-            set_pending.set(None);
+            pending.set(None);
         } else if drag.ended {
-            set_pending.set(None);
+            pending.set(None);
             if let Some(drawn) = drawn {
-                set_annotations.update(|annotations| *annotations = toggled(annotations, drawn));
+                annotations.update(|annotations| *annotations = toggled(annotations, drawn));
             }
         } else {
-            set_pending.set(drawn);
+            pending.set(drawn);
         }
     };
     let on_key = move |press: KeyPress| {
@@ -345,7 +345,7 @@ pub(crate) fn Stage(
                             <Drawing draw={marks_draw} />
                         </CanvasItem>
                     </Canvas>
-                    <HandBar hand set_bar play={play} hidden />
+                    <HandBar hand bar play={play} hidden />
                 </List>
                 <Canvas view={screen_view()}>
                     <ForEach keys={flight_keys}>|id: ItemId|

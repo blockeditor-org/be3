@@ -7,8 +7,8 @@ use crate::{Dismiss, KeyAt, KeyPhase};
 #[test]
 fn escape_closes_an_overlay_before_a_window_listener_hears_it() {
     let _root = crate::reactive::RootScope::new();
-    let (open, set_open) = create_signal(true);
-    let (heard, set_heard) = create_signal(0);
+    let open = create_signal(true);
+    let heard = create_signal(0);
     let overlay = NodeRef::new();
     let document = build({
         move || {
@@ -17,7 +17,7 @@ fn escape_closes_an_overlay_before_a_window_listener_hears_it() {
                     .press()
                     .is_some_and(|press| press.pressed && press.key == Key::Escape);
                 if escaped {
-                    set_heard.update(|heard| *heard += 1);
+                    heard.update(|heard| *heard += 1);
                 }
                 escaped
             });
@@ -28,7 +28,7 @@ fn escape_closes_an_overlay_before_a_window_listener_hears_it() {
                         anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
                         placement=Placement::At
                         open={open}
-                        on_dismiss={move |_: Dismiss| set_open.set(false)}
+                        on_dismiss={move |_: Dismiss| open.set(false)}
                     >
                         <Frame width=40.0 height=30.0 />
                     </Overlay>

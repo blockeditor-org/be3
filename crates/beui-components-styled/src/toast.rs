@@ -93,7 +93,7 @@ pub fn Toasts(
                         let on_activate = on_activate;
                         let duration = match toast.sticky || toast.danger {
                             true => None,
-                            false => duration.peek(),
+                            false => duration.get_untracked(),
                         };
                         view! {
                             <ToastCard

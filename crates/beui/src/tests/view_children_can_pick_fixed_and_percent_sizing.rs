@@ -5,8 +5,8 @@ use crate::reactive::*;
 #[test]
 fn view_children_can_pick_fixed_and_percent_sizing() {
     let _root = crate::reactive::RootScope::new();
-    let (left, set_left) = create_signal(None);
-    let (right, set_right) = create_signal(None);
+    let left = create_signal(None);
+    let right = create_signal(None);
 
     let document = build(move || {
         let tree = view! {
@@ -16,8 +16,8 @@ fn view_children_can_pick_fixed_and_percent_sizing() {
             </List>
         };
         let children = with_document(|document| document.children(tree));
-        set_left.set(Some(children[0]));
-        set_right.set(Some(children[1]));
+        left.set(Some(children[0]));
+        right.set(Some(children[1]));
         tree
     });
 

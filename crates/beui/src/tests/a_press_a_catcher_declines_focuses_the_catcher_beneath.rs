@@ -6,8 +6,8 @@ use crate::reactive::*;
 #[test]
 fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
     let _root = crate::reactive::RootScope::new();
-    let (below, set_below) = create_signal(Vec::<Event>::new());
-    let (above, set_above) = create_signal(Vec::<Event>::new());
+    let below = create_signal(Vec::<Event>::new());
+    let above = create_signal(Vec::<Event>::new());
     let document = build({
         move || {
             view! {
@@ -17,7 +17,7 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
                             focusable=true
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    set_below.update(|below| below.extend(flattened(input)));
+                                    below.update(|below| below.extend(flattened(input)));
                                 }
                             }}
                         >
@@ -30,7 +30,7 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
                             hit_at={|local: Pos2| local.x >= 100.0}
                             on_forward={move |input: ForwardedInput| {
                                 if input.focused {
-                                    set_above.update(|above| above.extend(flattened(input)));
+                                    above.update(|above| above.extend(flattened(input)));
                                 }
                             }}
                         >
@@ -45,8 +45,8 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
     harness.frame(Vec::new());
 
     harness.click(pos2(50.0, 50.0));
-    set_below.update(|below| below.clear());
-    set_above.update(|above| above.clear());
+    below.update(|below| below.clear());
+    above.update(|above| above.clear());
     harness.frame(vec![Event::Text("a".to_owned())]);
     assert_eq!(below.get_untracked(), [Event::Text("a".to_owned())]);
     assert!(
@@ -55,8 +55,8 @@ fn a_press_a_catcher_declines_focuses_the_catcher_beneath() {
     );
 
     harness.click(pos2(150.0, 50.0));
-    set_below.update(|below| below.clear());
-    set_above.update(|above| above.clear());
+    below.update(|below| below.clear());
+    above.update(|above| above.clear());
     harness.frame(vec![Event::Text("b".to_owned())]);
     assert_eq!(above.get_untracked(), [Event::Text("b".to_owned())]);
     assert!(below.with_untracked(|below| below.is_empty()));

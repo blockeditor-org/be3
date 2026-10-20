@@ -71,8 +71,8 @@ fn PowerItem(action: PowerAction, available: Memo<PowerAvailability>) -> MenuIte
 pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let available = editor.host_value::<Power>();
     let allowed = available;
-    let (confirming, set_confirming) = create_signal(PowerAction::LogOut);
-    let (open, set_open) = create_signal(false);
+    let confirming = create_signal(PowerAction::LogOut);
+    let open = create_signal(false);
     let chose = move |path: Vec<usize>| {
         let Some(action) = path
             .first()
@@ -86,18 +86,18 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
         match action {
             PowerAction::Lock | PowerAction::Suspend => editor.act(action),
             _ => {
-                set_confirming.set(action);
-                set_open.set(true);
+                confirming.set(action);
+                open.set(true);
             }
         }
     };
     let title = create_memo(move || question(confirming.get()));
     let explained = create_memo(move || consequence(confirming.get()).to_owned());
     let verb = create_memo(move || label(confirming.get()).to_owned());
-    let dismiss = move || set_open.set(false);
-    let cancel = move || set_open.set(false);
+    let dismiss = move || open.set(false);
+    let cancel = move || open.set(false);
     let confirm = move || {
-        set_open.set(false);
+        open.set(false);
         editor.act(confirming.get_untracked());
     };
     view! {

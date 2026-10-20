@@ -6,12 +6,12 @@ use crate::unstyled::{PanZoomView, pan_zoom_view};
 #[test]
 fn scrolling_a_pan_zoom_pans_it() {
     let _root = crate::reactive::RootScope::new();
-    let (reported, set_reported) = create_signal(None);
+    let reported = create_signal(None);
     let document = build(move || {
         view! {
             <PanZoomStage
                 view=PanZoomView::IDENTITY
-                on_change={move |view| set_reported.set(Some(view))}
+                on_change={move |view| reported.set(Some(view))}
             />
         }
     });

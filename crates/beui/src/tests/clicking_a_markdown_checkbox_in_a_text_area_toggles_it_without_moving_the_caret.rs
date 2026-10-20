@@ -35,13 +35,13 @@ fn checkbox_toggled(harness: &Harness) -> Vec<Option<Toggled>> {
 #[test]
 fn clicking_a_markdown_checkbox_in_a_text_area_toggles_it_without_moving_the_caret() {
     let _root = crate::reactive::RootScope::new();
-    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
+    let held = create_signal::<Option<TextAreaState>>(None);
     let document = build(move || {
         let document =
             Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
-        set_held.update(|held| *held = Some(state));
+        held.update(|held| *held = Some(state));
         view! {
             <TextArea state={state} />
         }

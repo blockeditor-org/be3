@@ -7,8 +7,8 @@ use crate::styled::*;
 #[test]
 fn a_catcher_in_a_dialog_hears_a_press_on_it() {
     let _root = crate::reactive::RootScope::new();
-    let (open, _set_open) = create_signal(true);
-    let (heard, set_heard) = create_signal(Vec::<Event>::new());
+    let open = create_signal(true);
+    let heard = create_signal(Vec::<Event>::new());
     let catcher = NodeRef::new();
     let document = build({
         move || {
@@ -18,7 +18,7 @@ fn a_catcher_in_a_dialog_hears_a_press_on_it() {
                         <Interactive
                             @node_ref={&catcher}
                             on_forward={move |input: ForwardedInput| {
-                                set_heard.update(|heard| heard.extend(flattened(input)))
+                                heard.update(|heard| heard.extend(flattened(input)))
                             }}
                         >
                             <Frame height=200.0 />

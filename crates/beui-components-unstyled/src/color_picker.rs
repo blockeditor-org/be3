@@ -44,12 +44,9 @@ impl ColorModel for Oklch {
 
 #[derive(Clone, Copy)]
 pub struct ColorPickerState<Model: ColorModel = Hsva> {
-    color: ReadSignal<Model>,
-    set_color: WriteSignal<Model>,
-    reported: ReadSignal<Color32>,
-    set_reported: WriteSignal<Color32>,
-    dragging: ReadSignal<bool>,
-    set_dragging: WriteSignal<bool>,
+    color: Signal<Model>,
+    reported: Signal<Color32>,
+    dragging: Signal<bool>,
     disabled: Memo<bool>,
     on_change: Callback<Color32>,
     on_preview: Callback<Option<Color32>>,
@@ -62,23 +59,20 @@ impl<Model: ColorModel> ColorPickerState<Model> {
         on_change: Callback<Color32>,
         on_preview: Callback<Option<Color32>>,
     ) -> Self {
-        let first = value.peek();
-        let (color, set_color) = create_signal(Model::from_color_keeping(first, Model::default()));
-        let (reported, set_reported) = create_signal(first);
-        let (dragging, set_dragging) = create_signal(false);
+        let first = value.get_untracked();
+        let color = create_signal(Model::from_color_keeping(first, Model::default()));
+        let reported = create_signal(first);
+        let dragging = create_signal(false);
         create_effect(move || {
             let next = value.get();
-            set_reported.set(next);
+            reported.set(next);
             let held = color.get_untracked();
-            set_color.set(Model::from_color_keeping(next, held));
+            color.set(Model::from_color_keeping(next, held));
         });
         Self {
             color,
-            set_color,
             reported,
-            set_reported,
             dragging,
-            set_dragging,
             disabled: create_memo(move || disabled.get()),
             on_change,
             on_preview,
@@ -86,7 +80,7 @@ impl<Model: ColorModel> ColorPickerState<Model> {
     }
 
     pub fn color(&self) -> ReadSignal<Model> {
-        self.color
+        self.color.read_only()
     }
 
     pub fn shown(&self) -> Memo<Color32> {
@@ -102,7 +96,7 @@ impl<Model: ColorModel> ColorPickerState<Model> {
         if self.disabled.get_untracked() {
             return;
         }
-        self.set_color.set(next);
+        self.color.set(next);
         let color = next.to_color();
         if self.dragging.get_untracked() {
             self.on_preview.call(Some(color));
@@ -112,7 +106,7 @@ impl<Model: ColorModel> ColorPickerState<Model> {
     }
 
     pub fn drag(&self, dragging: bool) {
-        self.set_dragging.set(dragging);
+        self.dragging.set(dragging);
         if !dragging {
             self.report(self.color.get_untracked().to_color());
             self.on_preview.call(None);
@@ -126,7 +120,7 @@ impl<Model: ColorModel> ColorPickerState<Model> {
 
     fn report(&self, color: Color32) {
         if color != self.reported.get_untracked() {
-            self.set_reported.set(color);
+            self.reported.set(color);
             self.on_change.call(color);
         }
     }
@@ -225,8 +219,7 @@ impl ColorPickerState<Hsva> {
 
 #[derive(Clone, Copy)]
 pub struct HexText {
-    text: ReadSignal<String>,
-    set_text: WriteSignal<String>,
+    text: Signal<String>,
     shown: Memo<Color32>,
     alpha: bool,
     apply: Callback<Color32>,
@@ -234,16 +227,15 @@ pub struct HexText {
 
 impl HexText {
     pub fn new(shown: Memo<Color32>, alpha: bool, apply: Callback<Color32>) -> Self {
-        let (text, set_text) = create_signal(hex_text(shown.get_untracked(), alpha));
+        let text = create_signal(hex_text(shown.get_untracked(), alpha));
         create_effect(move || {
             let next = shown.get();
             if parse_typed(&text.get_untracked(), next) != Some(next) {
-                set_text.set(hex_text(next, alpha));
+                text.set(hex_text(next, alpha));
             }
         });
         Self {
             text,
-            set_text,
             shown,
             alpha,
             apply,
@@ -251,7 +243,7 @@ impl HexText {
     }
 
     pub fn text(&self) -> ReadSignal<String> {
-        self.text
+        self.text.read_only()
     }
 
     pub fn placeholder(&self) -> &'static str {
@@ -262,7 +254,7 @@ impl HexText {
     }
 
     pub fn edit(&self, typed: String) {
-        self.set_text.set(typed.clone());
+        self.text.set(typed.clone());
         if let Some(parsed) = parse_typed(&typed, self.shown.get_untracked()) {
             self.apply.call(parsed);
         }
@@ -275,7 +267,7 @@ impl HexText {
                 self.apply.call(keep_alpha(&typed, parsed, held));
             }
             None => self
-                .set_text
+                .text
                 .set(hex_text(self.shown.get_untracked(), self.alpha)),
         }
     }

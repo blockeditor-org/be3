@@ -26,7 +26,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
     let game = Game::watch(editor, block);
     let levels = game.levels();
     let hotbar = game.hotbar();
-    let (expanded, set_expanded) = create_signal(None::<ChallengeId>);
+    let expanded = create_signal(None::<ChallengeId>);
 
     create_effect(move || {
         let open = expanded.get();
@@ -85,7 +85,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
                                 let here = open.memo(Some(challenge));
                                 let toggle = move || {
                                     let shown = expanded.get_untracked() == Some(challenge);
-                                    set_expanded.set((!shown).then_some(challenge));
+                                    expanded.set((!shown).then_some(challenge));
                                 };
                                 view! {
                                     <LevelRow

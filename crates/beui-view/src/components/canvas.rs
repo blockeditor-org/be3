@@ -1,4 +1,4 @@
-use crate::reactive::{Child, Children, Placed, Prop, create_effect, with_document};
+use crate::reactive::{Child, Children, Get, Placed, Prop, create_effect, with_document};
 use beui_core::base::canvas::{CanvasNode, CanvasView};
 use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2, pos2};

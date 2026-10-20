@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn focus_loss_and_hidden_content_cancel_keyboard_activation() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let button = NodeRef::new();
     let (document, [hidden, _after]) = toolbar_of({
         move || {
@@ -15,7 +15,7 @@ fn focus_loss_and_hidden_content_cancel_keyboard_activation() {
                         <LabelledButton
                             @node_ref=&button
                             label="Click"
-                            on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                            on_click={move || clicks.update(|clicks| *clicks += 1)}
                         />
                     </Frame>
                 },

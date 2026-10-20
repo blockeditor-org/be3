@@ -102,26 +102,26 @@ pub(crate) fn PluginRegion(
         region,
     });
     let mount = next_mount();
-    on_cleanup(move || plugin_host::unmount_region(&plugin_id.get(), instance, region, mount));
-    let revision = super::listen(&plugin_id.get());
+    on_cleanup(move || plugin_host::unmount_region(&plugin_id.value(), instance, region, mount));
+    let revision = super::listen(&plugin_id.value());
     let placed = store(Cell::new(None::<EmbedPlacement>));
     let screens = use_screens();
     let place = Callback::new(move |placement: Option<EmbedPlacement>| match placement {
         Some(placement) => plugin_host::place_region(
-            &plugin_id.get(),
+            &plugin_id.value(),
             instance,
             region,
             mount,
             RegionPlacement {
                 rect: placement.rect,
                 clip: placement.clip,
-                zoom: zoom.peek(),
+                zoom: zoom.get_untracked(),
                 screens: screens.get_untracked(),
             },
-            frame.peek(),
-            view.peek(),
+            frame.get_untracked(),
+            view.get_untracked(),
         ),
-        None => plugin_host::unplace_region(&plugin_id.get(), instance, region, mount),
+        None => plugin_host::unplace_region(&plugin_id.value(), instance, region, mount),
     });
     let slot = EmbedSlot::new();
     slot.on_place(move |placement| {
@@ -141,9 +141,9 @@ pub(crate) fn PluginRegion(
     });
     create_effect(move || {
         revision.get();
-        let actions = plugin_host::take_region_actions(&plugin_id.get(), instance);
+        let actions = plugin_host::take_region_actions(&plugin_id.value(), instance);
         if !actions.is_empty() {
-            let from = super::editors::editors().block_of(&plugin_id.get(), instance);
+            let from = super::editors::editors().block_of(&plugin_id.value(), instance);
             for action in actions {
                 super::act(from, action);
             }
@@ -156,19 +156,19 @@ pub(crate) fn PluginRegion(
         });
         let children: Vec<ChildId> = placed.iter().map(|(child, _)| *child).collect();
         for (child, pick) in
-            plugin_host::take_child_menu_picks(&plugin_id.get(), instance, &children)
+            plugin_host::take_child_menu_picks(&plugin_id.value(), instance, &children)
         {
             if let Some((_, block)) = placed.iter().find(|(placed, _)| *placed == child) {
                 super::editors::pick_frame_menu(*block, pick);
             }
         }
-        for drag in plugin_host::take_block_drags(&plugin_id.get(), instance) {
+        for drag in plugin_host::take_block_drags(&plugin_id.value(), instance) {
             carry(drag);
         }
     });
     let frames = create_memo(move || {
         revision.get();
-        plugin_host::frames(&plugin_id.get())
+        plugin_host::frames(&plugin_id.value())
     });
     let drawing = |floating: bool| {
         let shown = create_memo(move || {
@@ -205,13 +205,13 @@ pub(crate) fn PluginRegion(
                 drawn,
                 held: held_rect,
                 size,
-                placed: plugin_host::region_placed(&plugin_id.get(), instance, region),
+                placed: plugin_host::region_placed(&plugin_id.value(), instance, region),
             };
             let previous = held.borrow().clone();
             if let Some((_, drawing)) = previous.filter(|(was, _)| *was == key)
                 && let Some(damage) = state.with_untracked(|view| {
                     plugin_host::region_damage(
-                        &plugin_id.get(),
+                        &plugin_id.value(),
                         instance,
                         region,
                         view,
@@ -238,7 +238,7 @@ pub(crate) fn PluginRegion(
             }
             let drawing = state.with_untracked(|view| {
                 plugin_host::region_drawing(
-                    &plugin_id.get(),
+                    &plugin_id.value(),
                     instance,
                     region,
                     view,
@@ -311,21 +311,21 @@ pub(crate) fn PluginRegion(
     create_effect(move || {
         tick.get();
         plugin_host::report_children(
-            &plugin_id.get(),
+            &plugin_id.value(),
             instance,
             region,
             super::editors::statuses(&reports),
         );
     });
     let forward = move |input: ForwardedInput| {
-        plugin_host::forward_region(&plugin_id.get(), instance, region, &input);
+        plugin_host::forward_region(&plugin_id.value(), instance, region, &input);
     };
     let back = move |gesture: beui::BackGesture| {
-        plugin_host::back_region(&plugin_id.get(), instance, region, gesture);
+        plugin_host::back_region(&plugin_id.value(), instance, region, gesture);
     };
     let occluded = occlusion();
     let beyond = move |local: Pos2| {
-        let Some(placed) = frame.peek().and_then(|frame| frame.content) else {
+        let Some(placed) = frame.get_untracked().and_then(|frame| frame.content) else {
             return false;
         };
         let placed = Rect::from_min_size(
@@ -334,7 +334,7 @@ pub(crate) fn PluginRegion(
         );
         region == EditorRegion::Frame
             && !placed.contains(local)
-            && plugin_host::frame_rects(&plugin_id.get(), instance).is_some_and(|frame| {
+            && plugin_host::frame_rects(&plugin_id.value(), instance).is_some_and(|frame| {
                 frame.content.contains(local)
                     && !frame
                         .floating
@@ -343,7 +343,7 @@ pub(crate) fn PluginRegion(
             })
     };
     let takes = move |local: Pos2| {
-        !passive.peek()
+        !passive.get_untracked()
             && !beyond(local)
             && state.with_untracked(|view| {
                 let position = local + view.rect.min.to_vec2();
@@ -362,12 +362,12 @@ pub(crate) fn PluginRegion(
         let over = over
             .filter(|(_, point)| taken(*point))
             .map(|(drag, point)| (drag, point.pos));
-        plugin_host::drag_over_region(&plugin_id.get(), instance, region, over, false);
+        plugin_host::drag_over_region(&plugin_id.value(), instance, region, over, false);
     };
     let dropped = move |(drag, point): (BlockDrag, DragPoint)| {
         if taken(point) {
             plugin_host::drag_over_region(
-                &plugin_id.get(),
+                &plugin_id.value(),
                 instance,
                 region,
                 Some((drag, point.pos)),
@@ -376,10 +376,10 @@ pub(crate) fn PluginRegion(
         }
     };
     let pressed_outside = move |_: Pos2| {
-        plugin_host::pressed_outside_region(&plugin_id.get(), instance, region);
+        plugin_host::pressed_outside_region(&plugin_id.value(), instance, region);
     };
     let claims = move |(position, held): (Pos2, beui::Modifiers)| {
-        !passive.peek() && state.with_untracked(|view| view.claims(position, held))
+        !passive.get_untracked() && state.with_untracked(|view| view.claims(position, held))
     };
     view! {
         <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
@@ -443,7 +443,7 @@ fn focus_when_asked(
     create_effect(move || {
         revision.get();
         untrack(|| {
-            if !plugin_host::take_focus_request(&plugin_id.get(), instance, region) {
+            if !plugin_host::take_focus_request(&plugin_id.value(), instance, region) {
                 return;
             }
             if let Some(node) = catcher.try_get() {

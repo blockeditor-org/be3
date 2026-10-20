@@ -7,7 +7,7 @@ use crate::unstyled::BackSlide;
 #[test]
 fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
     let _root = crate::reactive::RootScope::new();
-    let (depth, set_depth) = create_signal(2_u32);
+    let depth = create_signal(2_u32);
     let page = NodeRef::new();
     let previous = NodeRef::new();
     let document = build({
@@ -16,7 +16,7 @@ fn a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped() {
             view! {
                 <BackSlide
                     enabled={nested}
-                    on_back={move || set_depth.set(depth.get_untracked() - 1)}
+                    on_back={move || depth.set(depth.get_untracked() - 1)}
                     behind={move || view! {
                         <Text string="Previous" color=Color32::WHITE @node_ref={&previous} />
                     }}

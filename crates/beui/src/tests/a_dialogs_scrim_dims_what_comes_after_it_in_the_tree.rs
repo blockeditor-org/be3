@@ -10,7 +10,7 @@ const SIBLING: Color32 = Color32::from_rgb(200, 40, 40);
 #[test]
 fn a_dialogs_scrim_dims_what_comes_after_it_in_the_tree() {
     let _root = crate::reactive::RootScope::new();
-    let (open, set_open) = create_signal(false);
+    let open = create_signal(false);
     let document = build({
         move || {
             view! {
@@ -26,7 +26,7 @@ fn a_dialogs_scrim_dims_what_comes_after_it_in_the_tree() {
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     let output = harness.frame(Vec::new());
     let shapes = output.shapes();
     let viewport = Rect::from_min_size(Pos2::ZERO, VIEWPORT);

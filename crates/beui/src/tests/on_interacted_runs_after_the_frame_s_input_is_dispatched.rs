@@ -6,19 +6,19 @@ use crate::unstyled::Button;
 #[test]
 fn on_interacted_runs_after_the_frame_s_input_is_dispatched() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
-    let (button, set_button) = create_signal(None);
+    let clicks = create_signal(0);
+    let button = create_signal(None);
     let mut document = build(move || {
         let node = view! {
-            <Button on_click={move || set_clicks.update(|clicks| *clicks += 1)}>
+            <Button on_click={move || clicks.update(|clicks| *clicks += 1)}>
                 <Text string="go" />
             </Button>
         };
-        set_button.set(Some(node));
+        button.set(Some(node));
         node
     });
-    let (seen, set_seen) = create_signal(Vec::new());
-    document.on_interacted(move || set_seen.update(|seen| seen.push(clicks.get_untracked())));
+    let seen = create_signal(Vec::new());
+    document.on_interacted(move || seen.update(|seen| seen.push(clicks.get_untracked())));
     let button = button.get_untracked().expect("the button was built");
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());

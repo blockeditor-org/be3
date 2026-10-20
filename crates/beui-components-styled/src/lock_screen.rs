@@ -55,12 +55,12 @@ pub fn LockScreen(
     let anchor = create_memo(move || OverlayAnchor::Point(bounds.get().min));
     let width = create_memo(move || Some(bounds.get().width()));
     let height = create_memo(move || Some(bounds.get().height()));
-    let (password, set_password) = create_signal(String::new());
+    let password = create_signal(String::new());
     let submit = Rc::new(move |typed: String| {
         if busy.get_untracked() || typed.is_empty() {
             return;
         }
-        set_password.set(String::new());
+        password.set(String::new());
         on_submit.call(typed);
     });
     view! {
@@ -87,7 +87,7 @@ pub fn LockScreen(
                             });
                             let submit = submit.clone();
                             let action = on_action;
-                            let changed = set_password;
+                            let changed = password;
                             let card = view! {
                                 <LockCard
                                     place={place}
@@ -97,7 +97,7 @@ pub fn LockScreen(
                                     error={error}
                                     busy={busy}
                                     actions={actions}
-                                    password={password}
+                                    password={password.read_only()}
                                     focused={focused}
                                     id={format!("{}.{index}", id)}
                                     on_change={move |typed: String| changed.set(typed)}

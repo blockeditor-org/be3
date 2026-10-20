@@ -4,7 +4,7 @@ use super::*;
 fn diamond_and_direct_dependencies_never_glitch() {
     let _root = RootScope::new();
     let scope = Scope::new();
-    let (value, set_value) = create_signal(1);
+    let value = create_signal(1);
     let seen = Rc::new(RefCell::new(Vec::new()));
     scope.run(|| {
         let left = create_memo(move || value.get() * 2);
@@ -13,7 +13,7 @@ fn diamond_and_direct_dependencies_never_glitch() {
         let seen = seen.clone();
         create_effect(move || seen.borrow_mut().push((value.get(), sum.get())));
     });
-    set_value.set(2);
-    set_value.set(3);
+    value.set(2);
+    value.set(3);
     assert_eq!(*seen.borrow(), [(1, 5), (2, 10), (3, 15)]);
 }

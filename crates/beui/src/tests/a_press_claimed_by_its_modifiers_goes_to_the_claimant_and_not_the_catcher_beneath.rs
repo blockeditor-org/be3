@@ -14,8 +14,8 @@ fn presses(log: ReadSignal<Vec<Event>>) -> usize {
 #[test]
 fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_beneath() {
     let _root = crate::reactive::RootScope::new();
-    let (child, set_child) = create_signal(Vec::<Event>::new());
-    let (parent, set_parent) = create_signal(Vec::<Event>::new());
+    let child = create_signal(Vec::<Event>::new());
+    let parent = create_signal(Vec::<Event>::new());
     let document = build({
         move || {
             view! {
@@ -23,7 +23,7 @@ fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_ben
                     <CanvasItem x=0.0 y=0.0 width=100.0 height=200.0>
                         <Interactive
                             on_forward={move |input: ForwardedInput| {
-                                set_child.update(|child| child.extend(flattened(input)))
+                                child.update(|child| child.extend(flattened(input)))
                             }}
                         >
                             <Frame />
@@ -34,7 +34,7 @@ fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_ben
                             hit_at={|local: Pos2| local.x >= 100.0}
                             claim_at={|(_, held): (Pos2, Modifiers)| held.logo}
                             on_forward={move |input: ForwardedInput| {
-                                set_parent.update(|parent| parent.extend(flattened(input)))
+                                parent.update(|parent| parent.extend(flattened(input)))
                             }}
                         >
                             <Frame />
@@ -50,20 +50,20 @@ fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_ben
 
     harness.click(hole);
     assert_eq!(
-        presses(child),
+        presses(child.read_only()),
         2,
         "a plain click in the hole is the child's"
     );
-    assert_eq!(presses(parent), 0);
+    assert_eq!(presses(parent.read_only()), 0);
 
     drag_with(&mut harness, hole, pos2(70.0, 90.0), Modifiers::LOGO);
     assert_eq!(
-        presses(child),
+        presses(child.read_only()),
         2,
         "the child hears nothing of a press the parent claimed"
     );
     assert_eq!(
-        presses(parent),
+        presses(parent.read_only()),
         2,
         "the parent hears the press it claimed and its release"
     );

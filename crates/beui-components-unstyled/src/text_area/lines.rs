@@ -93,7 +93,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
             .map_or(Vec2::ZERO, |layout| layout.size);
         Vec2::new(laid.x, laid.y.max(body))
     });
-    create_effect(move || cx.set_text_extent.set(text.get()));
+    create_effect(move || cx.text_extent.set(text.get()));
     let canvas_width = create_memo(move || text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH);
     let canvas_height = create_memo(move || text.get().y + cx.padding.get().y * 2.0);
     let x = create_memo(move || cx.padding.get().x - cx.shift.get());
@@ -376,7 +376,7 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
                 placeholder,
             };
             let key = row_key(&inputs, start, end, newline);
-            let held = cx.held.get();
+            let held = cx.held.value();
             if let Some(key) = &key
                 && let Some(row) = held.row_cache.borrow_mut().find(&env, key)
             {

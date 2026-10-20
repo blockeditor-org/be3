@@ -6,7 +6,7 @@ use crate::styled::*;
 fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let (selected, set_selected) = create_signal(Vec::new());
+    let selected = create_signal(Vec::new());
     let (document, [menu]) = toolbar_of({
         move || {
             let items = view! {
@@ -19,7 +19,7 @@ fn selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack() 
                 <ContextMenu
                     items
                     on_select={move |path| {
-                        set_selected.update(|selected| selected.push(path));
+                        selected.update(|selected| selected.push(path));
                     }}
                 >
                     <MenuRegion @node_ref=&region />

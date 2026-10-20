@@ -734,7 +734,7 @@ pub fn watch_inverses(
     editor: crate::Editor,
     database: Memo<Option<Uuid>>,
 ) -> Memo<Option<Vec<Inverse>>> {
-    let (found, set_found) = create_signal(None::<Vec<Inverse>>);
+    let found = create_signal(None::<Vec<Inverse>>);
     let watched: std::cell::RefCell<Option<(Uuid, crate::BlockList)>> =
         std::cell::RefCell::new(None);
     create_effect(move || {
@@ -778,7 +778,7 @@ pub fn watch_inverses(
                 };
                 all.extend(inverses);
             }
-            set_found.set(Some(all));
+            found.set(Some(all));
         });
     });
     create_memo(move || found.get())
@@ -792,13 +792,13 @@ fn source_inverses(
     let content = editor.content_of::<DatabaseContent>(source);
     let content_settled = crate::content_settled(editor, source, content.loaded());
     let schema_id = content.field(be_block::ObjectId::ROOT, Database::SCHEMA);
-    let (found, set_found) = create_signal(None);
+    let found = create_signal(None);
     create_effect(move || {
         if !content_settled.get() {
             return;
         }
         let Some(schema) = schema_id.get() else {
-            set_found.set(Some(Vec::new()));
+            found.set(Some(Vec::new()));
             return;
         };
         let schema_content = editor.content_of::<DatabaseSchemaContent>(schema);
@@ -807,7 +807,7 @@ fn source_inverses(
         let rows = content.objects(be_block::ObjectId::ROOT, Database::ROWS);
         create_effect(move || {
             if schema_settled.get() {
-                let found = rows.with(|rows| {
+                let all = rows.with(|rows| {
                     schema.with(|schema| {
                         inverses_of(
                             target,
@@ -817,11 +817,11 @@ fn source_inverses(
                         )
                     })
                 });
-                set_found.set(Some(found));
+                found.set(Some(all));
             }
         });
     });
-    found
+    found.read_only()
 }
 
 pub fn relation_targets(fields: &[DatabaseField]) -> Vec<Uuid> {
@@ -845,7 +845,7 @@ pub struct RowLabels {
 }
 
 pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> RowLabels {
-    let (found, set_found) = create_signal(None::<(Vec<Uuid>, BTreeMap<RowRef, String>)>);
+    let found = create_signal(None::<(Vec<Uuid>, BTreeMap<RowRef, String>)>);
     create_effect(move || {
         let wanted = databases.get();
         let watched: Vec<ReadSignal<Option<RowTitles>>> = wanted
@@ -860,7 +860,7 @@ pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> Ro
                 };
                 all.extend(titles);
             }
-            set_found.set(Some((wanted.clone(), all)));
+            found.set(Some((wanted.clone(), all)));
         });
     });
     let blocks = editor.blocks();
@@ -898,7 +898,7 @@ fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Option<RowTit
     let content = editor.content_of::<DatabaseContent>(database);
     let content_settled = crate::content_settled(editor, database, content.loaded());
     let schema_id = content.field(be_block::ObjectId::ROOT, Database::SCHEMA);
-    let (titles, set_titles) = create_signal(None);
+    let titles = create_signal(None);
     create_effect(move || {
         if !content_settled.get() {
             return;
@@ -942,11 +942,11 @@ fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Option<RowTit
                         })
                         .collect::<Vec<_>>()
                 });
-                set_titles.set(Some(projected));
+                titles.set(Some(projected));
             });
         });
     });
-    titles
+    titles.read_only()
 }
 
 #[component]

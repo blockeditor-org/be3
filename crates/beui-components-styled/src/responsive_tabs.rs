@@ -17,18 +17,18 @@ pub fn ResponsiveTabs(
     #[prop(default = NARROW_WIDTH)] breakpoint: f32,
 ) -> NodeId {
     let options = options.into_run();
-    let (selected_read, set_selected) = create_signal(selected.peek());
-    create_effect(move || set_selected.set(selected.get()));
-    set_component_state(selected_read);
+    let current = create_signal(selected.get_untracked());
+    create_effect(move || current.set(selected.get()));
+    set_component_state(current.read_only());
 
     let narrow = narrower_than(breakpoint);
     let wide = create_memo(move || !narrow.get());
-    let highlighted = create_memo(move || Some(selected_read.get()));
+    let highlighted = create_memo(move || Some(current.get()));
 
     let tab_options = options.clone();
-    let tab_selected = selected_read;
+    let tab_selected = current;
     let tab_change = on_change;
-    let tab_set = set_selected;
+    let tab_set = current;
 
     view! {
         <List spacing=0.0>
@@ -53,7 +53,7 @@ pub fn ResponsiveTabs(
                         selected={highlighted}
                         on_change={move |index: Option<usize>| {
                             if let Some(index) = index {
-                                set_selected.set(index);
+                                current.set(index);
                                 on_change.call(index);
                             }
                         }}

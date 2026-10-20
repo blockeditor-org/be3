@@ -222,10 +222,10 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
     let has_connected = create_memo(move || !connected.get().is_empty());
     let removing = create_memo(move || shown.get().removing.unwrap_or_default());
     let asks_removal = create_memo(move || !removing.get().is_empty());
-    let (pasted, set_pasted) = create_signal(String::new());
+    let pasted = create_signal(String::new());
     create_effect(move || {
         if offered.get() {
-            untrack(|| set_pasted.set(String::new()));
+            untrack(|| pasted.set(String::new()));
         }
     });
     let cannot_open = create_memo(move || busy.get() || pasted.get().trim().is_empty());
@@ -334,7 +334,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                         value={pasted}
                         label="Contact link"
                         @test_id={"app.contacts.paste"}
-                        on_change={move |value: String| set_pasted.set(value)}
+                        on_change={move |value: String| pasted.set(value)}
                         on_submit={move |value: String| send(UiCommand::OpenContactLink(value))}
                     />
                     <Button
@@ -397,10 +397,10 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
     });
     let none = create_memo(move || keys.with(Vec::is_empty));
     let names = shown;
-    let (name, set_name) = create_signal(String::new());
+    let name = create_signal(String::new());
     create_effect(move || {
         if made.get() {
-            untrack(|| set_name.set(String::new()));
+            untrack(|| name.set(String::new()));
         }
     });
     let cannot = create_memo(move || busy.get() || name.get().trim().is_empty());
@@ -449,7 +449,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                             value={name}
                             label="Agent name"
                             @test_id={"app.agents.name"}
-                            on_change={move |value: String| set_name.set(value)}
+                            on_change={move |value: String| name.set(value)}
                         />
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Button
@@ -486,7 +486,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
             created.name
         )
     });
-    let (proxy, set_proxy) = create_signal(false);
+    let proxy = create_signal(false);
     let credentials = create_memo(move || {
         let Some(created) = created.get() else {
             return String::new();
@@ -515,7 +515,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
             <Checkbox
                 label="Account token supplied by proxy"
                 checked={proxy}
-                on_change={move |on: bool| set_proxy.set(on)}
+                on_change={move |on: bool| proxy.set(on)}
                 @test_id={"app.agents.proxy"}
             />
             <Show condition={proxy}>
@@ -590,11 +590,11 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
             .unwrap_or_default()
     });
     let has_link = create_memo(move || !link.get().is_empty());
-    let (email, set_email) = create_signal(String::new());
-    let (administrator, set_administrator) = create_signal(false);
+    let email = create_signal(String::new());
+    let administrator = create_signal(false);
     create_effect(move || {
         sent.get();
-        untrack(|| set_email.set(String::new()));
+        untrack(|| email.set(String::new()));
     });
     let role = create_memo(move || match administrator.get() {
         true => OrganizationRole::Administrator,
@@ -617,12 +617,12 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                     value={email}
                     label="Email address"
                     @test_id={"app.invite.email"}
-                    on_change={move |value: String| set_email.set(value)}
+                    on_change={move |value: String| email.set(value)}
                 />
                 <Text style=TextStyle::CAPTION string="Role" />
                 <Tabs
                     selected={role_index}
-                    on_change={move |index: usize| set_administrator.set(index == 1)}
+                    on_change={move |index: usize| administrator.set(index == 1)}
                     options={view! {
                         <ChoiceOption label={OrganizationRole::Editor.label()} />
                         <ChoiceOption label={OrganizationRole::Administrator.label()} />

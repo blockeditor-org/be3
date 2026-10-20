@@ -651,7 +651,7 @@ fn CreateBody(
     act: Act,
     creating: Memo<Option<Creating>>,
 ) -> NodeId {
-    let (state, set_state) = create_signal(ChildState::default());
+    let state = create_signal(ChildState::default());
     let working = create_memo(move || {
         creating.with(|creating| creating.as_ref().is_some_and(|creating| creating.committed))
     });
@@ -697,7 +697,7 @@ fn CreateBody(
                     @test_id={"picker.creation"}
                     on_state={move |next: ChildState| {
                         workspace.creation_state(pick, &next);
-                        set_state.set(next);
+                        state.set(next);
                     }}
                 />
             </Frame>

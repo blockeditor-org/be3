@@ -79,7 +79,7 @@ impl ScrollbarStyle {
 
 struct Reveal {
     held: Memo<bool>,
-    visibility: (ReadSignal<f32>, WriteSignal<f32>),
+    visibility: Signal<f32>,
     poked: Cell<Instant>,
     timer: Cell<Option<Timer>>,
     animation: Cell<Option<Animation>>,
@@ -91,9 +91,8 @@ impl Reveal {
     }
 
     fn fade_to(&self, visibility: f32) {
-        let (shown, set_shown) = self.visibility;
-        if untrack(|| shown.get()) != visibility {
-            set_shown.set(visibility);
+        if self.visibility.get_untracked() != visibility {
+            self.visibility.set(visibility);
         }
     }
 
@@ -476,14 +475,14 @@ fn Scrolling(
     on_change: Callback<ScrollPosition>,
     #[prop(children)] content: Render<Callback<ScrollPosition>>,
 ) -> NodeId {
-    let (reported, set_reported) = create_signal(None::<ScrollPosition>);
+    let reported = create_signal(None::<ScrollPosition>);
     let node = content.call(Callback::new(move |position: ScrollPosition| {
-        set_reported.set(Some(position));
+        reported.set(Some(position));
         on_change.call(position);
     }));
     let motion = store(Motion {
         node: with_document(|document| document.first_offset_within(node)),
-        reported,
+        reported: reported.read_only(),
         direction,
         momentum: RefCell::new(Momentum::new()),
         animation: Cell::default(),
@@ -491,11 +490,11 @@ fn Scrolling(
         autoscrolled: Cell::new(now()),
     });
     let animation = create_animation(
-        move |frame| motion.get().step(frame.delta.as_secs_f32()).is_some(),
-        move || motion.get().finish(),
+        move |frame| motion.value().step(frame.delta.as_secs_f32()).is_some(),
+        move || motion.value().finish(),
     );
     let autoscrolling = create_timer(move || {
-        let state = motion.get();
+        let state = motion.value();
         if state.momentum.borrow().autoscroll == 0.0 {
             return None;
         }
@@ -507,12 +506,12 @@ fn Scrolling(
     let preference = with_document(|document| document.watch_motion());
     create_effect(move || {
         if !preference.get().animates() {
-            motion.get().finish();
+            motion.value().finish();
         }
     });
     if let Some(offset) = motion.with(|motion| motion.node) {
         with_document(|document| {
-            document.set_offset_on_steer(offset, move |()| motion.get().steer());
+            document.set_offset_on_steer(offset, move |()| motion.value().steer());
         });
     }
     set_component_state(motion);
@@ -520,8 +519,8 @@ fn Scrolling(
     let position = create_memo(move || reported.get().unwrap_or_default());
     component_accessibility(create_memo(move || scroll_view(reported.get())));
 
-    let (near, set_near) = create_signal(false);
-    let (engaged, set_engaged) = create_signal(false);
+    let near = create_signal(false);
+    let engaged = create_signal(false);
     let reveal = store(Reveal {
         held: create_memo(move || near.get() || engaged.get()),
         visibility: create_signal(0.0),
@@ -530,18 +529,18 @@ fn Scrolling(
         animation: Cell::default(),
     });
     let animation = create_animation(
-        move |_| reveal.get().step().is_some(),
+        move |_| reveal.value().step().is_some(),
         move || {
-            if !reveal.get().held.get_untracked() {
-                reveal.get().fade_to(0.0);
+            if !reveal.value().held.get_untracked() {
+                reveal.value().fade_to(0.0);
             }
         },
     );
     reveal.with(|reveal| reveal.animation.set(Some(animation)));
     let fading = create_timer(move || {
-        if !reveal.get().held.get_untracked() {
+        if !reveal.value().held.get_untracked() {
             animation.start();
-            if animation.running() && reveal.get().step().is_none() {
+            if animation.running() && reveal.value().step().is_none() {
                 animation.finish();
             }
         }
@@ -555,20 +554,20 @@ fn Scrolling(
         };
         let at = (position.offset, position.overscroll);
         if moved.replace(Some(at)).is_some_and(|was| was != at) {
-            reveal.get().poke();
+            reveal.value().poke();
         }
     });
     create_effect(move || {
         let held = reveal.with(|reveal| reveal.held.get());
         match held {
             true => {
-                reveal.get().show();
+                reveal.value().show();
                 fading.stop();
                 animation.stop();
             }
             false => {
-                if untrack(|| reveal.with(|reveal| reveal.visibility.0.get())) > 0.0 {
-                    reveal.get().poke();
+                if untrack(|| reveal.with(|reveal| reveal.visibility.get())) > 0.0 {
+                    reveal.value().poke();
                 }
             }
         }
@@ -578,21 +577,21 @@ fn Scrolling(
     let bar = ScrollHandle {
         position,
         direction,
-        scroll_to: Callback::new(move |offset: f32| motion.get().scroll_to(offset)),
-        visibility: reveal.with(|reveal| reveal.visibility.0),
+        scroll_to: Callback::new(move |offset: f32| motion.value().scroll_to(offset)),
+        visibility: reveal.with(|reveal| reveal.visibility.read_only()),
         on_engage: Callback::new(move |now: bool| {
             if untrack(|| engaged.get()) != now {
-                set_engaged.set(now);
+                engaged.set(now);
             }
         }),
     };
 
-    let (focused, set_focused) = create_signal(false);
+    let focused = create_signal(false);
     let across = across(&direction);
     let axis = create_memo(move || Some(direction.get()));
     let catcher = NodeRef::new();
     let catcher_rect = catcher;
-    let (origin, set_origin) = create_signal(None::<Pos2>);
+    let origin = create_signal(None::<Pos2>);
     let marked = create_memo(move || origin.get().is_some());
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
@@ -600,7 +599,7 @@ fn Scrolling(
     on_scroll_key(KeyAt::Node(catcher), KeyPhase::Bubble, move |event| {
         event
             .press()
-            .is_some_and(|press| navigates(press.key) && motion.get().key(press))
+            .is_some_and(|press| navigates(press.key) && motion.value().key(press))
     });
     let outset = create_memo(move || -bleed.get());
     view! {
@@ -609,35 +608,35 @@ fn Scrolling(
                 <Interactive
                     focusable=true
                     tab_stop
-                    on_focus_change={move |focused: bool| set_focused.set(focused)}
-                    on_key={move |press: KeyPress| motion.get().key(press)}
+                    on_focus_change={move |next: bool| focused.set(next)}
+                    on_key={move |press: KeyPress| motion.value().key(press)}
                     scroll_axis={axis}
                     @node_ref=&catcher
                     claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                        motion.get().flinging() && under(&catcher_rect, pos)
+                        motion.value().flinging() && under(&catcher_rect, pos)
                     }}
-                    on_press={move |_: PointerPress| motion.get().stop_fling()}
+                    on_press={move |_: PointerPress| motion.value().stop_fling()}
                     on_hover_move={move |press: PointerPress| {
                         let at_edge = bar_width > 0.0
                             && untrack(|| position.get()).max_offset() > 0.0
                             && near_edge(untrack(|| edge_axis.get()), press, bar_width);
                         if untrack(|| near.get()) != at_edge {
-                            set_near.set(at_edge);
+                            near.set(at_edge);
                         }
                     }}
                     on_hover_change={move |inside: bool| {
                         if !inside && untrack(|| near.get()) {
-                            set_near.set(false);
+                            near.set(false);
                         }
                     }}
-                    on_scroll={move |gesture: ScrollGesture| motion.get().wheel(gesture)}
-                    on_scroll_drag={move |gesture: DragGesture| motion.get().drag(gesture)}
+                    on_scroll={move |gesture: ScrollGesture| motion.value().wheel(gesture)}
+                    on_scroll_drag={move |gesture: DragGesture| motion.value().drag(gesture)}
                     on_autoscroll={move |gesture: AutoscrollGesture| {
                         let marking = (!gesture.ended).then_some(gesture.origin);
                         if untrack(|| origin.get()) != marking {
-                            set_origin.set(marking);
+                            origin.set(marking);
                         }
-                        motion.get().autoscroll(gesture);
+                        motion.value().autoscroll(gesture);
                     }}
                 >
                     <Frame
@@ -684,7 +683,7 @@ pub fn Scroll(
     let content_direction = direction;
     let rows_direction = direction;
     let fade = scrollbar.fade();
-    let (faded, set_faded) = create_signal(None::<ScrollPosition>);
+    let faded = create_signal(None::<ScrollPosition>);
     let edges = create_memo(move || fade_edges(direction.get(), faded.get(), fade));
     let rows = NodeRef::new();
     let revealed = rows;
@@ -712,7 +711,7 @@ pub fn Scroll(
                     direction={content_direction}
                     fit
                     on_change={move |position: ScrollPosition| {
-                        set_faded.set(Some(position));
+                        faded.set(Some(position));
                         report.call(position);
                     }}
                 >

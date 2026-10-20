@@ -69,16 +69,15 @@ pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<boo
     };
     let fit = move || editor.fit();
     let grid = tools.show_grid;
-    let set_grid = tools.set_show_grid;
-    let toggle_grid = move |on: bool| set_grid.set(on);
+    let toggle_grid = move |on: bool| grid.set(on);
 
     let export = move || super::app::export(tools);
     let clear = move || tools.open_dialog(Dialog::Clear);
     let resize = move || {
         let (width, height) = size.get_untracked();
-        tools.set_resize_width.set(width);
-        tools.set_resize_height.set(height);
-        tools.set_resize_anchor.set(PixelArtAnchor::Center);
+        tools.resize_width.set(width);
+        tools.resize_height.set(height);
+        tools.resize_anchor.set(PixelArtAnchor::Center);
         tools.open_dialog(Dialog::Resize);
     };
 
@@ -148,21 +147,16 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
     let chosen = tools.tool;
     let rows = create_memo(|| (0..TOOLS.len() / 2).collect::<Vec<usize>>());
     let brush_size = tools.brush_size;
-    let set_brush_size = tools.set_brush_size;
     let size_value = create_memo(move || f64::from(brush_size.get()));
     let shape = tools.brush_shape;
-    let set_shape = tools.set_brush_shape;
     let square = create_memo(move || shape.get() == BrushShape::Square);
     let circle = create_memo(move || shape.get() == BrushShape::Circle);
     let filled = tools.shapes_filled;
-    let set_filled = tools.set_shapes_filled;
     let shapes =
         create_memo(move || !matches!(chosen.get(), PixelTool::Rectangle | PixelTool::Ellipse));
     let horizontal = tools.mirror_horizontal;
-    let set_horizontal = tools.set_mirror_horizontal;
     let vertical = tools.mirror_vertical;
-    let set_vertical = tools.set_mirror_vertical;
-    let square_shape = set_shape;
+    let square_shape = shape;
     view! {
         <List spacing=SPACING>
             <Text style=TextStyle::HEADING string="Tools" />
@@ -190,7 +184,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 max={f64::from(MAX_BRUSH_SIZE)}
                 label="Brush size"
                 @test_id={"pixel-art.brush-size"}
-                on_change={move |value: f64| set_brush_size.set(value as u16)}
+                on_change={move |value: f64| brush_size.set(value as u16)}
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <ToggleButton
@@ -205,7 +199,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                     label="Circle brush"
                     icon_only=true
                     pressed={circle}
-                    on_change={move |_| set_shape.set(BrushShape::Circle)}
+                    on_change={move |_| shape.set(BrushShape::Circle)}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -214,18 +208,18 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 label="Fill rectangles and ellipses"
                 pressed={filled}
                 disabled={shapes}
-                on_change={move |on| set_filled.set(on)}
+                on_change={move |on| filled.set(on)}
             />
             <Text string="Symmetry" />
             <Checkbox
                 label="Mirror horizontally"
                 checked={horizontal}
-                on_change={move |on| set_horizontal.set(on)}
+                on_change={move |on| horizontal.set(on)}
             />
             <Checkbox
                 label="Mirror vertically"
                 checked={vertical}
-                on_change={move |on| set_vertical.set(on)}
+                on_change={move |on| vertical.set(on)}
             />
         </List>
     }
@@ -394,8 +388,6 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
     let clearing = create_memo(move || dialog.get() == Dialog::Clear);
     let width = tools.resize_width;
     let height = tools.resize_height;
-    let set_width = tools.set_resize_width;
-    let set_height = tools.set_resize_height;
     let width_value = create_memo(move || f64::from(width.get()));
     let height_value = create_memo(move || f64::from(height.get()));
     let cropping = create_memo(move || {
@@ -438,7 +430,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                             max={f64::from(MAX_PIXEL_ART_SIZE)}
                             label="Width"
                             @test_id={"pixel-art.resize-width"}
-                            on_change={move |value: f64| set_width.set(value as u16)}
+                            on_change={move |value: f64| width.set(value as u16)}
                         />
                         <NumberInput
                             @sizing=ItemSize::Percent(100.0)
@@ -447,7 +439,7 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                             max={f64::from(MAX_PIXEL_ART_SIZE)}
                             label="Height"
                             @test_id={"pixel-art.resize-height"}
-                            on_change={move |value: f64| set_height.set(value as u16)}
+                            on_change={move |value: f64| height.set(value as u16)}
                         />
                     </List>
                     <Text style=TextStyle::CAPTION string="Anchor" />
@@ -521,7 +513,7 @@ fn AnchorRow(tools: Tools, row: usize) -> NodeId {
                 let (anchor, glyph, label) = ANCHORS[index];
                 let chosen = tools.resize_anchor;
                 let pressed = create_memo(move || chosen.get() == anchor);
-                let set = tools.set_resize_anchor;
+                let set = tools.resize_anchor;
                 view! {
                     <ToggleButton
                         glyph={glyph.to_owned()}

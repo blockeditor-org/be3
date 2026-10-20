@@ -27,12 +27,12 @@ fn indexed(state: &TextAreaState) -> (Vec<usize>, Vec<Checkbox>) {
 #[test]
 fn line_starts_and_checkboxes_follow_edits() {
     let _root = crate::reactive::RootScope::new();
-    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
+    let held = create_signal::<Option<TextAreaState>>(None);
     let text = "intro\n- [ ] one\n- [x] two\nplain\n  - [ ] three\nend";
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(text)) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        set_held.update(|held| *held = Some(state));
+        held.update(|held| *held = Some(state));
         view! {
             <Frame width=400.0 height=300.0>
                 <TextArea state={state} />

@@ -7,16 +7,16 @@ const ROW: f32 = 20.0;
 #[test]
 fn the_edge_two_rows_share_hovers_only_the_lower_one() {
     let _root = crate::reactive::RootScope::new();
-    let (upper, set_upper) = create_signal(false);
-    let (lower, set_lower) = create_signal(false);
+    let upper = create_signal(false);
+    let lower = create_signal(false);
     let document = build({
         move || {
             view! {
                 <List spacing=0.0>
-                    <Interactive on_hover_change={move |hovered| set_upper.set(hovered)}>
+                    <Interactive on_hover_change={move |hovered| upper.set(hovered)}>
                         <Frame height=ROW />
                     </Interactive>
-                    <Interactive on_hover_change={move |hovered| set_lower.set(hovered)}>
+                    <Interactive on_hover_change={move |hovered| lower.set(hovered)}>
                         <Frame height=ROW />
                     </Interactive>
                 </List>

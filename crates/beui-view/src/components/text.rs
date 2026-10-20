@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use crate::reactive::{
-    Child, ChildSegment, ChildValue, Children, FromPlaced, IntoChild, IntoProp, IntoSegment,
-    IntoSlotHost, Memo, Placed, Prop, ReadSignal, SlotChild, SlotHost, SlotId, create_binding,
-    create_effect, with_document,
+    Child, ChildSegment, ChildValue, Children, FromPlaced, Get, IntoChild, IntoProp, IntoSegment,
+    IntoSlotHost, Memo, Placed, Prop, ReadSignal, Signal, SlotChild, SlotHost, SlotId,
+    create_binding, create_effect, with_document,
 };
 use beui_core::base::text::{
     FontPatch, IconSpan, SpanContent, SpanHandle, TextNode, TextPart, TextStyle,
@@ -163,7 +163,8 @@ text_child_from!(
     String,
     Prop<String>,
     Memo<String>,
-    ReadSignal<String>
+    ReadSignal<String>,
+    Signal<String>
 );
 
 impl IntoChild<TextChild> for Span {
@@ -249,12 +250,12 @@ impl Span {
 
     fn peek(&self) -> SpanContent {
         SpanContent {
-            text: self.text.peek(),
-            font: self.font.peek(),
-            color: self.color.peek(),
-            underline: self.underline.peek(),
-            strikethrough: self.strikethrough.peek(),
-            break_after: self.break_after.peek(),
+            text: self.text.get_untracked(),
+            font: self.font.get_untracked(),
+            color: self.color.get_untracked(),
+            underline: self.underline.get_untracked(),
+            strikethrough: self.strikethrough.get_untracked(),
+            break_after: self.break_after.get_untracked(),
             icon: self.icon,
         }
     }

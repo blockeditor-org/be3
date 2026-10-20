@@ -23,15 +23,15 @@ pub fn PointerLock(
     accessibility: Option<Prop<Node>>,
     #[prop(children)] content: Option<Render<PointerLockHandle>>,
 ) -> NodeId {
-    let (locked_read, set_locked) = create_signal(locked.peek());
-    create_effect(move || set_locked.set(locked.get()));
-    let (hovered, set_hovered) = create_signal(false);
-    let (focused, set_focused) = create_signal(false);
+    let current = create_signal(locked.get_untracked());
+    create_effect(move || current.set(locked.get()));
+    let hovered = create_signal(false);
+    let focused = create_signal(false);
 
     let attached = with_document(|document| document.watch_context());
     create_effect(move || {
         attached.get();
-        publish(locked_read.get());
+        publish(current.get());
     });
     on_cleanup(|| publish(false));
 
@@ -39,23 +39,23 @@ pub fn PointerLock(
     component_accessibility(accessibility);
 
     let change = move |next: bool| {
-        if untrack(|| locked_read.get()) == next {
+        if untrack(|| current.get()) == next {
             return;
         }
-        set_locked.set(next);
+        current.set(next);
         on_change.call(next);
     };
 
     let engage = move || change(true);
     let release = move || change(false);
-    let blurred = move |focused: bool| {
-        set_focused.set(focused);
-        if !focused {
+    let blurred = move |next: bool| {
+        focused.set(next);
+        if !next {
             release();
         }
     };
     let key = move |press: KeyPress| {
-        if untrack(|| locked_read.get()) && press.key == Key::Escape {
+        if untrack(|| current.get()) && press.key == Key::Escape {
             if press.pressed {
                 release();
             }
@@ -66,9 +66,9 @@ pub fn PointerLock(
 
     let content_node = content.map(|build| {
         build.call(PointerLockHandle {
-            locked: locked_read,
-            hovered,
-            focused,
+            locked: current.read_only(),
+            hovered: hovered.read_only(),
+            focused: focused.read_only(),
         })
     });
 
@@ -81,7 +81,7 @@ pub fn PointerLock(
             on_motion={move |motion: Vec2| on_motion.call(motion)}
             cursor={cursor}
             on_click={engage}
-            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
+            on_hover_change={move |next: bool| hovered.set(next)}
             children={content_node}
         />
     }

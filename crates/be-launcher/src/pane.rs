@@ -48,10 +48,8 @@ pub(crate) struct Session {
 pub(crate) struct Pane {
     session: Stored<RefCell<Session>>,
     tasks: Stored<Tasks>,
-    rows: ReadSignal<Vec<Row>>,
-    set_rows: WriteSignal<Vec<Row>>,
-    background: ReadSignal<Color32>,
-    set_background: WriteSignal<Color32>,
+    rows: Signal<Vec<Row>>,
+    background: Signal<Color32>,
 }
 
 impl Session {
@@ -74,20 +72,18 @@ impl Session {
 
 impl Pane {
     pub(crate) fn new(session: Session, tasks: Tasks) -> Self {
-        let (rows, set_rows) = create_signal(Vec::new());
-        let (background, set_background) = create_signal(Color32::BLACK);
+        let rows = create_signal(Vec::new());
+        let background = create_signal(Color32::BLACK);
         Self {
             session: store(RefCell::new(session)),
             tasks: store(tasks),
             rows,
-            set_rows,
             background,
-            set_background,
         }
     }
 
     pub(crate) fn write(&self, bytes: &[u8]) {
-        self.session.get().borrow_mut().terminal.write(bytes);
+        self.session.value().borrow_mut().terminal.write(bytes);
     }
 
     pub(crate) fn write_line(&self, text: &str) {
@@ -95,7 +91,7 @@ impl Pane {
     }
 
     pub(crate) fn refresh(&self) {
-        let session = self.session.get();
+        let session = self.session.value();
         let mut session = session.borrow_mut();
         let Session {
             terminal, renderer, ..
@@ -131,13 +127,13 @@ impl Pane {
             .collect();
         let background = color(screen.background);
         drop(session);
-        self.set_rows.set(rows);
-        self.set_background.set(background);
+        self.rows.set(rows);
+        self.background.set(background);
     }
 
     fn resize(&self, cols: u16, rows: u16, cell_width: u32, cell_height: u32) {
         {
-            let session = self.session.get();
+            let session = self.session.value();
             let mut session = session.borrow_mut();
             if session.cols == cols && session.rows == rows {
                 return;
@@ -146,13 +142,17 @@ impl Pane {
             session.rows = rows;
             let _ = session.terminal.resize(cols, rows, cell_width, cell_height);
         }
-        self.tasks.get().resize(cols, rows);
+        self.tasks.value().resize(cols, rows);
         self.refresh();
     }
 
     fn type_text(&self, text: &str) {
-        self.session.get().borrow_mut().terminal.scroll_to_bottom();
-        self.tasks.get().input(text.as_bytes());
+        self.session
+            .value()
+            .borrow_mut()
+            .terminal
+            .scroll_to_bottom();
+        self.tasks.value().input(text.as_bytes());
     }
 
     fn press(&self, press: KeyPress) -> bool {
@@ -162,13 +162,17 @@ impl Pane {
         let Some(bytes) = key_bytes(press.key, press.modifiers) else {
             return false;
         };
-        self.session.get().borrow_mut().terminal.scroll_to_bottom();
-        self.tasks.get().input(&bytes);
+        self.session
+            .value()
+            .borrow_mut()
+            .terminal
+            .scroll_to_bottom();
+        self.tasks.value().input(&bytes);
         true
     }
 
     fn scroll(&self, rows: isize) {
-        self.session.get().borrow_mut().terminal.scroll_by(rows);
+        self.session.value().borrow_mut().terminal.scroll_by(rows);
         self.refresh();
     }
 }

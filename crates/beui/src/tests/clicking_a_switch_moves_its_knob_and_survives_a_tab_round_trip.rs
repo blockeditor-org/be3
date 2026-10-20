@@ -5,7 +5,7 @@ use crate::styled::*;
 #[test]
 fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
     let _root = crate::reactive::RootScope::new();
-    let (tab, set_tab) = create_signal(0usize);
+    let tab = create_signal(0usize);
     let switch_ref = NodeRef::new();
 
     let (document, [_panel]) = toolbar_of({
@@ -33,9 +33,9 @@ fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
     assert_ne!(off_rect, on_rect, "clicking the switch must move the knob");
     assert!(switch_on(harness.document(), switch));
 
-    with_installed(harness.document_mut(), |_| set_tab.set(1));
+    with_installed(harness.document_mut(), |_| tab.set(1));
     harness.frame(Vec::new());
-    with_installed(harness.document_mut(), |_| set_tab.set(0));
+    with_installed(harness.document_mut(), |_| tab.set(0));
     harness.frame(Vec::new());
 
     harness.click(harness.center(switch));

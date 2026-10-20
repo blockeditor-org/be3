@@ -15,11 +15,11 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
     let (toggle, left, right) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
-            let (visible, set_visible) = create_signal(false);
+            let visible = create_signal(false);
             view! {
                 <Container>|_|
                     <List spacing=0.0>
-                        <Button @node_ref=&toggle on_click={move || set_visible.set(true)}>
+                        <Button @node_ref=&toggle on_click={move || visible.set(true)}>
                             <Text string="toggle" />
                         </Button>
                         <Show condition={visible}>

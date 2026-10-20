@@ -168,7 +168,7 @@ impl Default for Theme {
 
 #[component]
 pub fn ThemeProvider(theme: Prop<Theme>, #[prop(children)] content: Render) -> NodeId {
-    let store = ThemeStore::new(theme.peek());
+    let store = ThemeStore::new(theme.get_untracked());
     let provided = store;
     create_effect(move || store.set(theme.get()));
     provide_context(provided);

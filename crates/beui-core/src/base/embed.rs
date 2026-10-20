@@ -76,7 +76,7 @@ impl EmbedSlot {
     }
 
     pub fn on_place(&self, listener: impl Fn(Option<EmbedPlacement>) + 'static) {
-        let state = self.0.get();
+        let state = self.0.value();
         *state.listener.borrow_mut() = Some(Box::new(listener));
         on_cleanup(move || drop(state.listener.take()));
     }

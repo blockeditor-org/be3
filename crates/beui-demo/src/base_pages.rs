@@ -387,10 +387,10 @@ pub(crate) fn ControlFlowPage() -> NodeId {
 #[sample]
 #[component]
 fn ShowToggle() -> NodeId {
-    let (shown, set_shown) = create_signal(true);
+    let shown = create_signal(true);
     view! {
         <List spacing=SECTION_SPACING>
-            <LabelledSwitch label="Shown" on={shown} on_change={move |on| set_shown.set(on)} />
+            <LabelledSwitch label="Shown" on={shown} on_change={move |on| shown.set(on)} />
             <Show condition={shown}>
                 <Tile label="Built the first time it is shown, and kept while hidden" />
             </Show>
@@ -401,9 +401,9 @@ fn ShowToggle() -> NodeId {
 #[sample]
 #[component]
 fn PlanetList() -> NodeId {
-    let (count, set_count) = create_signal(3usize);
+    let count = create_signal(3usize);
     let planets = create_memo(move || PLANETS[..count.get()].to_vec());
-    let fewer = set_count;
+    let fewer = count;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=8.0>
@@ -415,7 +415,7 @@ fn PlanetList() -> NodeId {
                 <Button
                     label="Add one"
                     variant=ButtonVariant::Secondary
-                    on_click={move || set_count.update(|count| *count = (*count + 1).min(PLANETS.len()))}
+                    on_click={move || count.update(|count| *count = (*count + 1).min(PLANETS.len()))}
                 />
             </List>
             <ForEach keys={planets}>|planet: &'static str|
@@ -429,10 +429,10 @@ fn PlanetList() -> NodeId {
 #[component]
 fn DynamicShape() -> NodeId {
     let theme = use_theme();
-    let (round, set_round) = create_signal(false);
+    let round = create_signal(false);
     view! {
         <List spacing=SECTION_SPACING>
-            <LabelledSwitch label="Round" on={round} on_change={move |on| set_round.set(on)} />
+            <LabelledSwitch label="Round" on={round} on_change={move |on| round.set(on)} />
             <Dynamic value={round}>|round: bool| {
                 match round {
                     true => view! {
@@ -462,11 +462,11 @@ pub(crate) fn InteractionPage() -> NodeId {
 #[component]
 fn InteractiveCard() -> NodeId {
     let theme = use_theme();
-    let (hovered, set_hovered) = create_signal(false);
-    let (active, set_active) = create_signal(false);
-    let (focused, set_focused) = create_signal(false);
-    let (log, set_log) = create_signal("Hover, press, or Tab to it and type".to_owned());
-    let clicked = set_log;
+    let hovered = create_signal(false);
+    let active = create_signal(false);
+    let focused = create_signal(false);
+    let log = create_signal("Hover, press, or Tab to it and type".to_owned());
+    let clicked = log;
     let fill = create_memo(move || {
         let theme = theme.get();
         match (active.get(), hovered.get()) {
@@ -487,13 +487,13 @@ fn InteractiveCard() -> NodeId {
         <List spacing=SECTION_SPACING>
             <Interactive
                 focusable=true
-                on_hover_change={move |on| set_hovered.set(on)}
-                on_active_change={move |on| set_active.set(on)}
-                on_focus_change={move |on| set_focused.set(on)}
+                on_hover_change={move |on| hovered.set(on)}
+                on_active_change={move |on| active.set(on)}
+                on_focus_change={move |on| focused.set(on)}
                 on_click={move || clicked.set("Clicked".to_owned())}
                 on_key={move |press: KeyPress| {
                     if press.pressed {
-                        set_log.set(format!("Pressed {:?}", press.key));
+                        log.set(format!("Pressed {:?}", press.key));
                     }
                     false
                 }}
@@ -578,7 +578,7 @@ fn BadgedCard() -> NodeId {
 #[component]
 fn NudgedTile() -> NodeId {
     let theme = use_theme();
-    let (nudged, set_nudged) = create_signal(false);
+    let nudged = create_signal(false);
     let by = create_memo(move || match nudged.get() {
         true => beui::vec2(SWATCH, 0.0),
         false => beui::Vec2::ZERO,
@@ -587,7 +587,7 @@ fn NudgedTile() -> NodeId {
     let ink = theme.text;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
-            <Interactive on_click={move || set_nudged.update(|nudged| *nudged = !*nudged)}>
+            <Interactive on_click={move || nudged.update(|nudged| *nudged = !*nudged)}>
                 <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
                     <Text string="Nudge" color={ink} />
                 </Frame>
@@ -621,8 +621,8 @@ fn FadedStrip() -> NodeId {
 fn AnchoredOverlay() -> NodeId {
     let theme = use_theme();
     let anchor = NodeRef::new();
-    let (open, set_open) = create_signal(false);
-    let dismiss = set_open;
+    let open = create_signal(false);
+    let dismiss = open;
     let target = anchor;
     let face = theme.surface_raised;
     let ink = theme.text;
@@ -630,7 +630,7 @@ fn AnchoredOverlay() -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <Interactive
                 @test_id="demo.overlay.trigger"
-                on_click={move || set_open.update(|open| *open = !*open)}
+                on_click={move || open.update(|open| *open = !*open)}
             >
                 <Frame
                     @node_ref=&target
@@ -672,18 +672,18 @@ fn AnchoredOverlay() -> NodeId {
 #[component]
 fn AnimationSample() -> NodeId {
     let theme = use_theme();
-    let (position, set_position) = create_signal(0.0_f32);
-    let (spring_position, set_spring_position) = create_signal(0.0_f32);
+    let position = create_signal(0.0_f32);
+    let spring_position = create_signal(0.0_f32);
     let target = StoredCell::new(0.0_f32);
     let from = StoredCell::new(0.0_f32);
     let velocity = StoredCell::new(0.0_f32);
     let transition = create_animation(
         move |frame| {
             let progress = tween(frame.elapsed.as_secs_f32(), 0.5, Easing::OutCubic);
-            set_position.set(from.get() + (target.get() - from.get()) * progress);
+            position.set(from.get() + (target.get() - from.get()) * progress);
             progress < 1.0
         },
-        move || set_position.set(target.get()),
+        move || position.set(target.get()),
     );
     let spring = create_animation(
         move |frame| {
@@ -695,12 +695,12 @@ fn AnimationSample() -> NodeId {
             }
             .advance(&mut offset, &mut speed, frame.delta.as_secs_f32());
             velocity.set(speed);
-            set_spring_position.set(target.get() + offset);
+            spring_position.set(target.get() + offset);
             offset != 0.0 || speed != 0.0
         },
         move || {
             velocity.set(0.0);
-            set_spring_position.set(target.get());
+            spring_position.set(target.get());
         },
     );
     let preference = with_document(|document| document.watch_motion());

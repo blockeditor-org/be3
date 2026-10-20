@@ -6,16 +6,16 @@ use crate::reactive::*;
 #[test]
 fn f6_moves_the_focus_between_forwarding_catchers() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal::<Vec<(usize, bool, Vec<Event>)>>(Vec::new());
-    let catcher = |index: usize, heard: WriteSignal<Vec<(usize, bool, Vec<Event>)>>| {
+    let heard = create_signal::<Vec<(usize, bool, Vec<Event>)>>(Vec::new());
+    let catcher = |index: usize, heard: Signal<Vec<(usize, bool, Vec<Event>)>>| {
         move |input: ForwardedInput| {
             heard.update(|heard| heard.push((index, input.focused, flattened(input))))
         }
     };
     let document = build({
         move || {
-            let first = catcher(0, set_heard);
-            let last = catcher(1, set_heard);
+            let first = catcher(0, heard);
+            let last = catcher(1, heard);
             view! {
                 <Canvas>
                     <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
@@ -52,7 +52,7 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
         })
     };
 
-    set_heard.update(|heard| heard.clear());
+    heard.update(|heard| heard.clear());
     harness.frame(vec![f6(false)]);
     let focused = |heard: &[(usize, bool, Vec<Event>)]| {
         heard
@@ -74,7 +74,7 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
         "the F6 itself reaches no catcher"
     );
 
-    set_heard.update(|heard| heard.clear());
+    heard.update(|heard| heard.clear());
     harness.frame(vec![f6(true)]);
     assert_eq!(
         focused(&heard.get_untracked()),

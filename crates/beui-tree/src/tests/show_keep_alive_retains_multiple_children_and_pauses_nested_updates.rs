@@ -22,9 +22,9 @@ fn show_keep_alive_retains_multiple_children_and_pauses_nested_updates() {
     let _root = ::reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
-    let (shown, set_shown) = create_signal(false);
-    let (tail, set_tail) = create_signal(false);
-    let (label, set_label) = create_signal("one".to_string());
+    let shown = create_signal(false);
+    let tail = create_signal(false);
+    let label = create_signal("one".to_string());
     let builds = Rc::new(Cell::new(0));
     let disposed = Rc::new(Cell::new(0));
     let built = builds.clone();
@@ -42,18 +42,18 @@ fn show_keep_alive_retains_multiple_children_and_pauses_nested_updates() {
         }
     });
     assert_eq!(builds.get(), 0);
-    set_shown.set(true);
+    shown.set(true);
     assert_eq!(builds.get(), 1);
     assert_eq!(page.0.children.borrow().len(), 4);
     let first = page.html();
     let retained = page.0.children.borrow().iter().nth(1).unwrap().clone();
-    set_shown.set(false);
+    shown.set(false);
     assert_eq!(disposed.get(), 0);
     assert_eq!(page.0.children.borrow().len(), 2);
-    set_label.set("two".to_string());
-    set_tail.set(true);
+    label.set("two".to_string());
+    tail.set(true);
     assert_eq!(page.0.children.borrow().len(), 2);
-    set_shown.set(true);
+    shown.set(true);
     assert_eq!(builds.get(), 1);
     assert_eq!(page.0.children.borrow().len(), 5);
     let updated = page.html();
@@ -66,10 +66,10 @@ fn show_keep_alive_retains_multiple_children_and_pauses_nested_updates() {
     assert!(updated.find("two").unwrap() < updated.find("tail").unwrap());
     assert!(updated.find("tail").unwrap() < updated.find("sibling").unwrap());
     assert!(updated.find("sibling").unwrap() < updated.find("after").unwrap());
-    set_tail.set(false);
-    set_label.set("one".to_string());
+    tail.set(false);
+    label.set("one".to_string());
     assert_eq!(page.html(), first);
-    set_shown.set(false);
+    shown.set(false);
     drop(scope);
     assert_eq!(disposed.get(), 1);
 }

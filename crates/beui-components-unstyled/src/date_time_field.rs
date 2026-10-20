@@ -113,14 +113,10 @@ struct State {
     parts: DateTimeParts,
     cycle: HourCycle,
     order: Stored<Vec<DateSegment>>,
-    values: ReadSignal<Values>,
-    set_values: WriteSignal<Values>,
-    typing: ReadSignal<Option<(DateSegment, String)>>,
-    set_typing: WriteSignal<Option<(DateSegment, String)>>,
-    focus: ReadSignal<Option<DateSegment>>,
-    set_focus: WriteSignal<Option<DateSegment>>,
-    value: ReadSignal<Option<DateTime>>,
-    set_value: WriteSignal<Option<DateTime>>,
+    values: Signal<Values>,
+    typing: Signal<Option<(DateSegment, String)>>,
+    focus: Signal<Option<DateSegment>>,
+    value: Signal<Option<DateTime>>,
     disabled: Memo<bool>,
     left: Timer,
     on_change: Callback<Option<DateTime>>,
@@ -147,11 +143,11 @@ pub fn DateTimeField(
     let order = segments(parts, hour_cycle);
     let count = order.len();
     let first = order[0];
-    let initial = value.peek();
-    let (values, set_values) = create_signal(split(initial, hour_cycle));
-    let (typing, set_typing) = create_signal(None);
-    let (focus, set_focus) = create_signal(None);
-    let (value_read, set_value) = create_signal(initial);
+    let initial = value.get_untracked();
+    let values = create_signal(split(initial, hour_cycle));
+    let typing = create_signal(None);
+    let focus = create_signal(None);
+    let current_value = create_signal(initial);
     let disabled = create_memo(move || disabled.get());
     let left_state = store(Cell::new(None::<State>));
     let left = create_timer(move || {
@@ -165,13 +161,9 @@ pub fn DateTimeField(
         cycle: hour_cycle,
         order: store(order),
         values,
-        set_values,
         typing,
-        set_typing,
         focus,
-        set_focus,
-        value: value_read,
-        set_value,
+        value: current_value,
         disabled,
         left,
         on_change,
@@ -182,25 +174,25 @@ pub fn DateTimeField(
 
     create_effect(move || {
         let next = value.get();
-        state.set_value.set(next);
+        state.value.set(next);
         let values = state.values.get_untracked();
         if compose(state, &values, next) != next || (next.is_none() && !empty(state, &values)) {
-            state.set_values.set(split(next, state.cycle));
-            state.set_typing.set(None);
+            state.values.set(split(next, state.cycle));
+            state.typing.set(None);
         }
     });
     create_effect(move || {
         if disabled.get() {
-            state.set_focus.set(None);
+            state.focus.set(None);
         }
     });
     create_effect(move || {
         if let Some(wanted) = focus_segment.get() {
-            let segment = match state.order.get().contains(&wanted) {
+            let segment = match state.order.value().contains(&wanted) {
                 true => wanted,
-                false => state.order.get()[0],
+                false => state.order.value()[0],
             };
-            state.set_focus.set(Some(segment));
+            state.focus.set(Some(segment));
         }
     });
     create_effect(move || on_segment_focus.call(state.focus.get()));
@@ -224,7 +216,7 @@ pub fn DateTimeField(
     create_effect(move || on_focus_change.call(within.get()));
     create_effect(move || {
         if focused.get() {
-            state.set_focus.set(Some(first));
+            state.focus.set(Some(first));
         }
     });
 
@@ -241,7 +233,7 @@ pub fn DateTimeField(
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <ForEach keys={items}>|index: usize| {
-                let order = state.order.get();
+                let order = state.order.value();
                 let segment_kind = order[index];
                 let prefix = match index {
                     0 => String::new(),
@@ -265,8 +257,8 @@ fn SegmentView(
     literal: RenderFn<String>,
     face: RenderFn<DateSegmentHandle>,
 ) -> NodeId {
-    let (hovered, set_hovered) = create_signal(false);
-    let (focused_read, set_focused) = create_signal(false);
+    let hovered = create_signal(false);
+    let is_focused = create_signal(false);
     let focused = create_memo(move || state.focus.get() == Some(segment));
     let tab_stop = create_memo(move || !state.disabled.get());
     let value = create_memo(move || state.values.get()[segment.index()]);
@@ -301,13 +293,13 @@ fn SegmentView(
         }
         node
     }));
-    let ime = focused_read;
+    let ime = is_focused;
     let content = face.call(DateSegmentHandle {
         segment,
         text,
         placeholder,
-        hovered,
-        focused: focused_read,
+        hovered: hovered.read_only(),
+        focused: is_focused.read_only(),
         disabled: state.disabled,
     });
     let shown = !prefix.is_empty();
@@ -319,14 +311,14 @@ fn SegmentView(
             focused
             ime
             on_focus_change={move |has_focus: bool| {
-                set_focused.set(has_focus);
+                is_focused.set(has_focus);
                 segment_focus(state, segment, has_focus);
             }}
             on_step={move |delta: f32| step(state, segment, delta.round() as i32)}
             on_key={move |press: KeyPress| segment_key(state, segment, press)}
             on_text={move |typed: String| type_text(state, segment, &typed)}
             cursor=CursorIcon::Text
-            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
+            on_hover_change={move |next: bool| hovered.set(next)}
         >
             <List direction=Direction::Horizontal spacing=0.0>
                 <Show condition=shown>|| { literal.call(text.clone()) }</Show>
@@ -348,9 +340,9 @@ pub fn date_time_field_text(document: &Document, field: NodeId) -> String {
     let values = state.values.get_untracked();
     let typing = state.typing.get_untracked();
     let mut text = String::new();
-    for (index, segment) in state.order.get().iter().enumerate() {
+    for (index, segment) in state.order.value().iter().enumerate() {
         if index > 0 {
-            text.push_str(&separator(state.order.get()[index - 1], *segment));
+            text.push_str(&separator(state.order.value()[index - 1], *segment));
         }
         match (&typing, values[segment.index()]) {
             (Some((typing, buffer)), _) if typing == segment => text.push_str(buffer),
@@ -492,14 +484,14 @@ fn commit(state: State, mut values: Values) {
     {
         values[DateSegment::Day.index()] = Some(i32::from(composed.date.day));
     }
-    state.set_values.set(values);
+    state.values.set(values);
     let reported = match composed {
         Some(composed) => Some(composed),
         None if empty(state, &values) => None,
         None => return,
     };
     if reported != current {
-        state.set_value.set(reported);
+        state.value.set(reported);
         state.on_change.call(reported);
     }
 }
@@ -527,7 +519,7 @@ fn step(state: State, segment: DateSegment, delta: i32) {
 fn set_to(state: State, segment: DateSegment, value: Option<i32>) {
     let mut values = state.values.get_untracked();
     values[segment.index()] = value;
-    state.set_typing.set(None);
+    state.typing.set(None);
     commit(state, values);
 }
 
@@ -535,7 +527,7 @@ fn finish_typing(state: State) {
     let Some((segment, buffer)) = state.typing.get_untracked() else {
         return;
     };
-    state.set_typing.set(None);
+    state.typing.set(None);
     let Ok(number) = buffer.parse::<i32>() else {
         return;
     };
@@ -548,16 +540,21 @@ fn finish_typing(state: State) {
 }
 
 fn neighbour(state: State, segment: DateSegment, offset: isize) -> Option<DateSegment> {
-    let index = state.order.get().iter().position(|each| *each == segment)? as isize + offset;
+    let index = state
+        .order
+        .value()
+        .iter()
+        .position(|each| *each == segment)? as isize
+        + offset;
     usize::try_from(index)
         .ok()
-        .and_then(|index| state.order.get().get(index).copied())
+        .and_then(|index| state.order.value().get(index).copied())
 }
 
 fn advance(state: State, segment: DateSegment) -> DateSegment {
     match neighbour(state, segment, 1) {
         Some(next) => {
-            state.set_focus.set(Some(next));
+            state.focus.set(Some(next));
             next
         }
         None => segment,
@@ -567,7 +564,7 @@ fn advance(state: State, segment: DateSegment) -> DateSegment {
 fn segment_focus(state: State, segment: DateSegment, has_focus: bool) {
     if has_focus {
         state.left.stop();
-        state.set_focus.set(Some(segment));
+        state.focus.set(Some(segment));
         return;
     }
     if state
@@ -578,7 +575,7 @@ fn segment_focus(state: State, segment: DateSegment, has_focus: bool) {
         finish_typing(state);
     }
     if state.focus.get_untracked() == Some(segment) {
-        state.set_focus.set(None);
+        state.focus.set(None);
     }
     state.left.restart(Duration::ZERO);
 }
@@ -590,7 +587,7 @@ fn left_field(state: State) {
     let values = state.values.get_untracked();
     let current = state.value.get_untracked();
     if compose(state, &values, current).is_none() && !empty(state, &values) {
-        state.set_values.set(split(current, state.cycle));
+        state.values.set(split(current, state.cycle));
     }
 }
 
@@ -639,7 +636,7 @@ fn segment_key(state: State, segment: DateSegment, press: KeyPress) -> bool {
             if press.pressed
                 && let Some(next) = neighbour(state, segment, offset)
             {
-                state.set_focus.set(Some(next));
+                state.focus.set(Some(next));
             }
             true
         }
@@ -655,11 +652,11 @@ fn segment_key(state: State, segment: DateSegment, press: KeyPress) -> bool {
                         if press.key == Key::Backspace && buffer.len() > 1 =>
                     {
                         buffer.pop();
-                        state.set_typing.set(Some((segment, buffer)));
+                        state.typing.set(Some((segment, buffer)));
                     }
                     (None, None) if press.key == Key::Backspace => {
                         if let Some(previous) = neighbour(state, segment, -1) {
-                            state.set_focus.set(Some(previous));
+                            state.focus.set(Some(previous));
                         }
                     }
                     _ => set_to(state, segment, None),
@@ -719,7 +716,7 @@ fn type_digit(state: State, segment: DateSegment, digit: i32, character: char) -
     }
     let complete = buffer.len() >= segment.digits() || number * 10 > max;
     if !complete {
-        state.set_typing.set(Some((segment, buffer)));
+        state.typing.set(Some((segment, buffer)));
         return segment;
     }
     set_to(state, segment, Some(number.clamp(min, max)));

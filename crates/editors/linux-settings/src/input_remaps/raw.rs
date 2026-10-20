@@ -39,12 +39,12 @@ pub(super) fn TomlTab(shared: Shared) -> NodeId {
     let loaded = store(RefCell::new(initial));
     let state =
         TextAreaState::new(document.with(|document| Arc::clone(document) as Arc<dyn Document>));
-    let (error, set_error) = create_signal(None::<String>);
+    let error = create_signal(None::<String>);
     let reload = move |text: String| {
         document.with(|document| replace(document, &text));
         state.external_edit();
         loaded.with(|loaded| *loaded.borrow_mut() = text);
-        set_error.set(None);
+        error.set(None);
     };
     create_effect(move || {
         let text = stored.get();
@@ -62,9 +62,9 @@ pub(super) fn TomlTab(shared: Shared) -> NodeId {
             Ok(_) => {
                 shared.store(&typed);
                 loaded.with(|loaded| *loaded.borrow_mut() = typed);
-                set_error.set(None);
+                error.set(None);
             }
-            Err(problem) => set_error.set(Some(problem)),
+            Err(problem) => error.set(Some(problem)),
         }
     };
     let revert = move || reload(stored.get_untracked());

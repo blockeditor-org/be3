@@ -47,7 +47,7 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
         stored,
         read_only,
     };
-    let (tab, set_tab) = create_signal(0usize);
+    let tab = create_signal(0usize);
     let editing = create_memo(move || tab.get() == 0);
     let raw = create_memo(move || tab.get() == 1);
     let status = create_memo(move || {
@@ -74,7 +74,7 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
                         }}
                         selected={tab}
                         @test_id={"input-remaps.tabs"}
-                        on_change={move |index: usize| set_tab.set(index)}
+                        on_change={move |index: usize| tab.set(index)}
                     />
                 </SettingsRow>
                 <Show condition={offered}>

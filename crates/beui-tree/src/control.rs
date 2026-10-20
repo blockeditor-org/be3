@@ -2,7 +2,9 @@ use std::cell::RefCell;
 use std::hash::Hash;
 
 use beui_macros::component;
-use reactive::{KeyedItems, ReadSignal, Scope, Stored, create_effect, create_signal, store};
+use reactive::{
+    Get, KeyedItems, ReadSignal, Scope, Set, Stored, create_effect, create_signal, store,
+};
 
 use crate::children::{ChildSlot, Children, DynamicSegment, NestedHost, SlotChild};
 use crate::component::{Render, RenderFn};
@@ -33,7 +35,7 @@ where
         let held = store(RefCell::new(None::<Scope>));
         create_effect(move || {
             let visible = condition.get();
-            let held = held.get();
+            let held = held.value();
             let mut held = held.borrow_mut();
             if !visible {
                 slot.fill(Vec::new());
@@ -60,7 +62,7 @@ where
         let mut then = Some(then);
         create_effect(move || {
             let visible = condition.get();
-            let held = held.get();
+            let held = held.value();
             let mut held = held.borrow_mut();
             if visible
                 && held.is_none()
@@ -96,7 +98,7 @@ where
         let held: HeldChild<C> = store(RefCell::new(None));
         create_effect(move || {
             let value = value.get();
-            let held = held.get();
+            let held = held.value();
             let mut held = held.borrow_mut();
             let built = build_in_slot(&slot, || view.call(value));
             drop(held.replace(built));
@@ -118,7 +120,7 @@ where
         let rows = store(KeyedItems::new(move |key: K| built.store(view.call(key))));
         create_effect(move || {
             let keys = keys.get();
-            rows.get().map(keys).commit(|items, _| slot.fill(items));
+            rows.value().map(keys).commit(|items, _| slot.fill(items));
         });
     })
 }
@@ -135,20 +137,20 @@ where
     C: SlotChild,
 {
     DynamicSegment::new(move |slot: ChildSlot<C>| {
-        let (current, set_current) = create_signal(value.peek());
+        let current = create_signal(value.get_untracked());
         let held: KeyedChild<K, C> = store(RefCell::new(None));
         create_effect(move || {
             let value = value.get();
             let next = key.call(value.clone());
-            set_current.set(value);
-            let held = held.get();
+            current.set(value);
+            let held = held.value();
             let mut held = held.borrow_mut();
             if held.as_ref().is_some_and(|(key, _, _)| *key == next) {
                 return;
             }
             let current = current;
             let view = view;
-            let (stored, scope) = build_in_slot(&slot, move || view.call(current));
+            let (stored, scope) = build_in_slot(&slot, move || view.call(current.read_only()));
             drop(held.replace((next, stored, scope)));
         });
     })

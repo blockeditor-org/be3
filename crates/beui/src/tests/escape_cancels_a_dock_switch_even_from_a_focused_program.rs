@@ -9,7 +9,7 @@ fn escape_cancels_a_dock_switch_even_from_a_focused_program() {
     let _root = crate::reactive::RootScope::new();
     let layout = DockingLayout::<u64>::new();
     let program = NodeRef::new();
-    let (heard, set_heard) = create_signal(Vec::<ForwardedInput>::new());
+    let heard = create_signal(Vec::<ForwardedInput>::new());
     let document = build(move || {
         view! {
             <styled::Docking layout={layout}>
@@ -18,7 +18,7 @@ fn escape_cancels_a_dock_switch_even_from_a_focused_program() {
                         <Interactive
                             @node_ref=&program
                             focusable=true
-                            on_forward={move |input| set_heard.update(|heard| heard.push(input))}
+                            on_forward={move |input| heard.update(|heard| heard.push(input))}
                         >
                             <Frame />
                         </Interactive>
@@ -41,7 +41,7 @@ fn escape_cancels_a_dock_switch_even_from_a_focused_program() {
     with_reactive_scope(harness.document_mut(), move || layout.begin_switch(false));
     harness.frame(Vec::new());
     assert!(layout.switching());
-    set_heard.set(Vec::new());
+    heard.set(Vec::new());
 
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());

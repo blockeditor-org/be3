@@ -109,7 +109,7 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
             .unwrap_or_else(default_palette)
     });
     let palette = create_memo(move || palette.get());
-    let (hovered, set_hovered) = create_signal(None::<(u16, u16)>);
+    let hovered = create_signal(None::<(u16, u16)>);
 
     create_effect(move || {
         let (width, height) = size.get();
@@ -142,9 +142,8 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
                         shown={shown}
                         size={canvas_size}
                         hovered={hovered}
-                        set_hovered={set_hovered}
                     />
-                    <HoverLabel tools={tools} hovered={hovered} />
+                    <HoverLabel tools={tools} hovered={hovered.read_only()} />
                 </List>
                 <Sidebar shown={chrome}>
                     <ColorsPanel tools={tools} palette={palette} />
@@ -187,8 +186,8 @@ pub(crate) fn export(tools: Tools) {
                 artifact::descriptor(editor.block_id()),
             );
             editor.host().open_block(child, ImageContent::CONTENT_TYPE);
-            tools.set_export_error.set(None);
+            tools.export_error.set(None);
         }
-        Err(error) => tools.set_export_error.set(Some(error)),
+        Err(error) => tools.export_error.set(Some(error)),
     }
 }

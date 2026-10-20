@@ -6,8 +6,8 @@ use super::*;
 fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
     let _root = beui::reactive::RootScope::new();
     let size = Vec2::new(800.0, 500.0);
-    let (heard, set_heard) = create_signal(Vec::<String>::new());
-    let (dismissed, set_dismissed) = create_signal(0);
+    let heard = create_signal(Vec::<String>::new());
+    let dismissed = create_signal(0);
     let document = build(move || {
         let area = NodeRef::new();
         let toasts = vec![Toast {
@@ -28,7 +28,7 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
                         open=true
                         title="Share"
                         width=720.0
-                        on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
+                        on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
                     >
                         <Text
                             style=TextStyle::PARAGRAPH
@@ -42,7 +42,7 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
                         toasts={toasts}
                         on_dismiss={|_: u64| {}}
                         on_action={move |(id, key): (u64, String)| {
-                            set_heard.update(|heard| heard.push(format!("{id} {key}")))
+                            heard.update(|heard| heard.push(format!("{id} {key}")))
                         }}
                         on_activate={|_: u64| {}}
                     />

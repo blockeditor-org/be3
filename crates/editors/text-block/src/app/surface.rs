@@ -76,7 +76,7 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
         });
     });
 
-    let typing = state.set_typing;
+    let typing = state.typing;
     view! {
         <TextArea
             state={state.text}
@@ -133,7 +133,7 @@ fn focus_embed(state: State, widget: usize) -> bool {
         source_start: embed.range.start,
     };
     if embed_is_live(state, key) {
-        state.set_focused_embed.set(Some(key));
+        state.focused_embed.set(Some(key));
         state.inner().focus_confirmed.set(false);
     }
     true
@@ -204,5 +204,5 @@ fn paste_image(state: State, file: PickedFile) {
     let source_name = image.header().source_name.clone();
     let id = state.create_image_block(&image);
     state.insert_image_embed(id, &source_name);
-    state.set_import_error.set(None);
+    state.import_error.set(None);
 }

@@ -3,12 +3,12 @@ use super::*;
 #[test]
 fn scrolling_a_virtual_scroll_replaces_the_items_in_view() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(Vec::new());
-    let scroll = virtual_list(set_built);
+    let built = create_signal(Vec::new());
+    let scroll = virtual_list(built);
     let mut harness = Harness::new(scroll.document);
     harness.frame(Vec::new());
 
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
     harness.document.set_scroll_offset(scroll.scroll, 1000.0);
     harness.frame(Vec::new());
 

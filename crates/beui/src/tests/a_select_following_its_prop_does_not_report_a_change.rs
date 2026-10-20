@@ -6,10 +6,10 @@ use crate::unstyled::ChoiceOption;
 #[test]
 fn a_select_following_its_prop_does_not_report_a_change() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let document = build(move || {
-        let (selected, set_selected) = create_signal(None::<usize>);
-        set_selected.set(Some(1));
+        let selected = create_signal(None::<usize>);
+        selected.set(Some(1));
         view! {
             <Select
                 options={view! {
@@ -18,7 +18,7 @@ fn a_select_following_its_prop_does_not_report_a_change() {
                 }}
                 selected={selected}
                 label="Status"
-                on_change={move |index| set_changes.update(|changes| changes.push(index))}
+                on_change={move |index| changes.update(|changes| changes.push(index))}
             />
         }
     });

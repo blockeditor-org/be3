@@ -229,7 +229,7 @@ fn Pointers(
         devices.with(|devices| devices.iter().map(device_key).collect::<Vec<DeviceKey>>())
     });
     let none = create_memo(move || devices.with(Vec::is_empty));
-    let (chosen, choose) = create_signal(None::<DeviceKey>);
+    let chosen = create_signal(None::<DeviceKey>);
     let scope = create_memo(move || {
         chosen
             .get()
@@ -319,7 +319,7 @@ fn Pointers(
                         let key = index
                             .and_then(|index| index.checked_sub(1))
                             .and_then(|index| picked.with_untracked(|keys| keys.get(index).cloned()));
-                        choose.set(key);
+                        chosen.set(key);
                     }}
                 />
             </SettingsRow>

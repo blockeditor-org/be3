@@ -5,9 +5,9 @@ use crate::reactive::*;
 #[test]
 fn a_driver_lists_and_runs_an_action() {
     let document = build(|| {
-        let (grouped, set_grouped) = create_signal(String::from("apart"));
+        let grouped = create_signal(String::from("apart"));
         Action::new("test.group", "Group", move || {
-            set_grouped.set("grouped".to_owned())
+            grouped.set("grouped".to_owned())
         })
         .shortcut(Chord::ctrl(Key::G))
         .register();

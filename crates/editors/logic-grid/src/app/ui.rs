@@ -187,21 +187,21 @@ fn GridCanvas(session: Session) -> NodeId {
             };
             let on_press = move |press: PointerPress| {
                 let world = at(press);
-                last.get().set(Some(world));
-                session.set_pointer.set(Some(world));
+                last.value().set(Some(world));
+                session.pointer.set(Some(world));
                 let additive = press.modifiers.shift;
                 session.edit(|model| model.press(world, additive));
             };
             let on_drag = move |press: PointerPress| {
                 let world = at(press);
-                last.get().set(Some(world));
-                session.set_pointer.set(Some(world));
+                last.value().set(Some(world));
+                session.pointer.set(Some(world));
             };
             let on_active_change = move |active: bool| {
                 if active {
                     return;
                 }
-                let Some(world) = last.get().take() else {
+                let Some(world) = last.value().take() else {
                     return;
                 };
                 if session.peek(|model| model.gesture.is_some()) {
@@ -213,11 +213,11 @@ fn GridCanvas(session: Session) -> NodeId {
                 session.edit(|model| model.delete_wire_at(world));
             };
             let on_hover_move = move |press: PointerPress| {
-                session.set_pointer.set(Some(at(press)));
+                session.pointer.set(Some(at(press)));
             };
             let on_hover_change = move |hovered: bool| {
-                if !hovered && last.get().get().is_none() {
-                    session.set_pointer.set(None);
+                if !hovered && last.value().get().is_none() {
+                    session.pointer.set(None);
                 }
             };
 

@@ -6,7 +6,7 @@ use crate::styled::*;
 fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
     let _root = crate::reactive::RootScope::new();
     let tabs = NodeRef::new();
-    let (extra, set_extra) = create_signal(false);
+    let extra = create_signal(false);
     let (document, [_tabs]) = toolbar_of({
         move || {
             [view! {
@@ -34,7 +34,7 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
         "a hidden show puts no tab between the tabs written around it"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_extra.set(true));
+    with_reactive_scope(harness.document_mut(), move || extra.set(true));
     harness.frame(Vec::new());
 
     assert_eq!(

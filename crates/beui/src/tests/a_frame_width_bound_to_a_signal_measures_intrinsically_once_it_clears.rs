@@ -9,7 +9,7 @@ const CHILD_HEIGHT: f32 = 10.0;
 fn a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears() {
     let _root = crate::reactive::RootScope::new();
     let outer = NodeRef::new();
-    let (width, set_width) = create_signal(Some(GIVEN_WIDTH));
+    let width = create_signal(Some(GIVEN_WIDTH));
     let document = build({
         move || {
             view! {
@@ -28,7 +28,7 @@ fn a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears() {
 
     assert_eq!(harness.rect(outer).width(), GIVEN_WIDTH);
 
-    with_reactive_scope(harness.document_mut(), move || set_width.set(None));
+    with_reactive_scope(harness.document_mut(), move || width.set(None));
     harness.frame(Vec::new());
 
     assert_eq!(

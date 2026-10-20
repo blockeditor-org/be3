@@ -100,8 +100,8 @@ pub fn DateTimePicker(
     panel: Render<DateTimePanelHandle>,
     on_change: Callback<Option<DateTime>>,
 ) -> NodeId {
-    let (current, set_current) = create_signal(value.peek());
-    create_effect(move || set_current.set(value.get()));
+    let current = create_signal(value.get_untracked());
+    create_effect(move || current.set(value.get()));
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
     let today = create_memo(move || today.get());
@@ -114,7 +114,7 @@ pub fn DateTimePicker(
             DateTime::new(date, next.time)
         });
         if next != current.get_untracked() {
-            set_current.set(next);
+            current.set(next);
             on_change.call(next);
         }
     });
@@ -122,7 +122,7 @@ pub fn DateTimePicker(
         <LayoutBuilder>|size: ReadSignal<Vec2>| {
             let width = create_memo(move || size.get().x);
             let field = Field {
-                current,
+                current: current.read_only(),
                 report,
                 parts,
                 hour_cycle,
@@ -133,12 +133,12 @@ pub fn DateTimePicker(
                 segments,
                 frame: field,
             };
-            let (open, set_open) = create_signal(false);
-            let (from_field, set_from_field) = create_signal(false);
-            let (inner_focus, set_inner_focus) = create_signal(None::<DateSegment>);
-            let (outer_focus, set_outer_focus) = create_signal(None::<DateSegment>);
-            let (last_inner, set_last_inner) = create_signal(None::<DateSegment>);
-            let (outer_segment, set_outer_segment) = create_signal(None::<DateSegment>);
+            let open = create_signal(false);
+            let from_field = create_signal(false);
+            let inner_focus = create_signal(None::<DateSegment>);
+            let outer_focus = create_signal(None::<DateSegment>);
+            let last_inner = create_signal(None::<DateSegment>);
+            let outer_segment = create_signal(None::<DateSegment>);
             let first = match parts.has_date() {
                 true => DateSegment::Year,
                 false => DateSegment::Hour,
@@ -148,9 +148,9 @@ pub fn DateTimePicker(
                     if disabled.get_untracked() {
                         return;
                     }
-                    set_from_field.set(true);
-                    set_inner_focus.set(Some(segment));
-                    set_open.set(true);
+                    from_field.set(true);
+                    inner_focus.set(Some(segment));
+                    open.set(true);
                 },
             );
             let pressed = create_timer(move || {
@@ -162,11 +162,11 @@ pub fn DateTimePicker(
                 if now_open {
                     return;
                 }
-                set_open.set(false);
-                set_inner_focus.set(None);
+                open.set(false);
+                inner_focus.set(None);
                 if from_field.get_untracked() {
-                    set_from_field.set(false);
-                    set_outer_focus.set(Some(last_inner.get_untracked().unwrap_or(first)));
+                    from_field.set(false);
+                    outer_focus.set(Some(last_inner.get_untracked().unwrap_or(first)));
                 }
             };
             let picker_label = create_memo(move || {
@@ -206,10 +206,9 @@ pub fn DateTimePicker(
                                     popover
                                     field={field}
                                     width
-                                    from_field
+                                    from_field={from_field.read_only()}
                                     inner_focus
-                                    set_inner_focus
-                                    set_last_inner
+                                    last_inner
                                     paged
                                     min
                                     max
@@ -219,9 +218,9 @@ pub fn DateTimePicker(
                             </Popover>
                         }}
                         on_segment_focus={move |segment: Option<DateSegment>| {
-                            set_outer_segment.set(segment);
+                            outer_segment.set(segment);
                             if segment.is_some() {
-                                set_outer_focus.set(None);
+                                outer_focus.set(None);
                             }
                         }}
                         on_open={open_at}
@@ -255,11 +254,11 @@ fn FieldBox(
         segments,
         frame,
     } = field;
-    let (within, set_within) = create_signal(false);
-    let (hovered, set_hovered) = create_signal(false);
+    let within = create_signal(false);
+    let hovered = create_signal(false);
     let field_disabled = disabled;
     view! {
-        <Interactive on_hover_change={move |inside: bool| set_hovered.set(inside)}>
+        <Interactive on_hover_change={move |inside: bool| hovered.set(inside)}>
             {frame.call(DateTimeBoxHandle {
                 field: view! {
                     <Interactive
@@ -275,7 +274,7 @@ fn FieldBox(
                                 disabled={field_disabled}
                                 focus_segment={focus}
                                 on_change={report}
-                                on_focus_change={move |inside: bool| set_within.set(inside)}
+                                on_focus_change={move |inside: bool| within.set(inside)}
                                 on_segment_focus={on_segment_focus}
                                 on_draft={on_draft}
                                 on_open={on_open}
@@ -286,8 +285,8 @@ fn FieldBox(
                     </Interactive>
                 },
                 trigger,
-                focused: within,
-                hovered,
+                focused: within.read_only(),
+                hovered: hovered.read_only(),
                 disabled,
             })}
         </Interactive>
@@ -300,9 +299,8 @@ fn PickerPanel(
     field: Field,
     width: Memo<f32>,
     from_field: ReadSignal<bool>,
-    inner_focus: ReadSignal<Option<DateSegment>>,
-    set_inner_focus: WriteSignal<Option<DateSegment>>,
-    set_last_inner: WriteSignal<Option<DateSegment>>,
+    inner_focus: Signal<Option<DateSegment>>,
+    last_inner: Signal<Option<DateSegment>>,
     paged: Memo<bool>,
     min: Memo<Option<Date>>,
     max: Memo<Option<Date>>,
@@ -317,7 +315,7 @@ fn PickerPanel(
         hour_cycle,
         ..
     } = field;
-    let (draft, set_draft) = create_signal(DateDraft::default());
+    let draft = create_signal(DateDraft::default());
     let shown = create_memo(move || {
         let draft = draft.get();
         let held = current
@@ -334,7 +332,7 @@ fn PickerPanel(
             )),
         }
     });
-    let (tab, set_tab) = create_signal(0usize);
+    let tab = create_signal(0usize);
     create_effect(move || {
         if open.get() {
             let timed = inner_focus.get_untracked().is_some_and(|segment| {
@@ -343,7 +341,7 @@ fn PickerPanel(
                     DateSegment::Hour | DateSegment::Minute | DateSegment::Period
                 )
             });
-            set_tab.set(usize::from(timed));
+            tab.set(usize::from(timed));
         }
     });
     let date = create_memo(move || current.get().map(|value| value.date));
@@ -359,7 +357,7 @@ fn PickerPanel(
         report.call(Some(DateTime::new(date, time)));
         match parts {
             DateTimeParts::Date => close.call(()),
-            DateTimeParts::DateTime if paged.get_untracked() => set_tab.set(1),
+            DateTimeParts::DateTime if paged.get_untracked() => tab.set(1),
             DateTimeParts::DateTime | DateTimeParts::Time => {}
         }
     });
@@ -408,11 +406,11 @@ fn PickerPanel(
                         focus={inner_focus}
                         on_segment_focus={move |segment: Option<DateSegment>| {
                             if segment.is_some() {
-                                set_last_inner.set(segment);
-                                set_inner_focus.set(None);
+                                last_inner.set(segment);
+                                inner_focus.set(None);
                             }
                         }}
-                        on_draft={move |draft| set_draft.set(draft)}
+                        on_draft={move |next| draft.set(next)}
                     />
                 },
                 field_width: width,
@@ -432,8 +430,8 @@ fn PickerPanel(
                     focused: list_focused,
                     pick: pick_time,
                 },
-                page: tab,
-                show_page: Callback::new(move |page: usize| set_tab.set(page)),
+                page: tab.read_only(),
+                show_page: Callback::new(move |page: usize| tab.set(page)),
                 now,
                 now_label,
                 clear,

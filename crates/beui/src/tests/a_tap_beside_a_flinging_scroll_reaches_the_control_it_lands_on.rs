@@ -6,7 +6,7 @@ use crate::unstyled::Scroll;
 #[test]
 fn a_tap_beside_a_flinging_scroll_reaches_the_control_it_lands_on() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let (scroll, beside) = (NodeRef::new(), NodeRef::new());
     let document = build({
         move || {
@@ -20,7 +20,7 @@ fn a_tap_beside_a_flinging_scroll_reaches_the_control_it_lands_on() {
                     <Interactive
                         @node_ref=&beside
                         @sizing=ItemSize::Percent(50.0)
-                        on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                        on_click={move || clicks.update(|clicks| *clicks += 1)}
                     >
                         <Frame />
                     </Interactive>

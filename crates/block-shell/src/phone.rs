@@ -56,10 +56,10 @@ pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
 
 #[component]
 fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
-    let (info, set_info) = create_signal(None::<Info>);
+    let info = create_signal(None::<Info>);
     let watched = RefCell::new(Watched::default());
     create_effect(move || {
-        set_info.set(read_info(&workspace, tab, &watched));
+        info.set(read_info(&workspace, tab, &watched));
     });
     let name = create_memo(move || {
         info.with(|info| {

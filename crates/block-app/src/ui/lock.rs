@@ -44,13 +44,13 @@ fn wall_clock() -> ReadSignal<DateTime> {
         let into = unix().as_secs() % SECONDS_PER_MINUTE;
         Duration::from_secs(SECONDS_PER_MINUTE - into)
     };
-    let (clock, set_clock) = create_signal(shown());
+    let clock = create_signal(shown());
     let ticking = create_timer(move || {
-        set_clock.set(shown());
+        clock.set(shown());
         Some(until_next_minute())
     });
     ticking.start(until_next_minute());
-    clock
+    clock.read_only()
 }
 
 #[component]

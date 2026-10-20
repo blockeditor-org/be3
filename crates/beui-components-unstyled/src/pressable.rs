@@ -18,7 +18,7 @@ pub fn Pressable(
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let enabled = create_memo(move || enabled.get());
-    let (key_active, set_key_active) = create_signal(false);
+    let key_active = create_signal(false);
     component_accessibility(accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button))));
     let click = move || {
         if untrack(|| enabled.get()) {
@@ -32,7 +32,7 @@ pub fn Pressable(
             focusable=true
             tab_stop={enabled}
             on_focus_change={on_focus_change}
-            on_activate_change={move |pressed| set_key_active.set(pressed)}
+            on_activate_change={move |pressed| key_active.set(pressed)}
             on_activate={key_click}
             cursor=CursorIcon::PointingHand
             key_active

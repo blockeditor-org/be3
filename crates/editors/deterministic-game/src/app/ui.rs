@@ -162,7 +162,9 @@ pub(crate) struct Steps {
 impl Steps {
     pub(crate) fn show(&self, shown: usize) {
         let count = self.count.get_untracked();
-        self.game.get().show_turns((shown < count).then_some(shown));
+        self.game
+            .value()
+            .show_turns((shown < count).then_some(shown));
     }
 
     pub(crate) fn first(&self) {
@@ -277,27 +279,23 @@ fn GamePlay(
             .filter(|action| matches!(action.gesture, None | Some(Gesture::Control(_))))
             .collect::<Vec<_>>()
     });
-    let (selected, set_selected) = create_signal(None);
-    let (choices, set_choices) = create_signal(Vec::new());
-    let (dragging, set_dragging) = create_signal(None);
-    let (over, set_over) = create_signal(None);
+    let selected = create_signal(None);
+    let choices = create_signal(Vec::new());
+    let dragging = create_signal(None);
+    let over = create_signal(None);
     create_effect(move || {
         actions.with(|_| {});
-        set_selected.set(None);
-        set_choices.set(Vec::new());
+        selected.set(None);
+        choices.set(Vec::new());
     });
     let play = Play {
         game,
         actions,
         editable,
         selected,
-        set_selected,
         choices,
-        set_choices,
         dragging,
-        set_dragging,
         over,
-        set_over,
     };
     let drawn = create_memo(move || board.with(Layout::of));
     let hand = create_memo(move || board.with(|board| board.hand.clone()));
@@ -381,7 +379,7 @@ fn Sidebar(panel: Panel) -> NodeId {
     let playing = create_memo(move || Some(seat.get().playing));
     let seated = move |seat: Option<usize>| {
         if let Some(seat) = seat {
-            game.get().play_as(seat);
+            game.value().play_as(seat);
         }
     };
     let choosing = create_memo(move || !play.choices.with(Vec::is_empty));
@@ -443,7 +441,7 @@ fn Controls(
 #[component]
 fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo<bool>) -> NodeId {
     let disabled = create_memo(move || !editable.get());
-    let (confirming, set_confirming) = create_signal(false);
+    let confirming = create_signal(false);
     let asking = create_memo(move || !confirming.get());
     let glyph = match action.gesture {
         Some(Gesture::Control(Control::Resign)) => ICON_FLAG,
@@ -454,7 +452,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
     let question = format!("{label}?");
     let confirm = format!("Confirm: {label}");
     let effect = action.effect;
-    let (ask, cancel) = (set_confirming, set_confirming);
+    let (ask, cancel) = (confirming, confirming);
     let asking_disabled = disabled;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
@@ -476,7 +474,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
                             label={confirm}
                             disabled={disabled}
                             @test_id={format!("game.control.{index}.confirm")}
-                            on_click={move || game.get().choose(effect.clone())}
+                            on_click={move || game.value().choose(effect.clone())}
                         />
                         <IconButton
                             glyph={ICON_CLOSE.to_owned()}
@@ -494,10 +492,10 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
 #[component]
 fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
     let ending = create_memo(move || table.with(|table| table.ending.clone()));
-    let (dismissed, set_dismissed) = create_signal(false);
+    let dismissed = create_signal(false);
     create_effect(move || {
         if ending.with(Option::is_none) {
-            set_dismissed.set(false);
+            dismissed.set(false);
         }
     });
     let open = create_memo(move || ending.with(Option::is_some) && !dismissed.get());
@@ -531,7 +529,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
                             size=IconButtonSize::Compact
                             capture_presses=true
                             @test_id={"game.banner.close"}
-                            on_click={move || set_dismissed.set(true)}
+                            on_click={move || dismissed.set(true)}
                         />
                     </List>
                 </Frame>
@@ -659,7 +657,7 @@ pub(crate) fn GameCreation(
                                 variant
                                 disabled
                                 @test_id={format!("game.staged.{index}")}
-                                on_click={move || creation.get().choose_staged(index)}
+                                on_click={move || creation.value().choose_staged(index)}
                             />
                             <Show condition={failed}>
                                 <Text
@@ -677,7 +675,7 @@ pub(crate) fn GameCreation(
                     variant=ButtonVariant::Secondary
                     disabled={picking}
                     @test_id={"game.choose"}
-                    on_click={move || creation.get().choose_module()}
+                    on_click={move || creation.value().choose_module()}
                 />
                 <Show condition={has_status}>
                     <Text

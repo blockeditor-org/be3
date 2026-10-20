@@ -4,23 +4,23 @@ use crate::reactive::*;
 #[test]
 fn a_capturing_action_answers_before_the_focused_control() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal(Vec::new());
+    let heard = create_signal(Vec::new());
     let (control, scoped) = (NodeRef::new(), NodeRef::new());
     let document = build(move || {
         Action::new("test.root.capture", "Root capture", move || {
-            set_heard.update(|heard| heard.push("root capture"))
+            heard.update(|heard| heard.push("root capture"))
         })
         .shortcut(Chord::ctrl(Key::J))
         .capture()
         .register();
         Action::new("test.root.bubble", "Root bubble", move || {
-            set_heard.update(|heard| heard.push("root bubble"))
+            heard.update(|heard| heard.push("root bubble"))
         })
         .shortcut(Chord::ctrl(Key::K))
         .register();
         action_scope(&scoped);
         Action::new("test.scope.capture", "Scope capture", move || {
-            set_heard.update(|heard| heard.push("scope capture"))
+            heard.update(|heard| heard.push("scope capture"))
         })
         .shortcut(Chord::ctrl(Key::L))
         .capture()
@@ -32,7 +32,7 @@ fn a_capturing_action_answers_before_the_focused_control() {
                     on_key={move |press: KeyPress| {
                         let taken = press.pressed && press.modifiers.ctrl;
                         if taken {
-                            set_heard.update(|heard| heard.push("control"));
+                            heard.update(|heard| heard.push("control"));
                         }
                         taken
                     }}

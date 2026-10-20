@@ -39,10 +39,6 @@ pub struct ViewData {
     editor: Editor,
     view: ContentProjection<DatabaseViewContent>,
     database: RelatedContent<DatabaseContent>,
-    set_selected: WriteSignal<Option<Selection>>,
-    set_error: WriteSignal<Option<String>>,
-    set_search: WriteSignal<String>,
-    set_toggled: WriteSignal<HashSet<GroupKey>>,
     pub schema_id: Memo<Option<Uuid>>,
     pub database_id: Memo<Option<Uuid>>,
     pub inverses: Memo<Vec<Inverse>>,
@@ -61,15 +57,15 @@ pub struct ViewData {
     pub hidden_fields: Memo<Vec<Uuid>>,
     pub show_empty_groups: Memo<bool>,
     pub defaults: Memo<Vec<(Uuid, DatabaseValue)>>,
-    pub search: Memo<String>,
-    pub toggled: Memo<HashSet<GroupKey>>,
+    pub search: Signal<String>,
+    pub toggled: Signal<HashSet<GroupKey>>,
     pub views: Memo<Vec<(Uuid, String)>>,
     pub name: Memo<String>,
     pub groups: Memo<Vec<Group>>,
     pub scatter_x: Memo<Option<Uuid>>,
     pub scatter_y: Memo<Option<Uuid>>,
-    pub selected: Memo<Option<Selection>>,
-    pub error: Memo<Option<String>>,
+    pub selected: Signal<Option<Selection>>,
+    pub error: Signal<Option<String>>,
     pub read_only: Memo<bool>,
     pub loaded: Memo<bool>,
 }
@@ -161,16 +157,16 @@ impl ViewData {
         let row_labels = watch_row_labels(editor, targets);
         let (labels, labels_loaded) = watch_labels(editor, database_id, rows, row_labels);
 
-        let (selected, set_selected) = create_signal(None::<Selection>);
-        let (error, set_error) = create_signal(None::<String>);
-        let (search, set_search) = create_signal(String::new());
-        let (toggled, set_toggled) = create_signal(HashSet::<GroupKey>::new());
+        let selected = create_signal(None::<Selection>);
+        let error = create_signal(None::<String>);
+        let search = create_signal(String::new());
+        let toggled = create_signal(HashSet::<GroupKey>::new());
         let (views, views_loaded) = watch_views(editor, database_id);
         let (name, name_loaded) = watch_name(editor, database_id);
         let view_loaded = view.loaded();
         let database_settled = database.settled();
         let schema_settled = schema.settled();
-        let (loaded, set_loaded) = create_signal(false);
+        let loaded = create_signal(false);
         create_effect(move || {
             let ready = view_loaded.get()
                 && database_id.get().is_none_or(|_| {
@@ -183,10 +179,9 @@ impl ViewData {
                         && name_loaded.get()
                 });
             if ready {
-                set_loaded.set(true);
+                loaded.set(true);
             }
         });
-        let search = create_memo(move || search.get());
         let groups = create_memo(move || {
             let search = search.get();
             let prefix = prefix.get();
@@ -225,10 +220,6 @@ impl ViewData {
             editor,
             view,
             database,
-            set_selected,
-            set_error,
-            set_search,
-            set_toggled,
             schema_id,
             database_id,
             inverses,
@@ -249,13 +240,13 @@ impl ViewData {
             defaults,
             search,
             groups,
-            toggled: create_memo(move || toggled.get()),
+            toggled,
             views,
             name,
             scatter_x,
             scatter_y,
-            selected: create_memo(move || selected.get()),
-            error: create_memo(move || error.get()),
+            selected,
+            error,
             read_only: editor.read_only(),
             loaded: create_memo(move || loaded.get()),
         }
@@ -266,7 +257,7 @@ impl ViewData {
     }
 
     pub fn select(&self, row: usize, field: Option<Uuid>) {
-        self.set_selected.set(Some(Selection { row, field }));
+        self.selected.set(Some(Selection { row, field }));
     }
 
     pub fn step_selection(&self, rows: isize) {
@@ -301,11 +292,11 @@ impl ViewData {
     }
 
     pub fn deselect(&self) {
-        self.set_selected.set(None);
+        self.selected.set(None);
     }
 
     pub fn dismiss_error(&self) {
-        self.set_error.set(None);
+        self.error.set(None);
     }
 
     pub fn operate_view(&self, edit: Edit) {
@@ -320,11 +311,11 @@ impl ViewData {
     }
 
     pub fn set_search(&self, query: String) {
-        self.set_search.set(query);
+        self.search.set(query);
     }
 
     pub fn toggle_group(&self, key: GroupKey) {
-        self.set_toggled.update(|toggled| {
+        self.toggled.update(|toggled| {
             if !toggled.remove(&key) {
                 toggled.insert(key);
             }
@@ -550,7 +541,7 @@ impl ViewData {
             return;
         };
         let database = self.database;
-        let set_error = self.set_error;
+        let error = self.error;
         self.editor.pick_block(
             value_block_filter(&name, request),
             move |picked| match picked {
@@ -560,7 +551,7 @@ impl ViewData {
                     request.field_id,
                     Some(DatabaseValue::Block(picked.id)),
                 ),
-                Err(error) => set_error.set(Some(error)),
+                Err(failure) => error.set(Some(failure)),
             },
         );
     }
@@ -599,8 +590,8 @@ fn watch_labels(
     rows: Memo<Vec<DatabaseRow>>,
     row_labels: block_editor_beui::database::RowLabels,
 ) -> (Memo<BlockLabels>, Memo<bool>) {
-    let (labels, set_labels) = create_signal(HashMap::<Uuid, BlockLabel>::new());
-    let (loaded, set_loaded) = create_signal(false);
+    let labels = create_signal(HashMap::<Uuid, BlockLabel>::new());
+    let loaded = create_signal(false);
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();
     create_effect(move || {
@@ -623,13 +614,13 @@ fn watch_labels(
             .into_iter()
             .map(|reference| (reference.id, reference.label(types.as_ref())))
             .collect();
-        set_labels.set(rows.with(|rows| {
+        labels.set(rows.with(|rows| {
             row_references(rows)
                 .into_iter()
                 .filter_map(|reference| Some((reference, known.get(&reference)?.clone())))
                 .collect()
         }));
-        set_loaded.set(true);
+        loaded.set(true);
     });
     let labels = create_memo(move || BlockLabels {
         blocks: labels.get(),
@@ -643,8 +634,8 @@ fn watch_views(
     editor: Editor,
     database_id: Memo<Option<Uuid>>,
 ) -> (Memo<Vec<(Uuid, String)>>, Memo<bool>) {
-    let (views, set_views) = create_signal(Vec::<(Uuid, String)>::new());
-    let (loaded, set_loaded) = create_signal(false);
+    let views = create_signal(Vec::<(Uuid, String)>::new());
+    let loaded = create_signal(false);
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();
     let own = editor.block_id();
@@ -678,8 +669,8 @@ fn watch_views(
                 };
             }
         }
-        set_views.set(found);
-        set_loaded.set(true);
+        views.set(found);
+        loaded.set(true);
     });
     (
         create_memo(move || views.get()),
@@ -688,8 +679,8 @@ fn watch_views(
 }
 
 fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> (Memo<String>, Memo<bool>) {
-    let (name, set_name) = create_signal(String::new());
-    let (loaded, set_loaded) = create_signal(false);
+    let name = create_signal(String::new());
+    let loaded = create_signal(false);
     let watched: RefCell<Option<(Uuid, BlockList)>> = RefCell::new(None);
     let client = editor.blocks();
     create_effect(move || {
@@ -709,8 +700,8 @@ fn watch_name(editor: Editor, database_id: Memo<Option<Uuid>>) -> (Memo<String>,
             .next()
             .and_then(|info| info.name())
             .filter(|name| !name.trim().is_empty());
-        set_name.set(named.unwrap_or_else(|| "Database".to_owned()));
-        set_loaded.set(true);
+        name.set(named.unwrap_or_else(|| "Database".to_owned()));
+        loaded.set(true);
     });
     (
         create_memo(move || name.get()),

@@ -8,14 +8,13 @@ fn without_a_drag_modifier_a_modified_drag_reaches_the_dock_content() {
         document,
         dock,
         presses,
-        set_presses,
     } = split_dock(None);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
     let content = harness.rect(harness.find("content.1"));
     harness.click(content.center());
     harness.frame(Vec::new());
-    set_presses.set(0);
+    presses.set(0);
     let before = dock_state(harness.document(), dock);
     let right = harness.center(harness.find("content.2"));
 

@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
     let _root = crate::reactive::RootScope::new();
-    let (hovers, set_hovers) = create_signal::<Vec<bool>>(Vec::new());
+    let hovers = create_signal::<Vec<bool>>(Vec::new());
     let (top, bottom) = (NodeRef::new(), NodeRef::new());
     let mut document = build({
         move || {
@@ -13,7 +13,7 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
                 <List spacing=0.0>
                     <Interactive
                         @node_ref=&top
-                        on_hover_change={move |hovered: bool| set_hovers.update(|hovers| hovers.push(hovered))}
+                        on_hover_change={move |hovered: bool| hovers.update(|hovers| hovers.push(hovered))}
                     >
                         <Frame height=100.0 />
                     </Interactive>
@@ -30,8 +30,8 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.frame(vec![Event::PointerMoved(pos2(5.0, 50.0))]);
-    top_counts.set_visits.set(0);
-    bottom_counts.set_visits.set(0);
+    top_counts.visits.set(0);
+    bottom_counts.visits.set(0);
 
     for x in [10.0, 20.0, 30.0] {
         harness.frame(vec![Event::PointerMoved(pos2(x, 50.0))]);
@@ -53,7 +53,7 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
         vec![true, false],
         "the catcher the pointer left hears it leave"
     );
-    top_counts.set_visits.set(0);
+    top_counts.visits.set(0);
     harness.frame(vec![Event::PointerMoved(pos2(20.0, 500.0))]);
     assert_eq!(
         top_counts.visits.get_untracked(),

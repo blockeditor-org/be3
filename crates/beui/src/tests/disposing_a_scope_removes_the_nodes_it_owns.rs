@@ -5,9 +5,9 @@ use crate::reactive::*;
 #[test]
 fn disposing_a_scope_removes_the_nodes_it_owns() {
     let _root = crate::reactive::RootScope::new();
-    let (cleaned, set_cleaned) = create_signal::<Vec<&'static str>>(Vec::new());
-    let (label, set_label) = create_signal("one".to_owned());
-    let (shown, set_shown) = create_signal(true);
+    let cleaned = create_signal::<Vec<&'static str>>(Vec::new());
+    let label = create_signal("one".to_owned());
+    let shown = create_signal(true);
     let text = NodeRef::new();
     let document = build({
         move || {
@@ -15,9 +15,9 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
                 <List spacing=0.0>
                     <Show condition={shown}>|| {
                         component(&ComponentInfo { name: "Outer", module: module_path!() }, move || {
-                            on_cleanup(move || set_cleaned.update(|cleaned| cleaned.push("outer")));
+                            on_cleanup(move || cleaned.update(|cleaned| cleaned.push("outer")));
                             let inner = component(&ComponentInfo { name: "Inner", module: module_path!() }, move || {
-                                on_cleanup(move || set_cleaned.update(|cleaned| cleaned.push("inner")));
+                                on_cleanup(move || cleaned.update(|cleaned| cleaned.push("inner")));
                                 view! {
                                     <Text @node_ref=&text string={label} />
                                 }
@@ -38,7 +38,7 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
     let count = harness.document().arena.len();
     assert!(cleaned.with_untracked(|cleaned| cleaned.is_empty()));
 
-    with_installed(harness.document_mut(), |_| set_shown.set(false));
+    with_installed(harness.document_mut(), |_| shown.set(false));
     assert_eq!(cleaned.get_untracked(), ["inner", "outer"]);
     assert!(
         !harness.document().contains(built),
@@ -50,6 +50,6 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
         "the frame and the text both go, and nothing else"
     );
 
-    with_installed(harness.document_mut(), |_| set_label.set("two".to_owned()));
+    with_installed(harness.document_mut(), |_| label.set("two".to_owned()));
     harness.frame(Vec::new());
 }

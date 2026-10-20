@@ -192,7 +192,7 @@ impl<H: 'static, C: 'static> RenderFn<H, C> {
     }
 
     pub fn call(&self, handle: H) -> C {
-        let slot = self.0.get();
+        let slot = self.0.value();
         in_component(slot.0.clone(), || (slot.1)(handle))
     }
 }

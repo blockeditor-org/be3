@@ -43,8 +43,8 @@ pub struct TreeRowTarget {
     select: ClickCallback,
     drag_start: ClickCallback,
     hover: Callback<bool>,
-    set_hovered: WriteSignal<bool>,
-    set_active: WriteSignal<bool>,
+    hovered: Signal<bool>,
+    active: Signal<bool>,
 }
 
 pub struct TreeRevealHandle {
@@ -60,8 +60,7 @@ struct State<K> {
     selected: Memo<Option<K>>,
     shown: Memo<Option<K>>,
     buried: Memo<Option<K>>,
-    focus: ReadSignal<Option<K>>,
-    set_focus: WriteSignal<Option<K>>,
+    focus: Signal<Option<K>>,
     on_select: Callback<K>,
     on_expand: Callback<(K, bool)>,
     typeahead: Stored<RefCell<Typeahead>>,
@@ -113,7 +112,7 @@ where
             .filter(|key| selected.get().as_ref() != Some(key))
     });
     let burial = create_selector(move || buried.get());
-    let (focus, set_focus) = create_signal(None);
+    let focus = create_signal(None);
     let focused = create_selector(move || focus.get());
     let tab_stop = create_memo(move || {
         let keys = keys.get();
@@ -135,7 +134,6 @@ where
         shown,
         buried,
         focus,
-        set_focus,
         on_select,
         on_expand,
         typeahead: store(RefCell::default()),
@@ -144,7 +142,7 @@ where
 
     create_effect(move || {
         if state.focus.get().is_none() {
-            state.typeahead.get().borrow_mut().clear();
+            state.typeahead.value().borrow_mut().clear();
         }
     });
 
@@ -218,18 +216,18 @@ where
     });
     let drag_key = key.clone();
     let drag_start = ClickCallback::new(move || on_drag_start.call(drag_key.clone()));
-    let (hovered, set_hovered) = create_signal(false);
-    let (active, set_active) = create_signal(false);
+    let hovered = create_signal(false);
+    let active = create_signal(false);
     let target = TreeRowTarget {
         select: chosen,
         drag_start,
         hover,
-        set_hovered,
-        set_active,
+        hovered,
+        active,
     };
-    let (has_focus, set_has_focus) = create_signal(false);
+    let has_focus = create_signal(false);
     let built = NodeRef::new();
-    nodes.get().borrow_mut().insert(nodes_key, built);
+    nodes.value().borrow_mut().insert(nodes_key, built);
     on_cleanup(move || {
         nodes.try_with(|nodes| nodes.borrow_mut().remove(&cleanup_key));
     });
@@ -240,7 +238,7 @@ where
             tab_stop={tab_stop.memo(Some(key.clone()))}
             focused={focused.memo(Some(key))}
             on_focus_change={move |focused: bool| {
-                set_has_focus.set(focused);
+                has_focus.set(focused);
                 track_focus(state, &blur_key, focused);
             }}
             on_activate={chosen}
@@ -252,9 +250,9 @@ where
                 item,
                 selected,
                 marked,
-                focused: has_focus,
-                hovered,
-                active,
+                focused: has_focus.read_only(),
+                hovered: hovered.read_only(),
+                active: active.read_only(),
                 select: chosen,
                 toggle: expand,
                 target,
@@ -314,8 +312,8 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
         select,
         drag_start,
         hover,
-        set_hovered,
-        set_active,
+        hovered,
+        active,
     } = target;
     let gesture: Stored<Cell<Option<(Pos2, bool)>>> = store(Cell::default());
     let pressed = move |press: PointerPress| {
@@ -332,7 +330,7 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
         drag_start.call();
     };
     let settled = move |down: bool| {
-        set_active.set(down);
+        active.set(down);
         if !down {
             gesture.with(|gesture| gesture.set(None));
         }
@@ -350,7 +348,7 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
             on_click={chose}
             on_active_change={settled}
             on_hover_change={move |over: bool| {
-                set_hovered.set(over);
+                hovered.set(over);
                 hover.call(over);
             }}
         >
@@ -378,7 +376,7 @@ where
         node_rect(list).get();
         let row = state
             .nodes
-            .get()
+            .value()
             .borrow()
             .get(&key)
             .and_then(NodeRef::try_get)?;
@@ -391,7 +389,7 @@ where
             buried.get().is_some(),
         )
     });
-    let (pending, set_pending) = create_signal(None::<K>);
+    let pending = create_signal(None::<K>);
     create_effect(move || {
         let Some(key) = pending.get() else {
             return;
@@ -400,7 +398,7 @@ where
         node_rect(list).get();
         let Some(row) = state
             .nodes
-            .get()
+            .value()
             .borrow()
             .get(&key)
             .and_then(NodeRef::try_get)
@@ -411,7 +409,7 @@ where
             return;
         }
         with_document(|document| document.reveal_node(row));
-        set_pending.set(None);
+        pending.set(None);
     });
     let open = create_memo(move || astray.get().is_some());
     let edge = create_memo(move || astray.get().unwrap_or(Edge::Bottom));
@@ -431,7 +429,7 @@ where
             return;
         };
         on_reveal.call(key.clone());
-        set_pending.set(Some(key));
+        pending.set(Some(key));
     });
     let content = button.call(TreeRevealHandle {
         edge,
@@ -475,9 +473,9 @@ where
     K: Clone + Eq + Hash + 'static,
 {
     if has_focus {
-        state.set_focus.set(Some(key.clone()));
+        state.focus.set(Some(key.clone()));
     } else if state.focus.get_untracked().as_ref() == Some(key) {
-        state.set_focus.set(None);
+        state.focus.set(None);
     }
 }
 
@@ -485,7 +483,7 @@ fn toggle<K>(state: State<K>, key: &K)
 where
     K: Clone + Eq + Hash + 'static,
 {
-    state.set_focus.set(Some(key.clone()));
+    state.focus.set(Some(key.clone()));
     let item = untrack(|| state.item.call(key.clone()));
     if item.expandable {
         state.on_expand.call((key.clone(), !item.expanded));
@@ -530,7 +528,7 @@ where
         _ => return false,
     };
     if press.pressed {
-        state.set_focus.set(Some(keys[moved].clone()));
+        state.focus.set(Some(keys[moved].clone()));
     }
     true
 }
@@ -554,13 +552,13 @@ where
     };
     let matched = state
         .typeahead
-        .get()
+        .value()
         .borrow_mut()
         .matched(text, index, keys.len(), |row| {
             untrack(|| state.item.call(keys[row].clone())).label
         });
     if let Some(matched) = matched {
-        state.set_focus.set(Some(keys[matched].clone()));
+        state.focus.set(Some(keys[matched].clone()));
     }
 }
 
@@ -568,6 +566,6 @@ fn select<K>(state: State<K>, key: &K)
 where
     K: Clone + Eq + Hash + 'static,
 {
-    state.set_focus.set(Some(key.clone()));
+    state.focus.set(Some(key.clone()));
     state.on_select.call(key.clone());
 }

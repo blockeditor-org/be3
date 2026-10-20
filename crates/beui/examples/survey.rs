@@ -13,7 +13,7 @@ struct SurveyApp {
 impl SurveyApp {
     fn new() -> Self {
         let document = build(|| {
-            let (state, set_state) = create_signal("Hello, world!".to_owned());
+            let state = create_signal("Hello, world!".to_owned());
             view! {
                 <Frame fill=ColorRole::Background padding=16.0>
                     <List spacing=8.0>
@@ -21,7 +21,7 @@ impl SurveyApp {
                         <TextInput
                             value={state}
                             label="Text"
-                            on_change={move |value| set_state.set(value)}
+                            on_change={move |value| state.set(value)}
                         />
                     </List>
                 </Frame>

@@ -7,8 +7,8 @@ use crate::styled::*;
 fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
     let _root = crate::reactive::RootScope::new();
     let content = NodeRef::new();
-    let (closed, set_closed) = create_signal(0);
-    let (open, set_open) = create_signal(false);
+    let closed = create_signal(0);
+    let open = create_signal(false);
     let document = build({
         move || {
             view! {
@@ -17,7 +17,7 @@ fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
                     <ModalSheet
                         open={open}
                         fit=true
-                        on_close={move || set_closed.update(|closed| *closed += 1)}
+                        on_close={move || closed.update(|closed| *closed += 1)}
                     >
                         <Frame @node_ref=&content height=120.0 />
                     </ModalSheet>
@@ -32,7 +32,7 @@ fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
         "a closed modal sheet builds nothing it holds"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     harness.settle();
     let body = harness.rect(content.get());
     assert_eq!(

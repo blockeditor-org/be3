@@ -27,10 +27,8 @@ impl Shown {
 #[derive(Clone, Copy)]
 pub(crate) struct Pages {
     pane: Stored<RefCell<Pane>>,
-    page: ReadSignal<usize>,
-    set_page: WriteSignal<usize>,
-    shown: ReadSignal<Shown>,
-    set_shown: WriteSignal<Shown>,
+    page: Signal<usize>,
+    shown: Signal<Shown>,
 }
 
 pub(crate) struct Viewport {
@@ -41,14 +39,12 @@ pub(crate) struct Viewport {
 
 impl Pages {
     pub(crate) fn new() -> Self {
-        let (shown, set_shown) = create_signal(Shown::default());
-        let (page, set_page) = create_signal(0);
+        let shown = create_signal(Shown::default());
+        let page = create_signal(0);
         Self {
             pane: store(RefCell::new(Pane::default())),
             page,
-            set_page,
             shown,
-            set_shown,
         }
     }
 
@@ -62,7 +58,7 @@ impl Pages {
     }
 
     pub(crate) fn go(&self, page: usize) {
-        self.set_page.set(page);
+        self.page.set(page);
     }
 
     pub(crate) fn pump(
@@ -72,13 +68,13 @@ impl Pages {
         waker: Waker,
         viewport: Viewport,
     ) {
-        let pane = self.pane.get();
+        let pane = self.pane.value();
         let mut pane = pane.borrow_mut();
         let mut shown = self.shown.get_untracked();
         if let Some(facts) = pane.poll(performance) {
             shown.page_count = Some(facts.page_count);
             if self.page.get_untracked() >= facts.page_count {
-                self.set_page.set(facts.page_index);
+                self.page.set(facts.page_index);
             }
             shown.page_size = Some(facts.page_size_pts);
         }
@@ -100,6 +96,6 @@ impl Pages {
         shown.page = self.page.get_untracked();
         shown.error = pane.error().map(str::to_owned);
         drop(pane);
-        self.set_shown.set(shown);
+        self.shown.set(shown);
     }
 }
