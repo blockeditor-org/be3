@@ -17,6 +17,7 @@ be-keys = { path = "../be-keys" }
 be-protocol = { path = "../be-protocol" }
 be-store = { path = "../be-store" }
 build-id = { path = "../build-id" }
+futures-util = "0.3"
 block-ui = { path = "../block-ui" }
 serde_json = "1"
 tokio = { version = "1", features = ["macros", "rt-multi-thread", "time"] }

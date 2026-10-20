@@ -12,7 +12,7 @@ use crate::tracker::{Assignment, Body, Filter, NewColumn, RowView, Tracker};
 pub const USAGE: &str = "\
 Usage: be TARGET [VERB] [ARGUMENTS]   or   be COMMAND
 
-TARGET is a block, by the start of its id (`be ls` prints it), its full id or
+TARGET is a block, by the end of its id (`be ls` prints it), its full id or
 its name. A row is named within its database: `be Issues row BE-7K3Q2M`.
 
 Commands:
@@ -214,8 +214,8 @@ async fn command<S: ObjectStore>(
         }
         "ls" => listing(tracker, None, json).await,
         "workspaces" => {
-            let index = tracker.index().await?;
-            let workspaces = index.workspaces();
+            let top = tracker.top().await?;
+            let workspaces = crate::blocks::workspaces(&top);
             if json {
                 return Ok(Value::Array(
                     workspaces
@@ -256,17 +256,10 @@ async fn command<S: ObjectStore>(
             let parent = within(tracker, invocation).await?;
             let prefix = invocation.options.prefix.clone().unwrap_or_default();
             let (view, database) = tracker.create_database(name, &prefix, parent).await?;
-            let index = tracker.index().await?;
-            let short = |id: Uuid| {
-                index
-                    .get(id)
-                    .map(|entry| entry.short.clone())
-                    .unwrap_or_default()
-            };
             Ok(format!(
                 "made {name}: database {}, list view {}",
-                short(database),
-                short(view)
+                crate::blocks::short_of(database),
+                crate::blocks::short_of(view)
             ))
         }
         "upload" => {
@@ -278,9 +271,8 @@ async fn command<S: ObjectStore>(
             let blocks = be_client::transfer::decode(&bytes)?;
             let parent = within(tracker, invocation).await?;
             let uploaded = tracker.upload(blocks, parent).await?;
-            let index = tracker.index().await?;
-            let top = index.get(uploaded.top).map_or_else(
-                || uploaded.top.to_string(),
+            let top = tracker.entry(uploaded.top).await.map_or_else(
+                |_| uploaded.top.to_string(),
                 |entry| format!("{} ({})", entry.label(), entry.short),
             );
             let mut said = format!("uploaded {top}");
@@ -300,7 +292,7 @@ async fn within<S: ObjectStore>(
     match &invocation.options.within {
         Some(within) => Ok(BlockParent::Block(tracker.resolve(within).await?.id)),
         None => Ok(BlockParent::Block(
-            tracker.index().await?.default_parent()?.id,
+            crate::blocks::default_parent(&tracker.top().await?)?.id,
         )),
     }
 }
@@ -310,19 +302,21 @@ async fn listing<S: ObjectStore>(
     parent: Option<Uuid>,
     json: bool,
 ) -> Result<String, String> {
-    let index = tracker.index().await?;
-    let mut children = index.children(parent);
-    let pages = match parent.and_then(|parent| index.get(parent)) {
-        Some(entry) if entry.block_type == DatabaseContent::CONTENT_TYPE => {
-            tracker.row_pages(entry.id).await?
+    let mut children = match parent {
+        Some(parent) => tracker.children(parent).await?,
+        None => tracker.top().await?,
+    };
+    let pages = match parent {
+        Some(parent)
+            if tracker.entry(parent).await?.block_type == DatabaseContent::CONTENT_TYPE =>
+        {
+            tracker.row_pages(parent).await?
         }
         _ => Vec::new(),
     };
     children.retain(|entry| !pages.contains(&entry.id));
     if json {
-        return Ok(
-            Value::Array(children.iter().map(|entry| entry_json(entry)).collect()).to_string(),
-        );
+        return Ok(Value::Array(children.iter().map(entry_json).collect()).to_string());
     }
     if children.is_empty() && pages.is_empty() {
         return Ok("nothing here".to_owned());
@@ -336,9 +330,13 @@ async fn listing<S: ObjectStore>(
         .map(|entry| entry.short.len())
         .max()
         .unwrap_or(4);
+    let inside =
+        futures_util::future::try_join_all(children.iter().map(|entry| tracker.children(entry.id)))
+            .await?;
     Ok(children
         .iter()
-        .map(|entry| {
+        .zip(inside)
+        .map(|(entry, inside)| {
             let extra = match (
                 &entry.prefix,
                 entry.block_type == DatabaseContent::CONTENT_TYPE,
@@ -346,8 +344,7 @@ async fn listing<S: ObjectStore>(
                 (Some(prefix), true) if !prefix.is_empty() => format!("  rows {prefix}-…"),
                 _ => String::new(),
             };
-            let inside = index.children(Some(entry.id)).len();
-            let inside = match inside {
+            let inside = match inside.len() {
                 0 => String::new(),
                 count => format!("  ({count} inside)"),
             };
@@ -392,13 +389,12 @@ async fn block_verb<S: ObjectStore>(
     match (verb, is_text, database) {
         ("ls", _, _) => print(listing(tracker, Some(entry.id), json).await?),
         ("info", _, _) => {
-            let index = tracker.index().await?;
             let parent = match entry.parent {
-                BlockParent::Block(parent) if index.is_hidden(parent) => {
+                BlockParent::Block(parent) if tracker.is_hidden(parent).await => {
                     "a block this account cannot see (it was shared from there)".to_owned()
                 }
-                BlockParent::Block(parent) => index.get(parent).map_or_else(
-                    || parent.to_string(),
+                BlockParent::Block(parent) => tracker.entry(parent).await.map_or_else(
+                    |_| parent.to_string(),
                     |parent| format!("{} ({})", parent.label(), parent.short),
                 ),
                 BlockParent::Root => "the root".to_owned(),

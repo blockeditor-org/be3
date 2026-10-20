@@ -68,13 +68,19 @@ be upload issues.block --in a1f3
                                         (without --in, where new-database puts one)
 ```
 
-`be ls` lists the workspaces the account can see, then each block shared with
-it whose parent it cannot see (the app's Shared with me), never a settings
-block. `new-database` and `upload` without `--in` go into the one workspace
-the account may write in, or, with none, the one shared folder it may; with
-several they ask for `--in`. A target is a block, by the start of its id as `be ls` prints it, its full id
-or (unless it is deleted) its name (a database view and the database inside it share a name, and the
-name means the database). A row is named within its database, `be DATABASE
+`be ls` lists the top: the organization's roots the account can see
+(`ListChildren` of the root) and each block shared with it whose parent it
+cannot see (`ListShared`, the app's Shared with me), never a settings block.
+`be` never lists the whole organization: it lists the top, then a block's
+children when it needs them, one request per block, and keeps what it has
+listed for the rest of the command. `new-database` and `upload` without `--in`
+go into the one workspace the account may write in, or, with none, the one
+shared folder it may; with several they ask for `--in`. A target is a block, by
+its full id (read directly), or by the end of its id as `be ls` prints it (the
+last eight hex digits, which UUIDv7 makes random where its start is a
+timestamp) or its name, found a level at a time from the top, all of a level's
+listings sent together; the shallowest level with a match decides. A database
+view and the database inside it share a name, and the name means the database. A row is named within its database, `be DATABASE
 row ROW-ID`, never on its own. A row's id is its database's prefix and six
 characters made from the row's own id, so it never changes and needs no
 coordination. The prefix is only a label: two databases may share one, and a

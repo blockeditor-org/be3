@@ -75,14 +75,8 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     })
     .unwrap();
     let agent = Tracker::new(connect(&settings).await.unwrap());
-    let seen = agent.databases().await.unwrap();
-    assert_eq!(
-        seen.iter()
-            .map(|database| database.label())
-            .collect::<Vec<_>>(),
-        ["Issues"]
-    );
-    assert!(seen.iter().all(|database| database.id != private));
+    assert_eq!(agent.find_database("Issues").await.unwrap(), board.database);
+    assert!(agent.entry(private).await.is_err());
 
     let made = agent
         .create(
@@ -105,10 +99,11 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
     assert!(run(&agent, "workspaces").await.unwrap().ends_with("Agents"));
     run(&agent, "new-database Notes --prefix NO").await.unwrap();
     owner.invalidate().await;
-    let index = owner.index().await.unwrap();
-    let notes = index
-        .entries
-        .iter()
+    let notes = owner
+        .children(agents)
+        .await
+        .unwrap()
+        .into_iter()
         .find(|entry| entry.label() == "Notes" && entry.kind() == "database view")
         .expect("the owner sees the database the agent made");
     assert_eq!(notes.parent, BlockParent::Block(agents));

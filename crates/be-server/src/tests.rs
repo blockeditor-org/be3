@@ -19,6 +19,7 @@ use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
+mod a_block_shared_from_a_hidden_folder_is_listed_as_shared;
 mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_also_refuses_browser_registration_and_login;

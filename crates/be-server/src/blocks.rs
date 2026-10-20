@@ -590,6 +590,22 @@ impl ServerStore {
         .await
     }
 
+    pub async fn list_shared(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
+        self.with_graph(identity.organization, move |graph, _| {
+            let seen = visibility(identity);
+            if seen.administrator {
+                return Ok(Vec::new());
+            }
+            Ok(graph
+                .shared(identity.account)
+                .into_iter()
+                .filter_map(|block| summary_with(graph, &seen, block))
+                .filter(|block| block.access.can_view())
+                .collect())
+        })
+        .await
+    }
+
     pub async fn list_children(
         &self,
         identity: Identity,

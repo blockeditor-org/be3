@@ -432,6 +432,22 @@ impl BlockGraph {
         })
     }
 
+    pub fn shared(&self, account: Uuid) -> Vec<Uuid> {
+        self.entry_points(account)
+            .into_iter()
+            .filter(|entry| {
+                let Some(node) = self.blocks.get(entry) else {
+                    return false;
+                };
+                let BlockParent::Block(parent) = node.parent else {
+                    return false;
+                };
+                !self.inherited(parent, account).can_view()
+                    && level_below(node, account, Access::None, false).can_view()
+            })
+            .collect()
+    }
+
     pub fn visible(&self, account: Uuid) -> BTreeMap<Uuid, Access> {
         let mut levels: BTreeMap<Uuid, Access> = BTreeMap::new();
         fn raise(levels: &mut BTreeMap<Uuid, Access>, id: Uuid, level: Access) {

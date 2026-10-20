@@ -916,6 +916,10 @@ impl Connection {
                 self.reannounce(identity, vec![block], true, before).await;
                 Ok(ServerMessage::Ok { request })
             }
+            ClientMessage::ListShared { request } => Ok(ServerMessage::Blocks {
+                request,
+                blocks: self.store.list_shared(self.identity()?).await?,
+            }),
             ClientMessage::ListChildren { request, parent } => Ok(ServerMessage::Blocks {
                 request,
                 blocks: self.store.list_children(self.identity()?, parent).await?,

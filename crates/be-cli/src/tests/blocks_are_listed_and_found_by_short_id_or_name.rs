@@ -50,8 +50,7 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
     assert!(pages.contains("1 row pages"), "{pages}");
     let database = tracker.find_database("Issues").await.unwrap();
     let shown = tracker.show(database, &id).await.unwrap();
-    let index = tracker.index().await.unwrap();
-    let page = index.get(shown.page.unwrap()).unwrap().short.clone();
+    let page = tracker.entry(shown.page.unwrap()).await.unwrap().short;
     assert_eq!(
         run(&tracker, &format!("{page} cat")).await.unwrap(),
         "Steps to reproduce."

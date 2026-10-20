@@ -487,6 +487,9 @@ pub enum ClientMessage {
         parent: BlockParent,
         keys: KeySet,
     },
+    ListShared {
+        request: u64,
+    },
     ListChildren {
         request: u64,
         parent: BlockParent,
@@ -685,6 +688,7 @@ impl ClientMessage {
             | Self::ReadBlock { request, .. }
             | Self::ReadContents { request, .. }
             | Self::SetParent { request, .. }
+            | Self::ListShared { request }
             | Self::ListChildren { request, .. }
             | Self::ListBackrefs { request, .. }
             | Self::ListHistory { request, .. }
