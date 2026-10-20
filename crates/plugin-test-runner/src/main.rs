@@ -14,18 +14,20 @@ fn main() {
         usage(&program);
     };
     if first == "--precompile-to" {
-        let mut artifact = arguments.next();
         let mut target = None;
-        if artifact.as_deref() == Some("--target") {
-            target = arguments.next();
-            artifact = arguments.next();
+        let mut quick = false;
+        let mut paths = Vec::new();
+        while let Some(argument) = arguments.next() {
+            match argument.as_str() {
+                "--target" => target = arguments.next(),
+                "--quick" => quick = true,
+                _ => paths.push(PathBuf::from(argument)),
+            }
         }
-        let artifact = artifact.map(PathBuf::from);
-        let wasm = arguments.next().map(PathBuf::from);
-        let (Some(artifact), Some(wasm)) = (artifact, wasm) else {
+        let [artifact, wasm] = paths.as_slice() else {
             usage(&program);
         };
-        if let Err(message) = precompile_to(&wasm, &artifact, target.as_deref()) {
+        if let Err(message) = precompile_to(wasm, artifact, target.as_deref(), quick) {
             eprintln!("{message}");
             std::process::exit(1);
         }
@@ -91,7 +93,9 @@ fn absolute_guest_paths() {
 fn usage(program: &str) -> ! {
     eprintln!("Usage: {program} [--precompiled TESTS.cwasm] TESTS.wasm [test arguments...]");
     eprintln!("       {program} --precompile TESTS.wasm...");
-    eprintln!("       {program} --precompile-to [--target TRIPLE] TESTS.cwasm TESTS.wasm");
+    eprintln!(
+        "       {program} --precompile-to [--target TRIPLE] [--quick] TESTS.cwasm TESTS.wasm"
+    );
     std::process::exit(2);
 }
 
