@@ -81,11 +81,17 @@ impl<S: ObjectStore> Peer<S> {
     pub async fn rotate(&self, root: Uuid) -> Result<(), ClientError> {
         let top = self.summary(root).await?;
         let mut walked = vec![top.clone()];
-        let mut next = 0;
-        while let Some(id) = walked.get(next).map(|node| node.id) {
-            let children = self.children(BlockParent::Block(id)).await?;
+        let mut level = vec![top.id];
+        while !level.is_empty() {
+            let children = futures_util::future::try_join_all(
+                level
+                    .iter()
+                    .map(|id| self.children(BlockParent::Block(*id))),
+            )
+            .await?;
+            let children: Vec<BlockSummary> = children.into_iter().flatten().collect();
+            level = children.iter().map(|child| child.id).collect();
             walked.extend(children);
-            next += 1;
         }
         self.refresh_keys(Some(walked.iter().map(|node| node.id).collect()))
             .await?;
@@ -110,6 +116,20 @@ impl<S: ObjectStore> Peer<S> {
                 .or(outer)
                 .ok_or(ClientError::Locked(scope))
         };
+        let mut recipients: HashMap<Uuid, Vec<(Uuid, be_keys::RecoveryPublic)>> = walked
+            .iter()
+            .filter(|node| scope_of[&node.id] == node.id)
+            .map(|node| node.id)
+            .zip(
+                futures_util::future::try_join_all(
+                    walked
+                        .iter()
+                        .filter(|node| scope_of[&node.id] == node.id)
+                        .map(|node| self.recipients(node)),
+                )
+                .await?,
+            )
+            .collect();
         let mut keys = KeySet::default();
         for node in &walked {
             let node_scope = scope_of[&node.id];
@@ -123,7 +143,7 @@ impl<S: ObjectStore> Peer<S> {
                 };
                 let (scope, minted) = self.keys.mint_scope(node.id, parent)?;
                 keys.extend(minted);
-                for (account, public) in self.recipients(node).await? {
+                for (account, public) in recipients.remove(&node.id).unwrap_or_default() {
                     keys.wrapped
                         .push(self.keys.seal_to(scope, account, &public)?);
                 }

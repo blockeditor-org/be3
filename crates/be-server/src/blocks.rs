@@ -301,6 +301,58 @@ impl ServerStore {
         .await
     }
 
+    pub async fn read_contents(
+        &self,
+        identity: Identity,
+        blocks: Vec<Uuid>,
+        held: Vec<CommitId>,
+    ) -> Result<(Vec<BlockSummary>, Vec<Hash>), ServerError> {
+        self.with_graph(identity.organization, move |graph, database| {
+            let seen = visibility(identity);
+            let held: BTreeSet<CommitId> = held.into_iter().collect();
+            let mut statement = database.prepare(
+                "SELECT hash FROM commit_objects
+                 WHERE organization_id = ?1 AND block_id = ?2 AND commit_id = ?3
+                 ORDER BY position",
+            )?;
+            let mut summaries = Vec::with_capacity(blocks.len());
+            let mut objects = Vec::new();
+            for block in blocks {
+                if !graph.contains(block) {
+                    return Err(ServerError::Refused(
+                        ErrorCode::BlockNotFound,
+                        format!("block {block} does not exist"),
+                    ));
+                }
+                if !seen.can_view(graph, block) {
+                    return Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!("block {block} is not readable by this account"),
+                    ));
+                }
+                let summary = summary_with(graph, &seen, block).ok_or(ServerError::Corrupt)?;
+                if let Some(head) = summary.head
+                    && !held.contains(&head)
+                {
+                    let rows = statement.query_map(
+                        params![
+                            identity.organization.to_string(),
+                            block.to_string(),
+                            head.hash().to_hex()
+                        ],
+                        |row| row.get::<_, String>(0),
+                    )?;
+                    for row in rows {
+                        objects.push(Hash::from_hex(&row?).ok_or(ServerError::Corrupt)?);
+                    }
+                }
+                summaries.push(summary);
+            }
+            Ok((summaries, objects))
+        })
+        .await
+    }
+
     pub async fn publish(
         &self,
         identity: Identity,

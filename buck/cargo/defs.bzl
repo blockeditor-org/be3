@@ -104,7 +104,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], env = {}, *
 # A test whose env names LD_LIBRARY_PATH is a library_path_test around the
 # test harness, built as a binary, since Namespace's workers replace an
 # action's LD_LIBRARY_PATH with their own.
-def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_env = {}, **kwargs):
+def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     rustc_flags = _rustc_flags(crate, kwargs)
@@ -128,7 +128,19 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_env
             **common,
         )
         painting_test(name = name, env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", **kwargs)
-        painting_test_run(name = name + "-run", env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", **kwargs)
+        if not run_apart:
+            painting_test_run(name = name + "-run", env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", **kwargs)
+            return
+        for path in native.glob(["src/tests/*.rs"]):
+            test = path.removeprefix("src/tests/").removesuffix(".rs")
+            painting_test_run(
+                name = "{}-run-{}".format(name, test),
+                args = ["tests::{}::".format(test)],
+                env = run_env,
+                harness = ":" + name + "-harness",
+                manifest = "Cargo.toml",
+                **kwargs,
+            )
         return
     if "LD_LIBRARY_PATH" in env:
         compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
@@ -179,9 +191,12 @@ library_path_test = rule(
 # :test runs here, so that UPDATE_SNAPSHOTS=1 writes into snapshots/, and
 # :test-run is the action ./scripts/verify builds on a worker, which accepts
 # every painting and outputs the ones that changed and the ones it compared.
-# crates/app-tests is one: block-app with its plugins, driven headless.
+# crates/app-tests is one: block-app with its plugins, driven headless. With
+# run_apart, each file under src/tests/ is a :test-run-<file> of its own, so a
+# test that fails costs only its own paintings rather than every one the crate
+# accepts, since a failed action keeps no outputs.
 def _painting_command(ctx, env):
-    command = cmd_args(ctx.attrs.harness[RunInfo])
+    command = cmd_args(ctx.attrs.harness[RunInfo], getattr(ctx.attrs, "args", []))
     if "LD_LIBRARY_PATH" in env:
         env["BE3_LD_LIBRARY_PATH"] = env.pop("LD_LIBRARY_PATH")
         command = cmd_args("sh", "-c", _restore_library_path, "sh", command)
@@ -237,6 +252,7 @@ def _painting_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
 
 painting_test_run = rule(
     attrs = {
+        "args": attrs.list(attrs.string(), default = []),
         "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
         "harness": attrs.dep(providers = [RunInfo]),
         "manifest": attrs.source(),

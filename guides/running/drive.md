@@ -107,6 +107,10 @@ so dialogs, the file tree and every editor read like the host's own controls.
   crates/paint-format) rather than the plugin protocol proper. What a plugin draws through a
   `Drawing` of its own, a web view or a Wayland window is a placeholder rectangle, as in any
   snapshot.
+- `drive overflows` lists, one per line, what the window shows out of bounds
+  (beui-core's `Document::overflows`, guides/testing_a_gui.md, 4), the host's documents and every
+  plugin shown included. Each document checks itself on every frame while it is driven, and a
+  plugin's findings come back with its painting, so it waits as `paint` does.
 
 ## Targets
 

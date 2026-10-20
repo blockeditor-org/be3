@@ -152,10 +152,10 @@ impl Document {
                 Direction::Vertical => (false, true),
             };
         }
-        let pans = element
-            .downcast_ref::<CanvasNode>()
-            .is_some_and(CanvasNode::pans);
-        (pans, pans)
+        match element.downcast_ref::<CanvasNode>() {
+            Some(canvas) => (canvas.pans() || canvas.scrolls_across(), canvas.pans()),
+            None => (false, false),
+        }
     }
 
     fn overflow(&self, id: NodeId, kind: OverflowKind, rect: Rect, bounds: Rect) -> Overflow {

@@ -27,6 +27,7 @@ mod swiping_back_in_a_folder_shows_the_one_above_it;
 mod the_account_s_system_blocks_are_reached_from_the_bottom_of_the_files;
 mod the_desktop_files_toolbar_opens_the_app_menu;
 mod the_files_are_shown_by_workspace_then_what_is_shared;
+mod the_folder_zoomed_into_is_kept_in_the_view_and_reopens_zoomed;
 mod the_inspect_dialog_stays_on_a_narrow_screen;
 mod the_phone_files_header_opens_the_app_menu;
 
@@ -178,13 +179,26 @@ fn editor_sized(size: Option<Vec2>) -> Fixture {
 }
 
 fn viewed(view: EditorViewContent) -> Fixture {
+    viewed_in(view, |test| test)
+}
+
+fn viewed_on_phone(view: EditorViewContent) -> Fixture {
+    viewed_in(view, |test| {
+        test.with_size(Vec2::new(390.0, 800.0)).on_phone()
+    })
+}
+
+fn viewed_in(
+    view: EditorViewContent,
+    shape: impl FnOnce(BeuiTest<FileTreeApp>) -> BeuiTest<FileTreeApp>,
+) -> Fixture {
     let tree = Uuid::new_v4();
     let host = EditorHost::default();
     host.set_editable(true);
     host.set_view_block(Some(tree));
     let editor = OwnedEditor::new(host.clone(), tree);
     let mut fixture = Fixture {
-        test: BeuiTest::new(editor),
+        test: shape(BeuiTest::new(editor)),
         host,
     };
     fixture.test.hold(None, view);

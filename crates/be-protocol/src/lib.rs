@@ -429,12 +429,6 @@ pub enum ClientMessage {
         request: u64,
         hash: Hash,
     },
-    GetObjectRange {
-        request: u64,
-        hash: Hash,
-        offset: u64,
-        length: u64,
-    },
     MissingObjects {
         request: u64,
         hashes: Vec<Hash>,
@@ -471,6 +465,7 @@ pub enum ClientMessage {
         references: Vec<Uuid>,
         #[serde(with = "serde_bytes")]
         metadata: Vec<u8>,
+        objects: Vec<ByteBuf>,
     },
     HoldObjects {
         request: u64,
@@ -480,6 +475,11 @@ pub enum ClientMessage {
     ReadBlock {
         request: u64,
         block: Uuid,
+    },
+    ReadContents {
+        request: u64,
+        blocks: Vec<Uuid>,
+        held: Vec<CommitId>,
     },
     SetParent {
         request: u64,
@@ -633,10 +633,6 @@ pub enum ClientMessage {
         request: u64,
         account: Uuid,
     },
-    Batch {
-        request: u64,
-        messages: Vec<ClientMessage>,
-    },
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -680,7 +676,6 @@ impl ClientMessage {
             | Self::OpenOrganization { request, .. }
             | Self::PutObjects { request, .. }
             | Self::GetObject { request, .. }
-            | Self::GetObjectRange { request, .. }
             | Self::MissingObjects { request, .. }
             | Self::CreateBlock { request, .. }
             | Self::ListBlocks { request }
@@ -688,6 +683,7 @@ impl ClientMessage {
             | Self::Publish { request, .. }
             | Self::HoldObjects { request, .. }
             | Self::ReadBlock { request, .. }
+            | Self::ReadContents { request, .. }
             | Self::SetParent { request, .. }
             | Self::ListChildren { request, .. }
             | Self::ListBackrefs { request, .. }
@@ -719,8 +715,7 @@ impl ClientMessage {
             | Self::PinEscrow { request, .. }
             | Self::ListMembers { request }
             | Self::SetRole { request, .. }
-            | Self::RemoveMember { request, .. }
-            | Self::Batch { request, .. } => *request,
+            | Self::RemoveMember { request, .. } => *request,
         }
     }
 }
@@ -895,9 +890,10 @@ pub enum ServerMessage {
         members: Vec<Member>,
     },
     KeyWorkChanged,
-    Batched {
+    Contents {
         request: u64,
-        responses: Vec<ServerMessage>,
+        blocks: Vec<BlockSummary>,
+        objects: Vec<ByteBuf>,
     },
 }
 
@@ -912,7 +908,7 @@ impl ServerMessage {
             | Self::Invitation { request, .. }
             | Self::OrganizationOpened { request, .. }
             | Self::Stored { request, .. }
-            | Self::Batched { request, .. }
+            | Self::Contents { request, .. }
             | Self::Object { request, .. }
             | Self::Missing { request, .. }
             | Self::Block { request, .. }

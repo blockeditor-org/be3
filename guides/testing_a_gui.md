@@ -197,8 +197,9 @@ way for the test to fail.
   time the block is opened, and one nobody had approved before it vanished is not reported
   at all.
 - snapshot(name), and every record() before it, also fails on what the frame shows out of
-  bounds (beui-core's `Document::overflows`): a node cut off by a clip that no scroll or
-  pannable canvas can move it out from under - the region's edge, a sidebar too narrow for a
+  bounds (beui-core's `Document::overflows`): a node cut off by a clip that no scroll,
+  pannable canvas or canvas its owner scrolls across (`Canvas scrolls_across`, as a single-line
+  text field's) can move it out from under - the region's edge, a sidebar too narrow for a
   row of controls - text drawn outside its own box, and an outline drawn outside a frame (a
   focus ring) that a clip cuts while the frame itself shows whole. Each line names the node, its
   nearest ancestor with a test id, and the two rectangles. Fix the layout - wrap or ellipsize the
@@ -334,7 +335,8 @@ press, a tab closing its editor) lives in block-app's compositor and plugin host
 tested in crates/app-tests instead, against the app itself. Each test there starts the native
 app headless with every plugin and the dev organization open, exactly as `:dev` does, in a data
 directory of its own; drives it with the commands `drive` has (guides/running/drive.md); paints
-the whole window, every plugin included; and fails unless the app exits cleanly when it closes.
+the whole window, every plugin included; and fails unless the app exits cleanly when it closes,
+which close() checks, so a test that ends without calling it fails too.
 
     let mut app = AppTest::start();
     add_to_my_files(&mut app, "Canvas");
@@ -359,6 +361,10 @@ the whole window, every plugin included; and fails unless the app exits cleanly 
 - record() and snapshot() are a painting as in an editor test (4), named
   snapshots/app-tests.<name>.paint and accepted the same way. The painting is `drive paint`: the
   host's own document with each plugin's painting put where the host composites its surface.
+  They also fail, as in an editor test, on what the window shows out of bounds (`drive
+  overflows`), in the host or in any plugin shown, whatever the crop.
+- ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
+  paintings of the others to be accepted.
 - A failure prints the steps so far as `drive` commands, which replay against
   `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
   the end of the app's log. A step that times out while the tree shows nothing pending means the

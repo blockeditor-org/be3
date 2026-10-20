@@ -202,6 +202,7 @@ pub(super) struct Shared {
     pub(super) layout: ScreenLayout,
     pub(super) frames: Vec<Frame>,
     pub(super) paintings: std::collections::HashMap<ScreenId, Painting>,
+    pub(super) overflows: std::collections::HashMap<ScreenId, Vec<String>>,
     damage: Option<Vec<ScreenDamage>>,
 }
 
@@ -540,6 +541,16 @@ impl beui::Draw for RegionDrawing {
 }
 
 impl Paints for RegionDrawing {
+    fn overflows(&self, rect: Rect) -> Vec<String> {
+        let mut found = Vec::new();
+        for blit in self.blits_in(rect) {
+            if let Some(overflows) = blit.shared.borrow().overflows.get(&blit.screen) {
+                found.extend_from_slice(overflows);
+            }
+        }
+        found
+    }
+
     fn painting(&self, rect: Rect) -> Option<Painting> {
         let mut primitives = Vec::new();
         let mut textures = std::collections::BTreeMap::new();

@@ -482,6 +482,13 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         self.surfaces.get(&region)?.painting()
     }
 
+    fn overflows(&mut self, region: EditorRegion) -> Vec<String> {
+        self.surfaces
+            .get(&region)
+            .map(PluginSurface::overflows)
+            .unwrap_or_default()
+    }
+
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect> {
         match self.surfaces.get_mut(&target.region) {

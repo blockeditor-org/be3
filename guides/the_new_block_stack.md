@@ -340,10 +340,17 @@ it sends; a browser cannot add one to a websocket. `Connection` above it is the 
 everywhere, and it waits on its command channel and its socket rather than
 polling either.
 
-- `open` reads the head commit, fetches its chunks and decodes.
-- `save` chunks the content, uploads only what `MissingObjects` says the server
-  lacks, in `PutObjects` of up to 2 MiB each, and publishes against the head it
-  read.
+- `open` reads the head commit and its chunks with one `ReadContents` and decodes.
+- `save` chunks the content and publishes against the head it read, carrying in
+  the `Publish` the commit and the chunks that head lacks, so a save is one round
+  trip. A merge, or new objects over half a frame, are uploaded first instead:
+  only what `MissingObjects` says the server lacks, in `PutObjects` of up to
+  2 MiB each.
+- There is no batch request. The server answers a connection's requests in
+  order and both transports send whatever is queued together (the HTTP one in
+  one post), so independent requests go out without awaiting each other; only a
+  chain where each request needs the last one's answer is worth a request of its
+  own.
 - `fetch` verifies that bytes the server returns hash to the hash that was asked
   for. The server is not trusted with content, so do not drop this check.
 - `fetch_history` walks a commit's parents into the local store. Anything that
@@ -920,6 +927,11 @@ block and everything under it. A plugin asks the host for one with
 tree from the graph mirror (starting from the view when asked for a database
 inside one) and the worker fills in each block's bytes, from its open session or
 else its head, so it works for content types the app does not know.
+`Peer::read_contents` reads the heads, which `be download` uses too: one
+`ReadContents` request per 256 blocks answers each block's summary with its head
+commit and chunks (those that fit in half a frame, and none for a head the
+client says it already holds), and anything left out is fetched afterwards, so
+a tree costs one round trip, not three per block.
 `HostRequest::ImportBlocks(parent)` has the host pick a file and `be::import`
 it: every block gets a new id, old ids in the content bytes and references are
 swapped for the new ones, a database whose row id prefix is taken here loses
@@ -929,9 +941,9 @@ at once and uploads in the background, as a task beside the worker's loop
 (`worker/uploads.rs`), so commands for other blocks are not held up.
 `Peer::import_blocks` mints every block's keys and writes its commit locally,
 needing the server only for the scope of the folder it goes into, then sends
-the objects as `PutObjects` and the creates and publishes as `Batch`es, one
-after another without waiting, since the server answers a connection's
-requests in order: a tree costs a few round trips, not a few per block. A
+the objects as `PutObjects` and every create and publish without waiting for
+the ones before: a tree costs a few round trips, not a few per block. `be
+upload` and the pages of `be import` go through it too. A
 command that needs a block still uploading waits for it, and one that rekeys
 everything below a block (moving, sharing or leaving it) waits until all of
 that has uploaded. Opening an imported block
