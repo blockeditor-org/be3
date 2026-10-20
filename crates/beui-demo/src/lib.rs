@@ -6,12 +6,13 @@ use beui::datetime::{Date, DateTime, HourCycle, Time};
 use beui::icons::{
     ICON_ACCOUNT_TREE, ICON_ALT_ROUTE, ICON_BUG_REPORT, ICON_CALENDAR_MONTH, ICON_CODE,
     ICON_CONTENT_COPY, ICON_CONTENT_PASTE, ICON_CONTRAST, ICON_CROP_SQUARE, ICON_DASHBOARD,
-    ICON_DELETE, ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_GRID_VIEW,
-    ICON_INPUT, ICON_LAYERS, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_MAIL, ICON_MENU, ICON_MOUSE,
-    ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW, ICON_POWER_SETTINGS_NEW,
-    ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR, ICON_SWAP_VERT,
-    ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE, ICON_VIEW_COLUMN,
-    ICON_VIEW_QUILT, ICON_VOLUME_DOWN, ICON_VOLUME_OFF, ICON_VOLUME_UP, ICON_WIDGETS,
+    ICON_DELETE, ICON_DRAG_INDICATOR, ICON_DRAW, ICON_EDIT, ICON_FLIP_TO_FRONT, ICON_FORMAT_BOLD,
+    ICON_GRID_VIEW, ICON_INPUT, ICON_LAYERS, ICON_LINK, ICON_LIST, ICON_LOCK, ICON_MAIL, ICON_MENU,
+    ICON_MOUSE, ICON_NOTES, ICON_OPEN_IN_NEW, ICON_PALETTE, ICON_PLAY_ARROW,
+    ICON_POWER_SETTINGS_NEW, ICON_RADIO_BUTTON_CHECKED, ICON_SHARE, ICON_SMART_BUTTON, ICON_STAR,
+    ICON_SWAP_VERT, ICON_TEXT_FIELDS, ICON_TITLE, ICON_TOGGLE_ON, ICON_TOUCH_APP, ICON_TUNE,
+    ICON_VIEW_COLUMN, ICON_VIEW_QUILT, ICON_VOLUME_DOWN, ICON_VOLUME_OFF, ICON_VOLUME_UP,
+    ICON_WIDGETS,
 };
 use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
@@ -28,6 +29,7 @@ use beui::{
 };
 use beui_macros::{component, sample};
 use collaboration::CollaborationPage;
+use rich_text::RichTextPage;
 use sample::{Sample, ScrollPage};
 use std::rc::Rc;
 use std::sync::Arc;
@@ -45,6 +47,7 @@ use unstyled_pages::{
 
 mod base_pages;
 mod collaboration;
+mod rich_text;
 mod sample;
 mod styled_pages;
 mod unstyled_pages;
@@ -81,6 +84,7 @@ enum Page {
     Tree,
     Layout,
     Editor,
+    RichText,
     Collaboration,
     Canvas,
     Themes,
@@ -99,7 +103,7 @@ enum Page {
     Colors,
 }
 
-const STYLED_PAGES: [Page; 16] = [
+const STYLED_PAGES: [Page; 17] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
@@ -113,6 +117,7 @@ const STYLED_PAGES: [Page; 16] = [
     Page::Tree,
     Page::Layout,
     Page::Editor,
+    Page::RichText,
     Page::Collaboration,
     Page::Canvas,
     Page::Themes,
@@ -136,7 +141,7 @@ const BASE_PAGES: [Page; 6] = [
     Page::Layering,
 ];
 
-const PAGES: [Page; 28] = [
+const PAGES: [Page; 29] = [
     Page::Docking,
     Page::Text,
     Page::Buttons,
@@ -150,6 +155,7 @@ const PAGES: [Page; 28] = [
     Page::Tree,
     Page::Layout,
     Page::Editor,
+    Page::RichText,
     Page::Collaboration,
     Page::Canvas,
     Page::Themes,
@@ -191,6 +197,7 @@ impl Page {
             Page::Tree => "Tree",
             Page::Layout => "Layout",
             Page::Editor => "Editor",
+            Page::RichText => "Rich text",
             Page::Collaboration => "Collaboration",
             Page::Canvas => "Canvas",
             Page::Themes => "Themes",
@@ -224,6 +231,7 @@ impl Page {
             Page::Tree => ICON_ACCOUNT_TREE,
             Page::Layout => ICON_DASHBOARD,
             Page::Editor => ICON_NOTES,
+            Page::RichText => ICON_FORMAT_BOLD,
             Page::Collaboration => ICON_SHARE,
             Page::Canvas => ICON_DRAW,
             Page::Themes => ICON_CONTRAST,
@@ -257,6 +265,7 @@ impl Page {
             Page::Tree => "An expandable, keyboard-driven tree",
             Page::Layout => "Cards, accordions, stacks, scrolls",
             Page::Editor => "A markdown text area",
+            Page::RichText => "Formatted text, alone and shared live",
             Page::Collaboration => "Two editors over a simulated network",
             Page::Canvas => "A pannable, zoomable stage",
             Page::Themes => "The built-in themes",
@@ -689,6 +698,9 @@ fn PageView(page: Page) -> NodeId {
         },
         Page::Editor => view! {
             <EditorPage />
+        },
+        Page::RichText => view! {
+            <RichTextPage />
         },
         Page::Collaboration => view! {
             <CollaborationPage />

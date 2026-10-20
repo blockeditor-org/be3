@@ -5,12 +5,16 @@ use similar::{Algorithm, DiffTag, capture_diff_slices};
 use unicode_segmentation::UnicodeSegmentation;
 
 mod ime;
+mod rich;
 
 pub use ime::{ImeCommand, ImeState};
+pub use rich::Transform;
 
 use crate::{
     Highlighter, Language, Pos, SyntaxHighlight,
     document::{Document, DocumentRead, DocumentView, TextIndentation, TextLanguage},
+    rich::{MarkSet, Name, Value},
+    schema::Schema,
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -258,6 +262,14 @@ pub enum EditorCommand<'a> {
     },
     ReplaceWholeFile(&'a [u8]),
     Markdown(MarkdownCommand),
+    SetMark(Name, Option<Value>),
+    SetBlock {
+        at: Option<Position>,
+        key: Name,
+        value: Option<Value>,
+    },
+    InsertVoid(MarkSet),
+    Transform(fn(&mut Transform<'_>)),
 
     SetLanguage(TextLanguage),
     SetIndentation(TextIndentation),
@@ -352,6 +364,8 @@ pub struct Core {
     collapse_state: Vec<Position>,
     section_shapes: std::cell::RefCell<Option<(u64, Arc<[SectionShape]>)>>,
     composition: Option<(Position, Pos)>,
+    typing: Option<(Position, MarkSet)>,
+    schema: Option<Arc<dyn Schema>>,
 }
 
 #[derive(Clone, Copy)]
@@ -374,6 +388,8 @@ impl Core {
             collapse_state: Vec::new(),
             section_shapes: std::cell::RefCell::new(None),
             composition: None,
+            typing: None,
+            schema: None,
         }
     }
 
@@ -620,8 +636,9 @@ impl Core {
             return;
         }
         self.highlighter_language = Some(language);
-        self.highlighter = Language::for_document(language)
-            .map(|language| Highlighter::new(Arc::clone(&self.document), language));
+        self.highlighter = Language::for_document(language).map(|language| {
+            Highlighter::new(Arc::clone(&self.document), language).with_schema(self.schema())
+        });
     }
 
     pub fn highlight(&mut self) -> SyntaxHighlight {
@@ -868,6 +885,10 @@ impl Core {
             }
             EditorCommand::ReplaceWholeFile(bytes) => self.replace_whole_file(bytes),
             EditorCommand::Markdown(command) => self.markdown(command),
+            EditorCommand::SetMark(key, value) => self.set_mark(&key, value),
+            EditorCommand::SetBlock { at, key, value } => self.set_block(at, &key, value),
+            EditorCommand::InsertVoid(marks) => self.insert_void(&marks),
+            EditorCommand::Transform(transform) => self.transform(transform),
             EditorCommand::SetLanguage(language) => self.set_language(language),
             EditorCommand::SetIndentation(indentation) => self.set_indentation(indentation),
             EditorCommand::Collapse => self.collapse(),
@@ -875,6 +896,7 @@ impl Core {
             EditorCommand::ToggleCollapseAt(position) => self.toggle_collapse_at(position),
         }
         self.normalize_cursors();
+        self.forget_stale_typing();
     }
 
     fn insert_text(&mut self, text: &[u8]) {
@@ -959,6 +981,9 @@ impl Core {
     }
 
     fn delete(&mut self, direction: LRDirection, stop: CursorLeftRightStop) {
+        if direction == LRDirection::Left && self.lift_at_block_start() {
+            return;
+        }
         let history_cursors = self.cursor_positions.clone();
         let Some(read) = self.document.read() else {
             return;
@@ -1111,6 +1136,9 @@ impl Core {
     }
 
     fn newline(&mut self) {
+        if self.break_block() {
+            return;
+        }
         let history_cursors = self.cursor_positions.clone();
         let Some(read) = self.document.read() else {
             return;
@@ -1456,6 +1484,9 @@ impl Core {
     }
 
     fn indent_selection(&mut self, direction: LRDirection) {
+        if self.indent_blocks(direction == LRDirection::Left) {
+            return;
+        }
         let history_cursors = self.cursor_positions.clone();
         let Some(read) = self.document.read() else {
             return;
@@ -2070,11 +2101,17 @@ impl Core {
         }
         self.prepare_history_group(classification);
         let mut result_positions = Vec::new();
+        let typing = self.typing.take();
+        let schema = self.schema();
         self.document.edit(history_cursors, &mut |transaction| {
             result_positions.clear();
             for (position, delete_len, insert) in &replacements {
                 let index = position.resolve(transaction.document());
-                transaction.replace(index, *delete_len, insert);
+                let typed = typing
+                    .as_ref()
+                    .filter(|(at, _)| at.resolve(transaction.document()) == index)
+                    .map(|(_, marks)| marks.clone());
+                rich::replace(transaction, &*schema, index, *delete_len, insert, typed);
                 result_positions.push(Position::at(transaction.document(), index + insert.len()));
             }
         });
@@ -2295,6 +2332,7 @@ fn indent_section_end(bytes: &[u8], start: usize) -> Option<usize> {
 fn collapsible_section_end(bytes: &[u8], language: TextLanguage, start: usize) -> Option<usize> {
     match language {
         TextLanguage::Markdown => markdown_section_end(bytes, start),
+        TextLanguage::RichText => None,
         _ => indent_section_end(bytes, start),
     }
 }

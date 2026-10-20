@@ -17,7 +17,7 @@ use accesskit::{Node, Role};
 
 use text_editor_core::{
     CursorHorizontalPositionMetric, CursorLeftRightStop, DragSelectionMode, EditorCommand,
-    ImeCommand, LRDirection, MoveMode, UDDirection, VerticalMoveMode,
+    ImeCommand, LRDirection, MoveMode, TextLanguage, UDDirection, VerticalMoveMode,
 };
 
 use beui_macros::{component, view};
@@ -49,8 +49,25 @@ use state::{AreaGeometry, Grab};
 pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
-pub use rows::{Prose, TextWidget};
+pub use rows::{Prose, TextWidget, VOID_SIZE, VoidSize};
 pub use state::{TextAreaLayout, TextAreaState};
+
+#[derive(Clone, Copy)]
+pub struct BlockView {
+    pub state: TextAreaState,
+    pub line: ReadSignal<usize>,
+    pub start: Memo<usize>,
+    pub props: Memo<text_editor_core::MarkSet>,
+    pub line_height: Memo<f32>,
+    pub text: NodeId,
+}
+
+#[derive(Clone, Copy)]
+pub struct VoidView {
+    pub state: TextAreaState,
+    pub props: Memo<text_editor_core::MarkSet>,
+    pub size: Memo<Vec2>,
+}
 
 pub struct TextCheckbox {
     pub checked: Memo<bool>,
@@ -156,6 +173,9 @@ struct Surface {
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     checkbox: Option<RenderFn<TextCheckbox>>,
+    render_block: Option<RenderFn<BlockView>>,
+    render_void: Option<RenderFn<VoidView>>,
+    void_size: Option<VoidSize>,
     completion: Memo<Option<Query>>,
     completions: Memo<Vec<Completion>>,
     completing: Memo<bool>,
@@ -270,12 +290,14 @@ impl Surface {
         Some(entry.row().to_source(display))
     }
 
-    fn inline_at(&self, pos: Pos2) -> Option<(RowEntry, InlineItem)> {
+    fn inline_at(&self, pos: Pos2) -> Option<(RowEntry, usize, InlineItem)> {
         let entry = self.row_at(pos)?;
         let text = entry.text()?;
-        let index = text.inline_at(self.shifted(&text, pos))?;
-        let item = entry.row().flow_inline(index)?.clone();
-        Some((entry, item))
+        let flow = text.inline_at(self.shifted(&text, pos))?;
+        let row = entry.row();
+        let index = row.flow_item(flow)?;
+        let item = row.inline.get(index)?.clone();
+        Some((entry, index, item))
     }
 
     fn gutter_arrow_at(&self, pos: Pos2) -> Option<usize> {
@@ -786,7 +808,7 @@ fn hold(cx: &Context, press: PointerPress) {
 }
 
 fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
-    if let Some((_, item)) = cx.inline_at(pos) {
+    if let Some((entry, index, item)) = cx.inline_at(pos) {
         match item.inline {
             Inline::Checkbox { .. } => {
                 cx.state.set_selecting(false);
@@ -802,6 +824,18 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                         core.position(widget.range.end),
                     )
                 });
+                cx.state
+                    .execute(EditorCommand::SetSelection { anchor, focus });
+                cx.state.set_selecting(false);
+                return;
+            }
+            Inline::Void => {
+                let Some(range) = entry.row().inline_source(index) else {
+                    return;
+                };
+                let (anchor, focus) = cx
+                    .state
+                    .with_core(|core| (core.position(range.start), core.position(range.end)));
                 cx.state
                     .execute(EditorCommand::SetSelection { anchor, focus });
                 cx.state.set_selecting(false);
@@ -1023,6 +1057,9 @@ pub fn TextArea(
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     checkbox: Option<RenderFn<TextCheckbox>>,
+    render_block: Option<RenderFn<BlockView>>,
+    render_void: Option<RenderFn<VoidView>>,
+    #[prop(default = None)] void_size: Option<VoidSize>,
     #[prop(default = Completer::none())] completer: Completer,
     completion_menu: Option<CompletionMenu>,
     on_widget_press: Callback<usize, bool>,
@@ -1131,7 +1168,9 @@ pub fn TextArea(
                 let gutter = create_memo(move || {
                     scale.get();
                     attached.get();
-                    match single_line || !line_numbers {
+                    content.get();
+                    let rich = state.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
+                    match single_line || !line_numbers || rich {
                         true => 0.0,
                         false => gutter_width(starts.get().len()),
                     }
@@ -1253,6 +1292,9 @@ pub fn TextArea(
                     block,
                     selected_widget,
                     checkbox,
+                    render_block,
+                    render_void,
+                    void_size,
                     completion,
                     completions,
                     completing,
@@ -1606,6 +1648,7 @@ fn hover_cursor(cx: &Context, pos: Pos2) -> CursorIcon {
     let pointing = matches!(
         cx.inline_at(pos),
         Some((
+            _,
             _,
             InlineItem {
                 inline: Inline::Checkbox { .. },

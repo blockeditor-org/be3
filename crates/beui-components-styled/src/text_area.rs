@@ -1,5 +1,6 @@
 pub mod emoji;
 pub mod find;
+pub mod format_bar;
 
 use crate::frame::Frame;
 use beui_macros::{component, view};
@@ -9,7 +10,8 @@ use crate::context_menu::menu_style;
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextCheckbox, TextWidget,
+    BlockView, Completer, RemoteTextCursor, TextAreaColors, TextAreaState, TextCheckbox,
+    TextWidget, VoidSize, VoidView,
 };
 use beui_core::base::ItemSize;
 use beui_core::color::Color32;
@@ -35,6 +37,9 @@ pub fn TextArea(
     #[prop(default = Vec::new())] client_colors: Prop<Vec<(u64, Color32)>>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
+    render_block: Option<RenderFn<BlockView>>,
+    render_void: Option<RenderFn<VoidView>>,
+    #[prop(default = None)] void_size: Option<VoidSize>,
     #[prop(default = true)] emoji: bool,
     #[prop(default = false)] pastes_images: bool,
     on_widget_press: Callback<usize, bool>,
@@ -51,6 +56,14 @@ pub fn TextArea(
     set_component_state(surface);
     let block = block.unwrap_or_else(blank_widget);
     let selected_widget = selected_widget.unwrap_or_else(blank_widget);
+    let render_block = render_block.unwrap_or_else(|| RenderFn::new(|block: BlockView| block.text));
+    let render_void = render_void.unwrap_or_else(|| {
+        RenderFn::new(|_: VoidView| {
+            view! {
+                <Frame />
+            }
+        })
+    });
     view! {
         <List spacing=0.0>
             <FindBar state={state} />
@@ -79,6 +92,9 @@ pub fn TextArea(
                     on_toolbar={move |at: Option<Rect>| open_menu.call(at)}
                     block={block}
                     selected_widget={selected_widget}
+                    render_block={render_block}
+                    render_void={render_void}
+                    void_size
                     checkbox={inline_checkbox()}
                     completer={match emoji {
                         true => unstyled::emoji_completer(),
