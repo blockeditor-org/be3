@@ -87,11 +87,13 @@ fn caption(status: &WifiStatus, network: &WifiNetwork) -> String {
 pub(crate) fn WifiButton(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
     let glyph = create_memo(move || status.with(glyph).to_owned());
     let label = create_memo(move || status.with(summary));
-    let opened = move |open: bool| {
-        if open {
+    let open = create_signal(false);
+    let open = Binding::new(open, move |next: bool| {
+        open.set(next);
+        if next {
             editor.act(WifiRequest::Scan);
         }
-    };
+    });
     view! {
         <BarPopup
             label
@@ -99,7 +101,7 @@ pub(crate) fn WifiButton(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
             icon_only=true
             width=WIFI_WIDTH
             @test_id={"desktop.wifi"}
-            on_open_change={opened}
+            open
         >|_: PopoverHandle|
             <WifiPanel editor={editor} status={status} />
         </BarPopup>

@@ -33,7 +33,7 @@ pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
     let add_button = NodeRef::new();
     let add = move || state.open_component_picker(node_anchor(&add_button));
     view! {
-        <Accordion title="Components" open={open} on_toggle={move |next| open.set(next)}>
+        <Accordion title="Components" open={open}>
             <List spacing=SPACING>
                 <ForEach keys={schemas}>|schema_id: Uuid|
                     <ComponentRow state schema_id />

@@ -11,7 +11,7 @@ use beui_view::reactive::*;
 
 #[derive(Clone, Copy)]
 pub struct MenuButtonHandle {
-    pub open: ReadSignal<bool>,
+    pub open: Binding<bool>,
     pub button: unstyled::ButtonHandle,
 }
 
@@ -30,11 +30,10 @@ pub fn MenuButton(
     on_secondary_click: Option<ClickCallback>,
     on_middle_click: Option<ClickCallback>,
     on_scroll: Option<Callback<ScrollGesture>>,
-    on_open_change: Callback<bool>,
+    #[prop(default = false)] open: Binding<bool>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
-    let open = create_signal(false);
     let accessibility = create_memo(move || {
         let mut node = accessibility.get();
         node.set_has_popup(HasPopup::Menu);
@@ -44,16 +43,6 @@ pub fn MenuButton(
     let touched = create_signal(false);
     let button = NodeRef::new();
     let shown = create_memo(move || open.get());
-    if !on_open_change.is_empty() {
-        let mut was_open = false;
-        create_effect(move || {
-            let open = shown.get();
-            if open != was_open {
-                was_open = open;
-                on_open_change.call(open);
-            }
-        });
-    }
     let disabled = create_memo(move || disabled.get());
     let mut trigger_node = view! {
         <unstyled::Button
@@ -71,7 +60,7 @@ pub fn MenuButton(
             }}
             content={Render::new(move |handle: unstyled::ButtonHandle| {
                 trigger.call(MenuButtonHandle {
-                    open: open.read_only(),
+                    open,
                     button: handle,
                 })
             })}

@@ -19,8 +19,8 @@ pub fn Popover(
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = PANEL_MAX_WIDTH)] max_width: Prop<f32>,
+    #[prop(default = false)] open: Binding<bool>,
     #[prop(children)] content: Render<PopoverHandle>,
-    on_open_change: Callback<bool>,
 ) -> NodeId {
     let icon_only = create_memo(move || icon_only.get());
     let max_width = create_memo(move || Some(max_width.get()));
@@ -29,7 +29,7 @@ pub fn Popover(
             label
             glyph
             disabled
-            on_open_change={on_open_change}
+            open
             trigger={move |handle: PopoverTriggerHandle| {
                 let PopoverTriggerHandle { open, button } = handle;
                 let quiet = create_memo(move || !icon_only.get() || open.get());

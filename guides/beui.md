@@ -717,10 +717,10 @@ page. `then` says what choosing an item does: `MenuThen::Close` (the default),
 `Back` to the page before (a location picked on a page), or `Stay`. `MenuCaption` is a
 row of text nothing can choose, and `MenuGrid` lays its child items out as
 tiles in `columns`, which the arrow keys walk in two dimensions and leave for
-the rows above and below. A page of rows with a `depth` is a tree: `expanded`
-(`None` for a leaf) draws the chevron, Right and Left and the chevron report
-`on_expand`, and the caller shows the rows of open branches (a `ForEach` over
-them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check, and
+the rows above and below. A page of rows with a `depth` is a tree: `expanded`,
+a `Binding<Option<bool>>` (`None` for a leaf), draws the chevron, Right and Left
+and the chevron write `Some(open)` to it, and the caller shows the rows of open
+branches (a `ForEach` over them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check, and
 a page opens with the keyboard on that row. `lead` is a few muted words before
 an item's icon on the same line, read with its label (`New in` before a folder's
 name). The dropdown is never taller than a fixed height
@@ -1129,7 +1129,9 @@ dims nothing, so its layer passes input through (`LayerPolicy::Pass`): the
 pointer goes on hovering the document around it, and a press outside asks it
 to close and then lands on whatever was pressed - except a press on its own
 trigger, the overlay's `trigger`, which is left to the trigger so a second
-click closes it rather than reopening it. What
+click closes it rather than reopening it. Whether it is open is its `open`
+binding, as with `MenuButton`'s: a caller that opens it, or does something when
+it opens or closes, passes a signal rather than listening for a change. What
 it holds decides where the focus lands when it opens, by binding a `focused`
 prop to the handle's `open`, as the calendar, the time list and the color area
 all take.

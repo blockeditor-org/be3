@@ -25,11 +25,10 @@ const ICON_WIDTH: f32 = 20.0;
 const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 90);
 
 #[component]
-pub fn CommandPalette(open: Prop<bool>, on_close: ClickCallback) -> NodeId {
+pub fn CommandPalette(open: Binding<bool>) -> NodeId {
     view! {
         <unstyled::CommandPalette
             open
-            on_close={on_close}
             list_height=LIST_HEIGHT
             scrim=SCRIM
             search_placeholder="Run a command"

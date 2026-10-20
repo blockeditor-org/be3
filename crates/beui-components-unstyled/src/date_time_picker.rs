@@ -158,17 +158,18 @@ pub fn DateTimePicker(
                 None
             });
             let refocus_trigger = create_memo(move || !from_field.get());
-            let opened = move |now_open: bool| {
+            let shown = open;
+            let open = Binding::new(shown, move |now_open: bool| {
+                shown.set(now_open);
                 if now_open {
                     return;
                 }
-                open.set(false);
                 inner_focus.set(None);
                 if from_field.get_untracked() {
                     from_field.set(false);
                     outer_focus.set(Some(last_inner.get_untracked().unwrap_or(first)));
                 }
-            };
+            });
             let picker_label = create_memo(move || {
                 let what = match parts {
                     DateTimeParts::Time => "Choose a time",
@@ -194,7 +195,6 @@ pub fn DateTimePicker(
                                 anchor=anchor
                                 placement
                                 refocus_trigger
-                                on_open_change={opened}
                                 trigger={move |handle: PopoverTriggerHandle| trigger.call(DateTimeTriggerHandle {
                                     popover: handle,
                                     label: picker_label,

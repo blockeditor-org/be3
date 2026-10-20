@@ -29,7 +29,6 @@ pub(super) fn Panels(session: Session) -> NodeId {
                 <Accordion
                     title="Challenge"
                     open={challenge_open}
-                    on_toggle={move |open| challenge_open.set(open)}
                 >
                     <ChallengePanel session={session} />
                 </Accordion>
@@ -37,28 +36,24 @@ pub(super) fn Panels(session: Session) -> NodeId {
             <Accordion
                 title="Simulation"
                 open={simulation_open}
-                on_toggle={move |open| simulation_open.set(open)}
             >
                 <SimulationPanel session={session} />
             </Accordion>
             <Accordion
                 title="Metrics"
                 open={metrics_open}
-                on_toggle={move |open| metrics_open.set(open)}
             >
                 <MetricsPanel session={session} />
             </Accordion>
             <Accordion
                 title="Grid debugger"
                 open={debugger_open}
-                on_toggle={move |open| debugger_open.set(open)}
             >
                 <DebuggerPanel session={session} />
             </Accordion>
             <Accordion
                 title="Generated graph"
                 open={graph_open}
-                on_toggle={move |open| graph_open.set(open)}
             >
                 <GraphPanel session={session} />
             </Accordion>
@@ -897,7 +892,7 @@ fn EntityPanel(session: Session, row: Memo<Option<EntityRow>>, entity: DebugEnti
     };
     view! {
         <Interactive on_hover_change={hovered}>
-            <Accordion title={title} open={open} on_toggle={move |next| open.set(next)}>
+            <Accordion title={title} open={open}>
                 <Rows rows={details} />
             </Accordion>
         </Interactive>
