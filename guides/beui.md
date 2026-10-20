@@ -1080,10 +1080,10 @@ on while the calendar shows the month being typed; closing it puts the focus
 back on the field's own segment. The popover is laid out for what it holds: a
 calendar that grows with the field, a `TimeList` laid out as a grid with an hour
 to a row, the two side by side, or, on a narrow screen, Date and Time tabs where
-picking a day moves on to the time. Its `value` is an `Option<DateTime>`: an
-empty field shows placeholders, a field is reported through `on_change` only
-once every segment is filled, and a field left half filled goes back to its
-value when the focus leaves it. A `Date` field keeps the time of the value it
+picking a day moves on to the time. Its `value` is a `Binding<Option<DateTime>>`: an
+empty field shows placeholders, a field writes its binding only once every
+segment is filled, and a field left half filled goes back to its value when the
+focus leaves it. A `Date` field keeps the time of the value it
 was given, and a `Time` field the date. `styled::Calendar` is the month grid on
 its own, with `min` and `max` limits; its title is a month button and a year
 button, which open a grid of months and a grid of twenty years, and `show`

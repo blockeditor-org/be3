@@ -140,16 +140,15 @@ fn FrameRateBar(state: VideoState, shown: Prop<bool>) -> NodeId {
                         <ChoiceOption label={frame_rate_label(FRAME_RATES[index])} />
                     </ForEach>
                 }}
-                selected={chosen}
-                label="Frames per second"
-                @test_id={"video.frame-rate"}
-                on_change={move |index: Option<usize>| {
+                selected={Binding::new(chosen, move |index: Option<usize>| {
                     let Some(frame_rate) = index.and_then(|index| FRAME_RATES.get(index).copied())
                     else {
                         return;
                     };
                     state.operate(VideoOperation::SetFrameRate { frame_rate });
-                }}
+                })}
+                label="Frames per second"
+                @test_id={"video.frame-rate"}
             />
         </Toolbar>
     }

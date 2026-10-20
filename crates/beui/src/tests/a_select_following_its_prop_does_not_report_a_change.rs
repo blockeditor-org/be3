@@ -16,9 +16,8 @@ fn a_select_following_its_prop_does_not_report_a_change() {
                     <ChoiceOption label="To do" />
                     <ChoiceOption label="Done" />
                 }}
-                selected={selected}
+                selected={Binding::new(selected, move |index| changes.update(|changes| changes.push(index)))}
                 label="Status"
-                on_change={move |index| changes.update(|changes| changes.push(index))}
             />
         }
     });

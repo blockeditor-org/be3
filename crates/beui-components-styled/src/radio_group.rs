@@ -9,11 +9,10 @@ use beui_view::reactive::*;
 #[component]
 pub fn RadioGroup(
     options: Children<ChoiceOption>,
-    selected: Prop<Option<usize>>,
-    on_change: Callback<Option<usize>>,
+    #[prop(default = None)] selected: Binding<Option<usize>>,
 ) -> NodeId {
     view! {
-        <Choice options selected kind=Kind::Radio on_change={on_change}>|handle|
+        <Choice options selected kind=Kind::Radio>|handle|
             <OptionFace kind=Kind::Radio handle />
         </Choice>
     }

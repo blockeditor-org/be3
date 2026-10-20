@@ -387,15 +387,14 @@ pub fn Swatches(
                     <ChoiceOption label={labels[index].clone()} />
                 </ForEach>
             }}
-            selected={chosen}
-            kind=ChoiceKind::Radio
-            direction=Direction::Horizontal
-            wrap=true
-            on_change={move |index: Option<usize>| {
+            selected={Binding::new(chosen, move |index: Option<usize>| {
                 if let Some(swatch) = index.and_then(|index| picked.get(index)) {
                     picker.pick(*swatch);
                 }
-            }}
+            })}
+            kind=ChoiceKind::Radio
+            direction=Direction::Horizontal
+            wrap=true
         >|option: ChoiceOptionHandle| {
             let color = swatches[option.index];
             content.call(SwatchHandle { color, option })

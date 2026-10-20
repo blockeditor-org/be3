@@ -1487,6 +1487,17 @@ pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Doc
     crate::reactive::with_reactive_scope(document, || crate::reactive::with_document(f))
 }
 
+pub(crate) fn reporting<T: Clone + PartialEq + 'static>(
+    initial: T,
+    mut report: impl FnMut(T) + 'static,
+) -> Binding<T> {
+    let value = create_signal(initial);
+    Binding::new(value, move |next: T| {
+        value.set(next.clone());
+        report(next);
+    })
+}
+
 #[component]
 pub(crate) fn MenuRegion() -> NodeId {
     view! {

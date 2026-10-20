@@ -111,10 +111,9 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                         }
                     }</ForEach>
                 }}
-                selected={selected}
+                selected={Binding::new(selected, choose)}
                 label="Output"
                 @test_id={"desktop.volume.output"}
-                on_change={choose}
             />
         </List>
     }

@@ -12,9 +12,8 @@ fn tapping_a_calendar_day_picks_it() {
     let document = build(move || {
         view! {
             <Calendar
-                selected=None
+                selected={reporting(None, move |date| picked.update(|picked| picked.push(date)))}
                 today={Some(Date::new(2026, 1, 1))}
-                on_change={move |date| picked.update(|picked| picked.push(date))}
             />
         }
     });
@@ -35,5 +34,5 @@ fn tapping_a_calendar_day_picks_it() {
     harness.touch(TouchPhase::End, centre);
     harness.frame(Vec::new());
 
-    assert_eq!(picked.get_untracked(), [Date::new(2026, 1, 16)]);
+    assert_eq!(picked.get_untracked(), [Some(Date::new(2026, 1, 16))]);
 }

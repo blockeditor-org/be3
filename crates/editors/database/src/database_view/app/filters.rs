@@ -460,11 +460,10 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                                     }
                                 }</ForEach>
                             }}
-                            selected={selected}
+                            selected={Binding::new(selected, recondition)}
                             label="Condition"
                             disabled={condition_off}
                             @test_id={format!("database-view.filter.{}.condition", id.as_uuid())}
-                            on_change={recondition}
                         />
                     </Frame>
                 </List>
@@ -718,12 +717,11 @@ pub fn FilterList(data: Data) -> NodeId {
                                 }
                             }</ForEach>
                         }}
-                        selected={None}
+                        selected={Binding::new(None, add)}
                         label="Add a filter"
                         placeholder="Add a filter"
                         disabled={read_only}
                         @test_id={"database-view.filters.add-field"}
-                        on_change={add}
                     />
                 </Frame>
             </List>

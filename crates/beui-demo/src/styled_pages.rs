@@ -1035,7 +1035,11 @@ pub(crate) fn ChoicesPage() -> NodeId {
 #[component]
 fn UpdateModes() -> NodeId {
     let modes = ["Automatic", "Manual", "Scheduled"];
-    let mode_text = create_signal("Automatic updates".to_owned());
+    let mode = create_signal(Some(0));
+    let mode_text = create_memo(move || {
+        mode.get()
+            .map_or_else(String::new, |index| format!("{} updates", modes[index]))
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <RadioGroup
@@ -1044,12 +1048,7 @@ fn UpdateModes() -> NodeId {
                     <ChoiceOption label="Manual" />
                     <ChoiceOption label="Scheduled" />
                 }}
-                selected=Some(0)
-                on_change={move |selected: Option<usize>| {
-                    if let Some(index) = selected {
-                        mode_text.set(format!("{} updates", modes[index]));
-                    }
-                }}
+                selected={mode}
             />
             <Text style=TextStyle::CAPTION string={mode_text} />
         </List>
@@ -1060,7 +1059,12 @@ fn UpdateModes() -> NodeId {
 #[component]
 fn ColorListbox() -> NodeId {
     let colors = ["Amber", "Blue", "Green", "Purple"];
-    let color_text = create_signal("Blue selected".to_owned());
+    let color = create_signal(Some(1));
+    let color_text = create_memo(move || {
+        color
+            .get()
+            .map_or_else(String::new, |index| format!("{} selected", colors[index]))
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION string="Type to search" />
@@ -1071,12 +1075,7 @@ fn ColorListbox() -> NodeId {
                     <ChoiceOption label="Green" />
                     <ChoiceOption label="Purple" />
                 }}
-                selected=Some(1)
-                on_change={move |selected: Option<usize>| {
-                    if let Some(index) = selected {
-                        color_text.set(format!("{} selected", colors[index]));
-                    }
-                }}
+                selected={color}
             />
             <Text style=TextStyle::CAPTION string={color_text} />
         </List>
@@ -1086,7 +1085,16 @@ fn ColorListbox() -> NodeId {
 #[sample]
 #[component]
 fn FruitSelect() -> NodeId {
-    let fruit_text = create_signal("Apple selected".to_owned());
+    let fruit = create_signal(Some(0));
+    let fruit_text = create_memo(move || {
+        fruit
+            .get()
+            .and_then(|index| FRUITS.get(index))
+            .map_or_else(
+                || "Nothing selected".to_owned(),
+                |label| format!("{label} selected"),
+            )
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <Select
@@ -1095,17 +1103,8 @@ fn FruitSelect() -> NodeId {
                         <ChoiceOption label />
                     </ForEach>
                 }}
-                selected=Some(0)
+                selected={fruit}
                 label="Favorite fruit"
-                on_change={move |selected: Option<usize>| {
-                    let text = selected
-                        .and_then(|index| FRUITS.get(index))
-                        .map_or_else(
-                            || "Nothing selected".to_owned(),
-                            |label| format!("{label} selected"),
-                        );
-                    fruit_text.set(text);
-                }}
             />
             <Text style=TextStyle::CAPTION string={fruit_text} />
             <Select
@@ -1136,7 +1135,6 @@ fn ScaleTabs() -> NodeId {
                     <ChoiceOption label="3x" />
                 }}
                 selected={scale}
-                on_change={move |selected| scale.set(selected)}
             />
             <Text style=TextStyle::CAPTION string={scale_text} />
         </List>
@@ -1167,9 +1165,8 @@ fn PeriodTabs() -> NodeId {
                     <ChoiceOption label="Month" />
                     <ChoiceOption label="Year" />
                 }}
-                selected=0
+                selected={period}
                 breakpoint=TABS_NARROW_WIDTH
-                on_change={move |selected| period.set(selected)}
             />
             <Text style=TextStyle::CAPTION string={period_text} />
         </List>
@@ -1236,7 +1233,6 @@ fn DayField() -> NodeId {
                 parts=DateTimeParts::Date
                 label="Day"
                 today={Some(today)}
-                on_change={move |next| day.set(next)}
             />
             <Text style=TextStyle::CAPTION string={day_text} />
         </List>
@@ -1260,7 +1256,6 @@ fn AlarmField() -> NodeId {
                 hour_cycle=HourCycle::H12
                 label="Alarm"
                 today={Some(today)}
-                on_change={move |next| alarm.set(next)}
             />
             <Text style=TextStyle::CAPTION string={alarm_text} />
         </List>
@@ -1288,7 +1283,6 @@ fn MeetingField() -> NodeId {
                 today={Some(today)}
                 clearable=true
                 step_minutes=30
-                on_change={move |next| meeting.set(next)}
             />
             <Text style=TextStyle::CAPTION string={meeting_text} wrap=true />
         </List>
@@ -1312,7 +1306,6 @@ fn BookingCalendar() -> NodeId {
                 min={Some(today)}
                 max={Some(today.add_days(60))}
                 today={Some(today)}
-                on_change={move |date| booked.set(Some(date))}
             />
             <Text style=TextStyle::CAPTION string={booked_text} />
         </List>
@@ -3265,7 +3258,6 @@ fn SettingsSections() -> NodeId {
                         }}
                         selected={size}
                         label="Text size"
-                        on_change={move |index| size.set(index)}
                     />
                 </SettingsRow>
                 <SettingsRow

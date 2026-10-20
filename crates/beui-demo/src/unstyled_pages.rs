@@ -468,7 +468,11 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
 #[component]
 fn SizeRadios() -> NodeId {
     let sizes = ["Small", "Medium", "Large"];
-    let chosen = create_signal("Medium".to_owned());
+    let size = create_signal(Some(1));
+    let chosen = create_memo(move || {
+        size.get()
+            .map_or_else(String::new, |index| sizes[index].to_owned())
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <unstyled::Choice
@@ -477,13 +481,8 @@ fn SizeRadios() -> NodeId {
                     <ChoiceOption label="Medium" />
                     <ChoiceOption label="Large" />
                 }}
-                selected=Some(1)
+                selected={size}
                 kind=ChoiceKind::Radio
-                on_change={move |selected: Option<usize>| {
-                    if let Some(index) = selected {
-                        chosen.set(sizes[index].to_owned());
-                    }
-                }}
             >|handle: ChoiceOptionHandle|
                 <RadioFace handle />
             </unstyled::Choice>
@@ -1589,7 +1588,6 @@ fn DeadlinePicker() -> NodeId {
                     panel={move |handle: DateTimePanelHandle| view! {
                         <DatePresets handle />
                     }}
-                    on_change={move |next: Option<DateTime>| deadline.set(next)}
                 />
             </List>
             <Text string={shown} color=TextColor::Muted />

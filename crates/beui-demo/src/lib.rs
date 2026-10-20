@@ -776,13 +776,12 @@ fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
                         <ChoiceOption label />
                     </ForEach>
                 }}
-                selected={selected_theme}
-                on_change={move |index: Option<usize>| {
+                selected={Binding::new(selected_theme, move |index: Option<usize>| {
                     if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
                         selected_theme.set(index);
                         with_document(|document| document.set_theme(*theme));
                     }
-                }}
+                })}
             />
             <IconButton
                 @test_id={"demo.inspector"}

@@ -237,11 +237,10 @@ fn FieldRow(
                             <ChoiceOption label={FIELD_TYPES[index].1} />
                         </ForEach>
                     }}
-                    selected={selected}
+                    selected={Binding::new(selected, retyped)}
                     label="Field type"
                     disabled={read_only}
                     @test_id={format!("database-schema.type.{id}")}
-                    on_change={retyped}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <IconButton
@@ -359,11 +358,10 @@ fn NumberOptions(
                                     <ChoiceOption label={NUMBER_SCALES[index].1} />
                                 </ForEach>
                             }}
-                            selected={scale}
+                            selected={Binding::new(scale, rescaled)}
                             label="Number scale"
                             disabled={read_only}
                             @test_id={format!("database-schema.number.{id}.scale")}
-                            on_change={rescaled}
                         />
                     </List>
                 </List>
@@ -778,11 +776,10 @@ fn BlockOptions(
                             }
                         }</ForEach>
                     }}
-                    selected={selected}
+                    selected={Binding::new(selected, picked)}
                     label="Block type"
                     disabled={read_only}
                     @test_id={format!("database-schema.block.{id}.type")}
-                    on_change={picked}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>

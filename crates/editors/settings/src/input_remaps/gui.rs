@@ -340,18 +340,17 @@ fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
                         <ChoiceOption label="Taps a key" />
                         <ChoiceOption label="Plays steps" />
                     }}
-                    selected={does}
-                    label="Does"
-                    disabled={edits.read_only}
-                    @test_id={id("does")}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(does, move |index: Option<usize>| {
                         let chosen = match index {
                             Some(1) => Does::Tap,
                             Some(2) => Does::Steps,
                             _ => Does::Send,
                         };
                         edits.edit_rule(group, rule, RuleEdit::Does(chosen));
-                    }}
+                    })}
+                    label="Does"
+                    disabled={edits.read_only}
+                    @test_id={id("does")}
                 />
             </SettingsRow>
             <Show condition={keyed}>

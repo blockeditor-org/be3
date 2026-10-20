@@ -119,15 +119,14 @@ fn ResponsiveToolbar(
                                     <ChoiceOption label />
                                 </ForEach>
                             }}
-                            selected={selected_device}
-                            label="Device"
-                            on_change={move |index: Option<usize>| {
+                            selected={Binding::new(selected_device, move |index: Option<usize>| {
                                 if let Some((_, size)) = index.and_then(|index| DEVICES.get(index))
                                     && *size != Vec2::ZERO
                                 {
                                     state.value().update_screen(|screen| screen.resized(*size));
                                 }
-                            }}
+                            })}
+                            label="Device"
                         />
                     </Frame>
                     <Frame width=DIMENSION_WIDTH>
@@ -175,16 +174,15 @@ fn ResponsiveToolbar(
                                     <ChoiceOption label />
                                 </ForEach>
                             }}
-                            selected={selected_zoom}
-                            label="Zoom"
-                            on_change={move |index: Option<usize>| {
+                            selected={Binding::new(selected_zoom, move |index: Option<usize>| {
                                 if let Some((_, zoom)) = index.and_then(|index| ZOOMS.get(index)) {
                                     state.value().update_screen(|screen| ScreenSimulation {
                                         zoom: *zoom,
                                         ..screen
                                     });
                                 }
-                            }}
+                            })}
+                            label="Zoom"
                         />
                     </Frame>
                     <Spacer @sizing=ItemSize::Percent(100.0) />

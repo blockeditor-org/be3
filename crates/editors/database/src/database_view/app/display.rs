@@ -406,10 +406,9 @@ pub fn FieldPicker(
                     }
                 }</ForEach>
             }}
-            selected={selected}
+            selected={Binding::new(selected, picked)}
             label={label}
             @test_id={picker_id}
-            on_change={picked}
         />
     }
 }

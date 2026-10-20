@@ -120,13 +120,12 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                             <ChoiceOption label={CalendarView::Week.label()} />
                             <ChoiceOption label={CalendarView::Month.label()} />
                         }}
-                        selected={mode_index}
-                        @test_id={"calendar.layout"}
-                        on_change={move |chosen: usize| {
+                        selected={Binding::new(mode_index, move |chosen: usize| {
                             if let Some(shown) = CalendarView::ALL.get(chosen) {
                                 mode.set(*shown);
                             }
-                        }}
+                        })}
+                        @test_id={"calendar.layout"}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Button
@@ -286,19 +285,17 @@ fn EventDialog(
                 />
                 <Text style=TextStyle::CAPTION string="Starts" />
                 <DateTimeField
-                    value={start}
+                    value={Binding::new(start, edit_start)}
                     label="Starts"
                     disabled={read_only}
                     @test_id={"calendar.form.start"}
-                    on_change={edit_start}
                 />
                 <Text style=TextStyle::CAPTION string="Ends" />
                 <DateTimeField
-                    value={end}
+                    value={Binding::new(end, edit_end)}
                     label="Ends"
                     disabled={read_only}
                     @test_id={"calendar.form.end"}
-                    on_change={edit_end}
                 />
                 <Show condition={backwards}>
                     <Text style=TextStyle::CAPTION string="The event ends before it starts." />

@@ -401,11 +401,10 @@ fn Sidebar(panel: Panel) -> NodeId {
                                         }
                                     }</ForEach>
                                 }}
-                                selected={playing}
+                                selected={Binding::new(playing, seated)}
                                 label="Playing as"
                                 @test_id={"game.player"}
                                 @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                                on_change={seated}
                             />
                         </List>
                         <Show condition={choosing}>

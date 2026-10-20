@@ -63,7 +63,7 @@ pub struct CalendarCellHandle {
 
 #[derive(Clone, Copy)]
 struct State {
-    selected: Signal<Option<Date>>,
+    selected: Binding<Option<Date>>,
     active: Signal<Date>,
     day_focus: Signal<Option<Date>>,
     month_focus: Signal<Option<Date>>,
@@ -73,12 +73,11 @@ struct State {
     max: Memo<Option<Date>>,
     today: Date,
     first_weekday: Weekday,
-    on_change: Callback<Date>,
 }
 
 #[component]
 pub fn Calendar(
-    selected: Prop<Option<Date>>,
+    #[prop(default = None)] selected: Binding<Option<Date>>,
     #[prop(default = None)] min: Prop<Option<Date>>,
     #[prop(default = None)] max: Prop<Option<Date>>,
     #[prop(default = None)] today: Prop<Option<Date>>,
@@ -89,14 +88,12 @@ pub fn Calendar(
     header: Render<CalendarHeaderHandle>,
     weekday: RenderFn<Weekday>,
     cell: RenderFn<CalendarCellHandle>,
-    on_change: Callback<Date>,
 ) -> NodeId {
     let today = today.get_untracked().unwrap_or_else(Date::today);
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
-    let initial = selected.get_untracked();
-    let picked = create_signal(initial);
-    let starting = initial
+    let starting = selected
+        .get_untracked()
         .unwrap_or(today)
         .clamp_to(min.get_untracked(), max.get_untracked());
     let active = create_signal(starting);
@@ -105,7 +102,7 @@ pub fn Calendar(
     let year_focus = create_signal(None);
     let mode = create_signal(CalendarMode::Days);
     let state = State {
-        selected: picked,
+        selected,
         active,
         day_focus,
         month_focus,
@@ -115,14 +112,11 @@ pub fn Calendar(
         max,
         today,
         first_weekday,
-        on_change,
     };
     set_component_state(state);
 
     create_effect(move || {
-        let requested = selected.get();
-        state.selected.set(requested);
-        if let Some(date) = requested {
+        if let Some(date) = selected.get() {
             state.active.set(clamp(state, date));
         }
     });
@@ -586,9 +580,8 @@ fn reset(state: State) {
 
 fn choose(state: State, date: Date) {
     let date = clamp(state, date);
-    state.selected.set(Some(date));
+    state.selected.update(|selected| *selected = Some(date));
     state.active.set(date);
-    state.on_change.call(date);
 }
 
 fn page(state: State, direction: i32) {

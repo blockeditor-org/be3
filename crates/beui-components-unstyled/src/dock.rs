@@ -2072,10 +2072,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                         }
                     }</ForEach>
                 }}
-                selected={selected}
-                kind=ChoiceKind::Tabs
-                direction
-                on_change={move |index: Option<usize>| {
+                selected={Binding::new(selected, move |index: Option<usize>| {
                     let Some(index) = index else {
                         return;
                     };
@@ -2091,7 +2088,9 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     if let Some(tab) = shown.filter(|_| !picked) {
                         dock.give_keyboard(tab);
                     }
-                }}
+                })}
+                kind=ChoiceKind::Tabs
+                direction
             >|handle: ChoiceOptionHandle| {
                 let dock = dock;
                 let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();

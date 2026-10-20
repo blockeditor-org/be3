@@ -290,7 +290,12 @@ fn TextSettings(state: State) -> NodeId {
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Language"
-                        selected={language_index}
+                        selected={Binding::new(language_index, move |index: Option<usize>| {
+                            let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
+                                return;
+                            };
+                            state.text.execute(EditorCommand::SetLanguage(*choice));
+                        })}
                         @test_id={"text.language"}
                         options={view! {
                             <ForEach
@@ -298,12 +303,6 @@ fn TextSettings(state: State) -> NodeId {
                             >|index: usize|
                                 <ChoiceOption label={TextLanguage::ALL[index].label().to_owned()} />
                             </ForEach>
-                        }}
-                        on_change={move |index: Option<usize>| {
-                            let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
-                                return;
-                            };
-                            state.text.execute(EditorCommand::SetLanguage(*choice));
                         }}
                     />
                 </Frame>
@@ -313,18 +312,17 @@ fn TextSettings(state: State) -> NodeId {
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Indentation"
-                        selected={indentation_index}
-                        @test_id={"text.indentation"}
-                        options={view! {
-                            <ChoiceOption label="Tabs" />
-                            <ChoiceOption label="Spaces" />
-                        }}
-                        on_change={move |index: Option<usize>| {
+                        selected={Binding::new(indentation_index, move |index: Option<usize>| {
                             let indentation = match index {
                                 Some(1) => TextIndentation::Spaces { width: 2 },
                                 _ => TextIndentation::Tabs,
                             };
                             state.text.execute(EditorCommand::SetIndentation(indentation));
+                        })}
+                        @test_id={"text.indentation"}
+                        options={view! {
+                            <ChoiceOption label="Tabs" />
+                            <ChoiceOption label="Spaces" />
                         }}
                     />
                 </Frame>
