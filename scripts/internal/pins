@@ -38,10 +38,10 @@ nsc_sha256_linux_arm64='fc121a4fda8083f9e2815a2ecb4e75d06649b98316d4c793434d03fc
 # the crate's files that the binaries were built from; CI builds, uploads and
 # pins a new release when they change (guides/bootstrap.md), each at
 # https://be3-ci.b-cdn.net/bootstrap/<sha256>.
-bootstrap_source=''
-bootstrap_sha256_x86_64_unknown_linux_gnu=''
-bootstrap_sha256_aarch64_unknown_linux_gnu=''
-bootstrap_sha256_x86_64_apple_darwin=''
-bootstrap_sha256_aarch64_apple_darwin=''
-bootstrap_sha256_x86_64_pc_windows_msvc=''
-bootstrap_sha256_aarch64_pc_windows_msvc=''
+bootstrap_source='b8e9fa3885d5d868e09016d19e810182190a095bd3b2ff7b301dea91419297e9'
+bootstrap_sha256_x86_64_unknown_linux_gnu='ff482ef3cc37747fbc26e07d42c337aab3a8be747b5c4d46eea01bf14dd50f3f'
+bootstrap_sha256_aarch64_unknown_linux_gnu='6e2e3f3a857725e270a47f305fbac41a6df99c355017f12a1448889df1c730b6'
+bootstrap_sha256_x86_64_apple_darwin='6ccb85d98276a16efb6ff6f311e0d6bdeb30e5f7550e81840bbafeef8caaf0b0'
+bootstrap_sha256_aarch64_apple_darwin='54a35c3fb287b3efb630a72d079300c41c0a8a738f7b7a4e62bf2d58c48af574'
+bootstrap_sha256_x86_64_pc_windows_msvc='c0a55b41fdcb1be71fa907042fc7bda4138368ae1466bfb185851516eb7d5f85'
+bootstrap_sha256_aarch64_pc_windows_msvc='7f38449119c866a8828759f81d4c7db11a029b2dcc53bca9dba3cd8e3c7e53b8'
