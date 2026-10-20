@@ -50,14 +50,13 @@ fn opening_the_remaps_makes_them_with_the_remapper_and_opens_them() {
     );
     assert_eq!(editor.seeded().len(), 1);
 
-    editor.click("input.remaps.reset");
-    editor.run();
+    reset(&mut editor, "input.remapper");
     assert!(
         content(&editor).root().remapper.is_some(),
         "resetting asks first"
     );
     editor.snapshot("resetting_the_remaps_asks_before_deleting_them");
-    editor.click("input.remaps.reset.confirm");
+    editor.click("input.remapper.reset.confirm");
     editor.run();
     assert_eq!(content(&editor).root().remapper, None);
     let deleted = editor.take_block_commands();

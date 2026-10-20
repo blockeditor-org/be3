@@ -1,9 +1,10 @@
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::be_block::display_settings::Rotation;
 use block_editor_beui::beui::NodeId;
+use block_editor_beui::beui::icons::ICON_SETTINGS_BACKUP_RESTORE;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::beui::unstyled::{ChoiceOption, MenuItem};
 use block_editor_beui::{HostDisplay, HostDisplayMode, LayeredSettingsRow, RotationPicker};
 
 use super::modes::{
@@ -95,6 +96,7 @@ pub(super) fn ScreenSection(
     let set = Callback::new(move |chosen: Option<HostDisplayMode>| choose.call(chosen.map(saved)));
     let fastest = create_memo(move || rate_list.with(|rates| rates.first().copied()));
     let slower = create_memo(move || chosen.get().is_some() && chosen.get() != fastest.get());
+    let at_fastest = create_memo(move || !slower.get() || read_only.get());
     view! {
         <SettingsSection title={name} description={showing}>
             <LayeredSettingsRow
@@ -132,8 +134,16 @@ pub(super) fn ScreenSection(
                 separated=true
                 modified={slower}
                 locked={read_only}
-                reset_test_id={format!("display.{connector}.refresh.reset")}
-                on_reset={move || set.call(fastest.get_untracked())}
+                menu_test_id={format!("display.{connector}.refresh.menu")}
+                menu={view! {
+                    <MenuItem
+                        label="Use the fastest rate"
+                        glyph={ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                        disabled={at_fastest}
+                        row_test_id={format!("display.{connector}.refresh.reset")}
+                        on_click={move || set.call(fastest.get_untracked())}
+                    />
+                }}
             >
                 <Select
                     @sizing=ItemSize::Percent(100.0)

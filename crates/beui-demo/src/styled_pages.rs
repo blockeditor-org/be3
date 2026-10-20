@@ -2814,7 +2814,7 @@ fn SettingsSections() -> NodeId {
         <List spacing=SECTION_SPACING>
             <SettingsSection
                 title="Sound"
-                description="A row lays its label beside its control, and stacks them once narrow. A changed setting is marked, and its reset brings back the default. A row can keep more in a menu, with a note under its label."
+                description="A row lays its label beside its control, and stacks them once narrow. A changed setting is marked, and its menu brings back the default and can hold more, with a note under its label."
             >
                 <SettingsRow
                     label="Sounds"
@@ -2827,7 +2827,13 @@ fn SettingsSections() -> NodeId {
                     label="Volume"
                     separated=true
                     modified={volume_changed}
-                    on_reset={move || volume.set(DEFAULT_VOLUME)}
+                    menu={view! {
+                        <unstyled::MenuItem
+                            label="Reset to default"
+                            glyph={beui::icons::ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                            on_click={move || volume.set(DEFAULT_VOLUME)}
+                        />
+                    }}
                 >
                     <Slider
                         @sizing=ItemSize::Percent(100.0)
@@ -2842,7 +2848,13 @@ fn SettingsSections() -> NodeId {
                     label="Text size"
                     separated=true
                     modified={size_changed}
-                    on_reset={move || size.set(Some(1))}
+                    menu={view! {
+                        <unstyled::MenuItem
+                            label="Reset to default"
+                            glyph={beui::icons::ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                            on_click={move || size.set(Some(1))}
+                        />
+                    }}
                 >
                     <Select
                         @sizing=ItemSize::Percent(100.0)
@@ -2866,11 +2878,13 @@ fn SettingsSections() -> NodeId {
                     menu={view! {
                         <unstyled::MenuItem
                             label="Keep on this device"
+                            glyph={beui::icons::ICON_KEEP.to_owned()}
                             checked={pinned}
                             on_click={move || haptics_pinned.update(|on| *on = !*on)}
                         />
                         <unstyled::MenuItem
                             label="Reset to default"
+                            glyph={beui::icons::ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
                             on_click={move || haptics.set(false)}
                         />
                     }}
@@ -2879,11 +2893,9 @@ fn SettingsSections() -> NodeId {
                 </SettingsRow>
                 <SettingsLink
                     label="Sound effects"
-                    description="A link row opens a page of its own; its reset can ask first."
+                    description="A link row opens a page of its own."
                     separated=true
                     modified={effects}
-                    reset_confirm="Resetting deletes the sound effects page."
-                    on_reset={move || effects.set(false)}
                     on_click={|| {}}
                 />
             </SettingsSection>

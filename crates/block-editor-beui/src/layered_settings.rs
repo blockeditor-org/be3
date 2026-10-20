@@ -4,6 +4,7 @@ use std::rc::Rc;
 use be_block::be_model::Document;
 use be_block::{BlockContent, Layered, Layers, LiveEdit, Setting, SettingsLayer};
 use beui::NodeId;
+use beui::icons::{ICON_KEEP, ICON_KEEP_OFF, ICON_SETTINGS_BACKUP_RESTORE};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::MenuItem;
@@ -13,6 +14,7 @@ use crate::Editor;
 use crate::root_settings::{RootSetting, SettingsGraph, own_settings_blocks};
 
 const KEPT: &str = "Kept on this device";
+const IN_PROFILE: &str = "Kept in this profile";
 const ONLY_HERE: &str = "This device only";
 const KEEP_ACTION: &str = "keep";
 const UNDO_ACTION: &str = "undo";
@@ -452,6 +454,10 @@ pub struct SettingHandle {
 }
 
 impl SettingHandle {
+    pub fn with_reset(self, reset: Callback<()>) -> Self {
+        Self { reset, ..self }
+    }
+
     pub fn modified(&self) -> Memo<bool> {
         self.modified
     }
@@ -506,51 +512,53 @@ pub fn LayeredSettingsRow(
         reset,
     } = setting;
     let locked = create_memo(move || locked.get());
-    let reset_id = format!("{id}.reset");
-    if !device {
-        return view! {
-            <SettingsRow
-                label
-                description
-                separated
-                compact
-                modified={modified}
-                locked={locked}
-                reset_test_id={reset_id}
-                on_reset={move || reset.call(())}
-            >
-                {children}
-            </SettingsRow>
-        };
-    }
-    let note = create_memo(move || match (only_here, kept.get()) {
-        (true, _) => ONLY_HERE.to_owned(),
-        (false, true) => KEPT.to_owned(),
-        (false, false) => String::new(),
-    });
     let unresettable = create_memo(move || !modified.get() || locked.get());
-    let checked = create_memo(move || Some(kept.get()));
-    let unkeepable = create_memo(move || locked.get() || (!kept.get() && !keepable.get()));
-    let keeping = (!only_here).then(|| {
-        view! {
-            <MenuItem
-                label="Keep on this device"
-                checked={checked}
-                disabled={unkeepable}
-                row_test_id={format!("{id}.keep")}
-                on_click={move || keep.call(!kept.get_untracked())}
-            />
+    let menu: Children<MenuItem> = match device {
+        true => {
+            let checked = create_memo(move || Some(kept.get()));
+            let unkeepable =
+                create_memo(move || locked.get() || (!kept.get() && !keepable.get()));
+            let keeping = (!only_here).then(|| {
+                view! {
+                    <MenuItem
+                        label="Keep on this device"
+                        glyph={ICON_KEEP.to_owned()}
+                        checked={checked}
+                        disabled={unkeepable}
+                        row_test_id={format!("{id}.keep")}
+                        on_click={move || keep.call(!kept.get_untracked())}
+                    />
+                }
+            });
+            let resetting = view! {
+                <MenuItem
+                    label="Reset to default"
+                    glyph={ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                    disabled={unresettable}
+                    row_test_id={format!("{id}.reset")}
+                    on_click={move || reset.call(())}
+                />
+            };
+            keeping.into_iter().chain([resetting]).collect()
         }
-    });
-    let resetting = view! {
-        <MenuItem
-            label="Reset to default"
-            disabled={unresettable}
-            row_test_id={reset_id}
-            on_click={move || reset.call(())}
-        />
+        false => [view! {
+            <MenuItem
+                label="Stop keeping in this profile"
+                glyph={ICON_KEEP_OFF.to_owned()}
+                disabled={unresettable}
+                row_test_id={format!("{id}.reset")}
+                on_click={move || reset.call(())}
+            />
+        }]
+        .into_iter()
+        .collect(),
     };
-    let menu: Children<MenuItem> = keeping.into_iter().chain([resetting]).collect();
+    let note = create_memo(move || match (device, only_here, kept.get(), modified.get()) {
+        (true, true, _, _) => ONLY_HERE.to_owned(),
+        (true, false, true, _) => KEPT.to_owned(),
+        (false, _, _, true) => IN_PROFILE.to_owned(),
+        _ => String::new(),
+    });
     view! {
         <SettingsRow
             label

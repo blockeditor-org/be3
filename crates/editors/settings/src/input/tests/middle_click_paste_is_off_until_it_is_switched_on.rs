@@ -1,7 +1,6 @@
 use super::*;
 
 const PASTE: &str = "input.middle-click-paste";
-const PASTE_RESET: &str = "input.middle-click-paste.reset";
 
 #[test]
 fn middle_click_paste_is_off_until_it_is_switched_on() {
@@ -16,7 +15,6 @@ fn middle_click_paste_is_off_until_it_is_switched_on() {
     assert!(content(&editor).root().middle_click_paste());
     editor.snapshot("middle_click_paste_is_off_until_it_is_switched_on");
 
-    editor.click(PASTE_RESET);
-    editor.run();
+    reset(&mut editor, PASTE);
     assert_eq!(content(&editor).root().middle_click_paste, None);
 }

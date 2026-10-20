@@ -35,6 +35,13 @@ fn content(editor: &BeuiTest<InputSettingsApp>) -> InputSettingsContent {
     editor.content(None)
 }
 
+fn reset(editor: &mut BeuiTest<InputSettingsApp>, row: &str) {
+    editor.click(&format!("{row}.menu"));
+    editor.run();
+    editor.click(&format!("{row}.reset"));
+    editor.run();
+}
+
 fn choose_pointer(editor: &mut BeuiTest<InputSettingsApp>, index: usize) {
     editor.click("input.pointer");
     editor.run();

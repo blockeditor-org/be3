@@ -40,10 +40,9 @@ const THEME: &str = "display.theme";
 const SCALE: &str = "display.scale";
 const RESOLUTION: &str = "display.DP-1.resolution";
 const REFRESH: &str = "display.DP-1.refresh";
-const RESET: &str = "display.DP-1.reset";
-const ROTATION_RESET: &str = "display.DP-1.rotation.reset";
+const SCREEN: &str = "display.DP-1";
+const ROTATION: &str = "display.DP-1.rotation";
 const ROTATE_IN_BAR: &str = "display.rotate-in-bar";
-const ROTATE_IN_BAR_RESET: &str = "display.rotate-in-bar.reset";
 const SCREEN_OFF: &str = "display.screen-off";
 const LOCK_AFTER: &str = "display.lock-after";
 

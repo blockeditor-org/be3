@@ -4,7 +4,9 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
-use block_editor_beui::{BlockParent, Editor};
+use block_editor_beui::{BlockParent, Editor, LayeredSettingsRow};
+
+const CONFIRM_SPACING: f32 = 8.0;
 use uuid::Uuid;
 
 use super::ui::Settings;
@@ -112,13 +114,20 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
         }
         set_remapper.call(None);
     };
+    let asking = create_signal(false);
+    let row = row.with_reset(Callback::new(move |()| asking.set(true)));
+    let confirmed = move || {
+        asking.set(false);
+        reset();
+    };
     view! {
         <SettingsSection title="Remaps">
-            <SettingsRow
+            <LayeredSettingsRow
+                setting={row}
                 label="Remapper"
                 description="The plugin that changes keys, buttons and wheel turns in a Linux session."
-                modified={set_here}
                 locked={read_only}
+                id={"input.remapper".to_owned()}
             >
                 <Select
                     @sizing=ItemSize::Percent(100.0)
@@ -145,20 +154,38 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                     @test_id={"input.remapper"}
                     on_change={choose}
                 />
-            </SettingsRow>
+            </LayeredSettingsRow>
             <SettingsLink
                 label="Remaps"
                 description={detail}
                 separated=true
                 disabled={link_off}
                 modified={set_here}
-                locked={read_only}
-                reset_test_id={"input.remaps.reset".to_owned()}
-                reset_confirm="Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
                 @test_id={"input.remaps"}
-                on_reset={reset}
                 on_click={open}
             />
+            <Dialog open={asking} title="Reset the remapper?" on_dismiss={move || asking.set(false)}>
+                <List spacing=CONFIRM_SPACING>
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string="Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
+                        wrap=true
+                    />
+                    <List direction=Direction::Horizontal spacing=CONFIRM_SPACING>
+                        <Button
+                            label="Reset"
+                            variant=ButtonVariant::Primary
+                            @test_id={"input.remapper.reset.confirm"}
+                            on_click={confirmed}
+                        />
+                        <Button
+                            label="Cancel"
+                            variant=ButtonVariant::Secondary
+                            on_click={move || asking.set(false)}
+                        />
+                    </List>
+                </List>
+            </Dialog>
         </SettingsSection>
     }
 }

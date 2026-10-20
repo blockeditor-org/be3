@@ -8,8 +8,7 @@ fn resetting_a_layout_returns_it_to_the_default() {
     editor.text("de");
     editor.run();
 
-    editor.click("input.layout.reset");
-    editor.run();
+    reset(&mut editor, "input.layout");
 
     assert_eq!(content(&editor).root().keyboard_layout, None);
 }

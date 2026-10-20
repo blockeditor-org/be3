@@ -1,7 +1,6 @@
 use super::*;
 
 const NATURAL: &str = "input.pointer.natural-scroll";
-const NATURAL_RESET: &str = "input.pointer.natural-scroll.reset";
 
 #[test]
 fn every_pointer_reads_as_mixed_until_it_is_set() {
@@ -35,8 +34,7 @@ fn every_pointer_reads_as_mixed_until_it_is_set() {
     );
 
     choose_pointer(&mut editor, 0);
-    editor.click(NATURAL_RESET);
-    editor.run();
+    reset(&mut editor, NATURAL);
     let root = content(&editor).root();
     assert_eq!(root.every_pointer.natural_scroll, None);
     assert!(

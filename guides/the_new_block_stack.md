@@ -1079,13 +1079,13 @@ with a notice, and makes and changes nothing in it. The editors of the kinds lay
 their pages with beui's `SettingsPage`, `SettingsSection` and `SettingsRow`: a
 card of rows per section, each a label and description beside its control,
 stacked once the row is narrow, and a section runs edge to edge once it is. A
-`modified` row has an accent bar at its edge and, given `on_reset`, a small
-Reset link after its label; given `menu` items instead, a "More" menu button at its end,
-and a `note` is a small accent caption under its description. A `SettingsLink` is a row that opens a page of its own (a block,
+`modified` row has an accent bar at its edge; given `menu` items, a "More" menu button
+at its end holds what can be done to the setting, resetting it included (rows have no
+other reset), and a `note` is a small accent caption under its description. A `SettingsLink` is a row that opens a page of its own (a block,
 in a tab): its label and description, a chevron where a control would be, and the
-hover a button has, inset and rounded so it stays inside the card. It takes `modified`
-and `on_reset` as a row does, and with `reset_confirm` its Reset asks in a dialog
-first, for a reset that deletes the block it opens.
+hover a button has, inset and rounded so it stays inside the card, marked when
+`modified`. A reset that deletes the block a link opens belongs to the setting that
+chose the block, whose menu asks first (the Remapper row asks before it deletes the remaps).
 A page shows a section only where the host can back it: the settings plugin's
 Display page (`editors/settings`, `display`) always has Appearance, but a
 section per screen only once the host offers `Displays` (its mode and its
@@ -1133,11 +1133,13 @@ rule. Every write goes through it: in a plugin through
 kind's editor, which acts on this device when opened on the every-device block and on
 just its own block when opened on a profile's), which makes the every-device or
 profile block when it is missing; in block-app through `display::keep` and `revert`.
-Its `LayeredSettingsRow` gives a row a menu (`<id>.menu`) with Keep on this device
+Its `LayeredSettingsRow` gives every row a menu (`<id>.menu`) with Keep on this device
 (`<id>.keep`, a checked item that copies the value in use, or the default, into the
 profile, or deletes it there) and Reset to default (`<id>.reset`, which clears the
 layer the setting would be written to), and a "Kept on this device" or "This device
-only" note; on a profile's own page the row keeps its Reset link. `ChangesToast` shows
+only" note; on a profile's own page its one item is Stop keeping in this profile
+(`<id>.reset`, clearing it in that block), with a "Kept in this profile" note. Menu items
+carry icons (`ICON_KEEP`, `ICON_SETTINGS_BACKUP_RESTORE`, `ICON_KEEP_OFF`). `ChangesToast` shows
 one toast per visit to a page naming what now applies on every device ("Theme, scale
 and 1 more now apply on your devices") with Keep on this device only, which moves those
 values into the profile and puts the every-device ones back, and Undo.

@@ -1,7 +1,6 @@
 use super::*;
 
 const TAP: &str = "input.pointer.tap-to-click";
-const TAP_RESET: &str = "input.pointer.tap-to-click.reset";
 
 #[test]
 fn a_device_follows_its_default_until_it_is_overridden() {
@@ -14,10 +13,7 @@ fn a_device_follows_its_default_until_it_is_overridden() {
             .tap_to_click
     };
 
-    assert!(
-        !editor.shown(TAP_RESET),
-        "there is nothing to reset while the default is used"
-    );
+    assert_eq!(tap(&editor), None, "nothing is set while the default is used");
 
     editor.click(TAP);
     editor.run();
@@ -35,8 +31,7 @@ fn a_device_follows_its_default_until_it_is_overridden() {
         "a value equal to the default stays set"
     );
 
-    editor.click(TAP_RESET);
-    editor.run();
+    reset(&mut editor, TAP);
     assert_eq!(tap(&editor), None);
     assert!(content(&editor).root().pointers.is_empty());
     assert_eq!(content(&editor).root().every_pointer.tap_to_click, None);

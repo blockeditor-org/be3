@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now() {
     let mut settings = Harness::in_a_session(vec![gaming_monitor()]);
-    assert!(!settings.editor.shown(ROTATION_RESET));
+    assert_eq!(settings.content().root().screen(MONITOR).rotation, None);
 
     settings.editor.click(&tile(Rotation::Clockwise90));
     settings.run();
@@ -11,7 +11,6 @@ fn choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now() {
     let root = settings.content().root();
     assert_eq!(root.rotation(MONITOR), Rotation::Clockwise90);
     assert_eq!(root.mode(MONITOR), None, "the mode stays unset");
-    assert!(settings.editor.shown(ROTATION_RESET));
 
     settings
         .editor
@@ -28,7 +27,6 @@ fn choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now() {
         Some("Portrait")
     );
 
-    settings.editor.click(ROTATION_RESET);
-    settings.run();
+    settings.reset(ROTATION);
     assert_eq!(settings.content().root().screen(MONITOR).rotation, None);
 }
