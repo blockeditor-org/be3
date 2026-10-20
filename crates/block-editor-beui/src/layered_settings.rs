@@ -516,8 +516,7 @@ pub fn LayeredSettingsRow(
     let menu: Children<MenuItem> = match device {
         true => {
             let checked = create_memo(move || Some(kept.get()));
-            let unkeepable =
-                create_memo(move || locked.get() || (!kept.get() && !keepable.get()));
+            let unkeepable = create_memo(move || locked.get() || (!kept.get() && !keepable.get()));
             let keeping = (!only_here).then(|| {
                 view! {
                     <MenuItem
@@ -553,12 +552,14 @@ pub fn LayeredSettingsRow(
         .into_iter()
         .collect(),
     };
-    let note = create_memo(move || match (device, only_here, kept.get(), modified.get()) {
-        (true, true, _, _) => ONLY_HERE.to_owned(),
-        (true, false, true, _) => KEPT.to_owned(),
-        (false, _, _, true) => IN_PROFILE.to_owned(),
-        _ => String::new(),
-    });
+    let note = create_memo(
+        move || match (device, only_here, kept.get(), modified.get()) {
+            (true, true, _, _) => ONLY_HERE.to_owned(),
+            (true, false, true, _) => KEPT.to_owned(),
+            (false, _, _, true) => IN_PROFILE.to_owned(),
+            _ => String::new(),
+        },
+    );
     view! {
         <SettingsRow
             label

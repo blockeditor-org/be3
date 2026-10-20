@@ -13,7 +13,11 @@ fn a_device_follows_its_default_until_it_is_overridden() {
             .tap_to_click
     };
 
-    assert_eq!(tap(&editor), None, "nothing is set while the default is used");
+    assert_eq!(
+        tap(&editor),
+        None,
+        "nothing is set while the default is used"
+    );
 
     editor.click(TAP);
     editor.run();

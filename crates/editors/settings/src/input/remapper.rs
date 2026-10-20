@@ -164,7 +164,11 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                 @test_id={"input.remaps"}
                 on_click={open}
             />
-            <Dialog open={asking} title="Reset the remapper?" on_dismiss={move || asking.set(false)}>
+            <Dialog
+                open={asking}
+                title="Reset the remapper?"
+                on_dismiss={move || asking.set(false)}
+            >
                 <List spacing=CONFIRM_SPACING>
                     <Text
                         style=TextStyle::PARAGRAPH
