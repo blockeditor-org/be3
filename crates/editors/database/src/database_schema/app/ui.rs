@@ -451,10 +451,9 @@ fn OptionalNumber(
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Checkbox
                 label={bound.label()}
-                checked={set}
+                checked={Binding::new(set, toggled)}
                 disabled={read_only}
                 @test_id={format!("database-schema.number.{id}.{}.set", bound.test_id())}
-                on_change={toggled}
             />
             <Frame width=NUMBER_WIDTH>
                 <NumberInput
@@ -657,17 +656,15 @@ fn EnumOptionRow(
             />
             <ToggleButton
                 label="Closed"
-                pressed={closed}
+                pressed={Binding::new(closed, close)}
                 disabled={read_only}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.closed")}
-                on_change={close}
             />
             <ToggleButton
                 label="Default"
-                pressed={default}
+                pressed={Binding::new(default, defaulted)}
                 disabled={read_only}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.default")}
-                on_change={defaulted}
             />
             <IconButton
                 glyph={ICON_ARROW_UPWARD.to_owned()}
@@ -886,10 +883,9 @@ fn RelationOptions(
                     />
                     <Checkbox
                         label="Several rows"
-                        checked={multiple}
+                        checked={Binding::new(multiple, remultiplied)}
                         disabled={read_only}
                         @test_id={format!("database-schema.relation.{id}.multiple")}
-                        on_change={remultiplied}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>

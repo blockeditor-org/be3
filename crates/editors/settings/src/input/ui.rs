@@ -495,12 +495,11 @@ fn SwitchSetting(
             id={format!("input.{id}")}
         >
             <Switch
-                on={on}
+                on={Binding::new(on, move |on: bool| on_change.call(Some(on)))}
                 indeterminate={mixed}
                 label={label}
                 disabled={read_only}
                 @test_id={format!("input.{id}")}
-                on_change={move |on: bool| on_change.call(Some(on))}
             />
         </LayeredSettingsRow>
     }

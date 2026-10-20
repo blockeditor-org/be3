@@ -646,10 +646,9 @@ fn ValueChoices(
                                 <Checkbox
                                     @sizing={block_editor_beui::beui::reactive::ItemSize::Percent(100.0).shrink(1.0)}
                                     label={label}
-                                    checked={checked}
+                                    checked={Binding::new(checked, toggle)}
                                     disabled={read_only}
                                     @test_id={element_test_id}
-                                    on_change={toggle}
                                 />
                                 <Text style=TextStyle::CAPTION string={count} />
                             </List>

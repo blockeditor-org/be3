@@ -38,9 +38,8 @@ fn ToolButton(state: RayState, tool: Tool) -> NodeId {
     view! {
         <ToggleButton
             label={tool.label().to_owned()}
-            pressed={pressed}
+            pressed={Binding::new(pressed, move |_| state.choose_tool(tool))}
             @test_id={format!("pixel_ray_tracer.tool.{}", tool.label())}
-            on_change={move |_| state.choose_tool(tool)}
         />
     }
 }

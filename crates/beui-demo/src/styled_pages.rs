@@ -68,12 +68,11 @@ const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"
 #[component]
 pub(crate) fn LabelledSwitch(
     label: &'static str,
-    on: Prop<bool>,
-    on_change: Callback<bool>,
+    on: Binding<bool>,
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <Switch label on on_change={on_change} />
+            <Switch label on />
             <Text string={label} />
         </List>
     }
@@ -331,12 +330,11 @@ fn ContentDrag() -> NodeId {
                 <Switch
                     @test_id="demo.drag_modifier"
                     label="Alt moves and resizes windows"
-                    on
-                    on_change={move |on: bool| {
+                    on={Binding::new(on, move |on: bool| {
                         if let Some(modifier) = modifier.as_ref() {
                             modifier.held.set(on.then_some(Modifiers::ALT));
                         }
-                    }}
+                    })}
                 />
                 <Text string="Alt moves and resizes windows" />
             </List>
@@ -778,20 +776,17 @@ fn IconButtons() -> NodeId {
 #[sample]
 #[component]
 fn PinToggle() -> NodeId {
-    let pinned = create_signal("Selection is unpinned".to_owned());
+    let pressed = create_signal(false);
+    let pinned = create_memo(move || match pressed.get() {
+        true => "Selection is pinned".to_owned(),
+        false => "Selection is unpinned".to_owned(),
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <ToggleButton
                     label="Pin selection"
-                    pressed=false
-                    on_change={move |pressed| {
-                        let text = match pressed {
-                            true => "Selection is pinned",
-                            false => "Selection is unpinned",
-                        };
-                        pinned.set(text.to_owned());
-                    }}
+                    pressed
                 />
             </List>
             <Text style=TextStyle::CAPTION string={pinned} />
@@ -967,7 +962,7 @@ fn LockedControls() -> NodeId {
     let locked = create_signal(true);
     view! {
         <List spacing=SECTION_SPACING>
-            <LabelledSwitch label="Locked" on={locked} on_change={move |on| locked.set(on)} />
+            <LabelledSwitch label="Locked" on={locked} />
             <TextInput value="Read only while locked" disabled={locked} />
             <Select
                 options={view! {
@@ -996,17 +991,16 @@ fn LightSwitches() -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Switch
                     label="Every light"
-                    on={every}
-                    indeterminate={mixed}
-                    on_change={move |on: bool| {
+                    on={Binding::new(every, move |on: bool| {
                         kitchen.set(on);
                         hall.set(on);
-                    }}
+                    })}
+                    indeterminate={mixed}
                 />
                 <Text string="Every light" />
             </List>
-            <LabelledSwitch label="Kitchen" on={kitchen} on_change={move |on| kitchen.set(on)} />
-            <LabelledSwitch label="Hall" on={hall} on_change={move |on| hall.set(on)} />
+            <LabelledSwitch label="Kitchen" on={kitchen} />
+            <LabelledSwitch label="Hall" on={hall} />
         </List>
     }
 }
@@ -2741,13 +2735,11 @@ fn ThousandsOfRows() -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
                 <Checkbox
                     label="Show timings"
-                    checked=true
-                    on_change={move |checked| timings.set(checked)}
+                    checked={timings}
                 />
                 <LabelledSwitch
                     label="Compact rows"
-                    on=false
-                    on_change={move |on| compact.set(on)}
+                    on={compact}
                 />
                 <Text
                     style=TextStyle::CAPTION
@@ -2900,7 +2892,6 @@ fn ProjectTree() -> NodeId {
                 @test_id="demo.tree.comfortable"
                 label="Comfortable rows"
                 on={comfortable}
-                on_change={move |on: bool| comfortable.set(on)}
             />
             <Tree
                 @sizing=ItemSize::Fixed(TREE_HEIGHT)
@@ -3229,7 +3220,7 @@ fn SettingsSections() -> NodeId {
                     description="Play a sound when something finishes."
                     compact=true
                 >
-                    <Switch label="Sounds" on={sounds} on_change={move |on| sounds.set(on)} />
+                    <Switch label="Sounds" on={sounds} />
                 </SettingsRow>
                 <SettingsRow
                     label="Volume"
@@ -3297,7 +3288,7 @@ fn SettingsSections() -> NodeId {
                         />
                     }}
                 >
-                    <Switch label="Vibrate" on={haptics} on_change={move |on| haptics.set(on)} />
+                    <Switch label="Vibrate" on={haptics} />
                 </SettingsRow>
                 <SettingsLink
                     label="Sound effects"

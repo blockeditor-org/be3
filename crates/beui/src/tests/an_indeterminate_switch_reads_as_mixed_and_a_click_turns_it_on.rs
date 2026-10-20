@@ -7,14 +7,13 @@ use crate::styled::*;
 #[test]
 fn an_indeterminate_switch_reads_as_mixed_and_a_click_turns_it_on() {
     let _root = crate::reactive::RootScope::new();
-    let changes = create_signal(Vec::new());
+    let on = create_signal(false);
     let (document, [switch]) = toolbar_of(|| {
         [view! {
             <Switch
                 label="Every light"
-                on=false
+                on={on}
                 indeterminate=true
-                on_change={move |on| changes.update(|changes| changes.push(on))}
             />
         }]
     });
@@ -32,5 +31,5 @@ fn an_indeterminate_switch_reads_as_mixed_and_a_click_turns_it_on() {
     harness.click(harness.center(switch));
     harness.frame(Vec::new());
 
-    assert_eq!(changes.get_untracked(), [true]);
+    assert!(on.get_untracked());
 }

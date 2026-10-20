@@ -239,13 +239,11 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
                     label="Network"
                     glyph={network}
                     pressed={paused}
-                    on_change={move |on: bool| paused.set(on)}
                 />
                 <ToggleButton
                     @test_id="demo.collaboration.runs"
                     label="Runs"
                     pressed={runs}
-                    on_change={move |on: bool| runs.set(on)}
                 />
                 <Text style=TextStyle::CAPTION string={latency_label} />
             </List>

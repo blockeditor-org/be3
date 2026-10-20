@@ -113,9 +113,8 @@ fn KindSwitch(data: Data) -> NodeId {
                     <ToggleButton
                         label={label}
                         glyph={glyph.to_owned()}
-                        pressed={pressed}
+                        pressed={Binding::new(pressed, choose)}
                         @test_id={format!("database-view.kind.{label}")}
-                        on_change={choose}
                     />
                 }
             }</ForEach>
@@ -297,10 +296,9 @@ fn EmptyGroups(data: Data) -> NodeId {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Text @sizing=ItemSize::Percent(100.0) string="Show empty groups" />
             <Switch
-                on={on}
+                on={Binding::new(on, toggle)}
                 label="Show empty groups"
                 @test_id={"database-view.empty-groups"}
-                on_change={toggle}
             />
         </List>
     }
@@ -342,9 +340,8 @@ fn ShownFields(data: Data) -> NodeId {
                     view! {
                         <ToggleButton
                             label={name}
-                            pressed={pressed}
+                            pressed={Binding::new(pressed, toggle)}
                             @test_id={format!("database-view.shown.{field}")}
-                            on_change={toggle}
                         />
                     }
                 }</ForEach>

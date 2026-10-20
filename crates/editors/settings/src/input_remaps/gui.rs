@@ -422,11 +422,10 @@ fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
                 compact=true
             >
                 <Switch
-                    on={keep}
+                    on={Binding::new(keep, move |on: bool| edits.edit_rule(group, rule, RuleEdit::Keep(on)))}
                     label="Passes it on too"
                     disabled={edits.read_only}
                     @test_id={id("keep")}
-                    on_change={move |on: bool| edits.edit_rule(group, rule, RuleEdit::Keep(on))}
                 />
             </SettingsRow>
             <Show condition={sends}>
@@ -437,11 +436,10 @@ fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
                     compact=true
                 >
                     <Switch
-                        on={blind}
+                        on={Binding::new(blind, move |on: bool| edits.edit_rule(group, rule, RuleEdit::Blind(on)))}
                         label="Keeps held modifiers"
                         disabled={edits.read_only}
                         @test_id={id("blind")}
-                        on_change={move |on: bool| edits.edit_rule(group, rule, RuleEdit::Blind(on))}
                     />
                 </SettingsRow>
             </Show>

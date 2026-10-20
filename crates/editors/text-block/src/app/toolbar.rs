@@ -246,12 +246,11 @@ fn HexSettings(state: State) -> NodeId {
             <Text @sizing=ItemSize::Percent(100.0) string="Insert instead of overwriting" />
             <Switch
                 label="Insert instead of overwriting"
-                on={insert}
-                @test_id={"text.hex-insert"}
-                on_change={move |pressed: bool| {
+                on={Binding::new(insert, move |pressed: bool| {
                     state.hex_insert_mode.set(pressed);
                     state.inner().hex_pending_nibble.set(None);
-                }}
+                })}
+                @test_id={"text.hex-insert"}
             />
         </List>
     }

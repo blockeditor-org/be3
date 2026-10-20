@@ -99,12 +99,11 @@ fn RegionInspector(state: MapState) -> NodeId {
             <Text string="Preview region" />
             <Checkbox
                 label="Show a fixed region"
-                checked={fixed}
-                @test_id={"map.preview-region"}
-                on_change={move |on: bool| {
+                checked={Binding::new(fixed, move |on: bool| {
                     let region = on.then(|| state.visible_region.get_untracked());
                     state.record(Map::set_preview_region(region));
-                }}
+                })}
+                @test_id={"map.preview-region"}
             />
             <Show condition={loose}>
                 <Text

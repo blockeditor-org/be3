@@ -256,10 +256,9 @@ fn ArtboardBackground(
                 <ToggleButton
                     label="Theme background"
                     glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
-                    pressed={following}
+                    pressed={Binding::new(following, move |_: bool| set(None))}
                     disabled={locked}
                     @test_id={"infinite-canvas.background.theme"}
-                    on_change={move |_: bool| set(None)}
                 />
                 <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
                     let (name, color) = swatches[index];
@@ -863,21 +862,18 @@ fn LineOptions(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION string="Line" />
                     <Checkbox
                         label="Dashed"
-                        checked={dashed}
+                        checked={Binding::new(dashed, dash)}
                         @test_id={"infinite-canvas.dashed"}
-                        on_change={dash}
                     />
                     <Checkbox
                         label="Start arrow"
-                        checked={start}
+                        checked={Binding::new(start, arrow_start)}
                         @test_id={"infinite-canvas.arrow-start"}
-                        on_change={arrow_start}
                     />
                     <Checkbox
                         label="End arrow"
-                        checked={end}
+                        checked={Binding::new(end, arrow_end)}
                         @test_id={"infinite-canvas.arrow-end"}
-                        on_change={arrow_end}
                     />
                 </List>
             </Show>
@@ -950,9 +946,8 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                         <ToggleButton
                             label="No fill"
                             glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
-                            pressed={none}
+                            pressed={Binding::new(none, clearing)}
                             @test_id={"infinite-canvas.fill.none"}
-                            on_change={clearing}
                         />
                         <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>|index: usize| {
                             let (name, color) = PRESETS[index];
@@ -1162,9 +1157,8 @@ fn TextOptions(state: CanvasState) -> NodeId {
                     </List>
                     <Checkbox
                         label="Bold"
-                        checked={bold}
+                        checked={Binding::new(bold, weighted)}
                         @test_id={"infinite-canvas.bold"}
-                        on_change={weighted}
                     />
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                         <ForEach
@@ -1177,13 +1171,12 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             view! {
                                 <ToggleButton
                                     label={label}
-                                    pressed={pressed}
-                                    @test_id={format!("infinite-canvas.align-text.{label}")}
-                                    on_change={move |_: bool| {
+                                    pressed={Binding::new(pressed, move |_: bool| {
                                         state.update_selected_text(move |style| {
                                             style.alignment = wanted;
                                         });
-                                    }}
+                                    })}
+                                    @test_id={format!("infinite-canvas.align-text.{label}")}
                                 />
                             }
                         }</ForEach>
@@ -1199,22 +1192,20 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             view! {
                                 <ToggleButton
                                     label={label}
-                                    pressed={pressed}
-                                    @test_id={format!("infinite-canvas.align-text.{label}")}
-                                    on_change={move |_: bool| {
+                                    pressed={Binding::new(pressed, move |_: bool| {
                                         state.update_selected_text(move |style| {
                                             style.vertical_alignment = wanted;
                                         });
-                                    }}
+                                    })}
+                                    @test_id={format!("infinite-canvas.align-text.{label}")}
                                 />
                             }
                         }</ForEach>
                     </List>
                     <Checkbox
                         label="Wrap text"
-                        checked={wrap}
+                        checked={Binding::new(wrap, wrapped)}
                         @test_id={"infinite-canvas.wrap"}
-                        on_change={wrapped}
                     />
                     <Text
                         style=TextStyle::CAPTION

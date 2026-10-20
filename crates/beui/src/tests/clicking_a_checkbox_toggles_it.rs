@@ -5,15 +5,12 @@ use crate::styled::*;
 #[test]
 fn clicking_a_checkbox_toggles_it() {
     let _root = crate::reactive::RootScope::new();
-    let changes = create_signal(Vec::new());
+    let checked = create_signal(false);
     let (document, [checkbox]) = toolbar_of(|| {
         [view! {
             <Checkbox
                 label="Show timings"
-                checked=false
-                on_change={move |checked| {
-                    changes.update(|changes| changes.push(checked));
-                }}
+                checked={checked}
             />
         }]
     });
@@ -24,11 +21,11 @@ fn clicking_a_checkbox_toggles_it() {
     harness.frame(Vec::new());
 
     assert!(styled::checkbox_checked(harness.document(), checkbox));
-    assert_eq!(changes.get_untracked(), [true]);
+    assert!(checked.get_untracked());
 
     harness.click(harness.center(checkbox));
     harness.frame(Vec::new());
 
     assert!(!styled::checkbox_checked(harness.document(), checkbox));
-    assert_eq!(changes.get_untracked(), [true, false]);
+    assert!(!checked.get_untracked());
 }

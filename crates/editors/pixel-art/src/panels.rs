@@ -112,7 +112,7 @@ pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<boo
                 @test_id={"pixel-art.fit"}
                 on_click={fit}
             />
-            <Checkbox label="Grid" checked={grid} on_change={toggle_grid} />
+            <Checkbox label="Grid" checked={Binding::new(grid, toggle_grid)} />
             <Show condition={failed}>
                 <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
             </Show>
@@ -190,15 +190,13 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                     glyph={ICON_SQUARE.to_owned()}
                     label="Square brush"
                     icon_only=true
-                    pressed={square}
-                    on_change={move |_| shape.set(BrushShape::Square)}
+                    pressed={Binding::new(square, move |_| shape.set(BrushShape::Square))}
                 />
                 <ToggleButton
                     glyph={ICON_CIRCLE.to_owned()}
                     label="Circle brush"
                     icon_only=true
-                    pressed={circle}
-                    on_change={move |_| shape.set(BrushShape::Circle)}
+                    pressed={Binding::new(circle, move |_| shape.set(BrushShape::Circle))}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -207,18 +205,15 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 label="Fill rectangles and ellipses"
                 pressed={filled}
                 disabled={shapes}
-                on_change={move |on| filled.set(on)}
             />
             <Text string="Symmetry" />
             <Checkbox
                 label="Mirror horizontally"
                 checked={horizontal}
-                on_change={move |on| horizontal.set(on)}
             />
             <Checkbox
                 label="Mirror vertically"
                 checked={vertical}
-                on_change={move |on| vertical.set(on)}
             />
         </List>
     }
@@ -235,9 +230,8 @@ fn ToolButton(tools: Tools, entry: (PixelTool, &'static str, &'static str)) -> N
             glyph={glyph.to_owned()}
             label={format!("{} ({shortcut})", tool.label())}
             icon_only=true
-            pressed={pressed}
+            pressed={Binding::new(pressed, select)}
             @test_id={format!("pixel-art.tool.{}", tool.label())}
-            on_change={select}
         />
     }
 }
@@ -515,8 +509,7 @@ fn AnchorRow(tools: Tools, row: usize) -> NodeId {
                         glyph={glyph.to_owned()}
                         label={label}
                         icon_only=true
-                        pressed={pressed}
-                        on_change={move |_| set.set(anchor)}
+                        pressed={Binding::new(pressed, move |_| set.set(anchor))}
                     />
                 }
             }</ForEach>

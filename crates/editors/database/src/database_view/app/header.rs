@@ -181,9 +181,8 @@ fn ViewTabs(data: Data) -> NodeId {
                 view! {
                     <ToggleButton
                         label={name}
-                        pressed={view == own}
+                        pressed={Binding::new(view == own, open)}
                         @test_id={format!("database-view.view.{view}")}
-                        on_change={open}
                     />
                 }
             }</ForEach>

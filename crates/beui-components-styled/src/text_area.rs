@@ -109,11 +109,7 @@ pub fn TextArea(
 
 fn inline_checkbox() -> RenderFn<TextCheckbox> {
     RenderFn::new(|checkbox: TextCheckbox| {
-        let TextCheckbox {
-            checked,
-            disabled,
-            on_change,
-        } = checkbox;
+        let TextCheckbox { checked, disabled } = checkbox;
         view! {
             <Checkbox
                 checked
@@ -121,7 +117,6 @@ fn inline_checkbox() -> RenderFn<TextCheckbox> {
                 capture_presses=true
                 tab_stop=false
                 press_focus=false
-                on_change={on_change}
             />
         }
     })

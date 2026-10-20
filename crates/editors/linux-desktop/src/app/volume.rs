@@ -56,10 +56,9 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text @sizing=ItemSize::Percent(100.0) string="Mute" />
                 <Switch
-                    on={muted}
+                    on={Binding::new(muted, move |mute: bool| editor.act(MediaRequest::SetMute(mute)))}
                     label="Mute"
                     @test_id={"desktop.volume.mute"}
-                    on_change={move |mute: bool| editor.act(MediaRequest::SetMute(mute))}
                 />
             </List>
             <Show condition={listed}>

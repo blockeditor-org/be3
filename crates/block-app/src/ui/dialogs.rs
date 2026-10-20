@@ -519,7 +519,6 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
             <Checkbox
                 label="Account token supplied by proxy"
                 checked={proxy}
-                on_change={move |on: bool| proxy.set(on)}
                 @test_id={"app.agents.proxy"}
             />
             <Show condition={proxy}>

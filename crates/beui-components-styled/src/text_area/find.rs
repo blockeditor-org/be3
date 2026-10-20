@@ -71,9 +71,8 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                             glyph=ICON_MATCH_CASE
                             icon_only=true
                             label="Match case"
-                            pressed={case_sensitive}
+                            pressed={Binding::new(case_sensitive, move |pressed: bool| state.set_find_case_sensitive(pressed))}
                             @test_id={"text.find.match-case"}
-                            on_change={move |pressed: bool| state.set_find_case_sensitive(pressed)}
                         />
                         <Text style=TextStyle::CAPTION string={summary} />
                         <IconButton

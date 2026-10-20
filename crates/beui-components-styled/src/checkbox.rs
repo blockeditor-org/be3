@@ -23,12 +23,11 @@ const FOCUS_RING_OFFSET: f32 = 4.0;
 #[component]
 pub fn Checkbox(
     #[prop(default = String::new())] label: Prop<String>,
-    checked: Prop<bool>,
+    checked: Binding<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = true)] tab_stop: Prop<bool>,
     #[prop(default = true)] press_focus: Prop<bool>,
-    on_change: Callback<bool>,
 ) -> NodeId {
     view! {
         <Toggle
@@ -38,7 +37,6 @@ pub fn Checkbox(
             capture_presses
             tab_stop
             press_focus
-            on_change={on_change}
         >|handle: ToggleHandle|
             <CheckboxFace handle />
         </Toggle>

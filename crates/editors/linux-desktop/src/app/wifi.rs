@@ -127,10 +127,9 @@ fn WifiPanel(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::HEADING string="Wi-Fi" />
                 <Switch
-                    on={enabled}
+                    on={Binding::new(enabled, move |on: bool| editor.act(WifiRequest::SetEnabled(on)))}
                     label="Wi-Fi"
                     @test_id={"desktop.wifi.enabled"}
-                    on_change={move |on: bool| editor.act(WifiRequest::SetEnabled(on))}
                 />
             </List>
             <Show condition={off}>

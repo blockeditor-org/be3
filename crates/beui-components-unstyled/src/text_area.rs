@@ -70,9 +70,8 @@ pub struct VoidView {
 }
 
 pub struct TextCheckbox {
-    pub checked: Memo<bool>,
+    pub checked: Binding<bool>,
     pub disabled: Memo<bool>,
-    pub on_change: Callback<bool>,
 }
 
 pub const PADDING: Vec2 = Vec2::new(12.0, 8.0);

@@ -864,9 +864,8 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                 <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0) string="Session" />
                 <Text style=TextStyle::CAPTION string="Show every type" />
                 <Switch
-                    on={every_type}
+                    on={Binding::new(every_type, |every: bool| send(UiCommand::EverySessionType(every)))}
                     label="Show sessions of every type"
-                    on_change={|every: bool| send(UiCommand::EverySessionType(every))}
                 />
             </List>
             <Text

@@ -434,14 +434,12 @@ fn SimulationPanel(
                     <Checkbox
                         @test_id={"inspector.simulation.touch_emulation"}
                         label="Emulate touch with mouse"
-                        checked={state.value().touch_emulation.get()}
-                        on_change={move |enabled| state.value().touch_emulation.set(enabled)}
+                        checked={Binding::new(state.value().touch_emulation.get(), move |enabled| state.value().touch_emulation.set(enabled))}
                     />
                     <Checkbox
                         @test_id={"inspector.simulation.mouse_simulation"}
                         label="Simulate mouse with touch"
-                        checked={state.value().mouse_simulation.get()}
-                        on_change={move |enabled| state.value().mouse_simulation.set(enabled)}
+                        checked={Binding::new(state.value().mouse_simulation.get(), move |enabled| state.value().mouse_simulation.set(enabled))}
                     />
                     <Button
                         @test_id={"inspector.simulation.keyboard"}
@@ -452,11 +450,10 @@ fn SimulationPanel(
                     <Checkbox
                         @test_id={"inspector.simulation.disable_animations"}
                         label="Disable animations"
-                        checked={state.value().disable_animations.get()}
-                        on_change={move |enabled| {
+                        checked={Binding::new(state.value().disable_animations.get(), move |enabled| {
                             state.value().disable_animations.set(enabled);
                             state.value().requested_motion.set(Some(if enabled { beui_core::animation::Motion::Instant } else { beui_core::animation::Motion::Animated }));
-                        }}
+                        })}
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
@@ -479,8 +476,7 @@ fn SimulationPanel(
                     <Checkbox
                         @test_id={"inspector.simulation.responsive"}
                         label="Responsive design mode"
-                        checked={responsive}
-                        on_change={move |_| state.value().toggle_responsive()}
+                        checked={Binding::new(responsive, move |_| state.value().toggle_responsive())}
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
@@ -583,7 +579,6 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
                 @test_id={"inspector.simulation.back_from_right"}
                 label="Swipe from the right edge"
                 checked={from_right}
-                on_change={move |right| from_right.set(right)}
             />
         </List>
     }
@@ -664,14 +659,12 @@ fn ScreenReaderSection(state: Stored<State>) -> NodeId {
             <Checkbox
                 @test_id={"inspector.accessibility.enabled"}
                 label="Expose the accessibility tree"
-                checked={state.value().accessibility.get()}
-                on_change={move |enabled| state.value().enable_accessibility(enabled)}
+                checked={Binding::new(state.value().accessibility.get(), move |enabled| state.value().enable_accessibility(enabled))}
             />
             <Checkbox
                 @test_id={"inspector.screen_reader.enabled"}
                 label="Simulate a screen reader"
-                checked={state.value().screen_reader.get()}
-                on_change={move |enabled| state.value().enable_screen_reader(enabled)}
+                checked={Binding::new(state.value().screen_reader.get(), move |enabled| state.value().enable_screen_reader(enabled))}
             />
             <CommandRow row=0 state />
             <CommandRow row=1 state={state} />
@@ -783,14 +776,12 @@ fn PerformancePanel(
                         <Checkbox
                             @test_id={"inspector.performance.flash_changes"}
                             label="Flash changed elements"
-                            checked={state.value().flash_changes.get()}
-                            on_change={move |enabled| state.value().flash_changes.set(enabled)}
+                            checked={Binding::new(state.value().flash_changes.get(), move |enabled| state.value().flash_changes.set(enabled))}
                         />
                         <Checkbox
                             @test_id={"inspector.performance.flash_damage"}
                             label="Flash repainted regions"
-                            checked={state.value().flash_damage.get()}
-                            on_change={move |enabled| state.value().flash_damage.set(enabled)}
+                            checked={Binding::new(state.value().flash_damage.get(), move |enabled| state.value().flash_damage.set(enabled))}
                         />
                     </List>
                     <Separator />
@@ -976,8 +967,7 @@ fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
             label="Pick"
             glyph={ICON_ARROW_SELECTOR_TOOL.to_owned()}
             icon_only=true
-            pressed={picking}
-            on_change={move |_| state.value().toggle_picking()}
+            pressed={Binding::new(picking, move |_| state.value().toggle_picking())}
         />
     }
 }

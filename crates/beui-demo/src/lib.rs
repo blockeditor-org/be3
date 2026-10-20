@@ -765,7 +765,6 @@ fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
                 <Checkbox
                     label="Mobile"
                     checked={mobile}
-                    on_change={move |on: bool| mobile.set(on)}
                 />
             </Show>
             <Select

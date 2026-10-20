@@ -418,10 +418,9 @@ fn BooleanValue(
     view! {
         <Checkbox
             label="Checked"
-            checked={checked}
+            checked={Binding::new(checked, toggled)}
             disabled={disabled}
             @test_id={id}
-            on_change={toggled}
         />
     }
 }
