@@ -10443,37 +10443,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/editors/linux-settings": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "linux_settings",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "linux_settings",
-        "platforms": {
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
-                    "//crates/remap/rules:be-remap",
-                    "//crates/text-editor-core:text-editor-core",
-                    "//third-party/rust:uuid-1.23.2",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/block-ui-test:block-ui-test",
-                ],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/editors/logic-grid": {
         "binaries": [],
         "edition": "2024",
@@ -10765,6 +10734,8 @@ crates = {
                 "deps": [
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
+                    "//crates/remap/rules:be-remap",
+                    "//crates/text-editor-core:text-editor-core",
                     "//third-party/rust:uuid-1.23.2",
                 ],
                 "examples": {},

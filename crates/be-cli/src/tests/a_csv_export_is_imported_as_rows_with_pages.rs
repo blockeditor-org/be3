@@ -31,7 +31,12 @@ async fn a_csv_export_is_imported_as_rows_with_pages() {
     assert_eq!(rows[0].field("Status").unwrap().text, "Todo");
     assert_eq!(rows[0].field("Project").unwrap().links[0].1, "Launch");
     assert_eq!(
-        tracker.show(&rows[0].id).await.unwrap().body.as_deref(),
+        tracker
+            .show(board.database, &rows[0].id)
+            .await
+            .unwrap()
+            .body
+            .as_deref(),
         Some("It fails\non a \"slow\" network.")
     );
     assert_eq!(rows[1].field("Status").unwrap().text, "Done");

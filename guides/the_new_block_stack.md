@@ -934,8 +934,7 @@ client says it already holds), and anything left out is fetched afterwards, so
 a tree costs one round trip, not three per block.
 `HostRequest::ImportBlocks(parent)` has the host pick a file and `be::import`
 it: every block gets a new id, old ids in the content bytes and references are
-swapped for the new ones, a database whose row id prefix is taken here loses
-it, and each block is created and given its bytes as its first commit. The
+swapped for the new ones, and each block is created and given its bytes as its first commit. The
 reply, `BlocksImported`, names the outermost block. The tree is in the mirror
 at once and uploads in the background, as a task beside the worker's loop
 (`worker/uploads.rs`), so commands for other blocks are not held up.
@@ -966,35 +965,48 @@ source's type, references and metadata (without its artifact source), and the
 worker copies what the source's session shows, or its head when it is not open,
 into the copy's id before anything opens the copy.
 
-The app can read a block itself, not only through an editor: the theme and the
-scale in `sync_ui_settings` come from the UI settings (the scale is beui's zoom
-factor, multiplied into the screen's own pixels per point), and
+The app can read a block itself, not only through an editor:
 `sync_local_settings` hands the input settings (keymap, key repeat, and
 pointer settings for every pointer with per-device overrides) to the `--session`
 seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
-keyboard, and the display settings (a mode per monitor, keyed by the
-monitor's EDID make, model and serial, or by its connector when it has no EDID)
-to the seat's outputs through `beui_adapter_drm::DisplayControl`, which switches
-mode live. Every setting is an `Option`, and an unset one means the default:
+keyboard, and the display settings to the app and the seat. `DisplaySettings` is
+one block for everything about what the device shows: the theme and the scale,
+which `sync_ui_settings` takes from the display settings last applied (the scale
+is beui's zoom factor, multiplied into the screen's own pixels per point); a
+`ScreenSettings` per screen (a mode and a rotation, keyed by the monitor's EDID
+make, model and serial, or by its connector when it has no EDID), whose modes and
+rotations go to the seat's outputs through `beui_adapter_drm::DisplayControl`,
+which switches both live (guides/linux_desktop.md says how a screen is turned),
+and which reports each monitor's applied rotation with its modes; whether the
+bar shows a rotate button; and when the screens turn off and lock. Every setting is an `Option`, and an unset one means the default:
 libinput's own for a pointer setting, which the seat reports per device and an
 editor reads as the `InputDevices` host value, and for a monitor its preferred
 resolution at the fastest refresh rate it offers there, which the seat reports
 with the monitor's modes and an editor reads as the `Displays` host value
 (guides/adding_a_plugin_editor.md says how host values reach a plugin). Because the seat runs before anyone signs in, the app
 keeps a copy of the last settings of each kind it applied in `app_state` and
-applies that at startup; the block stays the source of truth. A kind of setting
+applies that at startup, the theme and scale with it, even before anyone signs
+in; the block stays the source of truth. A kind of setting
 the app applies itself implements `local_settings::LocalSettings` and is kept by
 a `SettingsSync`; its `apply` answers whether the settings may be saved now.
-Display settings may not until someone keeps them: a change that moves what a
-connected monitor shows, or a monitor started at a fastest rate other than its
-preferred mode that it was never kept at, opens the host's "Keep these display
+Display settings may not until someone keeps them: a change of mode that moves what a
+connected monitor shows (a rotation applies and saves at once), or a monitor showing a mode
+other than its preferred one that this device never kept it at (an untried fastest default, or
+a mode another device chose for that monitor), opens the host's "Keep these display
 settings?" prompt (`styled::KeepChanges`, a card on every screen) in
 `display::guard`. It is the host's because it must work before any shell plugin
 runs. Each change is a round (`Guard::prompt`): another change while asking
 starts a new round and a full countdown, and an answer counts only for the
 round it was given in. Keep saves, storing a kept default as the monitor's mode;
 Revert, Escape or 15 seconds of the frame clock, which the guard counts itself,
-put back the earlier modes, or the preferred mode for an untried default, and `SettingsSync::commit` writes
+put back the earlier modes, or the preferred mode for an untried one. The modes each
+monitor showed once answered are this device's own memory (`app_state`'s
+`tried_display_modes`), not a setting. The guard answers with modes per screen, which
+`display::keep` and `display::revert` write by the layer rule below (a fallback from a mode
+another device chose goes to this device's profile, so it leaves the others alone), each as
+an edit on that layer's own content (`SettingsSync::layers`), so a screen's register in
+a block never picks up a rotation it only inherits, and `SettingsSync::commit` applies
+them to their layers and layers the result again. It writes
 those edits into the block too, holding them until its content is loaded and reading
 the block with them on top until a revision holds them.
 `be::hold` opens a
@@ -1033,7 +1045,8 @@ System: the account's own internal root blocks, the content types in
 editors and expand to what they hold; another account's are never listed. It is
 there for debugging: settings are reached from the workspace's Settings tab,
 beside Files, which shows the account's `Settings` block in the settings editor,
-a list whose rows open each kind or profile in a tab of the editors pane. A
+a list whose rows open each kind (or, behind Devices and profiles, each profile) in a
+tab of the editors pane. A
 section's header has its own menu (add, rename, share, delete, and leave on a
 workspace someone else made) and, where the account may edit the workspace, a
 "+" that adds a block into it, as a row's "+" adds into that row; the toolbar
@@ -1065,33 +1078,96 @@ with a notice, and makes and changes nothing in it. The editors of the kinds lay
 their pages with beui's `SettingsPage`, `SettingsSection` and `SettingsRow`: a
 card of rows per section, each a label and description beside its control,
 stacked once the row is narrow, and a section runs edge to edge once it is. A
-`modified` row has an accent bar at its edge and, given `on_reset`, a small
-Reset link after its label. A `SettingsLink` is a row that opens a page of its own (a block,
+`modified` row has an accent bar at its edge; given `menu` items, a "More" menu button
+at its end holds what can be done to the setting, resetting it included (rows have no
+other reset), and a `note` is a small accent caption under its description. A `SettingsLink` is a row that opens a page of its own (a block,
 in a tab): its label and description, a chevron where a control would be, and the
-hover a button has, inset and rounded so it stays inside the card. It takes `modified`
-and `on_reset` as a row does, and with `reset_confirm` its Reset asks in a dialog
-first, for a reset that deletes the block it opens.
+hover a button has, inset and rounded so it stays inside the card, marked when
+`modified`. A reset that deletes the block a link opens belongs to the setting that
+chose the block, whose menu asks first (the Remapper row asks before it deletes the remaps).
+A page shows a section only where the host can back it: the settings plugin's
+Display page (`editors/settings`, `display`) always has Appearance, but a
+section per screen only once the host offers `Displays` (its mode and its
+rotation: four tiles, each a little screen drawn turned by that rotation less the
+one the host reports now, so the tile that looks upright to the person holding the
+device is the one to pick, named Landscape, Portrait and their flipped turns from
+whether the panel is wider than tall; `block_editor_beui::RotationPicker`, shared
+with linux-desktop's bar), a Screens section with the switch for the bar's rotate
+button (`display.rotate-in-bar`) once the host offers `Displays`, and Power and lock only
+once it offers `Power`, which only a `--session` publishes. Its Input page
+(`input`) shows its sections only once the host offers `InputDevices`, which
+likewise only a `--session` publishes, and says so otherwise.
 
-Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
+Each kind of setting (`InputSettings`, `DisplaySettings`,
 `EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:
 
 - The `Settings` block's `kinds` map a kind's content type to the block that
   holds it for every device.
 - A settings profile is a `SettingsProfile` block, a child of the `Settings`
-  block listed in its `profiles`, with `kinds` of its own. Each device
+  block listed in its `profiles`, with `kinds` of its own and a `class`, the kind
+  of device (`DeviceClass`: Desktop, Phone, Tablet, E-paper tablet). Each device
   (`device_profiles`, keyed by the client id) uses one, and block-app makes one
-  named after the device the first time a device opens the organization.
+  the first time a device opens the organization, named after its class ("Browser"
+  on the web).
 
-`Settings::layers(kind, profile)` lists a kind's blocks from the bottom, and
-`be_block::layered` folds their contents with the kind's `Layered::over`: what
-the profile sets wins field by field, and what it leaves unset falls through to
-the settings for every device, then to the built-in default. Every field of a
-layered kind is an `Option` for this. `Editor::inherited_settings` gives a
-kind's editor what the layers below its block resolve to, which the UI, input
-and display settings editors show for what is unset, and
-`Editor::effective_settings` what every layer resolves to, which is how
-workspace-ui reads `EditorSettings`: the default editor of each block type, keyed
-by the editor ids the host's catalog lists (see guides/adding_a_plugin_editor.md).
+`Settings::layers(kind, profile)` names a kind's two blocks (`Layers`: every
+device, this device), and `be_block::layered` folds their contents with the kind's
+`Layered::over`: what the profile sets wins field by field, and what it leaves unset
+falls through to the settings for every device, then to the built-in default. Every
+field of a layered kind is an `Option` for this. `Editor::effective_settings` gives what
+every layer resolves to, which is how workspace-ui reads `EditorSettings`: the default
+editor of each block type, keyed by the editor ids the host's catalog lists (see
+guides/adding_a_plugin_editor.md), and `Editor::inherited_settings` what the layers
+below an editor's block resolve to.
+
+A change syncs by default: it is written to the every-device block. A setting is
+kept on this device exactly when this device's profile block sets it; then changes
+go there and the other devices' value no longer reaches it. Nothing else is stored to
+say so. A screen known only by its connector (no EDID serial) is always this device's
+alone. Each field is described once as a `be_block::Setting` (a key, a name, how to
+read it from a layer and write it on a layer's own content, and its default), such as
+`DisplaySettings::theme_setting()` or `mode_setting(id)`, and `Setting::layer` is the
+rule. Every write goes through it: in a plugin through
+`block_editor_beui::LayeredSettings` (`this_device(editor)`, or `page(editor)` for a
+kind's editor, which acts on this device when opened on the every-device block and on
+just its own block when opened on a profile's), which makes the every-device or
+profile block when it is missing; in block-app through `display::keep` and `revert`.
+Its `LayeredSettingsRow` gives every row a menu (`<id>.menu`) with Keep on this device
+(`<id>.keep`, a checked item that copies the value in use, or the default, into the
+profile, or deletes it there) and Reset to default (`<id>.reset`, which clears the
+layer the setting would be written to), and a "Kept on this device" or "This device
+only" note; on a profile's own page its one item is Stop keeping in this profile
+(`<id>.reset`, clearing it in that block), with a "Kept in this profile" note. Menu items
+carry icons (`ICON_KEEP`, `ICON_SETTINGS_BACKUP_RESTORE`, `ICON_KEEP_OFF`). `ChangesToast` shows
+one toast per visit to a page naming what now applies on every device ("Theme, scale
+and 1 more now apply on your devices") with Keep on this device only, which moves those
+values into the profile and puts the every-device ones back, and Undo.
+
+A device's class is known before its profile is made: block-app's
+`root_settings::device_class` says E-paper tablet when the session found an e-paper
+panel, Phone on Android, and Desktop otherwise; Tablet is only ever picked by hand.
+A class may have defaults, kept on the device: each settings type lists them in one
+place (`DeviceClass::display_defaults`, today only the E-paper tablet's E-ink theme,
+150% scale and rotate button; never when the screens go off, nor a rotation).
+`ensure_profile` writes a new profile's class and its defaults into the profile's own
+blocks, and when there are any the host asks the shell to open the profile. Its page
+(the settings plugin's `SettingsProfileView`, `app/setup.rs`) leads with the name and
+"Kind of device", and lists in "Where this device differs" each default it still keeps
+that differs from every device's value, with "Use my usual settings", which deletes
+those from the profile. Nothing is stored to say a profile was set up: while the
+profile is this device's and that list is not empty, the page opens as "Set up this
+device", with Done (which only closes the setup for this visit) in place of the rest of
+the page. Picking another kind writes that kind's defaults and deletes the old kind's
+that are still at their default values (`DeviceClass::display_edits`).
+
+The workspace's Settings tab opens the account's `Settings` block on this device's
+settings: Display, Input and Default editors open the every-device blocks (making any
+that is missing), and Devices and profiles (`settings.devices`) lists the settings
+profiles, each of which opens on its own blocks. Above that list, a table (settings plugin
+`app/devices.rs`) puts the display and input settings down the side and All devices and
+each profile across, with only the rows some profile keeps: a kept cell shows its value,
+"kept since setup" while it still holds its class default (`ClassDefault::holds`) and
+"kept on device" otherwise; any other cell says "same". It reads each profile's own blocks.
 The hotbar is not merged:
 the logic editors use the topmost layer that has one, and make one for every
 device when there is none yet (`RootSetting::ensure`).

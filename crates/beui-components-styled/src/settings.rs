@@ -1,16 +1,17 @@
-use crate::dialog::Dialog;
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use crate::text::{Icon, TextColor};
 use crate::theme::use_theme;
 use beui_core::color::Color32;
-use beui_core::icons::ICON_CHEVRON_RIGHT;
+use beui_core::icons::{ICON_CHEVRON_RIGHT, ICON_MORE_HORIZ};
 use beui_macros::{component, view};
 
 use crate::border::Separator;
-use crate::link::Link;
+use crate::icon_button::IconButtonSize;
+use crate::menu_button::IconMenuButton;
 use crate::scroll::Scroll;
-use crate::text::{Text, TextSize, TextStyle};
+use crate::text::{Text, TextStyle};
 use beui_components_unstyled as unstyled;
+use beui_components_unstyled::MenuItem;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -32,10 +33,11 @@ const STACK_BELOW: f32 = 400.0;
 const LABEL_WEIGHT: f32 = 55.0;
 const CONTROL_WEIGHT: f32 = 45.0;
 const MARKER_WIDTH: f32 = 3.0;
-const RESET_SPACING: f32 = 8.0;
 const EDGE_TO_EDGE_BELOW: f32 = 520.0;
 const LINK_INSET: f32 = 4.0;
 const SECTION_TITLE: TextStyle = TextStyle::BODY.bold();
+const NOTE: TextStyle = TextStyle::CAPTION.color(TextColor::Accent);
+const MENU_INSET: f32 = 8.0;
 
 #[component]
 pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
@@ -124,18 +126,21 @@ pub fn SettingsRow(
     #[prop(default = false)] compact: bool,
     #[prop(default = false)] modified: Prop<bool>,
     #[prop(default = false)] locked: Prop<bool>,
-    #[prop(default = String::new())] reset_test_id: Prop<String>,
-    on_reset: ClickCallback,
+    #[prop(default = String::new())] note: Prop<String>,
+    #[prop(default = String::new())] menu_test_id: Prop<String>,
+    menu: Children<MenuItem>,
     children: Children<ListChild>,
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let description = create_memo(move || description.get());
     let described = create_memo(move || !description.get().is_empty());
+    let note = create_memo(move || note.get());
+    let noted = create_memo(move || !note.get().is_empty());
     let separated = create_memo(move || separated.get());
-    let reset_test_id = create_memo(move || reset_test_id.get());
+    let menu_test_id = create_memo(move || menu_test_id.get());
     let modified = create_memo(move || modified.get());
-    let resets = !on_reset.is_empty();
-    let resettable = create_memo(move || resets && modified.get() && !locked.get());
+    let has_menu = !menu.is_empty();
+    let locked = create_memo(move || locked.get());
     let marker = create_memo(move || match modified.get() {
         true => ColorRole::Accent,
         false => ColorRole::None,
@@ -147,6 +152,23 @@ pub fn SettingsRow(
             ItemSize::Percent(CONTROL_WEIGHT),
         ),
     };
+    let menu_button = has_menu.then(|| {
+        view! {
+            <Frame
+                padding={Sides::new(0.0, ROW_PADDING_VERTICAL, MENU_INSET, ROW_PADDING_VERTICAL)}
+                align={Align2::new(Align::Center, Align::Center)}
+            >
+                <IconMenuButton
+                    label="More"
+                    glyph={ICON_MORE_HORIZ.to_owned()}
+                    size=IconButtonSize::Compact
+                    disabled={locked}
+                    @test_id={menu_test_id}
+                    items={menu}
+                />
+            </Frame>
+        }
+    });
     let narrow = unstyled::narrower_than(STACK_BELOW + 2.0 * ROW_PADDING_HORIZONTAL);
     let narrow = create_memo(move || !compact && narrow.get());
     let spacing = create_memo(move || match narrow.get() {
@@ -170,27 +192,12 @@ pub fn SettingsRow(
                 >
                     <unstyled::Stack spacing={spacing} narrow={narrow}>
                         <List @sizing={label_size} justify=Justify::Center spacing=LABEL_SPACING>
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=RESET_SPACING
-                            >
-                                <Text
-                                    @sizing={Sizing::from(ItemSize::Intrinsic).shrink(1.0)}
-                                    string={label}
-                                    wrap=true
-                                />
-                                <Show condition={resettable}>
-                                    <Link
-                                        label="Reset"
-                                        size=TextSize::Xs
-                                        @test_id={reset_test_id}
-                                        on_click={on_reset}
-                                    />
-                                </Show>
-                            </List>
+                            <Text string={label} wrap=true />
                             <Show condition={described}>
                                 <Text style=TextStyle::CAPTION string={description} wrap=true />
+                            </Show>
+                            <Show condition={noted}>
+                                <Text style=NOTE string={note} wrap=true />
                             </Show>
                         </List>
                         <List
@@ -204,6 +211,7 @@ pub fn SettingsRow(
                         </List>
                     </unstyled::Stack>
                 </Frame>
+                {menu_button}
             </List>
         </List>
     }
@@ -216,37 +224,15 @@ pub fn SettingsLink(
     #[prop(default = false)] separated: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] modified: Prop<bool>,
-    #[prop(default = false)] locked: Prop<bool>,
-    #[prop(default = String::new())] reset_test_id: Prop<String>,
-    #[prop(default = String::new())] reset_confirm: Prop<String>,
-    on_reset: ClickCallback,
     on_click: ClickCallback,
 ) -> NodeId {
     let separated = create_memo(move || separated.get());
     let description = create_memo(move || description.get());
     let modified = create_memo(move || modified.get());
-    let reset_test_id = create_memo(move || reset_test_id.get());
-    let confirm = create_memo(move || reset_confirm.get());
-    let resets = !on_reset.is_empty();
-    let resettable = create_memo(move || resets && modified.get() && !locked.get());
-    let asking = create_signal(false);
-    let reset = move || match confirm.get_untracked().is_empty() {
-        true => on_reset.call(),
-        false => asking.set(true),
-    };
-    let confirmed = move || {
-        asking.set(false);
-        on_reset.call();
-    };
     let marker = create_memo(move || match modified.get() {
         true => ColorRole::Accent,
         false => ColorRole::None,
     });
-    let face = SettingsLinkLook {
-        description,
-        resettable,
-        reset_test_id,
-    };
     view! {
         <List spacing=0.0>
             <Show condition={separated}>
@@ -263,39 +249,16 @@ pub fn SettingsLink(
                     padding={Sides::new(0.0, LINK_INSET, LINK_INSET, LINK_INSET)}
                 >
                     <unstyled::Button label disabled on_click={on_click}>|handle|
-                        <SettingsLinkFace handle look={face} on_reset={reset} />
+                        <SettingsLinkFace handle description={description} />
                     </unstyled::Button>
                 </Frame>
             </List>
-            <Dialog
-                open={asking}
-                title="Reset?"
-                id={reset_test_id}
-                confirm="Reset"
-                cancel="Cancel"
-                destructive=true
-                on_confirm={confirmed}
-                on_dismiss={move || asking.set(false)}
-            >
-                <Text style=TextStyle::PARAGRAPH string={confirm} wrap=true />
-            </Dialog>
         </List>
     }
 }
 
-#[derive(Clone, Copy)]
-struct SettingsLinkLook {
-    description: Memo<String>,
-    resettable: Memo<bool>,
-    reset_test_id: Memo<String>,
-}
-
 #[component]
-fn SettingsLinkFace(
-    handle: unstyled::ButtonHandle,
-    look: SettingsLinkLook,
-    on_reset: ClickCallback,
-) -> NodeId {
+fn SettingsLinkFace(handle: unstyled::ButtonHandle, description: Memo<String>) -> NodeId {
     let unstyled::ButtonHandle {
         hovered,
         active,
@@ -304,11 +267,6 @@ fn SettingsLinkFace(
         label,
         ..
     } = handle;
-    let SettingsLinkLook {
-        description,
-        resettable,
-        reset_test_id,
-    } = look;
     let theme = use_theme();
     let fill = create_memo(
         move || match (disabled.get(), active.get(), hovered.get()) {
@@ -345,26 +303,7 @@ fn SettingsLinkFace(
                             justify=Justify::Center
                             spacing=LABEL_SPACING
                         >
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                spacing=RESET_SPACING
-                            >
-                                <Text
-                                    @sizing={Sizing::from(ItemSize::Intrinsic).shrink(1.0)}
-                                    string={label}
-                                    color={text_color}
-                                    wrap=true
-                                />
-                                <Show condition={resettable}>
-                                    <Link
-                                        label="Reset"
-                                        size=TextSize::Xs
-                                        @test_id={reset_test_id}
-                                        on_click={on_reset}
-                                    />
-                                </Show>
-                            </List>
+                            <Text string={label} color={text_color} wrap=true />
                             <Show condition={described}>
                                 <Text style=TextStyle::CAPTION string={description} wrap=true />
                             </Show>

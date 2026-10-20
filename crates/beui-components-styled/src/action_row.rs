@@ -5,7 +5,7 @@ use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_core::font::TextAlign;
-use beui_core::icons::ICON_CHEVRON_RIGHT;
+use beui_core::icons::{ICON_CHECK, ICON_CHEVRON_RIGHT};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -59,8 +59,10 @@ pub(crate) fn ActionRowFace(
     disabled: Prop<bool>,
     danger: Prop<bool>,
     #[prop(default = false)] submenu: Prop<bool>,
+    #[prop(default = None)] checked: Prop<Option<bool>>,
 ) -> NodeId {
     let theme = use_theme();
+    let ticked = create_memo(move || checked.get() == Some(true));
     let off = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
     let fill = create_memo(move || match (off.get(), active.get(), hovered.get()) {
@@ -108,6 +110,11 @@ pub(crate) fn ActionRowFace(
                         />
                     </Show>
                 </List>
+                <Show condition={ticked}>
+                    <Text color=TextColor::Accent align=TextAlign::Center>
+                        <Icon glyph={ICON_CHECK.to_owned()} />
+                    </Text>
+                </Show>
                 <Show condition={submenu}>
                     <Text color={chevron_color} align=TextAlign::Center>
                         <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} />

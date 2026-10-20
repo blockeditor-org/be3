@@ -172,12 +172,6 @@ pub struct NewColumn {
     pub inverse: String,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Target {
-    Row { database: Uuid, row: ObjectId },
-    Block(Entry),
-}
-
 enum Column {
     Title,
     Page,
@@ -391,19 +385,13 @@ impl<S: ObjectStore> Tracker<S> {
         *self.index.lock().await = None;
     }
 
-    pub async fn resolve(&self, text: &str) -> Result<Target, String> {
-        if looks_like_row(text) {
-            let (database, row) = self.find_row(text).await?;
-            return Ok(Target::Row { database, row });
-        }
+    pub async fn resolve(&self, text: &str) -> Result<Entry, String> {
         let index = self.index().await?;
         match index.find(text, |_| true) {
-            Ok(entry) => Ok(Target::Block(entry.clone())),
-            Err(error) if is_code(text) => match self.find_row(text).await {
-                Ok((database, row)) => Ok(Target::Row { database, row }),
-                Err(_) => Err(error),
-            },
-            Err(error) => Err(error),
+            Err(_) if looks_like_row(text) => Err(format!(
+                "a row is named within its database: be DATABASE row {text}"
+            )),
+            found => found.cloned(),
         }
     }
 
@@ -439,68 +427,10 @@ impl<S: ObjectStore> Tracker<S> {
         self.database_of(&entry).await
     }
 
-    async fn prefix_of(&self, entry: &Entry) -> Result<String, String> {
-        if let Some(prefix) = &entry.prefix {
-            return Ok(prefix.clone());
-        }
-        Ok(self
-            .read::<DatabaseContent>(entry.id)
-            .await?
-            .map(|content| content.root().prefix)
-            .unwrap_or_default())
-    }
-
-    pub(crate) async fn database_with_prefix(&self, prefix: &str) -> Result<Option<Uuid>, String> {
-        let index = self.index().await?;
-        let mut found = Vec::new();
-        for entry in index
-            .entries
-            .iter()
-            .filter(|entry| entry.block_type == DatabaseContent::CONTENT_TYPE)
-            .filter(|entry| entry.access.can_view() && !entry.deleted)
-        {
-            let unknown = entry.prefix.is_none();
-            let known_and_different = entry
-                .prefix
-                .as_deref()
-                .is_some_and(|held| !held.eq_ignore_ascii_case(prefix));
-            if known_and_different {
-                continue;
-            }
-            if unknown && !self.prefix_of(entry).await?.eq_ignore_ascii_case(prefix) {
-                continue;
-            }
-            found.push(entry);
-        }
-        match found.as_slice() {
-            [] => Ok(None),
-            [one] => Ok(Some(one.id)),
-            several => Err(format!(
-                "{} databases use the row id prefix {prefix:?}: {}; give each its own prefix",
-                several.len(),
-                several
-                    .iter()
-                    .map(|entry| format!("{} ({})", entry.label(), entry.short))
-                    .collect::<Vec<_>>()
-                    .join(", ")
-            )),
-        }
-    }
-
-    async fn find_row(&self, code: &str) -> Result<(Uuid, ObjectId), String> {
-        let prefix = code
-            .rsplit_once('-')
-            .map_or(String::new(), |(prefix, _)| prefix.trim().to_owned());
-        let database =
-            self.database_with_prefix(&prefix)
-                .await?
-                .ok_or_else(|| match prefix.is_empty() {
-                    true => format!("no row has the id {code}"),
-                    false => format!("no database uses the row id prefix {prefix}"),
-                })?;
+    async fn find_row(&self, database: Uuid, code: &str) -> Result<ObjectId, String> {
         let loaded = self.load(database).await?;
         match loaded.database.rows_with_short_id(code).as_slice() {
-            [row] => Ok((database, *row)),
+            [row] => Ok(*row),
             [] => Err(format!("{} has no row {code}", loaded.name)),
             _ => Err(format!(
                 "more than one row of {} has the id {code}; use `be {} rows` to find the one you mean by its title",
@@ -644,18 +574,13 @@ impl<S: ObjectStore> Tracker<S> {
 
     pub async fn databases(&self) -> Result<Vec<Entry>, String> {
         let index = self.index().await?;
-        let mut found = Vec::new();
-        for entry in index
+        Ok(index
             .entries
             .iter()
             .filter(|entry| entry.block_type == DatabaseContent::CONTENT_TYPE)
             .filter(|entry| entry.access.can_view())
-        {
-            let mut entry = entry.clone();
-            entry.prefix = Some(self.prefix_of(&entry).await?);
-            found.push(entry);
-        }
-        Ok(found)
+            .cloned()
+            .collect())
     }
 
     pub async fn list(&self, database: Uuid, filters: &[Filter]) -> Result<Vec<RowView>, String> {
@@ -700,8 +625,8 @@ impl<S: ObjectStore> Tracker<S> {
             .collect())
     }
 
-    pub async fn show(&self, code: &str) -> Result<RowView, String> {
-        let (database, row) = self.find_row(code).await?;
+    pub async fn show(&self, database: Uuid, code: &str) -> Result<RowView, String> {
+        let row = self.find_row(database, code).await?;
         self.show_row(database, row).await
     }
 
@@ -807,9 +732,6 @@ impl<S: ObjectStore> Tracker<S> {
         parent: BlockParent,
     ) -> Result<(Uuid, Uuid), String> {
         let prefix = prefix.trim().to_ascii_uppercase();
-        if !prefix.is_empty() && self.database_with_prefix(&prefix).await?.is_some() {
-            return Err(format!("another database already uses the prefix {prefix}"));
-        }
         let (view, database, schema) = (Uuid::now_v7(), Uuid::now_v7(), Uuid::now_v7());
         let named = BlockMetadata::named(name);
         self.peer
@@ -1023,8 +945,11 @@ impl<S: ObjectStore> Tracker<S> {
         Ok(())
     }
 
-    pub async fn closed_option(&self, code: &str, field: &str) -> Result<Option<String>, String> {
-        let (database, _) = self.find_row(code).await?;
+    pub async fn closed_option(
+        &self,
+        database: Uuid,
+        field: &str,
+    ) -> Result<Option<String>, String> {
         let (_, schema) = self.load_plain(database).await?;
         Ok(schema
             .field_named(field)
@@ -1067,11 +992,12 @@ impl<S: ObjectStore> Tracker<S> {
 
     pub async fn update(
         &self,
+        database: Uuid,
         code: &str,
         assignments: &[Assignment],
         body: Body,
     ) -> Result<RowView, String> {
-        let (database, row) = self.find_row(code).await?;
+        let row = self.find_row(database, code).await?;
         self.apply(database, row, assignments, body).await
     }
 
@@ -1260,8 +1186,8 @@ impl<S: ObjectStore> Tracker<S> {
         Err(format!("{} has no row {wanted} to link", field.name))
     }
 
-    pub async fn delete(&self, code: &str) -> Result<String, String> {
-        let (database, row) = self.find_row(code).await?;
+    pub async fn delete(&self, database: Uuid, code: &str) -> Result<String, String> {
+        let row = self.find_row(database, code).await?;
         let loaded = self.load(database).await?;
         let page = loaded.database.rows.get(row).and_then(|row| row.page());
         let title = loaded.database.title(row, loaded.title_field());
@@ -1288,8 +1214,13 @@ impl<S: ObjectStore> Tracker<S> {
         Ok(database.rows.iter().filter_map(|row| row.page()).collect())
     }
 
-    pub async fn page_of(&self, code: &str, create: bool) -> Result<Option<Uuid>, String> {
-        let (database, row) = self.find_row(code).await?;
+    pub async fn page_of(
+        &self,
+        database: Uuid,
+        code: &str,
+        create: bool,
+    ) -> Result<Option<Uuid>, String> {
+        let row = self.find_row(database, code).await?;
         let loaded = self.load(database).await?;
         let page = loaded.database.rows.get(row).and_then(|row| row.page());
         if page.is_some() || !create {
@@ -1756,7 +1687,7 @@ fn yes(setting: &str, value: &str) -> Result<bool, String> {
     }
 }
 
-pub fn looks_like_row(text: &str) -> bool {
+fn looks_like_row(text: &str) -> bool {
     let Some((prefix, code)) = text.trim().rsplit_once('-') else {
         return false;
     };

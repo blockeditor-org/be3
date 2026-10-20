@@ -1,5 +1,7 @@
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
+use crate::rotation::Rotation;
+
 pub fn arrange(sizes: &[(u32, u32)], scale: f32) -> Vec<Rect> {
     let mut left = 0.0;
     sizes
@@ -11,6 +13,13 @@ pub fn arrange(sizes: &[(u32, u32)], scale: f32) -> Vec<Rect> {
             rect
         })
         .collect()
+}
+
+pub fn absolute(normalized: Pos2, rect: Rect, rotation: Rotation) -> Pos2 {
+    let size = rect.size();
+    let panel = rotation.panel_size(size);
+    let on_panel = pos2(normalized.x * panel.x, normalized.y * panel.y);
+    rect.min + rotation.to_picture(size, on_panel).to_vec2()
 }
 
 pub fn bounds(outputs: &[Rect]) -> Rect {

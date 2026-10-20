@@ -1370,17 +1370,11 @@ impl Editor {
                     )
                 })
                 .unwrap_or_default();
-            be_block::layered(
-                layers
-                    .defaults
-                    .into_iter()
-                    .chain(layers.own)
-                    .filter_map(|block| {
-                        editor
-                            .content_of::<be_block::be_model::Document<R>>(block)
-                            .read(|content| content.root())
-                    }),
-            )
+            be_block::layered(layers.bottom_up().into_iter().filter_map(|block| {
+                editor
+                    .content_of::<be_block::be_model::Document<R>>(block)
+                    .read(|content| content.root())
+            }))
         })
     }
 
@@ -1450,6 +1444,11 @@ impl crate::root_settings::SettingsGraph for Editor {
 
     fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {
         self.content_of::<be_block::SettingsContent>(block)
+            .operate(edit);
+    }
+
+    fn edit_settings_profile(&self, block: Uuid, edit: be_block::Edit) {
+        self.content_of::<be_block::SettingsProfileContent>(block)
             .operate(edit);
     }
 }

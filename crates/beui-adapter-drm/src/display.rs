@@ -3,6 +3,8 @@ use std::rc::Rc;
 
 use beui::Waker;
 
+use crate::rotation::Rotation;
+
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub struct DisplayMode {
     pub width: u32,
@@ -19,11 +21,13 @@ pub struct Monitor {
     pub default: DisplayMode,
     pub preferred: DisplayMode,
     pub current: DisplayMode,
+    pub rotation: Rotation,
 }
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct DisplayConfig {
     pub modes: Vec<(String, DisplayMode)>,
+    pub rotations: Vec<(String, Rotation)>,
 }
 
 impl DisplayConfig {
@@ -32,6 +36,14 @@ impl DisplayConfig {
             .iter()
             .find(|(id, _)| id == monitor)
             .map(|(_, mode)| *mode)
+    }
+
+    pub(crate) fn rotation(&self, monitor: &str) -> Rotation {
+        self.rotations
+            .iter()
+            .find(|(id, _)| id == monitor)
+            .map(|(_, rotation)| *rotation)
+            .unwrap_or_default()
     }
 }
 

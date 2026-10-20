@@ -4,7 +4,10 @@ use super::*;
 fn another_accounts_settings_are_shown_but_not_changed() {
     let mut editor = editor_for(Uuid::new_v4());
 
-    editor.click("settings.ui-settings");
+    editor.click("settings.display");
+    editor.run();
+    editor.snapshot("another_accounts_settings_are_shown_but_not_changed");
+    editor.click("settings.devices");
     editor.run();
     editor.click("settings.new-profile");
     editor.run();
@@ -19,5 +22,4 @@ fn another_accounts_settings_are_shown_but_not_changed() {
             .profiles()
             .is_empty()
     );
-    editor.snapshot("another_accounts_settings_are_shown_but_not_changed");
 }

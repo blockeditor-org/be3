@@ -22,6 +22,7 @@ use crate::modes::{
     preferred_mode, refresh_millihertz,
 };
 use crate::pacing::{Lane, refresh_interval};
+use crate::rotation::Rotation;
 use crate::swapchain::Swapchain;
 
 pub struct Buffers {
@@ -211,7 +212,7 @@ impl Output {
             connector,
             crtc,
             swapchain,
-            screen: Screen::new(gpu, size_of(&mode)),
+            screen: Screen::new(gpu, size_of(&mode), config.rotation(&id)),
             targets: HashMap::new(),
             modes,
             candidates,
@@ -252,6 +253,7 @@ impl Output {
             default: self.candidates[default].mode,
             preferred: self.candidates[preferred].mode,
             current: self.candidates[self.chosen].mode,
+            rotation: self.screen.rotation(),
         }
     }
 
@@ -259,25 +261,32 @@ impl Output {
         matches!(self.state, State::Drawing(_))
     }
 
-    pub fn set_mode(&mut self, gpu: &Gpu, wanted: Option<DisplayMode>) -> bool {
+    pub fn configure(
+        &mut self,
+        gpu: &Gpu,
+        wanted: Option<DisplayMode>,
+        rotation: Rotation,
+    ) -> bool {
         let Some(chosen) = choose(&self.candidates, wanted) else {
             return false;
         };
-        if chosen == self.chosen || self.drawing() {
+        if (chosen == self.chosen && rotation == self.screen.rotation()) || self.drawing() {
             return false;
         }
-        let mode = self.modes[chosen];
-        if let Err(error) = self.swapchain.use_mode(mode) {
-            eprintln!(
-                "beui: {} could not switch to {:?}: {error}",
-                self.connector_name, self.candidates[chosen].mode
-            );
-            return false;
+        if chosen != self.chosen {
+            let mode = self.modes[chosen];
+            if let Err(error) = self.swapchain.use_mode(mode) {
+                eprintln!(
+                    "beui: {} could not switch to {:?}: {error}",
+                    self.connector_name, self.candidates[chosen].mode
+                );
+                return false;
+            }
+            self.chosen = chosen;
+            self.targets.clear();
         }
-        self.chosen = chosen;
-        self.targets.clear();
         let rect = self.screen.rect;
-        self.screen = Screen::new(gpu, size_of(&mode));
+        self.screen = Screen::new(gpu, size_of(&self.modes[self.chosen]), rotation);
         self.screen.rect = rect;
         true
     }

@@ -20,7 +20,6 @@ use crate::{
     logic_game::LogicGameContent,
     logic_grid::{LogicGridContent, LogicGridOperation},
     text::{TextBlock, TextContent, TextLanguage},
-    ui_settings::{UiSettings, UiSettingsContent},
 };
 use be_model::ObjectId;
 use logicgame::grid::{
@@ -46,12 +45,12 @@ mod a_database_follows_the_pages_and_databases_its_rows_link_to;
 mod a_database_grows_rows_to_fill_a_cell_and_drops_trailing_empty_ones;
 mod a_database_is_described_by_its_prefix;
 mod a_deleted_child_of_a_view_is_blanked_in_the_state_that_referenced_it;
+mod a_device_class_is_detected_and_brings_its_own_defaults;
 mod a_device_uses_the_settings_profile_and_session_it_picked;
 mod a_folder_lists_each_block_once_and_follows_its_children;
 mod a_language_changed_on_both_sides_counts_a_conflict;
 mod a_logic_grid_edit_keeps_its_wires_normalized_and_follows_its_children;
 mod a_map_keeps_its_points_in_bounds_and_follows_its_children;
-mod a_monitor_back_at_its_default_mode_is_forgotten;
 mod a_pixel_painted_outside_the_other_sides_crop_counts_as_a_conflict;
 mod a_presentation_moves_slides_by_index_and_follows_its_children;
 mod a_profile_layers_its_settings_over_the_defaults;
@@ -62,6 +61,7 @@ mod a_review_forgets_or_repoints_an_approval_with_its_snapshot;
 mod a_row_is_found_by_its_short_id_with_or_without_its_prefix;
 mod a_schema_field_removed_on_one_side_and_renamed_on_the_other_stays_removed;
 mod a_schema_normalizes_number_options_and_keeps_option_ids;
+mod a_screen_back_at_its_default_mode_is_forgotten;
 mod a_view_hides_closed_choices_and_matches_any_of_several_values;
 mod a_view_shows_only_the_rows_every_filter_matches;
 mod a_wire_cut_on_one_side_stays_cut_when_the_other_extends_it;

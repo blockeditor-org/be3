@@ -2,8 +2,9 @@ use std::cell::RefCell;
 
 use be_block::DisplaySettings;
 use be_block::display_settings::DisplayMode as SavedMode;
-use beui_adapter_drm::{DisplayConfig, DisplayControl, DisplayMode, Epaper, Monitor};
-use block_plugin_api::{EpaperRequest, HostDisplay, HostDisplayMode};
+use be_block::display_settings::Rotation as SavedRotation;
+use beui_adapter_drm::{DisplayConfig, DisplayControl, DisplayMode, Epaper, Monitor, Rotation};
+use block_plugin_api::{EpaperRequest, HostDisplay, HostDisplayMode, HostRotation};
 
 use super::Screen;
 
@@ -29,6 +30,10 @@ pub(crate) fn start(setup: &beui::Setup) {
         crate::plugin_host::publish::<block_plugin_api::Epaper>(&true);
     }
     EPAPER.with(|slot| *slot.borrow_mut() = epaper);
+}
+
+pub(crate) fn epaper() -> bool {
+    EPAPER.with(|slot| slot.borrow().is_some())
 }
 
 pub(crate) fn stop() {
@@ -63,10 +68,33 @@ pub(crate) fn apply(settings: &DisplaySettings) {
 fn config(settings: &DisplaySettings) -> DisplayConfig {
     DisplayConfig {
         modes: settings
-            .monitors
+            .screens
             .iter()
-            .filter_map(|(id, monitor)| Some((id.clone(), seat_mode(monitor.mode?))))
+            .filter_map(|(id, screen)| Some((id.clone(), seat_mode(screen.mode?))))
             .collect(),
+        rotations: settings
+            .screens
+            .iter()
+            .filter_map(|(id, screen)| Some((id.clone(), seat_rotation(screen.rotation?))))
+            .collect(),
+    }
+}
+
+fn seat_rotation(rotation: SavedRotation) -> Rotation {
+    match rotation {
+        SavedRotation::Normal => Rotation::Normal,
+        SavedRotation::Clockwise90 => Rotation::Clockwise90,
+        SavedRotation::Clockwise180 => Rotation::Clockwise180,
+        SavedRotation::Clockwise270 => Rotation::Clockwise270,
+    }
+}
+
+fn host_rotation(rotation: Rotation) -> HostRotation {
+    match rotation {
+        Rotation::Normal => HostRotation::Normal,
+        Rotation::Clockwise90 => HostRotation::Clockwise90,
+        Rotation::Clockwise180 => HostRotation::Clockwise180,
+        Rotation::Clockwise270 => HostRotation::Clockwise270,
     }
 }
 
@@ -111,5 +139,6 @@ fn host_display(monitor: &Monitor) -> HostDisplay {
         modes: monitor.modes.iter().copied().map(host_mode).collect(),
         default: host_mode(monitor.default),
         current: host_mode(monitor.current),
+        rotation: host_rotation(monitor.rotation),
     }
 }

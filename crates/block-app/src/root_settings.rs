@@ -3,9 +3,9 @@ use std::collections::HashMap;
 
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
-    BlockContent, BlockMetadata, EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR, LiveEdit,
-    MY_FILES, NAME, Root, SettingsContent, SettingsProfileContent, WORKSPACE_EDITOR,
-    WorkspaceContent,
+    BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, EditorView,
+    EditorViewContent, LINUX_DESKTOP_EDITOR, LiveEdit, MY_FILES, NAME, Root, SettingsContent,
+    SettingsProfileContent, WORKSPACE_EDITOR, WorkspaceContent,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;
@@ -37,13 +37,14 @@ pub(crate) struct ProfileEntry {
     pub(crate) current: bool,
 }
 
-pub(crate) fn device_name() -> &'static str {
-    if cfg!(target_os = "android") {
-        "Phone"
-    } else if cfg!(target_arch = "wasm32") {
-        "Browser"
-    } else {
-        "Computer"
+pub(crate) fn device_class() -> DeviceClass {
+    DeviceClass::detect(crate::display::epaper(), cfg!(target_os = "android"))
+}
+
+fn device_name(class: DeviceClass) -> &'static str {
+    match cfg!(target_arch = "wasm32") {
+        true => "Browser",
+        false => class.name(),
     }
 }
 
@@ -89,6 +90,7 @@ pub(crate) struct RootSettings {
     chosen_session: Option<Uuid>,
     created_profile: Option<Uuid>,
     chosen_profile: Option<Uuid>,
+    set_up: Option<Uuid>,
     cache: RefCell<Cache>,
 }
 
@@ -102,6 +104,7 @@ impl RootSettings {
             chosen_session: None,
             created_profile: None,
             chosen_profile: None,
+            set_up: None,
             cache: RefCell::default(),
         }
     }
@@ -258,9 +261,9 @@ impl RootSettings {
             .unwrap_or_else(|| fallback.to_owned())
     }
 
-    pub(crate) fn layers(&self, kind: Uuid, client: Uuid) -> Vec<Uuid> {
+    pub(crate) fn layers(&self, kind: Uuid, client: Uuid) -> be_block::Layers {
         let Some(settings) = self.settings() else {
-            return Vec::new();
+            return be_block::Layers::default();
         };
         let profile = self
             .current_profile(&settings, client)
@@ -340,7 +343,7 @@ impl RootSettings {
         Some(session)
     }
 
-    fn create_profile(&self, name: String) -> Option<Uuid> {
+    fn create_profile(&self, name: String, content: &SettingsProfileContent) -> Option<Uuid> {
         let settings = self.find()?;
         let profile = Uuid::new_v4();
         be::create(
@@ -348,7 +351,7 @@ impl RootSettings {
             SettingsProfileContent::CONTENT_TYPE,
             BlockParent::Block(settings),
             BlockMetadata::named(name),
-            Some(SettingsProfileContent::default().encode()),
+            Some(content.encode()),
         );
         Some(profile)
     }
@@ -368,14 +371,17 @@ impl RootSettings {
         let count = self
             .settings()
             .map_or(0, |settings| settings.profiles().len());
-        let Some(profile) = self.create_profile(format!("Profile {}", count + 1)) else {
+        let Some(profile) = self.create_profile(
+            format!("Profile {}", count + 1),
+            &SettingsProfileContent::default(),
+        ) else {
             return;
         };
         self.edit(&Settings::add_profile(client, profile));
         self.chosen_profile = Some(profile);
     }
 
-    pub(crate) fn ensure_profile(&mut self, client: Uuid) -> Option<Uuid> {
+    pub(crate) fn ensure_profile(&mut self, client: Uuid, class: DeviceClass) -> Option<Uuid> {
         self.ensure()?;
         let settings = self.settings()?;
         let stored = settings.profile(client);
@@ -392,13 +398,40 @@ impl RootSettings {
         if self.created_profile.is_some() {
             return self.created_profile;
         }
-        let profile = self.create_profile(device_name().to_owned())?;
+        let display = class.display_settings();
+        let defaults = display != be_block::DisplaySettings::default();
+        let display_block = Uuid::new_v4();
+        let mut content = SettingsProfileContent::new(&SettingsProfile {
+            class: Some(class),
+            ..SettingsProfile::default()
+        });
+        if defaults {
+            content.apply(&SettingsProfile::set_kind(
+                DisplaySettingsContent::CONTENT_TYPE,
+                display_block,
+            ));
+        }
+        let profile = self.create_profile(device_name(class).to_owned(), &content)?;
+        if defaults {
+            be::create(
+                display_block,
+                DisplaySettingsContent::CONTENT_TYPE,
+                BlockParent::Block(profile),
+                BlockMetadata::default(),
+                Some(DisplaySettingsContent::new(&display).encode()),
+            );
+            self.set_up = Some(profile);
+        }
         self.edit(&Settings::add_profile(client, profile));
         self.created_profile = Some(profile);
         Some(profile)
     }
 
-    pub(crate) fn ensure_session(&mut self, client: Uuid) -> Option<Uuid> {
+    pub(crate) fn take_set_up(&mut self) -> Option<Uuid> {
+        self.set_up.take()
+    }
+
+    pub(crate) fn ensure_session(&mut self, client: Uuid, class: DeviceClass) -> Option<Uuid> {
         self.ensure()?;
         let settings = self.settings()?;
         let stored = settings.session(self.shell, client);
@@ -417,7 +450,7 @@ impl RootSettings {
         }
         let name = match self.shell == LINUX_DESKTOP_EDITOR {
             true => "Desktop",
-            false => device_name(),
+            false => device_name(class),
         };
         let session = self.create_session(self.shell, name.to_owned())?;
         self.edit(&Settings::add_session(self.shell, client, session));

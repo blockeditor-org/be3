@@ -327,6 +327,14 @@ impl AppStateStore {
         Ok(())
     }
 
+    pub fn tried_display_modes(&self) -> Result<Option<String>, AppStateError> {
+        self.setting("tried_display_modes")
+    }
+
+    pub fn set_tried_display_modes(&self, modes: &str) -> Result<(), AppStateError> {
+        self.set_setting("tried_display_modes", modes)
+    }
+
     fn setting(&self, key: &str) -> Result<Option<String>, AppStateError> {
         let value = self
             .connection

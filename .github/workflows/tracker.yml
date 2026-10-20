@@ -1,7 +1,8 @@
 name: Tracker
 
 # Moves the rows of the tracker database that a pull request names, such as
-# BE-7K3Q2M in its branch, title or body: opening it sets them to In review and
+# BE-7K3Q2M in its branch, title or body (the database is the full id in the
+# BE3_TRACKER_DATABASE variable): opening it sets them to In review and
 # links it on each row's page, and merging it sets them to Done. It is the be
 # command line tool's `be pull-request` (crates/be-cli), signed in as the agent
 # whose credentials are the BE3_TRACKER_CREDENTIALS JSON secret. A
@@ -29,11 +30,12 @@ jobs:
         id: credentials
         env:
           BE3_AGENT_CREDENTIALS: ${{ secrets.BE3_TRACKER_CREDENTIALS }}
+          BE3_TRACKER_DATABASE: ${{ vars.BE3_TRACKER_DATABASE }}
         run: |
-          if [ -n "$BE3_AGENT_CREDENTIALS" ]; then
+          if [ -n "$BE3_AGENT_CREDENTIALS" ] && [ -n "$BE3_TRACKER_DATABASE" ]; then
             echo "present=true" >> "$GITHUB_OUTPUT"
           else
-            echo "The tracker's credentials are not set, so no rows are moved."
+            echo "The tracker's credentials or database are not set, so no rows are moved."
           fi
 
       - uses: actions/checkout@v7
@@ -50,4 +52,5 @@ jobs:
           BE3_STATUS_FIELD: ${{ vars.BE3_STATUS_FIELD }}
           BE3_REVIEW_STATUS: ${{ vars.BE3_REVIEW_STATUS }}
           BE3_DONE_STATUS: ${{ vars.BE3_DONE_STATUS }}
-        run: ./scripts/be pull-request "$GITHUB_EVENT_PATH"
+          BE3_TRACKER_DATABASE: ${{ vars.BE3_TRACKER_DATABASE }}
+        run: ./scripts/be "$BE3_TRACKER_DATABASE" pull-request "$GITHUB_EVENT_PATH"

@@ -15,6 +15,7 @@ mod output;
 mod pacing;
 mod problems;
 mod recovery;
+mod rotation;
 mod runner;
 mod screen;
 mod swapchain;
@@ -30,6 +31,7 @@ pub use input::{
     SharedFilter,
 };
 pub use problems::Problems;
+pub use rotation::Rotation;
 pub use runner::run;
 
 use beui::{Adapter, Launch};

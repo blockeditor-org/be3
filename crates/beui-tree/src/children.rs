@@ -534,6 +534,10 @@ impl<T: SlotChild> From<DynamicSegment<T>> for Children<T> {
 }
 
 impl<T: SlotChild> Children<T> {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub fn map(self, change: impl Fn(T) -> T + 'static) -> Self {
         let change: Rc<dyn Fn(T) -> T> = Rc::new(change);
         Self(

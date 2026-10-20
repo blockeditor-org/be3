@@ -8,8 +8,10 @@ license.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+be-remap = { path = "../../remap/rules", features = ["text"] }
 beui = { path = "../../beui", default-features = false, features = ["render"] }
 block-editor-beui = { path = "../../block-editor-beui" }
+text-editor-core = { path = "../../text-editor-core" }
 uuid = "1"
 
 [dev-dependencies]

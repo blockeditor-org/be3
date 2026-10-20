@@ -17,7 +17,6 @@ use crate::tracker::{Assignment, Body, RowView, Tracker};
 
 mod a_choice_option_takes_a_colour_an_icon_and_closes_rows;
 mod a_csv_export_is_imported_as_rows_with_pages;
-mod a_deleted_database_frees_its_prefix;
 mod a_downloaded_block_uploads_as_a_copy_with_new_ids;
 mod a_merged_pull_request_closes_rows_without_a_done_status;
 mod a_new_row_takes_each_choice_fields_default;
@@ -35,7 +34,7 @@ mod blocks_are_listed_and_found_by_short_id_or_name;
 mod malformed_agent_credentials_do_not_disclose_secrets;
 mod proxy_credentials_do_not_need_an_account_token;
 mod rows_are_added_filtered_changed_and_given_pages;
-mod two_databases_with_one_prefix_are_refused;
+mod two_databases_may_share_a_prefix_and_each_resolves_its_own_rows;
 
 struct Harness {
     url: String,
