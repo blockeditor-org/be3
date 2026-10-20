@@ -346,11 +346,20 @@ mod namespace {
         let answer = directory.join("buck2.buckconfig.partial");
         let response_header = directory.join("response-header");
         let mut status = wake(&header_file, &response_header, &answer)?;
+        let mut asked = false;
         while status == "401" || status == "403" {
-            let why = format!(
-                "The gateway in front of {NAMESPACE_URL} refused the request ({status}), so it needs\n\
-                 the Be3-Gateway-Authorization header's value (guides/build_server.md)."
-            );
+            let why = if asked {
+                format!(
+                    "The gateway refused that key too ({status}). Enter it again, or press Esc to stop."
+                )
+            } else {
+                format!(
+                    "The gateway in front of {NAMESPACE_URL} refused the request ({status}), so it needs\n\
+                     the whole value of the Be3-Gateway-Authorization header, such as\n\
+                     \"Bearer KEY\" (guides/build_server.md)."
+                )
+            };
+            asked = true;
             let Some(key) = gateway().ask(&why) else {
                 break;
             };
