@@ -1,0 +1,1 @@
+mod a_failed_build_removes_stale_android_artifacts;

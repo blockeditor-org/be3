@@ -50,6 +50,7 @@ Environment:
   Web files are uploaded under data/BUILD/web/; /index.html selects the live build.";
 
 struct Options {
+    apk_metadata: PathBuf,
     repository: PathBuf,
     server: PathBuf,
     be: Vec<(String, PathBuf)>,
@@ -64,7 +65,7 @@ struct Options {
 }
 
 pub fn main(arguments: Vec<String>) -> ExitCode {
-    match parse(arguments.into_iter()).and_then(|options| run(&options)) {
+    match parse(arguments.into_iter()).and_then(|mut options| run(&mut options)) {
         Ok(()) => ExitCode::SUCCESS,
         Err(message) => {
             eprintln!("deploy: {message}");
@@ -75,6 +76,7 @@ pub fn main(arguments: Vec<String>) -> ExitCode {
 
 fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String> {
     let mut options = Options {
+        apk_metadata: PathBuf::new(),
         repository: PathBuf::new(),
         server: PathBuf::new(),
         be: Vec::new(),
@@ -94,6 +96,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
                 .ok_or_else(|| format!("{argument} needs a value"))
         };
         match argument.as_str() {
+            "--apk-metadata" => options.apk_metadata = value()?.into(),
             "--repository" => options.repository = PathBuf::from(value()?),
             "--server" => options.server = PathBuf::from(value()?),
             "--be" => {
@@ -241,7 +244,7 @@ fn setting(name: &str, default: &str) -> String {
         .unwrap_or_else(|| default.to_owned())
 }
 
-fn run(options: &Options) -> Result<(), String> {
+fn run(options: &mut Options) -> Result<(), String> {
     let mut build = None;
     for (triple, bundle) in &options.be {
         let id = read_build(&bundle.join("build-info.json"))?;
@@ -258,6 +261,21 @@ fn run(options: &Options) -> Result<(), String> {
         ));
     }
     println!("deploying build {build}");
+    if !options.skip_downloads && !options.dry_run {
+        for (platform, file) in &mut options.downloads {
+            if platform == "android" {
+                if read_build(&options.apk_metadata)? != build {
+                    return Err("APK metadata and native bundles have different build ids".into());
+                }
+                let key = crate::apk_sign::release_key()?;
+                let output = options
+                    .repository
+                    .join("target/deploy/block-app-android.apk");
+                crate::apk_sign::finalize(file, &output, &key, &options.apk_metadata)?;
+                *file = output;
+            }
+        }
+    }
 
     let storage = setting(
         "BE3_DEPLOY_STORAGE",
@@ -333,6 +351,12 @@ fn run(options: &Options) -> Result<(), String> {
     if !options.skip_downloads && !options.downloads.is_empty() {
         let mut listed = Vec::new();
         for (platform, file) in &options.downloads {
+            if platform == "android" && options.dry_run {
+                println!(
+                    "would finalize and sign the Android template locally, then upload block-app-android.apk"
+                );
+                continue;
+            }
             let extension = file.extension().and_then(|extension| extension.to_str());
             let name = format!("block-app-{platform}.{}", extension.unwrap_or("zip"));
             let bytes = std::fs::read(file)

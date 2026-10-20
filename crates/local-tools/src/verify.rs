@@ -451,13 +451,41 @@ impl Run {
             return;
         }
         for apk in ["block-app.apk", "be-launcher.apk"] {
-            let copied = self
-                .built(apk)
-                .first()
-                .is_some_and(|path| fs::copy(path, directory.join(apk)).is_ok());
-            if !copied {
+            let output = directory.join(apk);
+            if let Err(error) = fs::remove_file(&output)
+                && error.kind() != io::ErrorKind::NotFound
+            {
+                eprintln!("{}: {error}", output.display());
                 self.failed = true;
+                return;
             }
+        }
+        if self.options.build_failed {
+            return;
+        }
+        let finalize = || -> Result<(), String> {
+            let metadata = self
+                .built("apk-metadata")
+                .into_iter()
+                .next()
+                .ok_or("no APK metadata was built")?;
+            let key = crate::apk_sign::ci_key();
+            for apk in ["block-app.apk", "be-launcher.apk"] {
+                let template = self
+                    .built(apk)
+                    .into_iter()
+                    .next()
+                    .ok_or_else(|| format!("no {apk} template was built"))?;
+                crate::apk_sign::finalize(&template, &directory.join(apk), &key, &metadata)?;
+            }
+            Ok(())
+        };
+        if let Err(error) = finalize() {
+            eprintln!("Could not finalize Android APKs: {error}");
+            for apk in ["block-app.apk", "be-launcher.apk"] {
+                let _ = fs::remove_file(directory.join(apk));
+            }
+            self.failed = true;
         }
     }
 
@@ -739,3 +767,6 @@ fn clear_executable(path: &Path) -> io::Result<()> {
 fn clear_executable(_: &Path) -> io::Result<()> {
     Ok(())
 }
+
+#[cfg(test)]
+mod tests;
