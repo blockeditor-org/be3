@@ -226,7 +226,8 @@ block_ui_test::DocumentTest, which drives the document itself with only the font
 carries, never the system's. Its tests are compiled to wasm with plugin_tests like an
 editor's; crates/beui-demo paints every page of the demo that way. Its clock is a frame
 clock too: every frame() is one frame interval later, and advance(by) moves it on and paints
-a frame.
+a frame. settle() advances frames until the document stops requesting an immediate repaint,
+so a snapshot can wait for a sheet or another animation to finish.
 
 A snapshot never holds the glyph atlases. Each glyph carries its own image - coverage, or
 colour for an emoji from a colour font - keyed by what is in it, so where a glyph happened
