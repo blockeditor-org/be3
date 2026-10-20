@@ -23,7 +23,7 @@ impl Transform<'_> {
         self.edit.document()
     }
 
-    pub fn formats(&self) -> Option<Formats> {
+    pub fn formats(&self) -> Option<Arc<Formats>> {
         self.edit.document().formats()
     }
 
@@ -61,16 +61,18 @@ fn block(key: &Name, value: Option<Value>) -> Change {
 
 fn inherited(
     schema: &dyn Schema,
-    bytes: &[u8],
+    read: &dyn DocumentRead,
     formats: &Formats,
     index: usize,
     len: usize,
 ) -> MarkSet {
+    let byte = |at: usize| read.slice(at..at + 1).first().copied();
     let next = index + len;
-    let paragraph_start = index == 0 || bytes.get(index - 1) == Some(&b'\n');
-    let after = formats.marks_at(next).filter(|_| bytes.get(next).is_some());
-    let marks = match bytes.get(next) {
-        Some(byte) if paragraph_start && *byte != b'\n' => after,
+    let paragraph_start = index == 0 || byte(index - 1) == Some(b'\n');
+    let following = byte(next);
+    let after = formats.marks_at(next).filter(|_| following.is_some());
+    let marks = match following {
+        Some(byte) if paragraph_start && byte != b'\n' => after,
         _ => index
             .checked_sub(1)
             .and_then(|before| formats.marks_at(before)),
@@ -89,7 +91,54 @@ fn inherited(
     )
 }
 
-pub(super) fn conform_inserted(
+pub(super) fn replace(
+    edit: &mut dyn DocumentEdit,
+    schema: &dyn Schema,
+    index: usize,
+    removed: usize,
+    insert: &[u8],
+    typed: Option<MarkSet>,
+) {
+    let kept = joined_block(edit, index, removed);
+    edit.replace(index, removed, insert);
+    if let Some(kept) = kept {
+        keep_block(edit, index, &kept);
+    }
+    conform_inserted(edit, schema, index, insert, typed);
+}
+
+fn joined_block(edit: &dyn DocumentEdit, index: usize, removed: usize) -> Option<MarkSet> {
+    let read = edit.document();
+    if removed == 0 || !read.slice(index..index + removed).contains(&b'\n') {
+        return None;
+    }
+    Some(read.formats()?.block_at(index)?.props.clone())
+}
+
+fn keep_block(edit: &mut dyn DocumentEdit, index: usize, kept: &MarkSet) {
+    let Some(now) = edit
+        .document()
+        .formats()
+        .and_then(|formats| formats.block_at(index).map(|block| block.props.clone()))
+    else {
+        return;
+    };
+    let mut keys: Vec<Name> = kept
+        .iter()
+        .chain(now.iter())
+        .map(|(key, _)| key.clone())
+        .collect();
+    keys.sort();
+    keys.dedup();
+    for key in keys {
+        let wanted = kept.get(key.as_str());
+        if now.get(key.as_str()) != wanted {
+            edit.format(index..index, &block(&key, wanted.cloned()));
+        }
+    }
+}
+
+fn conform_inserted(
     edit: &mut dyn DocumentEdit,
     schema: &dyn Schema,
     index: usize,
@@ -102,9 +151,9 @@ pub(super) fn conform_inserted(
     let Some(formats) = edit.document().formats() else {
         return;
     };
-    let bytes = edit.document().slice(0..edit.document().len()).into_owned();
     let end = index + insert.len();
-    let wanted = typed.unwrap_or_else(|| inherited(schema, &bytes, &formats, index, insert.len()));
+    let wanted =
+        typed.unwrap_or_else(|| inherited(schema, edit.document(), &formats, index, insert.len()));
     let mut keys: Vec<Name> = wanted.iter().map(|(key, _)| key.clone()).collect();
     for (_, marks) in formats.marks_in(index..end) {
         keys.extend(marks.iter().map(|(key, _)| key.clone()));
@@ -157,15 +206,14 @@ impl Core {
     pub fn selected(&self) -> Option<Selected> {
         let read = self.document.read()?;
         let formats = read.formats()?;
-        let document = DocumentView::new(&*read);
-        let bytes = document.bytes();
+        let document = &*read;
         let schema = self.schema();
         let cursor = self.cursor_positions.first()?;
-        let range = resolve_selection(&document, cursor.pos);
+        let range = resolve_selection(document, cursor.pos);
         let block = shared_block(&formats, range.left..range.right);
         if range.left == range.right
             && let Some((position, marks)) = &self.typing
-            && position.resolve(&document) == range.left
+            && position.resolve(document) == range.left
         {
             return Some(Selected {
                 marks: marks.clone(),
@@ -174,11 +222,16 @@ impl Core {
         }
         let mut shown = formats
             .marks_in(range.left..range.right)
-            .filter(|(within, _)| bytes[within.clone()].iter().any(|byte| *byte != b'\n'))
+            .filter(|(within, _)| {
+                document
+                    .slice(within.clone())
+                    .iter()
+                    .any(|byte| *byte != b'\n')
+            })
             .map(|(_, marks)| marks.clone());
         let marks = match shown.next() {
             Some(first) => shown.fold(first, |shared, marks| shared.shared(&marks)),
-            None => inherited(&*schema, bytes, &formats, range.left, 0),
+            None => inherited(&*schema, document, &formats, range.left, 0),
         };
         Some(Selected { marks, block })
     }
@@ -187,15 +240,15 @@ impl Core {
         let Some(read) = self.document.read() else {
             return Vec::new();
         };
-        let document = DocumentView::new(&*read);
+        let document = &*read;
         self.cursor_positions
             .iter()
-            .map(|cursor| resolve_selection(&document, cursor.pos))
+            .map(|cursor| resolve_selection(document, cursor.pos))
             .filter(|range| blocks || range.left < range.right)
             .map(|range| {
                 (
-                    Position::at(&document, range.left),
-                    Position::at(&document, range.right),
+                    Position::at(document, range.left),
+                    Position::at(document, range.right),
                 )
             })
             .collect()
@@ -271,8 +324,14 @@ impl Core {
             for (start, end) in &ranges {
                 let start = start.resolve(edit.document());
                 let end = end.resolve(edit.document());
-                edit.replace(start, end - start, VOID.as_bytes());
-                conform_inserted(edit, schema, start, VOID.as_bytes(), typing.clone());
+                replace(
+                    edit,
+                    schema,
+                    start,
+                    end - start,
+                    VOID.as_bytes(),
+                    typing.clone(),
+                );
                 for (key, value) in marks.iter() {
                     let expand = schema.expand(key.as_str());
                     edit.format(
@@ -360,8 +419,7 @@ impl Core {
                             .as_ref()
                             .filter(|(caret, _)| caret.resolve(edit.document()) == at)
                             .map(|(_, marks)| marks.clone());
-                        edit.replace(at, *removed, b"\n");
-                        conform_inserted(edit, schema, at, b"\n", typed);
+                        replace(edit, schema, at, *removed, b"\n", typed);
                         let next = at + 1;
                         let props = edit
                             .document()

@@ -2111,8 +2111,7 @@ impl Core {
                     .as_ref()
                     .filter(|(at, _)| at.resolve(transaction.document()) == index)
                     .map(|(_, marks)| marks.clone());
-                transaction.replace(index, *delete_len, insert);
-                rich::conform_inserted(transaction, &*schema, index, insert, typed);
+                rich::replace(transaction, &*schema, index, *delete_len, insert, typed);
                 result_positions.push(Position::at(transaction.document(), index + insert.len()));
             }
         });

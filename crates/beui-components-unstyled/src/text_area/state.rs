@@ -48,7 +48,7 @@ pub struct Snapshot {
     pub checkboxes: Vec<MarkdownCheckbox>,
     pub highlight: Option<SyntaxHighlight>,
     pub runs: Option<Rc<Vec<TextRun>>>,
-    pub formats: Option<Rc<Formats>>,
+    pub formats: Option<Arc<Formats>>,
 }
 
 const MEASURED_BYTES: usize = 64 * 1024;
@@ -799,7 +799,7 @@ impl TextAreaState {
         }
         let highlight = inner.core.borrow_mut().highlight();
         let bytes = highlight
-            .markdown_bytes()
+            .bytes()
             .unwrap_or_else(|| read_bytes(&inner.core.borrow()).into());
         let change = {
             let snapshot = inner.snapshot.borrow();
@@ -836,8 +836,7 @@ impl TextAreaState {
                 let core = inner.core.borrow();
                 core.document().read().and_then(|read| read.formats())
             })
-            .flatten()
-            .map(Rc::new);
+            .flatten();
         let runs = inner.show_runs.get().then(|| {
             let core = inner.core.borrow();
             Rc::new(

@@ -256,7 +256,7 @@ impl Schema for Basic {
     }
 
     fn lift_on_backspace(&self, block: &MarkSet) -> Vec<Name> {
-        [HEADING, LIST, CHECKED, INDENT, QUOTE, CODE_BLOCK]
+        [HEADING, LIST, CHECKED, INDENT, QUOTE]
             .into_iter()
             .filter(|key| block.get(key).is_some())
             .map(Name::new)

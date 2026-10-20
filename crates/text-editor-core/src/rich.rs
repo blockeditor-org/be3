@@ -1,11 +1,11 @@
 use std::fmt;
 use std::ops::Range;
-use std::sync::Arc;
+use std::sync::{Arc, Mutex};
 
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::document::{anchor_in, place_in};
-use crate::{Pos, SeqOp, Sequence};
+use crate::{Pos, SeqOp, Sequence, Splice};
 
 pub const VOID: &str = "\u{fffc}";
 
@@ -227,6 +227,62 @@ impl Formats {
         }
     }
 
+    pub fn len(&self) -> usize {
+        self.runs.iter().map(|run| run.len).sum()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.runs.is_empty()
+    }
+
+    fn reindex(&mut self) {
+        self.runs.retain(|run| run.len > 0);
+        let mut merged: Vec<FormatRun> = Vec::with_capacity(self.runs.len());
+        for run in self.runs.drain(..) {
+            match merged.last_mut() {
+                Some(last) if last.marks == run.marks => last.len += run.len,
+                _ => merged.push(run),
+            }
+        }
+        self.runs = merged;
+        let mut at = 0;
+        self.starts = self
+            .runs
+            .iter()
+            .map(|run| {
+                let start = at;
+                at += run.len;
+                start
+            })
+            .collect();
+    }
+
+    fn replace_runs(&mut self, old: Range<usize>, runs: Vec<FormatRun>) {
+        let mut head: Vec<FormatRun> = Vec::new();
+        let mut tail: Vec<FormatRun> = Vec::new();
+        let mut at = 0;
+        for run in self.runs.drain(..) {
+            let (start, end) = (at, at + run.len);
+            at = end;
+            if start < old.start {
+                head.push(FormatRun {
+                    len: end.min(old.start) - start,
+                    marks: run.marks.clone(),
+                });
+            }
+            if end > old.end {
+                tail.push(FormatRun {
+                    len: end - start.max(old.end),
+                    marks: run.marks,
+                });
+            }
+        }
+        head.extend(runs);
+        head.extend(tail);
+        self.runs = head;
+        self.reindex();
+    }
+
     pub fn marks_at(&self, index: usize) -> Option<&MarkSet> {
         let run = self
             .starts
@@ -306,10 +362,45 @@ impl Painted {
     }
 }
 
-#[derive(Clone, Debug, Default, Eq, PartialEq)]
+#[derive(Default)]
 pub struct Marks {
     marks: Vec<Mark>,
     clock: u64,
+    cache: Mutex<Option<Resolved>>,
+}
+
+#[derive(Clone)]
+struct Resolved {
+    spans: Vec<Option<(usize, usize)>>,
+    formats: Arc<Formats>,
+}
+
+impl Clone for Marks {
+    fn clone(&self) -> Self {
+        Self {
+            marks: self.marks.clone(),
+            clock: self.clock,
+            cache: Mutex::new(self.lock().clone()),
+        }
+    }
+}
+
+impl PartialEq for Marks {
+    fn eq(&self, other: &Self) -> bool {
+        self.marks == other.marks && self.clock == other.clock
+    }
+}
+
+impl Eq for Marks {}
+
+impl fmt::Debug for Marks {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter
+            .debug_struct("Marks")
+            .field("marks", &self.marks)
+            .field("clock", &self.clock)
+            .finish()
+    }
 }
 
 impl Marks {
@@ -326,17 +417,29 @@ impl Marks {
                 &seed.key,
                 Some(seed.value.clone()),
             ) {
-                marks.mint(sequence::LOADED, op);
+                marks.mint(text, sequence::LOADED, op);
             }
         }
         marks
+    }
+
+    fn lock(&self) -> std::sync::MutexGuard<'_, Option<Resolved>> {
+        self.cache
+            .lock()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
+    }
+
+    fn slot(&mut self) -> &mut Option<Resolved> {
+        self.cache
+            .get_mut()
+            .unwrap_or_else(std::sync::PoisonError::into_inner)
     }
 
     pub fn marks(&self) -> &[Mark] {
         &self.marks
     }
 
-    pub fn mint(&mut self, client: u64, op: FormatOp) -> Mark {
+    pub fn mint(&mut self, text: &Sequence<u8>, client: u64, op: FormatOp) -> Mark {
         let mark = Mark {
             id: MarkId {
                 clock: self.clock + 1,
@@ -344,18 +447,222 @@ impl Marks {
             },
             op,
         };
-        self.apply(mark.clone());
+        self.apply(text, mark.clone());
         mark
     }
 
-    pub fn apply(&mut self, mark: Mark) -> bool {
+    pub fn apply(&mut self, text: &Sequence<u8>, mark: Mark) -> bool {
         self.clock = self.clock.max(mark.id.clock);
-        match self.marks.binary_search_by_key(&mark.id, |held| held.id) {
-            Ok(_) => false,
-            Err(at) => {
-                self.marks.insert(at, mark);
-                true
+        let at = match self.marks.binary_search_by_key(&mark.id, |held| held.id) {
+            Ok(_) => return false,
+            Err(at) => at,
+        };
+        let span = span_of(text, &mark.op);
+        let scope = mark.op.scope;
+        self.marks.insert(at, mark);
+        let Some(mut resolved) = self.slot().take() else {
+            return true;
+        };
+        resolved.spans.insert(at, span);
+        if let Some((start, end)) = span {
+            let formats = Arc::make_mut(&mut resolved.formats);
+            match scope {
+                Scope::Inline => self.repaint_inline(&resolved.spans, formats, start..end),
+                Scope::Block => {
+                    let first = formats.blocks.partition_point(|block| block.end < start);
+                    let last = formats.blocks.partition_point(|block| block.end <= end);
+                    self.repaint_blocks(&resolved.spans, formats, first..last);
+                }
             }
+        }
+        *self.slot() = Some(resolved);
+        true
+    }
+
+    pub fn invalidate(&mut self) {
+        *self.slot() = None;
+    }
+
+    pub fn splice(&mut self, text: &Sequence<u8>, splices: &[Splice]) {
+        let [splice] = splices else {
+            if !splices.is_empty() {
+                self.invalidate();
+            }
+            return;
+        };
+        let Some(mut resolved) = self.slot().take() else {
+            return;
+        };
+        let (at, removed, inserted) = (splice.at, splice.removed, splice.inserted);
+        let shift = |place: usize| match place {
+            place if place < at => place,
+            place if place >= at + removed => place - removed + inserted,
+            _ => at,
+        };
+        let touched = |place: usize| (at..=at + removed).contains(&place);
+        for (mark, span) in self.marks.iter().zip(resolved.spans.iter_mut()) {
+            *span = match *span {
+                Some((start, end)) if touched(start) || touched(end) => span_of(text, &mark.op),
+                Some((start, end)) => Some((shift(start), shift(end))),
+                None => span_of(text, &mark.op),
+            };
+        }
+        let formats = Arc::make_mut(&mut resolved.formats);
+        formats.replace_runs(
+            at..at + removed,
+            vec![FormatRun {
+                len: inserted,
+                marks: MarkSet::default(),
+            }],
+        );
+        self.repaint_inline(&resolved.spans, formats, at..at + inserted);
+        let first = formats.blocks.partition_point(|block| block.end < at);
+        let last = formats
+            .blocks
+            .partition_point(|block| block.end < at + removed)
+            .max(first)
+            + 1;
+        let last = last.min(formats.blocks.len());
+        let start = formats.blocks.get(first).map_or(0, |block| block.start);
+        let old_end = formats.blocks.get(last - 1).map_or(0, |block| block.end);
+        let end = old_end - removed + inserted;
+        let region = bytes_in(text, start..end);
+        let mut lines: Vec<Block> = Vec::new();
+        let mut line = start;
+        loop {
+            let terminator = start + line_end(&region, line - start);
+            lines.push(Block {
+                start: line,
+                end: terminator,
+                id: block_id(text, terminator),
+                props: MarkSet::default(),
+            });
+            if terminator >= end {
+                break;
+            }
+            line = terminator + 1;
+        }
+        let added = lines.len();
+        for block in &mut formats.blocks[last..] {
+            block.start = block.start - removed + inserted;
+            block.end = block.end - removed + inserted;
+        }
+        formats.blocks.splice(first..last, lines);
+        self.repaint_blocks(&resolved.spans, formats, first..first + added);
+        *self.slot() = Some(resolved);
+    }
+
+    fn repaint_inline(
+        &self,
+        spans: &[Option<(usize, usize)>],
+        formats: &mut Formats,
+        region: Range<usize>,
+    ) {
+        let total = formats.len();
+        let region = region.start.min(total)..region.end.min(total);
+        if region.is_empty() {
+            return;
+        }
+        let mut painted: Vec<(Name, Painted)> = Vec::new();
+        for (mark, span) in self.marks.iter().zip(spans) {
+            let Some((start, end)) = *span else {
+                continue;
+            };
+            if mark.op.scope != Scope::Inline {
+                continue;
+            }
+            let range = start.max(region.start)..end.min(region.end);
+            if range.is_empty() {
+                continue;
+            }
+            paint(&mut painted, &mark.op, range);
+        }
+        let mut bounds: Vec<usize> = painted
+            .iter()
+            .flat_map(|(_, painted)| painted.spans.iter())
+            .flat_map(|(span, _)| [span.start, span.end])
+            .chain([region.start, region.end])
+            .collect();
+        bounds.sort_unstable();
+        bounds.dedup();
+        let mut runs: Vec<FormatRun> = Vec::new();
+        for window in bounds.windows(2) {
+            let marks = resolve(&painted, window[0]);
+            let len = window[1] - window[0];
+            match runs.last_mut() {
+                Some(last) if last.marks == marks => last.len += len,
+                _ => runs.push(FormatRun { len, marks }),
+            }
+        }
+        formats.replace_runs(region, runs);
+    }
+
+    fn repaint_blocks(
+        &self,
+        spans: &[Option<(usize, usize)>],
+        formats: &mut Formats,
+        lines: Range<usize>,
+    ) {
+        for block in &mut formats.blocks[lines] {
+            let mut painted: Vec<(Name, Painted)> = Vec::new();
+            for (mark, span) in self.marks.iter().zip(spans) {
+                match *span {
+                    Some((start, end))
+                        if mark.op.scope == Scope::Block
+                            && start <= block.end
+                            && block.end <= end =>
+                    {
+                        paint(&mut painted, &mark.op, 0..1);
+                    }
+                    _ => {}
+                }
+            }
+            block.props = resolve(&painted, 0);
+        }
+    }
+
+    pub fn formats(&self, text: &Sequence<u8>) -> Arc<Formats> {
+        let mut cache = self.lock();
+        let resolved = cache.get_or_insert_with(|| self.resolve_all(text));
+        Arc::clone(&resolved.formats)
+    }
+
+    fn resolve_all(&self, text: &Sequence<u8>) -> Resolved {
+        let bytes = text.items();
+        let len = bytes.len();
+        let spans: Vec<Option<(usize, usize)>> = self
+            .marks
+            .iter()
+            .map(|mark| span_of(text, &mark.op))
+            .collect();
+        let mut start = 0;
+        let mut blocks: Vec<Block> = memchr::memchr_iter(b'\n', &bytes)
+            .chain(std::iter::once(len))
+            .map(|terminator| {
+                let block = Block {
+                    start,
+                    end: terminator,
+                    id: block_id(text, terminator),
+                    props: MarkSet::default(),
+                };
+                start = terminator + 1;
+                block
+            })
+            .collect();
+        let mut formats = Formats::new(
+            vec![FormatRun {
+                len: len + 1,
+                marks: MarkSet::default(),
+            }],
+            Vec::new(),
+        );
+        self.repaint_inline(&spans, &mut formats, 0..len + 1);
+        formats.blocks = std::mem::take(&mut blocks);
+        let lines = formats.blocks.len();
+        self.repaint_blocks(&spans, &mut formats, 0..lines);
+        Resolved {
+            spans,
+            formats: Arc::new(formats),
         }
     }
 
@@ -413,7 +720,7 @@ impl Marks {
         let Some((start, end)) = span_of(text, op) else {
             return Vec::new();
         };
-        let formats = self.formats(text, bytes);
+        let formats = self.formats(text);
         let mut values: Vec<(Range<usize>, Option<Value>)> = Vec::new();
         let mut extend =
             |range: Range<usize>, value: Option<Value>, adjacent: usize| match values.last_mut() {
@@ -449,80 +756,48 @@ impl Marks {
             })
             .collect()
     }
+}
 
-    pub fn formats(&self, text: &Sequence<u8>, bytes: &[u8]) -> Formats {
-        let len = bytes.len();
-        let terminators: Vec<usize> = memchr::memchr_iter(b'\n', bytes)
-            .chain(std::iter::once(len))
-            .collect();
-        let mut inline: Vec<(Name, Painted)> = Vec::new();
-        let mut block: Vec<(Name, Painted)> = Vec::new();
-        for mark in &self.marks {
-            let Some((start, end)) = span_of(text, &mark.op) else {
-                continue;
-            };
-            let (painted, range) = match mark.op.scope {
-                Scope::Inline => (&mut inline, start..end.min(len)),
-                Scope::Block => (
-                    &mut block,
-                    terminators.partition_point(|terminator| *terminator < start)
-                        ..terminators.partition_point(|terminator| *terminator <= end),
-                ),
-            };
-            let at = match painted.iter().position(|(name, _)| *name == mark.op.key) {
-                Some(at) => at,
-                None => {
-                    painted.push((mark.op.key.clone(), Painted::default()));
-                    painted.len() - 1
-                }
-            };
-            painted[at].1.paint(range, mark.op.value.as_ref());
+fn paint(painted: &mut Vec<(Name, Painted)>, op: &FormatOp, range: Range<usize>) {
+    let at = match painted.iter().position(|(name, _)| *name == op.key) {
+        Some(at) => at,
+        None => {
+            painted.push((op.key.clone(), Painted::default()));
+            painted.len() - 1
         }
-        let resolve = |painted: &[(Name, Painted)], index: usize| {
-            MarkSet::new(
-                painted
-                    .iter()
-                    .filter_map(|(name, painted)| Some((name.clone(), painted.at(index)?.clone()))),
-            )
-        };
-        let mut bounds: Vec<usize> = inline
+    };
+    painted[at].1.paint(range, op.value.as_ref());
+}
+
+fn resolve(painted: &[(Name, Painted)], index: usize) -> MarkSet {
+    MarkSet::new(
+        painted
             .iter()
-            .flat_map(|(_, painted)| painted.spans.iter())
-            .flat_map(|(span, _)| [span.start, span.end])
-            .chain([0, len + 1])
-            .filter(|at| *at <= len + 1)
-            .collect();
-        bounds.sort_unstable();
-        bounds.dedup();
-        let mut runs: Vec<FormatRun> = Vec::new();
-        for window in bounds.windows(2) {
-            let marks = resolve(&inline, window[0]);
-            let len = window[1] - window[0];
-            match runs.last_mut() {
-                Some(last) if last.marks == marks => last.len += len,
-                _ => runs.push(FormatRun { len, marks }),
-            }
+            .filter_map(|(name, painted)| Some((name.clone(), painted.at(index)?.clone()))),
+    )
+}
+
+pub fn bytes_in(text: &Sequence<u8>, range: Range<usize>) -> Vec<u8> {
+    let end = range.end.min(text.len());
+    let mut bytes = Vec::with_capacity(end.saturating_sub(range.start));
+    let mut at = range.start;
+    while at < end {
+        let chunk = text.chunk(at);
+        if chunk.is_empty() {
+            break;
         }
-        let mut start = 0;
-        let blocks = terminators
-            .iter()
-            .enumerate()
-            .map(|(line, terminator)| {
-                let held = Block {
-                    start,
-                    end: *terminator,
-                    id: anchor_in(text, *terminator).unwrap_or(Pos {
-                        client: sequence::LOADED,
-                        offset: 0,
-                    }),
-                    props: resolve(&block, line),
-                };
-                start = terminator + 1;
-                held
-            })
-            .collect();
-        Formats::new(runs, blocks)
+        let taken = chunk.len().min(end - at);
+        bytes.extend_from_slice(&chunk[..taken]);
+        at += taken;
     }
+    bytes
+}
+
+fn block_id(text: &Sequence<u8>, terminator: usize) -> Pos {
+    anchor_in(text, terminator).unwrap_or(Pos {
+        client: sequence::LOADED,
+        offset: 0,
+    })
 }
 
 fn after(text: &Sequence<u8>, anchor: Pos) -> Option<usize> {

@@ -163,6 +163,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
             line,
             start: create_memo(move || model.get().start),
             props: create_memo(move || model.get().props.clone()),
+            line_height: create_memo(move || model.get().line_height),
             text: lines,
         }),
         None => lines,

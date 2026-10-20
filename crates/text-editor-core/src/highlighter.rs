@@ -142,8 +142,60 @@ pub struct SyntaxHighlight {
 enum Styles {
     Uniform { style: SynHlStyle, len: usize },
     Each(Vec<SynHlStyle>),
-    Runs(Vec<(usize, SynHlStyle)>),
+    Rich(Arc<RichSource>),
     Markdown(Arc<MarkdownSource>),
+}
+
+struct RichSource {
+    formats: Arc<Formats>,
+    bytes: Arc<[u8]>,
+    schema: Arc<dyn Schema>,
+    decorated: Mutex<Vec<(usize, Arc<[SynHlStyle]>)>>,
+}
+
+impl RichSource {
+    fn style_at(&self, index: usize) -> Option<SynHlStyle> {
+        let marks = self.formats.marks_at(index)?;
+        let blocks = &self.formats.blocks;
+        let at = blocks.partition_point(|block| block.end < index);
+        let block = blocks.get(at)?;
+        let decoration = self.schema.decorate(&block.props).and_then(|language| {
+            let mut first = at;
+            while first > 0 && self.schema.decorate(&blocks[first - 1].props) == Some(language) {
+                first -= 1;
+            }
+            let start = blocks[first].start;
+            let styles = self.decorations(start, || {
+                let mut last = at;
+                while last + 1 < blocks.len()
+                    && self.schema.decorate(&blocks[last + 1].props) == Some(language)
+                {
+                    last += 1;
+                }
+                let end = blocks[last].end.min(self.bytes.len());
+                decorations(language, &self.bytes[start..end]).into()
+            });
+            styles.get(index - start).copied()
+        });
+        Some(self.schema.leaf_style(marks, &block.props, decoration))
+    }
+
+    fn decorations(
+        &self,
+        start: usize,
+        lex: impl FnOnce() -> Arc<[SynHlStyle]>,
+    ) -> Arc<[SynHlStyle]> {
+        let mut decorated = self
+            .decorated
+            .lock()
+            .expect("the decorations were poisoned");
+        if let Some((_, styles)) = decorated.iter().find(|(held, _)| *held == start) {
+            return Arc::clone(styles);
+        }
+        let styles = lex();
+        decorated.push((start, Arc::clone(&styles)));
+        styles
+    }
 }
 
 struct MarkdownSource {
@@ -289,50 +341,14 @@ impl SyntaxHighlight {
         }
     }
 
-    fn rich(formats: &Formats, bytes: &[u8], schema: &dyn Schema) -> Self {
-        let mut runs: Vec<(usize, SynHlStyle)> = Vec::new();
-        let mut push = |len: usize, style: SynHlStyle| match runs.last_mut() {
-            Some((end, last)) if *last == style => *end += len,
-            _ => {
-                let end = runs.last().map_or(0, |(end, _)| *end);
-                runs.push((end + len, style));
-            }
-        };
-        let blocks = &formats.blocks;
-        let mut first = 0;
-        while first < blocks.len() {
-            let language = schema.decorate(&blocks[first].props);
-            let mut last = first + 1;
-            while language.is_some()
-                && last < blocks.len()
-                && schema.decorate(&blocks[last].props) == language
-            {
-                last += 1;
-            }
-            let start = blocks[first].start;
-            let decoration = language.map(|language| {
-                decorations(
-                    language,
-                    &bytes[start..blocks[last - 1].end.min(bytes.len())],
-                )
-            });
-            for block in &blocks[first..last] {
-                for (range, marks) in formats.marks_in(block.start..block.end + 1) {
-                    match &decoration {
-                        None => push(range.len(), schema.leaf_style(marks, &block.props, None)),
-                        Some(decoration) => {
-                            for at in range {
-                                let decorated = decoration.get(at - start).copied();
-                                push(1, schema.leaf_style(marks, &block.props, decorated));
-                            }
-                        }
-                    }
-                }
-            }
-            first = last;
-        }
+    fn rich(formats: Arc<Formats>, bytes: Arc<[u8]>, schema: Arc<dyn Schema>) -> Self {
         Self {
-            styles: Styles::Runs(runs),
+            styles: Styles::Rich(Arc::new(RichSource {
+                formats,
+                bytes,
+                schema,
+                decorated: Mutex::default(),
+            })),
         }
     }
 
@@ -354,9 +370,7 @@ impl SyntaxHighlight {
                 false => invalid,
             },
             Styles::Each(styles) => styles.get(byte_index).copied().unwrap_or(invalid),
-            Styles::Runs(runs) => runs
-                .get(runs.partition_point(|(end, _)| *end <= byte_index))
-                .map_or(invalid, |(_, style)| *style),
+            Styles::Rich(source) => source.style_at(byte_index).unwrap_or(invalid),
             Styles::Markdown(source) => {
                 if byte_index >= source.bytes.len() {
                     return invalid;
@@ -387,9 +401,10 @@ impl SyntaxHighlight {
         styles
     }
 
-    pub fn markdown_bytes(&self) -> Option<Arc<[u8]>> {
+    pub fn bytes(&self) -> Option<Arc<[u8]>> {
         match &self.styles {
             Styles::Markdown(source) => Some(Arc::clone(&source.bytes)),
+            Styles::Rich(source) => Some(Arc::clone(&source.bytes)),
             _ => None,
         }
     }
@@ -566,9 +581,12 @@ impl Highlighter {
             let Some(read) = self.document.read() else {
                 return SyntaxHighlight::plaintext(0);
             };
-            let bytes = read.slice(0..read.len());
             return match read.formats() {
-                Some(formats) => SyntaxHighlight::rich(&formats, &bytes, &*self.schema),
+                Some(formats) => SyntaxHighlight::rich(
+                    formats,
+                    read.slice(0..read.len()).into(),
+                    Arc::clone(&self.schema),
+                ),
                 None => SyntaxHighlight::plaintext(read.len()),
             };
         }

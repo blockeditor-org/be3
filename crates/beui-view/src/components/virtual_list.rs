@@ -16,8 +16,11 @@ struct Slot<K: 'static> {
     scope: Scope,
 }
 
+type Held<K> = Rc<RefCell<Option<Slot<K>>>>;
+
 struct Pool<K: 'static> {
     free: Vec<Slot<K>>,
+    shown: Vec<Held<K>>,
     live: usize,
     peak: usize,
 }
@@ -35,6 +38,7 @@ where
 {
     let pool = Rc::new(RefCell::new(Pool::<K> {
         free: Vec::new(),
+        shown: Vec::new(),
         live: 0,
         peak: 0,
     }));
@@ -69,14 +73,20 @@ where
                 }
             };
             let node = slot.node;
+            let shown: Held<K> = Rc::new(RefCell::new(Some(slot)));
             {
                 let mut held = building.borrow_mut();
                 held.live += 1;
                 held.peak = held.peak.max(held.live);
+                held.shown.push(Rc::clone(&shown));
             }
             let releasing = Rc::clone(&building);
             on_cleanup(move || {
                 let mut held = releasing.borrow_mut();
+                held.shown.retain(|other| !Rc::ptr_eq(other, &shown));
+                let Some(slot) = shown.borrow_mut().take() else {
+                    return;
+                };
                 held.live -= 1;
                 if held.free.len() < held.peak {
                     slot.scope.pause();
@@ -86,7 +96,19 @@ where
             node
         })
     });
-    on_cleanup(move || pool.borrow_mut().free.clear());
+    on_cleanup(move || {
+        let (free, shown) = {
+            let mut held = pool.borrow_mut();
+            (
+                std::mem::take(&mut held.free),
+                std::mem::take(&mut held.shown),
+            )
+        };
+        drop(free);
+        for slot in shown {
+            drop(slot.borrow_mut().take());
+        }
+    });
     create_effect(move || {
         with_document(|document| document.set_virtual_list_direction::<K>(list, direction.get()))
     });

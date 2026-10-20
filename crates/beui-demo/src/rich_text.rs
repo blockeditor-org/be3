@@ -31,7 +31,6 @@ const EDITOR_HEIGHT: f32 = 420.0;
 const LEAD_WIDTH: f32 = 28.0;
 const INDENT_WIDTH: f32 = 24.0;
 const BULLET_SIZE: f32 = 6.0;
-const MARKER_TOP: f32 = 5.0;
 const QUOTE_BAR: f32 = 3.0;
 const QUOTE_GAP: f32 = 10.0;
 const CODE_PADDING: f32 = 8.0;
@@ -210,6 +209,7 @@ fn RichBlock(block: BlockView) -> NodeId {
         line,
         start,
         props,
+        line_height,
         text,
     } = block;
     let list = create_memo(move || {
@@ -223,7 +223,8 @@ fn RichBlock(block: BlockView) -> NodeId {
         true => Some(LEAD_WIDTH + indent.get()),
         false => Some(0.0),
     });
-    let marker = create_memo(move || Sides::new(indent.get(), MARKER_TOP, 0.0, 0.0));
+    let marker = create_memo(move || Sides::new(indent.get(), 0.0, 0.0, 0.0));
+    let first_line = create_memo(move || Some(line_height.get()));
     let fill = create_memo(move || match code.get() {
         true => ColorRole::Surface,
         false => ColorRole::None,
@@ -240,12 +241,14 @@ fn RichBlock(block: BlockView) -> NodeId {
                         <Frame width=QUOTE_BAR fill=ColorRole::Accent />
                     </Frame>
                 </Show>
-                <Frame width=lead padding=marker>
-                    <List spacing=0.0>
-                        <Show condition={listed}>
-                            <ListMarker state line start props kind={list} />
-                        </Show>
-                    </List>
+                <Frame width=lead padding=marker align={Align2::new(Align::Start, Align::Start)}>
+                    <Frame height=first_line align={Align2::new(Align::Start, Align::Center)}>
+                        <List spacing=0.0>
+                            <Show condition={listed}>
+                                <ListMarker state line start props kind={list} />
+                            </Show>
+                        </List>
+                    </Frame>
                 </Frame>
                 <Frame @sizing=ItemSize::Percent(100.0)>{text}</Frame>
             </List>
@@ -327,7 +330,11 @@ fn Mention(void: VoidView) -> NodeId {
         })
     });
     view! {
-        <Frame fill=ColorRole::AccentSoft radius=Radius::Md>
+        <Frame
+            @test_id={format!("demo.rich.{}", name.get_untracked())}
+            fill=ColorRole::AccentSoft
+            radius=Radius::Md
+        >
             <Text string={name} align=TextAlign::Center vertical_align=TextAlign::Center />
         </Frame>
     }

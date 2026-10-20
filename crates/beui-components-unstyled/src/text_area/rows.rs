@@ -216,6 +216,14 @@ impl Row {
         self.display.len()
     }
 
+    pub fn inline_source(&self, item: usize) -> Option<Range<usize>> {
+        let span = self
+            .spans
+            .iter()
+            .find(|span| span.kind == SpanKind::Inline(item))?;
+        Some(self.to_source(span.range.start)..self.to_source(span.range.end))
+    }
+
     pub fn to_source(&self, display: usize) -> usize {
         let source = match self
             .segments
@@ -294,17 +302,19 @@ impl Row {
             .collect()
     }
 
-    pub fn flow_inline(&self, flow: usize) -> Option<&InlineItem> {
-        let index = self
-            .spans
+    pub fn flow_item(&self, flow: usize) -> Option<usize> {
+        self.spans
             .iter()
             .filter(|span| matches!(span.kind, SpanKind::Inline(_)))
             .nth(flow)
             .and_then(|span| match span.kind {
                 SpanKind::Inline(index) => Some(index),
                 _ => None,
-            })?;
-        self.inline.get(index)
+            })
+    }
+
+    pub fn flow_inline(&self, flow: usize) -> Option<&InlineItem> {
+        self.inline.get(self.flow_item(flow)?)
     }
 }
 
@@ -938,6 +948,10 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     }
     builder.spacers(end, body);
     builder.runs(runs, end, builder.span_style(style_at(end)));
+    let ending = builder.span_style(style_at(end)).font;
+    if !builder.fonts.contains(&ending) {
+        builder.fonts.push(ending);
+    }
     if newline && invisibles {
         let style = SpanStyle {
             color: Color32::TRANSPARENT,

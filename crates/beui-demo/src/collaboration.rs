@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use text_editor_core::{
     Change, ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, FormatOp, Formats,
-    Mark, Marks, Pos, Position, RichOp, Seed, SeqOp, Sequence, TextChange, TextIndentation,
+    Mark, Marks, Pos, Position, RichOp, Seed, SeqOp, Sequence, Splice, TextChange, TextIndentation,
     TextLanguage, TextRun, anchor_in, anchor_index_in, changed, deleted_anchor_index_in,
     format_change, format_op, formats_in, runs_in,
 };
@@ -110,6 +110,12 @@ impl Peer {
         self.changes.record(self.revision, change);
     }
 
+    fn show(&mut self, op: &SeqOp<u8>) -> Option<Vec<Splice>> {
+        let splices = self.visible.apply(op)?;
+        self.marks.splice(&self.visible, &splices);
+        Some(splices)
+    }
+
     fn rebuild(&mut self) -> TextChange {
         let before = self.visible.items();
         let mut visible = self.confirmed.clone();
@@ -118,6 +124,7 @@ impl Peer {
             visible.apply(op);
         }
         self.visible = visible;
+        self.marks.invalidate();
         difference(&before, self.visible.mirrored().unwrap_or_default())
     }
 }
@@ -163,7 +170,7 @@ impl Simulation {
             .count()
     }
 
-    pub fn formats(&self, side: Side) -> Option<Formats> {
+    pub fn formats(&self, side: Side) -> Option<Arc<Formats>> {
         let peer = &self.peers[side.index()];
         formats_in(&peer.visible, &peer.marks, peer.language)
     }
@@ -290,7 +297,7 @@ impl Simulation {
         match message {
             Message::Caret(caret) => owner.seen = Some(caret),
             Message::Mark(mark) => {
-                if owner.marks.apply(mark.clone()) {
+                if owner.marks.apply(&owner.visible, mark.clone()) {
                     let change = format_change(&owner.visible, &mark.op);
                     owner.external = true;
                     owner.bump(Some(change));
@@ -300,12 +307,9 @@ impl Simulation {
             }
             Message::Edit(author, op) => {
                 owner.confirmed.apply(&op);
-                let change = owner
-                    .visible
-                    .apply(&op)
-                    .map_or(TextChange::NONE, |splices| {
-                        changed(TextChange::NONE, &splices)
-                    });
+                let change = owner.show(&op).map_or(TextChange::NONE, |splices| {
+                    changed(TextChange::NONE, &splices)
+                });
                 owner.external = true;
                 owner.bump(Some(change));
                 let sent = self.sent(now);
@@ -319,7 +323,7 @@ impl Simulation {
         match message {
             Message::Caret(caret) => follower.seen = Some(caret),
             Message::Mark(mark) => {
-                if follower.marks.apply(mark.clone()) {
+                if follower.marks.apply(&follower.visible, mark.clone()) {
                     let change = format_change(&follower.visible, &mark.op);
                     follower.external = true;
                     follower.bump(Some(change));
@@ -331,14 +335,9 @@ impl Simulation {
                     follower.pending.pop_front();
                     None
                 } else if follower.pending.is_empty() {
-                    Some(
-                        follower
-                            .visible
-                            .apply(&op)
-                            .map_or(TextChange::NONE, |splices| {
-                                changed(TextChange::NONE, &splices)
-                            }),
-                    )
+                    Some(follower.show(&op).map_or(TextChange::NONE, |splices| {
+                        changed(TextChange::NONE, &splices)
+                    }))
                 } else {
                     Some(follower.rebuild())
                 };
@@ -352,7 +351,7 @@ impl Simulation {
 
     fn submit(&mut self, side: Side, op: SeqOp<u8>, now: Instant) -> Option<TextChange> {
         let peer = &mut self.peers[side.index()];
-        let splices = peer.visible.apply(&op)?;
+        let splices = peer.show(&op)?;
         if side == Side::Left {
             peer.confirmed.apply(&op);
         }
@@ -373,7 +372,7 @@ impl Simulation {
     fn mark(&mut self, side: Side, op: FormatOp, now: Instant) -> TextChange {
         let peer = &mut self.peers[side.index()];
         let change = format_change(&peer.visible, &op);
-        let mark = peer.marks.mint(side.client(), op);
+        let mark = peer.marks.mint(&peer.visible, side.client(), op);
         let sent = self.sent(now);
         self.queue_mut(side).push_back((Message::Mark(mark), sent));
         change
@@ -569,7 +568,7 @@ impl DocumentRead for SideRead<'_> {
         runs_in(&self.peer().visible)
     }
 
-    fn formats(&self) -> Option<Formats> {
+    fn formats(&self) -> Option<Arc<Formats>> {
         let peer = self.peer();
         formats_in(&peer.visible, &peer.marks, peer.language)
     }
@@ -645,7 +644,7 @@ impl DocumentRead for Transaction<'_> {
         self.simulation.peers[self.side.index()].indentation
     }
 
-    fn formats(&self) -> Option<Formats> {
+    fn formats(&self) -> Option<Arc<Formats>> {
         let peer = self.peer();
         formats_in(&peer.visible, &peer.marks, peer.language)
     }

@@ -20,18 +20,18 @@ fn rich_text_marks_converge_in_any_order() {
 
     let mut left = Marks::default();
     let mut right = Marks::default();
-    let first = left.mint(1, op(0..6, Some(Value::Bool(true))));
-    let second = right.mint(2, op(3..11, None));
-    left.apply(second.clone());
-    right.apply(first.clone());
-    right.apply(first.clone());
+    let first = left.mint(&text, 1, op(0..6, Some(Value::Bool(true))));
+    let second = right.mint(&text, 2, op(3..11, None));
+    left.apply(&text, second.clone());
+    right.apply(&text, first.clone());
+    right.apply(&text, first.clone());
 
     assert_eq!(left, right);
     assert_eq!(
         first.id.clock, second.id.clock,
         "both sides minted their first mark"
     );
-    let formats = left.formats(&text, &bytes);
+    let formats = left.formats(&text);
     let bolded: Vec<bool> = (0..bytes.len())
         .map(|at| formats.marks_at(at).unwrap().get("bold").is_some())
         .collect();

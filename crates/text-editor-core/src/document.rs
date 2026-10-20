@@ -1,7 +1,7 @@
 use std::{
     borrow::Cow,
     ops::Range,
-    sync::{RwLock, RwLockReadGuard, RwLockWriteGuard},
+    sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard},
 };
 
 use sequence::{LOADED, Pos, SeqOp, Sequence, Splice};
@@ -96,7 +96,7 @@ pub trait DocumentRead {
         Vec::new()
     }
 
-    fn formats(&self) -> Option<Formats> {
+    fn formats(&self) -> Option<Arc<Formats>> {
         None
     }
 
@@ -208,7 +208,7 @@ impl DocumentRead for DocumentView<'_> {
         self.read.runs()
     }
 
-    fn formats(&self) -> Option<Formats> {
+    fn formats(&self) -> Option<Arc<Formats>> {
         self.read.formats()
     }
 
@@ -256,8 +256,8 @@ pub fn formats_in(
     sequence: &Sequence<u8>,
     marks: &Marks,
     language: TextLanguage,
-) -> Option<Formats> {
-    (language == TextLanguage::RichText).then(|| marks.formats(sequence, &sequence.items()))
+) -> Option<Arc<Formats>> {
+    (language == TextLanguage::RichText).then(|| marks.formats(sequence))
 }
 
 pub fn deleted_anchor_index_in(sequence: &Sequence<u8>, anchor: Pos) -> Option<usize> {
@@ -382,11 +382,12 @@ impl BufferState {
             match operation {
                 RichOp::Text(operation) => {
                     if let Some(splices) = self.text.apply(operation) {
+                        self.marks.splice(&self.text, &splices);
                         change = changed(change, &splices);
                     }
                 }
                 RichOp::Format(operation) => {
-                    self.marks.mint(LOCAL, operation.clone());
+                    self.marks.mint(&self.text, LOCAL, operation.clone());
                     change = change.then(format_change(&self.text, operation));
                 }
             }
@@ -506,7 +507,7 @@ impl DocumentRead for BufferRead<'_> {
         runs_in(&self.state.text)
     }
 
-    fn formats(&self) -> Option<Formats> {
+    fn formats(&self) -> Option<Arc<Formats>> {
         formats_in(&self.state.text, &self.state.marks, self.state.language)
     }
 
@@ -535,6 +536,8 @@ impl BufferEdit<'_> {
         let Some(splices) = self.state.text.apply(&operation) else {
             return;
         };
+        let state = &mut *self.state;
+        state.marks.splice(&state.text, &splices);
         self.state.pending = changed(self.state.pending, &splices);
         self.done.undo.push(RichOp::Text(undo));
         self.done.redo.push(RichOp::Text(redo));
@@ -566,7 +569,7 @@ impl DocumentRead for BufferEdit<'_> {
         runs_in(&self.state.text)
     }
 
-    fn formats(&self) -> Option<Formats> {
+    fn formats(&self) -> Option<Arc<Formats>> {
         formats_in(&self.state.text, &self.state.marks, self.state.language)
     }
 
@@ -619,7 +622,7 @@ impl DocumentEdit for BufferEdit<'_> {
             return;
         };
         state.pending = state.pending.then(format_change(&state.text, &op));
-        state.marks.mint(LOCAL, op.clone());
+        state.marks.mint(&state.text, LOCAL, op.clone());
         self.done
             .undo
             .extend(undo.into_iter().rev().map(RichOp::Format));

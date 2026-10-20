@@ -62,8 +62,11 @@ mod rich_text_a_style_toggled_at_the_caret_applies_to_what_is_typed_next;
 mod rich_text_a_transform_composes_generic_operations;
 mod rich_text_a_void_is_one_step_for_the_caret_and_carries_its_props;
 mod rich_text_backspace_at_a_block_start_lifts_its_props;
+mod rich_text_backspace_inside_a_code_block_joins_its_lines;
 mod rich_text_bold_toggles_over_a_selection;
 mod rich_text_enter_continues_a_list_and_lifts_out_of_an_empty_item;
+mod rich_text_formats_kept_across_edits_match_formats_resolved_afresh;
+mod rich_text_joining_lines_keeps_the_first_lines_block;
 mod rich_text_marks_converge_in_any_order;
 mod rich_text_tab_indents_a_list_item;
 mod rich_text_typing_continues_the_format_before_the_caret;
@@ -246,5 +249,12 @@ impl EditorTester {
             "cursors: {:?}",
             self.editor.cursor_positions()
         );
+    }
+}
+
+fn backspace() -> EditorCommand<'static> {
+    EditorCommand::Delete {
+        direction: LRDirection::Left,
+        stop: CursorLeftRightStop::UnicodeGraphemeCluster,
     }
 }

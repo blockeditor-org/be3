@@ -58,6 +58,7 @@ pub struct BlockView {
     pub line: ReadSignal<usize>,
     pub start: Memo<usize>,
     pub props: Memo<text_editor_core::MarkSet>,
+    pub line_height: Memo<f32>,
     pub text: NodeId,
 }
 
@@ -289,12 +290,14 @@ impl Surface {
         Some(entry.row().to_source(display))
     }
 
-    fn inline_at(&self, pos: Pos2) -> Option<(RowEntry, InlineItem)> {
+    fn inline_at(&self, pos: Pos2) -> Option<(RowEntry, usize, InlineItem)> {
         let entry = self.row_at(pos)?;
         let text = entry.text()?;
-        let index = text.inline_at(self.shifted(&text, pos))?;
-        let item = entry.row().flow_inline(index)?.clone();
-        Some((entry, item))
+        let flow = text.inline_at(self.shifted(&text, pos))?;
+        let row = entry.row();
+        let index = row.flow_item(flow)?;
+        let item = row.inline.get(index)?.clone();
+        Some((entry, index, item))
     }
 
     fn gutter_arrow_at(&self, pos: Pos2) -> Option<usize> {
@@ -805,7 +808,7 @@ fn hold(cx: &Context, press: PointerPress) {
 }
 
 fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
-    if let Some((_, item)) = cx.inline_at(pos) {
+    if let Some((entry, index, item)) = cx.inline_at(pos) {
         match item.inline {
             Inline::Checkbox { .. } => {
                 cx.state.set_selecting(false);
@@ -826,7 +829,19 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                 cx.state.set_selecting(false);
                 return;
             }
-            Inline::Run | Inline::Void => {}
+            Inline::Void => {
+                let Some(range) = entry.row().inline_source(index) else {
+                    return;
+                };
+                let (anchor, focus) = cx
+                    .state
+                    .with_core(|core| (core.position(range.start), core.position(range.end)));
+                cx.state
+                    .execute(EditorCommand::SetSelection { anchor, focus });
+                cx.state.set_selecting(false);
+                return;
+            }
+            Inline::Run => {}
         }
     }
     let Some(target) = cx.hit(pos) else {
@@ -1633,6 +1648,7 @@ fn hover_cursor(cx: &Context, pos: Pos2) -> CursorIcon {
     let pointing = matches!(
         cx.inline_at(pos),
         Some((
+            _,
             _,
             InlineItem {
                 inline: Inline::Checkbox { .. },
