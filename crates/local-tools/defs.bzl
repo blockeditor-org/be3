@@ -5,7 +5,7 @@ load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
 # whatever machine deploys them, in the profile the command asks for
 # (-m release). Each download is zipped on a worker by buck-tools archive under
 # a folder of its own name, so only the zips come back here, and the APK is
-# sent as it is.
+# finalized and signed locally before upload.
 
 def _linux_x86_64_impl(platform: PlatformInfo, refs: struct) -> PlatformInfo:
     return keep_profile(platform, refs.linux_x86_64[PlatformInfo], refs)
@@ -86,13 +86,14 @@ def _deploy_impl(ctx: AnalysisContext) -> list[Provider]:
     if ctx.attrs.app_android:
         apk = ctx.attrs.app_android[DefaultInfo].default_outputs[0]
         command.add("--download", cmd_args("android=", apk, delimiter = ""))
+        command.add("--apk-metadata", ctx.attrs.be_linux_x86_64[DefaultInfo].default_outputs[0].project("build-info.json"))
     return [DefaultInfo(), RunInfo(args = command)]
 
 _NATIVE = ["linux_x86_64", "linux_arm64", "macos_arm64", "macos_x86_64", "windows_x86_64", "windows_arm64"]
 
 deploy = rule(
     attrs = {
-        # The APK, signed on a worker with the release keystore, which builds
+        # The unsigned APK template, finalized locally with the release key, which builds
         # for Android whatever the command is configured for. It and the
         # other downloads are left out when ./scripts/deploy skips them, so
         # that nothing builds them.

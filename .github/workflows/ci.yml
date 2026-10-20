@@ -56,7 +56,7 @@ jobs:
   # Accepting a painting that changed, or one that is new, is on purpose:
   # the commit that carries it is what a reviewer looks at in Paint review.
   #
-  # The Android builds are signed on a worker with CI's keystore, the secret
+  # The Android builds are signed on this runner with CI's keystore, the secret
   # ANDROID_CI_KEYSTORE_BASE64, so successive CI builds install as updates
   # over one another. The plugins are in each, since an APK has nowhere else
   # to find them.
@@ -110,7 +110,8 @@ jobs:
       - uses: ./.github/actions/buck2
         if: ${{ !cancelled() }}
 
-      # Where buck/android:ci-keystore finds it, for :android-dist to sign with.
+      # A local runtime file for the finalizer. Keep this path for workflows
+      # that also run older PR checkouts whose Buck rules still read it.
       - name: Write CI's Android keystore
         if: ${{ !cancelled() }}
         env:

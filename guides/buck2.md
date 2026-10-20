@@ -24,7 +24,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck build //crates/block-app:plugins --out DIR` | the plugins alone, shared by every platform |
 | `./scripts/buck build //crates/block-app:web --out DIR` | the web bundle with every plugin (`:web-dist` without) |
 | `./scripts/buck run //crates/block-app:web` | the web bundle and `be-server`, on http://127.0.0.1:8080 |
-| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's, signed on a worker with CI's key) |
+| `./scripts/buck run //crates/block-app:android -- --install` | the APK, signed with this machine's key, installed and started (`build :android-dist` is CI's unsigned template; `./scripts/ci --android DIR` signs on the runner) |
 | `./scripts/buck run //crates/beui-demo:native` | beui's demo in a window |
 | `./scripts/buck run //crates/beui:example-survey` | a crate example; every example is `example-<name>` |
 | `./scripts/buck run -m release //crates/beui:example-text-bench -- [NAME] [--frames N]` | beui's text benchmarks: per-frame times for resizing wrapped text and labels, editing a paragraph or one span, and typing into a text area; NAME picks the scenarios whose names contain it. Compare a change by running it on the change and on its base |
@@ -270,7 +270,7 @@ turns.
 | `linux_arm64` | `buck/sysroot:arm64` | lld |
 | `macos_arm64`, `macos_x86_64` | MacOSX15.5 SDK (`buck/tools:macos-sdk`) | `ld64.lld` |
 | `windows_arm64`, `windows_x86_64` | MSVC runtime and Windows SDK via xwin | `lld-link`, `llvm-lib` |
-| `android_arm64` | NDK r29, API 26 | lld |
+| `android_arm64` | NDK r29, API 24 | lld |
 | `wasi` | the WASI sysroot | rust-lld (block-app on the web) |
 | `wasi_guest` | the WASI sysroot | rust-lld through crates/wasm-link (the plugins and their SDK) |
 | `wasm32` | nothing | rust-lld (the games, the gpu shim) |
@@ -311,12 +311,15 @@ A native target depends on a wasm one through a transition in
   aapt2, javac and d8, block-app's `[cdylib]` and `libc++_shared.so`, the
   plugins precompiled for arm64 (only the `.cwasm`s), and `zipalign -P 16`. The Java is
   the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
-  platform alone: the APK carries no libraries. `:android` is the unsigned dev APK (`com.be3.block.dev`, `Block (Dev)`), and
-  `buck2 run` on it signs it locally with `target/android-debug.keystore`,
-  made on first use. `:android-dist` signs on a worker with CI's keystore,
-  `buck/android/ci-keystore.base64` (guides/build_server.md), with its
-  own application id and label (`com.be3.block.ci`, `Block (CI)`) so it
-  installs beside a local build.
+  platform alone: the APK carries no libraries. Every Android target builds
+  an aligned unsigned template without build metadata. `buck2 run` appends
+  metadata and signs on the requesting machine with `local-tools apk-sign`. `:android` uses `target/android-debug.keystore`, made on first use.
+  `:android-dist` has its own identity (`com.be3.block.ci`, `Block (CI)`), and
+  `./scripts/ci --android DIR` finalizes both APKs on the CI runner with its
+  existing key. Deploy finalizes `:android-release` locally before upload.
+  Only signed, finalized APKs can be installed; `buck build --out` returns a
+  template. The minimum Android API and native toolchain API are 24, and
+  signing uses v2 alone. Keys never enter action inputs (guides/running/android.md).
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
 - `crates/be-launcher` is an APK too. It downloads and installs the APKs CI
@@ -343,10 +346,20 @@ extension ships: the toolchain's panics on this workspace.
   under cargo. What cargo builds for the machine running the build - proc
   macros, build scripts and their dependencies - is one build here, the
   `linux-x86_64` one, with the union of what every plan asks of it.
-- **The compiler stays stable.** `nightly_features = False` in
-  `buck/toolchains/BUCK`: otherwise the prelude sets `RUSTC_BOOTSTRAP=1`, and
-  `cfg(target_feature = "atomics")` on `wasm32-wasip1-threads` then answers
-  differently from cargo, which broke wgpu's `Send`/`Sync` checks.
+- **Pipelining.** `nightly_features = True` in `buck/toolchains/BUCK`, so a
+  crate's dependents compile against a `-Zno-codegen` metadata compile of it
+  rather than wait for its codegen; the prelude then sets `RUSTC_BOOTSTRAP=1`
+  for every rustc. The metadata compile and the real one must agree on the
+  crate's hash, so a crate must not take in the absolute path of the directory
+  its compile runs in, which is different for every action: not by
+  `env!("CARGO_MANIFEST_DIR")`, nor by a macro that writes an `include_bytes!`
+  of an absolute path. A dependent's link otherwise fails with E0460, "found
+  possibly newer version of crate". `third-party/rust/fixups.bzl` overlays the
+  third-party crates that did (witx, wasmtime's `bindgen!`).
+- **Plugins compile at opt-level 0** outside a release build, while their
+  dependencies keep the plugin profile's 2 (`editor()` and `plugin_tests()` in
+  `buck/wasm/defs.bzl`), and test modules are precompiled with Cranelift's
+  optimizations off (`--quick`): a change under beui recompiles every plugin.
 - **The key.** A server answers a call with a wrong or missing key or token
   with `UNAUTHENTICATED`, which buck2 reports as failing to reach it.
 - **Downloads.** Every `http_archive` has `size_bytes` as well as `sha256`;

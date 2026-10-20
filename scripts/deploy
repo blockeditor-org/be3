@@ -9,10 +9,8 @@
 # mirror's download page at the build, and pins the uploaded be in
 # scripts/internal/common.sh to commit.
 #
-# After building, Rust asks for missing Bunny credentials and saves them in
-# ~/.config/be3. Before building, Bash prepares the APK signing keystore
-# (android-release-keystore.base64), which it can make anew and copies to
-# buck/android/release-keystore.base64 for the build. --skip-downloads and
+# After building, Rust reads or asks for the local signing key and Bunny
+# credentials. No key is an input of the build. --skip-downloads and
 # --skip-android leave the downloads, or only the APK and so the keystore, out
 # of the build (be3.deploy_downloads and be3.deploy_android). --android-id and
 # --android-label name the APK, com.be3.block and Block unless given, so that
@@ -28,12 +26,10 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
 
-config="${XDG_CONFIG_HOME:-$HOME/.config}/be3"
 android_id='com.be3.block'
 android_label='Block'
 downloads=true
 android=true
-help=false
 arguments=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -52,7 +48,6 @@ while [[ $# -gt 0 ]]; do
             continue
             ;;
         --skip-downloads) downloads=false ;;
-        --help | -h) help=true ;;
     esac
     arguments+=("$1")
     shift
@@ -60,80 +55,6 @@ done
 if [[ ! "$android_id" =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$ ]]; then
     echo "deploy: --android-id takes an Android application id such as com.be3.block, not '$android_id'" >&2
     exit 1
-fi
-
-# A new keystore, base64, signed the way the build's signing expects:
-# store and key password `android`. keytool where there is one, else openssl.
-new_keystore() {
-    local scratch
-    scratch="$(mktemp -d)"
-    if command -v keytool > /dev/null; then
-        keytool -genkeypair -keystore "$scratch/keystore" -storetype PKCS12 -storepass android \
-            -alias release -keypass android -dname 'CN=Block' -keyalg RSA -keysize 4096 \
-            -validity 36500 > /dev/null 2>&1
-    elif command -v openssl > /dev/null; then
-        openssl req -x509 -newkey rsa:4096 -nodes -keyout "$scratch/key.pem" -out "$scratch/cert.pem" \
-            -days 36500 -subj '/CN=Block' > /dev/null 2>&1
-        openssl pkcs12 -export -inkey "$scratch/key.pem" -in "$scratch/cert.pem" -name release \
-            -passout pass:android -out "$scratch/keystore"
-    else
-        echo 'deploy: making a keystore needs keytool (a JDK) or openssl.' >&2
-        rm -rf "$scratch"
-        exit 1
-    fi
-    base64 < "$scratch/keystore" | tr -d '\n'
-    rm -rf "$scratch"
-}
-
-# The keystore the APK is signed with, kept in ~/.config/be3 and copied into
-# the checkout, where the signing action reads it.
-keystore() {
-    local saved="$config/android-release-keystore.base64" choice path
-    if [[ ! -f "$saved" ]]; then
-        if [[ ! -t 0 || ! -t 2 ]]; then
-            echo "deploy: there is no keystore to sign the APK with at $saved; run ./scripts/deploy at a terminal to make or give one." >&2
-            exit 1
-        fi
-        echo "./scripts/deploy signs the APK with a keystore of its own. Android installs an" >&2
-        echo 'update only when it is signed with the same key, so keep it: a new one means' >&2
-        echo 'everyone uninstalls the app once.' >&2
-        echo '  1) make a new one' >&2
-        echo '  2) use a keystore file (PKCS12 or JKS, password android, or base64 of one)' >&2
-        read -r -p 'Keystore [1-2]: ' choice
-        mkdir -p "$config"
-        case "$choice" in
-            1)
-                (umask 077 && new_keystore > "$saved")
-                echo "Made one and saved it to $saved. Keep a copy somewhere safe." >&2
-                ;;
-            2)
-                read -r -p 'Keystore file: ' path
-                path="${path/#\~/$HOME}"
-                if [[ ! -f "$path" ]]; then
-                    echo "deploy: there is no file $path" >&2
-                    exit 1
-                fi
-                if LC_ALL=C grep -q '[^A-Za-z0-9+/=[:space:]]' "$path"; then
-                    (umask 077 && base64 < "$path" | tr -d '\n' > "$saved")
-                else
-                    (umask 077 && tr -d '[:space:]' < "$path" > "$saved")
-                fi
-                echo "Saved it to $saved." >&2
-                ;;
-            *)
-                echo 'deploy: pick 1 or 2.' >&2
-                exit 1
-                ;;
-        esac
-    fi
-    (umask 077 && cp "$saved" "$repository/buck/android/release-keystore.base64")
-}
-
-$downloads || android=false
-if ! $help; then
-    if $android; then
-        keystore
-    fi
 fi
 
 export BE3_APP_ID=Block
