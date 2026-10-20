@@ -14,12 +14,6 @@ set -euo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 
-# Its archives are checked against these hashes, by the platform upstream
-# names them after.
-nsc_version='0.0.587'
-nsc_sha256_linux_amd64='f47a9eff06f41d0f342277ba097e04a215bd88019f184271042f8eb5ec94018f'
-nsc_sha256_linux_arm64='fc121a4fda8083f9e2815a2ecb4e75d06649b98316d4c793434d03fc443a1516'
-
 if [[ $# -gt 1 ]]; then
     echo 'Usage: install-nsc.sh [linux_amd64 | linux_arm64]' >&2
     exit 1

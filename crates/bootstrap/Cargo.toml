@@ -1,0 +1,19 @@
+[package]
+name = "bootstrap"
+description = "What every script in scripts/ runs: buck2 and its build server, and the commands around it"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+sha2 = "0.10"
+zstd = { version = "0.13", default-features = false }
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
+
+[lints]
+workspace = true

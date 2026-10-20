@@ -1681,6 +1681,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "bootstrap"
+version = "0.1.0"
+dependencies = [
+ "libc",
+ "sha2 0.10.9",
+ "windows-sys 0.61.2",
+ "zstd",
+]
+
+[[package]]
 name = "borsh"
 version = "1.8.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"

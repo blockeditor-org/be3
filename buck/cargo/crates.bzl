@@ -9603,6 +9603,152 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/bootstrap": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "bootstrap",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "bootstrap",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "bootstrap",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "bootstrap": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "bootstrap": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "bootstrap": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "bootstrap": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "bootstrap": [
+                        "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "bootstrap": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:windows-sys-0.61.2",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:windows-sys-0.61.2",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "bootstrap": [
+                        "//third-party/rust:sha2-0.10.9",
+                        "//third-party/rust:windows-sys-0.61.2",
+                        "//third-party/rust:zstd-0.13.3",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:sha2-0.10.9",
+                    "//third-party/rust:windows-sys-0.61.2",
+                    "//third-party/rust:zstd-0.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/browser-rasterizer": {
         "binaries": [
             {

@@ -16,7 +16,7 @@ usage: ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] 
 Builds be-server, the web bundle, be and the app for every platform in
 release, uploads each be and each of the app's downloads to the mirror, swaps
 the server on the VPS and publishes the web bundle through Bunny, points the mirror's download page at
-the new build, and pins the uploaded be in scripts/internal/common.sh.
+the new build, and pins the uploaded be in scripts/internal/pins.
 
 The downloads are the app with its plugins for Linux, macOS and Windows on
 x86_64 and arm64 and the web bundle, each zipped, and the APK, signed with the
@@ -489,7 +489,7 @@ fn run(options: &mut Options) -> Result<(), String> {
     }
 
     if !pins.is_empty() {
-        let common = options.repository.join("scripts/internal/common.sh");
+        let common = options.repository.join("scripts/internal/pins");
         if options.dry_run {
             println!("pin be {build} from {mirror} in {}", common.display());
         } else {

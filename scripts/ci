@@ -4,22 +4,25 @@
 # with --android the Android app and launcher CI ships, signed, written into
 # DIR, and with --previews every painting that changed between BASE's merge
 # base and HEAD, as committed, drawn into OUT with the comment
-# local-tools writes. --check is ./scripts/verify's.
+# local-tools writes, and with --bootstrap, when crates/bootstrap changed, its
+# release for every platform, each named by its SHA-256, written into DIR for
+# CI to upload, and pinned in scripts/internal/pins. --check is
+# ./scripts/verify's.
 #
 # Usage:
-#   ./scripts/ci [--check] [--android DIR] [--previews BASE OUT]
+#   ./scripts/ci [--check] [--android DIR] [--previews BASE OUT] [--bootstrap DIR]
 
 set -euo pipefail
 
 usage() {
-    echo "Usage: ./scripts/ci [--check] [--android DIR] [--previews BASE OUT]" >&2
+    echo "Usage: ./scripts/ci [--check] [--android DIR] [--previews BASE OUT] [--bootstrap DIR]" >&2
     exit 1
 }
 arguments=()
 while [[ $# -gt 0 ]]; do
     case "$1" in
         --check) arguments+=("$1"); shift ;;
-        --android) [[ $# -ge 2 ]] || usage; arguments+=("$1" "$2"); shift 2 ;;
+        --android | --bootstrap) [[ $# -ge 2 ]] || usage; arguments+=("$1" "$2"); shift 2 ;;
         --previews) [[ $# -ge 3 ]] || usage; arguments+=("$1" "$2" "$3"); shift 3 ;;
         *) usage ;;
     esac

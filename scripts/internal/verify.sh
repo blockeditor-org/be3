@@ -13,14 +13,14 @@
 # with --verbose, it prints everything as it goes.
 #
 # Usage: scripts/internal/verify.sh [--check] [--lint] [--tests] [--plugin-tests]
-#   [--verbose] [--android DIR] [--previews BASE OUT]
+#   [--verbose] [--android DIR] [--previews BASE OUT] [--bootstrap DIR]
 
 set -uo pipefail
 
 source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
 cd "$repository"
 
-lint=false tests=false plugin_tests=false android=false previews=false
+lint=false tests=false plugin_tests=false android=false previews=false bootstrap=false
 verbose=false
 [[ -n "${CI:-}" && "${CI:-}" != false ]] && verbose=true
 arguments=()
@@ -31,6 +31,7 @@ for argument in "$@"; do
         --plugin-tests) plugin_tests=true ;;
         --android) android=true ;;
         --previews) previews=true ;;
+        --bootstrap) bootstrap=true ;;
         --verbose) verbose=true; continue ;;
     esac
     arguments+=("$argument")
@@ -48,7 +49,7 @@ bxl=(
     bxl --keep-going //buck/dev/verify.bxl:main --
     --host "$(host_target_platform || echo linux_x86_64)"
     --lint "$lint" --tests "$tests" --plugin_tests "$plugin_tests"
-    --android "$android" --previews "$previews"
+    --android "$android" --previews "$previews" --bootstrap "$bootstrap"
 )
 if $verbose; then
     "$repository/scripts/buck" "${bxl[@]}" > "$manifest" || arguments+=(--build-failed)

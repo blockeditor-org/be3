@@ -5,7 +5,7 @@ use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
 use std::process::{Command, ExitCode, Stdio};
 
-const USAGE: &str = "usage: local-tools verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--android DIR] [--previews BASE OUT]";
+const USAGE: &str = "usage: local-tools verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--android DIR] [--previews BASE OUT] [--bootstrap DIR]";
 
 const EXECUTABLE: &[&str] = &[
     "scripts/internal/install-be.sh",
@@ -21,6 +21,7 @@ struct Options {
     plugin_tests: bool,
     android: Option<PathBuf>,
     previews: Option<(String, PathBuf)>,
+    bootstrap: Option<PathBuf>,
 }
 
 struct Run {
@@ -85,6 +86,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
         plugin_tests: false,
         android: None,
         previews: None,
+        bootstrap: None,
     };
     while let Some(argument) = arguments.next() {
         let mut value = || arguments.next().ok_or(format!("{argument} needs a value"));
@@ -95,6 +97,7 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
             "--tests" => {}
             "--plugin-tests" => options.plugin_tests = true,
             "--android" => options.android = Some(value()?.into()),
+            "--bootstrap" => options.bootstrap = Some(value()?.into()),
             "--previews" => {
                 let base = value()?;
                 options.previews = Some((base, value()?.into()));
@@ -114,6 +117,7 @@ impl Run {
         if self.options.lint {
             self.fixes();
         }
+        self.bootstrap();
         if self.options.plugin_tests {
             self.paintings();
             self.unpainted();
@@ -188,6 +192,36 @@ impl Run {
         }
         if let Some(lock) = self.built("sysroot").first() {
             self.update(lock, Path::new("buck/sysroot/packages.bzl"));
+        }
+    }
+
+    fn bootstrap(&mut self) {
+        let built = self.built("bootstrap").first().cloned();
+        match bootstrap::check(
+            built.as_deref(),
+            self.options.bootstrap.as_deref(),
+            self.options.check,
+        ) {
+            Ok(bootstrap::Outcome::Current) => {}
+            Ok(bootstrap::Outcome::Published(lines)) => {
+                println!(
+                    "crates/bootstrap changed, so its new release is pinned in scripts/internal/pins:"
+                );
+                for line in lines {
+                    println!("  {line}");
+                }
+            }
+            Ok(bootstrap::Outcome::Stale) => {
+                println!(
+                    "crates/bootstrap changed since the release scripts/internal/pins names was built; \
+                     CI on a pull request builds, uploads and pins a new one (guides/bootstrap.md)."
+                );
+                self.failed |= self.options.check;
+            }
+            Err(message) => {
+                println!("Could not pin crates/bootstrap's release: {message}");
+                self.failed = true;
+            }
         }
     }
 
@@ -767,6 +801,8 @@ fn clear_executable(path: &Path) -> io::Result<()> {
 fn clear_executable(_: &Path) -> io::Result<()> {
     Ok(())
 }
+
+mod bootstrap;
 
 #[cfg(test)]
 mod tests;
