@@ -35,6 +35,8 @@ async fn a_pull_request_moves_the_rows_it_names() {
         .create(board.database, "Fix the login", &[], Body::Keep)
         .await
         .unwrap();
+    let projects = tracker.find_database("Projects").await.unwrap();
+    let launch = tracker.list(projects, &[]).await.unwrap()[0].id.clone();
     let statuses = Statuses {
         field: "Status".into(),
         review: "In review".into(),
@@ -46,7 +48,7 @@ async fn a_pull_request_moves_the_rows_it_names() {
             "pull_request": {
                 "html_url": "https://github.com/example/repo/pull/7",
                 "title": "Fix the login",
-                "body": format!("Fixes {}.", made.id),
+                "body": format!("Fixes {} for {launch}.", made.id),
                 "head": {"ref": "claude/fix-login"},
                 "merged": merged,
                 "draft": false,
@@ -54,10 +56,15 @@ async fn a_pull_request_moves_the_rows_it_names() {
         })
     };
 
-    pull_request(&tracker, &event("opened", false), &statuses)
+    let said = pull_request(&tracker, board.database, &event("opened", false), &statuses)
         .await
         .unwrap();
-    let opened = tracker.show(&made.id).await.unwrap();
+    assert_eq!(
+        said,
+        [format!("{}: Status is now In review", made.id)],
+        "a row of another database is left alone"
+    );
+    let opened = tracker.show(board.database, &made.id).await.unwrap();
     assert_eq!(
         pairs(&opened),
         [("Status".to_owned(), "In review".to_owned())]
@@ -67,13 +74,18 @@ async fn a_pull_request_moves_the_rows_it_names() {
         Some("Pull request: https://github.com/example/repo/pull/7\n")
     );
 
-    pull_request(&tracker, &event("reopened", false), &statuses)
+    pull_request(
+        &tracker,
+        board.database,
+        &event("reopened", false),
+        &statuses,
+    )
+    .await
+    .unwrap();
+    pull_request(&tracker, board.database, &event("closed", true), &statuses)
         .await
         .unwrap();
-    pull_request(&tracker, &event("closed", true), &statuses)
-        .await
-        .unwrap();
-    let merged = tracker.show(&made.id).await.unwrap();
+    let merged = tracker.show(board.database, &made.id).await.unwrap();
     assert_eq!(pairs(&merged), [("Status".to_owned(), "Done".to_owned())]);
     assert_eq!(merged.body, opened.body, "the link is added once");
     harness.stop().await;

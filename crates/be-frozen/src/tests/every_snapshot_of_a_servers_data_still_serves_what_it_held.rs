@@ -379,7 +379,10 @@ async fn check(snapshot: &Snapshot) {
     let rows = agent.list(id(snapshot.database), &[]).await.unwrap();
     let titles: Vec<_> = rows.iter().map(|row| row.title.as_str()).collect();
     assert_eq!(titles, [scene::FIRST_ROW, scene::SECOND_ROW]);
-    let first = agent.show(&rows[0].id).await.unwrap();
+    let first = agent
+        .show(id(snapshot.database), &rows[0].id)
+        .await
+        .unwrap();
     for (field, text) in [("Status", "Done"), ("Estimate", "3"), ("Urgent", "true")] {
         assert_eq!(
             first.field(field).map(|field| field.text.as_str()),

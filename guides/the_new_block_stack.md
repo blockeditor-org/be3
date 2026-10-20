@@ -934,8 +934,7 @@ client says it already holds), and anything left out is fetched afterwards, so
 a tree costs one round trip, not three per block.
 `HostRequest::ImportBlocks(parent)` has the host pick a file and `be::import`
 it: every block gets a new id, old ids in the content bytes and references are
-swapped for the new ones, a database whose row id prefix is taken here loses
-it, and each block is created and given its bytes as its first commit. The
+swapped for the new ones, and each block is created and given its bytes as its first commit. The
 reply, `BlocksImported`, names the outermost block. The tree is in the mirror
 at once and uploads in the background, as a task beside the worker's loop
 (`worker/uploads.rs`), so commands for other blocks are not held up.
