@@ -90,7 +90,6 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 placeholder="What needs doing?"
                                 label="New checklist item"
                                 @test_id={"checklist.draft"}
-                                on_change={move |value| draft.set(value)}
                                 on_submit={move |value| {
                                     add_item(&checklist, draft, value);
                                 }}

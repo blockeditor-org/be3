@@ -11,7 +11,6 @@ fn a_driver_types_into_a_field_found_by_its_test_id() {
                 @test_id={"form.name"}
                 value={name}
                 placeholder="Name"
-                on_change={move |next: String| name.set(next)}
             />
         }
     });

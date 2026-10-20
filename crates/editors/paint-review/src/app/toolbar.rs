@@ -240,13 +240,12 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
                 />
                 <Dynamic value={count}>|count: usize|
                     <Slider
-                        value={at}
+                        value={Binding::new(at, move |value: f32| {
+                            review.seek(value.round().max(0.0) as usize)
+                        })}
                         max={(count - 1) as f32}
                         label="Frame"
                         @test_id={"paint_review.frame.at"}
-                        on_change={move |value: f32| {
-                            review.seek(value.round().max(0.0) as usize)
-                        }}
                     />
                 </Dynamic>
                 <Text style=TextStyle::CAPTION string={position} />

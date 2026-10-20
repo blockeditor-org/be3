@@ -95,7 +95,6 @@ fn RenameDialog(workspace: Workspace) -> NodeId {
                 label="Name"
                 focused=true
                 @test_id={"rename.name"}
-                on_change={move |value: String| name.set(value)}
             />
             <Show condition={invalid}>
                 <Text style=TextStyle::CAPTION string={error} />
@@ -340,11 +339,10 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     </List>
                 </Show>
                 <TextInput
-                    value={query}
+                    value={Binding::new(query, move |value: String| act.call(ShareAction::Query(value)))}
                     placeholder="Add contacts by name or email"
                     label="Add contacts"
                     @test_id={"share.query"}
-                    on_change={move |value: String| act.call(ShareAction::Query(value))}
                     on_submit={move |_value: String| act.call(ShareAction::Submit)}
                 />
                 <Show condition={searching}>
@@ -445,7 +443,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                             wrap=true
                         />
                         <TextInput
-                            value={invite_link}
+                            value={Binding::new(invite_link, Callback::empty())}
                             label="Contact link"
                             copyable=true
                             @test_id={"share.invite.link"}

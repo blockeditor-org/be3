@@ -6,14 +6,13 @@ use crate::unstyled::software_keyboard::{Layer, Value};
 
 #[test]
 fn a_key_dragged_off_the_software_keyboard_types_once_when_let_go() {
-    let typed = Rc::new(RefCell::new(String::new()));
-    let seen = Rc::clone(&typed);
+    let _root = crate::reactive::RootScope::new();
+    let typed = create_signal(String::new());
     let document = build(move || {
         view! {
             <TextInput
                 @test_id="field"
-                value=String::new()
-                on_change={move |next: String| *seen.borrow_mut() = next}
+                value={typed}
             />
         }
     });
@@ -34,7 +33,7 @@ fn a_key_dragged_off_the_software_keyboard_types_once_when_let_go() {
     harness.drag(key, outside);
     harness.frame(Vec::new());
     assert_eq!(
-        *typed.borrow(),
+        typed.get_untracked(),
         "~",
         "the key's corner types when let go off the keyboard"
     );
@@ -42,5 +41,5 @@ fn a_key_dragged_off_the_software_keyboard_types_once_when_let_go() {
     harness.advance(Duration::from_secs(2));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
-    assert_eq!(*typed.borrow(), "~", "nothing is left held to repeat");
+    assert_eq!(typed.get_untracked(), "~", "nothing is left held to repeat");
 }

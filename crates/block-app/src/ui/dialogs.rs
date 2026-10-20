@@ -325,7 +325,7 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                             wrap=true
                         />
                         <TextInput
-                            value={link}
+                            value={Binding::new(link, Callback::empty())}
                             label="Contact link"
                             copyable=true
                             @test_id={"app.contacts.link"}
@@ -339,7 +339,6 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                         value={pasted}
                         label="Contact link"
                         @test_id={"app.contacts.paste"}
-                        on_change={move |value: String| pasted.set(value)}
                         on_submit={move |value: String| send(UiCommand::OpenContactLink(value))}
                     />
                     <Button
@@ -453,7 +452,6 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                             value={name}
                             label="Agent name"
                             @test_id={"app.agents.name"}
-                            on_change={move |value: String| name.set(value)}
                         />
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Button
@@ -529,7 +527,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                         wrap=true
                     />
                     <TextInput
-                        value={header}
+                        value={Binding::new(header, Callback::empty())}
                         label="Proxy Authorization header"
                         copyable=true
                         @test_id={"app.agents.header"}
@@ -537,7 +535,7 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                 </List>
             </Show>
             <TextInput
-                value={credentials}
+                value={Binding::new(credentials, Callback::empty())}
                 label="Agent credentials"
                 copyable=true
                 @test_id={"app.agents.credentials"}
@@ -605,7 +603,6 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                     value={email}
                     label="Email address"
                     @test_id={"app.invite.email"}
-                    on_change={move |value: String| email.set(value)}
                 />
                 <Text style=TextStyle::CAPTION string="Role" />
                 <Tabs
@@ -640,7 +637,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                             string="Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
                             wrap=true
                         />
-                        <TextInput value={link} label="Invite link" @test_id={"app.invite.link"} />
+                        <TextInput value={Binding::new(link, Callback::empty())} label="Invite link" @test_id={"app.invite.link"} />
                     </List>
                 </Show>
             </List>

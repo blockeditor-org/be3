@@ -178,12 +178,11 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
             }</ForEach>
             <Text string="Tool options" />
             <NumberInput
-                value={size_value}
+                value={Binding::new(size_value, move |value: f64| brush_size.set(value as u16))}
                 min=1.0
                 max={f64::from(MAX_BRUSH_SIZE)}
                 label="Brush size"
                 @test_id={"pixel-art.brush-size"}
-                on_change={move |value: f64| brush_size.set(value as u16)}
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <ToggleButton
@@ -282,11 +281,10 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                 <Swatch color={color} selected=false on_click={move || {}} />
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
-                    value={hex}
+                    value={Binding::new(hex, typing)}
                     label="Colour"
                     placeholder="#RRGGBBAA"
                     @test_id={"pixel-art.hex"}
-                    on_change={typing}
                 />
             </List>
             <ForEach keys={channels}>|channel: &'static str|
@@ -345,7 +343,7 @@ fn Channel(tools: Tools, channel: &'static str) -> NodeId {
         tools.set_active_color(PixelColor::new(rgba[0], rgba[1], rgba[2], rgba[3]), false);
     };
     view! {
-        <NumberInput value={value} min=0.0 max=255.0 label={channel} on_change={edit} />
+        <NumberInput value={Binding::new(value, edit)} min=0.0 max=255.0 label={channel} />
     }
 }
 
@@ -415,21 +413,19 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <NumberInput
                             @sizing=ItemSize::Percent(100.0)
-                            value={width_value}
+                            value={Binding::new(width_value, move |value: f64| width.set(value as u16))}
                             min=1.0
                             max={f64::from(MAX_PIXEL_ART_SIZE)}
                             label="Width"
                             @test_id={"pixel-art.resize-width"}
-                            on_change={move |value: f64| width.set(value as u16)}
                         />
                         <NumberInput
                             @sizing=ItemSize::Percent(100.0)
-                            value={height_value}
+                            value={Binding::new(height_value, move |value: f64| height.set(value as u16))}
                             min=1.0
                             max={f64::from(MAX_PIXEL_ART_SIZE)}
                             label="Height"
                             @test_id={"pixel-art.resize-height"}
-                            on_change={move |value: f64| height.set(value as u16)}
                         />
                     </List>
                     <Text style=TextStyle::CAPTION string="Anchor" />

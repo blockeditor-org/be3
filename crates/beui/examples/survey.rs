@@ -21,7 +21,6 @@ impl SurveyApp {
                         <TextInput
                             value={state}
                             label="Text"
-                            on_change={move |value| state.set(value)}
                         />
                     </List>
                 </Frame>

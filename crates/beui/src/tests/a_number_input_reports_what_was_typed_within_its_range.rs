@@ -10,10 +10,9 @@ fn a_number_input_reports_what_was_typed_within_its_range() {
     let (document, [input]) = toolbar_of(move || {
         [view! {
             <NumberInput
-                value=4.0
+                value={recorded(4.0, changes)}
                 min=0.0
                 max=10.0
-                on_change={move |value| changes.update(|changes| changes.push(value))}
                 on_preview={move |value| previews.update(|previews| previews.push(value))}
             />
         }]

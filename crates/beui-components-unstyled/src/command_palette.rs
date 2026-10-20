@@ -110,13 +110,12 @@ pub fn CommandPalette(
                     <unstyled::TextInput
                         @node_ref={&state.search}
                         @test_id={"command-palette.search"}
-                        value={query}
+                        value={Binding::new(query, move |text: String| filter(state, &text))}
                         focused={searching}
                         placeholder={search_placeholder}
                         style={search_style}
                         accessibility={accessibility}
                         content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}
-                        on_change={move |text: String| filter(state, &text)}
                         on_submit={move |_text: String| {
                             if let Some(key) = state.highlighted.get_untracked() {
                                 confirm(state, key);

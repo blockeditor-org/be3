@@ -482,11 +482,10 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
             </Show>
             <Show condition={labelled}>
                 <TextInput
-                    value={label}
+                    value={Binding::new(label, typed)}
                     label="Label"
                     placeholder="Label"
                     @test_id={"logic-grid.io-label"}
-                    on_change={typed}
                 />
             </Show>
             <Text style=TextStyle::CAPTION string="Middle drag or wheel: pan" />

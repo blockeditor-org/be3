@@ -216,14 +216,13 @@ pub(crate) fn EntityText(
             <unstyled::TextInput
                 @node_ref=&field
                 @test_id={format!("infinite-canvas.text.{id}")}
-                value={text}
+                value={Binding::new(text, changed)}
                 placeholder={placeholder}
                 label="Text"
                 disabled={disabled}
                 focused={editing}
                 multiline=true
                 style={style}
-                on_change={changed}
                 on_focus_change={left}
             />
         </Frame>

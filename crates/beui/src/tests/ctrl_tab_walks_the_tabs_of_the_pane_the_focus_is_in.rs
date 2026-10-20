@@ -23,7 +23,6 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
                                         @test_id={format!("input.{id}")}
                                         value={typed}
                                         label="Notes"
-                                        on_change={move |text: String| typed.set(text)}
                                     />
                                 }
                             }}

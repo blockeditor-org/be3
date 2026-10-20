@@ -174,7 +174,6 @@ fn TargetList(model: Model) -> NodeId {
                             value={query}
                             placeholder="Filter targets, like beui or rust_test"
                             label="Filter targets"
-                            on_change={move |next| query.set(next)}
                         />
                         <IconButton
                             glyph=ICON_REFRESH

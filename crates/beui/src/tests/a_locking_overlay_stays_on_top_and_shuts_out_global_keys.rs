@@ -43,9 +43,8 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
                     <Frame width=200.0 height=40.0>
                         <TextInput
                             @test_id={"password"}
-                            value=""
+                            value={typed}
                             password=true
-                            on_change={move |value: String| typed.set(value)}
                         />
                     </Frame>
                 </Overlay>

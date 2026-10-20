@@ -10,7 +10,6 @@ fn Input(id: u64) -> NodeId {
             @test_id={format!("input.{id}")}
             value={typed}
             label="Notes"
-            on_change={move |text: String| typed.set(text)}
         />
     }
 }

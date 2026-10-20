@@ -12,11 +12,10 @@ fn a_pointer_lock_lets_go_when_the_window_loses_focus() {
         let locked = create_signal(false);
         view! {
             <PointerLock
-                locked
-                on_change={move |next: bool| {
+                locked={Binding::new(locked, move |next: bool| {
                     changes.update(|changes| changes.push(next));
                     locked.set(next);
-                }}
+                })}
             >|_: PointerLockHandle|
                 <Frame width=100.0 height=100.0 />
             </PointerLock>

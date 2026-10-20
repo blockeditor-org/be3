@@ -283,11 +283,10 @@ fn StringValue(
     });
     view! {
         <TextInput
-            value={text}
+            value={Binding::new(text, edited)}
             placeholder="Empty"
             disabled={disabled}
             @test_id={id}
-            on_change={edited}
             on_submit={submitted}
         />
     }
@@ -319,13 +318,12 @@ fn NumberValue(
     });
     view! {
         <NumberInput
-            value={number}
+            value={Binding::new(number, edited)}
             min={bounds.minimum.unwrap_or(f64::NEG_INFINITY)}
             max={bounds.maximum.unwrap_or(f64::INFINITY)}
             drag={number_drag(bounds)}
             disabled={disabled}
             @test_id={id}
-            on_change={edited}
         />
     }
 }
@@ -448,11 +446,10 @@ fn ColorValue(
     });
     view! {
         <ColorInput
-            value={color}
+            value={Binding::new(color, edited)}
             label="Color"
             disabled={disabled}
             @test_id={id}
-            on_change={edited}
         />
     }
 }

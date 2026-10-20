@@ -224,11 +224,10 @@ fn FieldRow(
                 </Text>
                 <Frame width=NAME_WIDTH>
                     <TextInput
-                        value={name}
+                        value={Binding::new(name, renamed)}
                         label="Field name"
                         disabled={read_only}
                         @test_id={format!("database-schema.name.{id}")}
-                        on_change={renamed}
                     />
                 </Frame>
                 <Select
@@ -457,11 +456,10 @@ fn OptionalNumber(
             />
             <Frame width=NUMBER_WIDTH>
                 <NumberInput
-                    value={value}
+                    value={Binding::new(value, typed)}
                     label={bound.label()}
                     disabled={unset}
                     @test_id={format!("database-schema.number.{id}.{}", bound.test_id())}
-                    on_change={typed}
                 />
             </Frame>
             <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -612,12 +610,11 @@ fn EnumOptionRow(
             />
             <Frame width=NAME_WIDTH>
                 <TextInput
-                    value={name}
+                    value={Binding::new(name, renamed)}
                     label="Option name"
                     disabled={read_only}
                     select_on_focus=true
                     @test_id={format!("database-schema.enum.{id}.{option_id}.name")}
-                    on_change={renamed}
                 />
             </Frame>
             <unstyled::MenuButton
@@ -893,11 +890,10 @@ fn RelationOptions(
                     <Text string="Shown on the linked rows as" />
                     <Frame width=NAME_WIDTH>
                         <TextInput
-                            value={inverse}
+                            value={Binding::new(inverse, renamed)}
                             placeholder="No column"
                             disabled={read_only}
                             @test_id={format!("database-schema.relation.{id}.inverse")}
-                            on_change={renamed}
                         />
                     </Frame>
                     <Spacer @sizing=ItemSize::Percent(100.0) />

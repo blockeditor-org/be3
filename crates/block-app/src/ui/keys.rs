@@ -85,19 +85,16 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
             <TextInput
                 value={first}
                 label={first_label}
-                on_change={move |value: String| first.set(value)}
             />
             <Text style=TextStyle::CAPTION string={second_label} />
             <TextInput
                 value={second}
                 label={second_label}
-                on_change={move |value: String| second.set(value)}
             />
             <Text style=TextStyle::CAPTION string={third_label} />
             <TextInput
                 value={third}
                 label={third_label}
-                on_change={move |value: String| third.set(value)}
                 on_submit={move |_value: String| confirm()}
             />
             <ErrorText text={error} />
@@ -160,7 +157,6 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                     value={phrase}
                     label="Recovery phrase"
                     placeholder="twelve words"
-                    on_change={move |value: String| phrase.set(value)}
                     on_submit={move |_value: String| open()}
                 />
                 <List direction=Direction::Horizontal spacing=8.0>
@@ -272,7 +268,6 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
                 value={code}
                 label="Code"
                 placeholder="XXXX-XXXX"
-                on_change={move |value: String| code.set(value)}
             />
         </Dialog>
     }

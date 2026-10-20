@@ -280,7 +280,6 @@ pub fn Launcher(
                                 content={|handle| view! {
                                     <LauncherSearch handle />
                                 }}
-                                on_change={move |text: String| state.query.set(text)}
                                 on_submit={move |_: String| state.submit()}
                             />
                             <unstyled::Scroll

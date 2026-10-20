@@ -277,12 +277,11 @@ fn EventDialog(
         >
             <List spacing=SPACING>
                 <TextInput
-                    value={name}
+                    value={Binding::new(name, edit_title)}
                     label="Title"
                     placeholder="Title"
                     disabled={read_only}
                     @test_id={"calendar.form.title"}
-                    on_change={edit_title}
                 />
                 <Text style=TextStyle::CAPTION string="Starts" />
                 <DateTimeField

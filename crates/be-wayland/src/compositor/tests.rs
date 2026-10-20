@@ -137,7 +137,6 @@ fn Shown(windows: Windows) -> NodeId {
                     <TextInput
                         @test_id={"test.input"}
                         value={text}
-                        on_change={move |line: String| text.set(line)}
                     />
                     <ForEach keys={ids}>|id: WindowId| {
                         let list = windows.list();

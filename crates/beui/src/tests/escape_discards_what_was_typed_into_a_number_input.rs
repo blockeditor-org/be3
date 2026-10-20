@@ -10,8 +10,7 @@ fn escape_discards_what_was_typed_into_a_number_input() {
     let (document, [input]) = toolbar_of(move || {
         [view! {
             <NumberInput
-                value=7.0
-                on_change={move |value| changes.update(|changes| changes.push(value))}
+                value={recorded(7.0, changes)}
                 on_preview={move |value| previews.update(|previews| previews.push(value))}
             />
         }]

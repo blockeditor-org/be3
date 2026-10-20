@@ -210,13 +210,12 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
             <SettingsRow label="Name" locked={blocked}>
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
-                    value={name}
+                    value={Binding::new(name, move |text: String| {
+                        editor.blocks().set_name(block, Some(text));
+                    })}
                     label="Name"
                     disabled={blocked}
                     @test_id={"setup.name"}
-                    on_change={move |text: String| {
-                        editor.blocks().set_name(block, Some(text));
-                    }}
                 />
             </SettingsRow>
             <SettingsRow

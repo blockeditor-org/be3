@@ -247,7 +247,6 @@ fn VolumeMeter() -> NodeId {
         <List spacing=SECTION_SPACING>
             <unstyled::Slider
                 value={volume}
-                on_change={move |value| volume.set(value)}
             >|handle: SliderHandle|
                 <MeterFace handle />
             </unstyled::Slider>
@@ -1041,7 +1040,6 @@ fn ScrubbedNumber() -> NodeId {
                     field={move |handle: NumberFieldHandle| view! {
                         <NumberField handle />
                     }}
-                    on_change={move |value: f64| gap.set(value)}
                 />
             </Frame>
             <Text string={shown} color=TextColor::Muted />
@@ -1086,7 +1084,6 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
     let NumberFieldHandle {
         text,
         editing,
-        on_change,
         on_submit,
         on_focus_change,
     } = handle;
@@ -1097,7 +1094,6 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
             focused={editing}
             select_on_focus=true
             style={underlined_style()}
-            on_change={on_change}
             on_submit={on_submit}
             on_focus_change={on_focus_change}
         >|handle: TextInputHandle|
@@ -1122,12 +1118,8 @@ fn underlined_style() -> TextInputStyle {
 #[component]
 fn HueAndHex() -> NodeId {
     let color = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
-    let picker: ColorPickerState = ColorPickerState::new(
-        color.into_prop(),
-        Prop::Static(false),
-        Callback::new(move |next: Color32| color.set(next)),
-        Callback::default(),
-    );
+    let picker: ColorPickerState =
+        ColorPickerState::new(color.into(), Prop::Static(false), Callback::default());
     let shown = picker.shown();
     let hex = HexText::new(
         shown,
@@ -1157,7 +1149,6 @@ fn HueAndHex() -> NodeId {
                     value={hex.text()}
                     placeholder={hex.placeholder()}
                     style={underlined_style()}
-                    on_change={move |typed: String| hex.edit(typed)}
                     on_submit={move |typed: String| hex.submit(typed)}
                 >|handle: TextInputHandle|
                     <UnderlinedField handle />

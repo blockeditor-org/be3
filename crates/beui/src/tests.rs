@@ -664,7 +664,7 @@ mod scrolling_resends_the_rows_that_moved_but_not_what_moved_with_them;
 mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
 mod selecting_a_node_lists_its_properties_in_the_inspector;
 mod setting_a_scroll_offset_during_a_fling_stops_the_fling;
-mod setting_the_value_of_a_text_input_reports_the_change;
+mod setting_the_bound_value_of_a_text_input_shows_it;
 mod shared_springs_remain_stable_across_long_frames;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
 mod shift_scrolling_a_horizontal_scroll_moves_it_sideways;
@@ -1514,14 +1514,14 @@ pub(crate) fn LabelledButton(label: String, on_click: ClickCallback) -> NodeId {
 
 #[component]
 pub(crate) fn PanZoomStage(
-    view: crate::reactive::Prop<unstyled::PanZoomView>,
-    on_change: crate::reactive::Callback<unstyled::PanZoomView>,
+    #[prop(default = unstyled::PanZoomView::IDENTITY)] view: crate::reactive::Binding<
+        unstyled::PanZoomView,
+    >,
 ) -> NodeId {
     view! {
         <unstyled::PanZoom
             @test_id="stage"
             view
-            on_change={on_change}
         >|handle: unstyled::PanZoomHandle| {
             let unstyled::PanZoomHandle { view, .. } = handle;
             view! {
@@ -2530,4 +2530,16 @@ impl Intaken {
         }
         self.seen.take()
     }
+}
+
+pub(crate) fn recorded<T: Clone + PartialEq + 'static>(
+    initial: T,
+    changes: crate::reactive::Signal<Vec<T>>,
+) -> crate::reactive::Binding<T> {
+    use crate::reactive::{Set, create_signal};
+    let value = create_signal(initial);
+    crate::reactive::Binding::new(value, move |next: T| {
+        value.set(next.clone());
+        changes.update(|changes| changes.push(next));
+    })
 }

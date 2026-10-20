@@ -373,13 +373,12 @@ fn RuleRows(edits: Edits, group: usize, rule: usize) -> NodeId {
                 >
                     <NumberInput
                         @sizing=ItemSize::Fixed(MS_WIDTH)
-                        value={hold}
+                        value={Binding::new(hold, move |ms: f64| edits.edit_rule(group, rule, RuleEdit::HoldMs(Some(ms.round() as i64))))}
                         min=0.0
                         decimals={Some(0)}
                         label="Hold for"
                         disabled={edits.read_only}
                         @test_id={id("hold")}
-                        on_change={move |ms: f64| edits.edit_rule(group, rule, RuleEdit::HoldMs(Some(ms.round() as i64)))}
                     />
                 </SettingsRow>
             </Show>
@@ -478,22 +477,20 @@ fn StepRow(edits: Edits, group: usize, rule: usize, step: usize) -> NodeId {
             <Show condition={tap}>
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
-                    value={key}
+                    value={Binding::new(key, move |text: String| edits.edit_rule(group, rule, RuleEdit::StepKey(step, text)))}
                     label="Key"
                     disabled={edits.read_only}
                     @test_id={id("key")}
-                    on_change={move |text: String| edits.edit_rule(group, rule, RuleEdit::StepKey(step, text))}
                 />
             </Show>
             <NumberInput
                 @sizing=ItemSize::Fixed(MS_WIDTH)
-                value={ms}
+                value={Binding::new(ms, move |ms: f64| edits.edit_rule(group, rule, RuleEdit::StepMs(step, Some(ms.round() as i64))))}
                 min=0.0
                 decimals={Some(0)}
                 label="Milliseconds"
                 disabled={edits.read_only}
                 @test_id={id("ms")}
-                on_change={move |ms: f64| edits.edit_rule(group, rule, RuleEdit::StepMs(step, Some(ms.round() as i64)))}
             />
             <Button
                 label="Remove"
@@ -521,16 +518,15 @@ fn TextRow(
         <SettingsRow label={label} description={description} separated={separated}>
             <TextInput
                 @sizing=ItemSize::Percent(100.0)
-                value={value}
+                value={Binding::new(value, move |text: String| {
+                    if text != value.get_untracked() {
+                        on_change.call(text);
+                    }
+                })}
                 label={label}
                 placeholder={placeholder}
                 disabled={read_only}
                 @test_id={id}
-                on_change={move |text: String| {
-                    if text != value.get_untracked() {
-                        on_change.call(text);
-                    }
-                }}
             />
         </SettingsRow>
     }

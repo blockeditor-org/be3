@@ -485,12 +485,11 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                 </Show>
                 <Show condition={searching}>
                     <TextInput
-                        value={needle}
+                        value={Binding::new(needle, searched_for)}
                         placeholder="Text"
                         disabled={text_off}
                         focused=true
                         @test_id={format!("database-view.filter.{}.text", id.as_uuid())}
-                        on_change={searched_for}
                     />
                 </Show>
             </List>
@@ -597,10 +596,9 @@ fn ValueChoices(
         <List spacing=SPACING>
             <Show condition={many}>
                 <TextInput
-                    value={query}
+                    value={Binding::new(query, typed)}
                     placeholder="Search"
                     @test_id={format!("database-view.filter.{}.search", id.as_uuid())}
-                    on_change={typed}
                 />
             </Show>
             <Scroll max_length=CHOICES_HEIGHT>

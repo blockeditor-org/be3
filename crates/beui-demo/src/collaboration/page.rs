@@ -251,7 +251,6 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
                 value={latency}
                 max=MAX_LATENCY
                 label="Latency"
-                on_change={move |value| latency.set(value)}
             />
             <unstyled::Stack spacing=ROW_SPACING narrow={narrow}>
                 <EditorPane

@@ -661,7 +661,7 @@ caret handle under a touch tap that drags the caret and opens its menu.
 gutter, scrolled sideways to keep the caret in view, where Enter submits and
 Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
 own focus and pointer handling. `TextInput` is that single-line mode over a
-plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
+plain-text buffer it owns, bound to a `value` it reads and writes, so a
 fix to how text is edited lands in both. `multiline` makes it the multiline area
 instead, with `line_numbers` off, where Enter starts a new line and the field's
 chrome wraps the whole scrolling area rather than one line. `prose` (a `Prose`, on
@@ -1096,8 +1096,8 @@ layout, and says when to page with `paged`.
 sliders, hex, RGB and HSL fields and a row of swatches; `styled::ColorInput` is a
 hex field whose swatch opens one. Both keep the hue while the color passes
 through grey or black, and a drag is reported through `on_preview` while it
-moves and through `on_change` once, when it ends, the way `NumberInput`
-reports a scrub - so an edit lands in the undo history once per gesture.
+moves and written to `value` once, when it ends, the way `NumberInput`
+writes a scrub - so an edit lands in the undo history once per gesture.
 That state is `unstyled::ColorPickerState`, and `unstyled::HexText` keeps a hex
 field in step with a color for both.
 
@@ -1891,14 +1891,15 @@ still ends; a cancelled touch ends it without a drop.
 ### Pan and zoom
 
 `unstyled::PanZoom` turns wheel, trackpad and middle-button gestures over a
-rectangle into camera movement, and owns none of the camera itself. The caller
-keeps a `PanZoomView` - the world point shown at the middle of the viewport and
-a scale - passes it in, and writes back what `on_change` reports:
+rectangle into camera movement. Its `view` is a `Binding<PanZoomView>` - the
+world point shown at the middle of the viewport and a scale - which gestures
+write; a caller that wants the camera passes its own signal, and one that does
+not leaves the prop out:
 
 ```rust
 let camera = create_signal(PanZoomView::IDENTITY);
 view! {
-    <PanZoom view={camera} on_change={move |next| camera.set(next)}>|handle: PanZoomHandle| {
+    <PanZoom view={camera}>|handle: PanZoomHandle| {
         let PanZoomHandle { view, scale, .. } = handle;
         view! {
             <Canvas view>
@@ -1952,7 +1953,6 @@ moving, is hidden, and reports how far it moved instead of where it is:
 view! {
     <PointerLock
         locked={looking}
-        on_change={move |next| looking.set(next)}
         on_motion={move |motion: Vec2| camera.look(motion)}
         on_key={walk}
     >|handle: PointerLockHandle|
@@ -1961,8 +1961,8 @@ view! {
 }
 ```
 
-The lock is controlled state, like a `Toggle`'s: the control follows the
-`locked` prop and reports what it wants through `on_change`. It lets go on
+The lock is a `Binding<bool>`, like a `Toggle`'s `checked`: the control reads
+`locked` and writes what it wants back to it. It lets go on
 Escape, when it loses focus, and when it is removed, and keys it does not use
 itself go on to `on_key`, which is what a control that also walks with the
 keyboard binds.

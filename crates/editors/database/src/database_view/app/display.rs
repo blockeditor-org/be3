@@ -68,11 +68,10 @@ pub fn DisplayOptions(data: Data) -> NodeId {
                 </Frame>
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
-                    value={prefix}
+                    value={Binding::new(prefix, reprefix)}
                     placeholder="BE"
                     disabled={prefix_off}
                     @test_id={"database-view.prefix"}
-                    on_change={reprefix}
                 />
             </List>
             <List direction=Direction::Horizontal spacing=0.0>
