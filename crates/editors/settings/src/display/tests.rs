@@ -24,6 +24,7 @@ mod each_tile_is_drawn_turned_from_the_rotation_shown_now;
 mod outside_a_session_only_the_appearance_is_shown;
 mod resetting_a_display_returns_it_to_its_default;
 mod the_lock_follows_the_screens_until_given_a_time_of_its_own;
+mod the_rotate_button_in_the_bar_is_turned_on_and_reset;
 mod the_rotations_are_named_from_how_the_panel_is_built;
 
 const SESSION_HEIGHT: f32 = 1000.0;
@@ -34,6 +35,8 @@ const RESOLUTION: &str = "display.DP-1.resolution";
 const REFRESH: &str = "display.DP-1.refresh";
 const RESET: &str = "display.DP-1.reset";
 const ROTATION_RESET: &str = "display.DP-1.rotation.reset";
+const ROTATE_IN_BAR: &str = "display.rotate-in-bar";
+const ROTATE_IN_BAR_RESET: &str = "display.rotate-in-bar.reset";
 const SCREEN_OFF: &str = "display.screen-off";
 const LOCK_AFTER: &str = "display.lock-after";
 

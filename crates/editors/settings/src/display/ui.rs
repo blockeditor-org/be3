@@ -27,7 +27,9 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
                 .collect::<Vec<String>>()
         })
     });
-    let none = create_memo(move || offered.get() && displays.with(Vec::is_empty));
+    let none = create_memo(move || displays.with(Vec::is_empty));
+    let in_bar = create_memo(move || merged.with(DisplaySettings::rotate_in_bar));
+    let in_bar_set = create_memo(move || root.with(|root| root.rotate_in_bar.is_some()));
     let power = editor.host_offers::<Power>();
     view! {
         <SettingsPage>
@@ -37,9 +39,29 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
                 inherited={inherited}
                 read_only={read_only}
             />
-            <Show condition={none}>
+            <Show condition={offered}>
                 <SettingsSection title="Screens">
-                    <SettingsRow label="No screen is connected to this session." />
+                    <Show condition={none}>
+                        <SettingsRow label="No screen is connected to this session." />
+                    </Show>
+                    <SettingsRow
+                        label="Rotate button in the bar"
+                        description="A button in the desktop's bar that turns the screen."
+                        separated={none}
+                        compact=true
+                        modified={in_bar_set}
+                        locked={read_only}
+                        reset_test_id="display.rotate-in-bar.reset"
+                        on_reset={move || settings.operate(DisplaySettings::set_rotate_in_bar(None))}
+                    >
+                        <Switch
+                            on={in_bar}
+                            label="Rotate button in the bar"
+                            disabled={read_only}
+                            @test_id={"display.rotate-in-bar"}
+                            on_change={move |on: bool| settings.operate(DisplaySettings::set_rotate_in_bar(Some(on)))}
+                        />
+                    </SettingsRow>
                 </SettingsSection>
             </Show>
             <ForEach keys={ids}>|id: String|
