@@ -102,8 +102,9 @@ pub use drag::{
 pub use floating::{Edge, Floating};
 pub use list_row::ListRow;
 pub use menu::{
-    MenuItem, MenuRowHandle, menu_list_len, menu_list_root_focusable, menu_list_row_button,
-    menu_list_row_submenu_content,
+    MenuCaption, MenuGrid, MenuItem, MenuRowHandle, MenuRowKind, MenuThen, menu_list_back_button,
+    menu_list_len, menu_list_page, menu_list_root_focusable, menu_list_row_button,
+    menu_list_row_submenu_content, menu_list_tile_button,
 };
 pub use menu_button::{MenuButton, MenuButtonHandle};
 pub use menu_popup::{MenuSheetHandle, MenuStyle};

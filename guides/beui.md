@@ -64,7 +64,7 @@ panics when it is built, and `@test_id` and `@node_ref` on its tag do not compil
 because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
 disabled and a danger flag, a separator above it, an `on_click` and its
-own submenu items, so a menu is written as tags and each row follows
+own submenu or page items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
 options of a tab bar, a listbox, a radio group and a select. Declare the type
 with `value_child_type!`, which makes it a `ChildValue` and says how a run of it
@@ -666,7 +666,20 @@ the same field whether or not they are being edited. A menu is never asked for a
 or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same
 features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an
-unstyled one without a sheet stays a dropdown. `MenuButton` is the button that
+unstyled one without a sheet stays a dropdown. An item's children cascade as a
+submenu, or with `page` open in place of the menu as a page led by a back row
+titled by the item (`<id>.back` for an item with a `row_test_id`); Left, Escape
+and the back row return to the item, and the dropdown or sheet resizes to each
+page. `then` says what choosing an item does: `MenuThen::Close` (the default),
+`Back` to the page before (a location picked on a page), or `Stay`. `MenuCaption` is a
+row of text nothing can choose, and `MenuGrid` lays its child items out as
+tiles in `columns`, which the arrow keys walk in two dimensions and leave for
+the rows above and below. A page of rows with a `depth` is a tree: `expanded`
+(`None` for a leaf) draws the chevron, Right and Left and the chevron report
+`on_expand`, and the caller shows the rows of open branches (a `ForEach` over
+them), as with `Tree`. A `checked` row shows a check, and a page opens with the
+keyboard on its checked row. The dropdown is never taller than a fixed height
+and scrolls the row the keyboard is on into view. `MenuButton` is the button that
 opens a menu under itself, which is what a toolbar reaches for where `Select`
 would imply the choice sticks (`IconMenuButton` is the same with an icon
 button's face); `ContextMenu` is the same menu on a secondary press, and it

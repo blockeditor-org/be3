@@ -1,11 +1,12 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
+use crate::context_menu::{MenuTreeLead, SHEET_TREE_CHEVRON, SHEET_TREE_INDENT};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_core::font::TextAlign;
-use beui_core::icons::ICON_CHEVRON_RIGHT;
+use beui_core::icons::{ICON_CHECK, ICON_CHEVRON_RIGHT};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -59,6 +60,10 @@ pub(crate) fn ActionRowFace(
     disabled: Prop<bool>,
     danger: Prop<bool>,
     #[prop(default = false)] submenu: Prop<bool>,
+    #[prop(default = false)] checked: Prop<bool>,
+    #[prop(default = None)] depth: Prop<Option<usize>>,
+    #[prop(default = None)] expanded: Prop<Option<bool>>,
+    toggle: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
     let off = create_memo(move || disabled.get());
@@ -83,6 +88,7 @@ pub(crate) fn ActionRowFace(
     let detail = create_memo(move || detail.get());
     let chevron_color = TextColor::Muted;
     let has_detail = create_memo(move || !detail.get().is_empty());
+    let checked = create_memo(move || checked.get());
     view! {
         <Frame
             height=ROW_HEIGHT
@@ -92,6 +98,13 @@ pub(crate) fn ActionRowFace(
             padding={Sides::horizontal(PADDING_HORIZONTAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                <MenuTreeLead
+                    depth
+                    expanded
+                    toggle
+                    indent=SHEET_TREE_INDENT
+                    chevron=SHEET_TREE_CHEVRON
+                />
                 <Show condition={has_glyph}>
                     <Text color={icon_color} align=TextAlign::Center>
                         <Icon glyph={glyph} />
@@ -108,6 +121,11 @@ pub(crate) fn ActionRowFace(
                         />
                     </Show>
                 </List>
+                <Show condition={checked}>
+                    <Text color=TextColor::Accent align=TextAlign::Center>
+                        <Icon glyph={ICON_CHECK.to_owned()} />
+                    </Text>
+                </Show>
                 <Show condition={submenu}>
                     <Text color={chevron_color} align=TextAlign::Center>
                         <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} />

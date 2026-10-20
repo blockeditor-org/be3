@@ -2,9 +2,11 @@ use super::*;
 use beui::KeyAt;
 use beui::TextAlign;
 use beui::icons::{
-    ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_FOLDER, ICON_INFO, ICON_SAVE, ICON_SCHEDULE,
+    ICON_ADD, ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_FOLDER, ICON_FORMAT_QUOTE, ICON_IMAGE,
+    ICON_INFO, ICON_SAVE, ICON_SCHEDULE, ICON_SUBJECT, ICON_TABLE_CHART, ICON_UPLOAD_FILE,
     ICON_WARNING,
 };
+use beui::unstyled::MenuThen;
 
 const COLUMN_SPACING: f32 = 20.0;
 const COLUMNS_BREAKPOINT: f32 = 460.0;
@@ -1333,6 +1335,15 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Menu buttons" code={vec![SortMenus::SOURCE]}>
                 <SortMenus />
             </Sample>
+            <Sample
+                title="Menu pages and trees"
+                code={vec![NewBlockMenu::SOURCE, FolderRow::SOURCE, folder_shown::SOURCE]}
+            >
+                <NewBlockMenu />
+            </Sample>
+            <Sample title="Menu captions and grids" code={vec![NewSlideMenu::SOURCE]}>
+                <NewSlideMenu />
+            </Sample>
             <Sample title="Picture menu buttons" code={vec![TrayIcons::SOURCE, badge::SOURCE]}>
                 <TrayIcons />
             </Sample>
@@ -1565,6 +1576,222 @@ fn SortMenus() -> NodeId {
                 />
             </List>
             <Text style=TextStyle::CAPTION string={sort_text} />
+        </List>
+    }
+}
+
+const FOLDERS: [(&str, usize, Option<usize>); 10] = [
+    ("Home", 0, None),
+    ("Work", 1, Some(0)),
+    ("Projects", 2, Some(1)),
+    ("Alpha", 3, Some(2)),
+    ("Beta", 3, Some(2)),
+    ("Notes", 2, Some(1)),
+    ("Personal", 1, Some(0)),
+    ("Recipes", 2, Some(6)),
+    ("Travel", 2, Some(6)),
+    ("Archive", 1, Some(0)),
+];
+const MORE_BLOCKS: [&str; 24] = [
+    "Checklist",
+    "Calendar",
+    "Chat",
+    "Code",
+    "Contacts",
+    "Diagram",
+    "Drawing",
+    "Email",
+    "Feed",
+    "Form",
+    "Gallery",
+    "Kanban board",
+    "Map",
+    "Music",
+    "Outline",
+    "Presentation",
+    "Recipe",
+    "Spreadsheet",
+    "Terminal",
+    "Timeline",
+    "Timer",
+    "Video",
+    "Web page",
+    "Whiteboard",
+];
+const SLIDE_LAYOUTS: [(&str, &str); 6] = [
+    ("Title", ICON_TITLE),
+    ("Title and body", ICON_SUBJECT),
+    ("Two columns", ICON_VIEW_COLUMN),
+    ("Picture", ICON_IMAGE),
+    ("Quote", ICON_FORMAT_QUOTE),
+    ("Blank", ICON_CROP_SQUARE),
+];
+
+#[sample]
+fn folder_shown(folder: usize, expanded: &[usize]) -> bool {
+    let mut parent = FOLDERS[folder].2;
+    while let Some(above) = parent {
+        if !expanded.contains(&above) {
+            return false;
+        }
+        parent = FOLDERS[above].2;
+    }
+    true
+}
+
+#[sample]
+#[component]
+fn FolderRow(
+    folder: usize,
+    location: Signal<usize>,
+    expanded: Signal<Vec<usize>>,
+) -> unstyled::MenuItem {
+    let (name, depth, _) = FOLDERS[folder];
+    let branch = FOLDERS.iter().any(|(_, _, parent)| *parent == Some(folder));
+    let open = create_memo(move || branch.then(|| expanded.get().contains(&folder)));
+    let checked = create_memo(move || location.get() == folder);
+    view! {
+        <unstyled::MenuItem
+            label=name
+            glyph=ICON_FOLDER
+            depth={Some(depth)}
+            expanded={open}
+            checked
+            then=MenuThen::Back
+            row_test_id={format!("demo.new.folder.{folder}")}
+            on_click={move || location.set(folder)}
+            on_expand={move |open: bool| {
+                expanded.update(|expanded| match open {
+                    true => expanded.push(folder),
+                    false => expanded.retain(|other| *other != folder),
+                })
+            }}
+        />
+    }
+}
+
+#[sample]
+#[component]
+fn NewBlockMenu() -> NodeId {
+    let location = create_signal(1_usize);
+    let expanded = create_signal(vec![0_usize, 1]);
+    let added = create_signal("Nothing added yet".to_owned());
+    let shown = create_memo(move || {
+        let open = expanded.get();
+        (0..FOLDERS.len())
+            .filter(|folder| folder_shown(*folder, &open))
+            .collect::<Vec<_>>()
+    });
+    let place = create_memo(move || FOLDERS[location.get()].0.to_owned());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <MenuButton
+                    @test_id="demo.new"
+                    label="Add block"
+                    glyph=ICON_ADD
+                    items={view! {
+                        <unstyled::MenuItem
+                            label="New in"
+                            detail={place}
+                            glyph=ICON_FOLDER
+                            page=true
+                            row_test_id="demo.new.location"
+                        >
+                            <ForEach keys={shown}>|folder: usize|
+                                <FolderRow folder location expanded />
+                            </ForEach>
+                        </unstyled::MenuItem>
+                        <unstyled::MenuItem label="Text" glyph=ICON_NOTES separated=true />
+                        <unstyled::MenuItem label="Canvas" glyph=ICON_DRAW />
+                        <unstyled::MenuItem label="Folder" glyph=ICON_FOLDER />
+                        <unstyled::MenuItem label="Database" glyph=ICON_TABLE_CHART />
+                        <unstyled::MenuItem
+                            label="More blocks…"
+                            glyph=ICON_WIDGETS
+                            separated=true
+                            page=true
+                            row_test_id="demo.new.more"
+                        >
+                            <ForEach keys={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}>|kind: usize|
+                                <unstyled::MenuItem label={MORE_BLOCKS[kind]} />
+                            </ForEach>
+                        </unstyled::MenuItem>
+                        <unstyled::MenuItem label="Link existing…" glyph=ICON_LINK />
+                        <unstyled::MenuItem label="Import a .block file…" glyph=ICON_UPLOAD_FILE />
+                    }}
+                    on_select={move |path: Vec<usize>| {
+                        let kind = match path.as_slice() {
+                            [1] => "a text",
+                            [2] => "a canvas",
+                            [3] => "a folder",
+                            [4] => "a database",
+                            [5, kind] => MORE_BLOCKS[*kind],
+                            [6] => "a link",
+                            [7] => "an import",
+                            _ => return,
+                        };
+                        added.set(format!("Added {kind} in {}", place.get()));
+                    }}
+                />
+            </List>
+            <Text
+                style=TextStyle::CAPTION
+                string="New in opens a page of folders in place of the menu: arrows walk the \
+                 tree, Right and Left open and close a folder, and choosing one comes back \
+                 with it. More blocks opens a page long enough to scroll. Left or Escape goes \
+                 back a page."
+                wrap=true
+            />
+            <Text style=TextStyle::CAPTION string={added} />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn NewSlideMenu() -> NodeId {
+    let added = create_signal("No slide added yet".to_owned());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <MenuButton
+                    @test_id="demo.slide"
+                    label="New slide"
+                    glyph=ICON_ADD
+                    items={view! {
+                        <unstyled::MenuCaption label="New slide" />
+                        <unstyled::MenuGrid columns=2>
+                            <ForEach
+                                keys={(0..SLIDE_LAYOUTS.len()).collect::<Vec<_>>()}
+                            >|layout: usize|
+                                <unstyled::MenuItem
+                                    label={SLIDE_LAYOUTS[layout].0}
+                                    glyph={SLIDE_LAYOUTS[layout].1}
+                                    row_test_id={format!("demo.slide.{layout}")}
+                                />
+                            </ForEach>
+                        </unstyled::MenuGrid>
+                        <unstyled::MenuItem label="Other blocks…" separated=true />
+                        <unstyled::MenuItem label="Link existing…" glyph=ICON_LINK />
+                    }}
+                    on_select={move |path: Vec<usize>| {
+                        let what = match path.as_slice() {
+                            [1, layout] => SLIDE_LAYOUTS[*layout].0,
+                            [2] => "another block",
+                            _ => "a link",
+                        };
+                        added.set(format!("Added {what}"));
+                    }}
+                />
+            </List>
+            <Text
+                style=TextStyle::CAPTION
+                string="A caption heads a grid of layouts; arrow keys move across and down the \
+                 grid and on into the rows below it."
+                wrap=true
+            />
+            <Text style=TextStyle::CAPTION string={added} />
         </List>
     }
 }

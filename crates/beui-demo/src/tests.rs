@@ -10,8 +10,11 @@ use std::time::Duration;
 mod a_dialog_hangs_from_the_tab_that_opened_it;
 mod a_dialog_opens_on_the_screen_it_was_asked_for_from;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
+mod a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on;
 mod a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar;
 mod a_long_sheet_fades_its_content_and_bounces_as_a_panel;
+mod a_menu_page_opens_in_place_of_the_menu_and_its_tree_follows_the_arrow_keys;
+mod a_menu_page_opens_in_place_of_the_menu_in_a_sheet;
 mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
@@ -28,6 +31,7 @@ mod paused_edits_wait_for_a_send_and_carry_presence;
 mod replacing_a_page_closes_the_dialogs_it_opened;
 mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
 mod tabbing_through_every_page_shows_each_focus_ring_whole;
+mod the_arrow_keys_move_across_a_menu_grid_and_on_to_the_rows_below;
 mod the_catalog_shows_a_page_in_place_of_the_one_shown_unless_ctrl_is_held;
 mod the_code_of_a_sample_can_be_selected;
 mod the_crash_notice_sample_reloads_from_its_button;
@@ -106,6 +110,24 @@ fn reveal(test: &mut DocumentTest, test_id: &str) {
         test.scroll_at(page, Vec2::new(0.0, -REVEAL_STEP));
     }
     panic!("the page never showed {test_id}");
+}
+
+fn press(test: &mut DocumentTest, key: beui::Key) {
+    for pressed in [true, false] {
+        test.frame(vec![beui::Event::key(beui::KeyPress {
+            key,
+            pressed,
+            repeat: false,
+            modifiers: beui::Modifiers::NONE,
+        })]);
+    }
+    test.frame(Vec::new());
+}
+
+fn focused(test: &DocumentTest, test_id: &str) -> bool {
+    let document = test.document();
+    document.find_test_id(test_id).is_some()
+        && document.focused_node() == document.find_test_id(test_id)
 }
 
 fn dialog_id(index: u64) -> String {
