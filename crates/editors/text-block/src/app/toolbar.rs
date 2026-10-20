@@ -181,8 +181,6 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
     };
     let bar = move || {
         let controls = controls.clone();
-        let keyboard = keyboard;
-        let markdown = markdown;
         view! {
             <Interactive press_focus=false @test_id={"text.format"}>
                 <Frame fill=ColorRole::Surface>

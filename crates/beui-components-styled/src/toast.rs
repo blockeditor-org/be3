@@ -88,9 +88,6 @@ pub fn Toasts(
             <Frame padding=MARGIN width={WIDTH + 2.0 * MARGIN}>
                 <List spacing=SPACING>
                     <ForEach keys={toasts}>|toast: Toast| {
-                        let on_dismiss = on_dismiss;
-                        let on_action = on_action;
-                        let on_activate = on_activate;
                         let duration = match toast.sticky || toast.danger {
                             true => None,
                             false => duration.get_untracked(),
@@ -245,7 +242,6 @@ fn ToastActions(id: u64, actions: Vec<ToastAction>, on_action: Callback<(u64, St
             spacing=SPACING
         >
             <ForEach keys={actions}>|action: ToastAction| {
-                let on_action = on_action;
                 let key = action.key.clone();
                 view! {
                     <Button

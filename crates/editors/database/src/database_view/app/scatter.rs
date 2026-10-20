@@ -138,12 +138,9 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                         <CanvasItem x=0.0 y=0.0 width={AXIS_LEFT * 2.0} height=LABEL_HEIGHT>
                             <Text style=TextStyle::CAPTION string={y_name} />
                         </CanvasItem>
-                        <ForEach keys={keys}>|row: usize| {
-                            let placed = placed;
-                            view! {
-                                <Dot placed={placed} data={data} row={row} />
-                            }
-                        }</ForEach>
+                        <ForEach keys={keys}>|row: usize|
+                            <Dot placed={placed} data={data} row={row} />
+                        </ForEach>
                         <Show condition={empty}>
                             <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
                                 <Text

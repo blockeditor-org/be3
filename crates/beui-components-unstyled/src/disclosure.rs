@@ -47,7 +47,7 @@ pub fn Disclosure(
             <unstyled::Button
                 accessibility
                 on_click={move || {
-                    let next = !untrack(|| open_for_click.get());
+                    let next = !open_for_click.get_untracked();
                     current.set(next);
                     on_toggle.call(next);
                 }}

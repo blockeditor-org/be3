@@ -86,7 +86,7 @@ pub fn Button(
 
     let click = {
         move || {
-            if untrack(|| disabled.get()) {
+            if disabled.get_untracked() {
                 return;
             }
             if let Some(action) = &action {
@@ -98,7 +98,7 @@ pub fn Button(
     let key_click = click.clone();
     let click_at = {
         move |press: PointerPress| {
-            if untrack(|| disabled.get()) {
+            if disabled.get_untracked() {
                 return;
             }
             on_click_at.call(press);

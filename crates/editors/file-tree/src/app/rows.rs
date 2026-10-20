@@ -390,21 +390,21 @@ impl Tree {
     pub(crate) fn toggle(&self, key: &RowKey, id: Option<Uuid>, expanded: bool) {
         match key {
             RowKey::Orphans => {
-                let folded = untrack(|| self.folded.get());
+                let folded = self.folded.get_untracked();
                 self.folded.set(Folded {
                     orphans_open: !folded.orphans_open,
                     ..folded
                 });
             }
             RowKey::Shared => {
-                let folded = untrack(|| self.folded.get());
+                let folded = self.folded.get_untracked();
                 self.folded.set(Folded {
                     shared_closed: !folded.shared_closed,
                     ..folded
                 });
             }
             RowKey::System => {
-                let folded = untrack(|| self.folded.get());
+                let folded = self.folded.get_untracked();
                 self.folded.set(Folded {
                     system_open: !folded.system_open,
                     ..folded
@@ -448,7 +448,7 @@ impl Tree {
     }
 
     pub(crate) fn show_orphans(&self) {
-        let folded = untrack(|| self.folded.get());
+        let folded = self.folded.get_untracked();
         self.folded.set(Folded {
             orphans_open: true,
             ..folded
@@ -459,7 +459,7 @@ impl Tree {
         let held = self
             .inner
             .with(|inner| root.is_some_and(|id| inner.watched.borrow().system.contains(&id)));
-        let folded = untrack(|| self.folded.get());
+        let folded = self.folded.get_untracked();
         if held && !folded.system_open {
             self.folded.set(Folded {
                 system_open: true,

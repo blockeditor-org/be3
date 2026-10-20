@@ -19,12 +19,9 @@ use crate::surfaces::MainSurface;
 #[component]
 pub(super) fn OrganizationScreen(view: AppViewStore) -> NodeId {
     view! {
-        <Container>|_| {
-            let view = view;
-            view! {
-                <OrganizationBody view />
-            }
-        }</Container>
+        <Container>|_|
+            <OrganizationBody view />
+        </Container>
     }
 }
 

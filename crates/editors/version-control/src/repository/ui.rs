@@ -66,7 +66,6 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
     let fork_blocked = blocked;
     let push_blocked = pull_blocked;
     let rows = move |(name, head): (String, String)| {
-        let blocked = blocked;
         view! {
             <BranchRow editor blocked name head />
         }

@@ -339,7 +339,7 @@ impl Motion {
     fn close(&self, velocity: f32) {
         self.held.borrow_mut().flung = velocity;
         self.on_close.call();
-        if untrack(|| self.open.get()) {
+        if self.open.get_untracked() {
             self.held.borrow_mut().flung = 0.0;
             self.start(Phase::Snap {
                 target: if self.content().0 > 0.0 {

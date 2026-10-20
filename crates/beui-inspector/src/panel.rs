@@ -183,7 +183,6 @@ pub fn build(state: Stored<State>) -> Panel {
 
     let document = beui_view::reactive::build(|| {
         let count_text = create_memo({
-            let (summary, performance, tab) = (summary, performance, tab);
             move || match tab.get() {
                 InspectorTab::Performance => {
                     performance.with(|performance| performance.samples.clone())

@@ -108,7 +108,7 @@ impl Reveal {
     }
 
     fn step(&self) -> Option<Duration> {
-        if untrack(|| self.held.get()) {
+        if self.held.get_untracked() {
             self.show();
             return None;
         }
@@ -266,11 +266,11 @@ struct Motion {
 
 impl Motion {
     fn axis(&self) -> Direction {
-        untrack(|| self.direction.get())
+        self.direction.get_untracked()
     }
 
     fn placed(&self) -> Option<ScrollPosition> {
-        let reported = untrack(|| self.reported.get())?;
+        let reported = self.reported.get_untracked()?;
         let node = self.node?;
         let offset = with_document(|document| document.offset_value(node));
         Some(ScrollPosition { offset, ..reported })
@@ -566,7 +566,7 @@ fn Scrolling(
                 animation.stop();
             }
             false => {
-                if untrack(|| reveal.with(|reveal| reveal.visibility.get())) > 0.0 {
+                if reveal.with(|reveal| reveal.visibility.get_untracked()) > 0.0 {
                     reveal.value().poke();
                 }
             }
@@ -580,7 +580,7 @@ fn Scrolling(
         scroll_to: Callback::new(move |offset: f32| motion.value().scroll_to(offset)),
         visibility: reveal.with(|reveal| reveal.visibility.read_only()),
         on_engage: Callback::new(move |now: bool| {
-            if untrack(|| engaged.get()) != now {
+            if engaged.get_untracked() != now {
                 engaged.set(now);
             }
         }),
@@ -618,14 +618,14 @@ fn Scrolling(
                     on_press={move |_: PointerPress| motion.value().stop_fling()}
                     on_hover_move={move |press: PointerPress| {
                         let at_edge = bar_width > 0.0
-                            && untrack(|| position.get()).max_offset() > 0.0
-                            && near_edge(untrack(|| edge_axis.get()), press, bar_width);
-                        if untrack(|| near.get()) != at_edge {
+                            && position.get_untracked().max_offset() > 0.0
+                            && near_edge(edge_axis.get_untracked(), press, bar_width);
+                        if near.get_untracked() != at_edge {
                             near.set(at_edge);
                         }
                     }}
                     on_hover_change={move |inside: bool| {
-                        if !inside && untrack(|| near.get()) {
+                        if !inside && near.get_untracked() {
                             near.set(false);
                         }
                     }}
@@ -633,7 +633,7 @@ fn Scrolling(
                     on_scroll_drag={move |gesture: DragGesture| motion.value().drag(gesture)}
                     on_autoscroll={move |gesture: AutoscrollGesture| {
                         let marking = (!gesture.ended).then_some(gesture.origin);
-                        if untrack(|| origin.get()) != marking {
+                        if origin.get_untracked() != marking {
                             origin.set(marking);
                         }
                         motion.value().autoscroll(gesture);

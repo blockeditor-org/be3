@@ -113,9 +113,6 @@ pub fn ChoicePicker(
                     />
                 }}
                 trigger={move |handle: MenuButtonHandle| {
-                    let option = option;
-                    let label = label;
-                    let color = color;
                     view! {
                         <ControlFace handle={handle.button}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>

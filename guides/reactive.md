@@ -635,7 +635,7 @@ child.
 A component reads such a slot with `into_run`, which answers with a `Run<T>`:
 the children written into it now, and the ones a `show`, a `dynamic` or a
 `for_each` inside it builds later. `Run::items` reads them and subscribes, so a
-run that changes wakes whoever read it; `peek` reads without subscribing, and
+run that changes wakes whoever read it; `get_untracked` reads without subscribing, and
 `build` is the usual consumer, turning the run's items into a run of children
 of its own and keeping the two in step.
 

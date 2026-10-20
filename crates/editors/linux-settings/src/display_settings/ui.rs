@@ -43,19 +43,16 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
                     <SettingsRow label="No display is connected to this session." />
                 </SettingsSection>
             </Show>
-            <ForEach keys={ids}>|id: String| {
-                let (displays, read_only) = (displays, read_only);
-                view! {
-                    <DisplaySection
-                        id={id}
-                        settings={settings}
-                        root={root}
-                        merged={merged}
-                        displays={displays}
-                        read_only={read_only}
-                    />
-                }
-            }</ForEach>
+            <ForEach keys={ids}>|id: String|
+                <DisplaySection
+                    id={id}
+                    settings={settings}
+                    root={root}
+                    merged={merged}
+                    displays={displays}
+                    read_only={read_only}
+                />
+            </ForEach>
         </SettingsPage>
     }
 }

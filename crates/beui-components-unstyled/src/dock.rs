@@ -1468,7 +1468,7 @@ fn DockStack(dock: State) -> NodeId {
         <BackSlide
             enabled={backward}
             behind={move || {
-                let (dock, switching) = (returning, switching);
+                let dock = returning;
                 view! {
                     <BackPreview dock switching />
                 }

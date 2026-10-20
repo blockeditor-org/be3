@@ -81,7 +81,7 @@ pub fn Select(
     let options = options.into_run();
     let initial = selected_prop
         .get_untracked()
-        .filter(|index| *index < options.peek().len());
+        .filter(|index| *index < options.get_untracked().len());
     let option = option.unwrap_or_else(|| {
         RenderFn::new(|_| {
             view! {
@@ -179,8 +179,10 @@ pub fn Select(
             .filter(|(_, option)| shows(&query, &option.label().get()))
             .map(|(index, _)| index)
             .collect();
-        let hidden =
-            untrack(|| state.highlighted.get()).is_some_and(|index| !shown.contains(&index));
+        let hidden = state
+            .highlighted
+            .get_untracked()
+            .is_some_and(|index| !shown.contains(&index));
         if hidden {
             untrack(|| state.highlighted.set(shown.first().copied()));
         }
@@ -299,7 +301,7 @@ fn visible_rows(state: State) -> Vec<usize> {
     state
         .options
         .value()
-        .peek()
+        .get_untracked()
         .iter()
         .enumerate()
         .filter(|(_, option)| shows(&query, &option.label().get_untracked()))
@@ -347,7 +349,7 @@ pub fn select_highlighted(document: &Document, select: NodeId) -> Option<usize> 
 }
 
 fn apply_requested_selection(state: State, selected: Option<usize>) {
-    let selected = selected.filter(|index| *index < state.options.value().peek().len());
+    let selected = selected.filter(|index| *index < state.options.value().get_untracked().len());
     if state.selected.get_untracked() != selected {
         state.selected.set(selected);
     }

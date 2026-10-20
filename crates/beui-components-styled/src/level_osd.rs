@@ -102,7 +102,6 @@ pub fn LevelOsd(
                         screen.top() + screen.height() * SCREEN_HEIGHT_FRACTION,
                     ))
                 });
-                let (open, level, opacity) = (open, level, opacity);
                 let id = format!("{id}.{index}");
                 view! {
                     <Overlay
@@ -125,10 +124,8 @@ pub fn LevelOsd(
 #[component]
 fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) -> NodeId {
     let theme = use_theme();
-    let faded = move |color: Memo<Color32>| {
-        let opacity = opacity;
-        create_memo(move || color.get().scale_alpha(opacity.get()))
-    };
+    let faded =
+        move |color: Memo<Color32>| create_memo(move || color.get().scale_alpha(opacity.get()));
     let shown = level;
     let muted =
         create_memo(move || shown.with(|level| level.as_ref().is_some_and(|level| level.muted)));

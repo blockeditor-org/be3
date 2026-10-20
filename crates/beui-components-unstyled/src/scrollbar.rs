@@ -114,7 +114,7 @@ fn over_thumb(position: ScrollPosition, at: f32) -> bool {
 }
 
 fn along(direction: &Prop<Direction>, press: PointerPress) -> f32 {
-    untrack(|| direction.get()).main(press.fraction)
+    direction.get_untracked().main(press.fraction)
 }
 
 #[component]
@@ -151,7 +151,7 @@ pub fn Scrollbar(
     view! {
         <Interactive
             on_press={move |press: PointerPress| {
-                let position = untrack(|| pressed_at.get());
+                let position = pressed_at.get_untracked();
                 if position.max_offset() <= 0.0 {
                     return;
                 }
@@ -171,14 +171,14 @@ pub fn Scrollbar(
                 let Some(grab) = dragged_grab.get() else {
                     return;
                 };
-                let position = untrack(|| dragged_at.get());
+                let position = dragged_at.get_untracked();
                 if position.max_offset() <= 0.0 {
                     return;
                 }
                 on_scroll_to.call(offset_at(position, along(&dragged_axis, press) - grab));
             }}
             on_hover_move={move |press: PointerPress| {
-                let position = untrack(|| hovered_at.get());
+                let position = hovered_at.get_untracked();
                 let at = along(&hovered_axis, press);
                 hovered.set(position.max_offset() > 0.0 && over_thumb(position, at));
             }}
@@ -189,7 +189,7 @@ pub fn Scrollbar(
                 }
             }}
             hit_at={move |_: Pos2| {
-                untrack(|| shown.get() && hit_position.get().max_offset() > 0.0)
+                shown.get_untracked() && hit_position.get_untracked().max_offset() > 0.0
             }}
             on_active_change={move |active: bool| {
                 held.set(active);

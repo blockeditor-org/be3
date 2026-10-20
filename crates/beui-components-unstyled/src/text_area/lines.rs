@@ -847,20 +847,17 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             radius=INLINE_WIDGET_RADIUS
         >
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-                <Show condition={has_icon}>|| {
-                    let icon = icon;
-                    view! {
-                        <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
-                            <Text
-                                font={FontId::proportional(16.0)}
-                                color={Color32::WHITE}
-                                align=TextAlign::Center
-                            >
-                                <Icon glyph={icon} />
-                            </Text>
-                        </Frame>
-                    }
-                }</Show>
+                <Show condition={has_icon}>||
+                    <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
+                        <Text
+                            font={FontId::proportional(16.0)}
+                            color={Color32::WHITE}
+                            align=TextAlign::Center
+                        >
+                            <Icon glyph={icon} />
+                        </Text>
+                    </Frame>
+                </Show>
                 <Text string={label} font={font} color={color} vertical_align=TextAlign::Center />
                 <Show condition={selected}>|| {
                     let anchor = overlay_anchor;

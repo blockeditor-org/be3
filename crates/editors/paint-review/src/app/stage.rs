@@ -143,8 +143,6 @@ pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
             <List spacing=0.0>
                 <Canvas view={view} @sizing=ItemSize::Percent(100.0)>
                     <ForEach keys={places}>|index: usize| {
-                        let panels = panels;
-                        let layout = layout;
                         let image = create_memo(move || {
                             panels.get().get(index).map(|panel: &Rendered| {
                                 panel.image.clone()

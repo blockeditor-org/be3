@@ -212,7 +212,7 @@ fn fold_into_sheet(layout: ChromeLayout, body: NodeId, folded: Memo<bool>) {
     let panels = layout.panels;
     create_effect(move || {
         let wanted = folded.get();
-        let listed = untrack(|| panels.get().contains(&body));
+        let listed = panels.with_untracked(|panels| panels.contains(&body));
         if wanted == listed {
             return;
         }

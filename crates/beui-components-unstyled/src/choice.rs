@@ -187,7 +187,7 @@ fn sync_selected(state: State, selected: Option<usize>) {
 }
 
 fn option_count(state: State) -> usize {
-    state.options.value().peek().len()
+    state.options.value().get_untracked().len()
 }
 
 fn select(state: State, selected: Option<usize>) {
@@ -239,7 +239,7 @@ fn typeahead(state: State, index: usize, text: &str) {
     let labels: Vec<String> = state
         .options
         .value()
-        .peek()
+        .get_untracked()
         .iter()
         .map(|option| option.label.get_untracked())
         .collect();

@@ -15,7 +15,6 @@ fn an_effect_keeps_its_zone_for_the_effects_it_creates() {
             create_effect(move || {
                 outer.get();
                 let seen = seen.clone();
-                let inner = inner;
                 create_effect(move || seen.borrow_mut().push(inner.get()));
             });
         });

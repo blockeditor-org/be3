@@ -12,7 +12,6 @@ fn cleanup_reads_do_not_become_dependencies() {
         create_effect(move || {
             value.get();
             calls.set(calls.get() + 1);
-            let incidental = incidental;
             on_cleanup(move || {
                 incidental.get();
             });

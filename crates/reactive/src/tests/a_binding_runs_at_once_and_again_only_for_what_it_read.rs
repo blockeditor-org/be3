@@ -14,7 +14,7 @@ fn a_binding_runs_at_once_and_again_only_for_what_it_read() {
         move || {
             let pushed = seen.clone();
             create_binding(move || {
-                let ignored = untrack(|| ignored.get());
+                let ignored = ignored.get_untracked();
                 pushed.borrow_mut().push((doubled.get(), ignored));
             });
             assert_eq!(

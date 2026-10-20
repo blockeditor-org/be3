@@ -151,12 +151,9 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
             <Show condition={bare}>
                 <Text style=TextStyle::CAPTION string="No effects yet." color={bare_color} />
             </Show>
-            <ForEach keys={effect_ids}>|id: Uuid| {
-                let effects = effects;
-                view! {
-                    <EffectRow effects id />
-                }
-            }</ForEach>
+            <ForEach keys={effect_ids}>|id: Uuid|
+                <EffectRow effects id />
+            </ForEach>
         </List>
     }
 }

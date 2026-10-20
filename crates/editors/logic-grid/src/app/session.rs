@@ -53,7 +53,7 @@ impl Session {
         self.model.with(|model| read(&model.borrow()))
     }
 
-    pub(super) fn peek<T>(&self, read: impl FnOnce(&LogicGridEditor) -> T) -> T {
+    pub(super) fn read_untracked<T>(&self, read: impl FnOnce(&LogicGridEditor) -> T) -> T {
         self.model.with(|model| read(&model.borrow()))
     }
 

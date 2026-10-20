@@ -160,7 +160,6 @@ pub(super) fn AccountsScreen(view: AppViewStore) -> NodeId {
             <Text style=TextStyle::TITLE string="Block Editor" />
             <Text style=TextStyle::CAPTION string="Choose an account to continue." />
             <ForEach keys={keys}>|key: String| {
-                let accounts = accounts;
                 let account = create_memo(move || {
                     accounts
                         .get()
@@ -679,7 +678,6 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
             </Card>
             <Text style=TextStyle::HEADING string="Open an organization" />
             <ForEach keys={keys}>|id: Uuid| {
-                let rows = rows;
                 let label = create_memo(move || {
                     rows.get()
                         .organizations
@@ -892,7 +890,6 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                 string="The blocks you had open. Start a new session to begin again with the same settings."
             />
             <ForEach keys={session_keys}>|id: Uuid| {
-                let sessions = sessions;
                 let label = create_memo(move || {
                     sessions.get()
                         .sessions

@@ -26,12 +26,9 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
             <Show condition={waiting}>
                 <Text style=TextStyle::CAPTION string="Opening the review" color={opening} />
             </Show>
-            <ForEach keys={Status::ALL.to_vec()}>|status: Status| {
-                let entries = entries;
-                view! {
-                    <StatusGroup review entries status />
-                }
-            }</ForEach>
+            <ForEach keys={Status::ALL.to_vec()}>|status: Status|
+                <StatusGroup review entries status />
+            </ForEach>
             <Show condition={searching}>
                 <Text
                     style=TextStyle::CAPTION

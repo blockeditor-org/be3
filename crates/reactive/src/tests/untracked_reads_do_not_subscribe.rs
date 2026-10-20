@@ -12,7 +12,7 @@ fn untracked_reads_do_not_subscribe() {
         create_effect(move || {
             trigger.get();
             seen.borrow_mut()
-                .push(untrack(|| incidental.get()) + incidental.get_untracked());
+                .push(incidental.get_untracked() + incidental.get_untracked());
         });
     });
     incidental.set(2);

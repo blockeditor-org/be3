@@ -192,10 +192,10 @@ impl<C: SlotChild> Default for Run<C> {
 impl<C: SlotChild> Run<C> {
     pub fn items(&self) -> Vec<C::Stored> {
         self.state.filled.get();
-        self.peek()
+        self.get_untracked()
     }
 
-    pub fn peek(&self) -> Vec<C::Stored> {
+    pub fn get_untracked(&self) -> Vec<C::Stored> {
         self.state.items.borrow().iter().cloned().collect()
     }
 
@@ -511,7 +511,7 @@ impl<T: SlotChild> From<Run<T>> for Children<T> {
         Self::from(ChildSegment::Dynamic(DynamicSegment::new(
             move |slot: ChildSlot<T>| {
                 let held = slot.clone();
-                held.fill(run.peek());
+                held.fill(run.get_untracked());
                 create_effect(move || slot.fill(run.items()));
             },
         )))

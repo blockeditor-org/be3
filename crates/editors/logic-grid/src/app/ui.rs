@@ -64,7 +64,7 @@ fn shortcut(session: Session, press: KeyPress) -> bool {
     let edits = matches!(
         press.key,
         Key::Delete | Key::Backspace | Key::Q | Key::E | Key::H | Key::V
-    ) && session.peek(|model| model.tool.kind == ToolKind::Select);
+    ) && session.read_untracked(|model| model.tool.kind == ToolKind::Select);
     if edits && !editable {
         return false;
     }
@@ -204,7 +204,7 @@ fn GridCanvas(session: Session) -> NodeId {
                 let Some(world) = last.value().take() else {
                     return;
                 };
-                if session.peek(|model| model.gesture.is_some()) {
+                if session.read_untracked(|model| model.gesture.is_some()) {
                     session.update(|model| model.release(world));
                 }
             };

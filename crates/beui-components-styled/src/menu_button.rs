@@ -130,7 +130,6 @@ pub fn PictureMenuButton(
             ButtonVariant::Ghost.fill(&theme, disabled.get(), hovered.get(), pressed.get())
         });
         let color = create_memo(move || ButtonVariant::Ghost.label(disabled.get()));
-        let (image, pictured, plain) = (image, pictured, plain);
         view! {
             <Tooltip label disabled={open}>
                 <FocusRing

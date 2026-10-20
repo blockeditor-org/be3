@@ -64,7 +64,7 @@ pub fn MenuButton(
             accessibility={accessibility}
             on_press={move |press: PointerPress| touched.set(press.touch)}
             on_click={move || {
-                match untrack(|| click_opens.get()) {
+                match click_opens.get_untracked() {
                     true => open.update(|open| *open = !*open),
                     false => on_click.call(),
                 }
@@ -82,10 +82,10 @@ pub fn MenuButton(
         trigger_node = view! {
             <Interactive
                 on_secondary_press={move |press: PointerPress| {
-                    if untrack(|| disabled.get()) {
+                    if disabled.get_untracked() {
                         return;
                     }
-                    match untrack(|| secondary_opens.get()) {
+                    match secondary_opens.get_untracked() {
                         true => {
                             touched.set(press.touch);
                             open.set(true);
@@ -102,7 +102,7 @@ pub fn MenuButton(
         trigger_node = view! {
             <Interactive
                 on_middle_click={move || {
-                    if !untrack(|| disabled.get()) {
+                    if !disabled.get_untracked() {
                         on_middle_click.call();
                     }
                 }}
@@ -115,7 +115,7 @@ pub fn MenuButton(
         trigger_node = view! {
             <Interactive
                 on_scroll={move |gesture: ScrollGesture| {
-                    if !untrack(|| disabled.get()) {
+                    if !disabled.get_untracked() {
                         on_scroll.call(gesture);
                     }
                 }}

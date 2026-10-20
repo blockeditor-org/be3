@@ -117,7 +117,7 @@ struct Row {
 
 impl Row {
     fn has_children(&self) -> bool {
-        !self.item.children.peek().is_empty()
+        !self.item.children.get_untracked().is_empty()
     }
 }
 
@@ -235,7 +235,6 @@ fn MenuRow(
     });
     let row_has_children = has_children;
     let content = {
-        let (row, item) = (row, item);
         move |handle: ButtonHandle| {
             let hovered = handle.hovered;
             let mut was_hovered = false;
@@ -294,7 +293,6 @@ fn MenuRow(
             />
             <Show condition={has_children}>|| {
                 let children = children.clone();
-                let (row, panel, content_ref) = (row, panel, content_ref);
                 let leave = MenuParent(Some(Callback::new(move |()| {
                     open.set(false);
                     state.focus.set(Focus::Row(index));

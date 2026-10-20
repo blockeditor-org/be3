@@ -258,7 +258,6 @@ pub fn BackSlide(
         <Layers>
             <Show condition={revealing}>|| {
                 let page = behind.call(());
-                let shade = shade;
                 view! {
                     <Shift by={behind_shift}>
                         <Layers>

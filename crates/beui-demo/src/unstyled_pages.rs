@@ -1523,7 +1523,6 @@ fn FolderPages() -> NodeId {
     let ink = TextColor::Default;
     let above = move || {
         let label = folder_label(depth.get_untracked().saturating_sub(1));
-        let (page, ink) = (page, ink);
         view! {
             <Frame fill={ColorRole::custom(page)}>
                 <Text string={label} color={ink} wrap=true />
@@ -1674,7 +1673,6 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
     } = handle;
     let start = today.get_untracked().unwrap_or_else(Date::today);
     let preset = move |label: &'static str, date: Date| {
-        let pick = pick;
         view! {
             <unstyled::Button on_click={move || pick.call(date)}>|handle: ButtonHandle|
                 <PillFace handle label />

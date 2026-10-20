@@ -162,14 +162,14 @@ pub fn Slider(
                 on_focus_change.call(next);
             }}
             on_step={move |delta: f32| {
-                let value = untrack(|| value_for_keys.get());
+                let value = value_for_keys.get_untracked();
                 step_value(stepped(scale, value, delta * STEP, min, max));
             }}
             on_key={move |press: KeyPress| {
                 if press.modifiers.ctrl || press.modifiers.alt {
                     return false;
                 }
-                let value = untrack(|| current.get());
+                let value = current.get_untracked();
                 let next = match press.key {
                     Key::Home => min,
                     Key::End => max,

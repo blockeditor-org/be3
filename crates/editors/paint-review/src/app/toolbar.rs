@@ -246,20 +246,17 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
                     @test_id={"paint_review.frame.next"}
                     on_click={move || review.seek(forward_frame.get_untracked() + 1)}
                 />
-                <Dynamic value={count}>|count: usize| {
-                    let at = at;
-                    view! {
-                        <Slider
-                            value={at}
-                            max={(count - 1) as f32}
-                            label="Frame"
-                            @test_id={"paint_review.frame.at"}
-                            on_change={move |value: f32| {
-                                review.seek(value.round().max(0.0) as usize)
-                            }}
-                        />
-                    }
-                }</Dynamic>
+                <Dynamic value={count}>|count: usize|
+                    <Slider
+                        value={at}
+                        max={(count - 1) as f32}
+                        label="Frame"
+                        @test_id={"paint_review.frame.at"}
+                        on_change={move |value: f32| {
+                            review.seek(value.round().max(0.0) as usize)
+                        }}
+                    />
+                </Dynamic>
                 <Text style=TextStyle::CAPTION string={position} />
                 <Show condition={differs}>
                     <Button

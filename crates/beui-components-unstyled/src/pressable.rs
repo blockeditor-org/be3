@@ -21,7 +21,7 @@ pub fn Pressable(
     let key_active = create_signal(false);
     component_accessibility(accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button))));
     let click = move || {
-        if untrack(|| enabled.get()) {
+        if enabled.get_untracked() {
             on_click.call();
         }
     };

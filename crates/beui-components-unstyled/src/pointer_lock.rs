@@ -39,7 +39,7 @@ pub fn PointerLock(
     component_accessibility(accessibility);
 
     let change = move |next: bool| {
-        if untrack(|| current.get()) == next {
+        if current.get_untracked() == next {
             return;
         }
         current.set(next);
@@ -55,7 +55,7 @@ pub fn PointerLock(
         }
     };
     let key = move |press: KeyPress| {
-        if untrack(|| current.get()) && press.key == Key::Escape {
+        if current.get_untracked() && press.key == Key::Escape {
             if press.pressed {
                 release();
             }

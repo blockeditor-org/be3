@@ -405,7 +405,6 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
         <Frame @node_ref=&area fill=ColorRole::Background>
             <List spacing=0.0>
                 <Dynamic value={screen}>|screen: Screen| {
-                    let view = view;
                     match screen {
                         Screen::Error => view! {
                             <onboarding::ErrorScreen @sizing=ItemSize::Percent(100.0) view />

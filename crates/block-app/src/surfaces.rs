@@ -140,7 +140,6 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
 pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     let kind = content.get_untracked();
     let text = create_memo({
-        let content = content;
         move || match content.get() {
             HostItem::Notice { text, .. } => text,
             HostItem::Fallback { name, .. } => name,
@@ -148,14 +147,12 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         }
     });
     let detail = create_memo({
-        let content = content;
         move || match content.get() {
             HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
             _ => String::new(),
         }
     });
     let italic = create_memo({
-        let content = content;
         move || {
             matches!(
                 content.get(),
@@ -166,12 +163,9 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
             )
         }
     });
-    let spinning = create_memo({
-        let content = content;
-        move || matches!(content.get(), HostItem::Notice { spinner: true, .. })
-    });
+    let spinning =
+        create_memo({ move || matches!(content.get(), HostItem::Notice { spinner: true, .. }) });
     let glyph = create_memo({
-        let content = content;
         move || match content.get() {
             HostItem::Fallback { icon, .. } => icon.unwrap_or_default(),
             HostItem::Notice { icon, .. } => icon.unwrap_or_default().to_owned(),

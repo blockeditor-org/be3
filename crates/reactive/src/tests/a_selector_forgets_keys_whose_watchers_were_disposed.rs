@@ -11,7 +11,6 @@ fn a_selector_forgets_keys_whose_watchers_were_disposed() {
     rows.run({
         move || {
             for index in 0..3 {
-                let selector = selector;
                 create_effect(move || {
                     selector.is_selected(&index);
                 });

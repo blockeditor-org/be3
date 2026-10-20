@@ -94,12 +94,9 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
         >
             {panel.call(view! {
                 <List spacing=0.0>
-                    <ForEach keys>|index: usize| {
-                        let (cx, row) = (cx, row);
-                        view! {
-                            <CompletionRow cx index row />
-                        }
-                    }</ForEach>
+                    <ForEach keys>|index: usize|
+                        <CompletionRow cx index row />
+                    </ForEach>
                 </List>
             })}
         </Overlay>

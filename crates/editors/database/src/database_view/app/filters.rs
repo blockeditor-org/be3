@@ -227,7 +227,6 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                     label={label}
                     @test_id={format!("database-view.filter.{}", id.as_uuid())}
                     trigger={move |handle: PopoverTriggerHandle| {
-                        let text = text;
                         view! {
                             <ControlFace handle={handle.button}>
                                 <Text style=TextStyle::CAPTION string={text} />
@@ -281,32 +280,29 @@ fn AddFilter(data: Data) -> NodeId {
                     </List>
                 </ControlFace>
             }}
-        >|_: PopoverHandle| {
-            let editing = editing;
-            view! {
-                <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
-                    <List spacing=0.0>
-                        <Show condition={choosing}>
-                            <FieldChoices
-                                data={data}
-                                on_pick={move |id: ObjectId| adding.set(Some(id))}
-                            />
-                        </Show>
-                        <Show condition={has_editing}>|| {
-                            let id = editing.get_untracked();
-                            match id {
-                                Some(id) => view! {
-                                    <FilterEditor data={data} id={id} />
-                                },
-                                None => view! {
-                                    <Frame />
-                                },
-                            }
-                        }</Show>
-                    </List>
-                </PopoverPanel>
-            }
-        }</unstyled::Popover>
+        >|_: PopoverHandle|
+            <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
+                <List spacing=0.0>
+                    <Show condition={choosing}>
+                        <FieldChoices
+                            data={data}
+                            on_pick={move |id: ObjectId| adding.set(Some(id))}
+                        />
+                    </Show>
+                    <Show condition={has_editing}>|| {
+                        let id = editing.get_untracked();
+                        match id {
+                            Some(id) => view! {
+                                <FilterEditor data={data} id={id} />
+                            },
+                            None => view! {
+                                <Frame />
+                            },
+                        }
+                    }</Show>
+                </List>
+            </PopoverPanel>
+        </unstyled::Popover>
     }
 }
 
@@ -328,7 +324,6 @@ fn FieldChoices(
         <List spacing=2.0>
             <Text style=TextStyle::CAPTION string="Filter by" />
             <ForEach keys={keys}>|field: Uuid| {
-                let on_pick = on_pick;
                 let name = create_memo(move || {
                     data.fields.with(|fields| {
                         fields
@@ -353,14 +348,11 @@ fn FieldChoices(
                         label={name}
                         @test_id={format!("database-view.filters.field.{field}")}
                         on_click={pick}
-                    >|handle| {
-                        let name = name;
-                        view! {
-                            <ControlFace handle={handle}>
-                                <Text string={name} />
-                            </ControlFace>
-                        }
-                    }</unstyled::Button>
+                    >|handle|
+                        <ControlFace handle={handle}>
+                            <Text string={name} />
+                        </ControlFace>
+                    </unstyled::Button>
                 }
             }</ForEach>
         </List>
@@ -646,7 +638,6 @@ fn ValueChoices(
                             data.operate_view(DatabaseView::set_filter_condition(id, &next));
                         };
                         let element_test_id = format!("database-view.filter.{}.choice.{index}", id.as_uuid());
-                        let read_only = read_only;
                         view! {
                             <List
                                 direction=Direction::Horizontal

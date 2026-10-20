@@ -111,7 +111,6 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
                             }
                         }</ForEach>
                         <ForEach keys={covering}>|tile: TileId| {
-                            let world = world;
                             let scale = tile_scale;
                             view! {
                                 <Tile state tile world scale />
@@ -119,7 +118,6 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
                         }</ForEach>
                         <ForEach keys={label_keys}>|key: labels::LabelKey| {
                             let shown = by_key;
-                            let scale = scale;
                             view! {
                                 <MapLabel key shown scale />
                             }

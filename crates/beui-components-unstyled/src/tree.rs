@@ -497,7 +497,7 @@ where
     if press.modifiers.ctrl || press.modifiers.alt {
         return false;
     }
-    let keys = untrack(|| state.keys.get());
+    let keys = state.keys.get_untracked();
     let Some(index) = keys.iter().position(|candidate| candidate == key) else {
         return false;
     };
@@ -546,7 +546,7 @@ fn typeahead<K>(state: State<K>, key: &K, text: &str)
 where
     K: Clone + Eq + Hash + 'static,
 {
-    let keys = untrack(|| state.keys.get());
+    let keys = state.keys.get_untracked();
     let Some(index) = keys.iter().position(|candidate| candidate == key) else {
         return;
     };

@@ -203,7 +203,7 @@ fn Toolbar(
         |_, item| item,
         move |index| {
             let item = shown.with(|shown| shown.borrow()[index].clone());
-            match item.children.peek().is_empty() {
+            match item.children.get_untracked().is_empty() {
                 true => view! {
                     <ToolbarButton item index button on_choose />
                 },

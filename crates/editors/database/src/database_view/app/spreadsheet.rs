@@ -82,17 +82,14 @@ fn Grid(
                                 keys={keys}
                                 item_size=ROW_HEIGHT
                                 overscan={ROW_HEIGHT * 2.0}
-                            >|index: ReadSignal<usize>| {
-                                let (display, positions) = (display, positions);
-                                view! {
-                                    <Row
-                                        data={data}
-                                        display={display}
-                                        positions={positions}
-                                        index={index}
-                                    />
-                                }
-                            }</VirtualList>
+                            >|index: ReadSignal<usize>|
+                                <Row
+                                    data={data}
+                                    display={display}
+                                    positions={positions}
+                                    index={index}
+                                />
+                            </VirtualList>
                         </List>
                     </Interactive>
                 </Scroll>
@@ -116,7 +113,6 @@ fn HeaderRow(data: Data) -> NodeId {
                 border={Border::new(ColorRole::Border).width(BORDER)}
             />
             <ForEach keys={keys}>|id: Uuid| {
-                let fields = fields;
                 let field = create_memo(move || {
                     fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
                 });
@@ -237,8 +233,6 @@ fn Row(
                 <Text style=TextStyle::CAPTION string={number} align=TextAlign::Center />
             </Frame>
             <ForEach keys={keys}>|id: Uuid| {
-                let entry = entry;
-                let fields = fields;
                 let field = create_memo(move || {
                     fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
                 });

@@ -262,21 +262,18 @@ fn PickerPanel(
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Frame width=field_width>{field}</Frame>
                 </List>
-                <Dynamic value={layout}>|shape: DateTimePanelLayout| {
-                    let (page, show_page) = (page, show_page);
-                    view! {
-                        <PanelBody
-                            shape
-                            calendar
-                            times
-                            page
-                            show_page={show_page}
-                            width={width}
-                            first_weekday
-                            step_minutes
-                        />
-                    }
-                }</Dynamic>
+                <Dynamic value={layout}>|shape: DateTimePanelLayout|
+                    <PanelBody
+                        shape
+                        calendar
+                        times
+                        page
+                        show_page={show_page}
+                        width={width}
+                        first_weekday
+                        step_minutes
+                    />
+                </Dynamic>
                 <List
                     direction=Direction::Horizontal
                     align=Align::Center

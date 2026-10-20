@@ -183,12 +183,9 @@ pub(crate) fn Timeline(state: VideoState) -> NodeId {
                         @test_id={"video.timeline"}
                     >
                         <Canvas view={camera}>
-                            <ForEach keys={lane_keys}>|lane: usize| {
-                                let content = content;
-                                view! {
-                                    <LaneStrip lane content />
-                                }
-                            }</ForEach>
+                            <ForEach keys={lane_keys}>|lane: usize|
+                                <LaneStrip lane content />
+                            </ForEach>
                             <ForEach keys={ticks}>|tick: Tick|
                                 <RulerTick tick />
                             </ForEach>

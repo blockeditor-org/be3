@@ -83,7 +83,7 @@ struct Camera {
 
 impl Camera {
     fn apply(&self, next: PanZoomView) {
-        if untrack(|| self.view.get()) == next {
+        if self.view.get_untracked() == next {
             return;
         }
         self.view.set(next);
@@ -91,7 +91,7 @@ impl Camera {
     }
 
     fn pan(&self, delta: Vec2) {
-        self.apply(untrack(|| self.view.get()).panned(delta));
+        self.apply(self.view.get_untracked().panned(delta));
     }
 
     fn key(&self, press: KeyPress) -> bool {
@@ -116,13 +116,13 @@ impl Camera {
         if !press.pressed {
             return true;
         }
-        let middle = untrack(|| self.rect.get()).center();
+        let middle = self.rect.get_untracked().center();
         match (pan, zoom) {
             (Some(delta), _) => self.pan(delta),
             (_, Some(factor)) => self.zoom(factor, middle),
             _ => self.apply(PanZoomView {
                 scale: 1.0,
-                ..untrack(|| self.view.get())
+                ..self.view.get_untracked()
             }),
         }
         true

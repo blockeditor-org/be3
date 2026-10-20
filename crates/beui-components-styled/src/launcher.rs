@@ -224,9 +224,9 @@ pub fn Launcher(
     });
     create_effect(move || {
         let rows = rows.get();
-        let kept = untrack(|| highlighted.get()).filter(|row| rows.contains(row));
+        let kept = highlighted.get_untracked().filter(|row| rows.contains(row));
         let next = kept.or_else(|| rows.first().cloned());
-        if untrack(|| highlighted.get()) != next {
+        if highlighted.get_untracked() != next {
             highlighted.set(next);
         }
     });

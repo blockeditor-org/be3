@@ -122,7 +122,6 @@ pub(crate) fn DesktopBar(
                         @test_id={"desktop.sessions"}
                         items={view! {
                             <ForEach keys={keys}>|block: uuid::Uuid| {
-                                let named = named;
                                 let label = create_memo(move || {
                                     named.with(|sessions| {
                                         sessions

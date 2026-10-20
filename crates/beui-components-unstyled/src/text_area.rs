@@ -1395,52 +1395,39 @@ pub fn TextArea(
                             <Show condition={single_line}>
                                 <Editing @sizing=ItemSize::Percent(100.0) field={field} />
                             </Show>
-                            <Show condition={multi_line}>|| {
-                                let (width, height, strip_width, strip_height) =
-                                    (width, height, strip_width, strip_height);
-                                let (gutter_color, border_x, border_width, border_height, border_color) =
-                                    (gutter_color, border_x, border_width, border_height, border_color);
-                                let (area_width, area_height, offset, scroll, scrolled) =
-                                    (area_width, area_height, offset, scroll, scrolled);
-                                view! {
-                                    <Canvas
-                                        @sizing=ItemSize::Percent(100.0)
-                                        width={width}
-                                        height={height}
+                            <Show condition={multi_line}>||
+                                <Canvas
+                                    @sizing=ItemSize::Percent(100.0)
+                                    width={width}
+                                    height={height}
+                                >
+                                    <CanvasItem
+                                        x=0.0
+                                        y=0.0
+                                        width={strip_width}
+                                        height={strip_height}
                                     >
-                                        <CanvasItem
-                                            x=0.0
-                                            y=0.0
-                                            width={strip_width}
-                                            height={strip_height}
+                                        <Frame fill=gutter_color />
+                                    </CanvasItem>
+                                    <CanvasItem
+                                        x={border_x}
+                                        y=0.0
+                                        width={border_width}
+                                        height={border_height}
+                                    >
+                                        <Frame fill=border_color />
+                                    </CanvasItem>
+                                    <CanvasItem x=0.0 y=0.0 width={area_width} height={area_height}>
+                                        <Scroll
+                                            offset={offset}
+                                            focus_color={Color32::TRANSPARENT}
+                                            on_change={move |position: ScrollPosition| scroll.set(position)}
                                         >
-                                            <Frame fill=gutter_color />
-                                        </CanvasItem>
-                                        <CanvasItem
-                                            x={border_x}
-                                            y=0.0
-                                            width={border_width}
-                                            height={border_height}
-                                        >
-                                            <Frame fill=border_color />
-                                        </CanvasItem>
-                                        <CanvasItem
-                                            x=0.0
-                                            y=0.0
-                                            width={area_width}
-                                            height={area_height}
-                                        >
-                                            <Scroll
-                                                offset={offset}
-                                                focus_color={Color32::TRANSPARENT}
-                                                on_change={move |position: ScrollPosition| scroll.set(position)}
-                                            >
-                                                <Editing field={scrolled} />
-                                            </Scroll>
-                                        </CanvasItem>
-                                    </Canvas>
-                                }
-                            }</Show>
+                                            <Editing field={scrolled} />
+                                        </Scroll>
+                                    </CanvasItem>
+                                </Canvas>
+                            </Show>
                             <Show condition={menu}>|| {
                                 let menu = menu_render
                                     .expect("a completion menu is only shown when the area was given one");

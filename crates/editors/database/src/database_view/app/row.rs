@@ -430,12 +430,9 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                     />
                 </Frame>
             </List>
-            <ForEach keys={links}>|link: RowRef| {
-                let links = links;
-                view! {
-                    <LinkedRow data={data} row={row} field={field} link={link} links={links} />
-                }
-            }</ForEach>
+            <ForEach keys={links}>|link: RowRef|
+                <LinkedRow data={data} row={row} field={field} link={link} links={links} />
+            </ForEach>
         </List>
     }
 }

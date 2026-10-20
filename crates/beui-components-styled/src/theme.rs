@@ -221,7 +221,7 @@ pub trait DocumentTheme {
 impl DocumentTheme for Document {
     fn theme(&self) -> Theme {
         self.extension::<ThemeStore>()
-            .map_or(Theme::DARK, |store| untrack(|| store.get()))
+            .map_or(Theme::DARK, |store| store.get_untracked())
     }
 
     fn set_theme(&mut self, theme: Theme) {

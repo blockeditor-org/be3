@@ -2003,7 +2003,7 @@ fn LongSheet() -> NodeId {
             <ModalSheet open={sheet} rest=0.5 on_close={move || dismiss_sheet.set(false)}>
                 <List spacing=0.0>
                     <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize| {
-                        let (picked, closing) = (picked, sheet);
+                        let closing = sheet;
                         view! {
                             <ActionRow
                                 label={format!("Row {row}")}

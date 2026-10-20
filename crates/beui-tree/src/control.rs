@@ -148,8 +148,6 @@ where
             if held.as_ref().is_some_and(|(key, _, _)| *key == next) {
                 return;
             }
-            let current = current;
-            let view = view;
             let (stored, scope) = build_in_slot(&slot, move || view.call(current.read_only()));
             drop(held.replace((next, stored, scope)));
         });

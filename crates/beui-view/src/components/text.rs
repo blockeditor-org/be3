@@ -248,7 +248,7 @@ impl Span {
         }
     }
 
-    fn peek(&self) -> SpanContent {
+    fn get_untracked(&self) -> SpanContent {
         SpanContent {
             text: self.text.get_untracked(),
             font: self.font.get_untracked(),
@@ -261,7 +261,7 @@ impl Span {
     }
 
     fn bind(self, text: NodeOf<TextNode>) -> SpanHandle {
-        let handle = SpanHandle::new(self.peek());
+        let handle = SpanHandle::new(self.get_untracked());
         bind(text, &handle, self.text, |content, value| {
             content.text = value;
         });

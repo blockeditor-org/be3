@@ -389,10 +389,6 @@ fn Artwork(
                 </Frame>
             </CanvasItem>
             <ForEach keys={lines}>|line: Line| {
-                let thin = thin;
-                let cell = cell;
-                let (left, top) = (left, top);
-                let (width, height) = (width, height);
                 let (x, y, line_width, line_height) = match line {
                     Line::Vertical(at) => (
                         create_memo(move || {

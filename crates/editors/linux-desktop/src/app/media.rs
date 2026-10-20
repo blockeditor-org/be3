@@ -159,7 +159,6 @@ pub(super) fn MediaKeys(editor: Editor) -> NodeId {
     let shown = create_signal(None);
     let shows = create_signal(0_u64);
     for (key, media_key) in BINDINGS {
-        let (shown, shows) = (shown, shows);
         Action::new(media_key.id(), media_key.label(), move || {
             let (request, showing) = media_key.request();
             editor.act(request);
