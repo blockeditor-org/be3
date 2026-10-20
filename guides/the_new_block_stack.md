@@ -1074,7 +1074,9 @@ section per screen only once the host offers `Displays` (its mode and its
 rotation: four tiles, each a little screen drawn turned by that rotation less the
 one the host reports now, so the tile that looks upright to the person holding the
 device is the one to pick, named Landscape, Portrait and their flipped turns from
-whether the panel is wider than tall), and Power and lock only
+whether the panel is wider than tall; `block_editor_beui::RotationPicker`, shared
+with linux-desktop's bar), a Screens section with the switch for the bar's rotate
+button (`display.rotate-in-bar`) once the host offers `Displays`, and Power and lock only
 once it offers `Power`, which only a `--session` publishes. Its Input page
 (`input`) shows its sections only once the host offers `InputDevices`, which
 likewise only a `--session` publishes, and says so otherwise.

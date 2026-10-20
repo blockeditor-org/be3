@@ -446,6 +446,14 @@ one screen when there is one and across all of them unturned otherwise, and a pe
 with it. A relative pointer is already in the picture's terms. A rotation applies live, rebuilding
 the output's `Screen` as a mode change does, and never asks to be kept.
 
+The rotation is picked with `block_editor_beui::RotationPicker`, which both the Display page
+and the bar use. When the display settings' `rotate_in_bar` is on and the host reports a
+screen, linux-desktop's bar shows a rotate button (`desktop.rotate`, `app/rotate.rs`) whose
+popover holds the picker for the first screen in `Displays`. It reads the setting through
+`Editor::effective_settings` and writes the rotation into the top layer's own display block
+(`RootSetting::find`, creating the every-device block with `ensure` when there is none), so
+block-app's `SettingsSync` applies it as it does an edit from the Display page.
+
 A window's tab shows the icon its program set with `xdg-toplevel-icon-v1`: be-wayland
 reads the pixels it was handed (the smallest at least 64 pixels, shrunk to 64) or looks the
 name up in the icon theme, and it reaches the shell as `HostWindow::icon` beside the title,
