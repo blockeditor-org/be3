@@ -18,10 +18,15 @@ mod linux;
 #[cfg(target_os = "linux")]
 use linux::apply;
 #[cfg(target_os = "linux")]
-pub(crate) use linux::{run_epaper, start, stop};
+pub(crate) use linux::{epaper, run_epaper, start, stop};
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn start(_setup: &beui::Setup) {}
+
+#[cfg(not(target_os = "linux"))]
+pub(crate) fn epaper() -> bool {
+    false
+}
 
 #[cfg(not(target_os = "linux"))]
 pub(crate) fn stop() {}

@@ -468,6 +468,7 @@ struct BlockApp {
     server_url: String,
     account: Account,
     root_settings: RootSettings,
+    set_up_profile: Option<Uuid>,
     choosing_session: bool,
     every_session_type: bool,
     shell: Option<Uuid>,
@@ -720,6 +721,7 @@ impl BlockApp {
             server_url,
             account,
             root_settings: RootSettings::new(WORKSPACE_EDITOR),
+            set_up_profile: None,
             choosing_session: false,
             every_session_type: false,
             shell: None,
@@ -1862,8 +1864,12 @@ impl BlockApp {
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
         self.root_settings.ensure_my_files();
-        self.root_settings.ensure_profile(self.client_id)?;
-        let id = self.root_settings.ensure_session(self.client_id)?;
+        let class = root_settings::device_class();
+        self.root_settings.ensure_profile(self.client_id, class)?;
+        if let Some(profile) = self.root_settings.take_set_up() {
+            self.set_up_profile = Some(profile);
+        }
+        let id = self.root_settings.ensure_session(self.client_id, class)?;
         if self.shell.is_some_and(|previous| previous != id) {
             self.stop_shell();
         }
@@ -2005,6 +2011,20 @@ impl BlockApp {
             .is_none()
         {
             return;
+        }
+        if self.set_up_profile.is_some()
+            && self.with_editor(shell, |editor| editor.known()) == Some(true)
+            && let Some(profile) = self.set_up_profile.take()
+        {
+            self.show_block(
+                None,
+                BlockOpen {
+                    id: profile,
+                    block_type: <be_block::SettingsProfileContent as be_block::BlockContent>::CONTENT_TYPE,
+                    via: None,
+                    editor: None,
+                },
+            );
         }
         if Some(wayland::revision()) != self.windows_sent {
             self.windows_sent = Some(wayland::revision());

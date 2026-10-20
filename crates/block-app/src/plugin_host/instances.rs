@@ -1982,6 +1982,10 @@ impl Instances {
         statuses
     }
 
+    pub(super) fn knows(&self, instance: EditorInstanceId) -> bool {
+        self.entries.contains_key(&instance)
+    }
+
     pub(super) fn creation_ready(&self, instance: EditorInstanceId) -> bool {
         self.entries
             .get(&instance)

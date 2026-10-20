@@ -435,6 +435,12 @@ impl PluginEditor {
         )
     }
 
+    pub(crate) fn known(&self) -> bool {
+        self.plugin
+            .as_ref()
+            .is_some_and(|plugin| crate::plugin_host::knows(&plugin.identity.id, self.instance))
+    }
+
     pub(crate) fn show_block(&self, open: super::BlockOpen) {
         let Some(plugin) = &self.plugin else {
             return;

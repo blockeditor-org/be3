@@ -32,6 +32,10 @@ pub(crate) fn start(setup: &beui::Setup) {
     EPAPER.with(|slot| *slot.borrow_mut() = epaper);
 }
 
+pub(crate) fn epaper() -> bool {
+    EPAPER.with(|slot| slot.borrow().is_some())
+}
+
 pub(crate) fn stop() {
     let control = CONTROL.with(|slot| slot.borrow_mut().take());
     drop(control);

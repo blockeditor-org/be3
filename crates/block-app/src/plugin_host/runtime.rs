@@ -1347,6 +1347,10 @@ pub(crate) fn region_size(
     .flatten()
 }
 
+pub(crate) fn knows(plugin_id: &str, instance: EditorInstanceId) -> bool {
+    with(plugin_id, |runtime| runtime.instances.knows(instance)).unwrap_or_default()
+}
+
 pub(crate) fn creation_ready(plugin_id: &str, instance: EditorInstanceId) -> bool {
     with(plugin_id, |runtime| {
         runtime.instances.creation_ready(instance)
