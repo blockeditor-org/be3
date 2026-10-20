@@ -1,14 +1,12 @@
-use block_editor_beui::be_block::DisplaySettings;
-use block_editor_beui::be_block::display_settings::Rotation;
-use block_editor_beui::beui::accesskit::{Node as AccessNode, Role, Toggled};
-use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled;
-use block_editor_beui::beui::unstyled::ButtonHandle;
-use block_editor_beui::beui::{NodeId, TextAlign};
-use block_editor_beui::{HostDisplay, HostRotation};
+use be_block::display_settings::Rotation;
+use beui::accesskit::{Node as AccessNode, Role, Toggled};
+use beui::reactive::*;
+use beui::styled::*;
+use beui::unstyled;
+use beui::unstyled::ButtonHandle;
+use beui::{NodeId, TextAlign};
 
-use super::ui::Settings;
+use crate::{HostDisplay, HostRotation};
 
 const ITEM_WIDTH: f32 = 64.0;
 const TILE: f32 = 56.0;
@@ -16,7 +14,7 @@ const SCREEN: f32 = 42.0;
 const TITLE_BAR: f32 = 7.0;
 const ITEM_SPACING: f32 = 4.0;
 
-pub(super) fn current_rotation(rotation: HostRotation) -> Rotation {
+fn current_rotation(rotation: HostRotation) -> Rotation {
     match rotation {
         HostRotation::Normal => Rotation::Normal,
         HostRotation::Clockwise90 => Rotation::Clockwise90,
@@ -29,11 +27,11 @@ fn quarters(rotation: Rotation) -> u8 {
     (rotation.degrees() / 90) as u8
 }
 
-pub(super) fn drawn_turns(tile: Rotation, current: Rotation) -> u8 {
+fn drawn_turns(tile: Rotation, current: Rotation) -> u8 {
     (4 + quarters(tile) - quarters(current)) % 4
 }
 
-pub(super) fn rotation_name(rotation: Rotation, landscape_panel: bool) -> &'static str {
+fn rotation_name(rotation: Rotation, landscape_panel: bool) -> &'static str {
     let wide = match rotation {
         Rotation::Normal | Rotation::Clockwise180 => landscape_panel,
         Rotation::Clockwise90 | Rotation::Clockwise270 => !landscape_panel,
@@ -59,19 +57,17 @@ fn screen_size(display: &HostDisplay) -> (f32, f32) {
     (width * scale, height * scale)
 }
 
-pub(super) fn tile_test_id(connector: &str, rotation: Rotation) -> String {
-    format!("display.{connector}.rotation.{}", rotation.degrees())
+fn tile_test_id(prefix: &str, rotation: Rotation) -> String {
+    format!("{prefix}.{}", rotation.degrees())
 }
 
 #[component]
-pub(super) fn RotationPicker(
-    id: String,
-    connector: String,
-    settings: Settings,
-    root: ReadSignal<DisplaySettings>,
-    merged: Memo<DisplaySettings>,
+pub fn RotationPicker(
+    test_id: String,
     display: Memo<Option<HostDisplay>>,
+    chosen: Memo<Rotation>,
     read_only: Memo<bool>,
+    on_pick: Callback<Rotation>,
 ) -> NodeId {
     let current = create_memo(move || {
         display.with(|display| {
@@ -90,26 +86,18 @@ pub(super) fn RotationPicker(
     let size = create_memo(move || {
         display.with(|display| display.as_ref().map_or((SCREEN, SCREEN), screen_size))
     });
-    let chosen = create_memo({
-        let id = id.clone();
-        move || merged.get().rotation(&id)
-    });
-    let pick = Callback::new(move |rotation: Rotation| {
-        let edit = root.with_untracked(|root| root.set_rotation(&id, Some(rotation)));
-        settings.operate(edit);
-    });
     view! {
         <List direction=Direction::Horizontal wrap=true spacing=ITEM_SPACING align=Align::Start>
             <ForEach keys={Rotation::ALL.to_vec()}>|rotation: Rotation|
                 <RotationTile
                     rotation={rotation}
-                    name={tile_test_id(&connector, rotation)}
+                    name={tile_test_id(&test_id, rotation)}
                     current={current}
                     chosen={chosen}
                     landscape={landscape}
                     size={size}
                     read_only={read_only}
-                    on_pick={pick}
+                    on_pick={on_pick}
                 />
             </ForEach>
         </List>

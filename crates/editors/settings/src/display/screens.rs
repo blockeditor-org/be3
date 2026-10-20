@@ -3,12 +3,12 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
-use block_editor_beui::{HostDisplay, HostDisplayMode};
+use block_editor_beui::be_block::display_settings::Rotation;
+use block_editor_beui::{HostDisplay, HostDisplayMode, RotationPicker};
 
 use super::modes::{
     Size, effective, mode_label, rate_label, rates, saved, size_label, size_of, sizes,
 };
-use super::rotation::RotationPicker;
 use super::ui::Settings;
 
 #[component]
@@ -97,8 +97,17 @@ pub(super) fn ScreenSection(
             settings.operate(edit);
         }
     };
-    let picker_id = id.clone();
-    let picker_connector = connector.clone();
+    let facing = create_memo({
+        let id = id.clone();
+        move || merged.with(|merged| merged.rotation(&id))
+    });
+    let pick = Callback::new({
+        let id = id.clone();
+        move |rotation: Rotation| {
+            let edit = root.with_untracked(|root| root.set_rotation(&id, Some(rotation)));
+            settings.operate(edit);
+        }
+    });
     let set = Callback::new(move |mode: Option<HostDisplayMode>| {
         let edit = root.with_untracked(|root| root.set_mode(&id, mode.map(saved)));
         settings.operate(edit);
@@ -177,13 +186,11 @@ pub(super) fn ScreenSection(
                 on_reset={unturn}
             >
                 <RotationPicker
-                    id={picker_id}
-                    connector={picker_connector}
-                    settings={settings}
-                    root={root}
-                    merged={merged}
+                    test_id={format!("display.{connector}.rotation")}
                     display={display}
+                    chosen={facing}
                     read_only={read_only}
+                    on_pick={pick}
                 />
             </SettingsRow>
         </SettingsSection>
