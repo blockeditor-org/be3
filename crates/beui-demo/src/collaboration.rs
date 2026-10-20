@@ -1,16 +1,18 @@
 use std::collections::VecDeque;
+use std::ops::Range;
 use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant};
 
 use text_editor_core::{
-    ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, Pos, Position, SeqOp,
-    Sequence, TextChange, TextIndentation, TextLanguage, TextRun, anchor_in, anchor_index_in,
-    changed, deleted_anchor_index_in, runs_in,
+    Attribute, ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, FormatOp,
+    FormatRun, Mark, Marks, Pos, Position, RichOp, SeqOp, Sequence, TextChange, TextIndentation,
+    TextLanguage, TextRun, anchor_in, anchor_index_in, changed, deleted_anchor_index_in,
+    format_change, format_op, formats_in, runs_in,
 };
 
 mod page;
 
-pub(crate) use page::CollaborationPage;
+pub(crate) use page::{CollaborationPage, ConcurrentEditing};
 
 #[cfg(test)]
 mod tests;
@@ -46,12 +48,19 @@ pub(crate) struct Caret {
 #[derive(Clone, Debug)]
 enum Message {
     Edit(Side, SeqOp<u8>),
+    Mark(Mark),
     Caret(Caret),
 }
 
+impl Message {
+    const fn edits(&self) -> bool {
+        matches!(self, Self::Edit(..) | Self::Mark(_))
+    }
+}
+
 struct Group {
-    undo: Vec<SeqOp<u8>>,
-    redo: Vec<SeqOp<u8>>,
+    undo: Vec<RichOp>,
+    redo: Vec<RichOp>,
     cursors: Vec<CursorPosition>,
 }
 
@@ -59,6 +68,7 @@ struct Peer {
     confirmed: Sequence<u8>,
     visible: Sequence<u8>,
     pending: VecDeque<SeqOp<u8>>,
+    marks: Marks,
     language: TextLanguage,
     indentation: TextIndentation,
     revision: u64,
@@ -71,15 +81,19 @@ struct Peer {
 }
 
 impl Peer {
-    fn new(text: &str) -> Self {
+    fn new(text: &str, formats: Option<&[(Range<usize>, Attribute, u8)]>) -> Self {
         let confirmed = Sequence::from_items(text.as_bytes().to_vec());
         let mut visible = confirmed.clone();
         visible.mirror();
         Self {
+            marks: Marks::loaded(&confirmed, formats.unwrap_or_default()),
+            language: match formats {
+                Some(_) => TextLanguage::RichText,
+                None => TextLanguage::Markdown,
+            },
             confirmed,
             visible,
             pending: VecDeque::new(),
-            language: TextLanguage::Markdown,
             indentation: TextIndentation::default(),
             revision: 0,
             changes: ChangeLog::default(),
@@ -119,8 +133,19 @@ pub(crate) struct Simulation {
 
 impl Simulation {
     pub fn new(text: &str) -> Self {
+        Self::with_peers([Peer::new(text, None), Peer::new(text, None)])
+    }
+
+    pub fn rich(text: &str, formats: &[(Range<usize>, Attribute, u8)]) -> Self {
+        Self::with_peers([
+            Peer::new(text, Some(formats)),
+            Peer::new(text, Some(formats)),
+        ])
+    }
+
+    fn with_peers(peers: [Peer; 2]) -> Self {
         Self {
-            peers: [Peer::new(text), Peer::new(text)],
+            peers,
             down: VecDeque::new(),
             up: VecDeque::new(),
             held: false,
@@ -134,8 +159,18 @@ impl Simulation {
     pub fn in_flight(&self, from: Side) -> usize {
         self.queue(from)
             .iter()
-            .filter(|(message, _)| matches!(message, Message::Edit(..)))
+            .filter(|(message, _)| message.edits())
             .count()
+    }
+
+    pub fn formats(&self, side: Side) -> Option<Vec<FormatRun>> {
+        let peer = &self.peers[side.index()];
+        formats_in(&peer.visible, &peer.marks, peer.language)
+    }
+
+    pub fn converged(&self) -> bool {
+        self.text(Side::Left) == self.text(Side::Right)
+            && self.formats(Side::Left) == self.formats(Side::Right)
     }
 
     pub fn seen(&self, side: Side) -> Option<Caret> {
@@ -160,7 +195,7 @@ impl Simulation {
         let sent = self.sent(now);
         let queue = self.queue_mut(from);
         if sent.is_none() {
-            queue.retain(|(message, sent)| sent.is_some() || matches!(message, Message::Edit(..)));
+            queue.retain(|(message, sent)| sent.is_some() || message.edits());
         }
         queue.push_back((Message::Caret(caret), sent));
     }
@@ -185,7 +220,7 @@ impl Simulation {
         };
         let last = queue
             .iter()
-            .rposition(|(message, sent)| sent.is_some() || matches!(message, Message::Edit(..)))
+            .rposition(|(message, sent)| sent.is_some() || message.edits())
             .filter(|_| sent.is_none());
         let leftover = match last.and_then(|index| queue.get_mut(index)) {
             Some((Message::Edit(author, last), None)) if *author == side => last.absorb(op),
@@ -221,7 +256,7 @@ impl Simulation {
     pub fn step(&mut self, from: Side, now: Instant) {
         let mut edited = false;
         while let Some((message, _)) = self.queue(from).front() {
-            let edit = matches!(message, Message::Edit(..));
+            let edit = message.edits();
             if edit && edited {
                 break;
             }
@@ -254,6 +289,15 @@ impl Simulation {
         let owner = &mut self.peers[Side::Left.index()];
         match message {
             Message::Caret(caret) => owner.seen = Some(caret),
+            Message::Mark(mark) => {
+                if owner.marks.apply(mark) {
+                    let change = format_change(&owner.visible, &mark.op);
+                    owner.external = true;
+                    owner.bump(Some(change));
+                }
+                let sent = self.sent(now);
+                self.down.push_back((Message::Mark(mark), sent));
+            }
             Message::Edit(author, op) => {
                 owner.confirmed.apply(&op);
                 let change = owner
@@ -274,6 +318,13 @@ impl Simulation {
         let follower = &mut self.peers[Side::Right.index()];
         match message {
             Message::Caret(caret) => follower.seen = Some(caret),
+            Message::Mark(mark) => {
+                if follower.marks.apply(mark) {
+                    let change = format_change(&follower.visible, &mark.op);
+                    follower.external = true;
+                    follower.bump(Some(change));
+                }
+            }
             Message::Edit(author, op) => {
                 follower.confirmed.apply(&op);
                 let change = if author == Side::Right {
@@ -319,12 +370,26 @@ impl Simulation {
         Some(changed(TextChange::NONE, &splices))
     }
 
-    fn replay(&mut self, side: Side, ops: &[SeqOp<u8>]) {
+    fn mark(&mut self, side: Side, op: FormatOp, now: Instant) -> TextChange {
+        let peer = &mut self.peers[side.index()];
+        let mark = peer.marks.mint(side.client(), op);
+        let change = format_change(&peer.visible, &op);
+        let sent = self.sent(now);
+        self.queue_mut(side).push_back((Message::Mark(mark), sent));
+        change
+    }
+
+    fn replay(&mut self, side: Side, ops: &[RichOp]) {
         let now = beui::reactive::now();
         let mut change = TextChange::NONE;
         for op in ops {
-            if let Some(made) = self.submit(side, op.clone(), now) {
-                change = change.then(made);
+            match op {
+                RichOp::Text(op) => {
+                    if let Some(made) = self.submit(side, op.clone(), now) {
+                        change = change.then(made);
+                    }
+                }
+                RichOp::Format(op) => change = change.then(self.mark(side, *op, now)),
             }
         }
         self.peers[side.index()].bump(Some(change));
@@ -449,7 +514,7 @@ impl Document for SideDocument {
         let peer = &mut simulation.peers[self.side.index()];
         peer.group_open = false;
         let group = peer.undo.pop()?;
-        let undo: Vec<SeqOp<u8>> = group.undo.iter().rev().cloned().collect();
+        let undo: Vec<RichOp> = group.undo.iter().rev().cloned().collect();
         simulation.replay(self.side, &undo);
         let cursors = group.cursors.clone();
         simulation.peers[self.side.index()].redo.push(group);
@@ -504,6 +569,11 @@ impl DocumentRead for SideRead<'_> {
         runs_in(&self.peer().visible)
     }
 
+    fn formats(&self) -> Option<Vec<FormatRun>> {
+        let peer = self.peer();
+        formats_in(&peer.visible, &peer.marks, peer.language)
+    }
+
     fn language(&self) -> TextLanguage {
         self.peer().language
     }
@@ -537,8 +607,12 @@ impl Transaction<'_> {
             return;
         };
         self.change = self.change.then(made);
-        self.group.undo.push(undo);
-        self.group.redo.push(redo);
+        self.group.undo.push(RichOp::Text(undo));
+        self.group.redo.push(RichOp::Text(redo));
+    }
+
+    fn peer(&self) -> &Peer {
+        &self.simulation.peers[self.side.index()]
     }
 }
 
@@ -569,6 +643,11 @@ impl DocumentRead for Transaction<'_> {
 
     fn indentation(&self) -> TextIndentation {
         self.simulation.peers[self.side.index()].indentation
+    }
+
+    fn formats(&self) -> Option<Vec<FormatRun>> {
+        let peer = self.peer();
+        formats_in(&peer.visible, &peer.marks, peer.language)
     }
 }
 
@@ -601,5 +680,24 @@ impl DocumentEdit for Transaction<'_> {
             .visible()
             .replace(self.side.client(), index..index + delete, insert.to_vec());
         self.run(op);
+    }
+
+    fn format(&mut self, range: Range<usize>, attribute: Attribute, value: u8) {
+        let peer = self.peer();
+        if peer.language != TextLanguage::RichText {
+            return;
+        }
+        let bytes = peer.visible.items();
+        let Some((op, undo)) =
+            format_op(&peer.visible, &peer.marks, &bytes, range, attribute, value)
+        else {
+            return;
+        };
+        let made = self.simulation.mark(self.side, op, self.now);
+        self.change = self.change.then(made);
+        self.group
+            .undo
+            .extend(undo.into_iter().rev().map(RichOp::Format));
+        self.group.redo.push(RichOp::Format(op));
     }
 }

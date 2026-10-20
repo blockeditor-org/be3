@@ -6,6 +6,7 @@ use std::{
 
 use sequence::{LOADED, Pos, SeqOp, Sequence, Splice};
 
+use crate::rich::{Attribute, FormatRun, Marks, RichOp};
 use crate::{ChangeLog, CursorPosition, TextChange};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -16,6 +17,7 @@ pub enum TextLanguage {
     Rust,
     Toml,
     Zig,
+    RichText,
 }
 
 impl TextLanguage {
@@ -34,6 +36,7 @@ impl TextLanguage {
             Self::Rust => "Rust",
             Self::Toml => "TOML",
             Self::Zig => "Zig",
+            Self::RichText => "Rich text",
         }
     }
 }
@@ -93,6 +96,10 @@ pub trait DocumentRead {
         Vec::new()
     }
 
+    fn formats(&self) -> Option<Vec<FormatRun>> {
+        None
+    }
+
     fn language(&self) -> TextLanguage;
 
     fn indentation(&self) -> TextIndentation;
@@ -136,6 +143,8 @@ pub trait DocumentEdit {
     fn replace(&mut self, index: usize, delete: usize, insert: &[u8]);
 
     fn replace_atomically(&mut self, index: usize, delete: usize, insert: &[u8]);
+
+    fn format(&mut self, _range: Range<usize>, _attribute: Attribute, _value: u8) {}
 }
 
 pub trait Document {
@@ -199,6 +208,10 @@ impl DocumentRead for DocumentView<'_> {
         self.read.runs()
     }
 
+    fn formats(&self) -> Option<Vec<FormatRun>> {
+        self.read.formats()
+    }
+
     fn language(&self) -> TextLanguage {
         self.read.language()
     }
@@ -230,6 +243,21 @@ fn end_anchor(sequence: &Sequence<u8>) -> Pos {
         client: LOADED,
         offset: sequence.next_offset(LOADED),
     }
+}
+
+pub fn place_in(sequence: &Sequence<u8>, anchor: Pos) -> Option<usize> {
+    if anchor == end_anchor(sequence) {
+        return Some(sequence.len());
+    }
+    sequence.place_of(anchor).map(|(index, _)| index)
+}
+
+pub fn formats_in(
+    sequence: &Sequence<u8>,
+    marks: &Marks,
+    language: TextLanguage,
+) -> Option<Vec<FormatRun>> {
+    (language == TextLanguage::RichText).then(|| marks.formats(sequence, &sequence.items()))
 }
 
 pub fn deleted_anchor_index_in(sequence: &Sequence<u8>, anchor: Pos) -> Option<usize> {
@@ -281,6 +309,7 @@ pub struct TextBuffer {
 
 struct BufferState {
     text: Sequence<u8>,
+    marks: Marks,
     language: TextLanguage,
     indentation: TextIndentation,
     revision: u64,
@@ -293,8 +322,8 @@ struct BufferState {
 
 #[derive(Default)]
 struct BufferHistoryEntry {
-    undo: Vec<SeqOp<u8>>,
-    redo: Vec<SeqOp<u8>>,
+    undo: Vec<RichOp>,
+    redo: Vec<RichOp>,
     cursors: Vec<CursorPosition>,
 }
 
@@ -305,6 +334,7 @@ impl TextBuffer {
         Self {
             state: RwLock::new(BufferState {
                 text,
+                marks: Marks::default(),
                 language: TextLanguage::default(),
                 indentation: TextIndentation::default(),
                 revision: 0,
@@ -315,6 +345,16 @@ impl TextBuffer {
                 group_open: false,
             }),
         }
+    }
+
+    pub fn rich(bytes: impl AsRef<[u8]>, formats: &[(Range<usize>, Attribute, u8)]) -> Self {
+        let buffer = Self::new(bytes);
+        {
+            let mut state = buffer.write_state();
+            state.marks = Marks::loaded(&state.text, formats);
+            state.language = TextLanguage::RichText;
+        }
+        buffer
     }
 
     fn read_state(&self) -> RwLockReadGuard<'_, BufferState> {
@@ -336,11 +376,19 @@ impl BufferState {
         self.changes.record(self.revision, change);
     }
 
-    fn replay(&mut self, operations: &[SeqOp<u8>]) {
+    fn replay(&mut self, operations: &[RichOp]) {
         let mut change = TextChange::NONE;
         for operation in operations {
-            if let Some(splices) = self.text.apply(operation) {
-                change = changed(change, &splices);
+            match operation {
+                RichOp::Text(operation) => {
+                    if let Some(splices) = self.text.apply(operation) {
+                        change = changed(change, &splices);
+                    }
+                }
+                RichOp::Format(operation) => {
+                    self.marks.mint(LOCAL, *operation);
+                    change = change.then(format_change(&self.text, operation));
+                }
             }
         }
         self.bump(Some(change));
@@ -411,7 +459,7 @@ impl Document for TextBuffer {
         let mut state = self.write_state();
         state.group_open = false;
         let entry = state.undo.pop()?;
-        let undo: Vec<SeqOp<u8>> = entry.undo.iter().rev().cloned().collect();
+        let undo: Vec<RichOp> = entry.undo.iter().rev().cloned().collect();
         state.replay(&undo);
         let cursors = entry.cursors.clone();
         state.redo.push(entry);
@@ -458,6 +506,10 @@ impl DocumentRead for BufferRead<'_> {
         runs_in(&self.state.text)
     }
 
+    fn formats(&self) -> Option<Vec<FormatRun>> {
+        formats_in(&self.state.text, &self.state.marks, self.state.language)
+    }
+
     fn language(&self) -> TextLanguage {
         self.state.language
     }
@@ -484,8 +536,8 @@ impl BufferEdit<'_> {
             return;
         };
         self.state.pending = changed(self.state.pending, &splices);
-        self.done.undo.push(undo);
-        self.done.redo.push(redo);
+        self.done.undo.push(RichOp::Text(undo));
+        self.done.redo.push(RichOp::Text(redo));
     }
 }
 
@@ -512,6 +564,10 @@ impl DocumentRead for BufferEdit<'_> {
 
     fn runs(&self) -> Vec<TextRun> {
         runs_in(&self.state.text)
+    }
+
+    fn formats(&self) -> Option<Vec<FormatRun>> {
+        formats_in(&self.state.text, &self.state.marks, self.state.language)
     }
 
     fn language(&self) -> TextLanguage {
@@ -552,4 +608,46 @@ impl DocumentEdit for BufferEdit<'_> {
             .replace(LOCAL, index..index + delete, insert.to_vec());
         self.run(operation);
     }
+
+    fn format(&mut self, range: Range<usize>, attribute: Attribute, value: u8) {
+        if self.state.language != TextLanguage::RichText {
+            return;
+        }
+        let bytes = self.state.text.items();
+        let state = &mut *self.state;
+        let Some((op, undo)) =
+            format_op(&state.text, &state.marks, &bytes, range, attribute, value)
+        else {
+            return;
+        };
+        state.marks.mint(LOCAL, op);
+        state.pending = state.pending.then(format_change(&state.text, &op));
+        self.done
+            .undo
+            .extend(undo.into_iter().rev().map(RichOp::Format));
+        self.done.redo.push(RichOp::Format(op));
+    }
+}
+
+pub fn format_op(
+    text: &Sequence<u8>,
+    marks: &Marks,
+    bytes: &[u8],
+    range: Range<usize>,
+    attribute: Attribute,
+    value: u8,
+) -> Option<(crate::FormatOp, Vec<crate::FormatOp>)> {
+    let op = Marks::op(text, bytes, range, attribute, value)?;
+    let undo = marks.inverse(text, bytes, &op);
+    if undo.iter().all(|undone| undone.value == value) && !undo.is_empty() {
+        return None;
+    }
+    Some((op, undo))
+}
+
+pub fn format_change(text: &Sequence<u8>, op: &crate::FormatOp) -> TextChange {
+    let bytes = text.items();
+    Marks::covered(text, &bytes, op).map_or(TextChange::NONE, |range| {
+        TextChange::replace(range.start, range.len(), range.len())
+    })
 }

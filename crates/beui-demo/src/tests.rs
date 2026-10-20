@@ -30,6 +30,7 @@ mod holding_alt_moves_a_floating_demo_page_by_its_content;
 mod instant_indicators_hold_still_and_resume;
 mod paused_edits_wait_for_a_send_and_carry_presence;
 mod replacing_a_page_closes_the_dialogs_it_opened;
+mod rich_text_styled_on_both_sides_converges_once_sent_both_ways;
 mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
 mod tabbing_through_every_page_shows_each_focus_ring_whole;
 mod the_catalog_shows_a_page_in_place_of_the_one_shown_unless_ctrl_is_held;
@@ -53,6 +54,7 @@ mod the_lock_screens_actions_are_told_apart_by_place;
 mod the_message_toast_sample_offers_its_actions;
 mod the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type;
 mod the_overlay_sample_closes_on_escape_and_a_click_outside;
+mod the_rich_text_bar_styles_a_selection_and_shows_the_style_under_the_caret;
 mod the_runs_toggle_shows_where_each_side_typed_and_deleted;
 mod the_stale_notice_sample_answers_each_of_its_buttons;
 mod the_tree_sample_opens_on_the_left_of_a_row_and_its_menu_from_its_button;
@@ -113,6 +115,10 @@ fn reveal(test: &mut DocumentTest, test_id: &str) {
 }
 
 fn press_key(test: &mut DocumentTest, key: beui::Key) {
+    press_key_with(test, key, beui::Modifiers::NONE);
+}
+
+fn press_key_with(test: &mut DocumentTest, key: beui::Key, modifiers: beui::Modifiers) {
     test.frame(
         [true, false]
             .into_iter()
@@ -121,12 +127,19 @@ fn press_key(test: &mut DocumentTest, key: beui::Key) {
                     key,
                     pressed,
                     repeat: false,
-                    modifiers: beui::Modifiers::NONE,
+                    modifiers,
                 })
             })
             .collect(),
     );
     test.frame(Vec::new());
+}
+
+fn select_line(test: &mut DocumentTest, at: Pos2) {
+    test.click_at(at);
+    test.frame(Vec::new());
+    press_key(test, beui::Key::Home);
+    press_key_with(test, beui::Key::End, beui::Modifiers::SHIFT);
 }
 
 fn dialog_id(index: u64) -> String {

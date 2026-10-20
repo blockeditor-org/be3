@@ -1,5 +1,6 @@
 pub mod emoji;
 pub mod find;
+pub mod format_bar;
 
 use crate::frame::Frame;
 use beui_macros::{component, view};

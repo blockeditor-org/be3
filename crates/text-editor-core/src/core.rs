@@ -10,7 +10,8 @@ pub use ime::{ImeCommand, ImeState};
 
 use crate::{
     Highlighter, Language, Pos, SyntaxHighlight,
-    document::{Document, DocumentRead, DocumentView, TextIndentation, TextLanguage},
+    document::{Document, DocumentEdit, DocumentRead, DocumentView, TextIndentation, TextLanguage},
+    rich::{Attribute, FormatRun, RichStyle, TextFormat, format_at},
 };
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
@@ -258,6 +259,7 @@ pub enum EditorCommand<'a> {
     },
     ReplaceWholeFile(&'a [u8]),
     Markdown(MarkdownCommand),
+    ToggleStyle(RichStyle),
 
     SetLanguage(TextLanguage),
     SetIndentation(TextIndentation),
@@ -352,6 +354,7 @@ pub struct Core {
     collapse_state: Vec<Position>,
     section_shapes: std::cell::RefCell<Option<(u64, Arc<[SectionShape]>)>>,
     composition: Option<(Position, Pos)>,
+    typing: Option<(Position, TextFormat)>,
 }
 
 #[derive(Clone, Copy)]
@@ -374,6 +377,7 @@ impl Core {
             collapse_state: Vec::new(),
             section_shapes: std::cell::RefCell::new(None),
             composition: None,
+            typing: None,
         }
     }
 
@@ -868,6 +872,7 @@ impl Core {
             }
             EditorCommand::ReplaceWholeFile(bytes) => self.replace_whole_file(bytes),
             EditorCommand::Markdown(command) => self.markdown(command),
+            EditorCommand::ToggleStyle(style) => self.toggle_style(style),
             EditorCommand::SetLanguage(language) => self.set_language(language),
             EditorCommand::SetIndentation(indentation) => self.set_indentation(indentation),
             EditorCommand::Collapse => self.collapse(),
@@ -875,6 +880,121 @@ impl Core {
             EditorCommand::ToggleCollapseAt(position) => self.toggle_collapse_at(position),
         }
         self.normalize_cursors();
+        self.forget_stale_typing();
+    }
+
+    fn forget_stale_typing(&mut self) {
+        let Some((position, _)) = self.typing else {
+            return;
+        };
+        let Some(read) = self.document.read() else {
+            return;
+        };
+        let at = position.resolve(&*read);
+        let kept = match self.cursor_positions.as_slice() {
+            [cursor] => {
+                cursor.pos.anchor.resolve(&*read) == at && cursor.pos.focus.resolve(&*read) == at
+            }
+            _ => false,
+        };
+        drop(read);
+        if !kept {
+            self.typing = None;
+        }
+    }
+
+    pub fn selection_format(&self) -> Option<TextFormat> {
+        let read = self.document.read()?;
+        let runs = read.formats()?;
+        let document = DocumentView::new(&*read);
+        let bytes = document.bytes();
+        let cursor = self.cursor_positions.first()?;
+        let range = resolve_selection(&document, cursor.pos);
+        let heading = selected_heading(bytes, &runs, range.left..range.right);
+        if range.left == range.right {
+            if let Some((position, format)) = self.typing
+                && position.resolve(&document) == range.left
+            {
+                return Some(format);
+            }
+            return Some(TextFormat {
+                heading,
+                ..inherited_format(bytes, &runs, range.left, 0)
+            });
+        }
+        let mut shown: Vec<TextFormat> = bytes[range.left..range.right]
+            .iter()
+            .enumerate()
+            .filter(|(_, byte)| **byte != b'\n')
+            .filter_map(|(offset, _)| format_at(&runs, range.left + offset))
+            .collect();
+        shown.dedup();
+        let Some(first) = shown.first().copied() else {
+            return Some(TextFormat {
+                heading,
+                ..inherited_format(bytes, &runs, range.left, 0)
+            });
+        };
+        let mut format = TextFormat {
+            heading,
+            ..first.inline()
+        };
+        for attribute in Attribute::INLINE {
+            let all = shown.iter().all(|format| format.get(attribute) != 0);
+            format = format.with(attribute, u8::from(all));
+        }
+        Some(format)
+    }
+
+    fn toggle_style(&mut self, style: RichStyle) {
+        let Some(current) = self.selection_format() else {
+            return;
+        };
+        let attribute = style.attribute();
+        let value = match style.applies_to(current) {
+            true => 0,
+            false => style.value(),
+        };
+        let Some(read) = self.document.read() else {
+            return;
+        };
+        let document = DocumentView::new(&*read);
+        let ranges: Vec<(Position, Position)> = self
+            .cursor_positions
+            .iter()
+            .map(|cursor| resolve_selection(&document, cursor.pos))
+            .filter(|range| attribute.is_block() || range.left < range.right)
+            .map(|range| {
+                (
+                    Position::at(&document, range.left),
+                    Position::at(&document, range.right),
+                )
+            })
+            .collect();
+        let caret = match (attribute.is_block(), ranges.is_empty()) {
+            (false, true) => self
+                .cursor_positions
+                .first()
+                .map(|cursor| Position::at(&document, cursor.pos.focus.resolve(&document))),
+            _ => None,
+        };
+        drop(document);
+        drop(read);
+        if let Some(caret) = caret {
+            self.typing = Some((caret, current.with(attribute, value)));
+            return;
+        }
+        self.typing = None;
+        self.prepare_history_group(UndoClassification::AlwaysSplit);
+        self.document
+            .edit(self.cursor_positions.clone(), &mut |transaction| {
+                for (start, end) in &ranges {
+                    let start = start.resolve(transaction.document());
+                    let end = end.resolve(transaction.document());
+                    transaction.format(start..end, attribute, value);
+                }
+            });
+        self.document.finish_history_group();
     }
 
     fn insert_text(&mut self, text: &[u8]) {
@@ -2070,11 +2190,16 @@ impl Core {
         }
         self.prepare_history_group(classification);
         let mut result_positions = Vec::new();
+        let typing = self.typing.take();
         self.document.edit(history_cursors, &mut |transaction| {
             result_positions.clear();
             for (position, delete_len, insert) in &replacements {
                 let index = position.resolve(transaction.document());
+                let typed = typing
+                    .filter(|(at, _)| at.resolve(transaction.document()) == index)
+                    .map(|(_, format)| format);
                 transaction.replace(index, *delete_len, insert);
+                conform_inserted(transaction, index, insert, typed);
                 result_positions.push(Position::at(transaction.document(), index + insert.len()));
             }
         });
@@ -2108,6 +2233,69 @@ impl Core {
             soft_tab_width: self.soft_tab_width(),
             inside_atomic_unit: self.config.inside_atomic_unit,
         }
+    }
+}
+
+fn inherited_format(bytes: &[u8], runs: &[FormatRun], index: usize, len: usize) -> TextFormat {
+    let next = index + len;
+    let paragraph_start = index == 0 || bytes.get(index - 1) == Some(&b'\n');
+    let format = match bytes.get(next) {
+        Some(byte) if paragraph_start && *byte != b'\n' => format_at(runs, next),
+        _ => index
+            .checked_sub(1)
+            .and_then(|before| format_at(runs, before)),
+    };
+    format.unwrap_or_default().inline()
+}
+
+fn selected_heading(bytes: &[u8], runs: &[FormatRun], range: Range<usize>) -> u8 {
+    let heading =
+        |at: usize| format_at(runs, line_end(bytes, at)).map_or(0, |format| format.heading);
+    let first = heading(range.start);
+    let mut line = line_start(bytes, range.start);
+    while line < range.end {
+        if heading(line) != first {
+            return 0;
+        }
+        let end = line_end(bytes, line);
+        if end >= bytes.len() {
+            break;
+        }
+        line = end + 1;
+    }
+    first
+}
+
+fn conform_inserted(
+    transaction: &mut dyn DocumentEdit,
+    index: usize,
+    insert: &[u8],
+    typed: Option<TextFormat>,
+) {
+    if insert.is_empty() {
+        return;
+    }
+    let Some(runs) = transaction.document().formats() else {
+        return;
+    };
+    let bytes = transaction
+        .document()
+        .slice(0..transaction.document().len())
+        .into_owned();
+    let end = index + insert.len();
+    let wanted = typed.unwrap_or_else(|| inherited_format(&bytes, &runs, index, insert.len()));
+    for attribute in Attribute::INLINE {
+        let value = wanted.get(attribute);
+        if (index..end)
+            .any(|at| format_at(&runs, at).is_none_or(|format| format.get(attribute) != value))
+        {
+            transaction.format(index..end, attribute, value);
+        }
+    }
+    let opened_empty_line =
+        insert.contains(&b'\n') && bytes.get(end).is_none_or(|byte| *byte == b'\n');
+    if opened_empty_line && format_at(&runs, end).is_some_and(|format| format.heading != 0) {
+        transaction.format(end..end, Attribute::Heading, 0);
     }
 }
 
@@ -2295,6 +2483,7 @@ fn indent_section_end(bytes: &[u8], start: usize) -> Option<usize> {
 fn collapsible_section_end(bytes: &[u8], language: TextLanguage, start: usize) -> Option<usize> {
     match language {
         TextLanguage::Markdown => markdown_section_end(bytes, start),
+        TextLanguage::RichText => None,
         _ => indent_section_end(bytes, start),
     }
 }

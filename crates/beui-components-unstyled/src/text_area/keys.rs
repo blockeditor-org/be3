@@ -1,6 +1,6 @@
 use text_editor_core::{
     CopyMode, CursorHorizontalPositionMetric, CursorLeftRightStop, EditorCommand, LRDirection,
-    MoveMode, SyntaxNodeDirection, UDDirection, VerticalMoveMode,
+    MoveMode, RichStyle, SyntaxNodeDirection, TextLanguage, UDDirection, VerticalMoveMode,
 };
 
 use beui_core::input::{Key, KeyPress};
@@ -178,6 +178,13 @@ fn command(cx: &Context, press: KeyPress) -> bool {
             false => EditorCommand::Undo,
         }),
         Key::Y if command => state.execute(EditorCommand::Redo),
+        Key::B | Key::I | Key::U if command && state.language() == TextLanguage::RichText => {
+            state.execute(EditorCommand::ToggleStyle(match press.key {
+                Key::B => RichStyle::Bold,
+                Key::I => RichStyle::Italic,
+                _ => RichStyle::Underline,
+            }));
+        }
         _ => return false,
     }
     true

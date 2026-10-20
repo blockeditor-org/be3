@@ -17,7 +17,7 @@ use accesskit::{Node, Role};
 
 use text_editor_core::{
     CursorHorizontalPositionMetric, CursorLeftRightStop, DragSelectionMode, EditorCommand,
-    ImeCommand, LRDirection, MoveMode, UDDirection, VerticalMoveMode,
+    ImeCommand, LRDirection, MoveMode, TextLanguage, UDDirection, VerticalMoveMode,
 };
 
 use beui_macros::{component, view};
@@ -1131,7 +1131,9 @@ pub fn TextArea(
                 let gutter = create_memo(move || {
                     scale.get();
                     attached.get();
-                    match single_line || !line_numbers {
+                    content.get();
+                    let rich = state.with_snapshot(|snapshot| snapshot.language == TextLanguage::RichText);
+                    match single_line || !line_numbers || rich {
                         true => 0.0,
                         false => gutter_width(starts.get().len()),
                     }

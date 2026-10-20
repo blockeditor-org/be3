@@ -2,7 +2,8 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use text_editor_core::{
-    MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize, TextRun,
+    MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
+    TextLanguage, TextRun,
 };
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
@@ -714,7 +715,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
     let bytes = &snapshot.bytes;
     let highlight = snapshot.highlight();
     let options = inputs.options;
-    let invisibles = options.invisibles();
+    let invisibles = options.invisibles() && snapshot.language != TextLanguage::RichText;
     let composition = inputs
         .composition
         .filter(|composition| composition.range.start < end && composition.range.end > start);

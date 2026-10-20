@@ -118,6 +118,7 @@ pub use text::{
     TextStyleProvider, Weight,
 };
 pub use text_area::emoji::emoji_menu;
+pub use text_area::format_bar::FormatBar;
 pub use text_area::{TextArea, text_area_surface};
 pub use text_input::{TextInput, text_input_value};
 pub use theme::{

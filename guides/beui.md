@@ -671,7 +671,18 @@ the weight, horizontal alignment, padding around each line, wrapping, and where
 the lines sit when they are shorter than the area that it names.
 `measure_prose` measures text exactly as such an area lays it out, so a caller
 can size a box to it; the infinite canvas draws its text entities this way, as
-the same field whether or not they are being edited. A menu is never asked for as a dropdown
+the same field whether or not they are being edited. A document whose language is
+`TextLanguage::RichText` (`TextBuffer::rich`) is rich text: its bytes are the text alone, and
+its formatting is a set of `Marks` beside them, each setting one `Attribute` (bold, italic,
+underline, strikethrough, code, or a line's heading level) over a stretch anchored to the
+sequence's positions, so it follows edits. A mark's end grows as text is typed at it, and the
+latest mark wins where marks overlap, so two copies that exchange marks in any order agree (the
+demo's Rich text page sends them over its simulated network). `DocumentEdit::format` adds one
+with its undo, `EditorCommand::ToggleStyle` styles the selection or what is typed next at a
+caret, and typed text takes the style before it, or after it at a paragraph's start. The area
+draws rich text with no gutter or whitespace markers; `TextAreaState::format` is the
+selection's style, which `styled::FormatBar` shows as toggles, and Ctrl+B, I and U toggle it
+from the keyboard. Copying and pasting carries the text without its marks. A menu is never asked for as a dropdown
 or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same
 features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an

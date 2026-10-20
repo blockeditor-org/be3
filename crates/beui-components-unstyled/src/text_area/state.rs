@@ -9,7 +9,7 @@ use std::sync::Arc;
 
 use text_editor_core::{
     CollapsibleSection, CopyMode, Core, CursorPosition, EditorCommand, FindDirection, FindStatus,
-    Position, SyntaxHighlight, TextChange, TextIndentation, TextLanguage, TextRun,
+    Position, SyntaxHighlight, TextChange, TextFormat, TextIndentation, TextLanguage, TextRun,
     markdown_checkbox_marker,
 };
 
@@ -162,6 +162,7 @@ struct Inner {
     content_counter: Cell<u64>,
     cursors: Signal<u64>,
     cursor_counter: Cell<u64>,
+    format: Signal<Option<TextFormat>>,
     rows_built: Cell<u64>,
     layout: Signal<TextAreaLayout>,
 }
@@ -184,6 +185,7 @@ impl TextAreaState {
         let focus_requests = create_signal(0);
         let touch_mode = create_signal(false);
         let caret_handle = create_signal(false);
+        let format = create_signal(None);
         let state = Self(store(Inner {
             core: RefCell::new(core),
             snapshot: RefCell::new(Snapshot::default()),
@@ -206,6 +208,7 @@ impl TextAreaState {
             content_counter: Cell::new(0),
             cursors,
             cursor_counter: Cell::new(0),
+            format,
             rows_built: Cell::new(0),
             layout,
         }));
@@ -243,6 +246,20 @@ impl TextAreaState {
     pub fn sync(&self) {
         self.sync_document();
         self.sync_cursors();
+        self.sync_format();
+    }
+
+    pub fn format(&self) -> ReadSignal<Option<TextFormat>> {
+        let inner = self.0.value();
+        inner.format.read_only()
+    }
+
+    fn sync_format(&self) {
+        let inner = self.0.value();
+        let format = inner.core.borrow().selection_format();
+        if inner.format.get_untracked() != format {
+            inner.format.set(format);
+        }
     }
 
     pub fn set_show_runs(&self, shown: bool) {

@@ -55,6 +55,12 @@ mod replace_all_matches_replaces_every_match;
 mod replace_match_does_nothing_when_selection_is_not_on_a_match;
 mod replace_match_replaces_current_and_advances_to_next_match;
 mod replace_ranges_replaces_every_range;
+mod rich_text_a_heading_covers_its_line_and_enter_at_its_end_starts_a_body_line;
+mod rich_text_a_style_toggled_at_the_caret_applies_to_what_is_typed_next;
+mod rich_text_bold_toggles_over_a_selection;
+mod rich_text_marks_converge_in_any_order;
+mod rich_text_typing_continues_the_format_before_the_caret;
+mod rich_text_undo_and_redo_bring_formatting_back;
 mod right_arrow_opens_a_collapsed_line;
 mod rust_syn_hl;
 mod select_up_after_moving_down_starts_from_the_current_column;
@@ -88,6 +94,43 @@ fn rendered_highlight(tester: &mut EditorTester, offset: usize) -> String {
         result.push(char::from(byte));
     }
     result
+}
+
+fn formatted(tester: &EditorTester) -> String {
+    let read = tester.editor.document().read().unwrap();
+    let runs = read.formats().expect("a rich text document has formats");
+    let bytes = DocumentView::new(&*read).bytes().to_vec();
+    let mut result = String::new();
+    let mut previous = TextFormat::default();
+    for (index, byte) in bytes.iter().enumerate() {
+        let format = format_at(&runs, index).unwrap();
+        if format != previous {
+            result.push_str(&format_tag(format));
+            previous = format;
+        }
+        result.push(char::from(*byte));
+    }
+    result
+}
+
+fn format_tag(format: TextFormat) -> String {
+    let mut tag = String::from("{");
+    for (on, letter) in [
+        (format.bold, 'b'),
+        (format.italic, 'i'),
+        (format.underline, 'u'),
+        (format.strikethrough, 's'),
+        (format.code, 'c'),
+    ] {
+        if on {
+            tag.push(letter);
+        }
+    }
+    if format.heading > 0 {
+        tag.push_str(&format!("h{}", format.heading));
+    }
+    tag.push('}');
+    tag
 }
 
 struct EditorTester {

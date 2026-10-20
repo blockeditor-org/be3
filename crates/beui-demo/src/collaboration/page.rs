@@ -12,7 +12,7 @@ use beui::styled::*;
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, ItemSize, NodeId};
 use beui_macros::{component, sample};
-use text_editor_core::{CursorPosition, EditorCommand, TextLanguage};
+use text_editor_core::{Attribute, CursorPosition, EditorCommand, TextLanguage};
 
 use super::{Caret, Side, SideDocument, Simulation};
 use crate::sample::{Sample, ScrollPage};
@@ -20,6 +20,9 @@ use crate::{ROW_SPACING, SECTION_SPACING};
 
 const TEXT: &str = "# Shared notes\n\nType on both sides. Each side keeps its own copy and \
 sends its edits over a simulated network.\n\n- [ ] type at the same place on both sides\n";
+const RICH_TEXT: &str = "Shared notes\nType on both sides and style what you select. Bold, \
+italic and code travel as marks that each side merges.\nPause the network, select the same \
+words on both sides and style them differently.\n";
 const EDITOR_HEIGHT: f32 = 240.0;
 const MAX_LATENCY: f32 = 2000.0;
 const START_LATENCY: f32 = 300.0;
@@ -35,16 +38,36 @@ pub(crate) fn CollaborationPage() -> NodeId {
                 title="Two editors on one sequence"
                 code={vec![ConcurrentEditing::SOURCE, SendButtons::SOURCE, EditorPane::SOURCE]}
             >
-                <ConcurrentEditing />
+                <ConcurrentEditing rich=false />
             </Sample>
         </ScrollPage>
     }
 }
 
-fn editor(simulation: &Arc<RwLock<Simulation>>, side: Side) -> TextAreaState {
+pub(crate) fn rich_simulation() -> Simulation {
+    let spans = [
+        ("Shared notes", Attribute::Heading, 1),
+        ("Bold", Attribute::Bold, 1),
+        ("italic", Attribute::Italic, 1),
+        ("code", Attribute::Code, 1),
+        ("differently", Attribute::Underline, 1),
+    ];
+    let formats: Vec<_> = spans
+        .into_iter()
+        .filter_map(|(words, attribute, value)| {
+            let start = RICH_TEXT.find(words)?;
+            Some((start..start + words.len(), attribute, value))
+        })
+        .collect();
+    Simulation::rich(RICH_TEXT, &formats)
+}
+
+fn editor(simulation: &Arc<RwLock<Simulation>>, side: Side, rich: bool) -> TextAreaState {
     let document = Arc::new(SideDocument::new(simulation, side));
     let state = TextAreaState::new(document as Arc<dyn text_editor_core::Document>);
-    state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
+    if !rich {
+        state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
+    }
     state
 }
 
@@ -75,10 +98,13 @@ fn remote(state: &TextAreaState, caret: Option<Caret>, color: Color32) -> Vec<Re
 
 #[sample]
 #[component]
-fn ConcurrentEditing() -> NodeId {
-    let simulation = Arc::new(RwLock::new(Simulation::new(TEXT)));
-    let left = editor(&simulation, Side::Left);
-    let right = editor(&simulation, Side::Right);
+pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
+    let simulation = Arc::new(RwLock::new(match rich {
+        true => rich_simulation(),
+        false => Simulation::new(TEXT),
+    }));
+    let left = editor(&simulation, Side::Left, rich);
+    let right = editor(&simulation, Side::Right, rich);
     let paused = create_signal(false);
     let runs = create_signal(false);
     let latency = create_signal(START_LATENCY);
@@ -126,7 +152,7 @@ fn ConcurrentEditing() -> NodeId {
                     simulation.in_flight(Side::Left),
                     simulation.in_flight(Side::Right),
                 ),
-                simulation.text(Side::Left) == simulation.text(Side::Right),
+                simulation.converged(),
                 [simulation.seen(Side::Left), simulation.seen(Side::Right)],
                 (!held).then(|| simulation.next_due(delay)).flatten(),
             )
@@ -175,7 +201,10 @@ fn ConcurrentEditing() -> NodeId {
     });
     let latency_label = create_memo(move || format!("Latency: {} ms", latency.get().round()));
     let status = create_memo(move || match (flight.get(), same.get()) {
-        (_, true) => "Both sides hold the same text.".to_owned(),
+        (_, true) => match rich {
+            true => "Both sides hold the same text and styles.".to_owned(),
+            false => "Both sides hold the same text.".to_owned(),
+        },
         ((0, 0), false) => "The sides differ with nothing in flight.".to_owned(),
         ((right, left), false) => format!("In flight: {right} to the right, {left} to the left."),
     });
@@ -227,6 +256,7 @@ fn ConcurrentEditing() -> NodeId {
                     state={left}
                     remote={left_remote}
                     runs={runs.read_only()}
+                    rich
                 />
                 <SendButtons
                     send={pump}
@@ -241,6 +271,7 @@ fn ConcurrentEditing() -> NodeId {
                     state={right}
                     remote={right_remote}
                     runs={runs.read_only()}
+                    rich
                 />
             </unstyled::Stack>
             <Text style=TextStyle::CAPTION string={status} wrap=true />
@@ -346,10 +377,14 @@ fn EditorPane(
     state: TextAreaState,
     remote: Memo<Vec<RemoteTextCursor>>,
     runs: ReadSignal<bool>,
+    rich: bool,
 ) -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
             <Text style=TextStyle::CAPTION string={title} />
+            <Show condition={rich}>
+                <FormatBar state={state} test_prefix={id} />
+            </Show>
             <TextArea
                 @test_id=id
                 @sizing=ItemSize::Fixed(EDITOR_HEIGHT)

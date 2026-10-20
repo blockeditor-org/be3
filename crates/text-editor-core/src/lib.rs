@@ -2,16 +2,21 @@ mod changes;
 mod core;
 mod document;
 mod highlighter;
+mod rich;
 
 pub use changes::{ChangeLog, TextChange};
 pub use core::*;
 pub use document::{
     Document, DocumentEdit, DocumentRead, DocumentView, TextBuffer, TextIndentation, TextLanguage,
-    TextRun, anchor_in, anchor_index_in, changed, deleted_anchor_index_in, runs_in,
+    TextRun, anchor_in, anchor_index_in, changed, deleted_anchor_index_in, format_change,
+    format_op, formats_in, place_in, runs_in,
 };
 pub use highlighter::{
     Highlighter, Language, MarkdownTable, MarkdownTableAlignment, MarkdownTableRow,
     SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize, SyntaxHighlight,
+};
+pub use rich::{
+    Attribute, FormatOp, FormatRun, Mark, MarkId, Marks, RichOp, RichStyle, TextFormat, format_at,
 };
 pub use sequence::{Pos, SeqOp, Sequence, Splice};
 
