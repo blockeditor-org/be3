@@ -13,7 +13,7 @@ use block_editor_beui::{Editor, label_glyph};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Deserialize, Serialize)]
 pub(crate) enum RowKey {
     Block(Vec<Uuid>),
     Shared,

@@ -39,7 +39,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let exported = exporter.error();
     let held: Held = store(std::cell::Cell::new(None));
     let inspecting = create_signal(None::<Inspection>);
-    let zoom = Zoom::new(tree);
+    let zoom = Zoom::new(editor, tree);
     let tools = RowTools {
         editor,
         tree,

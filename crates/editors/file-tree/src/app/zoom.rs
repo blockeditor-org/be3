@@ -1,4 +1,8 @@
-use block_editor_beui::be_block::{BlockContent, FolderContent};
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
+use block_editor_beui::Editor;
+use block_editor_beui::be_block::{BlockContent, FolderContent, ViewState};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_ARROW_UPWARD};
 use block_editor_beui::beui::reactive::*;
@@ -7,6 +11,7 @@ use block_editor_beui::beui::styled::*;
 use super::rows::{Row, RowKey, Tree as FileTree, is_workspace};
 
 const PADDING: f32 = 8.0;
+const ZOOMED: &str = "zoomed";
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Focus {
@@ -34,7 +39,7 @@ pub(crate) fn zooms(row: &Row) -> bool {
 }
 
 impl Zoom {
-    pub(crate) fn new(tree: FileTree) -> Self {
+    pub(crate) fn new(editor: Editor, tree: FileTree) -> Self {
         let zoomed = create_signal(None::<RowKey>);
         let rows = tree.rows();
         let focus = create_memo(move || {
@@ -62,11 +67,43 @@ impl Zoom {
                 })
             })
         });
+        let seen = RefCell::new(None::<RowKey>);
         create_effect(move || {
-            if zoomed.get().is_some() && focus.get().is_none() && rows.with(|rows| !rows.is_empty())
-            {
+            let Some(key) = zoomed.get() else {
+                return;
+            };
+            if focus.with(Option::is_some) {
+                *seen.borrow_mut() = Some(key);
+            } else if seen.borrow().as_ref() == Some(&key) {
                 zoomed.set(None);
             }
+        });
+        let restored = Rc::new(Cell::new(false));
+        let adopted = Rc::clone(&restored);
+        create_effect(move || {
+            if adopted.get() {
+                return;
+            }
+            let Some(view) = editor.view_content() else {
+                return;
+            };
+            let Some(saved) = view.read(|held| {
+                held.root()
+                    .state(ZOOMED)
+                    .and_then(ViewState::value::<Option<RowKey>>)
+            }) else {
+                return;
+            };
+            adopted.set(true);
+            untrack(|| zoomed.set(saved.flatten()));
+        });
+        create_effect(move || {
+            let key = zoomed.get();
+            if !restored.get() {
+                return;
+            }
+            let state = ViewState::new(&key, Vec::new());
+            untrack(|| editor.set_view_state(ZOOMED, Some(&state)));
         });
         Self {
             tree,
