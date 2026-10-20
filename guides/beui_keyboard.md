@@ -242,9 +242,7 @@ of the editor behind it beyond turning those into its own protocol
 (`plugin_host::forward_region` for a plugin, `be_wayland::Compositor` for a
 window) and keeps no capture or hover of its own, so press capture, hover,
 claims, overlays, focus, intercepting actions and the lock apply to both by
-the same rules. The only one outside it
-is the browser tab's web view (crates/editors/browser-tab), a native view placed
-over the window that takes its input from the platform rather than from beui.
+the same rules.
 
 What one event goes through, in order:
 

@@ -5,9 +5,6 @@ load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test"
 load("@root//buck/platforms:cross.bzl", "cross_triple", "per_cross_platform")
 load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
 
-# The app, with its full features (the embedded browser), which buckify.bxl
-# turns on for every platform.
-
 # On Android the app is this library, loaded by MainActivity under cargo's
 # name for it; on the web it is the module :web runs wasm-bindgen over.
 cargo_library(
@@ -18,8 +15,8 @@ cargo_library(
     soname = "libblock_app_lib.so",
 )
 
-# The app links system libraries the worker's image does not have - ALSA, and
-# GTK and WebKitGTK when the browser is built - so its tests load them from the
+# The app links system libraries the worker's image does not have, such as
+# ALSA, so its tests load them from the
 # sysroot it was linked against. The plugin surface presenter's tests draw
 # through lavapipe, as the renderer's do, and the Wayland compositor's build a
 # keyboard from the test runtime's keymaps, as be-wayland's do. The tray's run a

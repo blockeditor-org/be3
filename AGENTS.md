@@ -3,6 +3,7 @@ BE3 project
 You are inside of an Ubuntu VM. You may install and remove programs as needed, and free up disk space if it runs out.
 
 Guides:
+- VISION.md: what the project is for, why it has the parts it has, and which parts are separate projects
 - guides/adding_a_block.md
 - guides/adding_a_game.md
 - guides/adding_a_plugin_editor.md
