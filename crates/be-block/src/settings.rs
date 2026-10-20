@@ -1,6 +1,7 @@
 use be_model::{Change, Document, Edit, Map, Model, ObjectId};
 use uuid::Uuid;
 
+use crate::device_class::DeviceClass;
 use crate::{ChildChange, Root};
 
 pub trait Layered: Root + Clone + Default {
@@ -184,9 +185,14 @@ pub type SettingsContent = Document<Settings>;
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct SettingsProfile {
     pub kinds: Map<Uuid, Uuid>,
+    pub class: Option<DeviceClass>,
 }
 
 impl SettingsProfile {
+    pub fn set_class(class: Option<DeviceClass>) -> Edit {
+        Self::CLASS.set(ObjectId::ROOT, &class).into()
+    }
+
     pub fn kind(&self, kind: Uuid) -> Option<Uuid> {
         self.kinds.get(&kind).copied()
     }
