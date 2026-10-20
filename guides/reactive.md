@@ -417,12 +417,14 @@ value because it may already have mutated it. There is no transaction rollback.
 
 ## Zones
 
-`enter_zone(zone)` enters a zone until the guard it returns is dropped. An
-effect remembers the zone that was entered when it was created, and the effects
-it creates inherit it. While a different zone is entered, an effect woken by a
-write is parked instead of run whenever its own zone is not the one entered,
-including when no zone is entered at all, and it runs when its own zone is next
-entered. Effects made outside any zone (zone 0) run at once. `zone_pending(zone)`
+`enter_zone(zone)` enters a zone until the guard it returns is dropped. While
+no zone is entered, zone 0 is. An effect remembers the zone that was entered
+when it was created, and the effects it creates inherit it. An effect woken by
+a write runs only while its own zone is entered; otherwise it is parked, and it
+runs when its zone is next entered or returned to as an inner zone's guard
+drops. So an effect made outside every zone runs at once when written outside
+every zone, as plain reactive code expects, but never in the middle of a
+document's frame: it waits until the document's zone is left. `zone_pending(zone)`
 says whether a zone has parked effects, and `forget_zone(zone)` drops them.
 `wake_zone_with(zone, wake)` registers a callback that runs when a zone with
 nothing parked parks its first effect, so a burst of writes wakes it once.
