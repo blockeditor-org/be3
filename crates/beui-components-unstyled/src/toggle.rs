@@ -110,14 +110,14 @@ pub fn Toggle(
             tab_stop
             press_focus
             capture_presses
-            on_focus_change={move |next: bool| focused.set(next)}
-            on_activate_change={move |pressed: bool| key_active.set(pressed)}
+            on_focus_change={focused}
+            on_activate_change={key_active}
             on_activate={key_toggle}
             cursor
             key_active
             on_click={toggle_checked}
-            on_hover_change={move |next: bool| hovered.set(next)}
-            on_active_change={move |next: bool| active.set(next)}
+            on_hover_change={hovered}
+            on_active_change={active}
             children={content_node}
         />
     }

@@ -81,8 +81,8 @@ fn PressCounter() -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Pressable
                 on_click={move || presses.update(|count| *count += 1)}
-                on_hover_change={move |on| hovered.set(on)}
-                on_active_change={move |on| active.set(on)}
+                on_hover_change={hovered}
+                on_active_change={active}
             >
                 <Frame
                     fill={ColorRole::custom(fill)}

@@ -309,7 +309,7 @@ pub fn ColorWheel(
             focusable=true
             tab_stop
             focused
-            on_focus_change={move |focused: bool| has_focus.set(focused)}
+            on_focus_change={has_focus}
             on_step={move |delta: f32| {
                 let point = point.get_untracked();
                 set(WheelPoint::new(point.hue + delta * HUE_STEP, point.saturation, point.value));
@@ -339,7 +339,7 @@ pub fn ColorWheel(
             }}
             cursor
             touch_drags=true
-            on_hover_change={move |next: bool| hovered.set(next)}
+            on_hover_change={hovered}
             on_hover_move={move |press: PointerPress| pointer.set(Some(press))}
             on_press={grabbed}
             on_drag={move |press: PointerPress| set(dragged_to(press))}

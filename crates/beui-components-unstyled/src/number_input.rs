@@ -229,8 +229,8 @@ pub fn NumberInput(
                     on_press={pressed}
                     on_drag={dragged}
                     on_click={clicked}
-                    on_hover_change={move |is_hovered: bool| hovered.set(is_hovered)}
-                    on_active_change={move |is_active: bool| active.set(is_active)}
+                    on_hover_change={hovered}
+                    on_active_change={active}
                     children={Some(face)}
                 />
             </ShowKeepAlive>

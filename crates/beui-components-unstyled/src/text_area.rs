@@ -1448,7 +1448,7 @@ pub fn TextArea(
                                         <Scroll
                                             offset={offset}
                                             focus_color={Color32::TRANSPARENT}
-                                            on_change={move |position: ScrollPosition| scroll.set(position)}
+                                            on_change={scroll}
                                         >
                                             <Editing field={field} />
                                         </Scroll>

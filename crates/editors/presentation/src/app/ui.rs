@@ -234,7 +234,7 @@ fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     view! {
         <Frame visible={shown} height=PLAYBACK_HEIGHT>
             <Interactive
-                on_hover_change={move |hovered| over.set(hovered)}
+                on_hover_change={over}
                 @test_id={"presentation.playback"}
             >
                 <Frame

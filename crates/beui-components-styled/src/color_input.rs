@@ -29,7 +29,7 @@ pub fn ColorInput(
 ) -> NodeId {
     let previewed = create_signal(None::<Color32>);
     let shown = create_memo(move || previewed.get().unwrap_or_else(|| value.get()));
-    let hex = HexText::new(shown, alpha, Callback::new(move |color| value.set(color)));
+    let hex = HexText::new(shown, alpha, value.into_callback());
     let label = create_memo(move || label.get());
     let picker_label = create_memo(move || match label.get() {
         label if label.is_empty() => "Choose a color".to_owned(),

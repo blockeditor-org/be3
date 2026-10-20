@@ -13,7 +13,7 @@ fn a_mouse_away_from_a_held_finger_still_moves_the_pointer() {
                 <Frame width=200.0 height=200.0 />
                 <Interactive
                     @node_ref=&target
-                    on_hover_change={move |is_hovered: bool| hovered.set(is_hovered)}
+                    on_hover_change={hovered}
                 >
                     <Frame width=200.0 height=200.0 />
                 </Interactive>

@@ -127,7 +127,7 @@ pub fn ColorArea(
             focusable=true
             tab_stop
             focused
-            on_focus_change={move |focused: bool| has_focus.set(focused)}
+            on_focus_change={has_focus}
             on_step={move |delta: f32| {
                 let color = color.get_untracked();
                 set(color.saturation + delta * STEP, color.value);
@@ -157,7 +157,7 @@ pub fn ColorArea(
             }}
             cursor
             touch_drags=true
-            on_hover_change={move |next: bool| hovered.set(next)}
+            on_hover_change={hovered}
             on_hover_move={move |press: PointerPress| pointer.set(Some(press))}
             on_press={grabbed}
             on_drag={move |press: PointerPress| {

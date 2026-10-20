@@ -485,9 +485,9 @@ fn InteractiveCard() -> NodeId {
         <List spacing=SECTION_SPACING>
             <Interactive
                 focusable=true
-                on_hover_change={move |on| hovered.set(on)}
-                on_active_change={move |on| active.set(on)}
-                on_focus_change={move |on| focused.set(on)}
+                on_hover_change={hovered}
+                on_active_change={active}
+                on_focus_change={focused}
                 on_click={move || log.set("Clicked".to_owned())}
                 on_key={move |press: KeyPress| {
                     if press.pressed {

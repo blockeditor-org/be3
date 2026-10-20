@@ -245,7 +245,7 @@ fn FieldBox(
     let within = create_signal(false);
     let hovered = create_signal(false);
     view! {
-        <Interactive on_hover_change={move |inside: bool| hovered.set(inside)}>
+        <Interactive on_hover_change={hovered}>
             {frame.call(DateTimeBoxHandle {
                 field: view! {
                     <Interactive
@@ -260,7 +260,7 @@ fn FieldBox(
                                 label
                                 disabled={disabled}
                                 focus_segment={focus}
-                                on_focus_change={move |inside: bool| within.set(inside)}
+                                on_focus_change={within}
                                 on_segment_focus={on_segment_focus}
                                 on_draft={on_draft}
                                 on_open={on_open}
@@ -395,7 +395,7 @@ fn PickerPanel(
                                 inner_focus.set(None);
                             }
                         }}
-                        on_draft={move |next| draft.set(next)}
+                        on_draft={draft}
                     />
                 },
                 field_width: width,
@@ -416,7 +416,7 @@ fn PickerPanel(
                     pick: pick_time,
                 },
                 page: tab.read_only(),
-                show_page: Callback::new(move |page: usize| tab.set(page)),
+                show_page: Callback::from(tab),
                 now,
                 now_label,
                 clear,

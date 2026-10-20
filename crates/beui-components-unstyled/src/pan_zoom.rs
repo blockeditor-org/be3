@@ -176,7 +176,7 @@ pub fn PanZoom(
             view! {
                 <Interactive
                     focusable=true
-                    on_focus_change={move |next: bool| focused.set(next)}
+                    on_focus_change={focused}
                     on_key={move |press: KeyPress| camera.key(press)}
                     cursor={cursor}
                     on_scroll={move |gesture: ScrollGesture| {
@@ -189,7 +189,7 @@ pub fn PanZoom(
                     }}
                     on_zoom={move |gesture: ZoomGesture| camera.zoom(gesture.factor, gesture.pos)}
                     on_pan_drag={move |delta: Vec2| camera.pan(delta)}
-                    on_pan_active_change={move |next: bool| panning.set(next)}
+                    on_pan_active_change={panning}
                     children={Some(content_node)}
                 />
             }

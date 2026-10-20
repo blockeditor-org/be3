@@ -312,7 +312,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                     <Interactive
                         focusable=true
                         on_activate={clicked}
-                        on_hover_change={move |over: bool| hovered.set(over)}
+                        on_hover_change={hovered}
                     >
                         <Draggable
                             @test_id={element_test_id}

@@ -1332,7 +1332,7 @@ fn PaintPicker() -> NodeId {
             <ColorPicker
                 value={paint}
                 alpha=false
-                on_preview={move |color| preview.set(color)}
+                on_preview={preview}
             />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />
@@ -1352,7 +1352,7 @@ fn HueWheel() -> NodeId {
         <List spacing=SECTION_SPACING>
             <ColorWheel
                 value={paint}
-                on_preview={move |color| preview.set(color)}
+                on_preview={preview}
             />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />
@@ -1380,7 +1380,7 @@ fn PerceptualWheel() -> NodeId {
             <Text style=TextStyle::CAPTION string="Turning the hue keeps lightness and chroma" />
             <OklchColorWheel
                 value={paint}
-                on_preview={move |color| preview.set(color)}
+                on_preview={preview}
             />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />

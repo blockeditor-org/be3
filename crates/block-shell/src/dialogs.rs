@@ -203,7 +203,7 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
                     placed={placed}
                     mode=ChildMode::Live
                     @test_id={"artifact-settings.editor"}
-                    on_state={move |next: ChildState| state.set(next)}
+                    on_state={state}
                 />
             </Frame>
             <Show condition={has_summary}>

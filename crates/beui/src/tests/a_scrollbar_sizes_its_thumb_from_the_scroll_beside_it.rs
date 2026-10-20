@@ -19,7 +19,7 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
             <List spacing=0.0>
                 <Offset
                     @sizing=ItemSize::Percent(100.0)
-                    on_change={move |reported| position.set(reported)}
+                    on_change={position}
                 >
                     <VirtualList
                         keys={indices(ROWS)}

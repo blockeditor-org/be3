@@ -309,7 +309,7 @@ fn SegmentView(
             on_key={move |press: KeyPress| segment_key(state, segment, press)}
             on_text={move |typed: String| type_text(state, segment, &typed)}
             cursor=CursorIcon::Text
-            on_hover_change={move |next: bool| hovered.set(next)}
+            on_hover_change={hovered}
         >
             <List direction=Direction::Horizontal spacing=0.0>
                 <Show condition=shown>|| { literal.call(prefix.clone()) }</Show>

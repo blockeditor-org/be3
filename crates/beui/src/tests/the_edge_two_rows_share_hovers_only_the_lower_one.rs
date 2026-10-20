@@ -12,10 +12,10 @@ fn the_edge_two_rows_share_hovers_only_the_lower_one() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Interactive on_hover_change={move |hovered| upper.set(hovered)}>
+                <Interactive on_hover_change={upper}>
                     <Frame height=ROW />
                 </Interactive>
-                <Interactive on_hover_change={move |hovered| lower.set(hovered)}>
+                <Interactive on_hover_change={lower}>
                     <Frame height=ROW />
                 </Interactive>
             </List>

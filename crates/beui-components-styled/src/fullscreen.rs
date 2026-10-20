@@ -26,7 +26,7 @@ pub fn Fullscreen(open: Prop<bool>, on_dismiss: ClickCallback, children: Child) 
             <BackSlide
                 enters=false
                 on_back={on_dismiss}
-                on_presence={move |next: f32| presence.set(next)}
+                on_presence={presence}
             >
                 {children}
             </BackSlide>

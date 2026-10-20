@@ -16,7 +16,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
                     <Frame height=40.0>
                         <Interactive
                             @test_id="bar"
-                            on_hover_change={move |on: bool| hovered.set(on)}
+                            on_hover_change={hovered}
                         />
                     </Frame>
                     <styled::Docking @sizing=ItemSize::Percent(100.0) layout>

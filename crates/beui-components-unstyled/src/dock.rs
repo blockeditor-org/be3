@@ -2398,7 +2398,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         <Interactive
             capture_presses=true
             focusable=true
-            on_focus_change={move |has_focus: bool| focused.set(has_focus)}
+            on_focus_change={focused}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
                     return false;
@@ -2419,8 +2419,8 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                 Direction::Vertical => CursorIcon::ResizeVertical,
             }}
             touch_drag_axis={Some(direction)}
-            on_hover_change={move |over: bool| hovered.set(over)}
-            on_active_change={move |held: bool| active.set(held)}
+            on_hover_change={hovered}
+            on_active_change={active}
             on_press={move |press: PointerPress| {
                 grabbed.set(Some((start(), press.pos)));
             }}
@@ -2488,7 +2488,7 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
     view! {
         <Interactive
             focusable=true
-            on_focus_change={move |has_focus: bool| focused.set(has_focus)}
+            on_focus_change={focused}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
                     return false;
@@ -2504,8 +2504,8 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
             }}
             cursor=CursorIcon::ResizeHorizontal
             capture_presses=true
-            on_hover_change={move |over: bool| hovered.set(over)}
-            on_active_change={move |held: bool| active.set(held)}
+            on_hover_change={hovered}
+            on_active_change={active}
             on_press={move |press: PointerPress| {
                 grabbed.set(Some((width.get_untracked(), press.pos)));
             }}

@@ -41,7 +41,7 @@ pub fn SelectableText(
                 state
                 color
                 handle_color
-                on_toolbar={move |at: Option<Rect>| toolbar_at.set(at)}
+                on_toolbar={toolbar_at}
             >
                 {children}
             </unstyled::Selectable>

@@ -73,7 +73,7 @@ pub fn PointerLock(
             on_motion={move |motion: Vec2| on_motion.call(motion)}
             cursor={cursor}
             on_click={engage}
-            on_hover_change={move |next: bool| hovered.set(next)}
+            on_hover_change={hovered}
             children={content_node}
         />
     }
