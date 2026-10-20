@@ -2,6 +2,7 @@ use block_editor_beui::Editor;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 
+mod setup;
 mod ui;
 
 use ui::{SettingsProfileView, SettingsView};

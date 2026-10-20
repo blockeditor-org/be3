@@ -13,6 +13,8 @@ use block_editor_beui::root_settings::is_own_settings;
 use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor, Loaded};
 use uuid::Uuid;
 
+use super::setup::{DeviceSection, DeviceSetup, DifferencesSection, SetUpDone, SetUpHeading};
+
 const PADDING: f32 = 16.0;
 const SPACING: f32 = 10.0;
 const SECTION_SPACING: f32 = 24.0;
@@ -212,7 +214,10 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
             .is_some_and(|parent| is_own_settings(&editor, parent))
     });
     let others = create_memo(move || !own.get());
-    let loaded = profile_loaded(editor, profile, parent);
+    let setup = DeviceSetup::new(editor, profile, parent);
+    let held = profile_loaded(editor, profile, parent);
+    let set_up_ready = setup.ready();
+    let loaded = create_memo(move || held.get() && set_up_ready.get());
     let blocked = blocked(editor, profile, own);
     let client = editor.host().client_id();
     let used = create_memo(move || {
@@ -224,6 +229,11 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     });
     let unused = create_memo(move || !used.get() && !blocked.get());
     let shown = shown_block(editor);
+    let differs = setup.differs();
+    let finished = create_signal(false);
+    let setting_up =
+        create_memo(move || used.get() && differs.get() && !blocked.get() && !finished.get());
+    let browsing = create_memo(move || !setting_up.get());
     let status = create_memo(move || match used.get() {
         true => "Used on this device".to_owned(),
         false => "Not used on this device".to_owned(),
@@ -236,6 +246,17 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
                         <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
                     </Frame>
                 </Show>
+                <Show condition={setting_up}>
+                    <SetUpHeading />
+                </Show>
+                <DeviceSection setup={setup} blocked={blocked} />
+                <Show condition={differs}>
+                    <DifferencesSection setup={setup} blocked={blocked} />
+                </Show>
+                <Show condition={setting_up}>
+                    <SetUpDone on_done={move || finished.set(true)} />
+                </Show>
+                <Show condition={browsing}>
                 <SettingsSection
                     title="Settings profile"
                     description="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
@@ -257,11 +278,14 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
                         </Show>
                     </SettingsRow>
                 </SettingsSection>
+                </Show>
+                <Show condition={browsing}>
                 <SettingsSection title="In this profile">
                     <Frame padding=CARD_PADDING>
                         <Kinds editor={editor} layer={profile} blocked={blocked} shown={shown} />
                     </Frame>
                 </SettingsSection>
+                </Show>
             </SettingsPage>
         </Loaded>
     }
