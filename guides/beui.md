@@ -1786,7 +1786,9 @@ centred on the parent's panel a small gap under its tab bar
 (`Placement::HangFrom`, Docking's `dialog_margin`) and keeps the `size` it asks
 for even where the pane is narrower, reaching over the panes beside it; it is
 only kept that margin inside the window, and shrinks only where the window is
-too small (the body is `Extent::at_most(size)`). Its scrim (Docking's
+too small (the body is `Extent::at_most(size)`): in a short window it shrinks
+under its tab bar first, and rises over the bar, hiding the tab's waiting dot,
+only when even its smallest size does not fit below it. Its scrim (Docking's
 `dialog_scrim`) dims that panel alone: a `BlocksParent` overlay with a visible
 scrim lays it over the node it blocks, and occludes both rects
 (`Document::layer_covers`), so the card draws over other panes and takes the

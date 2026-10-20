@@ -311,7 +311,11 @@ impl OverlayNode {
         );
         let available = match (inside, self.placement) {
             (true, _) => anchor_rect.intersect(area).size().max(Vec2::ZERO),
-            (false, Placement::HangFrom(gap)) => area.shrink(f32::from(gap)).size().max(Vec2::ZERO),
+            (false, Placement::HangFrom(gap)) => {
+                let room = area.shrink(f32::from(gap));
+                let top = (anchor_rect.top() + f32::from(gap)).clamp(room.top(), room.bottom());
+                Vec2::new(room.width(), room.bottom() - top).max(Vec2::ZERO)
+            }
             (false, _) => area.size(),
         };
         let measured = crate::layout::measure(doc, painter, content, available);
