@@ -1291,8 +1291,8 @@ A dialog's buttons are props of `styled::Dialog`, never buttons in its body, so
 every dialog places and draws them the same way: a footer under the scroll that
 stays in view while the body scrolls. `confirm` names the action (drawn primary,
 or `ButtonVariant::Danger` with `destructive`; `confirm_disabled` greys it) and
-runs `on_confirm`; `cancel` names the dismissal (secondary beside a confirm,
-primary alone, such as "Close" or "Done") and runs `on_dismiss`. An empty label
+runs `on_confirm`; `cancel` names the dismissal (always secondary, alone too,
+such as "Close" or "Done") and runs `on_dismiss`. An empty label
 leaves its button out. Confirm is rightmost and cancel beside it, and
 `extra_actions` (such as Delete in an edit form) start the row on the left.
 The row wraps rather than stacking, so the buttons stay side by side until they

@@ -213,10 +213,6 @@ fn DialogFooter(actions: DialogActions, extra: ExtraActions) -> NodeId {
     });
     let confirming = create_memo(move || !actions.confirm.get().is_empty());
     let cancelling = create_memo(move || !actions.cancel.get().is_empty());
-    let cancel_variant = create_memo(move || match confirming.get() {
-        true => ButtonVariant::Secondary,
-        false => ButtonVariant::Primary,
-    });
     let confirm_variant = create_memo(move || match actions.destructive.get() {
         true => ButtonVariant::Danger,
         false => ButtonVariant::Primary,
@@ -245,7 +241,7 @@ fn DialogFooter(actions: DialogActions, extra: ExtraActions) -> NodeId {
             <Show condition={cancelling}>
                 <Button
                     label={actions.cancel}
-                    variant={cancel_variant}
+                    variant=ButtonVariant::Secondary
                     @test_id={cancel_id}
                     on_click={actions.on_cancel}
                 />

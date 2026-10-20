@@ -30,7 +30,8 @@ impl ButtonVariant {
         if disabled {
             return match self {
                 ButtonVariant::Primary => theme.accent_soft.get(),
-                ButtonVariant::Secondary | ButtonVariant::Danger => theme.surface.get(),
+                ButtonVariant::Danger => theme.danger_soft.get(),
+                ButtonVariant::Secondary => theme.surface.get(),
                 ButtonVariant::Ghost => Color32::TRANSPARENT,
             };
         }
@@ -38,9 +39,12 @@ impl ButtonVariant {
             (ButtonVariant::Primary, _, true) => theme.accent_active.get(),
             (ButtonVariant::Primary, true, false) => theme.accent_hover.get(),
             (ButtonVariant::Primary, false, false) => theme.accent.get(),
-            (ButtonVariant::Secondary | ButtonVariant::Danger, _, true) => theme.pressed.get(),
-            (ButtonVariant::Secondary | ButtonVariant::Danger, true, false) => theme.hover.get(),
-            (ButtonVariant::Secondary | ButtonVariant::Danger, false, false) => theme.surface.get(),
+            (ButtonVariant::Danger, _, true) => theme.danger_fill_active.get(),
+            (ButtonVariant::Danger, true, false) => theme.danger_fill_hover.get(),
+            (ButtonVariant::Danger, false, false) => theme.danger_fill.get(),
+            (ButtonVariant::Secondary, _, true) => theme.pressed.get(),
+            (ButtonVariant::Secondary, true, false) => theme.hover.get(),
+            (ButtonVariant::Secondary, false, false) => theme.surface.get(),
             (ButtonVariant::Ghost, _, true) => theme.pressed.get(),
             (ButtonVariant::Ghost, true, false) => theme.hover.get(),
             (ButtonVariant::Ghost, false, false) => Color32::TRANSPARENT,
@@ -53,7 +57,7 @@ impl ButtonVariant {
         }
         match self {
             ButtonVariant::Primary => TextColor::OnAccent,
-            ButtonVariant::Danger => TextColor::Danger,
+            ButtonVariant::Danger => TextColor::OnDanger,
             ButtonVariant::Secondary | ButtonVariant::Ghost => TextColor::Default,
         }
     }
@@ -99,13 +103,8 @@ pub fn ButtonFace(
             .fill(&theme, disabled.get(), hovered.get(), active.get())
     });
     let label_color = create_memo(move || variant.get().label(disabled.get()));
-    let border = create_memo(move || {
-        matches!(
-            variant.get(),
-            ButtonVariant::Secondary | ButtonVariant::Danger
-        )
-        .then_some(Border::DEFAULT)
-    });
+    let border =
+        create_memo(move || (variant.get() == ButtonVariant::Secondary).then_some(Border::DEFAULT));
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     let trailing = create_memo(move || trailing_glyph.get());
     let has_trailing = create_memo(move || !trailing.get().is_empty());
@@ -122,12 +121,7 @@ pub fn ButtonFace(
                 radius=Radius::Md
                 padding={padding}
             >
-                <List
-                    direction=Direction::Horizontal
-                    align=Align::Center
-                    justify=Justify::Center
-                    spacing=GLYPH_SPACING
-                >
+                <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                     <Show condition={has_glyph}>
                         <Text color={label_color} align=TextAlign::Center>
                             <Icon glyph={glyph} />

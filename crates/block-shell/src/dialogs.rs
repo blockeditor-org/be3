@@ -1,7 +1,7 @@
 use block_editor_beui::be_block::metadata::MAX_NAME_BYTES;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
-    ICON_ADD_LINK, ICON_CLOSE, ICON_CONTENT_COPY, ICON_LOCK, ICON_PERSON, ICON_PERSON_ADD,
+    ICON_ADD_LINK, ICON_CLOSE, ICON_LOCK, ICON_PERSON, ICON_PERSON_ADD,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -444,19 +444,12 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                             string="Send this link yourself, through an app you trust. Whoever opens it first becomes your contact and can open this block. It works once, and it is shown only once."
                             wrap=true
                         />
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <TextInput
-                                @sizing=ItemSize::Percent(100.0)
-                                value={invite_link}
-                                label="Contact link"
-                                @test_id={"share.invite.link"}
-                            />
-                            <IconButton
-                                glyph={ICON_CONTENT_COPY.to_owned()}
-                                label="Copy link"
-                                on_click={move || copy_text(invite_link.get_untracked())}
-                            />
-                        </List>
+                        <TextInput
+                            value={invite_link}
+                            label="Contact link"
+                            copyable=true
+                            @test_id={"share.invite.link"}
+                        />
                     </List>
                 </Show>
                 <Text style=TextStyle::HEADING string="People with access" />

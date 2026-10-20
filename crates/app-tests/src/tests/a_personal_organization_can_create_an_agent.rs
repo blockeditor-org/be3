@@ -12,12 +12,12 @@ fn a_personal_organization_can_create_an_agent() {
     app.type_text("Helper");
     app.click("#app.agents.add");
     app.wait("#app.agents.credentials");
-    app.wait("#app.agents.copy");
+    app.wait("Button \"Copy Agent credentials\"");
     app.wait("Dialog \"Agent credentials\"");
     let tree = app.tree();
     assert!(!tree.contains("TextInput \"Agent name\""));
     assert!(!tree.contains("Button \"Add agent\""));
-    app.click("#app.agents.copy");
+    app.click("Button \"Copy Agent credentials\"");
     let copied = app.run(&["clipboard"]);
     assert!(copied.trim().starts_with('{'));
     for key in ["server", "organization", "token", "recovery_phrase"] {
@@ -38,7 +38,7 @@ fn a_personal_organization_can_create_an_agent() {
     app.crop("Dialog \"Agent credentials\"");
     app.snapshot("agent_credentials_are_copied_as_one_secret");
     app.click("#app.agents.proxy");
-    app.click("#app.agents.copy");
+    app.click("Button \"Copy Agent credentials\"");
     let proxy = app.run(&["clipboard"]);
     assert!(proxy.contains("\"authentication\":\"proxy\""));
     assert!(!proxy.contains("\"token\":"));
@@ -53,13 +53,13 @@ fn a_personal_organization_can_create_an_agent() {
     app.click("#app.agents.credentials-help");
     app.crop("Dialog \"Agent credentials\"");
     app.snapshot("agent_account_token_is_supplied_by_proxy");
-    app.click("#app.agents.done");
+    app.click("#app.agents.cancel");
     app.click("#file-tree.desktop-app-menu");
     app.click("#app.menu.agents");
     app.wait("#app.agents.name");
     let tree = app.tree();
     assert!(tree.contains("Helper"));
     assert!(!tree.contains("TextInput \"Agent credentials\""));
-    assert!(!tree.contains("Copy credentials"));
+    assert!(!tree.contains("Copy Agent credentials"));
     app.close();
 }

@@ -783,6 +783,11 @@ fn NameInput() -> NodeId {
                 placeholder="A note, over several lines"
                 multiline=true
             />
+            <TextInput
+                value="https://blocks.example/invite/3f9c"
+                label="Invite link"
+                copyable=true
+            />
         </List>
     }
 }

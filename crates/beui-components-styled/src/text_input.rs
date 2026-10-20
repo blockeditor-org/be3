@@ -8,7 +8,7 @@ use crate::theme::{field_border, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{TextInputHandle, TextInputStyle};
 use beui_core::document::Document;
-use beui_core::icons::ICON_CLOSE;
+use beui_core::icons::{ICON_CLOSE, ICON_CONTENT_COPY};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -36,6 +36,7 @@ pub fn TextInput(
     #[prop(default = false)] select_on_focus: Prop<bool>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] clearable: Prop<bool>,
+    #[prop(default = false)] copyable: Prop<bool>,
     #[prop(default = false)] multiline: bool,
     on_change: Callback<String>,
     on_submit: Callback<String>,
@@ -48,6 +49,14 @@ pub fn TextInput(
     let plain = create_memo(move || plain.get());
     let glyph = create_memo(move || glyph.get());
     let clearable = create_memo(move || clearable.get());
+    let copyable = create_memo(move || copyable.get());
+    let shown = value.clone();
+    let copied = create_memo(move || shown.get());
+    let named = label.clone();
+    let copy_label = create_memo(move || match named.get().is_empty() {
+        true => "Copy".to_owned(),
+        false => format!("Copy {}", named.get()),
+    });
     view! {
         <unstyled::TextInput
             value
@@ -63,7 +72,16 @@ pub fn TextInput(
             on_submit={on_submit}
             on_focus_change={on_focus_change}
         >|handle|
-            <TextInputFrame handle plain={plain} glyph={glyph} clearable={clearable} multiline />
+            <TextInputFrame
+                handle
+                plain={plain}
+                glyph={glyph}
+                clearable={clearable}
+                copyable={copyable}
+                copied={copied}
+                copy_label={copy_label}
+                multiline
+            />
         </unstyled::TextInput>
     }
 }
@@ -74,6 +92,9 @@ fn TextInputFrame(
     plain: Memo<bool>,
     glyph: Memo<String>,
     clearable: Memo<bool>,
+    copyable: Memo<bool>,
+    copied: Memo<String>,
+    copy_label: Memo<String>,
     multiline: bool,
 ) -> NodeId {
     let TextInputHandle {
@@ -133,6 +154,17 @@ fn TextInputFrame(
                                 size=IconButtonSize::Compact
                                 press_focus=false
                                 on_click={clear}
+                            />
+                        </Frame>
+                    </Show>
+                    <Show condition={copyable}>
+                        <Frame padding={Sides::horizontal(CLEAR_PADDING)}>
+                            <IconButton
+                                glyph={ICON_CONTENT_COPY.to_owned()}
+                                label={copy_label}
+                                size=IconButtonSize::Compact
+                                press_focus=false
+                                on_click={move || copy_text(copied.get_untracked())}
                             />
                         </Frame>
                     </Show>
