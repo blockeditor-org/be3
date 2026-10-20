@@ -13,8 +13,10 @@ Usage:
                  downloads the pinned one
 
 Answers every GET with the buck2 configuration of Namespace's remote execution
-cluster, waking it first: what `nsc reapi setup buck2` writes. Callers within a
-minute of a setup share its answer. It checks no credentials: the reverse proxy
+cluster, waking it first: what `nsc reapi setup buck2` writes, with an age
+header saying how long ago. That answer is handed out until the executor it
+names stops answering or it is three and a half hours old, and only then is
+nsc asked again; `curl` checks the executor. It checks no credentials: the reverse proxy
 in front of it does (guides/build_server.md).
 
 RUST_LOG sets what is logged (default: info).";
@@ -58,8 +60,8 @@ async fn run() -> Result<(), Box<dyn Error>> {
     let token = token.ok_or(format!(
         "name Namespace's token file with --token\n\n{USAGE}"
     ))?;
-    let config = env::temp_dir().join(format!("namespace-waker-{}.buckconfig", std::process::id()));
-    let waker = Arc::new(Waker::new(nsc, token, config));
+    let directory = env::temp_dir().join(format!("namespace-waker-{}", std::process::id()));
+    let waker = Arc::new(Waker::new(nsc, token, directory));
     let listener = TcpListener::bind(address).await?;
     tracing::info!(address = %listener.local_addr()?, "namespace-waker listening");
     serve(listener, waker, shutdown()).await?;

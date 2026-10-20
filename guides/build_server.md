@@ -8,7 +8,7 @@ it to be asked again); anything else builds on Namespace.
 | `BE3_BUILD_SERVER` | Server | Key | Claude Code Cloud Session |
 |---|---|---|---|
 | `namespace` (the default, and CI's) | Namespace's remote execution | `authorization: Bearer KEY` to its waker | Needs `BE3_NAMESPACE_KEY` |
-| `blocks.pfg.pw` | our own NativeLink server | `authorization: Bearer KEY` | Should work with 0 configuration |
+| `api.be3.pfg.pw` | our own NativeLink server | `authorization: Bearer KEY` | Should work with 0 configuration |
 | `buildbuddy` | BuildBuddy's `remote.buildbuddy.io` | `x-buildbuddy-api-key: KEY` | Currently not working |
 | `local` | a NativeLink server of your own, at `host:port` | none, and no TLS | Not powerful enough to host |
 
@@ -32,7 +32,7 @@ where `SERVER` is the value of `BE3_BUILD_SERVER`. Without one, at a terminal,
 `./scripts/buck` asks for it and saves it to the last.
 
 In an agent's cloud session the proxy adds the key to requests for
-`blocks.pfg.pw`, and `BE3_BUILD_SERVER_KEY` is a
+`api.be3.pfg.pw`, and `BE3_BUILD_SERVER_KEY` is a
 placeholder; there is no key for BuildBuddy there.
 
 ## When a build hangs or keeps failing
@@ -42,13 +42,13 @@ The servers fail in different ways:
 - **Namespace** is the fastest, but now and then never finishes a build: an
   action sits at `[re_execute]` or queued for hours while nothing else moves.
   It does not recover on its own, so stop the command rather than wait.
-- **`blocks.pfg.pw`** always finishes, but runs slower.
+- **`api.be3.pfg.pw`** always finishes, but runs slower.
 
 To move off a server that hangs or keeps failing, run the command again with
 another one, for that command or, exported, for the rest of the session:
 
 ```
-BE3_BUILD_SERVER=blocks.pfg.pw ./scripts/verify
+BE3_BUILD_SERVER=api.be3.pfg.pw ./scripts/verify
 ```
 
 You may also need to kill buck's daemon (`./scripts/buck kill`)
@@ -93,14 +93,18 @@ hosts then answer 404. So no host is checked in: `./scripts/buck` asks
 the buck2 configuration that names the executor, the storage and the
 `x-nsc-ingress-auth` header that authenticates to them. It keeps that answer in
 `target/namespace/`, writes it into `.buckconfig.local`, and asks again when
-the executor stops answering, when the answer is three hours old, or when the
-key changes. Builds never run `nsc`.
+the executor stops answering, when the answer is three and a half hours old
+(an answer lasts about four), or when the key changes. The answer's age counts
+from its setup, which the waker sends as an `age` header. Builds never run
+`nsc`.
 
 Behind that URL, `namespace-waker` (`crates/namespace-waker`) runs
 `nsc reapi setup buck2 --token FILE --key buildserver`, which starts the
-cluster if it is down, and answers with the configuration it writes. Callers
-that ask within a minute of a setup share its answer, so a crowd that finds the
-cluster asleep wakes it once. Every setup comes from that one host, with one
+cluster if it is down, and answers with the configuration it writes. It hands
+that answer out again until the executor stops answering a gRPC call (which it
+makes with `curl`) or the answer is three and a half hours old, and only then
+runs `nsc` again. Callers within a minute of a setup get its answer without
+that check, so a crowd that finds the cluster asleep wakes it once. Every setup comes from that one host, with one
 pinned `nsc` and the same arguments and `--key`: Namespace starts a new cluster
 beside the old one when any of them differ, or when two setups race. The
 dashboard shows both, and the stale one should be destroyed, since its workers
@@ -131,7 +135,7 @@ namespace-waker --token ns-token.json --nsc ./nsc --addr 127.0.0.1:9091
 
 `./scripts/buck build //crates/namespace-waker:bin` builds it, and
 `scripts/internal/install-nsc.sh linux_amd64` downloads the pinned `nsc` and
-prints its path. The waker runs `nsc` with `NS_DO_NOT_UPDATE=1`, so `nsc`
+prints its path; the host also needs `curl`. The waker runs `nsc` with `NS_DO_NOT_UPDATE=1`, so `nsc`
 changes only when that pin does. Changing the pin can change what a setup asks
 for, which starts a new cluster: destroy the old one afterwards.
 

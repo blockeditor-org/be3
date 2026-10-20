@@ -1,7 +1,8 @@
 use std::{
     fs, io,
+    io::Write as _,
     path::{Path, PathBuf},
-    process::Command,
+    process::{Command, Stdio},
     sync::Arc,
     time::{Duration, Instant},
 };
@@ -14,45 +15,139 @@ use tokio::{
 
 pub const CLUSTER_KEY: &str = "buildserver";
 
+pub const LIFETIME: Duration = Duration::from_secs(12600);
+
 const FRESH: Duration = Duration::from_secs(60);
 const MAX_HEAD_BYTES: usize = 16 * 1024;
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
 
+type Probe = Arc<dyn Fn(&Path, &str) -> bool + Send + Sync>;
+
 pub struct Waker {
     nsc: PathBuf,
     token: PathBuf,
-    config: PathBuf,
+    directory: PathBuf,
+    probe: Probe,
     answer: Mutex<Option<(Instant, Arc<str>)>>,
 }
 
 impl Waker {
-    pub fn new(nsc: PathBuf, token: PathBuf, config: PathBuf) -> Self {
+    pub fn new(nsc: PathBuf, token: PathBuf, directory: PathBuf) -> Self {
         Self {
             nsc,
             token,
-            config,
+            directory,
+            probe: Arc::new(answers),
             answer: Mutex::new(None),
         }
     }
 
-    pub async fn answer(&self) -> Result<Arc<str>, String> {
+    pub async fn answer(&self) -> Result<(Arc<str>, Duration), String> {
         let mut answer = self.answer.lock().await;
-        if let Some((at, text)) = &*answer
-            && at.elapsed() < FRESH
-        {
-            return Ok(Arc::clone(text));
+        if let Some((at, text)) = &*answer {
+            let age = at.elapsed();
+            if age < FRESH {
+                return Ok((Arc::clone(text), age));
+            }
+            if age < LIFETIME {
+                let (probe, directory, probed) = (
+                    Arc::clone(&self.probe),
+                    self.directory.clone(),
+                    Arc::clone(text),
+                );
+                let answering = tokio::task::spawn_blocking(move || probe(&directory, &probed))
+                    .await
+                    .map_err(|error| error.to_string())?;
+                if answering {
+                    return Ok((Arc::clone(text), age));
+                }
+                tracing::info!("the executor stopped answering; asking nsc again");
+            }
         }
-        let (nsc, token, config) = (self.nsc.clone(), self.token.clone(), self.config.clone());
-        let text: Arc<str> = tokio::task::spawn_blocking(move || setup(&nsc, &token, &config))
+        let (nsc, token, directory) =
+            (self.nsc.clone(), self.token.clone(), self.directory.clone());
+        let text: Arc<str> = tokio::task::spawn_blocking(move || setup(&nsc, &token, &directory))
             .await
             .map_err(|error| error.to_string())??
             .into();
         *answer = Some((Instant::now(), Arc::clone(&text)));
-        Ok(text)
+        Ok((text, Duration::ZERO))
     }
 }
 
-fn setup(nsc: &Path, token: &Path, config: &Path) -> Result<String, String> {
+fn value<'a>(text: &'a str, key: &str) -> Option<&'a str> {
+    text.lines().find_map(|line| {
+        let (name, value) = line.split_once('=')?;
+        (name.trim() == key).then(|| value.trim())
+    })
+}
+
+fn answers(directory: &Path, text: &str) -> bool {
+    let (Some(engine), Some(header)) = (value(text, "engine_address"), value(text, "http_headers"))
+    else {
+        return false;
+    };
+    let host = engine
+        .split_once("://")
+        .map_or(engine, |(_, rest)| rest)
+        .split([':', '/'])
+        .next()
+        .unwrap_or_default();
+    let body = directory.join("probe-body");
+    if fs::write(&body, [0u8; 5]).is_err() {
+        return false;
+    }
+    let config = format!(
+        "header = \"{}\"\ndata-binary = \"@{}\"\n",
+        header.replacen(':', ": ", 1),
+        body.display()
+    );
+    let Ok(mut curl) = Command::new("curl")
+        .args([
+            "--silent",
+            "--max-time",
+            "20",
+            "--output",
+            "/dev/null",
+            "--dump-header",
+            "-",
+            "--header",
+            "content-type: application/grpc",
+            "--header",
+            "te: trailers",
+            "--config",
+            "-",
+        ])
+        .arg(format!(
+            "https://{host}/build.bazel.remote.execution.v2.Capabilities/GetCapabilities"
+        ))
+        .stdin(Stdio::piped())
+        .stdout(Stdio::piped())
+        .stderr(Stdio::null())
+        .spawn()
+    else {
+        return false;
+    };
+    if let Some(mut stdin) = curl.stdin.take() {
+        let _ = stdin.write_all(config.as_bytes());
+    }
+    let Ok(output) = curl.wait_with_output() else {
+        return false;
+    };
+    String::from_utf8_lossy(&output.stdout).lines().any(|line| {
+        line.split_once(':').is_some_and(|(name, value)| {
+            name.trim().eq_ignore_ascii_case("content-type")
+                && value
+                    .trim()
+                    .to_ascii_lowercase()
+                    .starts_with("application/grpc")
+        })
+    })
+}
+
+fn setup(nsc: &Path, token: &Path, directory: &Path) -> Result<String, String> {
+    fs::create_dir_all(directory).map_err(|error| format!("{}: {error}", directory.display()))?;
+    let config = &directory.join("buck2.buckconfig");
     let _ = fs::remove_file(config);
     let output = Command::new(nsc)
         .env("NS_DO_NOT_UPDATE", "1")
@@ -78,7 +173,7 @@ fn setup(nsc: &Path, token: &Path, config: &Path) -> Result<String, String> {
     })?;
     let _ = fs::remove_file(config);
     for key in ["engine_address", "cas_address", "http_headers"] {
-        if !text.lines().any(|line| line.trim_start().starts_with(key)) {
+        if value(&text, key).is_none() {
             return Err(format!("nsc's configuration does not name {key}:\n{text}"));
         }
     }
@@ -112,22 +207,27 @@ async fn respond(mut stream: TcpStream, waker: &Waker) -> io::Result<()> {
         Ok(method) => method?,
         Err(_) => return Ok(()),
     };
-    let (status, body) = if method != "GET" {
+    let (status, age, body) = if method != "GET" {
         (
             "405 Method Not Allowed",
+            String::new(),
             "GET asks for the cluster's hosts.\n".to_owned(),
         )
     } else {
         match waker.answer().await {
-            Ok(text) => ("200 OK", text.to_string()),
+            Ok((text, age)) => (
+                "200 OK",
+                format!("age: {}\r\n", age.as_secs()),
+                text.to_string(),
+            ),
             Err(error) => {
                 tracing::error!("{error}");
-                ("502 Bad Gateway", format!("{error}\n"))
+                ("502 Bad Gateway", String::new(), format!("{error}\n"))
             }
         }
     };
     let head = format!(
-        "HTTP/1.1 {status}\r\ncontent-type: text/plain; charset=utf-8\r\ncontent-length: {}\r\ncache-control: no-store\r\nconnection: close\r\n\r\n",
+        "HTTP/1.1 {status}\r\ncontent-type: text/plain; charset=utf-8\r\ncontent-length: {}\r\n{age}cache-control: no-store\r\nconnection: close\r\n\r\n",
         body.len()
     );
     stream.write_all(head.as_bytes()).await?;

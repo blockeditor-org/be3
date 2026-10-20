@@ -371,9 +371,8 @@ write_if_changed() {
 # Where buck2 reaches the build server, written into .buckconfig.local.
 # BE3_BUILD_SERVER picks the server, or else the one a person at a terminal
 # picked the first time and that is saved in ~/.config/be3/build-server:
-# namespace, which is the default and CI's, or one of our own, blocks.pfg.pw
-# and buildserver.pfg.pw, or buildbuddy, or local, a NativeLink server a
-# person runs themselves, reached at its host:port without TLS or a key. Each
+# namespace, which is the default and CI's, or our own, api.be3.pfg.pw, or
+# buildbuddy, or local, a NativeLink server a person runs themselves, reached at its host:port without TLS or a key. Each
 # has its own key and its own cache. The file also names the server under
 # [be3] build_server, since the workers' image is not the same on all of them
 # (buck/tools/defs.bzl).
@@ -384,7 +383,9 @@ write_if_changed() {
 # builds: it starts the cluster if it is down and names its executor, its
 # storage and the header that authenticates to them. That answer is kept in
 # target/namespace/ and asked again when the executor stops answering, when it
-# is more than three hours old, or when the key changes.
+# is three and a half hours old (an answer lasts about four), or when the key
+# changes. The age is counted from when nsc wrote it, which the waker sends as
+# an age header.
 #
 # Each server's key is BE3_BUILD_SERVER_KEY, or BE3_NAMESPACE_KEY for namespace,
 # which is what CI and agents' sessions set, or else .build-server-key.SERVER at
@@ -422,7 +423,7 @@ namespace_url='https://api.be3.pfg.pw/build/namespace'
 namespace_recheck=false
 
 # The servers BE3_BUILD_SERVER can name, in the order a person is offered them.
-build_servers=(namespace blocks.pfg.pw buildserver.pfg.pw buildbuddy local)
+build_servers=(namespace api.be3.pfg.pw buildbuddy local)
 
 # Where the server a person picked is saved: its name, and for local the
 # address of its NativeLink on the next line.
@@ -444,7 +445,7 @@ build_server() {
     fi
     server="${server:-namespace}"
     case "$server" in
-        namespace | blocks.pfg.pw | buildserver.pfg.pw | buildbuddy | local) echo "$server" ;;
+        namespace | api.be3.pfg.pw | buildbuddy | local) echo "$server" ;;
         *)
             echo "The build server is $server, which is none of ${build_servers[*]}." >&2
             echo "BE3_BUILD_SERVER or $saved picks it." >&2
@@ -464,8 +465,7 @@ ask_for_build_server() {
     for server in "${build_servers[@]}"; do
         case "$server" in
             namespace) echo "  $index) namespace: Namespace's remote execution" >&2 ;;
-            blocks.pfg.pw) echo "  $index) blocks.pfg.pw: our own NativeLink server" >&2 ;;
-            buildserver.pfg.pw) echo "  $index) buildserver.pfg.pw: our own NativeLink server, 8 cores" >&2 ;;
+            api.be3.pfg.pw) echo "  $index) api.be3.pfg.pw: our own NativeLink server" >&2 ;;
             buildbuddy) echo "  $index) buildbuddy: BuildBuddy's remote.buildbuddy.io" >&2 ;;
             local) echo "  $index) local: a NativeLink server of your own, without TLS or a key" >&2 ;;
         esac
@@ -633,7 +633,7 @@ namespace_answers() {
 # Asks for the cluster's hosts when what target/namespace/ holds will not do,
 # writing them to target/namespace/buck2.buckconfig.
 refresh_namespace_cluster() {
-    local key stamp="$namespace_directory/asked" now age=999999 key_hash status
+    local key stamp="$namespace_directory/asked" now age=999999 key_hash status answer_age
     local header="$namespace_directory/request-header" answer="$namespace_directory/buck2.buckconfig.partial"
     key="$(build_server_key namespace)" || exit 1
     mkdir -p "$namespace_directory"
@@ -647,12 +647,13 @@ refresh_namespace_cluster() {
     if [[ $age -lt 600 ]] && ! $namespace_recheck; then
         return 0
     fi
-    if [[ $age -lt 10800 ]] && namespace_answers; then
+    if [[ $age -lt 12600 ]] && namespace_answers; then
         return 0
     fi
 
     echo "Waking the remote execution cluster through $namespace_url..." >&2
     if ! status="$(curl --silent --show-error --max-time 600 --header "@$header" \
+        --dump-header "$namespace_directory/response-header" \
         --output "$answer" --write-out '%{http_code}' "$namespace_url")"; then
         echo "Could not reach $namespace_url (guides/build_server.md)." >&2
         exit 1
@@ -669,7 +670,8 @@ refresh_namespace_cluster() {
         exit 1
     fi
     mv -f "$answer" "$namespace_directory/buck2.buckconfig"
-    printf '%s\n%s\n' "$now" "$key_hash" > "$stamp"
+    answer_age="$(sed -n 's/^[Aa]ge: *\([0-9]*\).*/\1/p' "$namespace_directory/response-header")"
+    printf '%s\n%s\n' "$((now - ${answer_age:-0}))" "$key_hash" > "$stamp"
     if [[ -z "$(namespace_host engine_address)" || -z "$(namespace_host cas_address)" || -z "$(namespace_header)" ]]; then
         echo "$namespace_url answered with a configuration that does not name the executor," >&2
         echo "the storage and the header buck2 needs: $namespace_directory/buck2.buckconfig." >&2
