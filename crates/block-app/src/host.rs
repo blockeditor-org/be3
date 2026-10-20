@@ -63,6 +63,7 @@ struct Output {
     grab: Option<bool>,
     repaint: bool,
     repaint_after: Option<Duration>,
+    animating: bool,
 }
 
 struct Host {
@@ -197,6 +198,9 @@ pub(crate) fn end(context: &beui::Context) {
     if let Some(delay) = output.repaint_after {
         context.request_repaint_after(delay);
     }
+    if output.animating {
+        context.note_animating();
+    }
 }
 
 pub(crate) fn pass() -> u64 {
@@ -273,6 +277,10 @@ pub(crate) fn request_repaint_after(delay: Duration) {
             None => delay,
         });
     });
+}
+
+pub(crate) fn note_animating() {
+    with(|host| host.output.animating = true);
 }
 
 pub(crate) fn push_command(command: HostCommand) {

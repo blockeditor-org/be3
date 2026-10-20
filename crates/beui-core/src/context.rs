@@ -75,6 +75,7 @@ struct Inner {
     zoom: Cell<f32>,
     repaint: Cell<bool>,
     repaint_after: Cell<Duration>,
+    animating: Cell<bool>,
     previous: RefCell<Option<Previous>>,
     accessibility: RefCell<Vec<Fragment>>,
     accessibility_actions: RefCell<Vec<ActionRequest>>,
@@ -178,6 +179,7 @@ pub struct FrameOutput {
     pub file_picks: Vec<FilePickRequest>,
     pub repaint: bool,
     pub repaint_after: Duration,
+    pub animating: bool,
     pub changed: bool,
     pub damage: Region,
     pub moved: Option<Moved>,
@@ -285,6 +287,7 @@ impl Context {
                 zoom: Cell::new(1.0),
                 repaint: Cell::new(false),
                 repaint_after: Cell::new(Duration::MAX),
+                animating: Cell::new(false),
                 previous: RefCell::new(None),
                 accessibility: RefCell::new(Vec::new()),
                 accessibility_actions: RefCell::new(Vec::new()),
@@ -507,6 +510,7 @@ impl Context {
         self.apply_pixels_per_point();
         self.inner.repaint.set(false);
         self.inner.repaint_after.set(Duration::MAX);
+        self.inner.animating.set(false);
         self.inner.mouse_viewport.set(None);
         self.inner.shown.set(None);
         let keyboard = self.keyboard_rect();
@@ -610,6 +614,7 @@ impl Context {
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
             repaint_after: self.inner.repaint_after.get(),
+            animating: self.inner.animating.get(),
             window: self.shown_window(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
@@ -934,6 +939,10 @@ impl Context {
         if let Some(frame) = self.inner.paint_stack.borrow_mut().last_mut() {
             frame.delay = frame.delay.min(delay);
         }
+    }
+
+    pub fn note_animating(&self) {
+        self.inner.animating.set(true);
     }
 
     pub fn same(&self, other: &Self) -> bool {

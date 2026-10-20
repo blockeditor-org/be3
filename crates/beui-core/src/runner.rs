@@ -98,6 +98,7 @@ pub struct Frame {
     pub deferred: bool,
     pub repaint: bool,
     pub repaint_after: Duration,
+    pub animating: bool,
 }
 
 impl Frame {
@@ -549,6 +550,7 @@ impl Runner {
             deferred: !self.events.is_empty() || self.reports.pending(),
             repaint: output.repaint,
             repaint_after: output.repaint_after,
+            animating: output.animating,
         };
         let closing = output.close_requested || self.closing;
         self.unpresented |= pending;

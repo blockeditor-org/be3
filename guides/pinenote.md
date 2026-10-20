@@ -25,11 +25,22 @@ changed; a full repaint sends none, which means the whole plane.
 
 `epaper.rs` in beui-adapter-drm finds the panel by the display device's driver name. The
 driver draws each pixel by its hint: a bit depth (Y1, Y2 or Y4), threshold or dither, and
-whether to redraw it later with a slower, cleaner waveform. The adapter sets the default hint
-to Y2, threshold, no redraw (`0x10`: four greys on the fast waveform) when it starts and
-whenever it takes the seat back, and puts back the hint it found (the module's
-`default_hint`) when it ends. pinenote-dist's per-window hints (pinenote-service and its sway
-bridge) are not used.
+whether to redraw it later with a slower, cleaner waveform (guides/pinenote_ebc.md has the
+driver's sources, its ioctls and how it schedules). The adapter sets the default hint to Y2,
+threshold, no redraw (`0x10`: four greys) when it starts and whenever it takes the seat back,
+and puts back the hint it found (the module's `default_hint`) when it ends. pinenote-dist's
+per-window hints (pinenote-service and its sway bridge) are not used.
+
+Y2 cannot change a pixel again until its transition ends, which is too slow for motion. While
+anything animates or a finger, the pen's tip or a mouse button is down, the adapter switches to
+dithered black and white (`0x40`), whose transitions are short and can reverse partway
+(`Pace` in `epaper.rs`). Keys do not count, and a mouse that only moves does not either. Once
+nothing is held or animating and nothing has been drawn for 100 ms, so that an animation the
+lift starts (a fling) is drawn fast rather than settled first, it switches back and sends a
+frame whose damage is everything drawn in black and white (`Screen::hurry` and
+`Screen::settle`), which the driver redraws in four greys. beui reports animating while an
+`Animation` runs (scroll flings included, `FrameOutput::animating`), and a plugin reports it
+in `FrameReady::animating`. A Wayland window counts as still.
 
 Fast waveforms leave ghosts. The adapter provides `beui_adapter_drm::Epaper`, whose `refresh()`
 runs the driver's global refresh, a full redraw that clears them. block-app publishes the
@@ -41,7 +52,7 @@ beside the keyboard button while the value is true.
 
 The touchscreen (`cyttsp5`) is an ordinary libinput touch device; pinenote-dist's udev rule
 gives it the calibration matrix that matches the panel. The stylus is a libinput tablet tool,
-which the adapter does not read yet. No input device has letter keys, so the on-screen keyboard
+which the adapter turns into beui pen events (`Event::Pen`). No input device has letter keys, so the on-screen keyboard
 opens by itself when a field is tapped. With no keyboard for Ctrl+Alt+Backspace, holding four
 fingers on the screen for three seconds ends the session (`escape.rs`), which works as long as
 the adapter's event loop runs. The power button is logind's, which powers off by default.
