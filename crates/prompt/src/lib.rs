@@ -145,16 +145,10 @@ fn line(
                     value.pop();
                 }
             }
-            Key::Enter => {
-                let trimmed: String = value
-                    .chars()
-                    .filter(|character| !character.is_whitespace())
-                    .collect();
-                match check(&trimmed) {
-                    Ok(accepted) => break Some(accepted),
-                    Err(message) => error = Some(message),
-                }
-            }
+            Key::Enter => match check(value.trim()) {
+                Ok(accepted) => break Some(accepted),
+                Err(message) => error = Some(message),
+            },
             Key::Interrupt => interrupted(raw, &mut screen),
             Key::End | Key::Escape => break None,
             _ => {}
@@ -206,11 +200,7 @@ fn read_line(prompt: &str) -> Option<String> {
     let mut line = String::new();
     match std::io::stdin().read_line(&mut line) {
         Ok(0) | Err(_) => None,
-        Ok(_) => Some(
-            line.chars()
-                .filter(|character| !character.is_whitespace())
-                .collect(),
-        ),
+        Ok(_) => Some(line.trim().to_owned()),
     }
 }
 
@@ -341,11 +331,7 @@ impl Saved<'_> {
             .into_iter()
             .chain([self.path()])
             .filter_map(|file| std::fs::read_to_string(file).ok())
-            .map(|text| {
-                text.chars()
-                    .filter(|character| !character.is_whitespace())
-                    .collect::<String>()
-            })
+            .map(|text| text.trim().to_owned())
             .find(|value| !value.is_empty())
     }
 
