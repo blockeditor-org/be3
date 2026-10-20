@@ -240,13 +240,19 @@ impl Schema for Basic {
     }
 
     fn on_break(&self, block: &MarkSet, empty: bool, at_end: bool) -> Break {
-        if empty && (block.get(LIST).is_some() || on(block, QUOTE)) {
-            return Break::Lift(vec![
-                Name::new(LIST),
-                Name::new(CHECKED),
+        if empty && block.get(LIST).is_some() && depth(block) > 0 {
+            return Break::Lift(vec![(
                 Name::new(INDENT),
-                Name::new(QUOTE),
-            ]);
+                (depth(block) > 1).then(|| Value::Int(depth(block) - 1)),
+            )]);
+        }
+        if empty && (block.get(LIST).is_some() || on(block, QUOTE)) {
+            return Break::Lift(
+                [LIST, CHECKED, INDENT, QUOTE]
+                    .into_iter()
+                    .map(|key| (Name::new(key), None))
+                    .collect(),
+            );
         }
         let mut reset = vec![Name::new(CHECKED)];
         if at_end {
@@ -255,10 +261,13 @@ impl Schema for Basic {
         Break::Split { reset }
     }
 
-    fn lift_on_backspace(&self, block: &MarkSet) -> Vec<Name> {
+    fn lift_on_backspace(&self, block: &MarkSet, previous: Option<&MarkSet>) -> Vec<Name> {
+        let opens_code = block.get(CODE_BLOCK).is_some()
+            && previous.and_then(|previous| previous.get(CODE_BLOCK)) != block.get(CODE_BLOCK);
         [HEADING, LIST, CHECKED, INDENT, QUOTE]
             .into_iter()
             .filter(|key| block.get(key).is_some())
+            .chain(opens_code.then_some(CODE_BLOCK))
             .map(Name::new)
             .collect()
     }

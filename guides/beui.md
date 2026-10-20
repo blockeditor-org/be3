@@ -679,7 +679,11 @@ block. Formatting is a set of `Marks` beside the bytes, each setting one key to 
 clearing it, either over a stretch of text (`Scope::Inline`) or over whole lines
 (`Scope::Block`, a block's props). Marks are anchored to the sequence's positions, the latest
 wins where two overlap, and two copies that exchange marks in any order agree (the demo's Rich
-text page sends them over its simulated network). `Marks` keeps the resolved `Formats` and
+text page sends them over its simulated network). Undo removes the marks an edit made
+(`RichOp::Unformat`, which a copy sends on like a mark, and which a mark arriving after its
+removal cannot bring back) rather than marking the old values over them, so text an undo brings
+back never falls under a mark made for the edit, and a concurrent mark from another copy stays.
+Redo makes those marks again under new ids. `Marks` keeps the resolved `Formats` and
 updates them from each text splice and each new mark rather than resolving the document again,
 so a document that holds marks passes every splice its sequence reports to `Marks::splice`
 (and calls `invalidate` if it replaces the sequence wholesale). Each inline mark records whether it grows when

@@ -10,7 +10,7 @@ pub use core::*;
 pub use document::{
     Document, DocumentEdit, DocumentRead, DocumentView, TextBuffer, TextIndentation, TextLanguage,
     TextRun, anchor_in, anchor_index_in, changed, deleted_anchor_index_in, format_change,
-    format_op, formats_in, place_in, runs_in,
+    format_op, formats_in, place_in, remint, runs_in,
 };
 pub use highlighter::{
     Highlighter, Language, MarkdownTable, MarkdownTableAlignment, MarkdownTableRow,

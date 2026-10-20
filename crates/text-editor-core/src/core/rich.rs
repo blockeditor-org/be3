@@ -99,11 +99,10 @@ pub(super) fn replace(
     insert: &[u8],
     typed: Option<MarkSet>,
 ) {
-    let kept = joined_block(edit, index, removed);
-    edit.replace(index, removed, insert);
-    if let Some(kept) = kept {
-        keep_block(edit, index, &kept);
+    if let Some(kept) = joined_block(edit, index, removed) {
+        keep_block(edit, index + removed, &kept);
     }
+    edit.replace(index, removed, insert);
     conform_inserted(edit, schema, index, insert, typed);
 }
 
@@ -115,11 +114,11 @@ fn joined_block(edit: &dyn DocumentEdit, index: usize, removed: usize) -> Option
     Some(read.formats()?.block_at(index)?.props.clone())
 }
 
-fn keep_block(edit: &mut dyn DocumentEdit, index: usize, kept: &MarkSet) {
+fn keep_block(edit: &mut dyn DocumentEdit, last: usize, kept: &MarkSet) {
     let Some(now) = edit
         .document()
         .formats()
-        .and_then(|formats| formats.block_at(index).map(|block| block.props.clone()))
+        .and_then(|formats| formats.block_at(last).map(|block| block.props.clone()))
     else {
         return;
     };
@@ -133,7 +132,7 @@ fn keep_block(edit: &mut dyn DocumentEdit, index: usize, kept: &MarkSet) {
     for key in keys {
         let wanted = kept.get(key.as_str());
         if now.get(key.as_str()) != wanted {
-            edit.format(index..index, &block(&key, wanted.cloned()));
+            edit.format(last..last, &block(&key, wanted.cloned()));
         }
     }
 }
@@ -379,7 +378,7 @@ impl Core {
         let document = DocumentView::new(&*read);
         let bytes = document.bytes();
         let schema = self.schema();
-        let plans: Vec<(Position, usize, Break)> = self
+        let plans: Vec<(Position, usize, bool, Break)> = self
             .cursor_positions
             .iter()
             .map(|cursor| {
@@ -395,6 +394,7 @@ impl Core {
                 (
                     Position::at(&document, range.left),
                     range.right - range.left,
+                    range.left == start && !at_end,
                     schema.on_break(&props, empty, at_end),
                 )
             })
@@ -405,12 +405,12 @@ impl Core {
         let mut carets = Vec::new();
         self.edit_rich(&mut |edit, schema| {
             carets.clear();
-            for (position, removed, plan) in &plans {
+            for (position, removed, at_start, plan) in &plans {
                 let at = position.resolve(edit.document());
                 match plan {
-                    Break::Lift(keys) => {
-                        for key in keys {
-                            edit.format(at..at, &block(key, None));
+                    Break::Lift(changes) => {
+                        for (key, value) in changes {
+                            edit.format(at..at, &block(key, value.clone()));
                         }
                         carets.push(Position::at(edit.document(), at));
                     }
@@ -421,21 +421,25 @@ impl Core {
                             .map(|(_, marks)| marks.clone());
                         replace(edit, schema, at, *removed, b"\n", typed);
                         let next = at + 1;
+                        let emptied = if *at_start { at } else { next };
                         let props = edit
                             .document()
                             .formats()
                             .and_then(|formats| {
-                                formats.block_at(next).map(|block| block.props.clone())
+                                formats.block_at(emptied).map(|block| block.props.clone())
                             })
                             .unwrap_or_default();
                         for key in reset.iter().filter(|key| props.get(key.as_str()).is_some()) {
-                            edit.format(next..next, &block(key, None));
+                            edit.format(emptied..emptied, &block(key, None));
                         }
                         carets.push(Position::at(edit.document(), next));
                     }
                 }
             }
         });
+        if let ([caret], Some((_, marks))) = (carets.as_slice(), typing) {
+            self.typing = Some((*caret, marks));
+        }
         for (cursor, caret) in self.cursor_positions.iter_mut().zip(carets) {
             *cursor = CursorPosition::at(caret);
         }
@@ -461,7 +465,12 @@ impl Core {
             .block_at(range.left)
             .map(|block| block.props.clone())
             .unwrap_or_default();
-        let keys = self.schema().lift_on_backspace(&props);
+        let previous = range
+            .left
+            .checked_sub(1)
+            .and_then(|end| formats.block_at(end))
+            .map(|block| &block.props);
+        let keys = self.schema().lift_on_backspace(&props, previous);
         if keys.is_empty() {
             return false;
         }
@@ -504,14 +513,15 @@ impl Core {
             .collect();
         drop(document);
         drop(read);
-        if !changes.is_empty() {
-            self.edit_rich(&mut |edit, _| {
-                for (at, key, value) in &changes {
-                    let at = at.resolve(edit.document());
-                    edit.format(at..at, &block(key, value.clone()));
-                }
-            });
+        if changes.is_empty() {
+            return false;
         }
+        self.edit_rich(&mut |edit, _| {
+            for (at, key, value) in &changes {
+                let at = at.resolve(edit.document());
+                edit.format(at..at, &block(key, value.clone()));
+            }
+        });
         true
     }
 }

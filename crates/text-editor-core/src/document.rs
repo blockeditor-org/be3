@@ -6,7 +6,7 @@ use std::{
 
 use sequence::{LOADED, Pos, SeqOp, Sequence, Splice};
 
-use crate::rich::{Change, FormatOp, Formats, Marks, RichOp, Seed};
+use crate::rich::{Change, FormatOp, Formats, MarkId, Marks, RichOp, Seed};
 use crate::{ChangeLog, CursorPosition, TextChange};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -376,8 +376,9 @@ impl BufferState {
         self.changes.record(self.revision, change);
     }
 
-    fn replay(&mut self, operations: &[RichOp]) {
+    fn replay(&mut self, operations: &[RichOp]) -> Vec<MarkId> {
         let mut change = TextChange::NONE;
+        let mut minted = Vec::new();
         for operation in operations {
             match operation {
                 RichOp::Text(operation) => {
@@ -387,12 +388,18 @@ impl BufferState {
                     }
                 }
                 RichOp::Format(operation) => {
-                    self.marks.mint(&self.text, LOCAL, operation.clone());
+                    minted.push(self.marks.mint(&self.text, LOCAL, operation.clone()).id);
                     change = change.then(format_change(&self.text, operation));
+                }
+                RichOp::Unformat(id) => {
+                    if let Some(operation) = self.marks.remove(*id) {
+                        change = change.then(format_change(&self.text, &operation));
+                    }
                 }
             }
         }
         self.bump(Some(change));
+        minted
     }
 }
 
@@ -470,8 +477,9 @@ impl Document for TextBuffer {
     fn redo(&self) -> Option<Vec<CursorPosition>> {
         let mut state = self.write_state();
         state.group_open = false;
-        let entry = state.redo.pop()?;
-        state.replay(&entry.redo);
+        let mut entry = state.redo.pop()?;
+        let minted = state.replay(&entry.redo);
+        remint(&mut entry.undo, minted);
         let cursors = entry.cursors.clone();
         state.undo.push(entry);
         Some(cursors)
@@ -618,15 +626,23 @@ impl DocumentEdit for BufferEdit<'_> {
         }
         let bytes = self.state.text.items();
         let state = &mut *self.state;
-        let Some((op, undo)) = format_op(&state.text, &state.marks, &bytes, range, change) else {
+        let Some(op) = format_op(&state.text, &state.marks, &bytes, range, change) else {
             return;
         };
         state.pending = state.pending.then(format_change(&state.text, &op));
-        state.marks.mint(&state.text, LOCAL, op.clone());
-        self.done
-            .undo
-            .extend(undo.into_iter().rev().map(RichOp::Format));
+        let mark = state.marks.mint(&state.text, LOCAL, op.clone());
+        self.done.undo.push(RichOp::Unformat(mark.id));
         self.done.redo.push(RichOp::Format(op));
+    }
+}
+
+pub fn remint(undo: &mut [RichOp], minted: Vec<MarkId>) {
+    let removals = undo.iter_mut().filter_map(|operation| match operation {
+        RichOp::Unformat(id) => Some(id),
+        _ => None,
+    });
+    for (id, minted) in removals.zip(minted) {
+        *id = minted;
     }
 }
 
@@ -636,7 +652,7 @@ pub fn format_op(
     bytes: &[u8],
     range: Range<usize>,
     change: &Change,
-) -> Option<(FormatOp, Vec<FormatOp>)> {
+) -> Option<FormatOp> {
     let op = Marks::op(
         text,
         bytes,
@@ -650,7 +666,7 @@ pub fn format_op(
     if !undo.is_empty() && undo.iter().all(|undone| undone.value == change.value) {
         return None;
     }
-    Some((op, undo))
+    Some(op)
 }
 
 pub fn format_change(text: &Sequence<u8>, op: &FormatOp) -> TextChange {
