@@ -2,7 +2,7 @@ use std::any::{Any, TypeId};
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use reactive::{ScopeContext, Stored, child_scope, store};
+use reactive::{ScopeContext, Stored, child_scope, component_body, store};
 
 use crate::children::IntoChild;
 
@@ -137,7 +137,8 @@ impl<T: ChildValue> ChildValue for Option<T> {
 
 pub fn component<T: ChildValue>(info: &'static ComponentInfo, f: impl FnOnce() -> T) -> T {
     let context = Rc::new(ComponentContext::new(info));
-    let (mut value, scope) = child_scope(|| in_component(Some(context.clone()), f));
+    let (mut value, scope) =
+        child_scope(|| in_component(Some(context.clone()), || component_body(f)));
     value.finish_component(&context, &scope);
     value
 }

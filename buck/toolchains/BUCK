@@ -177,12 +177,19 @@ pinned_rust_toolchain(
     nightly_features = False,
     # Cargo's dev profile on the host, and its plugin profile on wasm, since
     # cranelift is far slower at an unoptimised module; the opt level is also what
-    # tells build scripts OPT_LEVEL. buck/constraints:release, which `-m release`
-    # adds, is cargo's release profile.
+    # tells build scripts OPT_LEVEL. rustc turns debug assertions and overflow
+    # checks off above opt-level 0, so wasm names them, as the plugin profile
+    # inherits them from dev. buck/constraints:release, which `-m release` adds,
+    # is cargo's release profile.
     rustc_flags = select({
         "DEFAULT": select({
             "DEFAULT": ["-Copt-level=0", "-Cdebuginfo=line-tables-only"],
-            "prelude//cpu:wasm32": ["-Copt-level=2", "-Cdebuginfo=0"],
+            "prelude//cpu:wasm32": [
+                "-Copt-level=2",
+                "-Cdebuginfo=0",
+                "-Cdebug-assertions=on",
+                "-Coverflow-checks=on",
+            ],
         }),
         "root//buck/constraints:release": _release,
     })

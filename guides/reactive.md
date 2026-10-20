@@ -484,6 +484,28 @@ plain value nothing after it is set. Components return their base node
 directly. Tags also accept `@` modifiers, ordinary functions applied to the
 built value. The GUI prelude supplies `test_id`, `node_ref`, and `sizing`.
 
+### No tracked reads in a component body
+
+A component body runs once with no computation observing it, so `get` or
+`with` there would subscribe nothing and the value it read would never update.
+In debug builds such a read panics, naming the type read: on any signal, memo,
+store, selector key or `Prop`, including a `Prop` that holds a plain value,
+since the same component may later be handed a signal. `component()` marks the
+body with `reactive::component_body`, and the mark is lifted inside `untrack`
+and inside every effect, memo and binding, so reads there track as usual.
+Event handlers, timers, host code and tests run outside any body. Fix a read by:
+
+- moving it into a closure, memo or effect, so it updates;
+- passing the signal or memo itself on as the prop;
+- using `get_untracked()` or `with_untracked()` (or `untrack`) when a one-time
+  snapshot is intended.
+
+A helper that reads signals, called from a body, trips the same way; wrap the
+call in `untrack` when its value is a snapshot. `Prop::map` runs its function
+at once on a plain value, so a mapping that reads other signals is a
+`Prop::dynamic` that reads the prop too:
+`Prop::dynamic(move || tab_stop.get() && !disabled.get())`.
+
 ## Writing attributes
 
 An attribute value in braces is any expression at all, and that is what closures,

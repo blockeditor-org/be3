@@ -1,4 +1,4 @@
-use reactive::{Get, Memo, ReadSignal, Signal, Stored, store, untrack};
+use reactive::{Get, Memo, ReadSignal, Signal, Stored, check_tracked_read, store, untrack};
 
 pub enum Prop<T> {
     Static(T),
@@ -83,6 +83,7 @@ impl<T: 'static> Prop<T> {
 
 impl<T: 'static> Get<T> for Prop<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        check_tracked_read::<Self>();
         match self {
             Prop::Static(value) => f(value),
             Prop::Dynamic(read) => f(&read.get()),
@@ -93,6 +94,7 @@ impl<T: 'static> Get<T> for Prop<T> {
     where
         T: Clone,
     {
+        check_tracked_read::<Self>();
         match self {
             Prop::Static(value) => value.clone(),
             Prop::Dynamic(read) => read.get(),

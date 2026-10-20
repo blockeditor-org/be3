@@ -12,7 +12,9 @@ crate::value_child_type!(Note);
 #[component]
 fn Noted(label: Prop<String>, disposals: Signal<usize>) -> Note {
     on_cleanup(move || disposals.update(|disposals| *disposals += 1));
-    Note { label: label.get() }
+    Note {
+        label: label.get_untracked(),
+    }
 }
 
 #[component]

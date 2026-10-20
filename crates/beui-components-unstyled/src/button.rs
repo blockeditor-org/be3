@@ -100,7 +100,7 @@ pub fn Button(
         }
         on_click_at.call(press);
     };
-    let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !disabled.get());
+    let tab_stop = Prop::dynamic(move || tab_stop.get() && !disabled.get());
 
     set_component_state(State {
         active: active.read_only(),
