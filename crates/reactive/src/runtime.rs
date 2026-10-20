@@ -341,7 +341,7 @@ fn run_queued(next: Weak<Computation>, flush: u64) {
         return;
     }
     let current = RUNTIME.with(|runtime| runtime.zone.get());
-    if computation.zone != 0 && computation.zone != current {
+    if computation.zone != current {
         let wake = RUNTIME.with(|runtime| {
             let mut parked = runtime.parked.borrow_mut();
             if let Some((_, waiting)) = parked
@@ -376,17 +376,24 @@ pub struct ZoneGuard {
 impl Drop for ZoneGuard {
     fn drop(&mut self) {
         RUNTIME.with(|runtime| runtime.zone.set(self.previous));
+        if !std::thread::panicking() {
+            run_parked(self.previous);
+        }
     }
 }
 
 pub fn enter_zone(zone: u64) -> ZoneGuard {
     let previous = RUNTIME.with(|runtime| runtime.zone.replace(zone));
+    run_parked(zone);
+    ZoneGuard { previous }
+}
+
+fn run_parked(zone: u64) {
     let parked = RUNTIME.with(|runtime| runtime.take_parked(zone));
     if let Some(parked) = parked {
         RUNTIME.with(|runtime| runtime.queue.borrow_mut().extend(parked));
         flush();
     }
-    ZoneGuard { previous }
 }
 
 pub fn zone_pending(zone: u64) -> bool {
