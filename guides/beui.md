@@ -1753,20 +1753,29 @@ dialogs), its label shows a dot (`DockTabHandle::waiting`, styled
 `dock.tab.<tab>.waiting`): the tab is waiting on a choice, which matters most
 once another tab is shown in its place and hides the dialog.
 
-`presentation=DockDialogPresentation::Sheet` (rather than the default `Window`)
-shows the same dialog as a sheet attached to its tab, like an old macOS sheet:
-always modal, it drops from the top of the parent's panel, just under its tab
-bar, centred across it at `size` or smaller where the pane is smaller (the body
-is `Extent::at_most(size)`), over a backdrop (Docking's `dialog_scrim`) that dims
-that panel alone. A press on the backdrop calls the sheet's attention, while the
-tab bar, other tabs and other panes stay live. It has no title bar: its content
-draws its own header and close button (styled: square top corners flush with
-the bar, a border on the other three sides, rounded bottom corners and a
-shadow). Its layer hangs from the panel, so it follows the tab into another pane
-or a window. In a stacked dock it is `dialog_sheet` instead (styled: a
-`ModalSheet`), and the same body moves between the two through `Portal`s, so
-nothing in it is rebuilt. A dialog's body is built once when it is declared and
-kept while its tab is hidden, whichever presentation it has.
+`presentation=DockDialogPresentation::Card` (rather than the default `Window`)
+shows the same dialog as a card floating from its tab: always modal, it is
+centred on the parent's panel a small gap under its tab bar
+(`Placement::HangFrom`, Docking's `dialog_margin`) and keeps the `size` it asks
+for even where the pane is narrower, reaching over the panes beside it; it is
+only kept that margin inside the window, and shrinks only where the window is
+too small (the body is `Extent::at_most(size)`). Its scrim (Docking's
+`dialog_scrim`) dims that panel alone: a `BlocksParent` overlay with a visible
+scrim lays it over the node it blocks, and occludes both rects
+(`Document::layer_covers`), so the card draws over other panes and takes the
+presses it covers there while the rest of those panes, the tab bar and other
+tabs stay live. A press on the dimmed panel calls the card's attention, or
+closes it through `on_close` with `dismiss_on_outside_press` (any modal
+`DockDialog` takes it; a press on another pane never closes one). It has no
+title bar: its content draws its own header and close button (styled: the
+dialog card's raised surface, `Radius::Lg` on every corner, the dialog outline
+that shows focus and attention, and a soft shadow, kept `dialog::MARGIN` from
+the tab bar and the window's edges). Its layer hangs from the panel, so it
+follows the tab into another pane or a window. In a stacked dock it is
+`dialog_sheet` instead (styled: a `ModalSheet`), and the same body moves
+between the two through `Portal`s, so nothing in it is rebuilt. A dialog's
+body is built once when it is declared and kept while its tab is hidden,
+whichever presentation it has.
 
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or

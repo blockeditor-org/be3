@@ -28,7 +28,6 @@ use beui_core::icons::{
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
-use beui_core::painter::Corners;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use stack::{DockStackBar, DockSwitcher};
@@ -56,12 +55,13 @@ const AWAY_SPACING: f32 = 12.0;
 const AWAY_PADDING: f32 = 24.0;
 const PREVIEW_ALPHA: u8 = 235;
 const WAITING_DOT: f32 = 6.0;
-const SHEET_SHADOW: [Color32; 3] = [
-    Color32::from_rgba_unmultiplied(0, 0, 0, 24),
-    Color32::from_rgba_unmultiplied(0, 0, 0, 36),
-    Color32::from_rgba_unmultiplied(0, 0, 0, 56),
+const CARD_SHADOW: [Color32; 3] = [
+    Color32::from_rgba_unmultiplied(0, 0, 0, 16),
+    Color32::from_rgba_unmultiplied(0, 0, 0, 28),
+    Color32::from_rgba_unmultiplied(0, 0, 0, 44),
 ];
-const SHEET_SHADOW_WIDTH: f32 = 4.0;
+const CARD_SHADOW_WIDTH: f32 = 3.0;
+const CARD_MARGIN: u16 = (crate::dialog::MARGIN - 3.0 * CARD_SHADOW_WIDTH) as u16;
 
 #[component]
 pub fn Docking<K>(
@@ -120,6 +120,7 @@ where
                 <DockDialogSheet handle />
             }}
             dialog_scrim={crate::dialog::SCRIM}
+            dialog_margin=CARD_MARGIN
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
             }}
@@ -350,8 +351,8 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
         DockDialogPresentation::Window => view! {
             <DockWindowFace handle />
         },
-        DockDialogPresentation::Sheet => view! {
-            <DockSheetFace handle />
+        DockDialogPresentation::Card => view! {
+            <DockCardFace handle />
         },
     }
 }
@@ -380,54 +381,41 @@ fn dialog_outline(focused: Memo<bool>, attention: ReadSignal<bool>) -> Memo<Opti
     create_memo(move || Some(Border::new(ColorRole::Custom(color.get())).width(CHROME_BORDER)))
 }
 
-fn sheet_radius(outset: f32) -> Radius {
-    let bottom = Radius::Lg.px() + outset;
-    Radius::Custom(Corners {
-        top_left: 0.0,
-        top_right: 0.0,
-        bottom_right: bottom,
-        bottom_left: bottom,
-    })
+fn card_radius(outset: f32) -> Radius {
+    Radius::custom(Radius::Lg.px() + outset)
 }
 
 #[component]
-fn DockSheetFace(handle: DockDialogHandle) -> NodeId {
+fn DockCardFace(handle: DockDialogHandle) -> NodeId {
     let DockDialogHandle {
         focused,
         attention,
         body,
         ..
     } = handle;
-    let ring = Sides::new(
-        SHEET_SHADOW_WIDTH,
-        0.0,
-        SHEET_SHADOW_WIDTH,
-        SHEET_SHADOW_WIDTH,
-    );
-    let edge = Sides::new(CHROME_BORDER, 0.0, CHROME_BORDER, CHROME_BORDER);
-    let outline = dialog_outline_color(focused, attention);
     view! {
         <Frame
-            fill={ColorRole::Custom(SHEET_SHADOW[0])}
-            radius={sheet_radius(CHROME_BORDER + 3.0 * SHEET_SHADOW_WIDTH)}
-            padding=ring
+            fill={ColorRole::Custom(CARD_SHADOW[0])}
+            radius={card_radius(3.0 * CARD_SHADOW_WIDTH)}
+            padding=CARD_SHADOW_WIDTH
         >
             <Frame
-                fill={ColorRole::Custom(SHEET_SHADOW[1])}
-                radius={sheet_radius(CHROME_BORDER + 2.0 * SHEET_SHADOW_WIDTH)}
-                padding=ring
+                fill={ColorRole::Custom(CARD_SHADOW[1])}
+                radius={card_radius(2.0 * CARD_SHADOW_WIDTH)}
+                padding=CARD_SHADOW_WIDTH
             >
                 <Frame
-                    fill={ColorRole::Custom(SHEET_SHADOW[2])}
-                    radius={sheet_radius(CHROME_BORDER + SHEET_SHADOW_WIDTH)}
-                    padding=ring
+                    fill={ColorRole::Custom(CARD_SHADOW[2])}
+                    radius={card_radius(CARD_SHADOW_WIDTH)}
+                    padding=CARD_SHADOW_WIDTH
                 >
                     <Frame
-                        fill={ColorRole::custom(outline)}
-                        radius={sheet_radius(CHROME_BORDER)}
-                        padding=edge
+                        fill=ColorRole::SurfaceRaised
+                        border={dialog_outline(focused, attention)}
+                        radius=Radius::Lg
+                        padding=CHROME_BORDER
                     >
-                        <Frame fill=ColorRole::Background radius={sheet_radius(0.0)}>{body}</Frame>
+                        {body}
                     </Frame>
                 </Frame>
             </Frame>

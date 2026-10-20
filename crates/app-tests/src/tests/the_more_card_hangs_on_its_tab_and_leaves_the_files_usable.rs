@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn the_more_sheet_hangs_on_its_tab_and_leaves_the_files_usable() {
+fn the_more_card_hangs_on_its_tab_and_leaves_the_files_usable() {
     let mut app = AppTest::start();
     add_to_my_files(&mut app, "Canvas");
     app.click("#infinite-canvas.dock.block");
@@ -9,12 +9,12 @@ fn the_more_sheet_hangs_on_its_tab_and_leaves_the_files_usable() {
     app.wait("#picker.search");
     app.type_text("check");
     app.wait("Button \"Checklist\"");
-    app.snapshot("the_more_sheet_hangs_on_its_tab_and_leaves_the_files_usable");
+    app.snapshot("the_more_card_hangs_on_its_tab_and_leaves_the_files_usable");
 
     app.click("TreeItem \"Canvas\"");
     assert!(
         app.shown("#picker.search"),
-        "the files take a press beside the sheet, which waits on its tab"
+        "the files take a press beside the card, which waits on its tab"
     );
     app.click("Tab \"Canvas\"");
     app.click("Button \"Checklist\"");

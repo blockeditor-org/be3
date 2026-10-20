@@ -52,11 +52,13 @@ pub enum Placement {
     InsideBottom,
     InsideBottomEnd,
     CenterOn,
+    HangFrom(u16),
 }
 
 pub struct OverlayNode {
     pub(crate) content: Option<NodeId>,
     scrim: NodeOf<FrameNode>,
+    dims: bool,
     pub(crate) open: bool,
     pub(crate) anchor: OverlayAnchor,
     anchored: Option<Rect>,
@@ -74,6 +76,7 @@ impl OverlayNode {
         Self {
             content: None,
             scrim,
+            dims: false,
             open: false,
             anchor,
             anchored: None,
@@ -172,6 +175,18 @@ fn resolve_rect(
             .max(viewport.top());
         return Rect::from_min_size(pos2(x, y), size);
     }
+    if let Placement::HangFrom(gap) = placement {
+        let gap = f32::from(gap);
+        let room = viewport.shrink(gap);
+        let size = content_size.min(room.size()).max(Vec2::ZERO);
+        let x = (anchor_rect.center().x - size.x / 2.0)
+            .min(room.right() - size.x)
+            .max(room.left());
+        let y = (anchor_rect.top() + gap)
+            .min(room.bottom() - size.y)
+            .max(room.top());
+        return Rect::from_min_size(pos2(x, y), size);
+    }
     if let Placement::Fill | Placement::FillScreen = placement {
         return viewport;
     }
@@ -248,7 +263,8 @@ fn resolve_rect(
         | Placement::InsideTopEnd
         | Placement::InsideBottom
         | Placement::InsideBottomEnd
-        | Placement::CenterOn => {
+        | Placement::CenterOn
+        | Placement::HangFrom(_) => {
             unreachable!("a centred or pinned overlay is placed above")
         }
     };
@@ -293,9 +309,10 @@ impl OverlayNode {
                 | Placement::InsideBottom
                 | Placement::InsideBottomEnd
         );
-        let available = match inside {
-            true => anchor_rect.intersect(area).size().max(Vec2::ZERO),
-            false => area.size(),
+        let available = match (inside, self.placement) {
+            (true, _) => anchor_rect.intersect(area).size().max(Vec2::ZERO),
+            (false, Placement::HangFrom(gap)) => area.shrink(f32::from(gap)).size().max(Vec2::ZERO),
+            (false, _) => area.size(),
         };
         let measured = crate::layout::measure(doc, painter, content, available);
         let content_size = match inside {
@@ -304,6 +321,20 @@ impl OverlayNode {
         };
         let rect = resolve_rect(area, anchor_rect, self.placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
+        if self.policy == LayerPolicy::BlocksParent
+            && self.dims
+            && let Some(blocked) = anchored
+        {
+            crate::layout::layout(doc, painter, self.scrim.id(), blocked, out);
+        }
+    }
+
+    pub(crate) fn scrim_covers(&self) -> bool {
+        match self.policy {
+            LayerPolicy::BlocksAll => true,
+            LayerPolicy::BlocksParent => self.dims,
+            LayerPolicy::Pass | LayerPolicy::Inert => false,
+        }
     }
 
     fn anchor_moved(&self, out: &Rects) -> bool {
@@ -459,7 +490,12 @@ impl Document {
     }
 
     pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: Color32) {
-        let scrim = self.arena.get_as::<OverlayNode>(overlay).scrim;
+        let node = self.arena.get_as::<OverlayNode>(overlay);
+        let (scrim, dims) = (node.scrim, color.alpha() > 0);
+        if node.dims != dims {
+            self.arena.get_mut_as::<OverlayNode>(overlay).dims = dims;
+            self.layers_changed();
+        }
         self.set_frame_color(scrim, color);
     }
 

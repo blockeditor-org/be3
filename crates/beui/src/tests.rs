@@ -72,9 +72,11 @@ mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_disposed_animation_cancels_without_completion;
+mod a_dock_card_closes_on_a_press_on_its_tab_when_asked;
+mod a_dock_card_reaches_past_its_pane_and_holds_only_its_tab;
+mod a_dock_card_stays_inside_a_small_window;
 mod a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab;
 mod a_dock_dialog_is_never_a_tab;
-mod a_dock_sheet_hangs_under_its_tab_bar_and_holds_only_its_tab;
 mod a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
 mod a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names;
@@ -2529,5 +2531,108 @@ impl Intaken {
             }
         }
         self.seen.take()
+    }
+}
+
+const CARD: u64 = 10;
+const CARD_SIZE: Vec2 = Vec2::new(520.0, 240.0);
+
+struct CardDock {
+    document: Document,
+    layout: unstyled::DockingLayout<u64>,
+    pressed: Signal<Vec<u64>>,
+    built: Signal<u32>,
+    attended: ReadSignal<Vec<u64>>,
+    open: Signal<bool>,
+}
+
+#[component]
+fn CardBody(built: Signal<u32>, attended: Signal<Vec<u64>>) -> NodeId {
+    built.update(|built| *built += 1);
+    if let Some(tab) = unstyled::use_dock_tab() {
+        let called = crate::reactive::create_memo(move || tab.attention());
+        crate::reactive::create_effect(move || {
+            if called.get().is_some() {
+                attended.update(|attended| attended.push(CARD));
+            }
+        });
+    }
+    view! {
+        <Interactive focusable=true @test_id="card.field">
+            <Frame width=120.0 height=40.0 />
+        </Interactive>
+    }
+}
+
+#[component]
+fn PressPanel(owner: u64, pressed: Signal<Vec<u64>>) -> NodeId {
+    view! {
+        <Interactive
+            focusable=true
+            @test_id={format!("content.{owner}")}
+            on_press={move |_: crate::input::PointerPress| pressed.update(|pressed| pressed.push(owner))}
+        >
+            <Frame />
+        </Interactive>
+    }
+}
+
+fn card_dock(dismiss_on_outside_press: bool) -> CardDock {
+    let pressed = create_signal(Vec::new());
+    let built = create_signal(0);
+    let attended = create_signal(Vec::new());
+    let open = create_signal(true);
+    let layout = unstyled::DockingLayout::new();
+    let document = build(move || {
+        let cards = crate::reactive::create_memo(move || match open.get() {
+            true => vec![CARD],
+            false => Vec::new(),
+        });
+        view! {
+            <styled::Docking layout>
+                <unstyled::DockSplit id="root" fraction=0.3>
+                    <unstyled::DockPane id="left">
+                        <unstyled::DockTab id=4_u64 title="Left">
+                            <PressPanel owner=4 pressed />
+                        </unstyled::DockTab>
+                    </unstyled::DockPane>
+                    <unstyled::DockSplit id="rest" fraction=0.5>
+                        <unstyled::DockPane id="tabs">
+                            <ForEach keys={vec![1_u64, 2]}>|id: u64|
+                                <unstyled::DockTab id title={format!("Tab {id}")}>
+                                    <PressPanel owner=id pressed />
+                                </unstyled::DockTab>
+                            </ForEach>
+                        </unstyled::DockPane>
+                        <unstyled::DockPane id="side">
+                            <unstyled::DockTab id=3_u64 title="Side">
+                                <PressPanel owner=3 pressed />
+                            </unstyled::DockTab>
+                        </unstyled::DockPane>
+                    </unstyled::DockSplit>
+                </unstyled::DockSplit>
+                <ForEach keys={cards}>|id: u64|
+                    <unstyled::DockDialog
+                        id
+                        parent=1_u64
+                        title="Card"
+                        size=CARD_SIZE
+                        presentation=unstyled::DockDialogPresentation::Card
+                        dismiss_on_outside_press
+                        on_close={move || open.set(false)}
+                    >
+                        <CardBody built attended />
+                    </unstyled::DockDialog>
+                </ForEach>
+            </styled::Docking>
+        }
+    });
+    CardDock {
+        document,
+        layout,
+        pressed,
+        built,
+        attended: attended.read_only(),
+        open,
     }
 }

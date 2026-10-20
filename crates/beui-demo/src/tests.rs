@@ -7,6 +7,8 @@ use crate::{DemoApp, PAGES, Page};
 use beui::icons::ICON_VOLUME_UP;
 use std::time::Duration;
 
+mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
+mod a_card_keeps_inside_a_small_window;
 mod a_destructive_dialog_does_not_confirm_on_enter;
 mod a_dialog_confirms_on_enter_from_its_field;
 mod a_dialog_hangs_from_the_tab_that_opened_it;
@@ -22,7 +24,6 @@ mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
-mod a_sheet_hangs_from_its_tab_and_waits_while_another_tab_is_shown;
 mod a_sheet_rises_from_the_bottom_on_a_phone;
 mod a_table_lines_its_cells_up_under_its_columns;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;

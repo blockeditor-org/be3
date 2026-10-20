@@ -419,6 +419,7 @@ struct State {
     dialog_chrome: RenderFn<DockDialogHandle>,
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
     dialog_scrim: Color32,
+    dialog_margin: u16,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_bodies: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_focus: Signal<Option<TabId>>,
@@ -606,8 +607,9 @@ impl State {
                 layers[*index].policy != LayerPolicy::Inert
                     && !placed.iter().any(|(layer, _)| layer == index)
                     && document
-                        .layer_cover(&layers[*index])
-                        .is_some_and(|cover| cover.contains(pos))
+                        .layer_covers(&layers[*index])
+                        .iter()
+                        .any(|cover| cover.contains(pos))
             });
             placed
                 .into_iter()
@@ -1201,6 +1203,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     pub(crate) dialog_sheet: Option<RenderFn<DockSheetHandle>>,
     pub(crate) dialog_scrim: Color32,
+    pub(crate) dialog_margin: u16,
 }
 
 #[component]
@@ -1239,6 +1242,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_chrome,
         dialog_sheet,
         dialog_scrim,
+        dialog_margin,
     } = config;
     view! {
         <PlacementBuilder>|dock_rect: ReadSignal<Rect>| {
@@ -1281,6 +1285,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                     .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
                 dialog_sheet,
                 dialog_scrim,
+                dialog_margin,
                 dialog_frames: store(RefCell::default()),
                 dialog_bodies: store(RefCell::default()),
                 dialog_focus,

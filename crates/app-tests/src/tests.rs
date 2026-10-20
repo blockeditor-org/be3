@@ -26,7 +26,8 @@ mod the_add_menu_opens_at_the_files_button_that_asked;
 mod the_app_opens_its_files_and_closes_cleanly;
 mod the_desktop_shell_opens_and_closes_cleanly;
 mod the_members_dialog_lists_an_organizations_members_and_their_roles;
-mod the_more_sheet_hangs_on_its_tab_and_leaves_the_files_usable;
+mod the_more_card_from_the_files_reaches_over_the_block_beside_them;
+mod the_more_card_hangs_on_its_tab_and_leaves_the_files_usable;
 mod the_organizations_screen_takes_an_invite_link;
 
 fn add_to_my_files(app: &mut AppTest, label: &str) {

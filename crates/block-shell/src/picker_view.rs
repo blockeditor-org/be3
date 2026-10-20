@@ -65,13 +65,19 @@ pub fn PickerDialogs(workspace: Workspace) -> NodeId {
 
 #[component]
 pub fn PickerSheet(workspace: Workspace, pick: u64, tab: TabId) -> DockNode<TabId> {
+    let choosing = create_memo(move || {
+        workspace
+            .pick(pick)
+            .is_some_and(|held| held.creating.is_none())
+    });
     view! {
         <DockDialog
             id={picker_tab(pick)}
             parent={tab}
             title="Add block"
             size=SURFACE_SIZE
-            presentation=DockDialogPresentation::Sheet
+            presentation=DockDialogPresentation::Card
+            dismiss_on_outside_press={choosing}
             on_close={move || close_surface(workspace, pick)}
         >
             <PickerSurface workspace pick />
