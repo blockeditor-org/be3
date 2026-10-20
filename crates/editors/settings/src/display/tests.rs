@@ -5,7 +5,7 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, NodeId};
 use block_editor_beui::{
-    BlockInfo, BlockParent, Displays, EditorHost, HostDisplay, HostDisplayMode, OwnedEditor, Power,
+    BlockInfo, BlockParent, Displays, EditorHost, HostDisplay, HostDisplayMode, HostRotation, OwnedEditor, Power,
     PowerAvailability,
 };
 use block_ui_test::BeuiTest;
@@ -161,5 +161,6 @@ fn gaming_monitor() -> HostDisplay {
         ],
         default: mode(2560, 1440, 239_970),
         current: mode(2560, 1440, 59_951),
+        rotation: HostRotation::Normal,
     }
 }

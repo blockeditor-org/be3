@@ -10,7 +10,7 @@ fn an_untried_fastest_default_falls_back_to_the_preferred_mode() {
 
     assert_eq!(
         guard.revert(),
-        vec![DisplaySettings::default().set_mode(MONITOR, Some(slow()))]
+        vec![(MONITOR.to_owned(), Some(slow()))]
     );
     assert_eq!(guard.applied().mode(MONITOR), Some(slow()));
     assert!(!guard.asking(), "the fallback is remembered");

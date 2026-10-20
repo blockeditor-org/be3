@@ -2421,7 +2421,8 @@ impl BlockApp {
         let now = host::now();
         let mut prompt = display::prompt(now);
         if prompt == display::Prompt::Expired {
-            self.display.commit(&self.app_state, display::revert());
+            let edits = display::revert(&self.display.top());
+            self.display.commit(&self.app_state, edits);
             prompt = display::prompt(now);
         }
         self.display_round = match prompt {
@@ -2441,8 +2442,8 @@ impl BlockApp {
             return;
         }
         let edits = match keep {
-            true => display::keep(),
-            false => display::revert(),
+            true => display::keep(&self.display.top()),
+            false => display::revert(&self.display.top()),
         };
         self.display.commit(&self.app_state, edits);
         self.display_round = None;

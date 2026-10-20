@@ -15,7 +15,7 @@ pub use host_value::{
     encode_host,
 };
 pub use linux::{
-    AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostDisplayMode, HostInputDevice,
+    AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostDisplayMode, HostRotation, HostInputDevice,
     HostNotificationAction, HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows,
     IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,

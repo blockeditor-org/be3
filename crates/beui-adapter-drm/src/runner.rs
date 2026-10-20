@@ -57,11 +57,12 @@ use crate::input::{
     DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice, RawInput, SharedFilter,
 };
 use crate::keyboard::Keyboard;
-use crate::layout::{arrange, bounds, clamp, moved};
+use crate::layout::{absolute, arrange, bounds, clamp, moved};
 use crate::output::{Buffers, Output, connected, wait_for};
 use crate::pacing::{Lane, Pacer, Wait};
 use crate::problems::Problems;
 use crate::recovery::{Card, Recovery};
+use crate::rotation::Rotation;
 use crate::screen::FORMAT;
 use crate::wake::{Held, Input, WakeGate};
 
@@ -88,7 +89,7 @@ struct Session {
     control: InputControl,
     display_control: DisplayControl,
     display_config: DisplayConfig,
-    modes_pending: bool,
+    config_pending: bool,
     blanked: bool,
     gate: WakeGate,
     runner: Runner,
@@ -224,7 +225,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         control,
         display_control,
         display_config: DisplayConfig::default(),
-        modes_pending: false,
+        config_pending: false,
         blanked: false,
         gate: WakeGate::default(),
         runner,
@@ -413,7 +414,7 @@ impl Session {
         self.drain_filter();
         if let Some(config) = self.display_control.take() {
             self.display_config = config;
-            self.modes_pending = true;
+            self.config_pending = true;
         }
         let refresh = self
             .epaper
@@ -425,8 +426,8 @@ impl Session {
         if refresh && let Some((panel, _)) = &self.epaper {
             panel.refresh();
         }
-        if self.modes_pending {
-            self.apply_modes();
+        if self.config_pending {
+            self.apply_config();
         }
         if self.runner.has_events() {
             self.pacer.ask();
@@ -478,7 +479,7 @@ impl Session {
         }
     }
 
-    fn apply_modes(&mut self) {
+    fn apply_config(&mut self) {
         let mut changed = false;
         let mut waiting = false;
         {
@@ -490,10 +491,11 @@ impl Session {
                     continue;
                 }
                 let wanted = self.display_config.mode(output.id());
-                changed |= output.set_mode(&displays.gpu, wanted);
+                let rotation = self.display_config.rotation(output.id());
+                changed |= output.configure(&displays.gpu, wanted, rotation);
             }
         }
-        self.modes_pending = waiting;
+        self.config_pending = waiting;
         if changed {
             self.relayout();
         }
@@ -823,13 +825,16 @@ impl Session {
     }
 
     fn absolute_position<E: AbsolutePositionEvent<LibinputInputBackend>>(&self, event: &E) -> Pos2 {
-        let area = bounds(&self.rects());
-        let position =
-            event.position_transformed((area.width() as i32, area.height() as i32).into());
-        clamp(
-            area.min + vec2(position.x as f32, position.y as f32),
-            &self.rects(),
-        )
+        let (area, rotation) = self.absolute_area();
+        clamp(absolute(normalized(event), area, rotation), &self.rects())
+    }
+
+    fn absolute_area(&self) -> (beui::Rect, Rotation) {
+        let displays = self.displays.borrow();
+        match displays.outputs.as_slice() {
+            [only] => (only.screen.rect, only.screen.rotation()),
+            _ => (bounds(&displays.rects()), Rotation::Normal),
+        }
     }
 
     fn pointer(&self) -> Pos2 {
@@ -1012,22 +1017,28 @@ impl Session {
         let position = self.absolute_position(event);
         self.place_pointer(position);
         let tool = event.tool();
+        let (_, rotation) = self.absolute_area();
+        let tilt = rotation.direction_to_picture(vec2(event.tilt_x() as f32, event.tilt_y() as f32));
         self.push(Event::Pen {
             phase,
             pos: self.physical(position),
             pressure: event.pressure() as f32,
             pen: Pen {
-                tilt: vec2(event.tilt_x() as f32, event.tilt_y() as f32),
+                tilt,
                 eraser: tool.tool_type == TabletToolType::Eraser,
             },
         });
     }
 
     fn touch_position<E: AbsolutePositionEvent<LibinputInputBackend>>(&self, event: &E) -> Pos2 {
-        let first = self.rects().first().copied().unwrap_or(beui::Rect::ZERO);
-        let position =
-            event.position_transformed((first.width() as i32, first.height() as i32).into());
-        first.min + vec2(position.x as f32, position.y as f32)
+        let displays = self.displays.borrow();
+        let (rect, rotation) = displays
+            .outputs
+            .first()
+            .map_or((beui::Rect::ZERO, Rotation::Normal), |output| {
+                (output.screen.rect, output.screen.rotation())
+            });
+        absolute(normalized(event), rect, rotation)
     }
 
     fn touch(
@@ -1295,6 +1306,10 @@ fn gate_input(event: &InputEvent<LibinputInputBackend>) -> Option<(Input, u64)> 
         InputEvent::TabletToolProximity { event } => (Input::Other, event.time()),
         _ => return None,
     })
+}
+
+fn normalized<E: AbsolutePositionEvent<LibinputInputBackend>>(event: &E) -> Pos2 {
+    beui::pos2(event.x_transformed(1) as f32, event.y_transformed(1) as f32)
 }
 
 fn touch_held(slot: smithay::backend::input::TouchSlot) -> Held {

@@ -16,7 +16,8 @@ fn a_display_mode_is_saved_only_once_it_is_kept() {
         "the new mode is not saved yet"
     );
 
-    sync.commit(&store.store, display::keep());
+    let edits = display::keep(&sync.top());
+    sync.commit(&store.store, edits);
     assert!(!display::asking());
     assert_eq!(store.saved(), Some(showing(FAST)), "keeping saves it");
 }

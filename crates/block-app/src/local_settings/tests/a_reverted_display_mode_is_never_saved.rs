@@ -10,7 +10,8 @@ fn a_reverted_display_mode_is_never_saved() {
     sync.receive(&store.store, showing(FAST));
     assert!(display::asking());
 
-    sync.commit(&store.store, display::revert());
+    let edits = display::revert(&sync.top());
+    sync.commit(&store.store, edits);
     assert!(!display::asking());
     assert_eq!(store.saved(), Some(showing(SLOW)));
     assert_eq!(

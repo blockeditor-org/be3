@@ -9,7 +9,7 @@ use crate::local_settings::LocalSettings;
 
 mod guard;
 
-use guard::Guard;
+use guard::{Guard, ModeChange, written};
 pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
 
 #[cfg(target_os = "linux")]
@@ -46,22 +46,25 @@ pub(crate) fn prompt(now: Duration) -> Prompt {
     GUARD.with(|guard| guard.borrow_mut().prompt(now))
 }
 
-pub(crate) fn keep() -> Vec<Edit> {
-    settle(Guard::keep)
+pub(crate) fn keep(top: &DisplaySettings) -> Vec<Edit> {
+    settle(top, Guard::keep)
 }
 
-pub(crate) fn revert() -> Vec<Edit> {
-    settle(Guard::revert)
+pub(crate) fn revert(top: &DisplaySettings) -> Vec<Edit> {
+    settle(top, Guard::revert)
 }
 
-fn settle(answer: impl FnOnce(&mut Guard) -> Vec<Edit>) -> Vec<Edit> {
-    let (edits, applied) = GUARD.with(|guard| {
+fn settle(
+    top: &DisplaySettings,
+    answer: impl FnOnce(&mut Guard) -> Vec<ModeChange>,
+) -> Vec<Edit> {
+    let (changes, applied) = GUARD.with(|guard| {
         let mut guard = guard.borrow_mut();
-        let edits = answer(&mut guard);
-        (edits, guard.applied().clone())
+        let changes = answer(&mut guard);
+        (changes, guard.applied().clone())
     });
     apply(&applied);
-    edits
+    written(top, &changes)
 }
 
 impl LocalSettings for DisplaySettings {

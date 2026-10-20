@@ -28,6 +28,8 @@ impl Screen {
     }
 }
 
+pub(crate) type ModeChange = (String, Option<DisplayMode>);
+
 pub(crate) const ANSWER_WITHIN: Duration = Duration::from_secs(15);
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -105,38 +107,38 @@ impl Guard {
         self.previous.is_some() || self.untried().next().is_some()
     }
 
-    pub(crate) fn keep(&mut self) -> Vec<Edit> {
+    pub(crate) fn keep(&mut self) -> Vec<ModeChange> {
         self.previous = None;
         self.asked = None;
-        let edits: Vec<Edit> = self
+        let changes: Vec<ModeChange> = self
             .untried()
-            .map(|screen| self.applied.set_mode(&screen.id, Some(screen.default)))
+            .map(|screen| (screen.id.clone(), Some(screen.default)))
             .collect();
-        self.edit(&edits);
-        edits
+        self.change(&changes);
+        changes
     }
 
-    pub(crate) fn revert(&mut self) -> Vec<Edit> {
+    pub(crate) fn revert(&mut self) -> Vec<ModeChange> {
         self.asked = None;
-        let mut edits = Vec::new();
+        let mut changes = Vec::new();
         if let Some(previous) = self.previous.take() {
-            let restored: Vec<Edit> = self
+            let restored: Vec<ModeChange> = self
                 .screens
                 .iter()
                 .map(|screen| &screen.id)
                 .filter(|id| previous.mode(id) != self.applied.mode(id))
-                .map(|id| self.applied.set_mode(id, previous.mode(id)))
+                .map(|id| (id.clone(), previous.mode(id)))
                 .collect();
-            self.edit(&restored);
-            edits.extend(restored);
+            self.change(&restored);
+            changes.extend(restored);
         }
-        let fallen_back: Vec<Edit> = self
+        let fallen_back: Vec<ModeChange> = self
             .untried()
-            .map(|screen| self.applied.set_mode(&screen.id, Some(screen.preferred)))
+            .map(|screen| (screen.id.clone(), Some(screen.preferred)))
             .collect();
-        self.edit(&fallen_back);
-        edits.extend(fallen_back);
-        edits
+        self.change(&fallen_back);
+        changes.extend(fallen_back);
+        changes
     }
 
     fn untried(&self) -> impl Iterator<Item = &Screen> {
@@ -145,9 +147,24 @@ impl Guard {
             .filter(|screen| screen.untried(&self.applied))
     }
 
-    fn edit(&mut self, edits: &[Edit]) {
-        self.applied = edited(&self.applied, edits);
+    fn change(&mut self, changes: &[ModeChange]) {
+        for (id, mode) in changes {
+            let edit = self.applied.set_mode(id, *mode);
+            self.applied = edited(&self.applied, &[edit]);
+        }
     }
+}
+
+pub(crate) fn written(top: &DisplaySettings, changes: &[ModeChange]) -> Vec<Edit> {
+    let mut top = top.clone();
+    changes
+        .iter()
+        .map(|(id, mode)| {
+            let edit = top.set_mode(id, *mode);
+            top = edited(&top, std::slice::from_ref(&edit));
+            edit
+        })
+        .collect()
 }
 
 pub(crate) fn edited(settings: &DisplaySettings, edits: &[Edit]) -> DisplaySettings {

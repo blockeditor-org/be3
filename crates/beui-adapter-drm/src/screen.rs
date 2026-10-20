@@ -2,6 +2,7 @@ use beui::{FrameOutput, Rect, Renderer, Repaint, Vec2, vec2};
 use smithay::utils::{Physical, Rectangle};
 
 use crate::gpu::{Gpu, Sprite};
+use crate::rotation::Rotation;
 
 pub const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;
 
@@ -25,9 +26,12 @@ pub struct Frame<'a> {
 
 pub struct Screen {
     size: (u32, u32),
+    rotation: Rotation,
+    picture: (u32, u32),
     pub rect: Rect,
     renderer: Renderer,
     retained: wgpu::Texture,
+    turned: Option<Sprite>,
     pending: Option<Repaint>,
     prepared: Option<Repaint>,
     pub cursor: bool,
@@ -35,12 +39,18 @@ pub struct Screen {
 }
 
 impl Screen {
-    pub fn new(gpu: &Gpu, size: (u32, u32)) -> Self {
+    pub fn new(gpu: &Gpu, size: (u32, u32), rotation: Rotation) -> Self {
+        let picture = rotation.turned(size);
+        let retained = retained(gpu.device(), picture);
+        let turned = (rotation != Rotation::Normal).then(|| gpu.sprite(&retained, true));
         Self {
             size,
+            rotation,
+            picture,
             rect: Rect::ZERO,
             renderer: Renderer::new(gpu.device(), FORMAT),
-            retained: retained(gpu.device(), size),
+            retained,
+            turned,
             pending: Some(Repaint::Everything),
             prepared: None,
             cursor: false,
@@ -49,7 +59,19 @@ impl Screen {
     }
 
     pub fn size(&self) -> (u32, u32) {
-        self.size
+        self.picture
+    }
+
+    pub fn rotation(&self) -> Rotation {
+        self.rotation
+    }
+
+    fn picture_size(&self) -> Vec2 {
+        vec2(self.picture.0 as f32, self.picture.1 as f32)
+    }
+
+    fn on_panel(&self, rect: [f32; 4]) -> [f32; 4] {
+        self.rotation.rect_to_panel(self.picture_size(), rect)
     }
 
     pub fn invalidate(&mut self) {
@@ -71,7 +93,7 @@ impl Screen {
         let Some(repaint) = self.pending else {
             return;
         };
-        let physical = vec2(self.size.0 as f32, self.size.1 as f32);
+        let physical = self.picture_size();
         self.renderer
             .set_origin(vec2(self.rect.min.x * scale, self.rect.min.y * scale));
         self.prepared = Some(self.renderer.prepare(
@@ -103,9 +125,15 @@ impl Screen {
                     scissors
                         .iter()
                         .map(|[x, y, width, height]| {
+                            let [left, top, right, bottom] = self.on_panel([
+                                *x as f32,
+                                *y as f32,
+                                (*x + *width) as f32,
+                                (*y + *height) as f32,
+                            ]);
                             Rectangle::new(
-                                (*x as i32, *y as i32).into(),
-                                (*width as i32, *height as i32).into(),
+                                (left as i32, top as i32).into(),
+                                ((right - left) as i32, (bottom - top) as i32).into(),
                             )
                         })
                         .collect(),
@@ -120,18 +148,31 @@ impl Screen {
                 .retained
                 .create_view(&wgpu::TextureViewDescriptor::default());
             self.renderer
-                .render(device, queue, &mut encoder, &view, self.size, load);
+                .render(device, queue, &mut encoder, &view, self.picture, load);
         }
-        encoder.copy_texture_to_texture(
-            self.retained.as_image_copy(),
-            target.as_image_copy(),
-            wgpu::Extent3d {
-                width: self.size.0,
-                height: self.size.1,
-                depth_or_array_layers: 1,
-            },
-        );
         let view = target.create_view(&wgpu::TextureViewDescriptor::default());
+        match &self.turned {
+            None => encoder.copy_texture_to_texture(
+                self.retained.as_image_copy(),
+                target.as_image_copy(),
+                wgpu::Extent3d {
+                    width: self.size.0,
+                    height: self.size.1,
+                    depth_or_array_layers: 1,
+                },
+            ),
+            Some(turned) => {
+                let (width, height) = (self.size.0 as f32, self.size.1 as f32);
+                gpu.paint_sprite(
+                    &mut encoder,
+                    &view,
+                    self.size,
+                    [0.0, 0.0, width, height],
+                    turned,
+                    self.rotation,
+                );
+            }
+        }
         let cursor = self.paint_cursor(gpu, &mut encoder, &view, frame);
         if let Some(damage) = &mut damage {
             damage.extend(self.drawn_cursor.into_iter().chain(cursor));
@@ -160,11 +201,13 @@ impl Screen {
         let left = (frame.pointer.x - hotspot.x - self.rect.min.x) * scale;
         let top = (frame.pointer.y - hotspot.y - self.rect.min.y) * scale;
         let rect = [left, top, left + size.x * scale, top + size.y * scale];
-        let (width, height) = (self.size.0 as f32, self.size.1 as f32);
-        if rect[2] <= 0.0 || rect[3] <= 0.0 || rect[0] >= width || rect[1] >= height {
+        let picture = self.picture_size();
+        if rect[2] <= 0.0 || rect[3] <= 0.0 || rect[0] >= picture.x || rect[1] >= picture.y {
             return None;
         }
-        gpu.paint_sprite(encoder, view, self.size, rect, sprite);
+        let rect = self.on_panel(rect);
+        let (width, height) = (self.size.0 as f32, self.size.1 as f32);
+        gpu.paint_sprite(encoder, view, self.size, rect, sprite, self.rotation);
         let left = rect[0].floor().max(0.0) as i32;
         let top = rect[1].floor().max(0.0) as i32;
         let right = rect[2].ceil().min(width) as i32;
@@ -188,7 +231,9 @@ fn retained(device: &wgpu::Device, size: (u32, u32)) -> wgpu::Texture {
         sample_count: 1,
         dimension: wgpu::TextureDimension::D2,
         format: FORMAT,
-        usage: wgpu::TextureUsages::RENDER_ATTACHMENT | wgpu::TextureUsages::COPY_SRC,
+        usage: wgpu::TextureUsages::RENDER_ATTACHMENT
+            | wgpu::TextureUsages::COPY_SRC
+            | wgpu::TextureUsages::TEXTURE_BINDING,
         view_formats: &[],
     })
 }

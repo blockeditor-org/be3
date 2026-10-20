@@ -18,6 +18,7 @@ pub(crate) trait LocalSettings: Root + Clone + Default + PartialEq {
 pub(crate) struct SettingsSync<R> {
     layers: Vec<Uuid>,
     seen: Option<Vec<(Uuid, u64)>>,
+    contents: Option<Vec<R>>,
     applied: Option<R>,
     outbox: Outbox,
 }
@@ -82,6 +83,7 @@ impl<R> Default for SettingsSync<R> {
         Self {
             layers: Vec::new(),
             seen: None,
+            contents: None,
             applied: None,
             outbox: Outbox::default(),
         }
@@ -118,6 +120,16 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         }
         self.layers = layers;
         self.seen = None;
+        self.contents = None;
+    }
+
+    pub(crate) fn top(&self) -> R {
+        self.contents
+            .as_ref()
+            .and_then(|contents| contents.last())
+            .or(self.applied.as_ref())
+            .cloned()
+            .unwrap_or_default()
     }
 
     pub(crate) fn sync(&mut self, store: &AppStateStore) {
@@ -155,6 +167,7 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
             Self::write(target, resend);
             contents.push(top);
         }
+        self.contents = Some(contents.clone());
         self.receive(store, layered(contents));
     }
 
@@ -169,7 +182,15 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
     }
 
     pub(crate) fn commit(&mut self, store: &AppStateStore, edits: Vec<Edit>) {
-        let settings = edited(&self.applied.clone().unwrap_or_default(), &edits);
+        let settings = match self.contents.as_mut().filter(|contents| !contents.is_empty()) {
+            Some(contents) => {
+                if let Some(top) = contents.last_mut() {
+                    *top = edited(top, &edits);
+                }
+                layered(contents.clone())
+            }
+            None => edited(&self.applied.clone().unwrap_or_default(), &edits),
+        };
         self.save(store, &settings);
         self.applied = Some(settings);
         self.outbox.queue(edits);

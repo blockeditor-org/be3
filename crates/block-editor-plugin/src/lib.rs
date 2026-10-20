@@ -32,7 +32,7 @@ pub use block_plugin_api::{
     CreationProgress, CursorIcon, DataListing, DescribedAction, Description, Displays,
     EditorCapabilities, EditorDescriptor, EditorInstanceId, EditorRegion, Epaper, EpaperRequest,
     FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostContact, HostDisplay,
-    HostDisplayMode, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
+    HostDisplayMode, HostRotation, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
     HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
     IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord, LinkBase,
     Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers, NotificationCloseReason,
