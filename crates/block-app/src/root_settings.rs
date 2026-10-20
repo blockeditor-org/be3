@@ -233,7 +233,9 @@ impl RootSettings {
             || {
                 Some(
                     decode::<EditorViewContent>(session)
-                        .map_or(self.shell, |document| document.root().editor),
+                        .map(|document| document.root().editor)
+                        .filter(|editor| !editor.is_nil())
+                        .unwrap_or(self.shell),
                 )
             },
         )
@@ -423,3 +425,6 @@ impl RootSettings {
         Some(session)
     }
 }
+
+#[cfg(test)]
+mod tests;
