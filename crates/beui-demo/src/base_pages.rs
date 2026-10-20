@@ -609,13 +609,19 @@ fn TurnedLabel() -> NodeId {
     let ink = theme.text;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
-            <Interactive on_click={move || quarters.update(|quarters| *quarters = (*quarters + 1) % 4)}>
+            <Interactive
+                on_click={move || quarters.update(|quarters| *quarters = (*quarters + 1) % 4)}
+            >
                 <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
                     <Text string="Turn" color={ink} />
                 </Frame>
             </Interactive>
             <Turn quarter_turns={quarters}>
-                <Frame fill={theme.accent} radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
+                <Frame
+                    fill={theme.accent}
+                    radius={Radius::Md.px()}
+                    padding={Sides::symmetric(16.0, 10.0)}
+                >
                     <Text string="Upright at no turns" color={theme.on_accent} />
                 </Frame>
             </Turn>

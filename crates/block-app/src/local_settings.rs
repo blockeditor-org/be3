@@ -182,7 +182,11 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
     }
 
     pub(crate) fn commit(&mut self, store: &AppStateStore, edits: Vec<Edit>) {
-        let settings = match self.contents.as_mut().filter(|contents| !contents.is_empty()) {
+        let settings = match self
+            .contents
+            .as_mut()
+            .filter(|contents| !contents.is_empty())
+        {
             Some(contents) => {
                 if let Some(top) = contents.last_mut() {
                     *top = edited(top, &edits);

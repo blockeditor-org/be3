@@ -9,8 +9,8 @@ use crate::local_settings::LocalSettings;
 
 mod guard;
 
-use guard::{Guard, ModeChange, written};
 pub(crate) use guard::{ANSWER_WITHIN, Prompt, Screen};
+use guard::{Guard, ModeChange, written};
 
 #[cfg(target_os = "linux")]
 mod linux;
@@ -54,10 +54,7 @@ pub(crate) fn revert(top: &DisplaySettings) -> Vec<Edit> {
     settle(top, Guard::revert)
 }
 
-fn settle(
-    top: &DisplaySettings,
-    answer: impl FnOnce(&mut Guard) -> Vec<ModeChange>,
-) -> Vec<Edit> {
+fn settle(top: &DisplaySettings, answer: impl FnOnce(&mut Guard) -> Vec<ModeChange>) -> Vec<Edit> {
     let (changes, applied) = GUARD.with(|guard| {
         let mut guard = guard.borrow_mut();
         let changes = answer(&mut guard);

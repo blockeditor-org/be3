@@ -1,11 +1,11 @@
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::be_block::display_settings::Rotation;
-use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role, Toggled};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled;
 use block_editor_beui::beui::unstyled::ButtonHandle;
+use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::{HostDisplay, HostRotation};
 
 use super::ui::Settings;
@@ -75,9 +75,9 @@ pub(super) fn RotationPicker(
 ) -> NodeId {
     let current = create_memo(move || {
         display.with(|display| {
-            display
-                .as_ref()
-                .map_or(Rotation::Normal, |display| current_rotation(display.rotation))
+            display.as_ref().map_or(Rotation::Normal, |display| {
+                current_rotation(display.rotation)
+            })
         })
     });
     let landscape = create_memo(move || {
@@ -187,7 +187,13 @@ fn LittleScreen(size: Memo<(f32, f32)>) -> NodeId {
     let width = create_memo(move || Extent::px(size.get().0));
     let height = create_memo(move || Extent::px(size.get().1));
     view! {
-        <Frame width={width} height={height} fill=ColorRole::Background border={Border::DEFAULT} radius=Radius::Xs>
+        <Frame
+            width={width}
+            height={height}
+            fill=ColorRole::Background
+            border={Border::DEFAULT}
+            radius=Radius::Xs
+        >
             <List spacing=0.0>
                 <Frame height=TITLE_BAR fill=ColorRole::Accent />
                 <Frame @sizing=ItemSize::Percent(100.0) align=Align2::CENTER>

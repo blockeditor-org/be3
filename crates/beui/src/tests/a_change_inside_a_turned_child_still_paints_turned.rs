@@ -14,7 +14,12 @@ fn a_change_inside_a_turned_child_still_paints_turned() {
             <List spacing=0.0 align=Align::Start>
                 <Turn quarter_turns=1u8>
                     <Frame width=60.0 height=60.0 radius=0.0>
-                        <Frame width={create_memo(move || Extent::px(width.get()))} height=20.0 fill=MARK radius=0.0 />
+                        <Frame
+                            width={create_memo(move || Extent::px(width.get()))}
+                            height=20.0
+                            fill=MARK
+                            radius=0.0
+                        />
                     </Frame>
                 </Turn>
             </List>

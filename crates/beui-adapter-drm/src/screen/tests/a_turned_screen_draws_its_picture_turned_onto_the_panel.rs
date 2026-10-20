@@ -32,7 +32,11 @@ fn a_turned_screen_draws_its_picture_turned_onto_the_panel() {
     let gpu = Gpu::new(device.clone(), queue.clone(), FORMAT);
     let context = beui::context();
     let mut screen = Screen::new(&gpu, (WIDTH, HEIGHT), Rotation::Clockwise90);
-    assert_eq!(screen.size(), (HEIGHT, WIDTH), "the picture stands upright");
+    assert_eq!(
+        screen.picture(),
+        (HEIGHT, WIDTH),
+        "the picture stands upright"
+    );
     screen.rect = Rect::from_min_size(pos2(0.0, 0.0), vec2(24.0, 32.0));
     let target = target(&gpu);
     let frame = Frame {

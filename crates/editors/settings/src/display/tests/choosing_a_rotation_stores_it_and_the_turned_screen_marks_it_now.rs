@@ -21,7 +21,10 @@ fn choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now() {
         .editor
         .snapshot("choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now");
     assert_eq!(
-        settings.editor.accessible_label(&tile(Rotation::Clockwise90)).as_deref(),
+        settings
+            .editor
+            .accessible_label(&tile(Rotation::Clockwise90))
+            .as_deref(),
         Some("Portrait")
     );
 

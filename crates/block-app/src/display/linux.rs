@@ -1,8 +1,8 @@
 use std::cell::RefCell;
 
 use be_block::DisplaySettings;
-use be_block::display_settings::Rotation as SavedRotation;
 use be_block::display_settings::DisplayMode as SavedMode;
+use be_block::display_settings::Rotation as SavedRotation;
 use beui_adapter_drm::{DisplayConfig, DisplayControl, DisplayMode, Epaper, Monitor, Rotation};
 use block_plugin_api::{EpaperRequest, HostDisplay, HostDisplayMode, HostRotation};
 

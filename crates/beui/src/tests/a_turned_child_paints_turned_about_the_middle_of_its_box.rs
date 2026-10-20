@@ -22,7 +22,11 @@ fn a_turned_child_paints_turned_about_the_middle_of_its_box() {
     let mut harness = Harness::new(document);
     let output = harness.frame(Vec::new());
     let turned = harness.rect(turn.get());
-    assert_eq!(turned.size(), vec2(20.0, 40.0), "a quarter turn stands it up");
+    assert_eq!(
+        turned.size(),
+        vec2(20.0, 40.0),
+        "a quarter turn stands it up"
+    );
     let painted = |output: &crate::FrameOutput| {
         flatten(&output.layers)
             .iter()
@@ -38,7 +42,10 @@ fn a_turned_child_paints_turned_about_the_middle_of_its_box() {
             .expect("the child paints")
     };
     let (bounds, angle) = painted(&output);
-    assert!((angle - std::f32::consts::FRAC_PI_2).abs() < 1e-6, "turned clockwise: {angle}");
+    assert!(
+        (angle - std::f32::consts::FRAC_PI_2).abs() < 1e-6,
+        "turned clockwise: {angle}"
+    );
     assert!(
         (bounds.min - turned.min).length() < 0.01 && (bounds.max - turned.max).length() < 0.01,
         "the turned child covers the box it was turned into: {bounds:?} in {turned:?}"
@@ -48,7 +55,10 @@ fn a_turned_child_paints_turned_about_the_middle_of_its_box() {
     let output = harness.frame(Vec::new());
     assert_eq!(harness.rect(turn.get()).size(), vec2(40.0, 20.0));
     let (bounds, angle) = painted(&output);
-    assert!((angle - std::f32::consts::PI).abs() < 1e-6, "turned half way: {angle}");
+    assert!(
+        (angle - std::f32::consts::PI).abs() < 1e-6,
+        "turned half way: {angle}"
+    );
     let upright = harness.rect(turn.get());
     assert!(
         (bounds.min - upright.min).length() < 0.01 && (bounds.max - upright.max).length() < 0.01,

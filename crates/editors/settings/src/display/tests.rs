@@ -5,8 +5,8 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, NodeId, TurnNode, Vec2};
 use block_editor_beui::{
-    BlockInfo, BlockParent, Displays, EditorHost, HostDisplay, HostDisplayMode, HostRotation, OwnedEditor, Power,
-    PowerAvailability,
+    BlockInfo, BlockParent, Displays, EditorHost, HostDisplay, HostDisplayMode, HostRotation,
+    OwnedEditor, Power, PowerAvailability,
 };
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -15,16 +15,16 @@ use crate::display::DisplaySettingsApp;
 
 mod a_profile_shows_the_theme_it_inherits;
 mod choosing_a_refresh_rate_stores_the_mode;
-mod choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now;
-mod each_tile_is_drawn_turned_from_the_rotation_shown_now;
 mod choosing_a_resolution_uses_its_fastest_refresh_rate;
+mod choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now;
 mod choosing_a_scale_stores_it;
 mod choosing_a_theme_stores_it;
 mod choosing_never_keeps_the_screens_on;
+mod each_tile_is_drawn_turned_from_the_rotation_shown_now;
 mod outside_a_session_only_the_appearance_is_shown;
 mod resetting_a_display_returns_it_to_its_default;
-mod the_rotations_are_named_from_how_the_panel_is_built;
 mod the_lock_follows_the_screens_until_given_a_time_of_its_own;
+mod the_rotations_are_named_from_how_the_panel_is_built;
 
 const SESSION_HEIGHT: f32 = 1000.0;
 const MONITOR: &str = "DEL|DELL AW2524H|7XQ2B34";

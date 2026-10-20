@@ -58,7 +58,7 @@ impl Screen {
         }
     }
 
-    pub fn size(&self) -> (u32, u32) {
+    pub fn picture(&self) -> (u32, u32) {
         self.picture
     }
 

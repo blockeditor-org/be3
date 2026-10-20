@@ -10,17 +10,32 @@ fn the_rotations_are_named_from_how_the_panel_is_built() {
     };
     let mut settings = Harness::in_a_session(vec![gaming_monitor()]);
     let names = |settings: &Harness| {
-        Rotation::ALL.map(|rotation| settings.editor.accessible_label(&tile(rotation)).unwrap_or_default())
+        Rotation::ALL.map(|rotation| {
+            settings
+                .editor
+                .accessible_label(&tile(rotation))
+                .unwrap_or_default()
+        })
     };
     assert_eq!(
         names(&settings),
-        ["Landscape", "Portrait", "Landscape, flipped", "Portrait, flipped"]
+        [
+            "Landscape",
+            "Portrait",
+            "Landscape, flipped",
+            "Portrait, flipped"
+        ]
     );
 
     settings.editor.set_host_value::<Displays>(&vec![tall]);
     settings.run();
     assert_eq!(
         names(&settings),
-        ["Portrait", "Landscape", "Portrait, flipped", "Landscape, flipped"]
+        [
+            "Portrait",
+            "Landscape",
+            "Portrait, flipped",
+            "Landscape, flipped"
+        ]
     );
 }

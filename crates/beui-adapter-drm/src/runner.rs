@@ -729,7 +729,7 @@ impl Session {
         let sizes: Vec<_> = displays
             .outputs
             .iter()
-            .map(|output| output.screen.size())
+            .map(|output| output.screen.picture())
             .collect();
         for (output, rect) in displays
             .outputs
@@ -1018,7 +1018,8 @@ impl Session {
         self.place_pointer(position);
         let tool = event.tool();
         let (_, rotation) = self.absolute_area();
-        let tilt = rotation.direction_to_picture(vec2(event.tilt_x() as f32, event.tilt_y() as f32));
+        let tilt =
+            rotation.direction_to_picture(vec2(event.tilt_x() as f32, event.tilt_y() as f32));
         self.push(Event::Pen {
             phase,
             pos: self.physical(position),
