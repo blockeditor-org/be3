@@ -27,9 +27,10 @@ use super::rows::{
     RowOptions, SpanKind, build_row, galley, line_range, rich_layout, row_key,
 };
 use super::{
-    CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
+    BlockView, CARET_WIDTH, CHECKBOX_OUTLINE, CHECKBOX_RADIUS, CODE_OUTSET, CODE_RADIUS, Context,
     GUTTER_ARROW_SIZE, GUTTER_PADDING_LEFT, GUTTER_PADDING_RIGHT, GeometryCell,
     INLINE_WIDGET_RADIUS, REMOTE_SELECTION_ALPHA, RUN_CHIP_RADIUS, RowEntry, TextCheckbox,
+    VoidView,
 };
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -138,6 +139,35 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let row = NodeRef::new();
     let text = GeometryCell::default();
     register_row(&cx, move || line.get(), &row, &text, &block_ref, model);
+    let lines = view! {
+        <List spacing=0.0>
+            <RowText cx model text wrap=true />
+            <Dynamic value={shown_block}>|index: Option<usize>| {
+                match (index, cx.block) {
+                    (Some(index), Some(render)) => {
+                        let size = block.get_untracked().unwrap_or_default().1;
+                        view! {
+                            <BlockSlot @node_ref=&block_ref render index size />
+                        }
+                    }
+                    _ => view! {
+                        <Frame />
+                    },
+                }
+            }</Dynamic>
+        </List>
+    };
+    let content = match cx.render_block {
+        Some(render) => render.call(BlockView {
+            state: cx.state,
+            line,
+            start: create_memo(move || model.get().start),
+            props: create_memo(move || model.get().props.clone()),
+            line_height: create_memo(move || model.get().line_height),
+            text: lines,
+        }),
+        None => lines,
+    };
     view! {
         <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
@@ -151,22 +181,7 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                     padding={create_memo(move || Sides::horizontal(padding.get()))}
                 >
                     <Frame fill=code padding={create_memo(move || Sides::horizontal(inset.get()))}>
-                        <List spacing=0.0>
-                            <RowText cx model text wrap=true />
-                            <Dynamic value={shown_block}>|index: Option<usize>| {
-                                match (index, cx.block) {
-                                    (Some(index), Some(render)) => {
-                                        let size = block.get_untracked().unwrap_or_default().1;
-                                        view! {
-                                            <BlockSlot @node_ref=&block_ref render index size />
-                                        }
-                                    }
-                                    _ => view! {
-                                        <Frame />
-                                    },
-                                }
-                            }</Dynamic>
-                        </List>
+                        {content}
                     </Frame>
                 </Frame>
             </List>
@@ -370,6 +385,7 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
                 options: env.options,
                 spacers,
                 placeholder,
+                void_size: cx.void_size,
             };
             let key = row_key(&inputs, start, end, newline);
             let held = cx.held.value();
@@ -674,7 +690,9 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
         )
     });
     let run = create_memo(move || matches!(item.get().map(|item| item.inline), Some(Inline::Run)));
-    let widget = create_memo(move || !checkbox.get() && !run.get());
+    let void =
+        create_memo(move || matches!(item.get().map(|item| item.inline), Some(Inline::Void)));
+    let widget = create_memo(move || !checkbox.get() && !run.get() && !void.get());
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
@@ -686,7 +704,31 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
             <Show condition={run}>
                 <RunChip cx={cx} item={item} />
             </Show>
+            <Show condition={void}>
+                <VoidSlot cx={cx} item={item} />
+            </Show>
         </List>
+    }
+}
+
+#[component]
+fn VoidSlot(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
+    let props = create_memo(move || item.get().map(|item| item.props).unwrap_or_default());
+    let size = create_memo(move || item.get().map_or(Vec2::ZERO, |item| item.size));
+    let width = create_memo(move || Some(size.get().x));
+    let height = create_memo(move || Some(size.get().y));
+    let content = match cx.render_void {
+        Some(render) => render.call(VoidView {
+            state: cx.state,
+            props,
+            size,
+        }),
+        None => view! {
+            <Frame />
+        },
+    };
+    view! {
+        <Frame width=width height=height>{content}</Frame>
     }
 }
 

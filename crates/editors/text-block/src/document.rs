@@ -388,7 +388,7 @@ impl DocumentEdit for Transaction<'_> {
 
 pub const fn block_language(language: TextLanguage) -> be_block::TextLanguage {
     match language {
-        TextLanguage::Markdown => be_block::TextLanguage::Markdown,
+        TextLanguage::Markdown | TextLanguage::RichText => be_block::TextLanguage::Markdown,
         TextLanguage::PlainText => be_block::TextLanguage::PlainText,
         TextLanguage::Rust => be_block::TextLanguage::Rust,
         TextLanguage::Zig => be_block::TextLanguage::Zig,

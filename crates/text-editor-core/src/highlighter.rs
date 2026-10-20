@@ -5,6 +5,8 @@ use tree_sitter::{InputEdit, Parser, Point, Tree};
 
 use crate::TextChange;
 use crate::document::{Document, DocumentView, TextLanguage};
+use crate::rich::Formats;
+use crate::schema::{Plain, Schema};
 
 mod markdown;
 mod rust;
@@ -19,6 +21,7 @@ pub enum Language {
     Rust,
     Toml,
     Zig,
+    RichText,
 }
 
 impl Language {
@@ -29,12 +32,13 @@ impl Language {
             TextLanguage::Rust => Some(Self::Rust),
             TextLanguage::Toml => Some(Self::Toml),
             TextLanguage::Zig => Some(Self::Zig),
+            TextLanguage::RichText => Some(Self::RichText),
         }
     }
 
     fn chain_start_offset(self, kind: &str, source: &[u8]) -> usize {
         match self {
-            Self::Markdown | Self::Toml => 0,
+            Self::Markdown | Self::Toml | Self::RichText => 0,
             Self::Rust => rust::chain_start_offset(kind, source),
             Self::Zig => zig::chain_start_offset(kind, source),
         }
@@ -138,7 +142,60 @@ pub struct SyntaxHighlight {
 enum Styles {
     Uniform { style: SynHlStyle, len: usize },
     Each(Vec<SynHlStyle>),
+    Rich(Arc<RichSource>),
     Markdown(Arc<MarkdownSource>),
+}
+
+struct RichSource {
+    formats: Arc<Formats>,
+    bytes: Arc<[u8]>,
+    schema: Arc<dyn Schema>,
+    decorated: Mutex<Vec<(usize, Arc<[SynHlStyle]>)>>,
+}
+
+impl RichSource {
+    fn style_at(&self, index: usize) -> Option<SynHlStyle> {
+        let marks = self.formats.marks_at(index)?;
+        let blocks = &self.formats.blocks;
+        let at = blocks.partition_point(|block| block.end < index);
+        let block = blocks.get(at)?;
+        let decoration = self.schema.decorate(&block.props).and_then(|language| {
+            let mut first = at;
+            while first > 0 && self.schema.decorate(&blocks[first - 1].props) == Some(language) {
+                first -= 1;
+            }
+            let start = blocks[first].start;
+            let styles = self.decorations(start, || {
+                let mut last = at;
+                while last + 1 < blocks.len()
+                    && self.schema.decorate(&blocks[last + 1].props) == Some(language)
+                {
+                    last += 1;
+                }
+                let end = blocks[last].end.min(self.bytes.len());
+                decorations(language, &self.bytes[start..end]).into()
+            });
+            styles.get(index - start).copied()
+        });
+        Some(self.schema.leaf_style(marks, &block.props, decoration))
+    }
+
+    fn decorations(
+        &self,
+        start: usize,
+        lex: impl FnOnce() -> Arc<[SynHlStyle]>,
+    ) -> Arc<[SynHlStyle]> {
+        let mut decorated = self
+            .decorated
+            .lock()
+            .expect("the decorations were poisoned");
+        if let Some((_, styles)) = decorated.iter().find(|(held, _)| *held == start) {
+            return Arc::clone(styles);
+        }
+        let styles = lex();
+        decorated.push((start, Arc::clone(&styles)));
+        styles
+    }
 }
 
 struct MarkdownSource {
@@ -284,6 +341,17 @@ impl SyntaxHighlight {
         }
     }
 
+    fn rich(formats: Arc<Formats>, bytes: Arc<[u8]>, schema: Arc<dyn Schema>) -> Self {
+        Self {
+            styles: Styles::Rich(Arc::new(RichSource {
+                formats,
+                bytes,
+                schema,
+                decorated: Mutex::default(),
+            })),
+        }
+    }
+
     fn markdown(source: Arc<MarkdownSource>) -> Self {
         Self {
             styles: Styles::Markdown(source),
@@ -302,6 +370,7 @@ impl SyntaxHighlight {
                 false => invalid,
             },
             Styles::Each(styles) => styles.get(byte_index).copied().unwrap_or(invalid),
+            Styles::Rich(source) => source.style_at(byte_index).unwrap_or(invalid),
             Styles::Markdown(source) => {
                 if byte_index >= source.bytes.len() {
                     return invalid;
@@ -332,9 +401,10 @@ impl SyntaxHighlight {
         styles
     }
 
-    pub fn markdown_bytes(&self) -> Option<Arc<[u8]>> {
+    pub fn bytes(&self) -> Option<Arc<[u8]>> {
         match &self.styles {
             Styles::Markdown(source) => Some(Arc::clone(&source.bytes)),
+            Styles::Rich(source) => Some(Arc::clone(&source.bytes)),
             _ => None,
         }
     }
@@ -398,6 +468,20 @@ pub struct Highlighter {
     parsed_revision: Option<u64>,
     parsed_bytes: Vec<u8>,
     language: Language,
+    schema: Arc<dyn Schema>,
+}
+
+pub(crate) fn decorations(language: Language, bytes: &[u8]) -> Vec<SynHlStyle> {
+    let highlight = match language {
+        Language::Rust => SyntaxHighlight::from_scopes(rust::scopes(bytes), bytes),
+        Language::Zig => SyntaxHighlight::from_scopes(zig::scopes(bytes), bytes),
+        Language::Toml => SyntaxHighlight::from_scopes(toml::scopes(bytes), bytes),
+        Language::Markdown => {
+            SyntaxHighlight::markdown(Arc::new(MarkdownSource::new(bytes.into())))
+        }
+        Language::RichText => SyntaxHighlight::plaintext(bytes.len()),
+    };
+    highlight.styles_in(0..bytes.len())
 }
 
 impl Highlighter {
@@ -406,7 +490,7 @@ impl Highlighter {
             Language::Markdown => ParserBackend::Markdown,
             Language::Rust => ParserBackend::tree_sitter(&tree_sitter_rust::LANGUAGE.into()),
             Language::Zig => ParserBackend::tree_sitter(&tree_sitter_zig::LANGUAGE.into()),
-            Language::Toml => ParserBackend::Lexed,
+            Language::Toml | Language::RichText => ParserBackend::Lexed,
         };
         Self {
             markdown: None,
@@ -415,7 +499,13 @@ impl Highlighter {
             parsed_revision: None,
             parsed_bytes: Vec::new(),
             language,
+            schema: Arc::new(Plain),
         }
+    }
+
+    pub fn with_schema(mut self, schema: Arc<dyn Schema>) -> Self {
+        self.schema = schema;
+        self
     }
 
     fn ensure_parsed(&mut self) -> Option<()> {
@@ -487,6 +577,19 @@ impl Highlighter {
     }
 
     pub fn highlight(&mut self) -> SyntaxHighlight {
+        if self.language == Language::RichText {
+            let Some(read) = self.document.read() else {
+                return SyntaxHighlight::plaintext(0);
+            };
+            return match read.formats() {
+                Some(formats) => SyntaxHighlight::rich(
+                    formats,
+                    read.slice(0..read.len()).into(),
+                    Arc::clone(&self.schema),
+                ),
+                None => SyntaxHighlight::plaintext(read.len()),
+            };
+        }
         if self.language == Language::Markdown {
             let revision = self.document.revision();
             if let Some((held, source)) = &self.markdown
@@ -520,7 +623,7 @@ impl Highlighter {
             Language::Rust => SyntaxHighlight::from_scopes(rust::scopes(bytes), bytes),
             Language::Zig => SyntaxHighlight::from_scopes(zig::scopes(bytes), bytes),
             Language::Toml => SyntaxHighlight::from_scopes(toml::scopes(bytes), bytes),
-            Language::Markdown => SyntaxHighlight::plaintext(bytes.len()),
+            Language::Markdown | Language::RichText => SyntaxHighlight::plaintext(bytes.len()),
         }
     }
 

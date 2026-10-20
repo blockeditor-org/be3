@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use text_editor_core::{
     CollapsibleSection, CopyMode, Core, CursorPosition, EditorCommand, FindDirection, FindStatus,
-    Position, SyntaxHighlight, TextChange, TextIndentation, TextLanguage, TextRun,
-    markdown_checkbox_marker,
+    Formats, Position, Schema, Selected, SyntaxHighlight, TextChange, TextIndentation,
+    TextLanguage, TextRun, markdown_checkbox_marker,
 };
 
 use beui_core::font::FontId;
@@ -48,6 +48,7 @@ pub struct Snapshot {
     pub checkboxes: Vec<MarkdownCheckbox>,
     pub highlight: Option<SyntaxHighlight>,
     pub runs: Option<Rc<Vec<TextRun>>>,
+    pub formats: Option<Arc<Formats>>,
 }
 
 const MEASURED_BYTES: usize = 64 * 1024;
@@ -162,6 +163,7 @@ struct Inner {
     content_counter: Cell<u64>,
     cursors: Signal<u64>,
     cursor_counter: Cell<u64>,
+    selected: Signal<Option<Selected>>,
     rows_built: Cell<u64>,
     layout: Signal<TextAreaLayout>,
 }
@@ -171,7 +173,19 @@ pub struct TextAreaState(Stored<Inner>);
 
 impl TextAreaState {
     pub fn new(document: Arc<dyn text_editor_core::Document>) -> Self {
+        Self::from_core(Core::new(document))
+    }
+
+    pub fn with_schema(
+        document: Arc<dyn text_editor_core::Document>,
+        schema: Arc<dyn Schema>,
+    ) -> Self {
         let mut core = Core::new(document);
+        core.set_schema(schema);
+        Self::from_core(core)
+    }
+
+    fn from_core(mut core: Core) -> Self {
         let start = core.position(0);
         core.execute_command(EditorCommand::SetSelection {
             anchor: start,
@@ -184,6 +198,7 @@ impl TextAreaState {
         let focus_requests = create_signal(0);
         let touch_mode = create_signal(false);
         let caret_handle = create_signal(false);
+        let selected = create_signal(None);
         let state = Self(store(Inner {
             core: RefCell::new(core),
             snapshot: RefCell::new(Snapshot::default()),
@@ -206,6 +221,7 @@ impl TextAreaState {
             content_counter: Cell::new(0),
             cursors,
             cursor_counter: Cell::new(0),
+            selected,
             rows_built: Cell::new(0),
             layout,
         }));
@@ -243,6 +259,24 @@ impl TextAreaState {
     pub fn sync(&self) {
         self.sync_document();
         self.sync_cursors();
+        self.sync_selected();
+    }
+
+    pub fn selected(&self) -> ReadSignal<Option<Selected>> {
+        let inner = self.0.value();
+        inner.selected.read_only()
+    }
+
+    pub fn schema(&self) -> Arc<dyn Schema> {
+        self.with_core(Core::schema)
+    }
+
+    fn sync_selected(&self) {
+        let inner = self.0.value();
+        let selected = inner.core.borrow().selected();
+        if inner.selected.get_untracked() != selected {
+            inner.selected.set(selected);
+        }
     }
 
     pub fn set_show_runs(&self, shown: bool) {
@@ -510,6 +544,7 @@ impl TextAreaState {
                 options,
                 spacers: &[],
                 placeholder: None,
+                void_size: None,
             };
             let key = line_key(&snapshot, widgets, start, end, wrap);
             let (row_height, block) = match held.get(&key) {
@@ -573,6 +608,7 @@ impl TextAreaState {
                 options,
                 spacers: &[],
                 placeholder: shown,
+                void_size: None,
             };
             let row = build_row(&inputs, line, start, end, newline);
             let laid = rich_layout(&row, font, options.padding(), wrap)?.size;
@@ -763,7 +799,7 @@ impl TextAreaState {
         }
         let highlight = inner.core.borrow_mut().highlight();
         let bytes = highlight
-            .markdown_bytes()
+            .bytes()
             .unwrap_or_else(|| read_bytes(&inner.core.borrow()).into());
         let change = {
             let snapshot = inner.snapshot.borrow();
@@ -795,6 +831,12 @@ impl TextAreaState {
             _ => Vec::new(),
         };
         let hidden = hidden_ranges(&sections);
+        let formats = (language == TextLanguage::RichText)
+            .then(|| {
+                let core = inner.core.borrow();
+                core.document().read().and_then(|read| read.formats())
+            })
+            .flatten();
         let runs = inner.show_runs.get().then(|| {
             let core = inner.core.borrow();
             Rc::new(
@@ -815,6 +857,7 @@ impl TextAreaState {
             checkboxes,
             highlight: Some(highlight),
             runs,
+            formats,
         };
         inner.content_counter.set(inner.content_counter.get() + 1);
         inner.content.set(inner.content_counter.get());

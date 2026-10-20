@@ -28,6 +28,7 @@ mod a_table_lines_its_cells_up_under_its_columns;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
 mod an_instant_level_display_keeps_its_duration_without_fading;
 mod animations_paint_their_progress_and_instant_targets;
+mod closing_the_rich_text_tab_disposes_its_editors;
 mod editing_a_tree_row_keeps_a_name_on_enter_or_a_click_away_and_escape_puts_it_back;
 mod every_demo_page_paints_as_accepted;
 mod every_demo_page_paints_as_accepted_on_a_phone;
@@ -36,6 +37,7 @@ mod holding_alt_moves_a_floating_demo_page_by_its_content;
 mod instant_indicators_hold_still_and_resume;
 mod paused_edits_wait_for_a_send_and_carry_presence;
 mod replacing_a_page_closes_the_dialogs_it_opened;
+mod rich_text_styled_on_both_sides_converges_once_sent_both_ways;
 mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
 mod tabbing_through_every_page_shows_each_focus_ring_whole;
 mod the_arrow_keys_move_across_a_menu_grid_and_on_to_the_rows_below;
@@ -60,6 +62,8 @@ mod the_lock_screens_actions_are_told_apart_by_place;
 mod the_message_toast_sample_offers_its_actions;
 mod the_on_screen_keyboard_opens_for_a_field_and_shows_what_its_modes_type;
 mod the_overlay_sample_closes_on_escape_and_a_click_outside;
+mod the_rich_text_bar_styles_a_selection_and_shows_the_style_under_the_caret;
+mod the_rich_text_page_renders_its_blocks_and_voids_and_edits_them_through_them;
 mod the_runs_toggle_shows_where_each_side_typed_and_deleted;
 mod the_stale_notice_sample_answers_each_of_its_buttons;
 mod the_tree_sample_opens_on_the_left_of_a_row_and_its_menu_from_its_button;
@@ -120,6 +124,10 @@ fn reveal(test: &mut DocumentTest, test_id: &str) {
 }
 
 fn press_key(test: &mut DocumentTest, key: beui::Key) {
+    press_key_with(test, key, beui::Modifiers::NONE);
+}
+
+fn press_key_with(test: &mut DocumentTest, key: beui::Key, modifiers: beui::Modifiers) {
     test.frame(
         [true, false]
             .into_iter()
@@ -128,12 +136,19 @@ fn press_key(test: &mut DocumentTest, key: beui::Key) {
                     key,
                     pressed,
                     repeat: false,
-                    modifiers: beui::Modifiers::NONE,
+                    modifiers,
                 })
             })
             .collect(),
     );
     test.frame(Vec::new());
+}
+
+fn select_line(test: &mut DocumentTest, at: Pos2) {
+    test.click_at(at);
+    test.frame(Vec::new());
+    press_key(test, beui::Key::Home);
+    press_key_with(test, beui::Key::End, beui::Modifiers::SHIFT);
 }
 
 fn focused(test: &DocumentTest, test_id: &str) -> bool {

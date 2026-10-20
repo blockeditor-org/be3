@@ -671,7 +671,34 @@ the weight, horizontal alignment, padding around each line, wrapping, and where
 the lines sit when they are shorter than the area that it names.
 `measure_prose` measures text exactly as such an area lays it out, so a caller
 can size a box to it; the infinite canvas draws its text entities this way, as
-the same field whether or not they are being edited. A menu is never asked for as a dropdown
+the same field whether or not they are being edited. A document whose language is
+`TextLanguage::RichText` is rich text, structured the way Slate structures one: the document
+knows nothing of bold or headings, a `Schema` (text-editor-core `schema.rs`) gives keys their
+meaning, and the page renders the result. The bytes are the text alone, and every line is a
+block. Formatting is a set of `Marks` beside the bytes, each setting one key to a `Value` or
+clearing it, either over a stretch of text (`Scope::Inline`) or over whole lines
+(`Scope::Block`, a block's props). Marks are anchored to the sequence's positions, the latest
+wins where two overlap, and two copies that exchange marks in any order agree (the demo's Rich
+text page sends them over its simulated network). `Marks` keeps the resolved `Formats` and
+updates them from each text splice and each new mark rather than resolving the document again,
+so a document that holds marks passes every splice its sequence reports to `Marks::splice`
+(and calls `invalidate` if it replaces the sequence wholesale). Each inline mark records whether it grows when
+text is typed at its end (`Expand::After` for bold, `Expand::Never` for a link). `Core` owns only
+generic operations: `EditorCommand::SetMark` styles the selection or what is typed next at a
+caret, `SetBlock` sets a prop on the selected blocks or one at a position, `InsertVoid` puts an
+atomic inline item (U+FFFC carrying its own marks, such as a mention) at the caret, and
+`Transform` runs a function over `Transform`'s range-level operations as one undo step. Typed
+text takes the marks before it that grow (or after it at a paragraph's start), and the schema
+decides what Enter, Backspace at a block's start and Tab do to a block, its tools (a name, a
+shortcut, whether the selection has it, and the command it runs), each leaf's `SynHlStyle`, and
+which blocks a highlighter decorates (a code block's language). `schema::basic` is a schema
+with the usual marks, headings, lists, checklists, quotes and code blocks. `TextAreaState::with_schema`
+makes an area for one, `TextAreaState::selected` is the selection's marks and block props,
+and `styled::FormatBar` shows the tools it is given glyphs for. The area draws rich text with no
+gutter or whitespace markers, hands each line to `render_block` with the line's laid-out text
+as a `NodeId` to place inside whatever it draws around it (a bullet, a checkbox, a quote's bar),
+and draws each void with `render_void` at the size `void_size` gives it. Copying and pasting
+carries the text without its marks. A menu is never asked for as a dropdown
 or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same
 features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an

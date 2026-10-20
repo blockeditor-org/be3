@@ -12,14 +12,19 @@ use beui::styled::*;
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, ItemSize, NodeId};
 use beui_macros::{component, sample};
-use text_editor_core::{CursorPosition, EditorCommand, TextLanguage};
+use text_editor_core::schema::basic::{self, Basic};
+use text_editor_core::{CursorPosition, EditorCommand, MarkSet, TextLanguage, Value};
 
 use super::{Caret, Side, SideDocument, Simulation};
+use crate::rich_text::{GLYPHS, mention_size, render_block, render_void};
 use crate::sample::{Sample, ScrollPage};
 use crate::{ROW_SPACING, SECTION_SPACING};
 
 const TEXT: &str = "# Shared notes\n\nType on both sides. Each side keeps its own copy and \
 sends its edits over a simulated network.\n\n- [ ] type at the same place on both sides\n";
+const RICH_TEXT: &str = "Shared notes\nType on both sides and style what you select. Bold, \
+italic and code travel as marks that each side merges.\nPause the network, select the same \
+words on both sides and style them differently.\n";
 const EDITOR_HEIGHT: f32 = 240.0;
 const MAX_LATENCY: f32 = 2000.0;
 const START_LATENCY: f32 = 300.0;
@@ -35,15 +40,40 @@ pub(crate) fn CollaborationPage() -> NodeId {
                 title="Two editors on one sequence"
                 code={vec![ConcurrentEditing::SOURCE, SendButtons::SOURCE, EditorPane::SOURCE]}
             >
-                <ConcurrentEditing />
+                <ConcurrentEditing rich=false />
             </Sample>
         </ScrollPage>
     }
 }
 
-fn editor(simulation: &Arc<RwLock<Simulation>>, side: Side) -> TextAreaState {
+pub(crate) fn rich_simulation() -> Simulation {
+    let words = |words: &str| {
+        let start = RICH_TEXT.find(words).unwrap_or(0);
+        start..start + words.len()
+    };
+    Simulation::rich(
+        RICH_TEXT,
+        &[
+            basic::block(words("Shared notes"), basic::HEADING, Value::Int(1)),
+            basic::mark(words("Bold"), basic::BOLD),
+            basic::mark(words("italic"), basic::ITALIC),
+            basic::mark(words("code"), basic::CODE),
+            basic::mark(words("differently"), basic::UNDERLINE),
+            basic::block(
+                words("Pause the network"),
+                basic::LIST,
+                Value::text(basic::CHECK),
+            ),
+        ],
+    )
+}
+
+fn editor(simulation: &Arc<RwLock<Simulation>>, side: Side, rich: bool) -> TextAreaState {
     let document = Arc::new(SideDocument::new(simulation, side));
-    let state = TextAreaState::new(document as Arc<dyn text_editor_core::Document>);
+    if rich {
+        return TextAreaState::with_schema(document, Arc::new(Basic));
+    }
+    let state = TextAreaState::new(document);
     state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
     state
 }
@@ -75,10 +105,13 @@ fn remote(state: &TextAreaState, caret: Option<Caret>, color: Color32) -> Vec<Re
 
 #[sample]
 #[component]
-fn ConcurrentEditing() -> NodeId {
-    let simulation = Arc::new(RwLock::new(Simulation::new(TEXT)));
-    let left = editor(&simulation, Side::Left);
-    let right = editor(&simulation, Side::Right);
+pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
+    let simulation = Arc::new(RwLock::new(match rich {
+        true => rich_simulation(),
+        false => Simulation::new(TEXT),
+    }));
+    let left = editor(&simulation, Side::Left, rich);
+    let right = editor(&simulation, Side::Right, rich);
     let paused = create_signal(false);
     let runs = create_signal(false);
     let latency = create_signal(START_LATENCY);
@@ -126,7 +159,7 @@ fn ConcurrentEditing() -> NodeId {
                     simulation.in_flight(Side::Left),
                     simulation.in_flight(Side::Right),
                 ),
-                simulation.text(Side::Left) == simulation.text(Side::Right),
+                simulation.converged(),
                 [simulation.seen(Side::Left), simulation.seen(Side::Right)],
                 (!held).then(|| simulation.next_due(delay)).flatten(),
             )
@@ -175,7 +208,10 @@ fn ConcurrentEditing() -> NodeId {
     });
     let latency_label = create_memo(move || format!("Latency: {} ms", latency.get().round()));
     let status = create_memo(move || match (flight.get(), same.get()) {
-        (_, true) => "Both sides hold the same text.".to_owned(),
+        (_, true) => match rich {
+            true => "Both sides hold the same text and styles.".to_owned(),
+            false => "Both sides hold the same text.".to_owned(),
+        },
         ((0, 0), false) => "The sides differ with nothing in flight.".to_owned(),
         ((right, left), false) => format!("In flight: {right} to the right, {left} to the left."),
     });
@@ -227,6 +263,7 @@ fn ConcurrentEditing() -> NodeId {
                     state={left}
                     remote={left_remote}
                     runs={runs.read_only()}
+                    rich
                 />
                 <SendButtons
                     send={pump}
@@ -241,6 +278,7 @@ fn ConcurrentEditing() -> NodeId {
                     state={right}
                     remote={right_remote}
                     runs={runs.read_only()}
+                    rich
                 />
             </unstyled::Stack>
             <Text style=TextStyle::CAPTION string={status} wrap=true />
@@ -346,10 +384,14 @@ fn EditorPane(
     state: TextAreaState,
     remote: Memo<Vec<RemoteTextCursor>>,
     runs: ReadSignal<bool>,
+    rich: bool,
 ) -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
             <Text style=TextStyle::CAPTION string={title} />
+            <Show condition={rich}>
+                <FormatBar state={state} glyphs={GLYPHS.to_vec()} test_prefix={id} />
+            </Show>
             <TextArea
                 @test_id=id
                 @sizing=ItemSize::Fixed(EDITOR_HEIGHT)
@@ -360,6 +402,9 @@ fn EditorPane(
                     (Side::Left.client(), LEFT_COLOR),
                     (Side::Right.client(), RIGHT_COLOR),
                 ]}
+                render_block={render_block()}
+                render_void={render_void()}
+                void_size={Some(mention_size as fn(&MarkSet) -> beui::Vec2)}
             />
         </List>
     }

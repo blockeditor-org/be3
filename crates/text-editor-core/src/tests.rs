@@ -55,6 +55,22 @@ mod replace_all_matches_replaces_every_match;
 mod replace_match_does_nothing_when_selection_is_not_on_a_match;
 mod replace_match_replaces_current_and_advances_to_next_match;
 mod replace_ranges_replaces_every_range;
+mod rich_text_a_code_block_is_decorated_by_its_language;
+mod rich_text_a_heading_covers_its_line_and_enter_at_its_end_starts_a_body_line;
+mod rich_text_a_link_does_not_grow_as_text_is_typed_at_its_end;
+mod rich_text_a_style_toggled_at_the_caret_applies_to_what_is_typed_next;
+mod rich_text_a_transform_composes_generic_operations;
+mod rich_text_a_void_is_one_step_for_the_caret_and_carries_its_props;
+mod rich_text_backspace_at_a_block_start_lifts_its_props;
+mod rich_text_backspace_inside_a_code_block_joins_its_lines;
+mod rich_text_bold_toggles_over_a_selection;
+mod rich_text_enter_continues_a_list_and_lifts_out_of_an_empty_item;
+mod rich_text_formats_kept_across_edits_match_formats_resolved_afresh;
+mod rich_text_joining_lines_keeps_the_first_lines_block;
+mod rich_text_marks_converge_in_any_order;
+mod rich_text_tab_indents_a_list_item;
+mod rich_text_typing_continues_the_format_before_the_caret;
+mod rich_text_undo_and_redo_bring_formatting_back;
 mod right_arrow_opens_a_collapsed_line;
 mod rust_syn_hl;
 mod select_up_after_moving_down_starts_from_the_current_column;
@@ -90,6 +106,69 @@ fn rendered_highlight(tester: &mut EditorTester, offset: usize) -> String {
     result
 }
 
+fn formatted(tester: &EditorTester) -> String {
+    let read = tester.editor.document().read().unwrap();
+    let formats = read.formats().expect("a rich text document has formats");
+    let bytes = DocumentView::new(&*read).bytes().to_vec();
+    let mut result = String::new();
+    let mut previous = MarkSet::default();
+    for (index, byte) in bytes.iter().enumerate() {
+        let block = formats.block_at(index).unwrap();
+        if index == block.start && !block.props.is_empty() {
+            result.push_str(&format!("[{}]", tag(&block.props)));
+        }
+        let marks = formats.marks_at(index).unwrap();
+        if *marks != previous {
+            result.push_str(&format!("{{{}}}", tag(marks)));
+            previous = marks.clone();
+        }
+        result.push(char::from(*byte));
+    }
+    result
+}
+
+fn tag(marks: &MarkSet) -> String {
+    marks
+        .iter()
+        .map(|(key, value)| match value {
+            Value::Bool(true) => key.to_string(),
+            Value::Bool(false) => format!("!{key}"),
+            Value::Int(value) => format!("{key}={value}"),
+            Value::Text(value) => format!("{key}={value}"),
+        })
+        .collect::<Vec<_>>()
+        .join(",")
+}
+
+fn select(tester: &mut EditorTester, range: std::ops::Range<usize>) {
+    tester.execute(EditorCommand::SetSelection {
+        anchor: tester.pos(range.start),
+        focus: tester.pos(range.end),
+    });
+}
+
+fn tool(tester: &mut EditorTester, name: &str) {
+    let schema = tester.editor.schema();
+    let tool = schema
+        .tools()
+        .iter()
+        .find(|tool| tool.name == name)
+        .copied()
+        .expect("the schema has the tool");
+    let selected = tester.editor.selected().unwrap();
+    tester.execute((tool.command)(&selected));
+}
+
+fn active(tester: &EditorTester, name: &str) -> bool {
+    let schema = tester.editor.schema();
+    let tool = schema
+        .tools()
+        .iter()
+        .find(|tool| tool.name == name)
+        .unwrap();
+    (tool.active)(&tester.editor.selected().unwrap())
+}
+
 struct EditorTester {
     editor: Core,
 }
@@ -102,6 +181,15 @@ impl EditorTester {
     fn with_language(initial: impl AsRef<[u8]>, language: TextLanguage) -> Self {
         let mut editor = Core::new(Arc::new(TextBuffer::new(initial)));
         editor.set_language(language);
+        Self { editor }
+    }
+
+    fn rich(initial: impl AsRef<[u8]>) -> Self {
+        let mut editor = Core::new(Arc::new(TextBuffer::new(initial)));
+        editor.set_language(TextLanguage::RichText);
+        editor.set_schema(Arc::new(schema::basic::Basic));
+        let start = editor.position(0);
+        editor.select(Selection::at(start));
         Self { editor }
     }
 
@@ -161,5 +249,12 @@ impl EditorTester {
             "cursors: {:?}",
             self.editor.cursor_positions()
         );
+    }
+}
+
+fn backspace() -> EditorCommand<'static> {
+    EditorCommand::Delete {
+        direction: LRDirection::Left,
+        stop: CursorLeftRightStop::UnicodeGraphemeCluster,
     }
 }
