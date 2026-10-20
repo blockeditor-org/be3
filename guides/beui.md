@@ -1714,7 +1714,25 @@ document, such as a program's window, to take the keyboard itself); the focus
 cannot move into the panel (Tab skips it, and focusing it lands in the
 dialog); and while the parent's tab is focused the focus goes to its innermost
 modal dialog. Escape or back with the focus in a dialog closes it through
-`on_close`.
+`on_close`. While a tab has a modal dialog hanging from it (or from one of its
+dialogs), its label shows a dot (`DockTabHandle::waiting`, styled
+`dock.tab.<tab>.waiting`): the tab is waiting on a choice, which matters most
+once another tab is shown in its place and hides the dialog.
+
+`presentation=DockDialogPresentation::Sheet` (rather than the default `Window`)
+shows the same dialog as a sheet attached to its tab, like an old macOS sheet:
+always modal, it drops from the top of the parent's panel, just under its tab
+bar, centred across it at `size` or smaller where the pane is smaller (the body
+is `Extent::at_most(size)`), over a backdrop (Docking's `dialog_scrim`) that dims
+that panel alone. A press on the backdrop calls the sheet's attention, while the
+tab bar, other tabs and other panes stay live. It has no title bar: its content
+draws its own header and close button (styled: square top corners flush with
+the bar, a border on the other three sides, rounded bottom corners and a
+shadow). Its layer hangs from the panel, so it follows the tab into another pane
+or a window. In a stacked dock it is `dialog_sheet` instead (styled: a
+`ModalSheet`), and the same body moves between the two through `Portal`s, so
+nothing in it is rebuilt. A dialog's body is built once when it is declared and
+kept while its tab is hidden, whichever presentation it has.
 
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or

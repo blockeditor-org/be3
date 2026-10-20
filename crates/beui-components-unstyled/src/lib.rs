@@ -85,16 +85,16 @@ pub use date_time_picker::{
 };
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
-    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialog, DockDialogHandle, DockDragged,
-    DockDrop, DockEntry, DockFullscreen, DockGripHandle, DockGroup, DockKey, DockLayout, DockMenus,
-    DockMode, DockNode, DockPane, DockPreviewHandle, DockSplit, DockSplitter, DockSplitterHandle,
-    DockStackHandle, DockState, DockSwitch, DockSwitchHandle, DockSwitchRowHandle,
-    DockSwitcherCardHandle, DockSwitcherHandle, DockTab, DockTabControl, DockTabHandle,
-    DockTabMenu, DockTree, DockTreeEntry, DockVisit, DockWindow, Docking, DockingLayout,
-    DockingSnapshot, Entry, GroupId, LeafId, MIN_PANE_LENGTH, MIN_SIDEBAR_WIDTH,
-    OwnedDockingLayout, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side, SplitId, SurfaceId, TabId,
-    TabPosition, Tree, dock_actions, dock_menu, dock_menu_items, dock_state, layout_surface,
-    layout_tree, sidebar_size, use_dock_tab,
+    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialog, DockDialogHandle,
+    DockDialogPresentation, DockDragged, DockDrop, DockEntry, DockFullscreen, DockGripHandle,
+    DockGroup, DockKey, DockLayout, DockMenus, DockMode, DockNode, DockPane, DockPreviewHandle,
+    DockSheetHandle, DockSplit, DockSplitter, DockSplitterHandle, DockStackHandle, DockState,
+    DockSwitch, DockSwitchHandle, DockSwitchRowHandle, DockSwitcherCardHandle, DockSwitcherHandle,
+    DockTab, DockTabControl, DockTabHandle, DockTabMenu, DockTree, DockTreeEntry, DockVisit,
+    DockWindow, Docking, DockingLayout, DockingSnapshot, Entry, GroupId, LeafId, MIN_PANE_LENGTH,
+    MIN_SIDEBAR_WIDTH, OwnedDockingLayout, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side, SplitId,
+    SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_menu, dock_menu_items, dock_state,
+    layout_surface, layout_tree, sidebar_size, use_dock_tab,
 };
 pub use drag::{
     DRAG_PREVIEW_OFFSET, DRAG_THRESHOLD, DragHandle, Draggable, DropHandle, DropTarget,

@@ -2,9 +2,9 @@ use super::*;
 use beui::KeyAt;
 use beui::TextAlign;
 use beui::icons::{
-    ICON_ADD, ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_FOLDER, ICON_FORMAT_QUOTE, ICON_IMAGE,
-    ICON_INFO, ICON_SAVE, ICON_SCHEDULE, ICON_SUBJECT, ICON_TABLE_CHART, ICON_UPLOAD_FILE,
-    ICON_WARNING,
+    ICON_ADD, ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_CLOSE, ICON_FOLDER, ICON_FORMAT_QUOTE,
+    ICON_IMAGE, ICON_INFO, ICON_SAVE, ICON_SCHEDULE, ICON_SUBJECT, ICON_TABLE_CHART,
+    ICON_UPLOAD_FILE, ICON_WARNING,
 };
 use beui::unstyled::MenuThen;
 
@@ -151,7 +151,7 @@ pub(crate) fn DockingPage() -> NodeId {
             </Sample>
             <Sample
                 title="Dialogs attached to a tab"
-                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE]}
+                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE, AttachedSheet::SOURCE]}
             >
                 <AttachedDialogs />
             </Sample>
@@ -166,7 +166,7 @@ fn AttachedDialogs() -> NodeId {
     let tab = use_dock_tab().map(|control| control.tab());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+            <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
                 <Button
                     @test_id="demo.dialog.open"
                     label="Open a dialog"
@@ -187,6 +187,16 @@ fn AttachedDialogs() -> NodeId {
                         }
                     }}
                 />
+                <Button
+                    @test_id="demo.dialog.sheet"
+                    label="Open a sheet"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
+                            dialogs.open_sheet(tab);
+                        }
+                    }}
+                />
             </List>
             <Text
                 style=TextStyle::CAPTION
@@ -194,6 +204,14 @@ fn AttachedDialogs() -> NodeId {
                  that tab, hides when another tab is shown in its place and comes back with it, \
                  and is never a tab of its own. A modal one takes every press and key meant \
                  for its tab until it closes, and the focus goes back to the tab when it does."
+                wrap=true
+            />
+            <Text
+                style=TextStyle::CAPTION
+                string="A sheet drops from under the tab bar, dims the tab and waits for a \
+                 choice, with a dot on the tab meanwhile. Other tabs and panes stay usable, and \
+                 the sheet keeps what was done in it while another tab is shown. On a phone it \
+                 is a sheet from the bottom of the screen."
                 wrap=true
             />
         </List>
@@ -239,6 +257,62 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
                 </List>
             </List>
         </Frame>
+    }
+}
+
+#[sample]
+#[component]
+pub(crate) fn AttachedSheet() -> NodeId {
+    let dialogs = use_context::<DemoDialogs>();
+    let tab = use_dock_tab().map(|control| control.tab());
+    let id = tab.map_or(0, TabId::value);
+    let presses = create_signal(0_u32);
+    let label = create_memo(move || match presses.get() {
+        0 => "Press me".to_owned(),
+        count => format!("Pressed {count} times"),
+    });
+    let close = move || {
+        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
+            dialogs.close(tab);
+        }
+    };
+    view! {
+        <List spacing=0.0>
+            <Frame padding=PAGE_PADDING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                    <Text
+                        style=TextStyle::HEADING
+                        string="Choose something"
+                        @sizing=ItemSize::Percent(100.0)
+                    />
+                    <IconButton
+                        @test_id={format!("demo.sheet.{id}.close")}
+                        glyph=ICON_CLOSE
+                        label="Close"
+                        variant=ButtonVariant::Ghost
+                        on_click={close}
+                    />
+                </List>
+            </Frame>
+            <Separator />
+            <Scroll @sizing=ItemSize::Percent(100.0)>
+                <Frame padding=PAGE_PADDING>
+                    <List spacing=SECTION_SPACING>
+                        <Text
+                            string="Only the tab under this sheet waits for it. Show another tab \
+                             and come back: the count below is kept."
+                            wrap=true
+                        />
+                        <Button
+                            @test_id={format!("demo.sheet.{id}.count")}
+                            label={label}
+                            variant=ButtonVariant::Secondary
+                            on_click={move || presses.update(|presses| *presses += 1)}
+                        />
+                    </List>
+                </Frame>
+            </Scroll>
+        </List>
     }
 }
 

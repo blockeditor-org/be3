@@ -19,7 +19,7 @@ pub(crate) const PADDING_HORIZONTAL: f32 = 20.0;
 pub(crate) const PADDING_VERTICAL: f32 = 18.0;
 const SPACING: f32 = 12.0;
 const MARGIN: f32 = 12.0;
-const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 150);
+pub(crate) const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 150);
 
 #[component]
 pub fn Dialog(

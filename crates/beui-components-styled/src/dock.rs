@@ -2,6 +2,7 @@ mod stack;
 mod switch;
 
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::sheet::ModalSheet;
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonVariant};
@@ -12,9 +13,10 @@ use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDragged, DockGripHandle,
-    DockKey, DockMode, DockNode, DockPreviewHandle, DockSplitterHandle, DockStackHandle,
-    DockSwitchHandle, DockSwitcherHandle, DockTabHandle, DockingLayout, Entry, MenuItem, Picture,
+    DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
+    DockDragged, DockGripHandle, DockKey, DockMode, DockNode, DockPreviewHandle, DockSheetHandle,
+    DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
+    DockingLayout, Entry, MenuItem, Picture,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
@@ -26,6 +28,7 @@ use beui_core::icons::{
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
+use beui_core::painter::Corners;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use stack::{DockStackBar, DockSwitcher};
@@ -52,6 +55,13 @@ const DROP_ALPHA: u8 = 64;
 const AWAY_SPACING: f32 = 12.0;
 const AWAY_PADDING: f32 = 24.0;
 const PREVIEW_ALPHA: u8 = 235;
+const WAITING_DOT: f32 = 6.0;
+const SHEET_SHADOW: [Color32; 3] = [
+    Color32::from_rgba_unmultiplied(0, 0, 0, 24),
+    Color32::from_rgba_unmultiplied(0, 0, 0, 36),
+    Color32::from_rgba_unmultiplied(0, 0, 0, 56),
+];
+const SHEET_SHADOW_WIDTH: f32 = 4.0;
 
 #[component]
 pub fn Docking<K>(
@@ -106,6 +116,10 @@ where
             dialog_chrome={move |handle: DockDialogHandle| view! {
                 <DockDialogFace handle />
             }}
+            dialog_sheet={move |handle: DockSheetHandle| view! {
+                <DockDialogSheet handle />
+            }}
+            dialog_scrim={crate::dialog::SCRIM}
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
             }}
@@ -176,6 +190,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         focused,
         dragged,
         closable,
+        waiting,
         close,
         vertical,
         ..
@@ -193,6 +208,8 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
             focused
             dragged
             closable
+            waiting
+            waiting_test_id={waiting_test_id(entry)}
             close_test_id={close_test_id(entry)}
             close={close}
         />
@@ -212,6 +229,8 @@ fn DockTabChrome(
     focused: ReadSignal<bool>,
     dragged: Memo<bool>,
     closable: Memo<bool>,
+    waiting: Memo<bool>,
+    waiting_test_id: String,
     close_test_id: String,
     close: ClickCallback,
 ) -> NodeId {
@@ -258,6 +277,15 @@ fn DockTabChrome(
                     <TabPicture picture={picture} />
                 </Show>
                 <Text string={title} color={label} clip=true @sizing={title_size} />
+                <Show condition={waiting}>
+                    <Frame
+                        @test_id={waiting_test_id.clone()}
+                        width=WAITING_DOT
+                        height=WAITING_DOT
+                        radius=Radius::Full
+                        fill=ColorRole::Accent
+                    />
+                </Show>
                 <Show condition={closable}>
                     <IconButton
                         @test_id={close_test_id.clone()}
@@ -318,6 +346,97 @@ fn DockChromeFace(handle: DockChromeHandle) -> NodeId {
 
 #[component]
 fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
+    match handle.presentation {
+        DockDialogPresentation::Window => view! {
+            <DockWindowFace handle />
+        },
+        DockDialogPresentation::Sheet => view! {
+            <DockSheetFace handle />
+        },
+    }
+}
+
+#[component]
+fn DockDialogSheet(handle: DockSheetHandle) -> NodeId {
+    let DockSheetHandle {
+        open, close, body, ..
+    } = handle;
+    view! {
+        <ModalSheet open fit=true on_close={close}>{body}</ModalSheet>
+    }
+}
+
+fn dialog_outline_color(focused: Memo<bool>, attention: ReadSignal<bool>) -> Memo<Color32> {
+    let theme = use_theme();
+    create_memo(move || match (attention.get(), focused.get()) {
+        (true, _) => theme.danger.get(),
+        (false, true) => theme.accent.get(),
+        (false, false) => theme.border.get(),
+    })
+}
+
+fn dialog_outline(focused: Memo<bool>, attention: ReadSignal<bool>) -> Memo<Option<Border>> {
+    let color = dialog_outline_color(focused, attention);
+    create_memo(move || Some(Border::new(ColorRole::Custom(color.get())).width(CHROME_BORDER)))
+}
+
+fn sheet_radius(outset: f32) -> Radius {
+    let bottom = Radius::Lg.px() + outset;
+    Radius::Custom(Corners {
+        top_left: 0.0,
+        top_right: 0.0,
+        bottom_right: bottom,
+        bottom_left: bottom,
+    })
+}
+
+#[component]
+fn DockSheetFace(handle: DockDialogHandle) -> NodeId {
+    let DockDialogHandle {
+        focused,
+        attention,
+        body,
+        ..
+    } = handle;
+    let ring = Sides::new(
+        SHEET_SHADOW_WIDTH,
+        0.0,
+        SHEET_SHADOW_WIDTH,
+        SHEET_SHADOW_WIDTH,
+    );
+    let edge = Sides::new(CHROME_BORDER, 0.0, CHROME_BORDER, CHROME_BORDER);
+    let outline = dialog_outline_color(focused, attention);
+    view! {
+        <Frame
+            fill={ColorRole::Custom(SHEET_SHADOW[0])}
+            radius={sheet_radius(CHROME_BORDER + 3.0 * SHEET_SHADOW_WIDTH)}
+            padding=ring
+        >
+            <Frame
+                fill={ColorRole::Custom(SHEET_SHADOW[1])}
+                radius={sheet_radius(CHROME_BORDER + 2.0 * SHEET_SHADOW_WIDTH)}
+                padding=ring
+            >
+                <Frame
+                    fill={ColorRole::Custom(SHEET_SHADOW[2])}
+                    radius={sheet_radius(CHROME_BORDER + SHEET_SHADOW_WIDTH)}
+                    padding=ring
+                >
+                    <Frame
+                        fill={ColorRole::custom(outline)}
+                        radius={sheet_radius(CHROME_BORDER)}
+                        padding=edge
+                    >
+                        <Frame fill=ColorRole::Background radius={sheet_radius(0.0)}>{body}</Frame>
+                    </Frame>
+                </Frame>
+            </Frame>
+        </Frame>
+    }
+}
+
+#[component]
+fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
     let DockDialogHandle {
         tab,
         title,
@@ -330,19 +449,13 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
         body,
         ..
     } = handle;
-    let theme = use_theme();
-    let outline = create_memo(move || match (attention.get(), focused.get()) {
-        (true, _) => theme.danger.get(),
-        (false, true) => theme.accent.get(),
-        (false, false) => theme.border.get(),
-    });
     let pictured = create_memo(move || !icon.get().is_empty());
     let width = create_memo(move || size.get().x + 2.0 * CHROME_BORDER);
     view! {
         <Frame
             width=width
             fill=ColorRole::Background
-            border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(CHROME_BORDER)))}
+            border={dialog_outline(focused, attention)}
             radius=Radius::Lg
             padding=CHROME_BORDER
         >
@@ -611,6 +724,13 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
                 <Text string={title} />
             </List>
         </Frame>
+    }
+}
+
+fn waiting_test_id(entry: Entry) -> String {
+    match entry {
+        Entry::Tab(tab) => format!("dock.tab.{}.waiting", tab.value()),
+        Entry::Group(_) => String::new(),
     }
 }
 
