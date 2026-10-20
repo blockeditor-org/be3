@@ -746,7 +746,11 @@ fn content_sizing(fit: bool) -> Sizing {
     }
 }
 
-fn fade_edges(direction: Direction, position: Option<ScrollPosition>, fade: f32) -> Sides {
+pub(crate) fn fade_edges(
+    direction: Direction,
+    position: Option<ScrollPosition>,
+    fade: f32,
+) -> Sides {
     let Some(position) = position.filter(|_| fade > 0.0) else {
         return Sides::default();
     };

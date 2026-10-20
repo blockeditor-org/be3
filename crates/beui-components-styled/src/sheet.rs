@@ -31,6 +31,7 @@ pub fn Sheet(
             rest
             stops
             fit
+            fade={crate::theme::SCROLL_FADE}
             grip={|_: SheetGripHandle| view! {
                 <SheetGrip />
             }}
@@ -59,6 +60,7 @@ pub fn ModalSheet(
             rest
             stops
             fit
+            fade={crate::theme::SCROLL_FADE}
             scrim=SCRIM
             grip={|_: SheetGripHandle| view! {
                 <SheetGrip />

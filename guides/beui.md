@@ -719,8 +719,16 @@ like an overscroll. It slides up as it opens, easing out, and slides down as it
 closes, easing in from however fast it was flicked; a `ModalSheet` stays up
 while it leaves however it was closed, and fades its scrim with it. Let go, it springs to the
 stop nearest where the flick was heading, or closed below the lowest one, and
-its content flings and bounces at its ends as a `Scroll` does; the handle does
-the same for a mouse, and going back closes it.
+its content flings and bounces at its bottom end as a `Scroll` does. A fling
+reaching the content's start bounces the whole sheet down and back without
+changing its stop or dismissing it. Dragging the handle, or the backdrop above
+a modal sheet, resizes an unscrolled sheet between its stops without scrolling
+its content. When the content is scrolled, the same drag translates the whole
+sheet without resizing it or changing its scroll position: release returns it
+to fully open or dismisses it, with no intermediate stop. The
+handle also works with a mouse, and going back closes the sheet. Styled sheets
+fade the content at edges with more to scroll, using the same opacity mask as
+styled scrollers; unstyled sheets take a concrete `fade` length.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text
