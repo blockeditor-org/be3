@@ -7,12 +7,6 @@ use std::process::{Command, ExitCode, Stdio};
 
 const USAGE: &str = "usage: local-tools verify MANIFEST [--build-failed] [--check] [--lint] [--tests] [--plugin-tests] [--android DIR] [--previews BASE OUT] [--bootstrap DIR]";
 
-const EXECUTABLE: &[&str] = &[
-    "scripts/internal/install-be.sh",
-    "scripts/internal/install-buck2.sh",
-    "scripts/internal/install-nsc.sh",
-];
-
 struct Options {
     manifest: PathBuf,
     build_failed: bool,
@@ -160,7 +154,7 @@ impl Run {
                 let script = path
                     .strip_prefix("scripts/")
                     .is_some_and(|name| !name.contains('/'));
-                !script && !EXECUTABLE.contains(path)
+                !script
             })
             .collect();
         if executable.is_empty() {

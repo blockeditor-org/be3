@@ -1,7 +1,6 @@
 # The downloads every script makes: each pinned to the bytes it must be, and
-# tried from a mirror when upstream will not answer. Both
-# scripts/internal/common.sh and build-ghostty-vt.sh, which runs on a worker,
-# read it.
+# tried from a mirror when upstream will not answer, for build-ghostty-vt.sh,
+# which runs on a worker.
 
 repository="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 internal="$repository/scripts/internal"

@@ -9,7 +9,7 @@ shared with the agents that work on them. Agents read and change them with `be`,
 ## Using it from an agent
 
 Run it as `./scripts/be ARGS`; `./scripts/be help` lists everything. That
-script runs the `be` release pinned in `scripts/internal/common.sh`, with a
+script runs the `be` release pinned in `scripts/internal/pins`, with a
 `build-info.json` file beside it naming the server's build, so the server refuses it
 once it is deployed from another build and the pin has to move with it. Set
 `BE3_AGENT_CREDENTIALS` to the JSON copied from the app's Agents dialog, or save
@@ -169,7 +169,7 @@ them in the handoff.
   pinned CLI must support the bundle format; deploy the CLI and server together
   before configuring the new secret. The workflow never executes PR-head code.
 - **Releases.** `./scripts/deploy` (guides/hosting.md) uploads `be` with the
-  server it deploys and pins it in `scripts/internal/common.sh`.
+  server it deploys and pins it in `scripts/internal/pins`.
 - **Proxies.** `be-client` tunnels `https` and `wss` through `HTTPS_PROXY` and
   trusts the certificates in `SSL_CERT_FILE` as well as the usual roots, which
   is what a cloud environment's proxy needs. That proxy may add the gateway's

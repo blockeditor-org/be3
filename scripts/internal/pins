@@ -29,7 +29,7 @@ be_sha256_x86_64_apple_darwin=''
 be_sha256_aarch64_apple_darwin=''
 
 # nsc, Namespace's command line tool, for the host that runs the waker
-# (./scripts/internal/install-nsc, guides/build_server.md).
+# (sh scripts/internal/bootstrap.sh install-nsc, guides/build_server.md).
 nsc_version='0.0.587'
 nsc_sha256_linux_amd64='f47a9eff06f41d0f342277ba097e04a215bd88019f184271042f8eb5ec94018f'
 nsc_sha256_linux_arm64='fc121a4fda8083f9e2815a2ecb4e75d06649b98316d4c793434d03fc443a1516'
