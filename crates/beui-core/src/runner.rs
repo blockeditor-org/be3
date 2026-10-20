@@ -600,6 +600,9 @@ impl Runner {
                     crate::painting::Punches::Erase,
                 ));
             }
+            if automation.wants_overflows() {
+                automation.overflowed(crate::painting::overflows(&output, scale));
+            }
         }
         self.output = Some(output);
         if closing {

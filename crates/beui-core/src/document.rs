@@ -155,6 +155,7 @@ pub struct Document {
     damage_flashes: FlashLog<Rect>,
     painters: NodeMap<Placing>,
     motion: ::reactive::OwnedSignal<crate::animation::Motion>,
+    out_of_bounds: Option<Vec<String>>,
     animations: Rc<Cell<usize>>,
 }
 
@@ -364,6 +365,7 @@ impl Document {
             damage_flashes: FlashLog::default(),
             painters: NodeMap::default(),
             motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
+            out_of_bounds: None,
             animations: Rc::default(),
         }
     }
@@ -1314,6 +1316,14 @@ impl Document {
             ctx.note_animating();
         }
         ctx.show_painting(&self.painting, rect);
+        if ctx.automated() {
+            if measurement.painted || measurement.layout_passes > 0 || self.out_of_bounds.is_none()
+            {
+                let found = self.overflows().iter().map(ToString::to_string).collect();
+                self.out_of_bounds = Some(found);
+            }
+            ctx.report_overflows(self.out_of_bounds.as_deref().unwrap_or_default());
+        }
         self.send_file_picks(ctx);
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
             if !ctx.accessibility_active() {
