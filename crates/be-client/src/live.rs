@@ -733,15 +733,17 @@ impl<S: ObjectStore, C: LiveEdit + Clone + Default> Live<S, C> {
         self.sealed = sequence;
         self.sealed_state = self.confirmed.session_state();
         let reload = std::mem::take(&mut self.reload).then(|| self.sealed_state.clone());
-        self.broadcast(&SessionMessage::Sealed {
+        let sealed = SessionMessage::Sealed {
             head,
             sequence,
             reload,
-        })
+        };
+        futures_util::future::try_join(
+            self.broadcast(&sealed),
+            self.peer
+                .heartbeat(self.block, self.state.generation, Some(head)),
+        )
         .await?;
-        self.peer
-            .heartbeat(self.block, self.state.generation, Some(head))
-            .await?;
         Ok(())
     }
 

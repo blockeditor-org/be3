@@ -1960,10 +1960,10 @@ pub(super) fn node_of(peer: &Peer<Store>, summary: &BlockSummary) -> Node {
 }
 
 async fn seal_all(sessions: &mut HashMap<Uuid, Box<dyn Session>>, shared: &Arc<Mutex<Shared>>) {
-    for session in sessions.values_mut() {
-        if let Err(error) = session.seal().await {
-            record(shared, error);
-        }
+    let sealed =
+        futures_util::future::join_all(sessions.values_mut().map(|session| session.seal())).await;
+    for error in sealed.into_iter().filter_map(Result::err) {
+        record(shared, error);
     }
 }
 

@@ -40,6 +40,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
             pinned: false,
             references: Vec::new(),
             metadata: b"sealed with content".to_vec(),
+            objects: Vec::new(),
         })
         .await;
     assert!(

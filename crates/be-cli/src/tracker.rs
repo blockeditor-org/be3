@@ -1492,6 +1492,7 @@ impl<S: ObjectStore> Tracker<S> {
         let defaults = loaded.schema.defaults();
         let mut edits = Vec::new();
         let mut later: Vec<(usize, ObjectId, DatabaseField, String)> = Vec::new();
+        let mut pages = Vec::new();
         for (number, row) in rows.iter().enumerate() {
             let mut values = BTreeMap::new();
             let mut title = String::new();
@@ -1547,19 +1548,19 @@ impl<S: ObjectStore> Tracker<S> {
             edits.push(add);
             if !page_text.trim().is_empty() {
                 let page = Uuid::now_v7();
-                self.peer
-                    .create_block(
-                        page,
-                        TextContent::CONTENT_TYPE,
-                        BlockParent::Block(database),
-                        &BlockMetadata::named(title),
-                    )
-                    .await
-                    .map_err(explain)?;
-                self.peer
-                    .save(page, &TextBlock::new(page_text).content(), None)
-                    .await
-                    .map_err(explain)?;
+                let content = TextBlock::new(page_text).content();
+                pages.push((
+                    be_client::transfer::Saved {
+                        id: page,
+                        block_type: TextContent::CONTENT_TYPE,
+                        parent: None,
+                        metadata: BlockMetadata::named(title)
+                            .with_derived(be_block::derived_metadata(&content)),
+                        references: self.peer.references(page, &content),
+                        content: Some(content.encode()),
+                    },
+                    BlockParent::Block(database),
+                ));
                 edits.push(Database::set_page(id, Some(page)));
                 imported.pages += 1;
             }
@@ -1587,6 +1588,22 @@ impl<S: ObjectStore> Tracker<S> {
                     )),
                 }
             }
+        }
+        let mut failed = None;
+        self.peer
+            .import_blocks(&pages, |page, created| {
+                if let Err(error) = created
+                    && failed.is_none()
+                {
+                    failed = Some(format!(
+                        "the page {page} was not created: {}",
+                        explain(error)
+                    ));
+                }
+            })
+            .await;
+        if let Some(error) = failed {
+            return Err(error);
         }
         self.change::<DatabaseContent>(database, |_| Ok(edits.clone()))
             .await?;
