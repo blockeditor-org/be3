@@ -1020,6 +1020,10 @@ impl EditorSession {
         self.app.painting(region)
     }
 
+    pub(crate) fn overflows(&mut self, region: EditorRegion) -> Vec<String> {
+        self.app.overflows(region)
+    }
+
     #[cfg(target_arch = "wasm32")]
     pub fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<block_plugin_api::SurfaceRect> {
         self.app.paint(target)

@@ -460,11 +460,15 @@ impl Runtime {
         self.painting = false;
         let mut shared = self.shared.borrow_mut();
         shared.paintings.clear();
+        shared.overflows.clear();
         let Ok(paintings) = beui::painting::ScreenPaintings::decode(payload) else {
             return;
         };
         for (screen, painting) in paintings.screens {
             shared.paintings.insert(ScreenId(screen), painting);
+        }
+        for (screen, overflows) in paintings.overflows {
+            shared.overflows.insert(ScreenId(screen), overflows);
         }
     }
 

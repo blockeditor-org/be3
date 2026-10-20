@@ -144,6 +144,7 @@ pub const PAINTING_EXTENSION: [u8; 16] = [
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct ScreenPaintings {
     pub screens: Vec<(u64, Painting)>,
+    pub overflows: Vec<(u64, Vec<String>)>,
 }
 
 impl ScreenPaintings {

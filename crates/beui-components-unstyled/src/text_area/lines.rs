@@ -109,7 +109,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     let text_width = create_memo(move || text.get().x + CARET_WIDTH);
     let text_height = create_memo(move || text.get().y);
     view! {
-        <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height}>
+        <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height} scrolls_across=true>
             <CanvasItem x={x} y={y} width={text_width} height={text_height}>
                 <AreaText cx={cx} model={model} />
             </CanvasItem>
