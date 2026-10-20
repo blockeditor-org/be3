@@ -6,11 +6,9 @@ use crate::reactive::*;
 fn dragging_the_inspector_edge_resizes_the_panel() {
     let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <Text @node_ref=&text string="Hello" color=Color32::WHITE />
-            }
+    let document = build(move || {
+        view! {
+            <Text @node_ref=&text string="Hello" color=Color32::WHITE />
         }
     });
     let text = text.get();

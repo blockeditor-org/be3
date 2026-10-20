@@ -50,11 +50,11 @@ impl Walking {
 #[component]
 pub(crate) fn Scene3DView() -> NodeId {
     let scene = Scene::default();
-    let (camera, set_camera) = create_signal(Camera::default());
+    let camera = create_signal(Camera::default());
     let walking = store(Cell::new(Walking::default()));
     let clock = store(Cell::new(Instant::now()));
     let drawing = create_memo(move || Some(scene.drawing(camera.get())));
-    let (looking, set_looking) = create_signal(false);
+    let looking = create_signal(false);
     let idle = create_memo(move || !looking.get());
 
     let stepping = create_timer(move || {
@@ -67,12 +67,12 @@ pub(crate) fn Scene3DView() -> NodeId {
         if !looking.get_untracked() || !walk.moving() {
             return None;
         }
-        set_camera.update(|camera| camera.walk(walk.strafe(), walk.forward(), elapsed));
+        camera.update(|camera| camera.walk(walk.strafe(), walk.forward(), elapsed));
         Some(Duration::ZERO)
     });
 
     let look = move |motion: Vec2| {
-        set_camera.update(|camera| camera.look([motion.x, motion.y]));
+        camera.update(|camera| camera.look([motion.x, motion.y]));
     };
     let walked = move |press: KeyPress| {
         let mut held = walking.with(Cell::get);
@@ -84,11 +84,11 @@ pub(crate) fn Scene3DView() -> NodeId {
         }
         handled
     };
-    let released = move |looking: bool| {
-        if !looking {
+    let released = move |next: bool| {
+        if !next {
             walking.with(|walking| walking.set(Walking::default()));
         }
-        set_looking.set(looking);
+        looking.set(next);
     };
 
     let described = create_memo(move || {

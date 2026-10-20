@@ -114,20 +114,19 @@ pub fn RowBeside(
     let main_shown = create_memo(move || !(narrow.get() && open.get()));
     let beside = create_memo(move || !narrow.get() && open.get());
     let instead = create_memo(move || narrow.get() && open.get());
-    let (side_row, full_row) = (selected, selected);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Layers @sizing=ItemSize::Percent(100.0)>
                 <Frame visible={main_shown}>{children}</Frame>
                 <Show condition={instead}>
-                    <OpenRow data={data} row={full_row} />
+                    <OpenRow data={data} row={selected} />
                 </Show>
             </Layers>
             <Show condition={beside}>
                 <Frame @sizing=ItemSize::Fixed(PANEL_WIDTH)>
                     <List direction=Direction::Horizontal spacing=0.0>
                         <Separator direction=Direction::Vertical />
-                        <OpenRow @sizing=ItemSize::Percent(100.0) data={data} row={side_row} />
+                        <OpenRow @sizing=ItemSize::Percent(100.0) data={data} row={selected} />
                     </List>
                 </Frame>
             </Show>
@@ -321,7 +320,7 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
             .map(|row| short_id(&data.prefix.get(), row.as_uuid()))
             .unwrap_or_default()
     });
-    let test_id = create_memo(move || {
+    let element_test_id = create_memo(move || {
         row.get()
             .map(|row| format!("database-view.list.row.{}", row.as_uuid()))
             .unwrap_or_default()
@@ -365,30 +364,27 @@ fn RowLine(data: Data, row: Memo<Option<ObjectId>>) -> NodeId {
     };
     let narrow = narrow_chrome();
     let wide = create_memo(move || !narrow.get());
-    let (wide_marks, wide_parts, wide_keys) = (marks, parts, part_keys);
-    let (wide_entry, narrow_entry) = (entry, entry);
-    let (wide_code, wide_title) = (code, title);
     view! {
-        <ListRow selected={selected} @test_id={test_id} on_click={pick} on_activate={pick}>
+        <ListRow selected={selected} @test_id={element_test_id} on_click={pick} on_activate={pick}>
             <List spacing=0.0>
                 <Show condition={wide}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Frame @sizing=ItemSize::Fixed(CODE_WIDTH)>
-                            <Text style=TextStyle::CAPTION string={wide_code} ellipsis=true />
+                            <Text style=TextStyle::CAPTION string={code} ellipsis=true />
                         </Frame>
-                        <Marks data={data} entry={wide_entry} marks={wide_marks} />
+                        <Marks data={data} entry={entry} marks={marks} />
                         <Text
                             @sizing={ItemSize::Percent(100.0).shrink(1.0)}
-                            string={wide_title}
+                            string={title}
                             ellipsis=true
                         />
-                        <Parts parts={wide_parts} keys={wide_keys} />
+                        <Parts parts={parts} keys={part_keys} />
                     </List>
                 </Show>
                 <Show condition={narrow}>
                     <List spacing=4.0>
                         <List direction=Direction::Horizontal align=Align::Start spacing=SPACING>
-                            <Marks data={data} entry={narrow_entry} marks={marks} />
+                            <Marks data={data} entry={entry} marks={marks} />
                             <Text @sizing=ItemSize::Percent(100.0) string={title} wrap=true />
                         </List>
                         <List

@@ -5,7 +5,7 @@ use crate::styled::*;
 #[test]
 fn a_spinner_hidden_by_a_show_stops_asking_for_frames() {
     let _root = crate::reactive::RootScope::new();
-    let (shown, set_shown) = create_signal(true);
+    let shown = create_signal(true);
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -19,10 +19,10 @@ fn a_spinner_hidden_by_a_show_stops_asking_for_frames() {
     harness.frame(Vec::new());
     assert!(harness.frame(Vec::new()).repaint_after <= Duration::from_millis(16));
 
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(false));
+    shown.set(false);
     harness.frame(Vec::new());
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
 
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(true));
+    shown.set(true);
     assert!(harness.frame(Vec::new()).repaint_after <= Duration::from_millis(16));
 }

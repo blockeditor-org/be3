@@ -8,8 +8,8 @@ use std::{
 use be_block::be_model::{Document, Field, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
 use reactive::{
-    KeyedStore, OwnedSignal, OwnedStored, ReadSignal, Stored, WriteSignal, batch, create_signal,
-    on_cleanup,
+    Get, KeyedStore, OwnedSignal, OwnedStored, ReadSignal, Set, Signal, Stored, batch,
+    create_signal, on_cleanup,
 };
 
 use crate::{EditorHost, host::ContentUpdate};
@@ -72,7 +72,7 @@ struct Projection<C: LiveEdit> {
     touched: RefCell<Vec<Touched>>,
     revision: Cell<u64>,
     announced: OwnedSignal<u64>,
-    loaded_signals: RefCell<Vec<WriteSignal<bool>>>,
+    loaded_signals: RefCell<Vec<Signal<bool>>>,
     due: RefCell<Option<Rc<dyn Fn()>>>,
     projected: RefCell<Option<Vec<Projected<C::Op>>>>,
 }
@@ -123,19 +123,19 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
     }
 
     fn loaded(&self) -> ReadSignal<bool> {
-        let (loaded, set_loaded) = create_signal(self.loaded.get());
-        self.loaded_signals.borrow_mut().push(set_loaded);
-        loaded
+        let loaded = create_signal(self.loaded.get());
+        self.loaded_signals.borrow_mut().push(loaded);
+        loaded.read_only()
     }
 
     fn revision(&self) -> Option<u64> {
-        self.announced.read().get();
+        self.announced.get();
         self.adopt_lazily();
         self.loaded.get().then(|| self.revision.get())
     }
 
     fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
-        self.announced.read().get();
+        self.announced.get();
         self.adopt_lazily();
         self.loaded.get().then(|| read(&self.visible.borrow()))
     }
@@ -144,9 +144,9 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
     where
         T: Clone + PartialEq + 'static,
     {
-        let (read, write) = create_signal(project(&self.visible.borrow()));
-        self.register(key, Rc::new(move |content, _| write.set(project(content))));
-        read
+        let read = create_signal(project(&self.visible.borrow()));
+        self.register(key, Rc::new(move |content, _| read.set(project(content))));
+        read.read_only()
     }
 
     fn register(&self, key: Option<Touched>, run: Run<C>) {
@@ -205,13 +205,13 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
             .operate_content_at(self.block, C::encode_operation(&operation));
         self.pending.borrow_mut().push_back(operation);
         self.notify();
-        self.announced.write().set(self.revision.get());
+        self.announced.set(self.revision.get());
     }
 
     fn pump(&self) {
         self.adopt();
         self.notify();
-        self.announced.write().set(self.revision.get());
+        self.announced.set(self.revision.get());
     }
 
     fn notify(&self) {
@@ -363,7 +363,7 @@ impl<C: LiveEdit + 'static> std::ops::Deref for OwnedContentProjection<C> {
 
 impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
     fn inner(&self) -> Rc<Projection<C>> {
-        self.0.get()
+        self.0.value()
     }
 
     pub fn is_alive(&self) -> bool {
@@ -503,15 +503,15 @@ where
             &[Touched::Everything],
             &Objects::default(),
         );
-        let (objects, write) = create_signal(Objects(Rc::new(first)));
+        let objects = create_signal(Objects(Rc::new(first)));
         projection.register(
             Some(Touched::Subtree(owner)),
             Rc::new(move |content, touched| {
                 let next = objects.with_untracked(|held| read(content, touched, held));
-                write.set(Objects(Rc::new(next)));
+                objects.set(Objects(Rc::new(next)));
             }),
         );
-        objects
+        objects.read_only()
     }
 
     pub fn object<T>(&self, id: ObjectId) -> ReadSignal<Option<T>>

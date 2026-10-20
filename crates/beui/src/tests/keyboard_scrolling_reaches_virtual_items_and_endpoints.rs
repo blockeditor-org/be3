@@ -7,22 +7,20 @@ use crate::unstyled::Scroll;
 fn keyboard_scrolling_reaches_virtual_items_and_endpoints() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
-                            item_size=VIRTUAL_ITEM_HEIGHT
-                        >|_: ReadSignal<usize>|
-                            <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
-                                <Spacer />
-                            </Frame>
-                        </VirtualList>
-                    </Scroll>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        keys={indices(VIRTUAL_ITEM_COUNT)}
+                        item_size=VIRTUAL_ITEM_HEIGHT
+                    >|_: ReadSignal<usize>|
+                        <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
+                            <Spacer />
+                        </Frame>
+                    </VirtualList>
+                </Scroll>
+            </List>
         }
     });
     let scroll = scroll.get();

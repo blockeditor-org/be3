@@ -352,8 +352,7 @@ impl beui::App for DemoApp {
 
 #[derive(Clone, Copy)]
 struct DragModifier {
-    held: ReadSignal<Option<Modifiers>>,
-    set: WriteSignal<Option<Modifiers>>,
+    held: Signal<Option<Modifiers>>,
 }
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
@@ -372,24 +371,22 @@ impl DemoDialog {
 
 #[derive(Clone, Copy)]
 struct DemoDialogs {
-    open: ReadSignal<Vec<DemoDialog>>,
-    set_open: WriteSignal<Vec<DemoDialog>>,
+    open: Signal<Vec<DemoDialog>>,
     next: Stored<std::cell::Cell<u64>>,
 }
 
 impl DemoDialogs {
     fn new() -> Self {
-        let (open, set_open) = create_signal(Vec::new());
+        let open = create_signal(Vec::new());
         Self {
             open,
-            set_open,
             next: store(std::cell::Cell::new(DIALOG_TABS)),
         }
     }
 
     fn open(&self, parent: TabId, modal: bool) {
         let id = TabId::new(self.next.with(|next| next.replace(next.get() + 1)));
-        self.set_open.update(|open| {
+        self.open.update(|open| {
             let depth = open
                 .iter()
                 .find(|dialog| dialog.id == parent)
@@ -404,7 +401,7 @@ impl DemoDialogs {
     }
 
     fn close(&self, id: TabId) {
-        self.set_open.update(|open| {
+        self.open.update(|open| {
             let mut closing = vec![id];
             while let Some(child) = open
                 .iter()
@@ -432,18 +429,16 @@ impl DemoDialogs {
 #[derive(Clone, Copy)]
 struct Pages {
     layout: DockingLayout<TabId>,
-    open: ReadSignal<Vec<Page>>,
-    set_open: WriteSignal<Vec<Page>>,
+    open: Signal<Vec<Page>>,
     dialogs: DemoDialogs,
 }
 
 impl Pages {
     fn new(dialogs: DemoDialogs) -> Self {
-        let (open, set_open) = create_signal(vec![Page::Docking]);
+        let open = create_signal(vec![Page::Docking]);
         Self {
             layout: DockingLayout::new(),
             open,
-            set_open,
             dialogs,
         }
     }
@@ -457,27 +452,26 @@ impl Pages {
         batch(|| match shown {
             Some(shown) if self.layout.replace(&shown.tab(), page.tab()) => {
                 self.dialogs.close_from(shown.tab());
-                self.set_open.update(|open| {
+                self.open.update(|open| {
                     for held in open.iter_mut().filter(|held| **held == shown) {
                         *held = page;
                     }
                 });
             }
-            _ => self.set_open.update(|open| open.push(page)),
+            _ => self.open.update(|open| open.push(page)),
         });
     }
 
     fn close(&self, page: Page) {
         batch(|| {
             self.dialogs.close_from(page.tab());
-            self.set_open
-                .update(|open| open.retain(|other| *other != page));
+            self.open.update(|open| open.retain(|other| *other != page));
         });
     }
 
     fn reset(&self) {
         batch(|| {
-            self.set_open.set(vec![Page::Docking]);
+            self.open.set(vec![Page::Docking]);
             self.layout.reset();
         });
     }
@@ -516,13 +510,12 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
             next.shift(),
         ),
     ] {
-        let held = modifiers;
         Action::new(id, label, move || {
             match layout.switching() {
                 true => layout.step_switch(backwards),
                 false => layout.begin_switch(backwards),
             }
-            if !held.get_untracked().alt {
+            if !modifiers.get_untracked().alt {
                 layout.commit_switch();
             }
         })
@@ -543,7 +536,7 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
 fn DemoShell() -> NodeId {
     let dialogs = DemoDialogs::new();
     let pages = Pages::new(dialogs);
-    let (mobile, set_mobile) = create_signal(false);
+    let mobile = create_signal(false);
     let narrow = narrower_than(NARROW_WIDTH);
     let mode = create_memo(move || match mobile.get() || narrow.get() {
         true => DockMode::Stacked,
@@ -553,10 +546,9 @@ fn DemoShell() -> NodeId {
     let layout = pages.layout;
     switch_tabs_with_alt_q(layout);
     let open = pages.open;
-    let (drag_modifier, set_drag_modifier) = create_signal(None);
+    let drag_modifier = create_signal(None);
     provide_context(DragModifier {
         held: drag_modifier,
-        set: set_drag_modifier,
     });
     provide_context(dialogs);
     let attached = dialogs.open;
@@ -564,7 +556,7 @@ fn DemoShell() -> NodeId {
         <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Frame padding=SHELL_PADDING>
-                    <DemoToolbar pages mobile set_mobile />
+                    <DemoToolbar pages mobile />
                 </Frame>
                 <Separator />
                 <Docking @sizing=ItemSize::Percent(100.0) layout mode drag_modifier>
@@ -707,8 +699,8 @@ fn PageView(page: Page) -> NodeId {
 }
 
 #[component]
-fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<bool>) -> NodeId {
-    let (selected_theme, set_selected_theme) = create_signal(Some(0));
+fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
+    let selected_theme = create_signal(Some(0));
     let narrow = narrower_than(NARROW_WIDTH);
     let wide = create_memo(move || !narrow.get());
     view! {
@@ -722,7 +714,7 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
                 <Checkbox
                     label="Mobile"
                     checked={mobile}
-                    on_change={move |on: bool| set_mobile.set(on)}
+                    on_change={move |on: bool| mobile.set(on)}
                 />
             </Show>
             <Select
@@ -737,7 +729,7 @@ fn DemoToolbar(pages: Pages, mobile: ReadSignal<bool>, set_mobile: WriteSignal<b
                 selected={selected_theme}
                 on_change={move |index: Option<usize>| {
                     if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
-                        set_selected_theme.set(index);
+                        selected_theme.set(index);
                         with_document(|document| document.set_theme(*theme));
                     }
                 }}

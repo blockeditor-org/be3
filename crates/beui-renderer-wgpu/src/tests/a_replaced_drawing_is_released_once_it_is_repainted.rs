@@ -30,14 +30,13 @@ impl Drop for Held {
 #[test]
 fn a_replaced_drawing_is_released_once_it_is_repainted() {
     let first = Rc::new(Cell::new(false));
-    let setter: Rc<RefCell<Option<WriteSignal<Option<beui_core::drawing::Drawing>>>>> =
-        Rc::default();
+    let setter: Rc<RefCell<Option<Signal<Option<beui_core::drawing::Drawing>>>>> = Rc::default();
     let initial = crate::drawing(Held(first.clone()));
     let mut document = build({
         let setter = setter.clone();
         move || {
-            let (drawing, set_drawing) = create_signal(Some(initial));
-            *setter.borrow_mut() = Some(set_drawing);
+            let drawing = create_signal(Some(initial));
+            *setter.borrow_mut() = Some(drawing);
             view! {
                 <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
             }
@@ -55,13 +54,11 @@ fn a_replaced_drawing_is_released_once_it_is_repainted() {
 
     let second = Rc::new(Cell::new(false));
     let next = crate::drawing(Held(second.clone()));
-    with_reactive_scope(&mut document, || {
-        setter
-            .borrow()
-            .as_ref()
-            .expect("the document was built")
-            .set(Some(next));
-    });
+    setter
+        .borrow()
+        .as_ref()
+        .expect("the document was built")
+        .set(Some(next));
     for _ in 0..2 {
         target.draw_in(
             &context,

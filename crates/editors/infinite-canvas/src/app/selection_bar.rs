@@ -48,7 +48,6 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
                         <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>|index: usize| {
                             let (name, color) = PRESETS[index];
-                            let value = value;
                             view! {
                                 <Swatch
                                     kind="color"

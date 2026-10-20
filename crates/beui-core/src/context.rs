@@ -7,6 +7,7 @@ use std::time::{Duration, Instant};
 use accesskit::{ActionRequest, TreeUpdate};
 
 use crate::accessibility::{self, Fragment};
+use crate::app::Waker;
 use crate::app::accessibility_dump::{AccessibilityDump, TestIds};
 use crate::clipboard::{PasteKind, PasteRequest};
 use crate::damage::{self, Region};
@@ -74,6 +75,7 @@ struct Inner {
     zoom: Cell<f32>,
     repaint: Cell<bool>,
     repaint_after: Cell<Duration>,
+    animating: Cell<bool>,
     previous: RefCell<Option<Previous>>,
     accessibility: RefCell<Vec<Fragment>>,
     accessibility_actions: RefCell<Vec<ActionRequest>>,
@@ -81,6 +83,9 @@ struct Inner {
     accessibility_requested: Cell<bool>,
     automated: Cell<bool>,
     unhurried: Cell<bool>,
+    waker: RefCell<Option<Waker>>,
+    in_frame: Cell<bool>,
+    zones_woken_in_frame: RefCell<Vec<u64>>,
     seen: Cell<bool>,
     actions: RefCell<Vec<ActionGroup>>,
     action_requests: RefCell<Vec<String>>,
@@ -88,6 +93,7 @@ struct Inner {
     hit_answers: RefCell<Vec<String>>,
     comps_query: Cell<Option<bool>>,
     comps_answers: RefCell<Vec<String>>,
+    overflows: RefCell<Vec<String>>,
     accessibility_known: RefCell<HashSet<u32>>,
     accessibility_published: RefCell<HashSet<u32>>,
     kept: RefCell<Option<Kept>>,
@@ -174,6 +180,7 @@ pub struct FrameOutput {
     pub file_picks: Vec<FilePickRequest>,
     pub repaint: bool,
     pub repaint_after: Duration,
+    pub animating: bool,
     pub changed: bool,
     pub damage: Region,
     pub moved: Option<Moved>,
@@ -182,6 +189,7 @@ pub struct FrameOutput {
     pub unran_actions: Vec<String>,
     pub hits: Option<Vec<String>>,
     pub comps: Option<Vec<String>>,
+    pub overflows: Vec<String>,
     pub typed: Vec<Event>,
     pixels_per_point: f32,
 }
@@ -281,6 +289,7 @@ impl Context {
                 zoom: Cell::new(1.0),
                 repaint: Cell::new(false),
                 repaint_after: Cell::new(Duration::MAX),
+                animating: Cell::new(false),
                 previous: RefCell::new(None),
                 accessibility: RefCell::new(Vec::new()),
                 accessibility_actions: RefCell::new(Vec::new()),
@@ -288,6 +297,9 @@ impl Context {
                 accessibility_requested: Cell::new(false),
                 automated: Cell::new(false),
                 unhurried: Cell::new(false),
+                waker: RefCell::new(None),
+                in_frame: Cell::new(false),
+                zones_woken_in_frame: RefCell::new(Vec::new()),
                 seen: Cell::new(true),
                 actions: RefCell::new(Vec::new()),
                 action_requests: RefCell::new(Vec::new()),
@@ -295,6 +307,7 @@ impl Context {
                 hit_answers: RefCell::new(Vec::new()),
                 comps_query: Cell::new(None),
                 comps_answers: RefCell::new(Vec::new()),
+                overflows: RefCell::new(Vec::new()),
                 accessibility_known: RefCell::new(HashSet::default()),
                 accessibility_published: RefCell::new(HashSet::default()),
                 kept: RefCell::new(Some(Kept::default())),
@@ -419,6 +432,10 @@ impl Context {
         self.inner.comps_answers.borrow_mut().push(answer);
     }
 
+    pub fn report_overflows(&self, found: &[String]) {
+        self.inner.overflows.borrow_mut().extend_from_slice(found);
+    }
+
     pub fn request_hit(&self, pos: Pos2) {
         self.inner.hit_query.set(Some(pos));
         self.inner.hit_answers.borrow_mut().clear();
@@ -494,11 +511,13 @@ impl Context {
     }
 
     pub fn begin_frame(&self, raw: RawInput) {
+        self.inner.in_frame.set(true);
         let now = self.inner.clock.get().unwrap_or_else(Instant::now);
         self.inner.now.set(now);
         self.apply_pixels_per_point();
         self.inner.repaint.set(false);
         self.inner.repaint_after.set(Duration::MAX);
+        self.inner.animating.set(false);
         self.inner.mouse_viewport.set(None);
         self.inner.shown.set(None);
         let keyboard = self.keyboard_rect();
@@ -533,11 +552,17 @@ impl Context {
         self.inner.close_requested.set(false);
         self.inner.accessibility.borrow_mut().clear();
         self.inner.actions.borrow_mut().clear();
+        self.inner.overflows.borrow_mut().clear();
         let published = std::mem::take(&mut *self.inner.accessibility_published.borrow_mut());
         *self.inner.accessibility_known.borrow_mut() = published;
     }
 
     pub fn end_frame(&self) -> FrameOutput {
+        self.inner.in_frame.set(false);
+        let woken = std::mem::take(&mut *self.inner.zones_woken_in_frame.borrow_mut());
+        if woken.into_iter().any(::reactive::zone_pending) {
+            self.request_repaint();
+        }
         if let Some(viewport) = self.inner.mouse_viewport.take() {
             self.paint_mouse_simulation(viewport);
         }
@@ -597,6 +622,7 @@ impl Context {
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
             repaint_after: self.inner.repaint_after.get(),
+            animating: self.inner.animating.get(),
             window: self.shown_window(),
             fullscreen: self.inner.fullscreen.get(),
             close_requested: self.inner.close_requested.get(),
@@ -614,6 +640,7 @@ impl Context {
                 .comps_query
                 .take()
                 .map(|_| std::mem::take(&mut *self.inner.comps_answers.borrow_mut())),
+            overflows: std::mem::take(&mut *self.inner.overflows.borrow_mut()),
             typed: self.inner.keyboard.borrow_mut().take_typed(),
             pixels_per_point: scale,
         }
@@ -888,6 +915,27 @@ impl Context {
         *self.inner.input_simulation.borrow_mut() = Some(simulation);
     }
 
+    pub fn set_waker(&self, waker: Waker) {
+        *self.inner.waker.borrow_mut() = Some(waker);
+    }
+
+    pub(crate) fn zone_waker(&self, zone: u64) -> impl Fn() + 'static {
+        let inner = Rc::downgrade(&self.inner);
+        move || {
+            let Some(inner) = inner.upgrade() else {
+                return;
+            };
+            if inner.in_frame.get() {
+                inner.zones_woken_in_frame.borrow_mut().push(zone);
+                return;
+            }
+            let waker = inner.waker.borrow().clone();
+            if let Some(waker) = waker {
+                waker.wake();
+            }
+        }
+    }
+
     pub fn request_repaint(&self) {
         self.inner.repaint.set(true);
         self.request_repaint_after(Duration::ZERO);
@@ -900,6 +948,10 @@ impl Context {
         if let Some(frame) = self.inner.paint_stack.borrow_mut().last_mut() {
             frame.delay = frame.delay.min(delay);
         }
+    }
+
+    pub fn note_animating(&self) {
+        self.inner.animating.set(true);
     }
 
     pub fn same(&self, other: &Self) -> bool {

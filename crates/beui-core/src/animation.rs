@@ -1,11 +1,12 @@
 mod fling;
 pub use fling::Fling;
 use std::cell::Cell;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::current::with_document;
 use crate::timer::{Timer, create_timer, now};
-use ::reactive::{Stored, create_effect, on_cleanup, store};
+use ::reactive::{Get, Stored, create_effect, on_cleanup, store};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Motion {
@@ -33,6 +34,7 @@ pub struct AnimationFrame {
 
 struct State {
     active: Cell<bool>,
+    running: Rc<Cell<usize>>,
     generation: Cell<u64>,
     started: Cell<Instant>,
     stepped: Cell<Instant>,
@@ -46,12 +48,13 @@ pub struct Animation(Stored<State>);
 
 impl Animation {
     pub fn start(self) {
-        let Some(state) = self.0.try_get() else {
+        let Some(state) = self.0.try_value() else {
             return;
         };
         if state.active.replace(true) {
             return;
         }
+        state.running.set(state.running.get() + 1);
         state.generation.set(state.generation.get().wrapping_add(1));
         state.started.set(now());
         state.stepped.set(now());
@@ -64,7 +67,9 @@ impl Animation {
 
     pub fn stop(self) {
         self.0.try_with(|state| {
-            state.active.set(false);
+            if state.active.replace(false) {
+                state.running.set(state.running.get() - 1);
+            }
             state.generation.set(state.generation.get().wrapping_add(1));
             if let Some(timer) = state.timer.get() {
                 timer.stop();
@@ -73,7 +78,7 @@ impl Animation {
     }
 
     pub fn finish(self) {
-        let Some(state) = self.0.try_get() else {
+        let Some(state) = self.0.try_value() else {
             return;
         };
         if !state.active.get() {
@@ -94,6 +99,7 @@ pub fn create_animation(
 ) -> Animation {
     let state = store(State {
         active: Cell::new(false),
+        running: with_document(|document| document.animations()),
         generation: Cell::new(0),
         started: Cell::new(now()),
         stepped: Cell::new(now()),
@@ -103,7 +109,7 @@ pub fn create_animation(
     });
     let animation = Animation(state);
     let timer = create_timer(move || {
-        let state = state.get();
+        let state = state.value();
         if !state.active.get() {
             return None;
         }

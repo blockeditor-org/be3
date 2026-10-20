@@ -16,29 +16,27 @@ fn sheet_shown(harness: &Harness) -> bool {
 fn a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_click() {
     let _root = crate::reactive::RootScope::new();
     let (menu, target) = (NodeRef::new(), NodeRef::new());
-    let (setter, set_setter) = create_signal(None);
-    let document = crate::reactive::build({
-        move || {
-            let (open, set_open) = create_signal(false);
-            set_setter.update(|setter| *setter = Some(set_open));
-            view! {
-                <List spacing=0.0>
-                    <Interactive @node_ref=&target on_click={move || set_open.set(true)}>
-                        <Frame width=200.0 height=100.0 />
-                    </Interactive>
-                    <ContextMenu
-                        @node_ref=&menu
-                        disabled=true
-                        open_at_pointer={open}
-                        on_close={move || set_open.set(false)}
-                        items={view! {
-                            <MenuItem label="Settings" />
-                        }}
-                    >
-                        <Frame />
-                    </ContextMenu>
-                </List>
-            }
+    let setter = create_signal(None);
+    let document = crate::reactive::build(move || {
+        let open = create_signal(false);
+        setter.update(|setter| *setter = Some(open));
+        view! {
+            <List spacing=0.0>
+                <Interactive @node_ref=&target on_click={move || open.set(true)}>
+                    <Frame width=200.0 height=100.0 />
+                </Interactive>
+                <ContextMenu
+                    @node_ref=&menu
+                    disabled=true
+                    open_at_pointer={open}
+                    on_close={move || open.set(false)}
+                    items={view! {
+                        <MenuItem label="Settings" />
+                    }}
+                >
+                    <Frame />
+                </ContextMenu>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);
@@ -75,8 +73,8 @@ fn a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_cl
     assert!(sheet_shown(&harness), "a tap opens the menu as a sheet");
     assert!(!harness.document().is_overlay_open(overlay));
 
-    let set_open = setter.get_untracked().expect("the menu was built");
-    with_reactive_scope(harness.document_mut(), || set_open.set(false));
+    let open = setter.get_untracked().expect("the menu was built");
+    open.set(false);
     harness.settle();
     assert!(
         !sheet_shown(&harness),

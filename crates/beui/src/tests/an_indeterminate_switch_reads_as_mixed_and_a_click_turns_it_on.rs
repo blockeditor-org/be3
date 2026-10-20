@@ -7,14 +7,14 @@ use crate::styled::*;
 #[test]
 fn an_indeterminate_switch_reads_as_mixed_and_a_click_turns_it_on() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let (document, [switch]) = toolbar_of(|| {
         [view! {
             <Switch
                 label="Every light"
                 on=false
                 indeterminate=true
-                on_change={move |on| set_changes.update(|changes| changes.push(on))}
+                on_change={move |on| changes.update(|changes| changes.push(on))}
             />
         }]
     });

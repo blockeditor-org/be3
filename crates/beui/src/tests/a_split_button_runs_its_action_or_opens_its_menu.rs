@@ -8,8 +8,8 @@ use crate::unstyled::MenuItem;
 #[test]
 fn a_split_button_runs_its_action_or_opens_its_menu() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
-    let (picked, set_picked) = create_signal(Vec::new());
+    let clicks = create_signal(0);
+    let picked = create_signal(Vec::new());
     let (document, [split]) = toolbar_of(|| {
         [view! {
             <SplitButton
@@ -20,8 +20,8 @@ fn a_split_button_runs_its_action_or_opens_its_menu() {
                     <MenuItem label="Run with fresh data" />
                     <MenuItem label="Install its launcher" />
                 }}
-                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
-                on_select={move |path: Vec<usize>| set_picked.update(|picked| picked.push(path))}
+                on_click={move || clicks.update(|clicks| *clicks += 1)}
+                on_select={move |path: Vec<usize>| picked.update(|picked| picked.push(path))}
             />
         }]
     });

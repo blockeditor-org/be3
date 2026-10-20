@@ -13,30 +13,28 @@ const ROW_HEIGHT: f32 = 20.0;
 fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
     let _root = crate::reactive::RootScope::new();
     let thumb = NodeRef::new();
-    let document = build({
-        move || {
-            let (position, set_position) = create_signal(ScrollPosition::ZERO);
-            view! {
-                <List spacing=0.0>
-                    <Offset
-                        @sizing=ItemSize::Percent(100.0)
-                        on_change={move |reported| set_position.set(reported)}
-                    >
-                        <VirtualList
-                            keys={indices(ROWS)}
-                            item_size=ROW_HEIGHT
-                        >|index: ReadSignal<usize>|
-                            <Frame height=ROW_HEIGHT>
-                                <Text
-                                    string={create_memo(move || format!("Row {}", index.get()))}
-                                    color=Color32::WHITE
-                                />
-                            </Frame>
-                        </VirtualList>
-                    </Offset>
-                    <Scrollbar @sizing=ItemSize::Fixed(BAR_HEIGHT) @node_ref=&thumb position />
-                </List>
-            }
+    let document = build(move || {
+        let position = create_signal(ScrollPosition::ZERO);
+        view! {
+            <List spacing=0.0>
+                <Offset
+                    @sizing=ItemSize::Percent(100.0)
+                    on_change={move |reported| position.set(reported)}
+                >
+                    <VirtualList
+                        keys={indices(ROWS)}
+                        item_size=ROW_HEIGHT
+                    >|index: ReadSignal<usize>|
+                        <Frame height=ROW_HEIGHT>
+                            <Text
+                                string={create_memo(move || format!("Row {}", index.get()))}
+                                color=Color32::WHITE
+                            />
+                        </Frame>
+                    </VirtualList>
+                </Offset>
+                <Scrollbar @sizing=ItemSize::Fixed(BAR_HEIGHT) @node_ref=&thumb position />
+            </List>
         }
     });
 

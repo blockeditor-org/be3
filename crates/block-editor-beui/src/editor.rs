@@ -56,17 +56,17 @@ impl Artifacts {
     }
 
     pub fn settings(&self) -> ReadSignal<Vec<u8>> {
-        self.0.settings.read()
+        self.0.settings.read_only()
     }
 
     pub fn edit_settings(&self, data: Vec<u8>) {
-        self.0.settings.write().set(data.clone());
+        self.0.settings.set(data.clone());
         *self.0.edit.borrow_mut() = Some(data);
     }
 
     pub fn receive_settings(&self, data: &[u8]) {
-        if self.0.settings.read().get_untracked() != data {
-            self.0.settings.write().set(data.to_vec());
+        if self.0.settings.get_untracked() != data {
+            self.0.settings.set(data.to_vec());
         }
     }
 
@@ -249,8 +249,7 @@ struct ChildRecord {
     rotation: Prop<f32>,
     opacity: Prop<f32>,
     intrinsic: Prop<Option<Vec2>>,
-    state: WriteSignal<ChildState>,
-    read: ReadSignal<ChildState>,
+    state: Signal<ChildState>,
     report: Callback<ChildState>,
     view_change: Callback<ViewChange>,
     bar: Callback<BarAction>,
@@ -266,7 +265,7 @@ struct PendingPick {
 
 type Revision = OwnedSignal<u64>;
 
-type Wake = (Arc<AtomicU64>, WriteSignal<u64>);
+type Wake = (Arc<AtomicU64>, Signal<u64>);
 
 fn watch_replies(replies: ReadSignal<u64>, replied: impl Fn() + 'static) {
     create_effect(move || {
@@ -283,16 +282,16 @@ impl Mirror {
     }
 
     fn watch(&self, pushed: Pushed) -> ReadSignal<u64> {
-        self.0[pushed as usize].read()
+        self.0[pushed as usize].read_only()
     }
 
     fn track(&self, pushed: Pushed) {
-        self.0[pushed as usize].read().get();
+        self.0[pushed as usize].get();
     }
 
     fn sync(&self, host: &EditorHost) {
         for pushed in Pushed::ALL {
-            self.0[pushed as usize].write().set(host.revision(pushed));
+            self.0[pushed as usize].set(host.revision(pushed));
         }
     }
 }
@@ -363,20 +362,20 @@ impl OwnedEditor {
     ) -> Self {
         defer_graph_changes(&host);
         let owner = RootScope::new();
-        let (canvas, set_canvas) = create_signal(None::<CanvasView>);
-        let (world, set_world) = create_signal(None::<Vec2>);
-        let (scale, set_scale) = create_signal(1.0_f32);
-        let (chrome, set_chrome) = create_signal(true);
-        let (placed_content, set_placed_content) = create_signal(None::<Rect>);
-        let (editable, set_editable) = create_signal(host.editable());
-        let (presenting, set_presenting) = create_signal(false);
-        let (drag, set_drag) = create_signal(None::<Drag>);
-        let (pixels_per_point, set_pixels_per_point) = create_signal(1.0_f32);
-        let (resized, set_resized) = create_signal(None::<Vec2>);
-        let (presence_visible, set_presence_visible) = create_signal(false);
-        let (revealed, set_revealed) = create_signal(None::<u64>);
-        let (files, set_files) = create_signal(None::<FileDrop>);
-        let (placed, set_placed) = create_signal(Rect::ZERO);
+        let canvas = create_signal(None::<CanvasView>);
+        let world = create_signal(None::<Vec2>);
+        let scale = create_signal(1.0_f32);
+        let chrome = create_signal(true);
+        let placed_content = create_signal(None::<Rect>);
+        let editable = create_signal(host.editable());
+        let presenting = create_signal(false);
+        let drag = create_signal(None::<Drag>);
+        let pixels_per_point = create_signal(1.0_f32);
+        let resized = create_signal(None::<Vec2>);
+        let presence_visible = create_signal(false);
+        let revealed = create_signal(None::<u64>);
+        let files = create_signal(None::<FileDrop>);
+        let placed = create_signal(Rect::ZERO);
         let pushed = Mirror::new(&host);
         let state = OwnedStored::new(EditorState {
             _scope: owner.into_scope(),
@@ -390,26 +389,14 @@ impl OwnedEditor {
             chrome,
             placed_content,
             editable,
-            set_canvas,
-            set_world,
-            set_scale,
-            set_chrome,
-            set_placed_content,
-            set_editable,
             presenting,
-            set_presenting,
             drag,
-            set_drag,
             pixels_per_point,
-            set_pixels_per_point,
             resized,
-            set_resized,
             pending_resize: Cell::new(None),
             presence_visible,
-            set_presence_visible,
             pending_presence: Cell::new(None),
             revealed,
-            set_revealed,
             pending_reveal: Cell::new(None),
             replace: RefCell::new(None),
             content: RefCell::new(None),
@@ -426,9 +413,7 @@ impl OwnedEditor {
             pushed,
             host_values: RefCell::default(),
             files,
-            set_files,
             placed,
-            set_placed,
         });
         Self {
             editor: Editor(state.handle()),
@@ -459,32 +444,20 @@ struct EditorState {
     beui: Rc<Cell<BeuiScale>>,
     block: Uuid,
     roots: RefCell<Option<BlockList>>,
-    canvas: ReadSignal<Option<CanvasView>>,
-    world: ReadSignal<Option<Vec2>>,
-    scale: ReadSignal<f32>,
-    chrome: ReadSignal<bool>,
-    placed_content: ReadSignal<Option<Rect>>,
-    editable: ReadSignal<bool>,
-    set_canvas: WriteSignal<Option<CanvasView>>,
-    set_world: WriteSignal<Option<Vec2>>,
-    set_scale: WriteSignal<f32>,
-    set_chrome: WriteSignal<bool>,
-    set_placed_content: WriteSignal<Option<Rect>>,
-    set_editable: WriteSignal<bool>,
-    presenting: ReadSignal<bool>,
-    set_presenting: WriteSignal<bool>,
-    drag: ReadSignal<Option<Drag>>,
-    set_drag: WriteSignal<Option<Drag>>,
-    pixels_per_point: ReadSignal<f32>,
-    set_pixels_per_point: WriteSignal<f32>,
-    resized: ReadSignal<Option<Vec2>>,
-    set_resized: WriteSignal<Option<Vec2>>,
+    canvas: Signal<Option<CanvasView>>,
+    world: Signal<Option<Vec2>>,
+    scale: Signal<f32>,
+    chrome: Signal<bool>,
+    placed_content: Signal<Option<Rect>>,
+    editable: Signal<bool>,
+    presenting: Signal<bool>,
+    drag: Signal<Option<Drag>>,
+    pixels_per_point: Signal<f32>,
+    resized: Signal<Option<Vec2>>,
     pending_resize: Cell<Option<Vec2>>,
-    presence_visible: ReadSignal<bool>,
-    set_presence_visible: WriteSignal<bool>,
+    presence_visible: Signal<bool>,
     pending_presence: Cell<Option<bool>>,
-    revealed: ReadSignal<Option<u64>>,
-    set_revealed: WriteSignal<Option<u64>>,
+    revealed: Signal<Option<u64>>,
     pending_reveal: Cell<Option<u64>>,
     replace: RefCell<Option<ReplaceChild>>,
     content: RefCell<Option<(NodeRef, u64)>>,
@@ -500,15 +473,13 @@ struct EditorState {
     wakes: Rc<RefCell<Vec<Wake>>>,
     pushed: Mirror,
     host_values: RefCell<std::collections::HashMap<&'static str, Revision>>,
-    files: ReadSignal<Option<FileDrop>>,
-    set_files: WriteSignal<Option<FileDrop>>,
-    placed: ReadSignal<Rect>,
-    set_placed: WriteSignal<Rect>,
+    files: Signal<Option<FileDrop>>,
+    placed: Signal<Rect>,
 }
 
 impl Editor {
     fn state(&self) -> Rc<EditorState> {
-        self.0.get()
+        self.0.value()
     }
 
     pub fn host(&self) -> EditorHost {
@@ -529,7 +500,7 @@ impl Editor {
     }
 
     pub fn editable(&self) -> ReadSignal<bool> {
-        self.state().editable
+        self.state().editable.read_only()
     }
 
     pub fn read_only(&self) -> Memo<bool> {
@@ -625,19 +596,19 @@ impl Editor {
             .borrow()
             .get(&None)
             .and_then(|held| held.downcast_ref::<OwnedSignal<Option<RawContent>>>())
-            .map(OwnedSignal::read);
+            .map(|owned| owned.read_only());
         if let Some(read) = cached {
             return read;
         }
         let owned = OwnedSignal::new(None::<RawContent>);
-        let (read, write) = (owned.read(), owned.write());
+        let raw = owned.handle();
         let host = state.host.clone();
         state.contents.pumps.borrow_mut().insert(
             None,
             Rc::new(move || {
                 for update in host.take_content_updates(None) {
                     match update {
-                        crate::ContentUpdate::Snapshot(content) => write.set(Some(RawContent {
+                        crate::ContentUpdate::Snapshot(content) => raw.set(Some(RawContent {
                             content_type: content.content_type,
                             bytes: content.bytes,
                         })),
@@ -652,7 +623,7 @@ impl Editor {
             .projections
             .borrow_mut()
             .insert(None, Box::new(owned));
-        read
+        raw.read_only()
     }
 
     fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
@@ -706,11 +677,11 @@ impl Editor {
 
     pub fn woken(&self) -> (Waker, ReadSignal<u64>) {
         let count = Arc::new(AtomicU64::new(0));
-        let (woken, set_woken) = create_signal(0);
+        let woken = create_signal(0);
         self.state()
             .wakes
             .borrow_mut()
-            .push((Arc::clone(&count), set_woken));
+            .push((Arc::clone(&count), woken));
         let wakes = Rc::downgrade(&self.state().wakes);
         let counted = Arc::clone(&count);
         on_cleanup(move || {
@@ -720,7 +691,7 @@ impl Editor {
                     .retain(|(held, _)| !Arc::ptr_eq(held, &counted));
             }
         });
-        (self.state().host.waker().counting(count), woken)
+        (self.state().host.waker().counting(count), woken.read_only())
     }
 
     pub fn audio(&self) -> Memo<AudioStatus> {
@@ -810,7 +781,7 @@ impl Editor {
             .borrow_mut()
             .entry(key)
             .or_insert_with(|| OwnedSignal::new(host.host_value_revision(key)))
-            .read()
+            .read_only()
     }
 
     pub fn act<A: HostAction>(&self, action: A) {
@@ -822,31 +793,31 @@ impl Editor {
     }
 
     pub fn files(&self) -> ReadSignal<Option<FileDrop>> {
-        self.state().files
+        self.state().files.read_only()
     }
 
     pub fn canvas(&self) -> ReadSignal<Option<CanvasView>> {
-        self.state().canvas
+        self.state().canvas.read_only()
     }
 
     pub fn world(&self) -> ReadSignal<Option<Vec2>> {
-        self.state().world
+        self.state().world.read_only()
     }
 
     pub fn scale(&self) -> ReadSignal<f32> {
-        self.state().scale
+        self.state().scale.read_only()
     }
 
     pub fn chrome_shown(&self) -> ReadSignal<bool> {
-        self.state().chrome
+        self.state().chrome.read_only()
     }
 
     pub fn placed_content(&self) -> ReadSignal<Option<Rect>> {
-        self.state().placed_content
+        self.state().placed_content.read_only()
     }
 
     pub fn presenting(&self) -> ReadSignal<bool> {
-        self.state().presenting
+        self.state().presenting.read_only()
     }
 
     pub fn present(&self, presenting: bool) {
@@ -905,7 +876,7 @@ impl Editor {
         focus: Callback<()>,
     ) -> ReadSignal<ChildState> {
         let editor_state = self.state();
-        let (state, set_state) = create_signal(ChildState::default());
+        let state = create_signal(ChildState::default());
         let key = editor_state.next_child.get();
         editor_state.next_child.set(key + 1);
         editor_state.children.borrow_mut().push((
@@ -920,8 +891,7 @@ impl Editor {
                 rotation,
                 opacity,
                 intrinsic,
-                state: set_state,
-                read: state,
+                state,
                 report,
                 view_change,
                 bar,
@@ -939,7 +909,7 @@ impl Editor {
                     .retain(|(other, _)| *other != key);
             });
         });
-        state
+        state.read_only()
     }
 
     fn records(&self) -> Vec<Rc<ChildRecord>> {
@@ -977,15 +947,15 @@ impl Editor {
     }
 
     pub fn placed(&self) -> ReadSignal<Rect> {
-        self.state().placed
+        self.state().placed.read_only()
     }
 
     pub fn pixels_per_point(&self) -> ReadSignal<f32> {
-        self.state().pixels_per_point
+        self.state().pixels_per_point.read_only()
     }
 
     pub fn resized(&self) -> ReadSignal<Option<Vec2>> {
-        self.state().resized
+        self.state().resized.read_only()
     }
 
     pub fn report_resize(&self, size: Vec2) {
@@ -1001,7 +971,7 @@ impl Editor {
     where
         P: PresenceKind + Clone + PartialEq + 'static,
     {
-        let (peers, set_peers) = create_signal(Vec::new());
+        let peers = create_signal(Vec::new());
         let host = self.state().host.clone();
         let revision = self.pushed(Pushed::Peers);
         let seen = Cell::new(0);
@@ -1020,13 +990,13 @@ impl Editor {
                         .map(|value| (peer.client, value))
                 })
                 .collect();
-            set_peers.set(decoded);
+            peers.set(decoded);
         });
-        peers
+        peers.read_only()
     }
 
     pub fn presence_visible(&self) -> ReadSignal<bool> {
-        self.state().presence_visible
+        self.state().presence_visible.read_only()
     }
 
     pub fn report_presence_visible(&self, visible: bool) {
@@ -1034,7 +1004,7 @@ impl Editor {
     }
 
     pub fn revealed(&self) -> ReadSignal<Option<u64>> {
-        self.state().revealed
+        self.state().revealed.read_only()
     }
 
     pub fn report_reveal(&self, client_id: u64) {
@@ -1051,7 +1021,7 @@ impl Editor {
     }
 
     pub fn drag(&self) -> ReadSignal<Option<Drag>> {
-        self.state().drag
+        self.state().drag.read_only()
     }
 
     pub fn accept_drag(&self, accepted: bool) {
@@ -1131,24 +1101,24 @@ impl Editor {
                 .host_values
                 .borrow()
                 .iter()
-                .map(|(key, revision)| (*key, revision.write()))
+                .map(|(key, revision)| (*key, revision.handle()))
                 .collect();
             for (key, revision) in keys {
                 revision.set(state.host.host_value_revision(key));
             }
             state
-                .set_files
+                .files
                 .set(state.host.files().map(|files| crate::FileDrop {
                     position: Pos2::new(files.position.x * ratio, files.position.y * ratio),
                     ..files
                 }));
-            state.set_chrome.set(state.host.chrome_shown());
+            state.chrome.set(state.host.chrome_shown());
             state
-                .set_placed_content
+                .placed_content
                 .set(state.host.placed_content().map(|rect| rect.scaled(ratio)));
-            state.set_editable.set(state.host.editable());
-            state.set_presenting.set(state.host.presenting());
-            state.set_drag.set(state.host.drag().map(|drag| Drag {
+            state.editable.set(state.host.editable());
+            state.presenting.set(state.host.presenting());
+            state.drag.set(state.host.drag().map(|drag| Drag {
                 position: Pos2::new(drag.position.x * ratio, drag.position.y * ratio),
                 block_id: drag.block_id,
                 block_type: drag.block_type,
@@ -1157,24 +1127,24 @@ impl Editor {
         }
         let rect = state.content_rect.get();
         if pushed || state.shown_rect.replace(Some(rect)) != Some(rect) {
-            state.set_placed.set(rect);
+            state.placed.set(rect);
             let scale = self.view_scale();
             let divisor = scale.max(f32::EPSILON);
-            state.set_canvas.set(self.view_canvas());
-            state.set_world.set(
+            state.canvas.set(self.view_canvas());
+            state.world.set(
                 self.view_rect()
                     .map(|rect| Vec2::new(rect.width() / divisor, rect.height() / divisor)),
             );
-            state.set_scale.set(scale);
+            state.scale.set(scale);
         }
         state
-            .set_pixels_per_point
+            .pixels_per_point
             .set(state.beui.get().pixels_per_point);
-        state.set_resized.set(state.pending_resize.take());
+        state.resized.set(state.pending_resize.take());
         if let Some(visible) = state.pending_presence.take() {
-            state.set_presence_visible.set(visible);
+            state.presence_visible.set(visible);
         }
-        state.set_revealed.set(state.pending_reveal.take());
+        state.revealed.set(state.pending_reveal.take());
         if pushed || state.children_moved.take() {
             self.follow_children();
         }
@@ -1214,7 +1184,7 @@ impl Editor {
                 }
             }
             let state = ChildState::of(&state.host, record.child.get());
-            if record.read.get_untracked() == state {
+            if record.state.get_untracked() == state {
                 continue;
             }
             record.state.set(state.clone());
@@ -1281,19 +1251,19 @@ impl Editor {
         let node = record.slot.node()?;
         let rect = document.node_rect(node)?;
         let placement = record.slot.placement()?;
-        let content = record.content.peek()?;
+        let content = record.content.get_untracked()?;
         let unscale = self.ratio().recip();
         Some(state.host.place_child(
             content.wire(),
             rect.scaled(unscale),
             placement.clip.scaled(unscale),
-            record.mode.peek(),
-            record.layer.peek(),
-            record.own_frame.peek(),
-            record.top_bar.peek(),
-            record.rotation.peek(),
-            record.opacity.peek(),
-            record.intrinsic.peek(),
+            record.mode.get_untracked(),
+            record.layer.get_untracked(),
+            record.own_frame.get_untracked(),
+            record.top_bar.get_untracked(),
+            record.rotation.get_untracked(),
+            record.opacity.get_untracked(),
+            record.intrinsic.get_untracked(),
         ))
     }
 }
@@ -1400,17 +1370,11 @@ impl Editor {
                     )
                 })
                 .unwrap_or_default();
-            be_block::layered(
-                layers
-                    .defaults
-                    .into_iter()
-                    .chain(layers.own)
-                    .filter_map(|block| {
-                        editor
-                            .content_of::<be_block::be_model::Document<R>>(block)
-                            .read(|content| content.root())
-                    }),
-            )
+            be_block::layered(layers.bottom_up().into_iter().filter_map(|block| {
+                editor
+                    .content_of::<be_block::be_model::Document<R>>(block)
+                    .read(|content| content.root())
+            }))
         })
     }
 
@@ -1480,6 +1444,11 @@ impl crate::root_settings::SettingsGraph for Editor {
 
     fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {
         self.content_of::<be_block::SettingsContent>(block)
+            .operate(edit);
+    }
+
+    fn edit_settings_profile(&self, block: Uuid, edit: be_block::Edit) {
+        self.content_of::<be_block::SettingsProfileContent>(block)
             .operate(edit);
     }
 }

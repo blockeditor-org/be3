@@ -1,3 +1,4 @@
+use reactive::Get;
 use std::cell::Cell;
 
 use beui_core::base::Direction;
@@ -48,7 +49,7 @@ impl State {
             });
         }
         let main = state.main();
-        let trees: Vec<_> = self.panes.get().borrow().keys().copied().collect();
+        let trees: Vec<_> = self.panes.value().borrow().keys().copied().collect();
         let layouts: Vec<DockLayout> = trees
             .into_iter()
             .filter_map(|tree| {

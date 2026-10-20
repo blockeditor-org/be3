@@ -1,0 +1,12 @@
+[package]
+name = "beui-html"
+description = "HTML string rendering with beui-tree components and ordinary CSS"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui-tree = { path = "../beui-tree" }
+
+[lints]
+workspace = true

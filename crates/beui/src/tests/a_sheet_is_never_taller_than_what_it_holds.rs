@@ -6,20 +6,18 @@ fn a_sheet_is_never_taller_than_what_it_holds() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let rows = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @sizing=ItemSize::Percent(100.0) />
-                    <styled::Sheet @node_ref=&sheet extent=600.0 rest=0.9 on_close={|| ()}>
-                        <List @node_ref=&rows spacing=0.0>
-                            <ForEach keys={indices(3)}>|_: usize|
-                                <Frame height=SHEET_ROW_HEIGHT />
-                            </ForEach>
-                        </List>
-                    </styled::Sheet>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @sizing=ItemSize::Percent(100.0) />
+                <styled::Sheet @node_ref=&sheet extent=600.0 rest=0.9 on_close={|| ()}>
+                    <List @node_ref=&rows spacing=0.0>
+                        <ForEach keys={indices(3)}>|_: usize|
+                            <Frame height=SHEET_ROW_HEIGHT />
+                        </ForEach>
+                    </List>
+                </styled::Sheet>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));

@@ -27,14 +27,13 @@ pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
         PhoneSheet::Details(_) | PhoneSheet::Closed => None,
     });
     let open = create_memo(move || shown.get().is_some());
-    let closing = workspace;
     view! {
         <ModalSheet
             open={open}
             rest={SHEET_STOPS[1]}
             on_close={move || {
                 if let Some(tab) = shown.get_untracked() {
-                    closing.dismiss_sheet(PhoneSheet::Details(tab));
+                    workspace.dismiss_sheet(PhoneSheet::Details(tab));
                 }
             }}
         >
@@ -56,10 +55,10 @@ pub(crate) fn DetailsSheet(workspace: Workspace, tab: TabId) -> NodeId {
 
 #[component]
 fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
-    let (info, set_info) = create_signal(None::<Info>);
+    let info = create_signal(None::<Info>);
     let watched = RefCell::new(Watched::default());
     create_effect(move || {
-        set_info.set(read_info(&workspace, tab, &watched));
+        info.set(read_info(&workspace, tab, &watched));
     });
     let name = create_memo(move || {
         info.with(|info| {

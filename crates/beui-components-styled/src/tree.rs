@@ -70,6 +70,8 @@ pub struct TreeMenu {
     pub on_select: Callback<Vec<usize>>,
 }
 
+impl ChildValue for TreeMenu {}
+
 pub struct TreeRowFace<K> {
     pub key: K,
     pub item: Memo<TreeItem>,
@@ -106,7 +108,6 @@ where
     let rows = NodeRef::new();
     let viewport = NodeRef::new();
     set_component_state(Parts { rows });
-    let tracked = rows;
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
     let menu = Func::new(move |key: K| menu.and_then(|menu| menu.call(key)));
     view! {
@@ -114,7 +115,7 @@ where
             <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
                 <Frame padding=padding>
                     <unstyled::Tree
-                        @node_ref={&tracked}
+                        @node_ref={&rows}
                         keys
                         item
                         selected
@@ -235,14 +236,14 @@ where
     let body = match menu {
         None => area,
         Some(TreeMenu { items, on_select }) => {
-            let (menu_at, set_menu_at) = create_signal(None::<Pos2>);
+            let menu_at = create_signal(None::<Pos2>);
             let more = more_id(&named);
             view! {
                 <ContextMenu
                     child_size=ItemSize::Percent(100.0)
                     items
                     open_at={menu_at}
-                    on_close={move || set_menu_at.set(None)}
+                    on_close={move || menu_at.set(None)}
                     on_select
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -250,7 +251,7 @@ where
                         <RowMenuButton
                             named={more}
                             sized={sized}
-                            on_open={move |at: Pos2| set_menu_at.set(Some(at))}
+                            on_open={move |at: Pos2| menu_at.set(Some(at))}
                         />
                     </List>
                 </ContextMenu>
@@ -365,11 +366,9 @@ fn Chevron(
                     item
                     toggle={toggle}
                     button_test_id=named
-                >|handle: TreeToggleHandle| {
-                    view! {
-                        <ChevronFace handle item marked={marked} sized={sized} />
-                    }
-                }</unstyled::TreeToggle>
+                >|handle: TreeToggleHandle|
+                    <ChevronFace handle item marked={marked} sized={sized} />
+                </unstyled::TreeToggle>
             </List>
         </Frame>
     }

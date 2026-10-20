@@ -7,14 +7,12 @@ fn a_lone_child_fills_a_children_prop_as_a_run_of_one() {
     let _root = crate::reactive::RootScope::new();
     let column = NodeRef::new();
     let only = NodeRef::new();
-    let document = build({
-        move || {
-            let lone = view! {
-                <Text @node_ref=&only string="One" color=Color32::WHITE />
-            };
-            view! {
-                <List @node_ref=&column spacing=0.0 children={lone} />
-            }
+    let document = build(move || {
+        let lone = view! {
+            <Text @node_ref=&only string="One" color=Color32::WHITE />
+        };
+        view! {
+            <List @node_ref=&column spacing=0.0 children={lone} />
         }
     });
 

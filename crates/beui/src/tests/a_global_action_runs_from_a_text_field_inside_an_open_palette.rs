@@ -7,31 +7,31 @@ use crate::unstyled::command_palette_shown;
 #[test]
 fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
     let _root = crate::reactive::RootScope::new();
-    let (ran, set_ran) = create_signal(Vec::new());
+    let ran = create_signal(Vec::new());
     let palette = NodeRef::new();
     let document = build(move || {
         Action::new("test.lock", "Lock screen", move || {
-            set_ran.update(|ran| ran.push("lock"))
+            ran.update(|ran| ran.push("lock"))
         })
         .shortcut(Chord::logo(Key::L))
         .at(KeyAt::Window)
         .register();
         Action::new("test.louder", "Volume up", move || {
-            set_ran.update(|ran| ran.push("louder"))
+            ran.update(|ran| ran.push("louder"))
         })
         .shortcut(Chord::key(Key::VolumeUp))
         .at(KeyAt::Window)
         .register();
         Action::new("test.typed", "Line tool", move || {
-            set_ran.update(|ran| ran.push("typed"))
+            ran.update(|ran| ran.push("typed"))
         })
         .shortcut(Chord::key(Key::L))
         .at(KeyAt::Window)
         .register();
-        let (open, set_open) = create_signal(true);
+        let open = create_signal(true);
         view! {
             <List spacing=0.0>
-                <CommandPalette @node_ref=&palette open on_close={move || set_open.set(false)} />
+                <CommandPalette @node_ref=&palette open on_close={move || open.set(false)} />
             </List>
         }
     });

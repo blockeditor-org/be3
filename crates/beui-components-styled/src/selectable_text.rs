@@ -19,14 +19,14 @@ pub fn SelectableText(
     set_component_state(state);
     let color = create_memo(move || theme.accent_soft.get());
     let handle_color = create_memo(move || theme.accent.get());
-    let (toolbar_at, set_toolbar_at) = create_signal(None::<Rect>);
+    let toolbar_at = create_signal(None::<Rect>);
     view! {
         <ContextMenu
             child_size
             selection=true
             toolbar_at
             opens_on_hold=false
-            on_toolbar_close={move || set_toolbar_at.set(None)}
+            on_toolbar_close={move || toolbar_at.set(None)}
             items={view! {
                 <MenuItem label="Copy" />
                 <MenuItem label="Select All" />
@@ -41,7 +41,7 @@ pub fn SelectableText(
                 state
                 color
                 handle_color
-                on_toolbar={move |at: Option<Rect>| set_toolbar_at.set(at)}
+                on_toolbar={move |at: Option<Rect>| toolbar_at.set(at)}
             >
                 {children}
             </unstyled::Selectable>

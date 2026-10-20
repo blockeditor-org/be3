@@ -10,27 +10,25 @@ const ACTUAL: f32 = 30.0;
 fn a_virtual_list_in_a_box_taller_than_its_rows_builds_every_row() {
     let _root = crate::reactive::RootScope::new();
     let list = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0)>
-                        <Frame height={Extent::at_least(VIEWPORT.y)}>
-                            <List spacing=0.0>
-                                <VirtualList
-                                    @node_ref=&list
-                                    keys={indices(ROWS)}
-                                    item_size=ESTIMATE
-                                >|_: ReadSignal<usize>|
-                                    <Frame height=ACTUAL>
-                                        <Spacer />
-                                    </Frame>
-                                </VirtualList>
-                            </List>
-                        </Frame>
-                    </Offset>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0)>
+                    <Frame height={Extent::at_least(VIEWPORT.y)}>
+                        <List spacing=0.0>
+                            <VirtualList
+                                @node_ref=&list
+                                keys={indices(ROWS)}
+                                item_size=ESTIMATE
+                            >|_: ReadSignal<usize>|
+                                <Frame height=ACTUAL>
+                                    <Spacer />
+                                </Frame>
+                            </VirtualList>
+                        </List>
+                    </Frame>
+                </Offset>
+            </List>
         }
     });
     let list = list.get();

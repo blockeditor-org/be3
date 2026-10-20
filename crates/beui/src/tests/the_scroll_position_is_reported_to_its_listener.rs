@@ -5,13 +5,13 @@ use crate::reactive::*;
 #[test]
 fn the_scroll_position_is_reported_to_its_listener() {
     let _root = crate::reactive::RootScope::new();
-    let (reported, set_reported) = create_signal(None);
+    let reported = create_signal(None);
     let document = build(move || {
         view! {
             <List spacing=0.0>
                 <Offset
                     @sizing=ItemSize::Percent(100.0)
-                    on_change={move |position| set_reported.set(Some(position))}
+                    on_change={move |position| reported.set(Some(position))}
                 >
                     <List spacing=0.0>
                         <ForEach keys={indices(100)}>|index: usize|

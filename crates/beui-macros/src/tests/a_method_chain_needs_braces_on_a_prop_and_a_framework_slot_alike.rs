@@ -15,7 +15,7 @@ fn a_method_chain_needs_braces_on_a_prop_and_a_framework_slot_alike() {
         errors,
         [
             "wrap a value that goes on past a literal, a path or a call in braces: `width={...}`",
-            "wrap a value that goes on past a literal, a path or a call in braces: `sizing={...}`",
+            "wrap a modifier value that goes on past a literal, a path or a call in braces",
         ]
     );
     assert!(syn::parse2::<View>(quote! { <Frame width={Width::default().get()} /> }).is_ok());

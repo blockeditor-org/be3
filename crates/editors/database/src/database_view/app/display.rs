@@ -262,13 +262,12 @@ fn AxisPickers(data: Data) -> NodeId {
     let pick_y = move |field: Option<Uuid>| {
         data.operate_view(DatabaseView::set_scatter_y(field));
     };
-    let (x_options, y_options) = (options, options);
     let (x_chosen, y_chosen) = (data.scatter_x, data.scatter_y);
     view! {
         <List spacing=SPACING>
             <Labelled label="X axis">
                 <FieldPicker
-                    options={x_options}
+                    options={options}
                     chosen={x_chosen}
                     none="None"
                     label="X axis"
@@ -278,7 +277,7 @@ fn AxisPickers(data: Data) -> NodeId {
             </Labelled>
             <Labelled label="Y axis">
                 <FieldPicker
-                    options={y_options}
+                    options={options}
                     chosen={y_chosen}
                     none="None"
                     label="Y axis"
@@ -386,7 +385,6 @@ pub fn FieldPicker(
             .with(|options| options.iter().position(|field| field.id == chosen))
             .map(|index| index + 1),
     });
-    let names = options;
     let picked = move |index: Option<usize>| {
         let field = match index {
             None | Some(0) => None,
@@ -402,7 +400,7 @@ pub fn FieldPicker(
                 <ForEach keys={keys}>|index: usize| {
                     let name = create_memo(move || match index {
                         0 => none.to_owned(),
-                        index => names.with(|options| {
+                        index => options.with(|options| {
                             options.get(index - 1).map_or_else(String::new, |field| field.name.clone())
                         }),
                     });

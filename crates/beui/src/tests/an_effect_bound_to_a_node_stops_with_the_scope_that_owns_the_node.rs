@@ -6,9 +6,9 @@ use crate::styled::*;
 #[test]
 fn an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node() {
     let _root = crate::reactive::RootScope::new();
-    let (label, set_label) = create_signal("one".to_owned());
-    let (runs, set_runs) = create_signal(0);
-    let (_, set_owner) = create_signal::<Option<Scope>>(None);
+    let label = create_signal("one".to_owned());
+    let runs = create_signal(0);
+    let owner = create_signal::<Option<Scope>>(None);
     let (document, [caption]) = toolbar_of(move || {
         let scope = Scope::new();
         let caption = scope.run(|| {
@@ -16,10 +16,10 @@ fn an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node() {
                 <Text style=TextStyle::CAPTION string="Caption" />
             }
         });
-        set_owner.update(|owner| *owner = Some(scope));
+        owner.update(|owner| *owner = Some(scope));
         bind(caption, move || {
             label.get();
-            set_runs.update(|runs| *runs += 1);
+            runs.update(|runs| *runs += 1);
         });
         [caption]
     });
@@ -31,10 +31,10 @@ fn an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node() {
 
     harness.document_mut().remove_child(list, caption);
     with_installed(harness.document_mut(), |_| {
-        drop(set_owner.update(std::mem::take))
+        drop(owner.update(std::mem::take))
     });
     assert!(!harness.document().contains(caption));
-    with_installed(harness.document_mut(), |_| set_label.set("two".to_owned()));
+    with_installed(harness.document_mut(), |_| label.set("two".to_owned()));
     assert_eq!(
         runs.get_untracked(),
         1,

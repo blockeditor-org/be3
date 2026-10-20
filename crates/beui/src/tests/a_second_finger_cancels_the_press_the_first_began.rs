@@ -5,18 +5,16 @@ use crate::reactive::*;
 #[test]
 fn a_second_finger_cancels_the_press_the_first_began() {
     let _root = crate::reactive::RootScope::new();
-    let (cancelled, set_cancelled) = create_signal(0);
-    let (clicked, set_clicked) = create_signal(false);
-    let document = build({
-        move || {
-            view! {
-                <Interactive
-                    on_cancel={move || set_cancelled.update(|cancelled| *cancelled += 1)}
-                    on_click={move || set_clicked.set(true)}
-                >
-                    <Frame width=300.0 height=300.0 />
-                </Interactive>
-            }
+    let cancelled = create_signal(0);
+    let clicked = create_signal(false);
+    let document = build(move || {
+        view! {
+            <Interactive
+                on_cancel={move || cancelled.update(|cancelled| *cancelled += 1)}
+                on_click={move || clicked.set(true)}
+            >
+                <Frame width=300.0 height=300.0 />
+            </Interactive>
         }
     });
     let mut harness = Harness::new(document);
@@ -25,7 +23,7 @@ fn a_second_finger_cancels_the_press_the_first_began() {
     harness.finger(1, TouchPhase::Start, pos2(20.0, 20.0));
     harness.finger(1, TouchPhase::End, pos2(20.0, 20.0));
     assert_eq!(cancelled.get_untracked(), 0, "a tap is not cancelled");
-    assert!(set_clicked.update(|clicked| std::mem::replace(clicked, false)));
+    assert!(clicked.update(|clicked| std::mem::replace(clicked, false)));
 
     harness.finger(1, TouchPhase::Start, pos2(100.0, 100.0));
     harness.finger(2, TouchPhase::Start, pos2(200.0, 200.0));

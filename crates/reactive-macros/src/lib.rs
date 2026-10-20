@@ -15,8 +15,6 @@ struct Field<'a> {
     name: &'a Ident,
     ty: &'a Type,
     visibility: &'a Visibility,
-    writer: Ident,
-    setter: Ident,
 }
 
 fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
@@ -41,15 +39,10 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
     let fields: Vec<Field<'_>> = named
         .named
         .iter()
-        .map(|field| {
-            let name = field.ident.as_ref().expect("a named field has an ident");
-            Field {
-                name,
-                ty: &field.ty,
-                visibility: &field.vis,
-                writer: format_ident!("write_{}", name),
-                setter: format_ident!("set_{}", name),
-            }
+        .map(|field| Field {
+            name: field.ident.as_ref().expect("a named field has an ident"),
+            ty: &field.ty,
+            visibility: &field.vis,
         })
         .collect();
 
@@ -62,46 +55,28 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
             name,
             ty,
             visibility,
-            writer,
-            ..
         } = field;
-        quote! {
-            #visibility #name: ::reactive::ReadSignal<#ty>,
-            #writer: ::reactive::WriteSignal<#ty>,
-        }
+        quote! { #visibility #name: ::reactive::Signal<#ty>, }
     });
     let constructions = fields.iter().map(|field| {
-        let Field { name, writer, .. } = field;
-        quote! {
-            let (#name, #writer) = ::reactive::create_signal(value.#name);
-        }
-    });
-    let initializers = fields.iter().map(|field| {
-        let Field { name, writer, .. } = field;
-        quote! { #name, #writer, }
+        let name = field.name;
+        quote! { #name: ::reactive::create_signal(value.#name), }
     });
     let writes = fields.iter().map(|field| {
-        let Field { name, writer, .. } = field;
-        quote! { self.#writer.set(value.#name); }
+        let name = field.name;
+        quote! { ::reactive::Set::set(&self.#name, value.#name); }
     });
     let reads = fields.iter().map(|field| {
-        let Field { name, .. } = field;
-        quote! { #name: self.#name.get(), }
+        let name = field.name;
+        quote! { #name: ::reactive::Get::get(&self.#name), }
     });
-    let setters = fields.iter().map(|field| {
-        let Field {
-            ty,
-            visibility,
-            writer,
-            setter,
-            ..
-        } = field;
-        quote! {
-            #visibility fn #setter(&self, value: #ty) {
-                self.#writer.set(value);
-            }
-        }
-    });
+    let untracked_reads: Vec<_> = fields
+        .iter()
+        .map(|field| {
+            let name = field.name;
+            quote! { #name: ::reactive::Get::get_untracked(&self.#name), }
+        })
+        .collect();
     Ok(quote! {
         #visibility struct #store {
             #(#declarations)*
@@ -117,21 +92,38 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
 
         impl #store {
             #visibility fn new(value: #source) -> Self {
-                #(#constructions)*
-                Self { #(#initializers)* }
+                Self { #(#constructions)* }
             }
 
-            #visibility fn set(&self, value: #source) {
+            fn write(&self, value: #source) {
                 ::reactive::batch(move || {
                     #(#writes)*
                 });
             }
+        }
 
-            #visibility fn get(&self) -> #source {
-                #source { #(#reads)* }
+        impl ::reactive::Get<#source> for #store {
+            fn with<R>(&self, f: impl FnOnce(&#source) -> R) -> R {
+                ::reactive::check_tracked_read::<Self>();
+                f(&#source { #(#reads)* })
             }
 
-            #(#setters)*
+            fn with_untracked<R>(&self, f: impl FnOnce(&#source) -> R) -> R {
+                f(&#source { #(#untracked_reads)* })
+            }
+        }
+
+        impl ::reactive::Set<#source> for #store {
+            fn update<R>(&self, f: impl FnOnce(&mut #source) -> R) -> R {
+                let mut value = #source { #(#untracked_reads)* };
+                let result = f(&mut value);
+                self.write(value);
+                result
+            }
+
+            fn set(&self, value: #source) {
+                self.write(value);
+            }
         }
     })
 }

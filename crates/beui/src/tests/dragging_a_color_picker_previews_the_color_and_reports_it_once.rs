@@ -6,8 +6,8 @@ use crate::styled::*;
 #[test]
 fn dragging_a_color_picker_previews_the_color_and_reports_it_once() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
-    let (previews, set_previews) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
+    let previews = create_signal(Vec::new());
     let picker = NodeRef::new();
     let document = build(move || {
         view! {
@@ -15,8 +15,8 @@ fn dragging_a_color_picker_previews_the_color_and_reports_it_once() {
                 <ColorPicker
                     @node_ref=&picker
                     value={Hsva::new(0.0, 1.0, 1.0, 1.0).to_color()}
-                    on_change={move |color| set_changes.update(|changes| changes.push(color))}
-                    on_preview={move |color| set_previews.update(|previews| previews.push(color))}
+                    on_change={move |color| changes.update(|changes| changes.push(color))}
+                    on_preview={move |color| previews.update(|previews| previews.push(color))}
                 />
             </List>
         }

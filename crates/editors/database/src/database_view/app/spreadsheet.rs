@@ -82,17 +82,14 @@ fn Grid(
                                 keys={keys}
                                 item_size=ROW_HEIGHT
                                 overscan={ROW_HEIGHT * 2.0}
-                            >|index: ReadSignal<usize>| {
-                                let (display, positions) = (display, positions);
-                                view! {
-                                    <Row
-                                        data={data}
-                                        display={display}
-                                        positions={positions}
-                                        index={index}
-                                    />
-                                }
-                            }</VirtualList>
+                            >|index: ReadSignal<usize>|
+                                <Row
+                                    data={data}
+                                    display={display}
+                                    positions={positions}
+                                    index={index}
+                                />
+                            </VirtualList>
                         </List>
                     </Interactive>
                 </Scroll>
@@ -116,7 +113,6 @@ fn HeaderRow(data: Data) -> NodeId {
                 border={Border::new(ColorRole::Border).width(BORDER)}
             />
             <ForEach keys={keys}>|id: Uuid| {
-                let fields = fields;
                 let field = create_memo(move || {
                     fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
                 });
@@ -237,8 +233,6 @@ fn Row(
                 <Text style=TextStyle::CAPTION string={number} align=TextAlign::Center />
             </Frame>
             <ForEach keys={keys}>|id: Uuid| {
-                let entry = entry;
-                let fields = fields;
                 let field = create_memo(move || {
                     fields.with(|fields| fields.iter().find(|field| field.id == id).cloned())
                 });
@@ -313,7 +307,7 @@ fn Cell(
             false => TextAlign::Start,
         }
     });
-    let test_id = create_memo(move || format!("database-view.cell.{}.{id}", row.get()));
+    let element_test_id = create_memo(move || format!("database-view.cell.{}.{id}", row.get()));
     let click = move || {
         let row = row.get_untracked();
         data.select(row, Some(id));
@@ -348,7 +342,7 @@ fn Cell(
             fill={ColorRole::custom(fill)}
             border={create_memo(move || Some(Border::new(ColorRole::Custom(outline.get())).width(BORDER)))}
         >
-            <Interactive @test_id={test_id} on_click={click}>
+            <Interactive @test_id={element_test_id} on_click={click}>
                 <Frame padding={Sides::horizontal(CELL_PADDING)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=CELL_PADDING>
                         <Show condition={boolean}>

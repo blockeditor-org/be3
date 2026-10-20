@@ -2,15 +2,22 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use crate::reactive::{
-    ChildList, ChildValue, Children, ForEach, IntoSlotHost, Prop, Scope, Show, ShowKeepAlive,
-    SlotChild, SlotHost, SlotId, WriteSignal, component, create_effect, create_memo, create_signal,
-    on_cleanup, store, view,
+    ChildList, ChildValue, Children, ForEach, Get, IntoSlotHost, Prop, Scope, Set, Show,
+    ShowKeepAlive, Signal, SlotChild, SlotHost, SlotId, component, create_effect, create_memo,
+    create_signal, on_cleanup, store, view,
 };
 
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
 mod a_mock_dom_row_that_leaves_disposes_the_effects_it_built;
 mod a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back;
 mod a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden;
+mod a_tracked_read_in_a_component_body_panics_naming_its_type;
+mod components_can_return_and_collect_child_runs;
+mod handlers_effects_and_untracked_reads_in_a_component_body_do_not_panic;
+mod modifiers_are_functions_on_built_values;
+mod modifiers_run_after_props_and_inside_render_slots;
+mod show_can_wrap_a_component_returning_multiple_children;
+mod show_keep_alive_retains_multiple_children_and_pauses_nested_updates;
 
 thread_local! {
     static NEXT_ID: Cell<usize> = const { Cell::new(0) };
@@ -98,7 +105,7 @@ impl IntoSlotHost<DomNode> for &DomNode {
 fn Element(
     tag: &'static str,
     #[prop(default = String::new())] text: Prop<String>,
-    texts: Option<WriteSignal<usize>>,
+    texts: Option<Signal<usize>>,
     children: Children<DomNode>,
 ) -> DomNode {
     let element = DomNode::new(tag);
@@ -114,4 +121,30 @@ fn Element(
     });
     children.mount(&element);
     element
+}
+
+mod modifiers {
+    use super::*;
+
+    pub fn suffix(node: DomNode, suffix: &str) -> DomNode {
+        node.0.text.borrow_mut().push_str(suffix);
+        node
+    }
+
+    pub fn wrap(node: DomNode, tag: &'static str) -> DomNode {
+        let wrapper = DomNode::new(tag);
+        wrapper.0.children.borrow_mut().push(node);
+        wrapper
+    }
+
+    pub fn stringify(node: DomNode, suffix: &str) -> String {
+        format!("{}{suffix}", node.html())
+    }
+}
+
+#[component]
+fn OrdinaryProps(test_id: String, node_ref: String) -> DomNode {
+    view! {
+        <Element tag="p" text={format!("{test_id}:{node_ref}")} />
+    }
 }

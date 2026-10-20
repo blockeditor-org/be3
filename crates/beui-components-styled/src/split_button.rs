@@ -82,12 +82,11 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
     });
     let ink = create_memo(move || variant.label(disabled.get()));
     let has_glyph = create_memo(move || !glyph.get().is_empty());
-    let icon_ink = ink;
     view! {
         <HalfFace fill focused side=Side::Leading padding=LABEL_PADDING_HORIZONTAL>
             <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                 <Show condition={has_glyph}>
-                    <Text color={icon_ink} align=TextAlign::Center>
+                    <Text color={ink} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
                 </Show>

@@ -8,7 +8,7 @@ use beui_core::input::{Key, KeyChord, KeyPress, Modifiers};
 use beui_core::keys::{KeyAt, KeyEvent, KeyHandler, KeyInput, KeyPhase};
 use beui_core::node::NodeId;
 use reactive::{
-    Memo, OwnedSignal, create_effect, create_memo, on_cleanup, provide_context, untrack,
+    Get, Memo, OwnedSignal, Set, create_effect, create_memo, on_cleanup, provide_context, untrack,
     use_context,
 };
 
@@ -282,7 +282,7 @@ impl Action {
     }
 
     pub fn is_enabled(&self) -> bool {
-        self.0.enabled.peek()
+        self.0.enabled.get_untracked()
     }
 
     pub fn run(&self) -> bool {
@@ -483,7 +483,7 @@ impl Registry {
     fn touch(&self) {
         self.0
             .version
-            .write()
+            .handle()
             .update(|version| *version = version.wrapping_add(1));
     }
 
@@ -588,10 +588,10 @@ impl Registry {
         }
         let info = |action: &Action, live: bool| ActionInfo {
             id: action.id().to_owned(),
-            label: action.label().peek(),
+            label: action.label().get_untracked(),
             shortcut: action.shortcut_label(),
             enabled: action.is_enabled(),
-            checked: action.checked().map(|checked| checked.peek()),
+            checked: action.checked().map(|checked| checked.get_untracked()),
             live,
         };
         let mut actions: Vec<ActionInfo> = live.iter().map(|action| info(action, true)).collect();
@@ -668,7 +668,7 @@ fn registry() -> Registry {
                     return;
                 };
                 let registry = Registry(registry);
-                registry.0.version.read().get();
+                registry.0.version.get();
                 let chords = registry.intercepted();
                 if *reported.borrow() != chords {
                     reported.replace(chords.clone());
@@ -693,7 +693,7 @@ pub fn active_actions_from(focus_path: &[NodeId]) -> Vec<Action> {
 pub fn menu_actions() -> Memo<Vec<Action>> {
     let registry = registry();
     create_memo(move || {
-        registry.0.version.read().get();
+        registry.0.version.get();
         registry.all().into_iter().filter(Action::in_menu).collect()
     })
 }

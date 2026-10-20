@@ -381,14 +381,14 @@ pub struct Inspector {
     pub document: Document,
     pub entries: Vec<Entry>,
     reader: ScreenReader,
-    set_keys: WriteSignal<Vec<Key>>,
-    set_entries: WriteSignal<HashMap<Key, Entry>>,
-    set_summary: WriteSignal<Summary>,
-    set_performance: WriteSignal<panel::PerformanceSummary>,
-    set_renderer: WriteSignal<panel::RendererRows>,
-    set_renderers: WriteSignal<RendererChoices>,
-    set_selection: WriteSignal<Vec<Key>>,
-    panel_compact: WriteSignal<bool>,
+    keys: Signal<Vec<Key>>,
+    entry_map: Signal<HashMap<Key, Entry>>,
+    summary: Signal<Summary>,
+    performance: Signal<panel::PerformanceSummary>,
+    renderer: Signal<panel::RendererRows>,
+    renderers: Signal<RendererChoices>,
+    selection: Signal<Vec<Key>>,
+    panel_compact: Signal<bool>,
     shown_compact: bool,
     tree: NodeRef,
     bar: panel::Bar,
@@ -426,14 +426,14 @@ impl Inspector {
             tree: panel.tree,
             state,
             reader: ScreenReader::default(),
-            set_keys: panel.set_keys,
-            set_entries: panel.set_entries,
-            set_summary: panel.set_summary,
-            set_performance: panel.set_performance,
-            set_renderer: panel.set_renderer,
-            set_renderers: panel.set_renderers,
-            set_selection: panel.set_selection,
-            panel_compact: panel.set_compact,
+            keys: panel.keys,
+            entry_map: panel.entries,
+            summary: panel.summary,
+            performance: panel.performance,
+            renderer: panel.renderer,
+            renderers: panel.renderers,
+            selection: panel.selection,
+            panel_compact: panel.compact,
             shown_compact: false,
             width: DEFAULT_WIDTH,
             grabbed: None,
@@ -445,7 +445,7 @@ impl Inspector {
     }
 
     pub fn state(&self) -> Rc<State> {
-        self.state.get()
+        self.state.value()
     }
 
     pub fn row_node(&self, index: usize) -> NodeId {
@@ -642,8 +642,7 @@ impl Inspector {
         let scale = scale(ctx);
         let compact = self.state().compact.get();
         if std::mem::replace(&mut self.shown_compact, compact) != compact {
-            let set_compact = self.panel_compact;
-            with_reactive_scope(&mut self.document, || set_compact.set(compact));
+            self.panel_compact.set(compact);
         }
         let document = &mut self.document;
         if panel.is_positive() {
@@ -810,12 +809,10 @@ impl Inspector {
         let scale = scale(ctx);
         let focused = self.toolbar.document.focused_node().is_some();
         let responsive::Toolbar {
-            document,
-            set_screen,
-            ..
+            document, screen, ..
         } = &mut self.toolbar;
-        if let Some(simulation) = self.state.get().screen_simulation.get() {
-            with_reactive_scope(document, || set_screen.set(simulation));
+        if let Some(simulation) = self.state.value().screen_simulation.get() {
+            screen.set(simulation);
         }
         let area = toolbar.union(content).scaled(scale.recip());
         ctx.scaled(scale, || {
@@ -835,10 +832,10 @@ impl Inspector {
         let selected = usize::from(!self.state().app_shown.get());
         let panel::Bar {
             document,
-            set_selected,
+            selected: shown_selected,
             ..
         } = &mut self.bar;
-        with_reactive_scope(document, || set_selected.set(selected));
+        shown_selected.set(selected);
         ctx.scaled(scale, || {
             ctx.with_input(
                 |input| keyed(input, false),
@@ -902,31 +899,19 @@ impl Inspector {
             .renderer_info()
             .map(|info| info.rows)
             .unwrap_or_default();
-        let Self {
-            document,
-            set_keys,
-            set_entries,
-            set_summary,
-            set_performance,
-            set_renderer,
-            set_renderers,
-            set_selection,
-            ..
-        } = self;
-        with_reactive_scope(document, || {
-            set_keys.set(entries.iter().map(|entry| entry.key).collect());
-            set_entries.set(
-                entries
-                    .iter()
-                    .map(|entry| (entry.key, entry.clone()))
-                    .collect(),
-            );
-            set_summary.set(summary);
-            set_performance.set(performance);
-            set_renderer.set(renderer);
-            set_renderers.set(ctx.renderers());
-            set_selection.set(selection);
-        });
+        self.keys
+            .set(entries.iter().map(|entry| entry.key).collect());
+        self.entry_map.set(
+            entries
+                .iter()
+                .map(|entry| (entry.key, entry.clone()))
+                .collect(),
+        );
+        self.summary.set(summary);
+        self.performance.set(performance);
+        self.renderer.set(renderer);
+        self.renderers.set(ctx.renderers());
+        self.selection.set(selection);
         self.entries = entries;
     }
 

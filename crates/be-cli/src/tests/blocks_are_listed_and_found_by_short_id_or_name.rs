@@ -40,12 +40,16 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
         run(&tracker, &format!("{view} rows")).await.unwrap(),
         format!("{id}\tFix the login")
     );
-    run(&tracker, &format!("{id} page write Steps_to_reproduce."))
-        .await
-        .unwrap();
+    run(
+        &tracker,
+        &format!("{view} row {id} page write Steps_to_reproduce."),
+    )
+    .await
+    .unwrap();
     let pages = run(&tracker, "Issues ls").await.unwrap();
     assert!(pages.contains("1 row pages"), "{pages}");
-    let shown = tracker.show(&id).await.unwrap();
+    let database = tracker.find_database("Issues").await.unwrap();
+    let shown = tracker.show(database, &id).await.unwrap();
     let index = tracker.index().await.unwrap();
     let page = index.get(shown.page.unwrap()).unwrap().short.clone();
     assert_eq!(
@@ -56,7 +60,9 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
         .await
         .unwrap();
     assert_eq!(
-        run(&tracker, &format!("{id} page")).await.unwrap(),
+        run(&tracker, &format!("Issues row {id} page"))
+            .await
+            .unwrap(),
         "Steps to reproduce.\nMore."
     );
     let wrong = run(&tracker, &format!("{page} rows")).await.unwrap_err();

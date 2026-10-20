@@ -33,14 +33,10 @@ struct State {
     overlay: NodeRef,
     search: NodeRef,
     actions: Stored<RefCell<Vec<Action>>>,
-    query: ReadSignal<String>,
-    set_query: WriteSignal<String>,
-    shown: ReadSignal<Vec<u64>>,
-    set_shown: WriteSignal<Vec<u64>>,
-    highlighted: ReadSignal<Option<u64>>,
-    set_highlighted: WriteSignal<Option<u64>>,
-    searching: ReadSignal<bool>,
-    set_searching: WriteSignal<bool>,
+    query: Signal<String>,
+    shown: Signal<Vec<u64>>,
+    highlighted: Signal<Option<u64>>,
+    searching: Signal<bool>,
     rows: Stored<RefCell<Vec<(u64, NodeRef)>>>,
     on_close: ClickCallback,
 }
@@ -66,30 +62,25 @@ pub fn CommandPalette(
         })
     });
     let panel = panel.unwrap_or_else(|| Render::new(|content| content));
-    let (query, set_query) = create_signal(String::new());
-    let (shown, set_shown) = create_signal(Vec::<u64>::new());
-    let (highlighted, set_highlighted) = create_signal(None::<u64>);
-    let (searching, set_searching) = create_signal(false);
+    let query = create_signal(String::new());
+    let shown = create_signal(Vec::<u64>::new());
+    let highlighted = create_signal(None::<u64>);
+    let searching = create_signal(false);
     let state = State {
         overlay: NodeRef::new(),
         search: NodeRef::new(),
         actions: store(RefCell::new(Vec::new())),
         query,
-        set_query,
         shown,
-        set_shown,
         highlighted,
-        set_highlighted,
         searching,
-        set_searching,
         rows: store(RefCell::new(Vec::new())),
         on_close,
     };
     set_component_state(state);
 
-    let opened = open;
     create_effect(move || {
-        if opened.get() {
+        if open.get() {
             untrack(|| start(state));
         }
     });
@@ -156,7 +147,7 @@ fn CommandRow(
 ) -> NodeId {
     let action = find(state, key).expect("a shown row has an action");
     let button = NodeRef::new();
-    state.rows.get().borrow_mut().push((key, button));
+    state.rows.value().borrow_mut().push((key, button));
     let enabled = action.enabled();
     let disabled = create_memo(move || !enabled.get());
     let label = action.label();
@@ -173,7 +164,6 @@ fn CommandRow(
     });
     let glyph = action.glyph().to_owned();
     let shortcut = action.shortcut_label();
-    let face_disabled = disabled;
     view! {
         <unstyled::Button
             @node_ref={&button}
@@ -185,7 +175,7 @@ fn CommandRow(
             let hovered = handle.hovered;
             let hovering = move || {
                 if hovered.get() && find(state, key).is_some_and(|action| action.is_enabled()) {
-                    state.set_highlighted.set(Some(key));
+                    state.highlighted.set(Some(key));
                 }
             };
             create_effect(hovering);
@@ -193,7 +183,7 @@ fn CommandRow(
                 label: label.clone(),
                 glyph: glyph.clone(),
                 shortcut: shortcut.clone(),
-                disabled: face_disabled,
+                disabled,
                 highlighted: highlight.memo(Some(key)),
                 hovered: handle.hovered,
             })
@@ -204,7 +194,7 @@ fn CommandRow(
 fn find(state: State, key: u64) -> Option<Action> {
     state
         .actions
-        .get()
+        .value()
         .borrow()
         .iter()
         .find(|action| action.key() == key)
@@ -215,15 +205,15 @@ fn start(state: State) {
     let path = with_document(|document| document.focus_ancestry());
     let mut actions = active_actions_from(&path);
     actions.sort_by_key(|action| !action.is_enabled());
-    *state.actions.get().borrow_mut() = actions;
-    state.rows.get().borrow_mut().clear();
-    state.set_query.set(String::new());
+    *state.actions.value().borrow_mut() = actions;
+    state.rows.value().borrow_mut().clear();
+    state.query.set(String::new());
     filter(state, "");
-    state.set_searching.set(true);
+    state.searching.set(true);
 }
 
 fn close(state: State) {
-    state.set_searching.set(false);
+    state.searching.set(false);
     state.on_close.call();
     let overlay = state.overlay.try_get();
     with_document(|document| {
@@ -259,12 +249,12 @@ fn matches(label: &str, query: &str) -> bool {
 
 fn filter(state: State, text: &str) {
     if state.query.get_untracked() != text {
-        state.set_query.set(text.to_owned());
+        state.query.set(text.to_owned());
     }
-    let actions = state.actions.get().borrow().clone();
+    let actions = state.actions.value().borrow().clone();
     let shown: Vec<u64> = actions
         .iter()
-        .filter(|action| matches(&action.label().peek(), text))
+        .filter(|action| matches(&action.label().get_untracked(), text))
         .map(Action::key)
         .collect();
     let first = actions
@@ -275,15 +265,15 @@ fn filter(state: State, text: &str) {
         .highlighted
         .get_untracked()
         .filter(|key| shown.contains(key));
-    state.set_shown.set(shown);
-    state.set_highlighted.set(kept.or(first));
+    state.shown.set(shown);
+    state.highlighted.set(kept.or(first));
 }
 
 fn navigate(state: State, press: KeyPress) -> bool {
     if !press.pressed || press.modifiers.ctrl || press.modifiers.alt {
         return false;
     }
-    let actions = state.actions.get().borrow().clone();
+    let actions = state.actions.value().borrow().clone();
     let shown = state.shown.get_untracked();
     let selectable: Vec<u64> = shown
         .iter()
@@ -309,7 +299,7 @@ fn navigate(state: State, press: KeyPress) -> bool {
         Key::PageUp => selectable[position.map_or(0, |at| at.saturating_sub(8))],
         _ => return false,
     };
-    state.set_highlighted.set(Some(next));
+    state.highlighted.set(Some(next));
     true
 }
 
@@ -327,7 +317,7 @@ pub fn command_palette_search(document: &Document, palette: NodeId) -> NodeId {
 
 pub fn command_palette_shown(document: &Document, palette: NodeId) -> Vec<String> {
     let state = *document.component_state::<State>(palette);
-    let actions = state.actions.get();
+    let actions = state.actions.value();
     let actions = actions.borrow();
     state
         .shown
@@ -348,12 +338,12 @@ pub fn command_palette_row(document: &Document, palette: NodeId, id: &str) -> Op
     let state = *document.component_state::<State>(palette);
     let key = state
         .actions
-        .get()
+        .value()
         .borrow()
         .iter()
         .find(|action| action.id() == id)
         .map(Action::key)?;
-    let rows = state.rows.get();
+    let rows = state.rows.value();
     let rows = rows.borrow();
     rows.iter()
         .rev()

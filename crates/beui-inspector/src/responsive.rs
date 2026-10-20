@@ -43,7 +43,7 @@ pub const DEFAULT: ScreenSimulation = ScreenSimulation {
 
 pub struct Toolbar {
     pub document: Document,
-    pub set_screen: WriteSignal<ScreenSimulation>,
+    pub screen: Signal<ScreenSimulation>,
     device: NodeRef,
     zoom: NodeRef,
     _scope: Scope,
@@ -61,17 +61,16 @@ impl Toolbar {
 
 pub fn build(state: Stored<State>) -> Toolbar {
     let owner = RootScope::new();
-    let (screen, set_screen) =
-        create_signal(state.get().screen_simulation.get().unwrap_or(DEFAULT));
+    let screen = create_signal(state.value().screen_simulation.get().unwrap_or(DEFAULT));
     let (device, zoom) = (NodeRef::new(), NodeRef::new());
     let document = beui_view::reactive::build(move || {
         view! {
-            <ResponsiveToolbar state screen device zoom />
+            <ResponsiveToolbar state screen={screen.read_only()} device zoom />
         }
     });
     Toolbar {
         document,
-        set_screen,
+        screen,
         device,
         zoom,
         _scope: owner.into_scope(),
@@ -126,7 +125,7 @@ fn ResponsiveToolbar(
                                 if let Some((_, size)) = index.and_then(|index| DEVICES.get(index))
                                     && *size != Vec2::ZERO
                                 {
-                                    state.get().update_screen(|screen| screen.resized(*size));
+                                    state.value().update_screen(|screen| screen.resized(*size));
                                 }
                             }}
                         />
@@ -139,7 +138,7 @@ fn ResponsiveToolbar(
                             max={f64::from(MAXIMUM_SIZE)}
                             label="Width"
                             on_change={move |width: f64| {
-                                state.get().update_screen(|screen| {
+                                state.value().update_screen(|screen| {
                                     screen.resized(vec2(width as f32, screen.size.y))
                                 });
                             }}
@@ -154,7 +153,7 @@ fn ResponsiveToolbar(
                             max={f64::from(MAXIMUM_SIZE)}
                             label="Height"
                             on_change={move |height: f64| {
-                                state.get().update_screen(|screen| {
+                                state.value().update_screen(|screen| {
                                     screen.resized(vec2(screen.size.x, height as f32))
                                 });
                             }}
@@ -165,7 +164,7 @@ fn ResponsiveToolbar(
                         glyph={ICON_SCREEN_ROTATION.to_owned()}
                         label="Rotate"
                         variant=ButtonVariant::Ghost
-                        on_click={move || state.get().update_screen(ScreenSimulation::rotated)}
+                        on_click={move || state.value().update_screen(ScreenSimulation::rotated)}
                     />
                     <Frame width=ZOOM_WIDTH>
                         <Select
@@ -180,7 +179,7 @@ fn ResponsiveToolbar(
                             label="Zoom"
                             on_change={move |index: Option<usize>| {
                                 if let Some((_, zoom)) = index.and_then(|index| ZOOMS.get(index)) {
-                                    state.get().update_screen(|screen| ScreenSimulation {
+                                    state.value().update_screen(|screen| ScreenSimulation {
                                         zoom: *zoom,
                                         ..screen
                                     });
@@ -194,7 +193,7 @@ fn ResponsiveToolbar(
                         glyph={ICON_CLOSE.to_owned()}
                         label="Close responsive design mode"
                         variant=ButtonVariant::Ghost
-                        on_click={move || state.get().simulate_screen(None)}
+                        on_click={move || state.value().simulate_screen(None)}
                     />
                 </List>
             </Frame>

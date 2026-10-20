@@ -17,13 +17,11 @@ impl BeuiApp for ActionApp {
 #[component]
 fn Tidy(editor: Editor) -> NodeId {
     let _ = editor;
-    let (tidied, set_tidied) = create_signal(String::from("messy"));
-    Action::new("tidy.up", "Tidy up", move || {
-        set_tidied.set("tidy".to_owned())
-    })
-    .glyph(ICON_AUTO_FIX_HIGH)
-    .in_menu()
-    .register();
+    let tidied = create_signal(String::from("messy"));
+    Action::new("tidy.up", "Tidy up", move || tidied.set("tidy".to_owned()))
+        .glyph(ICON_AUTO_FIX_HIGH)
+        .in_menu()
+        .register();
     view! {
         <Text string={tidied} @test_id={"tidy.state"} />
     }

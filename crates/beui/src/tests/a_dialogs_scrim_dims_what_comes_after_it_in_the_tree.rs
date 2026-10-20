@@ -10,23 +10,21 @@ const SIBLING: Color32 = Color32::from_rgb(200, 40, 40);
 #[test]
 fn a_dialogs_scrim_dims_what_comes_after_it_in_the_tree() {
     let _root = crate::reactive::RootScope::new();
-    let (open, set_open) = create_signal(false);
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Dialog open={open} title="Discard changes?" on_dismiss={|| ()}>
-                        <Frame width=10.0 height=10.0 />
-                    </Dialog>
-                    <Frame width=50.0 height=50.0 fill=SIBLING />
-                </List>
-            }
+    let open = create_signal(false);
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Dialog open={open} title="Discard changes?" on_dismiss={|| ()}>
+                    <Frame width=10.0 height=10.0 />
+                </Dialog>
+                <Frame width=50.0 height=50.0 fill=SIBLING />
+            </List>
         }
     });
 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    open.set(true);
     let output = harness.frame(Vec::new());
     let shapes = output.shapes();
     let viewport = Rect::from_min_size(Pos2::ZERO, VIEWPORT);

@@ -7,17 +7,14 @@ use crate::unstyled::Scroll;
 #[test]
 fn resizing_rows_preserves_the_scroll_anchor() {
     let _root = crate::reactive::RootScope::new();
-    let (reported, set_reported) = create_signal(None);
+    let reported = create_signal(None);
     let scroll = NodeRef::new();
     let rows: Vec<NodeRef> = (0..100).map(|_| NodeRef::new()).collect();
     let document = build({
         let rows = rows.clone();
         move || {
             view! {
-                <Scroll
-                    @node_ref=&scroll
-                    on_change={move |position| set_reported.set(Some(position))}
-                >
+                <Scroll @node_ref=&scroll on_change={move |position| reported.set(Some(position))}>
                     <ForEach keys={indices(rows.len())}>|index: usize|
                         <Frame
                             @node_ref={&rows[index]}

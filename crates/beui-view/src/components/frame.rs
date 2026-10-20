@@ -1,6 +1,6 @@
 use beui_macros::component;
 
-use crate::reactive::{Child, Prop, create_binding, with_document};
+use crate::reactive::{Child, Get, Prop, create_binding, with_document};
 use beui_core::base::frame::{Align2, Extent, FrameNode, FrameStyle, Outline, Sides};
 use beui_core::color::Color32;
 use beui_core::document::Document;

@@ -35,26 +35,21 @@ pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
         review.shown(&path, review.shown_as(status), frame.get())
     });
 
-    let clamping = count;
     create_effect(move || {
-        let count = clamping.get();
+        let count = count.get();
         review.frame.with(|_| ());
         untrack(|| review.clamp_frame(count));
     });
 
-    let advancing = painting;
-    let advancing_count = count;
     let stepper = create_timer(move || {
-        let ready = !matches!(advancing.get_untracked(), Shown::Waiting(_));
-        review.advance(advancing_count.get_untracked(), ready)
+        let ready = !matches!(painting.get_untracked(), Shown::Waiting(_));
+        review.advance(count.get_untracked(), ready)
     });
-    let scheduling = painting;
-    let scheduling_count = count;
     create_effect(move || {
         review.playing.with(|_| ());
         review.frame.with(|_| ());
-        let ready = !matches!(scheduling.get(), Shown::Waiting(_));
-        let count = scheduling_count.get();
+        let ready = !matches!(painting.get(), Shown::Waiting(_));
+        let count = count.get();
         untrack(|| match review.next_advance(count, ready) {
             Some(delay) => stepper.start(delay),
             None => stepper.stop(),
@@ -101,10 +96,9 @@ pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
 
     let view = review.editor().canvas();
     let placed = review.editor();
-    let laid_out = panels;
     let world = review.editor().world();
     let laid = create_memo(move || {
-        let panels = laid_out.get();
+        let panels = panels.get();
         if panels.is_empty() {
             return None;
         }
@@ -143,8 +137,6 @@ pub(crate) fn Stage(review: Review, count: Memo<usize>) -> NodeId {
             <List spacing=0.0>
                 <Canvas view={view} @sizing=ItemSize::Percent(100.0)>
                     <ForEach keys={places}>|index: usize| {
-                        let panels = panels;
-                        let layout = layout;
                         let image = create_memo(move || {
                             panels.get().get(index).map(|panel: &Rendered| {
                                 panel.image.clone()

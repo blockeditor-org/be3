@@ -6,15 +6,13 @@ use crate::reactive::*;
 fn an_empty_view_builds_a_children_prop_with_nothing_in_it() {
     let _root = crate::reactive::RootScope::new();
     let column = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List
-                    @node_ref=&column
-                    spacing=0.0
-                    children={view! {}}
-                />
-            }
+    let document = build(move || {
+        view! {
+            <List
+                @node_ref=&column
+                spacing=0.0
+                children={view! {}}
+            />
         }
     });
 

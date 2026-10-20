@@ -189,13 +189,13 @@ pub fn ColorWheel(
     on_drag_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
-    let (point, set_point) = create_signal(value.peek());
-    create_effect(move || set_point.set(value.get()));
-    let (dragging, set_dragging) = create_signal(false);
-    let (hovered, set_hovered) = create_signal(false);
-    let (has_focus, set_has_focus) = create_signal(false);
+    let point = create_signal(value.get_untracked());
+    create_effect(move || point.set(value.get()));
+    let dragging = create_signal(false);
+    let hovered = create_signal(false);
+    let has_focus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
-    set_component_state(point);
+    set_component_state(point.read_only());
 
     match accessibility {
         Some(accessibility) => component_accessibility(accessibility),
@@ -225,34 +225,29 @@ pub fn ColorWheel(
         })),
     }
 
-    let set = {
-        move |next: WheelPoint| {
-            if disabled.get_untracked() {
-                return;
-            }
-            if next != point.get_untracked() {
-                set_point.set(next);
-                on_change.call(next);
-            }
+    let set = move |next: WheelPoint| {
+        if disabled.get_untracked() {
+            return;
+        }
+        if next != point.get_untracked() {
+            point.set(next);
+            on_change.call(next);
         }
     };
-    let (drag_set, key_set, step_set) = (set, set, set);
     let geometry =
         move |size: Vec2| WheelGeometry::new(Rect::from_min_size(Pos2::ZERO, size), ring_width);
-    let over_thumb = {
-        move |press: PointerPress| {
-            let (wheel, pos) = (geometry(press.size), press.local);
-            let point = point.get_untracked();
-            [
-                (Part::Triangle, wheel.point(point)),
-                (Part::Ring, wheel.ring_point(point.hue)),
-            ]
-            .into_iter()
-            .map(|(part, centre)| (part, centre, (centre - pos).length()))
-            .filter(|(_, _, distance)| thumb > 0.0 && *distance <= thumb / 2.0)
-            .min_by(|first, second| first.2.total_cmp(&second.2))
-            .map(|(part, centre, _)| (part, centre))
-        }
+    let over_thumb = move |press: PointerPress| {
+        let (wheel, pos) = (geometry(press.size), press.local);
+        let point = point.get_untracked();
+        [
+            (Part::Triangle, wheel.point(point)),
+            (Part::Ring, wheel.ring_point(point.hue)),
+        ]
+        .into_iter()
+        .map(|(part, centre)| (part, centre, (centre - pos).length()))
+        .filter(|(_, _, distance)| thumb > 0.0 && *distance <= thumb / 2.0)
+        .min_by(|first, second| first.2.total_cmp(&second.2))
+        .map(|(part, centre, _)| (part, centre))
     };
     let part = StoredCell::new(Part::Triangle);
     let grab = StoredCell::new(Vec2::ZERO);
@@ -267,11 +262,10 @@ pub fn ColorWheel(
         part.set(pressed);
         grab.set(offset);
     };
-    let drag_point = point;
     let dragged_to = move |press: PointerPress| {
         let wheel = geometry(press.size);
         let target = press.local + grab.get();
-        let current = drag_point.get_untracked();
+        let current = point.get_untracked();
         match part.get() {
             Part::Ring => WheelPoint {
                 hue: wheel.hue_at(target),
@@ -290,7 +284,7 @@ pub fn ColorWheel(
             },
         }
     };
-    let (pointer, set_pointer) = create_signal(None::<PointerPress>);
+    let pointer = create_signal(None::<PointerPress>);
     let cursor = create_memo(move || {
         if dragging.get() {
             return CursorIcon::Grabbing;
@@ -305,12 +299,11 @@ pub fn ColorWheel(
             false => CursorIcon::Crosshair,
         }
     });
-    let (key_point, step_point) = (point, point);
     let content_node = content.call(ColorWheelHandle {
-        point,
-        dragging,
-        hovered,
-        focused: has_focus,
+        point: point.read_only(),
+        dragging: dragging.read_only(),
+        hovered: hovered.read_only(),
+        focused: has_focus.read_only(),
         disabled,
     });
     let tab_stop = create_memo(move || !disabled.get());
@@ -319,16 +312,16 @@ pub fn ColorWheel(
             focusable=true
             tab_stop
             focused
-            on_focus_change={move |focused: bool| set_has_focus.set(focused)}
+            on_focus_change={move |focused: bool| has_focus.set(focused)}
             on_step={move |delta: f32| {
-                let point = step_point.get_untracked();
-                step_set(WheelPoint::new(point.hue + delta * HUE_STEP, point.saturation, point.value));
+                let point = point.get_untracked();
+                set(WheelPoint::new(point.hue + delta * HUE_STEP, point.saturation, point.value));
             }}
             on_key={move |press: KeyPress| {
                 if press.modifiers.ctrl || press.modifiers.alt {
                     return false;
                 }
-                let point = key_point.get_untracked();
+                let point = point.get_untracked();
                 let step = if press.modifiers.shift { PAGE } else { STEP };
                 let WheelPoint { hue, saturation, value } = point;
                 let next = match press.key {
@@ -343,18 +336,18 @@ pub fn ColorWheel(
                     _ => return false,
                 };
                 if press.pressed {
-                    key_set(next);
+                    set(next);
                 }
                 true
             }}
             cursor
             touch_drags=true
-            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-            on_hover_move={move |press: PointerPress| set_pointer.set(Some(press))}
+            on_hover_change={move |next: bool| hovered.set(next)}
+            on_hover_move={move |press: PointerPress| pointer.set(Some(press))}
             on_press={grabbed}
-            on_drag={move |press: PointerPress| drag_set(dragged_to(press))}
+            on_drag={move |press: PointerPress| set(dragged_to(press))}
             on_active_change={move |active: bool| {
-                set_dragging.set(active);
+                dragging.set(active);
                 on_drag_change.call(active);
             }}
             children={content_node}

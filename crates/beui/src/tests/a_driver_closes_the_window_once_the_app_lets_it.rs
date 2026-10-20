@@ -5,7 +5,7 @@ use crate::reactive::*;
 struct Guarded {
     document: Document,
     unsaved: ReadSignal<bool>,
-    asking: WriteSignal<bool>,
+    asking: Signal<bool>,
 }
 
 impl App for Guarded {
@@ -25,7 +25,7 @@ impl App for Guarded {
 #[test]
 fn a_driver_closes_the_window_once_the_app_lets_it() {
     let _root = crate::reactive::RootScope::new();
-    let (asked, asking) = create_signal(false);
+    let asked = create_signal(false);
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -36,12 +36,12 @@ fn a_driver_closes_the_window_once_the_app_lets_it() {
             </List>
         }
     });
-    let (unsaved, set_unsaved) = create_signal(true);
+    let unsaved = create_signal(true);
     let mut driven = Driven::with_app(
         Guarded {
             document,
-            unsaved,
-            asking,
+            unsaved: unsaved.read_only(),
+            asking: asked,
         },
         true,
     );
@@ -55,7 +55,7 @@ fn a_driver_closes_the_window_once_the_app_lets_it() {
     );
     assert!(!driven.closed, "the app kept its window open");
 
-    set_unsaved.set(false);
+    unsaved.set(false);
     assert_eq!(
         driven.ask(&["close"]),
         Ok("The window closed.\n".to_owned())

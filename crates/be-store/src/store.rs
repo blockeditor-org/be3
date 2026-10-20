@@ -14,12 +14,6 @@ pub trait ObjectStore: Send + Sync {
 
     fn get(&self, hash: Hash) -> Result<Option<Vec<u8>>, StoreError>;
 
-    fn get_range(&self, hash: Hash, offset: usize, length: usize) -> Result<Vec<u8>, StoreError> {
-        let bytes = self.get(hash)?.ok_or(StoreError::MissingObject(hash))?;
-        let end = offset.saturating_add(length).min(bytes.len());
-        Ok(bytes.get(offset..end).unwrap_or_default().to_vec())
-    }
-
     fn has(&self, hash: Hash) -> Result<bool, StoreError>;
 
     fn remove(&self, hash: Hash) -> Result<(), StoreError>;
@@ -244,7 +238,7 @@ fn sync_written(root: &Path, _: &Unsynced) -> Result<(), StoreError> {
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 fn sync_written(_: &Path, unsynced: &Unsynced) -> Result<(), StoreError> {
     for file in &unsynced.files {
-        match fs::File::open(file) {
+        match fs::OpenOptions::new().write(true).open(file) {
             Ok(file) => file.sync_all()?,
             Err(error) if error.kind() == ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
@@ -274,10 +268,6 @@ impl<S: ObjectStore + ?Sized> ObjectStore for Arc<S> {
 
     fn get(&self, hash: Hash) -> Result<Option<Vec<u8>>, StoreError> {
         (**self).get(hash)
-    }
-
-    fn get_range(&self, hash: Hash, offset: usize, length: usize) -> Result<Vec<u8>, StoreError> {
-        (**self).get_range(hash, offset, length)
     }
 
     fn has(&self, hash: Hash) -> Result<bool, StoreError> {

@@ -31,10 +31,9 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
         events
     });
     let events = create_memo(move || events.get());
-    let (mode, set_mode) = create_signal(CalendarView::default());
-    let (anchor, set_anchor) = create_signal(today_days_since_epoch());
-    let (form, set_form) = create_signal(None::<EventForm>);
-    let anchor = create_memo(move || anchor.get());
+    let mode = create_signal(CalendarView::default());
+    let anchor = create_signal(today_days_since_epoch());
+    let form = create_signal(None::<EventForm>);
 
     create_effect(move || {
         let height = match mode.get() {
@@ -53,14 +52,14 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
             .unwrap_or(0)
     });
     let previous = move || {
-        set_anchor.set(mode.get_untracked().previous(anchor.get_untracked()));
+        anchor.set(mode.get_untracked().previous(anchor.get_untracked()));
     };
     let next = move || {
-        set_anchor.set(mode.get_untracked().next(anchor.get_untracked()));
+        anchor.set(mode.get_untracked().next(anchor.get_untracked()));
     };
-    let today = move || set_anchor.set(today_days_since_epoch());
+    let today = move || anchor.set(today_days_since_epoch());
     let add = move || {
-        set_form.set(Some(EventForm::new_at(anchor.get_untracked(), 9)));
+        form.set(Some(EventForm::new_at(anchor.get_untracked(), 9)));
     };
 
     let editable = editor.editable();
@@ -81,17 +80,16 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     };
     let pick_day = move |day: i64| {
         if editable.get_untracked() {
-            set_form.set(Some(EventForm::new_at(day, 9)));
+            form.set(Some(EventForm::new_at(day, 9)));
         }
     };
     let pick_slot = move |(day, hour): (i64, u8)| {
         if editable.get_untracked() {
-            set_form.set(Some(EventForm::new_at(day, hour)));
+            form.set(Some(EventForm::new_at(day, hour)));
         }
     };
-    let pick_event = move |event: Shown| set_form.set(Some(EventForm::edit(&event)));
+    let pick_event = move |event: Shown| form.set(Some(EventForm::edit(&event)));
 
-    let form_read_only = read_only;
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
@@ -128,7 +126,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                         @test_id={"calendar.layout"}
                         on_change={move |chosen: usize| {
                             if let Some(shown) = CalendarView::ALL.get(chosen) {
-                                set_mode.set(*shown);
+                                mode.set(*shown);
                             }
                         }}
                     />
@@ -148,7 +146,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                             match shown {
                                 CalendarView::Month => view! {
                                     <MonthGrid
-                                        anchor={anchor}
+                                        anchor={create_memo(move || anchor.get())}
                                         events={events}
                                         on_pick_day={pick_day}
                                         on_pick_event={pick_event}
@@ -168,7 +166,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                                 }
                                 CalendarView::Day => view! {
                                     <Timeline
-                                        first_day={anchor}
+                                        first_day={create_memo(move || anchor.get())}
                                         days=1
                                         events={events}
                                         on_pick_slot={pick_slot}
@@ -179,12 +177,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                         }</Dynamic>
                     </List>
                 </Frame>
-                <EventDialog
-                    form={form}
-                    set_form={set_form}
-                    read_only={form_read_only}
-                    on_operate={operate}
-                />
+                <EventDialog form={form} read_only={read_only} on_operate={operate} />
             </List>
         </Frame>
     }
@@ -192,8 +185,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
 
 #[component]
 fn EventDialog(
-    form: block_editor_beui::beui::reactive::ReadSignal<Option<EventForm>>,
-    set_form: WriteSignal<Option<EventForm>>,
+    form: Signal<Option<EventForm>>,
     read_only: block_editor_beui::beui::reactive::Memo<bool>,
     on_operate: block_editor_beui::beui::reactive::Callback<FormAction>,
 ) -> NodeId {
@@ -229,21 +221,21 @@ fn EventDialog(
     });
 
     let edit_title = move |typed: String| {
-        set_form.update(|form| {
+        form.update(|form| {
             if let Some(form) = form {
                 form.title = typed;
             }
         });
     };
     let edit_start = move |picked: Option<DateTime>| {
-        set_form.update(|form| {
+        form.update(|form| {
             if let (Some(form), Some(picked)) = (form, picked) {
                 form.move_start(picked);
             }
         });
     };
     let edit_end = move |picked: Option<DateTime>| {
-        set_form.update(|form| {
+        form.update(|form| {
             if let (Some(form), Some(picked)) = (form, picked) {
                 form.end = picked;
             }
@@ -254,16 +246,16 @@ fn EventDialog(
             return;
         };
         on_operate.call(FormAction::Save(shown.editing_id, shown.event()));
-        set_form.set(None);
+        form.set(None);
     };
     let delete = move || {
         if let Some(id) = form.get_untracked().and_then(|form| form.editing_id) {
             on_operate.call(FormAction::Delete(id));
         }
-        set_form.set(None);
+        form.set(None);
     };
-    let cancel = move || set_form.set(None);
-    let dismiss = move || set_form.set(None);
+    let cancel = move || form.set(None);
+    let dismiss = move || form.set(None);
     view! {
         <Dialog open={open} title={title} width=FORM_WIDTH on_dismiss={dismiss}>
             <List spacing=SPACING>

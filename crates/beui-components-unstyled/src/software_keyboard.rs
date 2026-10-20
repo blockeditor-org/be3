@@ -22,8 +22,7 @@ pub use layout::{Action, KeyAt, KeyDef, Layer, Layout, Modifier, Role, Slider, S
 #[derive(Clone, Copy)]
 pub struct KeyboardHandle {
     engine: Stored<RefCell<Engine>>,
-    revision: ReadSignal<u64>,
-    set_revision: WriteSignal<u64>,
+    revision: Signal<u64>,
 }
 
 impl KeyboardHandle {
@@ -77,7 +76,7 @@ impl KeyboardHandle {
         if paste {
             request_typed_paste();
         }
-        self.set_revision.update(|revision| *revision += 1);
+        self.revision.update(|revision| *revision += 1);
         result
     }
 }
@@ -95,12 +94,8 @@ pub struct KeyCapHandle {
 #[component]
 pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHandle>) -> NodeId {
     let engine = store(RefCell::new(Engine::default()));
-    let (revision, set_revision) = create_signal(0u64);
-    let keyboard = KeyboardHandle {
-        engine,
-        revision,
-        set_revision,
-    };
+    let revision = create_signal(0u64);
+    let keyboard = KeyboardHandle { engine, revision };
     let layer = keyboard.layer();
     let repeat = create_timer(move || {
         let now = timer::now();
@@ -143,7 +138,9 @@ pub fn SoftwareKeyboard(cap: RenderFn<KeyCapHandle>, emoji: RenderFn<KeyboardHan
         <List spacing=0.0>
             <Dynamic value={layer}>|layer: Layer| {
                 match layer {
-                    Layer::Emoji => view! { {emoji.call(keyboard)} @sizing=ItemSize::Percent(100.0) },
+                    Layer::Emoji => view! {
+                        {emoji.call(keyboard)} @sizing=ItemSize::Percent(100.0)
+                    },
                     _ => view! {
                         <Interactive
                             @sizing=ItemSize::Percent(100.0)
@@ -176,17 +173,15 @@ fn KeyRows(
     let rows: Vec<usize> = (0..layout.rows.len()).collect();
     view! {
         <List spacing=0.0>
-            <ForEach keys={rows}>|row: usize| {
-                view! {
-                    <KeyRow
-                        @sizing=ItemSize::Percent(layout.rows[row].height)
-                        layout
-                        row
-                        keyboard
-                        cap
-                    />
-                }
-            }</ForEach>
+            <ForEach keys={rows}>|row: usize|
+                <KeyRow
+                    @sizing=ItemSize::Percent(layout.rows[row].height)
+                    layout
+                    row
+                    keyboard
+                    cap
+                />
+            </ForEach>
         </List>
     }
 }

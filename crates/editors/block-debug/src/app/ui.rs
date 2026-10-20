@@ -23,7 +23,7 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
             raw.with(|raw| entries::content(raw.as_ref(), types.as_ref())),
         ]
     });
-    let (toggled, set_toggled) = create_signal(HashSet::<String>::new());
+    let toggled = create_signal(HashSet::<String>::new());
     let rows = create_memo(move || {
         roots.with(|roots| toggled.with(|toggled| entries::rows(roots, toggled)))
     });
@@ -55,7 +55,7 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
                     row_test_id={Func::new(|path: String| format!("block-debug.{path}"))}
                     on_select={move |_: String| {}}
                     on_expand={move |(path, _): (String, bool)| {
-                        set_toggled.update(|toggled| {
+                        toggled.update(|toggled| {
                             if !toggled.insert(path.clone()) {
                                 toggled.remove(&path);
                             }

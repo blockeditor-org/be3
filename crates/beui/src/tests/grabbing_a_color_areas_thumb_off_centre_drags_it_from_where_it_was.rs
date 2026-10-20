@@ -6,7 +6,7 @@ use crate::styled::*;
 #[test]
 fn grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let picker = NodeRef::new();
     let document = build(move || {
         view! {
@@ -14,7 +14,7 @@ fn grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was() {
                 <ColorPicker
                     @node_ref=&picker
                     value={Hsva::new(0.0, 0.5, 0.5, 1.0).to_color()}
-                    on_change={move |color| set_changes.update(|changes| changes.push(color))}
+                    on_change={move |color| changes.update(|changes| changes.push(color))}
                 />
             </List>
         }

@@ -17,11 +17,11 @@ const GRAPH_DETAIL_COLOR: Color32 = Color32::from_rgb(225, 225, 225);
 
 #[component]
 pub(super) fn Panels(session: Session) -> NodeId {
-    let (challenge_open, set_challenge_open) = create_signal(true);
-    let (simulation_open, set_simulation_open) = create_signal(true);
-    let (metrics_open, set_metrics_open) = create_signal(true);
-    let (debugger_open, set_debugger_open) = create_signal(false);
-    let (graph_open, set_graph_open) = create_signal(false);
+    let challenge_open = create_signal(true);
+    let simulation_open = create_signal(true);
+    let metrics_open = create_signal(true);
+    let debugger_open = create_signal(false);
+    let graph_open = create_signal(false);
     let challenged = create_memo(move || session.read(|model| model.challenge.is_some()));
     view! {
         <List spacing=SPACING>
@@ -29,7 +29,7 @@ pub(super) fn Panels(session: Session) -> NodeId {
                 <Accordion
                     title="Challenge"
                     open={challenge_open}
-                    on_toggle={move |open| set_challenge_open.set(open)}
+                    on_toggle={move |open| challenge_open.set(open)}
                 >
                     <ChallengePanel session={session} />
                 </Accordion>
@@ -37,28 +37,28 @@ pub(super) fn Panels(session: Session) -> NodeId {
             <Accordion
                 title="Simulation"
                 open={simulation_open}
-                on_toggle={move |open| set_simulation_open.set(open)}
+                on_toggle={move |open| simulation_open.set(open)}
             >
                 <SimulationPanel session={session} />
             </Accordion>
             <Accordion
                 title="Metrics"
                 open={metrics_open}
-                on_toggle={move |open| set_metrics_open.set(open)}
+                on_toggle={move |open| metrics_open.set(open)}
             >
                 <MetricsPanel session={session} />
             </Accordion>
             <Accordion
                 title="Grid debugger"
                 open={debugger_open}
-                on_toggle={move |open| set_debugger_open.set(open)}
+                on_toggle={move |open| debugger_open.set(open)}
             >
                 <DebuggerPanel session={session} />
             </Accordion>
             <Accordion
                 title="Generated graph"
                 open={graph_open}
-                on_toggle={move |open| set_graph_open.set(open)}
+                on_toggle={move |open| graph_open.set(open)}
             >
                 <GraphPanel session={session} />
             </Accordion>
@@ -381,9 +381,6 @@ fn SimulationPanel(session: Session) -> NodeId {
     let storage = create_memo(move || shown.get().storage);
     let tick = move || session.update(LogicGridEditor::run_simulation_tick);
     let step = move || session.update(LogicGridEditor::run_simulation_instruction);
-    let frame_shown = shown;
-    let instruction_shown = shown;
-    let input_shown = shown;
     view! {
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -419,7 +416,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                     <List spacing=2.0>
                         <ForEach keys={frames}>|index: usize| {
                             let row = create_memo(move || {
-                                frame_shown.get().frames.get(index).cloned()
+                                shown.get().frames.get(index).cloned()
                             });
                             let label = create_memo(move || {
                                 row.get().map(|row| row.0).unwrap_or_default()
@@ -447,7 +444,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                     <List spacing=2.0>
                         <ForEach keys={instructions}>|index: usize| {
                             let row = create_memo(move || {
-                                instruction_shown.get().instructions.get(index).cloned()
+                                shown.get().instructions.get(index).cloned()
                             });
                             view! {
                                 <InstructionRow session={session} row={row} index={index} />
@@ -462,7 +459,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                     <List spacing=4.0>
                         <ForEach keys={inputs}>|index: usize| {
                             let row = create_memo(move || {
-                                input_shown.get().inputs.get(index).cloned()
+                                shown.get().inputs.get(index).cloned()
                             });
                             view! {
                                 <InputRow session={session} row={row} index={index} />
@@ -636,7 +633,6 @@ fn ChallengePanel(session: Session) -> NodeId {
     let step = move || session.update(LogicGridEditor::challenge_test_step);
     let run = move || session.update(LogicGridEditor::challenge_test_run_all);
     let reset = move || session.update(LogicGridEditor::challenge_test_reset);
-    let rows_shown = shown;
     view! {
         <List spacing=SPACING>
             <Text string={goal} />
@@ -670,7 +666,7 @@ fn ChallengePanel(session: Session) -> NodeId {
                             <TableRow cells={header} />
                             <ForEach keys={ticks}>|tick: usize| {
                                 let row = create_memo(move || {
-                                    rows_shown
+                                    shown
                                         .get()
                                         .and_then(|shown| shown.rows.get(tick).cloned())
                                 });
@@ -888,20 +884,20 @@ fn DebuggerPanel(session: Session) -> NodeId {
 
 #[component]
 fn EntityPanel(session: Session, row: Memo<Option<EntityRow>>, entity: DebugEntity) -> NodeId {
-    let (open, set_open) = create_signal(false);
+    let open = create_signal(false);
     let title = create_memo(move || row.get().map(|row| row.title).unwrap_or_default());
     let details = create_memo(move || row.get().map(|row| row.details).unwrap_or_default());
     let hovered = move |over: bool| {
         let current = session.debug_hover.get_untracked();
         if over {
-            session.set_debug_hover.set(Some(entity));
+            session.debug_hover.set(Some(entity));
         } else if current == Some(entity) {
-            session.set_debug_hover.set(None);
+            session.debug_hover.set(None);
         }
     };
     view! {
         <Interactive on_hover_change={hovered}>
-            <Accordion title={title} open={open} on_toggle={move |open| set_open.set(open)}>
+            <Accordion title={title} open={open} on_toggle={move |next| open.set(next)}>
                 <Rows rows={details} />
             </Accordion>
         </Interactive>
@@ -982,9 +978,8 @@ fn GraphPanel(session: Session) -> NodeId {
     let drawn = create_memo(move || !empty.get());
     let width = create_memo(move || Some(shape.get().size.x));
     let height = create_memo(move || Some(shape.get().size.y));
-    let painted = shape;
     let draw: Prop<Draw> = Prop::dynamic(move || {
-        let shape = painted.get();
+        let shape = shape.get();
         Rc::new(move |painter: &Painter, rect: Rect| paint_graph(painter, rect, &shape)) as Draw
     });
     view! {
@@ -1026,19 +1021,19 @@ fn GraphCanvas(
             (local.x - center.x).abs() <= GRAPH_NODE_SIZE.x * 0.5
                 && (local.y - center.y).abs() <= GRAPH_NODE_SIZE.y * 0.5
         });
-        if hovered.get().replace(node) == node {
+        if hovered.value().replace(node) == node {
             return;
         }
         let mut hover = GraphHover::default();
         if let Some(node) = node.and_then(|node| shape.graph.nodes.get(node)) {
             hover.include_node(node);
         }
-        session.set_graph_hover.set(hover);
+        session.graph_hover.set(hover);
     };
     let left = move |inside: bool| {
         if !inside {
-            hovered.get().set(None);
-            session.set_graph_hover.set(GraphHover::default());
+            hovered.value().set(None);
+            session.graph_hover.set(GraphHover::default());
         }
     };
     view! {

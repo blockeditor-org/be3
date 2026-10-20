@@ -24,11 +24,9 @@ pub enum Side {
 #[derive(Clone)]
 struct ChromeLayout {
     narrow: Memo<bool>,
-    panels: ReadSignal<Vec<NodeId>>,
-    set_panels: WriteSignal<Vec<NodeId>>,
-    open: ReadSignal<bool>,
-    set_open: WriteSignal<bool>,
-    set_toolbars: WriteSignal<usize>,
+    panels: Signal<Vec<NodeId>>,
+    open: Signal<bool>,
+    toolbars: Signal<usize>,
 }
 
 impl ChromeLayout {
@@ -46,8 +44,8 @@ pub fn narrow_chrome() -> Memo<bool> {
     }
 }
 
-pub fn sheet_control() -> Option<WriteSignal<bool>> {
-    use_context::<ChromeLayout>().map(|layout| layout.set_open)
+pub fn sheet_control() -> Option<Signal<bool>> {
+    use_context::<ChromeLayout>().map(|layout| layout.open)
 }
 
 pub fn sheet_open() -> Memo<bool> {
@@ -70,16 +68,14 @@ pub(crate) fn ChromeRoot(
     view! {
         <Container>|size: ReadSignal<Vec2>| {
             let narrow = narrower_than(NARROW_WIDTH);
-            let (panels, set_panels) = create_signal(Vec::<NodeId>::new());
-            let (open, set_open) = create_signal(false);
-            let (toolbars, set_toolbars) = create_signal(0usize);
+            let panels = create_signal(Vec::<NodeId>::new());
+            let open = create_signal(false);
+            let toolbars = create_signal(0usize);
             let layout = ChromeLayout {
                 narrow,
                 panels,
-                set_panels,
                 open,
-                set_open,
-                set_toolbars,
+                toolbars,
             };
             provide_context(layout.clone());
             let content = content.call(());
@@ -89,11 +85,11 @@ pub(crate) fn ChromeRoot(
                 offers.get() && toolbars.get() == 0 && !phone.get()
             });
             let listed = create_memo(move || offers.get() && phone.get());
-            let opener = layout.set_open;
+            let opener = layout.open;
             let theme = use_theme();
             let bar_color = theme.surface;
             let extent = create_memo(move || size.get().y);
-            let close = layout.set_open;
+            let close = layout.open;
             view! {
                 <List spacing=0.0>
                     <Show condition={bare}>
@@ -102,7 +98,11 @@ pub(crate) fn ChromeRoot(
                                 <Frame
                                     padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
                                 >
-                                    <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=0.0
+                                    >
                                         <SheetToggle />
                                     </List>
                                 </Frame>
@@ -111,25 +111,22 @@ pub(crate) fn ChromeRoot(
                         </Frame>
                     </Show>
                     <Show condition={listed}>
-                        <PanelItem set_open={opener} />
+                        <PanelItem open={opener} />
                     </Show>
                     {content} @sizing=ItemSize::Percent(100.0)
                     <Show condition={sheet}>
                         <Sheet
-                                extent={extent}
-                                open={sheet}
-                                rest={SHEET_STOPS[0]}
-                                on_close={move || close.set(false)}
-                            >
-                                <List spacing=0.0>
-                                    <ForEach keys={panels}>
-                                        |panel: NodeId| <Portal
-                                                    @sizing=ItemSize::Percent(100.0)
-                                                    node={Some(panel)}
-                                                />
-                                    </ForEach>
-                                </List>
-                            </Sheet>
+                            extent={extent}
+                            open={sheet}
+                            rest={SHEET_STOPS[0]}
+                            on_close={move || close.set(false)}
+                        >
+                            <List spacing=0.0>
+                                <ForEach keys={panels}>|panel: NodeId|
+                                    <Portal @sizing=ItemSize::Percent(100.0) node={Some(panel)} />
+                                </ForEach>
+                            </List>
+                        </Sheet>
                     </Show>
                 </List>
             }
@@ -138,9 +135,9 @@ pub(crate) fn ChromeRoot(
 }
 
 #[component]
-fn PanelItem(set_open: WriteSignal<bool>) -> NodeId {
+fn PanelItem(open: Signal<bool>) -> NodeId {
     Action::new("chrome.open-panel", "Open the side panel", move || {
-        set_open.set(true)
+        open.set(true)
     })
     .glyph(ICON_TUNE)
     .in_menu()
@@ -152,8 +149,8 @@ fn PanelItem(set_open: WriteSignal<bool>) -> NodeId {
 
 #[component]
 fn SheetToggle() -> NodeId {
-    let (open, set_open) = match use_context::<ChromeLayout>() {
-        Some(layout) => (layout.open, layout.set_open),
+    let open = match use_context::<ChromeLayout>() {
+        Some(layout) => layout.open,
         None => create_signal(false),
     };
     view! {
@@ -163,7 +160,7 @@ fn SheetToggle() -> NodeId {
             icon_only=true
             pressed={open}
             @test_id={"chrome.sidebar"}
-            on_change={move |open: bool| set_open.set(open)}
+            on_change={move |next: bool| open.set(next)}
         />
     }
 }
@@ -186,7 +183,6 @@ pub fn Sidebar(
 
 #[component]
 fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child) -> NodeId {
-    let body = children;
     let layout = use_context::<ChromeLayout>();
     let narrow = narrow_chrome();
     let shown = create_memo(move || shown.get());
@@ -195,9 +191,9 @@ fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child
     let leading = create_memo(move || docked.get() && side == Side::Right);
     let trailing = create_memo(move || docked.get() && side == Side::Left);
     if let Some(layout) = layout {
-        fold_into_sheet(layout, body, folded);
+        fold_into_sheet(layout, children, folded);
     }
-    let held = create_memo(move || docked.get().then_some(body));
+    let held = create_memo(move || docked.get().then_some(children));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame visible={leading} width=BORDER_WIDTH fill=ColorRole::Border />
@@ -213,20 +209,19 @@ fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child
 
 fn fold_into_sheet(layout: ChromeLayout, body: NodeId, folded: Memo<bool>) {
     let panels = layout.panels;
-    let set_panels = layout.set_panels;
     create_effect(move || {
         let wanted = folded.get();
-        let listed = untrack(|| panels.get().contains(&body));
+        let listed = panels.with_untracked(|panels| panels.contains(&body));
         if wanted == listed {
             return;
         }
-        set_panels.update(|panels| match wanted {
+        panels.update(|panels| match wanted {
             true => panels.push(body),
             false => panels.retain(|panel| *panel != body),
         });
     });
-    let set_panels = layout.set_panels;
-    on_cleanup(move || set_panels.update(|panels| panels.retain(|panel| *panel != body)));
+    let panels = layout.panels;
+    on_cleanup(move || panels.update(|panels| panels.retain(|panel| *panel != body)));
 }
 
 #[component]
@@ -250,7 +245,6 @@ pub fn Toolbar(
 
 #[component]
 fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
-    let row = children;
     let shown = create_memo(move || shown.get());
     let fit = create_memo(move || fit.get());
     let squeezed = narrow_chrome();
@@ -265,8 +259,8 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
         None => create_memo(|| false),
     };
     let fitted_toggle = create_memo(move || offers.get() && squeezed.get() && fit.get());
-    let spread = create_memo(move || roomy.get().then_some(row));
-    let scrolled = create_memo(move || narrow.get().then_some(row));
+    let spread = create_memo(move || roomy.get().then_some(children));
+    let scrolled = create_memo(move || narrow.get().then_some(children));
     view! {
         <Frame visible={shown} fill=ColorRole::Surface>
             <List spacing=0.0>
@@ -310,12 +304,12 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
 }
 
 fn count_toolbar(layout: &ChromeLayout, shown: Memo<bool>) {
-    let set_toolbars = layout.set_toolbars;
+    let toolbars = layout.toolbars;
     let counted = StoredCell::new(false);
     create_effect(move || {
         let now = shown.get();
         if counted.replace(now) != now {
-            set_toolbars.update(|count| match now {
+            toolbars.update(|count| match now {
                 true => *count += 1,
                 false => *count -= 1,
             });
@@ -323,7 +317,7 @@ fn count_toolbar(layout: &ChromeLayout, shown: Memo<bool>) {
     });
     on_cleanup(move || {
         if counted.get() {
-            set_toolbars.update(|count| *count -= 1);
+            toolbars.update(|count| *count -= 1);
         }
     });
 }

@@ -1,14 +1,21 @@
+use beui_html::elements as html;
 use std::collections::BTreeSet;
 use std::fmt::Write as _;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
-use paint_snapshot::Snapshot;
+use beui_html::{Children, Node, component, render_fragment, view};
+use paint_snapshot::{BrowserSnapshot, Snapshot};
 use sha2::{Digest as _, Sha256};
 
 const ROOT: &str = "PREVIEW_ROOT";
 const MAX_ROWS: usize = 30;
 
-pub fn generate(before: &Path, after: &Path, output: &Path) -> Result<String, String> {
+pub fn generate(
+    before: &Path,
+    after: &Path,
+    output: &Path,
+    browser_renderer: Option<&Path>,
+) -> Result<String, String> {
     let mut comment = "## Paintings\n\n".to_owned();
 
     std::fs::create_dir_all(output).map_err(|error| error.to_string())?;
@@ -33,11 +40,11 @@ pub fn generate(before: &Path, after: &Path, output: &Path) -> Result<String, St
                 removed += 1;
                 "was removed".to_owned()
             }
-            (Some(Ok(old)), Some(Ok(new))) => match paint_snapshot::difference(old, new) {
+            (Some(Ok(old)), Some(Ok(new))) => match old.difference(new) {
                 None => continue,
                 Some(difference) => {
                     changed += 1;
-                    format!("changed: {}", difference.description)
+                    format!("changed: {difference}")
                 }
             },
         };
@@ -47,16 +54,20 @@ pub fn generate(before: &Path, after: &Path, output: &Path) -> Result<String, St
             unshown.push(format!("- `{name}` {}", escaped(&summary)));
             continue;
         }
-        let table = table(old.as_ref(), new.as_ref(), output, &mut rows)?;
+        let table = table(
+            old.as_ref(),
+            new.as_ref(),
+            output,
+            &mut rows,
+            browser_renderer,
+        )?;
         let (headline, detail) = summary.split_once(": ").unwrap_or((&summary, ""));
-        sections.push(format!(
-            "<details{{open}}>\n<summary><code>{name}</code> {}</summary>\n\n{}{table}\n</details>\n",
-            escaped(headline),
-            match detail {
-                "" => String::new(),
-                detail => format!("<sub>{}</sub>\n\n", escaped(detail)),
-            }
-        ));
+        sections.push(SectionData {
+            name: name.clone(),
+            headline: headline.to_string(),
+            detail: detail.to_string(),
+            rows: table,
+        });
     }
 
     let total = added + removed + changed;
@@ -72,9 +83,13 @@ pub fn generate(before: &Path, after: &Path, output: &Path) -> Result<String, St
                 count => format!("{count} paintings differ"),
             }
         );
-        let open = if sections.len() <= 5 { " open" } else { "" };
+        let open = sections.len() <= 5;
         for section in sections {
-            comment.push_str(&section.replace("{open}", open));
+            comment.push_str(&render_fragment(|| {
+                view! {
+                    <Section data={section} open={open} />
+                }
+            }));
             comment.push('\n');
         }
         if !unshown.is_empty() {
@@ -89,61 +104,242 @@ pub fn generate(before: &Path, after: &Path, output: &Path) -> Result<String, St
 }
 
 fn table(
-    old: Option<&Snapshot>,
-    new: Option<&Snapshot>,
+    old: Option<&ReviewSnapshot>,
+    new: Option<&ReviewSnapshot>,
     output: &Path,
     rows: &mut usize,
-) -> Result<String, String> {
-    let count = |snapshot: Option<&Snapshot>| snapshot.map_or(0, |snapshot| snapshot.frames.len());
+    browser_renderer: Option<&Path>,
+) -> Result<Vec<RowData>, String> {
+    let count =
+        |snapshot: Option<&ReviewSnapshot>| snapshot.map_or(0, |snapshot| snapshot.frame_count());
     let frames = count(old).max(count(new));
-    let mut table = "| Frame | Before | After | Changes |\n|---|---|---|---|\n".to_owned();
+    let mut table_rows = Vec::new();
     for index in 0..frames {
-        let old_frame = old.and_then(|snapshot| snapshot.frames.get(index));
-        let new_frame = new.and_then(|snapshot| snapshot.frames.get(index));
-        if old_frame.is_some() && old_frame == new_frame {
+        let old_frame = old.filter(|snapshot| index < snapshot.frame_count());
+        let new_frame = new.filter(|snapshot| index < snapshot.frame_count());
+        if matches!((old_frame, new_frame), (Some(old), Some(new)) if old.same_frame(new, index)) {
             continue;
         }
         if *rows >= MAX_ROWS {
-            let _ = writeln!(table, "| {} | more frames not shown | | |", index + 1);
+            table_rows.push(RowData {
+                number: index + 1,
+                before: None,
+                after: None,
+                changes: None,
+                truncated: true,
+            });
             break;
         }
         *rows += 1;
-        let old_image = old_frame.and_then(|_| render(old?, index));
-        let new_image = new_frame.and_then(|_| render(new?, index));
+        let old_image = old_frame
+            .map(|snapshot| snapshot.render(index, output, browser_renderer))
+            .transpose()?;
+        let new_image = new_frame
+            .map(|snapshot| snapshot.render(index, output, browser_renderer))
+            .transpose()?;
         let changes = match (&old_image, &new_image) {
             (Some(old), Some(new)) => {
                 let highlight = paint_snapshot::highlight(old, new);
                 let cell = image("changes", &highlight.image, output)?;
-                match highlight.changed {
-                    0 => format!("{cell}<br>no visible difference"),
-                    1 => format!("{cell}<br>1 pixel"),
-                    count => format!("{cell}<br>{count} pixels"),
-                }
+                let label = match highlight.changed {
+                    0 => "no visible difference".to_string(),
+                    1 => "1 pixel".to_string(),
+                    count => format!("{count} pixels"),
+                };
+                Some((cell, label))
             }
-            _ => String::new(),
+            _ => None,
         };
         let cell = |rendered: &Option<image::RgbaImage>, kind: &str| match rendered {
-            Some(rendered) => image(kind, rendered, output),
-            None => Ok(String::new()),
+            Some(rendered) => image(kind, rendered, output).map(Some),
+            None => Ok(None),
         };
-        let _ = writeln!(
-            table,
-            "| {} | {} | {} | {changes} |",
-            index + 1,
-            cell(&old_image, "before")?,
-            cell(&new_image, "after")?,
-        );
+        table_rows.push(RowData {
+            number: index + 1,
+            before: cell(&old_image, "before")?,
+            after: cell(&new_image, "after")?,
+            changes,
+            truncated: false,
+        });
     }
-    Ok(table)
+    Ok(table_rows)
 }
 
-fn render(snapshot: &Snapshot, index: usize) -> Option<image::RgbaImage> {
-    paint_snapshot::render(snapshot, index)
-        .inspect_err(|error| eprintln!("frame {index} did not render: {error}"))
-        .ok()
+struct SectionData {
+    name: String,
+    headline: String,
+    detail: String,
+    rows: Vec<RowData>,
 }
 
-fn image(kind: &str, image: &image::RgbaImage, output: &Path) -> Result<String, String> {
+struct RowData {
+    number: usize,
+    before: Option<ImageData>,
+    after: Option<ImageData>,
+    changes: Option<(ImageData, String)>,
+    truncated: bool,
+}
+
+struct ImageData {
+    alt: String,
+    src: String,
+}
+
+#[component]
+fn Section(data: SectionData, open: bool) -> Node {
+    let detail: Children<Node> = if data.detail.is_empty() {
+        view! {}
+    } else {
+        view! {
+            <html::Sub>{data.detail}</html::Sub>
+        }
+        .into()
+    };
+    view! {
+        <html::Details open={open}>
+            <html::Summary>
+                <html::Code>{data.name}</html::Code>
+                " "
+                {data.headline}
+            </html::Summary>
+            {detail}
+            <Table rows={data.rows} />
+        </html::Details>
+    }
+}
+
+#[component]
+fn Table(rows: Vec<RowData>) -> Node {
+    let rows: Children<Node> = rows
+        .into_iter()
+        .map(|row| {
+            view! {
+                <Row data={row} />
+            }
+        })
+        .collect();
+    view! {
+        <html::Table>
+            <html::Tr>
+                <html::Th>"Frame"</html::Th>
+                <html::Th>"Before"</html::Th>
+                <html::Th>"After"</html::Th>
+                <html::Th>"Changes"</html::Th>
+            </html::Tr>
+            {rows}
+        </html::Table>
+    }
+}
+
+#[component]
+fn Row(data: RowData) -> Node {
+    if data.truncated {
+        return view! {
+            <html::Tr>
+                <html::Td>{data.number.to_string()}</html::Td>
+                <html::Td colspan=3>"more frames not shown"</html::Td>
+            </html::Tr>
+        };
+    }
+    let changes: Children<Node> = match data.changes {
+        Some((image, label)) => view! {
+            <Image data={image} />
+            <html::Br />
+            {label}
+        },
+        None => view! {},
+    };
+    view! {
+        <html::Tr>
+            <html::Td>{data.number.to_string()}</html::Td>
+            <html::Td>
+                <ImageCell image={data.before} />
+            </html::Td>
+            <html::Td>
+                <ImageCell image={data.after} />
+            </html::Td>
+            <html::Td>{changes}</html::Td>
+        </html::Tr>
+    }
+}
+
+#[component]
+fn ImageCell(image: Option<ImageData>) -> Children<Node> {
+    match image {
+        Some(data) => view! {
+            <Image data={data} />
+        }
+        .into(),
+        None => view! {},
+    }
+}
+
+#[component]
+fn Image(data: ImageData) -> Node {
+    view! {
+        <html::Img alt={data.alt} src={data.src} />
+    }
+}
+
+enum ReviewSnapshot {
+    Native(Snapshot),
+    Browser(BrowserSnapshot, PathBuf),
+}
+
+impl ReviewSnapshot {
+    fn frame_count(&self) -> usize {
+        match self {
+            Self::Native(snapshot) => snapshot.frames.len(),
+            Self::Browser(..) => 1,
+        }
+    }
+
+    fn same_frame(&self, other: &Self, index: usize) -> bool {
+        match (self, other) {
+            (Self::Native(old), Self::Native(new)) => {
+                old.frames.get(index) == new.frames.get(index)
+            }
+            (Self::Browser(old, _), Self::Browser(new, _)) => old == new,
+            _ => false,
+        }
+    }
+
+    fn difference(&self, other: &Self) -> Option<String> {
+        match (self, other) {
+            (Self::Native(old), Self::Native(new)) => {
+                paint_snapshot::difference(old, new).map(|difference| difference.description)
+            }
+            (Self::Browser(old, _), Self::Browser(new, _)) if old == new => None,
+            (Self::Browser(..), Self::Browser(..)) => {
+                Some("browser document, viewport or embedded files changed".into())
+            }
+            _ => Some("painting format changed".into()),
+        }
+    }
+
+    fn render(
+        &self,
+        index: usize,
+        output: &Path,
+        renderer: Option<&Path>,
+    ) -> Result<image::RgbaImage, String> {
+        match self {
+            Self::Native(snapshot) => paint_snapshot::render(snapshot, index),
+            Self::Browser(_, path) => {
+                let png = output.join("browser-render.png");
+                let renderer = renderer.ok_or("the browser preview rasterizer was not built")?;
+                crate::browser::rasterize(path, &png, Some(renderer))?;
+                let result = image::open(&png)
+                    .map(|image| image.to_rgba8())
+                    .map_err(|error| error.to_string());
+                let _ = std::fs::remove_file(png);
+                result
+            }
+        }
+    }
+}
+
+fn image(kind: &str, image: &image::RgbaImage, output: &Path) -> Result<ImageData, String> {
     let mut png = Vec::new();
     image
         .write_to(&mut std::io::Cursor::new(&mut png), image::ImageFormat::Png)
@@ -156,7 +352,10 @@ fn image(kind: &str, image: &image::RgbaImage, output: &Path) -> Result<String, 
     let path = output.join(&file);
     std::fs::write(&path, png)
         .map_err(|error| format!("could not write {}: {error}", path.display()))?;
-    Ok(format!("![{kind}]({ROOT}/{file})"))
+    Ok(ImageData {
+        alt: kind.to_string(),
+        src: format!("{ROOT}/{file}"),
+    })
 }
 
 fn paintings(directory: &Path) -> Vec<String> {
@@ -176,13 +375,23 @@ fn paintings(directory: &Path) -> Vec<String> {
         .collect()
 }
 
-fn read(path: &Path) -> Option<Result<Snapshot, String>> {
+fn read(path: &Path) -> Option<Result<ReviewSnapshot, String>> {
     let bytes = std::fs::read(path).ok()?;
-    Some(Snapshot::decode(&bytes))
+    Some(if BrowserSnapshot::is_browser(&bytes) {
+        BrowserSnapshot::decode(&bytes)
+            .map(|snapshot| ReviewSnapshot::Browser(snapshot, path.to_owned()))
+    } else {
+        Snapshot::decode(&bytes).map(ReviewSnapshot::Native)
+    })
 }
 
 fn escaped(text: &str) -> String {
-    text.replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
+    beui_html::render_fragment(|| {
+        view! {
+            {text}
+        }
+    })
 }
+
+#[cfg(test)]
+mod tests;

@@ -40,21 +40,17 @@ fn the_dock_switcher_shows_the_recent_tabs_and_a_pick_shows_one() {
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || {
-        for tab in [2, 4, 3, 1] {
-            layout.show(&tab);
-        }
-    });
+    for tab in [2, 4, 3, 1] {
+        layout.show(&tab);
+    }
     harness.frame(Vec::new());
     assert!(
         harness.document().find_test_id("dock.switch.1").is_none(),
         "the switcher is closed until a switch begins"
     );
 
-    with_reactive_scope(harness.document_mut(), move || {
-        layout.begin_switch(false);
-        layout.step_switch(false);
-    });
+    layout.begin_switch(false);
+    layout.step_switch(false);
     harness.frame(Vec::new());
     for tab in 1..=4 {
         assert!(
@@ -68,12 +64,12 @@ fn the_dock_switcher_shows_the_recent_tabs_and_a_pick_shows_one() {
     assert_eq!(layout.switch_choice(), Some(4));
     assert_eq!(layout.focused(), Some(1), "switching shows nothing yet");
 
-    with_reactive_scope(harness.document_mut(), move || layout.cancel_switch());
+    layout.cancel_switch();
     harness.frame(Vec::new());
     assert!(harness.document().find_test_id("dock.switch.1").is_none());
     assert_eq!(layout.focused(), Some(1), "cancelling leaves the tab shown");
 
-    with_reactive_scope(harness.document_mut(), move || layout.begin_switch(true));
+    layout.begin_switch(true);
     harness.frame(Vec::new());
     harness.click(harness.center(harness.find("dock.switch.4")));
     harness.frame(Vec::new());

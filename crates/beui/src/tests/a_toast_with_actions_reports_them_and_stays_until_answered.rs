@@ -17,10 +17,10 @@ fn a_toast_with_actions_reports_them_and_stays_until_answered() {
         sticky: true,
         ..Toast::default()
     };
-    let (heard, set_heard) = create_signal::<Vec<String>>(Vec::new());
+    let heard = create_signal::<Vec<String>>(Vec::new());
     let document = build(move || {
         let area = NodeRef::new();
-        let (toasts, _) = create_signal(vec![toast.clone()]);
+        let toasts = create_signal(vec![toast.clone()]);
         view! {
             <Frame @node_ref=&area width={VIEWPORT.x} height={VIEWPORT.y}>
                 <Toasts
@@ -28,9 +28,9 @@ fn a_toast_with_actions_reports_them_and_stays_until_answered() {
                     toasts={toasts}
                     on_dismiss={|_: u64| {}}
                     on_action={move |(id, key): (u64, String)| {
-                        set_heard.update(|heard| heard.push(format!("{id} {key}")))
+                        heard.update(|heard| heard.push(format!("{id} {key}")))
                     }}
-                    on_activate={move |id: u64| set_heard.update(|heard| heard.push(format!("{id} opened")))}
+                    on_activate={move |id: u64| heard.update(|heard| heard.push(format!("{id} opened")))}
                 />
             </Frame>
         }

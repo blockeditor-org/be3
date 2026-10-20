@@ -832,10 +832,12 @@ dependencies = [
  "be-protocol",
  "be-session",
  "be-store",
+ "beui-html",
  "build-id",
  "chacha20poly1305",
  "futures-util",
  "httparse",
+ "paint-snapshot",
  "rand 0.9.4",
  "rusqlite",
  "serde",
@@ -1093,6 +1095,13 @@ dependencies = [
 ]
 
 [[package]]
+name = "beui-html"
+version = "0.1.0"
+dependencies = [
+ "beui-tree",
+]
+
+[[package]]
 name = "beui-inspector"
 version = "0.1.0"
 dependencies = [
@@ -1183,6 +1192,7 @@ dependencies = [
 name = "beui_macros"
 version = "0.1.0"
 dependencies = [
+ "proc-macro-crate 3.5.0",
  "proc-macro2",
  "quote",
  "syn 2.0.117",
@@ -1548,6 +1558,13 @@ checksum = "553c5d846a6ba5150c65e3b1b8ec073bcf1abc20f9b7220de384a4443ea4e20a"
 dependencies = [
  "bytes",
  "cfg_aliases 0.2.2",
+]
+
+[[package]]
+name = "browser-rasterizer"
+version = "0.1.0"
+dependencies = [
+ "paint-snapshot",
 ]
 
 [[package]]
@@ -4410,18 +4427,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "linux_settings"
-version = "0.1.0"
-dependencies = [
- "be-remap",
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "text-editor-core",
- "uuid",
-]
-
-[[package]]
 name = "litemap"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4438,6 +4443,7 @@ name = "local-tools"
 version = "0.1.0"
 dependencies = [
  "base64",
+ "beui-html",
  "build-id",
  "image",
  "libc",
@@ -4646,6 +4652,16 @@ dependencies = [
  "spirv",
  "thiserror 2.0.18",
  "unicode-ident",
+]
+
+[[package]]
+name = "namespace-waker"
+version = "0.1.0"
+dependencies = [
+ "httparse",
+ "tokio",
+ "tracing",
+ "tracing-subscriber",
 ]
 
 [[package]]
@@ -5146,6 +5162,7 @@ dependencies = [
  "image",
  "paint-format",
  "serde",
+ "serde_json",
  "sha2",
 ]
 
@@ -6437,9 +6454,11 @@ dependencies = [
 name = "settings"
 version = "0.1.0"
 dependencies = [
+ "be-remap",
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "text-editor-core",
  "uuid",
 ]
 

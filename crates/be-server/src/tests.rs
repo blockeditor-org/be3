@@ -3,8 +3,8 @@ use std::{path::PathBuf, time::Duration};
 use be_commit::{Commit, CommitId, CommitStore};
 use be_graph::BlockParent;
 use be_protocol::{
-    BlockSummary, ClientMessage, ErrorCode, HistoryEntry, KeyKind, KeyRow, KeySet, ServerMessage,
-    SessionState, WrappedBy, WrappedKey, encode as encode_message,
+    BlockSummary, ClientMessage, ErrorCode, HistoryEntry, KeyKind, KeyRow, KeySet,
+    OrganizationRole, ServerMessage, SessionState, WrappedBy, WrappedKey, encode as encode_message,
 };
 use be_session::{Resume, resume, takeover_needs_merge};
 use be_store::{ChunkerConfig, ContentKey, Hash, Keyring, MemoryStore, ObjectStore, Vault};
@@ -17,9 +17,7 @@ use uuid::Uuid;
 
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
-
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
-mod a_batch_answers_each_request_in_order;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
@@ -31,6 +29,7 @@ mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
 mod a_graph_change_reaches_only_the_members_who_may_see_it;
 mod a_new_recovery_key_reseals_every_key_sealed_to_the_account;
 mod a_pending_grant_is_applied_when_its_link_is_accepted;
+mod a_remembered_account_approves_a_manually_entered_code_and_can_switch_accounts;
 mod a_rotation_gives_every_block_below_it_a_new_key_or_nothing;
 mod a_session_hands_ownership_over_without_a_merge;
 mod a_stale_publish_is_rejected_with_the_current_head;
@@ -41,12 +40,17 @@ mod an_invited_account_joins_the_organization_and_a_logout_ends_the_session;
 mod an_unauthenticated_connection_cannot_touch_blocks;
 mod another_build_is_greeted_and_turned_away;
 mod blocks_publish_and_read_back_through_the_server;
+mod browser_authorization_survives_disconnecting_before_approval;
 mod browser_forms_enforce_origin_policy_and_deny_sign_in;
+mod browser_pages_escape_codes_and_keep_available_actions;
 mod contacts_are_made_by_a_link_and_finished_by_its_owner;
+mod email_changes_wait_for_verification_and_notify_the_old_address;
 mod every_graph_change_advances_a_blocks_version;
 mod every_member_connection_hears_how_the_graph_changes;
+mod expired_mail_and_browser_sessions_fail_and_mail_issuance_is_bounded;
 mod history_records_each_commits_parents;
 mod key_rows_are_served_only_to_who_may_see_their_block;
+mod legacy_local_profile_sessions_remain_usable;
 mod local_profiles_need_only_a_name_and_are_unavailable_on_remote_servers;
 mod members_manage_only_the_agents_they_created;
 mod metadata_travels_with_the_content_once_a_block_has_any;
@@ -55,15 +59,21 @@ mod objects_a_block_holds_outlive_its_commits_until_it_is_collected;
 mod objects_are_served_only_from_blocks_the_reader_can_see;
 mod old_database_backups_thin_out_by_age;
 mod pairing_messages_reach_only_the_same_accounts_other_connections;
+mod password_changes_rotate_the_browser_and_revoke_other_sessions;
+mod password_reset_is_generic_and_revokes_live_sessions_and_pending_approvals;
+mod passwords_are_validated_on_the_server_without_truncation_or_echoing;
 mod proxy_account_authentication_never_discloses_the_token;
 mod pruning_history_keeps_pinned_commits;
 mod references_keep_the_order_their_block_lists_them_in;
 mod registering_joins_the_one_personal_organization_as_an_editor;
+mod registration_requires_verification_and_links_are_purpose_bound_and_single_use;
 mod relayed_session_traffic_passes_through_the_server_sealed;
 mod removing_a_contact_revokes_what_the_two_shared;
 mod repeated_failed_sign_ins_lock_the_account_out;
+mod revoking_an_http_session_removes_its_access;
+mod sessions_are_scoped_to_the_account_and_form_tokens_to_the_browser;
 mod shared_chunks_survive_until_the_last_commit_releases_them;
-mod the_browser_approves_only_the_requesting_connection_and_the_code_works_once;
+mod the_browser_authorization_requires_the_private_secret_and_works_once;
 
 const CONTENT: Uuid = Uuid::from_u128(0x7465_7874);
 const KEY: Uuid = Uuid::from_u128(0x006b_6579);
@@ -71,6 +81,7 @@ const KEY: Uuid = Uuid::from_u128(0x006b_6579);
 const BUILD: &str = "a test build";
 
 struct Harness {
+    mail: Arc<CapturedMail>,
     url: String,
     directory: PathBuf,
     shutdown: Option<oneshot::Sender<()>>,
@@ -100,10 +111,13 @@ impl Harness {
         let address = listener.local_addr().unwrap();
         let (shutdown, receiver) = oneshot::channel();
         let data_dir = directory.clone();
+        let mail = Arc::new(CapturedMail::default());
+        let delivery = mail.clone();
         let handle = tokio::spawn(async move {
-            let _ = serve_with_config(listener, data_dir, config, receiver).await;
+            let _ = serve_with_mail(listener, data_dir, config, delivery, receiver).await;
         });
         Self {
+            mail,
             url: format!("ws://{address}"),
             directory,
             shutdown: Some(shutdown),
@@ -112,7 +126,9 @@ impl Harness {
     }
 
     async fn client(&self) -> TestClient {
-        TestClient::connect(&self.url).await
+        let mut client = TestClient::connect(&self.url).await;
+        client.directory = Some(self.directory.clone());
+        client
     }
 
     async fn greeted(&self, build: &str) -> Socket {
@@ -163,6 +179,7 @@ impl Harness {
 }
 
 struct TestClient {
+    directory: Option<PathBuf>,
     socket: Socket,
     next: u64,
     notifications: Vec<ServerMessage>,
@@ -182,6 +199,7 @@ impl TestClient {
             "the server did not greet a client of its own build"
         );
         Self {
+            directory: None,
             socket,
             next: 0,
             notifications: Vec::new(),
@@ -258,13 +276,13 @@ impl TestClient {
     }
 
     async fn register(&mut self, email: &str) -> Uuid {
+        let (_, token) = ServerStore::open(self.directory.as_ref().unwrap())
+            .unwrap()
+            .register(email, email, "correct horse battery")
+            .await
+            .unwrap();
         let response = self
-            .send(|request| ClientMessage::Register {
-                request,
-                email: email.into(),
-                display_name: email.into(),
-                password: "correct horse battery".into(),
-            })
+            .send(|request| ClientMessage::Authenticate { request, token })
             .await;
         let ServerMessage::Authenticated { account, token, .. } = response else {
             panic!("registration failed: {response:?}");
@@ -386,6 +404,7 @@ impl TestClient {
             pinned: false,
             references: Vec::new(),
             metadata: Vec::new(),
+            objects: Vec::new(),
         })
         .await
     }
@@ -625,34 +644,125 @@ async fn http(
     let status = response.split_whitespace().nth(1).unwrap().parse().unwrap();
     (status, response)
 }
-async fn form(harness: &Harness, code: &str) -> String {
-    let (status, page) = http(harness, "GET", &format!("/auth?code={code}"), "", None).await;
-    assert_eq!(status, 200);
-    assert!(page.contains("Cache-Control: no-store"));
-    page.split("name=csrf value=\"")
-        .nth(1)
-        .unwrap()
-        .split('"')
-        .next()
-        .unwrap()
-        .to_owned()
-}
-async fn begin(client: &mut TestClient) -> String {
-    let ServerMessage::BrowserLogin { code, .. } = client
+async fn begin_session(client: &mut TestClient) -> (String, String) {
+    let ServerMessage::BrowserLogin { code, secret, .. } = client
         .send(|request| ClientMessage::BeginBrowserLogin { request })
         .await
     else {
         panic!("a browser authorization session starts")
     };
-    code
+    (code, secret)
 }
-async fn post(harness: &Harness, body: &str) -> (u16, String) {
-    http(
-        harness,
-        "POST",
-        "/auth",
-        body,
-        Some(&harness.url.replacen("ws://", "http://", 1)),
-    )
-    .await
+async fn fixture_account(
+    directory: &std::path::Path,
+    email: &str,
+    name: &str,
+    password: &str,
+    organization: &str,
+) -> Result<(Uuid, Uuid), ServerError> {
+    let store = ServerStore::open(directory)?;
+    let (profile, _) = store.register(email, name, password).await?;
+    let company = store
+        .create_organization(profile.account, organization)
+        .await?;
+    Ok((profile.account, company.id))
+}
+
+#[derive(Default)]
+struct CapturedMail(std::sync::Mutex<Vec<mail::Email>>);
+impl mail::Delivery for CapturedMail {
+    fn send(&self, email: mail::Email) {
+        self.0.lock().unwrap().push(email);
+    }
+}
+impl Harness {
+    fn mail_token(&self, email: &str) -> String {
+        let messages = self.mail.0.lock().unwrap();
+        let body = &messages
+            .iter()
+            .rev()
+            .find(|message| message.recipient == email)
+            .unwrap()
+            .body;
+        body.split("?token=")
+            .nth(1)
+            .unwrap()
+            .split_whitespace()
+            .next()
+            .unwrap()
+            .to_string()
+    }
+}
+
+#[derive(Default)]
+struct Browser {
+    cookie: String,
+}
+impl Browser {
+    async fn request(
+        &mut self,
+        harness: &Harness,
+        method: &str,
+        path: &str,
+        body: &str,
+    ) -> (u16, String) {
+        let address = harness.url.trim_start_matches("ws://");
+        let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+        stream.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nCookie: be3-account={}\r\nContent-Length: {}\r\nContent-Type: application/x-www-form-urlencoded\r\nConnection: close\r\n\r\n{body}", self.cookie, body.len()).as_bytes()).await.unwrap();
+        let mut bytes = Vec::new();
+        stream.read_to_end(&mut bytes).await.unwrap();
+        let response = String::from_utf8(bytes).unwrap();
+        if let Some(cookie) = response.split("Set-Cookie: be3-account=").nth(1) {
+            self.cookie = cookie.split(';').next().unwrap().into();
+        }
+        (
+            response.split_whitespace().nth(1).unwrap().parse().unwrap(),
+            response,
+        )
+    }
+    async fn get(&mut self, harness: &Harness, path: &str) -> String {
+        let (status, page) = self.request(harness, "GET", path, "").await;
+        assert_eq!(status, 200, "{page}");
+        page
+    }
+    async fn submit(
+        &mut self,
+        harness: &Harness,
+        page_path: &str,
+        action: &str,
+        fields: &[(&str, &str)],
+    ) -> (u16, String) {
+        let page = self.get(harness, page_path).await;
+        let csrf = csrf(&page);
+        let body = format!(
+            "csrf={csrf}&{}",
+            fields
+                .iter()
+                .map(|(key, value)| format!("{}={}", portal::encode(key), portal::encode(value)))
+                .collect::<Vec<_>>()
+                .join("&")
+        );
+        self.request(harness, "POST", action, &body).await
+    }
+    async fn login(&mut self, harness: &Harness, email: &str, password: &str) {
+        let (status, page) = self
+            .submit(
+                harness,
+                "/auth/login",
+                "/auth/login",
+                &[("email", email), ("password", password)],
+            )
+            .await;
+        assert_eq!(status, 303, "{page}");
+        assert!(!self.cookie.is_empty());
+    }
+}
+fn csrf(page: &str) -> String {
+    page.split("name=\"csrf\" value=\"")
+        .nth(1)
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap()
+        .into()
 }

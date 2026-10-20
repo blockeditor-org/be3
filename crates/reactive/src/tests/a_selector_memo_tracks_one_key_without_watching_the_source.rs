@@ -4,7 +4,7 @@ use super::*;
 fn a_selector_memo_tracks_one_key_without_watching_the_source() {
     let _root = RootScope::new();
     let scope = Scope::new();
-    let (selected, set_selected) = create_signal(0usize);
+    let selected = create_signal(0usize);
     let calls = Rc::new(Cell::new(0));
     let (selector, first) = scope.run(|| {
         let selector = create_selector(move || selected.get());
@@ -23,13 +23,13 @@ fn a_selector_memo_tracks_one_key_without_watching_the_source() {
         }
     });
     assert_eq!(*seen.borrow(), [true]);
-    set_selected.set(1);
+    selected.set(1);
     assert_eq!(*seen.borrow(), [true, false]);
-    set_selected.set(2);
-    set_selected.set(3);
+    selected.set(2);
+    selected.set(3);
     assert_eq!(*seen.borrow(), [true, false]);
     assert_eq!(calls.get(), 2);
     assert_eq!(selector.watched_keys(), 1);
-    set_selected.set(0);
+    selected.set(0);
     assert_eq!(*seen.borrow(), [true, false, true]);
 }

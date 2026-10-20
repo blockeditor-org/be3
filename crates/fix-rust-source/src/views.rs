@@ -43,7 +43,9 @@ struct ViewCall {
 }
 
 enum Child {
+    Fragment(Vec<Child>),
     Element(Element),
+    Modified(Box<Child>, Vec<Attribute>),
     Expr(Range<usize>),
     Literal(Range<usize>),
 }
@@ -67,6 +69,7 @@ struct Attribute {
 }
 
 enum Value {
+    View(Box<Child>),
     Braced(Range<usize>),
     Bare(Range<usize>),
 }
@@ -235,18 +238,64 @@ impl Parser<'_> {
     }
 
     fn child(&mut self) -> Option<Child> {
-        if self.at(0, "<") {
+        let child = if self.at(0, "<") && self.at(1, ">") {
+            self.index += 2;
+            let children = self.children()?;
+            self.expect("<")?;
+            self.expect("/")?;
+            self.expect(">")?;
+            return Some(Child::Fragment(children));
+        } else if self.at(0, "<") {
             return Some(Child::Element(self.element()?));
-        }
-        if self.at(0, "{") {
-            return Some(Child::Expr(self.group()?));
-        }
-        let token = self.tokens.get(self.index)?;
-        if token.kind == SyntaxKind::STRING {
+        } else if self.at(0, "{") {
+            Child::Expr(self.group()?)
+        } else {
+            let token = self.tokens.get(self.index)?;
+            if token.kind != SyntaxKind::STRING {
+                return None;
+            }
             self.index += 1;
-            return Some(Child::Literal(token.range.clone()));
+            Child::Literal(token.range.clone())
+        };
+        let mut modifiers = Vec::new();
+        while self.at(0, "@") {
+            modifiers.push(self.attribute()?);
         }
-        None
+        Some(if modifiers.is_empty() {
+            child
+        } else {
+            Child::Modified(Box::new(child), modifiers)
+        })
+    }
+
+    fn attribute(&mut self) -> Option<Attribute> {
+        let special = self.eat("@");
+        let key = if special {
+            let absolute = self.eat(":");
+            if absolute {
+                self.expect(":")?;
+            }
+            let path = self.tag_path()?;
+            if absolute { format!("::{path}") } else { path }
+        } else {
+            self.identifier()?
+        };
+        let value = if self.eat("=") {
+            if self.at(0, "<") && !special {
+                Some(Value::View(Box::new(self.child()?)))
+            } else if self.at(0, "{") {
+                Some(Value::Braced(self.group()?))
+            } else {
+                Some(Value::Bare(self.bare_value()?))
+            }
+        } else {
+            None
+        };
+        Some(Attribute {
+            special,
+            key,
+            value,
+        })
     }
 
     fn element(&mut self) -> Option<Element> {
@@ -257,22 +306,7 @@ impl Parser<'_> {
             if self.index >= self.tokens.len() {
                 return None;
             }
-            let special = self.eat("@");
-            let key = self.identifier()?;
-            let value = if self.eat("=") {
-                if self.at(0, "{") {
-                    Some(Value::Braced(self.group()?))
-                } else {
-                    Some(Value::Bare(self.bare_value()?))
-                }
-            } else {
-                None
-            };
-            attributes.push(Attribute {
-                special,
-                key,
-                value,
-            });
+            attributes.push(self.attribute()?);
         }
         if self.eat("/") {
             self.expect(">")?;
@@ -284,9 +318,24 @@ impl Parser<'_> {
             });
         }
         self.expect(">")?;
-        let head = self.head()?;
-        let children = if head.as_ref().is_some_and(|head| head.block.is_some()) {
-            Vec::new()
+        let mut head = self.head()?;
+        let children = if let Some(block) = head.as_ref().and_then(|head| head.block.as_ref()) {
+            let start = self
+                .tokens
+                .partition_point(|token| token.range.start < block.start);
+            let end = self
+                .tokens
+                .partition_point(|token| token.range.end <= block.end);
+            let nested = view_call_end(self.tokens, start, end)
+                .filter(|last| last + 1 == end)
+                .and_then(|last| parse_view(&self.tokens[start + 3..last]));
+            match nested {
+                Some(children) => {
+                    head.as_mut()?.block = None;
+                    children
+                }
+                None => Vec::new(),
+            }
         } else {
             self.children()?
         };
@@ -384,6 +433,33 @@ impl Formatter<'_> {
 
     fn child_lines(&self, child: &Child, indent: usize, column: usize) -> Vec<String> {
         match child {
+            Child::Fragment(children) => {
+                if children.is_empty() {
+                    return vec!["<></>".to_owned()];
+                }
+                let mut lines = vec!["<>".to_owned()];
+                for child in children {
+                    let parts = self.child_lines(child, indent + INDENT, indent + INDENT);
+                    push_block(&mut lines, indent + INDENT, parts);
+                }
+                lines.push(format!("{}</>", spaces(indent)));
+                lines
+            }
+            Child::Modified(child, modifiers) => {
+                let mut lines = self.child_lines(child, indent, column);
+                for modifier in modifiers {
+                    let next_column = column + lines.last().map_or(0, String::len) + 1;
+                    let modifier_lines = self.attribute_lines(modifier, indent, next_column);
+                    let mut parts = modifier_lines.into_iter();
+                    if let Some(first) = parts.next() {
+                        let last = lines.last_mut().expect("a child has at least one line");
+                        last.push(' ');
+                        last.push_str(&first);
+                    }
+                    lines.extend(parts);
+                }
+                lines
+            }
             Child::Element(element) => self.element_lines(element, indent, column),
             Child::Expr(range) => brace(self.expr_lines(range, indent, column + 1)),
             Child::Literal(range) => vec![text(self.source, range.clone()).to_owned()],
@@ -450,6 +526,9 @@ impl Formatter<'_> {
         let column = column + key.chars().count() + 1;
         match &attribute.value {
             None => vec![key],
+            Some(Value::View(child)) => {
+                prefix(self.child_lines(child, indent, column), &format!("{key}="))
+            }
             Some(Value::Bare(range)) => {
                 prefix(self.expr_lines(range, indent, column), &format!("{key}="))
             }
@@ -462,6 +541,15 @@ impl Formatter<'_> {
 
     fn child_text(&self, child: &Child) -> Option<String> {
         match child {
+            Child::Fragment(children) => children.is_empty().then(|| "<></>".to_owned()),
+            Child::Modified(child, modifiers) => {
+                let mut text = self.child_text(child)?;
+                for modifier in modifiers {
+                    text.push(' ');
+                    text.push_str(&self.attribute_text(modifier)?);
+                }
+                Some(text)
+            }
             Child::Element(element) => self.element_text(element),
             Child::Expr(range) => Some(format!("{{{}}}", self.expr_text(range)?)),
             Child::Literal(range) => one_line(self.source, range.clone()).map(str::to_owned),
@@ -485,7 +573,7 @@ impl Formatter<'_> {
             }
         }
         for child in children {
-            if matches!(child, Child::Element(_)) {
+            if matches!(child, Child::Element(_) | Child::Fragment(_)) {
                 return None;
             }
             text.push_str(&self.child_text(child)?);
@@ -517,6 +605,7 @@ impl Formatter<'_> {
         let key = attribute_key(attribute);
         match &attribute.value {
             None => Some(key),
+            Some(Value::View(child)) => Some(format!("{key}={}", self.child_text(child)?)),
             Some(Value::Bare(range)) => Some(format!("{key}={}", self.expr_text(range)?)),
             Some(Value::Braced(range)) => Some(format!("{key}={{{}}}", self.expr_text(range)?)),
         }
@@ -535,16 +624,22 @@ impl Formatter<'_> {
         {
             return vec![single];
         }
+        let nested_views = self.nested_views(range);
         let shift = (!self.spans_lines_in_a_literal(range)).then(|| {
-            (
-                base_indent(text(self.source, range.clone()), indent),
-                indent,
-            )
+            let mut surrounding = String::new();
+            let mut cursor = range.start;
+            for view in &nested_views {
+                surrounding.push_str(text(self.source, cursor..view.range.start));
+                surrounding.push_str("view");
+                cursor = view.range.end;
+            }
+            surrounding.push_str(text(self.source, cursor..range.end));
+            (base_indent(&surrounding, indent), indent)
         });
         let mut lines = Vec::new();
         let mut current = String::new();
         let mut cursor = range.start;
-        for nested in self.nested_views(range) {
+        for nested in nested_views {
             self.push_source(&mut lines, &mut current, cursor..nested.range.start, shift);
             let nested_indent = if lines.is_empty() {
                 indent

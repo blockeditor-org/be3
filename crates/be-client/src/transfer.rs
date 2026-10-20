@@ -1,11 +1,7 @@
 use std::{collections::HashMap, hash::BuildHasherDefault};
 
 use be_block::{ARTIFACT, BlockMetadata, LOCAL_ID};
-use be_protocol::BlockSummary;
-use be_store::ObjectStore;
 use uuid::Uuid;
-
-use crate::{ClientError, Peer, Saved as Published};
 
 pub const EXTENSION: &str = "block";
 
@@ -273,55 +269,4 @@ pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
             }
         })
         .collect()
-}
-
-impl<S: ObjectStore> Peer<S> {
-    pub async fn head_content(
-        &self,
-        summary: &BlockSummary,
-    ) -> Result<Option<Vec<u8>>, ClientError> {
-        let Some(head) = summary.head else {
-            return Ok(None);
-        };
-        let commit = self.load_commit(head).await?;
-        Ok(Some(self.read_manifest(&commit.manifest).await?))
-    }
-
-    pub async fn download_block(
-        &self,
-        block: Uuid,
-        block_type: Uuid,
-        parent: Option<usize>,
-    ) -> Result<Saved, ClientError> {
-        let summary = self.summary(block).await?;
-        Ok(Saved {
-            id: block,
-            block_type,
-            parent,
-            metadata: self.metadata_of_summary(&summary).await?,
-            content: self.head_content(&summary).await?,
-            references: summary.references,
-        })
-    }
-
-    pub async fn publish_content(&self, block: &Saved) -> Result<Option<Published>, ClientError> {
-        let Some(content) = &block.content else {
-            return Ok(None);
-        };
-        let manifest = self
-            .write_content(block.id, block.block_type, content)
-            .await?;
-        self.publish_manifest(
-            block.id,
-            manifest,
-            block.references.clone(),
-            None,
-            be_commit::now_milliseconds(),
-            false,
-            Vec::new(),
-            &block.metadata,
-        )
-        .await
-        .map(Some)
-    }
 }

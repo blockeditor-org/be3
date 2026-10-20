@@ -4,7 +4,7 @@ use crate::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 #[test]
 fn a_finger_drags_a_draggable_down_where_nothing_scrolls() {
     let _root = crate::reactive::RootScope::new();
-    let (dropped, set_dropped) = create_signal(None::<u32>);
+    let dropped = create_signal(None::<u32>);
     let (document, [source, target]) = toolbar_of(move || {
         [
             view! {
@@ -14,7 +14,7 @@ fn a_finger_drags_a_draggable_down_where_nothing_scrolls() {
             },
             view! {
                 <DropTarget
-                    on_drop={move |(payload, _): (u32, DragPoint)| set_dropped.set(Some(payload))}
+                    on_drop={move |(payload, _): (u32, DragPoint)| dropped.set(Some(payload))}
                 >|_: DropHandle|
                     <Frame width=100.0 height=100.0 />
                 </DropTarget>

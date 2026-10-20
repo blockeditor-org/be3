@@ -21,8 +21,6 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     let waiting = create_memo(move || !loaded.get());
     on_shortcut(move |press: KeyPress| shortcut(session, press));
     let chrome = editor.chrome_shown();
-    let left_chrome = chrome;
-    let right_chrome = chrome;
     view! {
         <List spacing=0.0>
             <Show condition={waiting}>
@@ -36,13 +34,13 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
                         direction=Direction::Horizontal
                         spacing=0.0
                     >
-                        <Sidebar side=Side::Left shown={left_chrome} width=HOTBAR_WIDTH>
+                        <Sidebar side=Side::Left shown={chrome} width=HOTBAR_WIDTH>
                             <Hotbar session={session} />
                             <Separator />
                             <ToolSettings session={session} />
                         </Sidebar>
                         <GridCanvas @sizing=ItemSize::Percent(100.0) session={session} />
-                        <Sidebar shown={right_chrome}>
+                        <Sidebar shown={chrome}>
                             <Panels session={session} />
                         </Sidebar>
                     </List>
@@ -64,7 +62,7 @@ fn shortcut(session: Session, press: KeyPress) -> bool {
     let edits = matches!(
         press.key,
         Key::Delete | Key::Backspace | Key::Q | Key::E | Key::H | Key::V
-    ) && session.peek(|model| model.tool.kind == ToolKind::Select);
+    ) && session.read_untracked(|model| model.tool.kind == ToolKind::Select);
     if edits && !editable {
         return false;
     }
@@ -187,24 +185,24 @@ fn GridCanvas(session: Session) -> NodeId {
             };
             let on_press = move |press: PointerPress| {
                 let world = at(press);
-                last.get().set(Some(world));
-                session.set_pointer.set(Some(world));
+                last.value().set(Some(world));
+                session.pointer.set(Some(world));
                 let additive = press.modifiers.shift;
                 session.edit(|model| model.press(world, additive));
             };
             let on_drag = move |press: PointerPress| {
                 let world = at(press);
-                last.get().set(Some(world));
-                session.set_pointer.set(Some(world));
+                last.value().set(Some(world));
+                session.pointer.set(Some(world));
             };
             let on_active_change = move |active: bool| {
                 if active {
                     return;
                 }
-                let Some(world) = last.get().take() else {
+                let Some(world) = last.value().take() else {
                     return;
                 };
-                if session.peek(|model| model.gesture.is_some()) {
+                if session.read_untracked(|model| model.gesture.is_some()) {
                     session.update(|model| model.release(world));
                 }
             };
@@ -213,11 +211,11 @@ fn GridCanvas(session: Session) -> NodeId {
                 session.edit(|model| model.delete_wire_at(world));
             };
             let on_hover_move = move |press: PointerPress| {
-                session.set_pointer.set(Some(at(press)));
+                session.pointer.set(Some(at(press)));
             };
             let on_hover_change = move |hovered: bool| {
-                if !hovered && last.get().get().is_none() {
-                    session.set_pointer.set(None);
+                if !hovered && last.value().get().is_none() {
+                    session.pointer.set(None);
                 }
             };
 

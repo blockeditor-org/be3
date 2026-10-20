@@ -7,17 +7,17 @@ use text_editor_core::TextBuffer;
 #[test]
 fn enter_in_a_single_line_text_area_submits_rather_than_breaking_the_line() {
     let _root = crate::reactive::RootScope::new();
-    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
-    let (submitted, set_submitted) = create_signal(0);
+    let held = create_signal::<Option<TextAreaState>>(None);
+    let submitted = create_signal(0);
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"one")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        set_held.update(|held| *held = Some(state));
+        held.update(|held| *held = Some(state));
         view! {
             <TextArea
                 state={state}
                 single_line=true
-                on_submit={move || set_submitted.update(|submitted| *submitted += 1)}
+                on_submit={move || submitted.update(|submitted| *submitted += 1)}
             />
         }
     });

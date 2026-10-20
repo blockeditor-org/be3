@@ -5,16 +5,14 @@ use crate::reactive::*;
 #[test]
 fn a_quick_tap_with_several_fingers_is_a_finger_tap() {
     let _root = crate::reactive::RootScope::new();
-    let (taps, set_taps) = create_signal::<Vec<usize>>(Vec::new());
-    let document = build({
-        move || {
-            on_finger_tap(move |fingers: usize| {
-                set_taps.update(|taps| taps.push(fingers));
-                true
-            });
-            view! {
-                <Frame width=300.0 height=300.0 />
-            }
+    let taps = create_signal::<Vec<usize>>(Vec::new());
+    let document = build(move || {
+        on_finger_tap(move |fingers: usize| {
+            taps.update(|taps| taps.push(fingers));
+            true
+        });
+        view! {
+            <Frame width=300.0 height=300.0 />
         }
     });
     let mut harness = Harness::new(document);

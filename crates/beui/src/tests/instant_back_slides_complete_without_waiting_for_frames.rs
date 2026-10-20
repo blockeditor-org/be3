@@ -6,10 +6,10 @@ use crate::unstyled::BackSlide;
 #[test]
 fn instant_back_slides_complete_without_waiting_for_frames() {
     let _root = RootScope::new();
-    let (backs, set_backs) = create_signal(0);
+    let backs = create_signal(0);
     let document = build(move || {
         view! {
-            <BackSlide on_back={move || set_backs.update(|n| *n += 1)}>
+            <BackSlide on_back={move || backs.update(|n| *n += 1)}>
                 <Frame height=20.0 />
             </BackSlide>
         }

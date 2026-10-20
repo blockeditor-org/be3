@@ -1,4 +1,4 @@
-use reactive::{Memo, ReadSignal, Stored, store, untrack};
+use reactive::{Get, Memo, ReadSignal, Signal, Stored, check_tracked_read, store, untrack};
 
 pub enum Prop<T> {
     Static(T),
@@ -49,14 +49,14 @@ impl<T: 'static> Getter<T> {
     where
         T: Clone,
     {
-        Self(Source::Signal(signal, ReadSignal::get))
+        Self(Source::Signal(signal, <ReadSignal<T> as Get<T>>::get))
     }
 
     pub fn of_memo(memo: Memo<T>) -> Self
     where
         T: Clone + PartialEq,
     {
-        Self(Source::Memo(memo, Memo::get))
+        Self(Source::Memo(memo, <Memo<T> as Get<T>>::get))
     }
 
     pub fn get(&self) -> T {
@@ -73,28 +73,39 @@ impl<T: 'static> Prop<T> {
         Prop::Dynamic(Getter::new(read))
     }
 
-    pub fn get(&self) -> T
+    pub fn map<U: 'static>(self, f: impl Fn(T) -> U + 'static) -> Prop<U> {
+        match self {
+            Prop::Static(value) => Prop::Static(f(value)),
+            Prop::Dynamic(read) => Prop::dynamic(move || f(read.get())),
+        }
+    }
+}
+
+impl<T: 'static> Get<T> for Prop<T> {
+    fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        check_tracked_read::<Self>();
+        match self {
+            Prop::Static(value) => f(value),
+            Prop::Dynamic(read) => f(&read.get()),
+        }
+    }
+
+    fn get(&self) -> T
     where
         T: Clone,
     {
+        check_tracked_read::<Self>();
         match self {
             Prop::Static(value) => value.clone(),
             Prop::Dynamic(read) => read.get(),
         }
     }
 
-    pub fn peek(&self) -> T
+    fn get_untracked(&self) -> T
     where
         T: Clone,
     {
         untrack(|| self.get())
-    }
-
-    pub fn map<U: 'static>(self, f: impl Fn(T) -> U + 'static) -> Prop<U> {
-        match self {
-            Prop::Static(value) => Prop::Static(f(value)),
-            Prop::Dynamic(read) => Prop::dynamic(move || f(read.get())),
-        }
     }
 }
 
@@ -126,6 +137,12 @@ impl<T: Clone + 'static> IntoProp<T> for ReadSignal<T> {
     }
 }
 
+impl<T: Clone + 'static> IntoProp<T> for Signal<T> {
+    fn into_prop(self) -> Prop<T> {
+        Prop::Dynamic(Getter::of_signal(self.read_only()))
+    }
+}
+
 impl<T: Clone + PartialEq + 'static> IntoProp<T> for Memo<T> {
     fn into_prop(self) -> Prop<T> {
         Prop::Dynamic(Getter::of_memo(self))
@@ -151,6 +168,12 @@ impl<T: 'static> IntoProp<Option<T>> for Prop<T> {
 }
 
 impl<T: Clone + 'static> IntoProp<Option<T>> for ReadSignal<T> {
+    fn into_prop(self) -> Prop<Option<T>> {
+        Prop::dynamic(move || Some(self.get()))
+    }
+}
+
+impl<T: Clone + 'static> IntoProp<Option<T>> for Signal<T> {
     fn into_prop(self) -> Prop<Option<T>> {
         Prop::dynamic(move || Some(self.get()))
     }

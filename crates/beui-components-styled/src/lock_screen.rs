@@ -55,12 +55,12 @@ pub fn LockScreen(
     let anchor = create_memo(move || OverlayAnchor::Point(bounds.get().min));
     let width = create_memo(move || Some(bounds.get().width()));
     let height = create_memo(move || Some(bounds.get().height()));
-    let (password, set_password) = create_signal(String::new());
+    let password = create_signal(String::new());
     let submit = Rc::new(move |typed: String| {
         if busy.get_untracked() || typed.is_empty() {
             return;
         }
-        set_password.set(String::new());
+        password.set(String::new());
         on_submit.call(typed);
     });
     view! {
@@ -86,8 +86,6 @@ pub fn LockScreen(
                                 index == 0 && open.get() && !busy.get()
                             });
                             let submit = submit.clone();
-                            let action = on_action;
-                            let changed = set_password;
                             let card = view! {
                                 <LockCard
                                     place={place}
@@ -97,12 +95,12 @@ pub fn LockScreen(
                                     error={error}
                                     busy={busy}
                                     actions={actions}
-                                    password={password}
+                                    password={password.read_only()}
                                     focused={focused}
                                     id={format!("{}.{index}", id)}
-                                    on_change={move |typed: String| changed.set(typed)}
+                                    on_change={move |typed: String| password.set(typed)}
                                     on_submit={move |typed: String| submit(typed)}
-                                    on_action={action}
+                                    on_action={on_action}
                                 />
                             };
                             let layer: Layer = card.into_child();
@@ -145,9 +143,10 @@ fn LockCard(
     let slots = create_memo(move || (0..actions.with(Vec::len)).collect::<Vec<usize>>());
     let error_id = format!("{id}.error");
     let action_id = id.clone();
+    let card_id = id.clone();
     view! {
         <Frame padding=inset align=Align::Start>
-            <Frame width=width height=height align=Align::Center @test_id={id.clone()}>
+            <Frame width=width height=height align=Align::Center @test_id=card_id>
                 <List spacing=GROUP_SPACING align=Align::Center>
                     <List spacing=SPACING align=Align::Center>
                         <Text style=TextStyle::DISPLAY string={time} />
@@ -182,7 +181,6 @@ fn LockCard(
                     </List>
                     <List direction=Direction::Horizontal spacing=ACTION_SPACING>
                         <ForEach keys={slots}>|index: usize| {
-                            let chose = on_action;
                             let glyph = create_memo(move || {
                                 actions.with(|actions| actions.get(index).map(|action| action.glyph.clone()).unwrap_or_default())
                             });
@@ -194,7 +192,7 @@ fn LockCard(
                                     glyph
                                     label
                                     @test_id={format!("{action_id}.action.{index}")}
-                                    on_click={move || chose.call(index)}
+                                    on_click={move || on_action.call(index)}
                                 />
                             }
                         }</ForEach>

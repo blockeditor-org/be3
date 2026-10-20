@@ -9,18 +9,18 @@ connects it to beui's components and `Document`; see "beui integration" below.
 ## Example
 
 ```rust
-use reactive::{create_effect, create_memo, create_signal, Scope};
+use reactive::{create_effect, create_memo, create_signal, Get, Scope, Set};
 
 let scope = Scope::new();
-let (count, set_count) = scope.run(|| create_signal(0));
+let count = scope.run(|| create_signal(0));
 
 scope.run(|| {
     let text = create_memo(move || format!("Count: {}", count.get()));
     create_effect(move || println!("{}", text.get()));
 });
 
-set_count.set(1);
-set_count.update(|count| *count += 1);
+count.set(1);
+count.update(|count| *count += 1);
 ```
 
 Keep the scope alive for as long as the view exists. Dropping it or calling
@@ -31,8 +31,8 @@ updates retained state and batches changes around a mutable borrow.
 
 ## Signals and memos
 
-`create_signal(value)` returns `(ReadSignal<T>, WriteSignal<T>)`. Both handles
-are `Copy`, including for values that do not implement `Clone`, so a `move`
+`create_signal(value)` returns a `Signal<T>` that both reads and writes. It is
+`Copy`, including for values that do not implement `Clone`, so a `move`
 closure takes its own copy and the original stays usable. A handle is a key into
 a thread-local arena, not a reference count: the signal belongs to the scope
 that was current when it was created and is freed when that scope is disposed.
@@ -41,6 +41,13 @@ Creating one with no current scope panics. Reading a freed signal panics;
 value they would write, and `is_alive()` asks whether it is still there.
 Handles and scopes cannot cross threads.
 
+Reading and writing are two traits, which `reactive` and `beui::reactive`
+export: `Get<T>` (`get`, `with`, `get_untracked`, `with_untracked`) is
+implemented by `Signal`, `ReadSignal`, `Memo`, `Prop` and stores, and `Set<T>`
+(`set`, `update`) by `Signal` and stores. A file that calls them imports the
+traits along with the types, and a helper that only needs to read or write any
+of them can take `impl Get<T>` or `impl Set<T>`.
+
 - `get()` clones a value and subscribes the current computation.
 - `with(|value| ...)` borrows it and subscribes without requiring `Clone`.
 - `get_untracked()` and `with_untracked(...)` read without subscribing.
@@ -48,6 +55,11 @@ Handles and scopes cannot cross threads.
 - `update(|value| ...)` mutates in place, returns the closure's result, and always
   notifies. It works without `PartialEq` or `Clone`.
 - `set_unconditionally(value)` replaces and always notifies.
+
+`signal.read_only()` returns a `ReadSignal<T>`: the same signal, without the
+writes. Hand one out where the receiver must not write, such as a struct's
+public field whose writes go through the struct's methods, or a state a
+component publishes for tests.
 
 `create_memo(|| ...)` creates a read-only cached computation with `PartialEq`
 output. It computes once immediately, then refreshes on demand. A memo whose
@@ -75,8 +87,9 @@ State that outlives any one scope, or is made where no scope is current, owns
 its signals one of three ways:
 
 - `OwnedSignal::new(value)` is a signal that belongs to the value holding it and
-  is freed when that value drops. `read()` and `write()` hand out `Copy`
-  handles. Use it for a signal per entry in a map that outlives its readers
+  is freed when that value drops. `handle()` hands out its `Signal<T>`, and it
+  derefs to one, so `owned.get()`, `owned.set(value)` and `owned.read_only()`
+  work on it directly. Use it for a signal per entry in a map that outlives its readers
   (`KeyedStore` keeps one per key, and `Document` one per watched node), or for
   a struct field when the struct is made outside a scope.
 - `RootScope::new()` makes a detached scope current until it is dropped, so
@@ -104,8 +117,9 @@ whose fields are signals, memos, selectors, `Stored` values and other `Copy`
 handles derives `Clone, Copy` and is passed around by value, so closures take
 it with `move` and nothing clones it.
 
-- `with(|value| ...)` borrows the value; `get()` returns its `Rc<T>`. Both panic
-  once the scope is disposed. `try_with`, `try_get` and `is_alive` don't.
+- `with(|value| ...)` borrows the value; `value()` returns its `Rc<T>`. Both
+  panic once the scope is disposed. `try_with`, `try_value` and `is_alive`
+  don't. Neither tracks: a stored value is not reactive.
 - It holds the value immutably; put a `Cell` or `RefCell` inside for state that
   changes, or use a signal when readers must hear about the change.
 - `OwnedStored::new(value)` is the scope-free counterpart of `OwnedSignal`: it
@@ -116,7 +130,9 @@ it with `move` and nothing clones it.
 `Callback`, `ClickCallback` and `NodeRef` are `Copy` the same way. An empty
 callback needs no scope; `Callback::new`, `ClickCallback::new` and
 `NodeRef::new` create stored values, so they need one. Calling a callback
-whose scope is gone does nothing, as `set` on a freed signal does.
+whose scope is gone does nothing, as `set` on a freed signal does. A callback
+runs its handler untracked, so an effect that calls one subscribes to nothing
+the handler reads.
 
 ## Cloning handles into closures
 
@@ -147,7 +163,7 @@ when its source changes it notifies only the key that lost selection and the key
 that gained it.
 
 ```rust
-let (selected, set_selected) = create_signal(Some(0usize));
+let selected = create_signal(Some(0usize));
 let selection = create_selector(move || selected.get());
 
 for index in 0..rows {
@@ -171,11 +187,12 @@ scope, and its per-key notifications stop when that scope is disposed.
 
 A signal holding a struct is one source for every field in it, so writing any
 field wakes every computation that reads any other. `#[derive(Store)]` splits it:
-for `Foo` it writes a `FooStore` whose fields are the `ReadSignal`s of `Foo`'s
-fields, a `new(value)` that seeds them, a `set(value)` that writes each one (so a
-field whose value did not change notifies nobody), a `set_<field>(value)` per
-field, and a `get()` that reads the whole struct back. The store is `Copy`, and
-its signals belong to the scope it was created in.
+for `Foo` it writes a `FooStore` whose fields are a `Signal` per field of
+`Foo`, with the field's visibility, and a `new(value)` that seeds them. The
+store implements `Get<Foo>` and `Set<Foo>`: `get()` reads the whole struct
+back, and `set(value)` writes each field (so a field whose value did not change
+notifies nobody). The store is `Copy`, and its signals belong to the scope it
+was created in.
 
 ```rust
 #[derive(Clone, PartialEq, Store)]
@@ -186,10 +203,10 @@ pub struct Theme {
 
 let theme = ThemeStore::new(Theme::DARK);
 let accent: Prop<Color32> = theme.accent.into_prop();
-theme.set_accent(Color32::WHITE);
+theme.accent.set(Color32::WHITE);
 ```
 
-Each field is a `ReadSignal<T>`, so it goes straight into a `Prop<T>`. A helper
+Each field is a `Signal<T>`, so it goes straight into a `Prop<T>`. A helper
 that picks between fields takes the store and reads the one the branch it takes
 needs, which is narrower still: tracking is per execution, so a memo around it
 subscribes to that field alone and re-subscribes when the branch changes.
@@ -257,7 +274,7 @@ A plugin editor reads its block's content through a `ContentProjection`
 (`block_editor_beui`). `editor.block_content::<C>()` is the one for the
 editor's own block, `editor.content_of::<C>(block)` the one for another block it
 follows; both are pumped by the plugin framework once at the top of every frame,
-inside the document's reactive scope, so an editor never pumps by hand. A
+so an editor never pumps by hand. A
 projection is a `Copy` handle that the `Editor` owns and frees with itself, so
 closures take it with `move`. One made outside an editor, as
 `EditorHost::content_of` makes one for an artifact's regeneration, is an
@@ -400,18 +417,28 @@ value because it may already have mutated it. There is no transaction rollback.
 
 ## Zones
 
-`enter_zone(zone)` enters a zone until the guard it returns is dropped. An
-effect remembers the zone that was entered when it was created, and the effects
-it creates inherit it. While a different zone is entered, an effect woken by a
-write is parked instead of run, and it runs when its own zone is next entered;
-with no zone entered, every effect runs as it always did. `zone_pending(zone)`
+`enter_zone(zone)` enters a zone until the guard it returns is dropped. While
+no zone is entered, zone 0 is. An effect remembers the zone that was entered
+when it was created, and the effects it creates inherit it. An effect woken by
+a write runs only while its own zone is entered; otherwise it is parked, and it
+runs when its zone is next entered or returned to as an inner zone's guard
+drops. So an effect made outside every zone runs at once when written outside
+every zone, as plain reactive code expects, but never in the middle of a
+document's frame: it waits until the document's zone is left. `zone_pending(zone)`
 says whether a zone has parked effects, and `forget_zone(zone)` drops them.
+`wake_zone_with(zone, wake)` registers a callback that runs when a zone with
+nothing parked parks its first effect, so a burst of writes wakes it once.
+
 beui gives each `Document` a zone of its own and enters it whenever the
-document is installed, which is what lets two documents share signals: a write
-made while one document is installed does not rebuild another document's nodes
-inside it, and the other document catches up the next time it is shown. A
-host driving several documents should give the others a frame when
-`zone_pending` says one of them is behind.
+document is installed, which is what lets a signal be written from anywhere on
+the thread: a write made while another document is installed, or none, does
+not run this document's effects outside it, and the document catches up the
+next time it is shown. Each document registers a wake for its zone with the
+`Context` that shows it, and the context passes it to the adapter's `Waker`,
+so the window draws a frame without the writer asking. A wake raised during a
+frame is held until the frame ends, and asks for one more frame only if the
+zone still has effects waiting, since a document shown later in the same frame
+runs them itself.
 
 ## Pausing
 
@@ -442,14 +469,14 @@ use beui::styled::*;
 
 #[component]
 fn App() -> beui::NodeId {
-    let (count, set_count) = create_signal(0i64);
+    let count = create_signal(0i64);
     let count_text = create_memo(move || count.get().to_string());
     view! {
         <List spacing=0.0>
             <List direction=Direction::Horizontal spacing=8.0>
-                <Button label="-" on_click={move || set_count.update(|count| *count -= 1)} />
+                <Button label="-" on_click={move || count.update(|count| *count -= 1)} />
                 <Text string={count_text} /> // updates itself when `count` changes
-                <Button label="+" on_click={move || set_count.update(|count| *count += 1)} />
+                <Button label="+" on_click={move || count.update(|count| *count += 1)} />
             </List>
         </List>
     }
@@ -464,9 +491,30 @@ fills in. A prop typed `Prop<T>` accepts
 either a plain `T` or a signal or memo of `T`; the base components bind each
 prop with `create_binding`, which keeps a reactive form in sync and costs a
 plain value nothing after it is set. Components return their base node
-directly. Every tag also accepts the framework slots `@test_id`, `@node_ref`,
-and `@sizing`, which live in their own `@` namespace so a component is free to
-name its own props whatever it likes.
+directly. Tags also accept `@` modifiers, ordinary functions applied to the
+built value. The GUI prelude supplies `test_id`, `node_ref`, and `sizing`.
+
+### No tracked reads in a component body
+
+A component body runs once with no computation observing it, so `get` or
+`with` there would subscribe nothing and the value it read would never update.
+In debug builds such a read panics, naming the type read: on any signal, memo,
+store, selector key or `Prop`, including a `Prop` that holds a plain value,
+since the same component may later be handed a signal. `component()` marks the
+body with `reactive::component_body`, and the mark is lifted inside `untrack`
+and inside every effect, memo and binding, so reads there track as usual.
+Event handlers, timers, host code and tests run outside any body. Fix a read by:
+
+- moving it into a closure, memo or effect, so it updates;
+- passing the signal or memo itself on as the prop;
+- using `get_untracked()` or `with_untracked()` (or `untrack`) when a one-time
+  snapshot is intended.
+
+A helper that reads signals, called from a body, trips the same way; wrap the
+call in `untrack` when its value is a snapshot. `Prop::map` runs its function
+at once on a plain value, so a mapping that reads other signals is a
+`Prop::dynamic` that reads the prop too:
+`Prop::dynamic(move || tab_stop.get() && !disabled.get())`.
 
 ## Writing attributes
 
@@ -491,12 +539,22 @@ means `visible={visible}`, never `visible={true}`.
 A prop typed `String`, `Option<String>`, or `Prop<String>` accepts a string
 literal directly, so `content="Inspector"` needs no `to_string()`.
 
-An attribute whose name starts with `@` is a framework slot rather than a prop
-of the component: `@test_id="toolbar.button"` names the node for
-`find_test_id`, `@node_ref=&panel` fills a `NodeRef` with the node once it is
-built, and `@sizing` gives the node its `ItemSize` among its siblings. Writing
-`test_id=` or `node_ref=` without the `@`, or an `@name` that is not one of
-those three, is a compile error from `view!`.
+An attribute whose name starts with `@` is a modifier rather than a prop:
+`<Button @decorate=value />` builds the button, then calls `decorate(button,
+value)`. The function is resolved in the caller's scope, and can be qualified
+(`@my_module::decorate=value`). Modifiers run in source order after all props
+and children have been built; repeated modifiers compose, and each may change
+the value's type. Modifier values are evaluated after building too: compute one
+before `view!` if its expression needs data that a child closure will move.
+Expression and string children accept the same modifiers,
+such as `{content.call(())} @sizing=ItemSize::Percent(100.0)`.
+
+The GUI modifiers `@test_id="toolbar.button"`, `@node_ref=&panel`, and `@sizing`
+respectively name the node for `find_test_id`, fill a `NodeRef`, and place the
+node with its sizing among siblings. They are imported from `beui::reactive`,
+usually through `use beui::reactive::*`. If a local binding shadows a modifier,
+qualify the function path. Ordinary `test_id` and `node_ref` props are allowed
+when the component declares them.
 
 A tag whose required props are missing is a compile error at the tag that wrote
 it, not a panic from inside the generated builder, and so is a prop written
@@ -548,8 +606,8 @@ let fill = create_memo(move || if hovered.get() { ColorRole::Hover } else { Colo
 view! { <Frame fill radius=Radius::Md>{child}</Frame> }
 ```
 
-`Prop<T>` reads with `get()`, which subscribes the computation around it, and
-with `peek()`, which does not. A component that has to *read* one of its own
+`Prop<T>` reads through `Get` like a signal: `get()` subscribes the
+computation around it, and `get_untracked()` does not. A component that has to *read* one of its own
 props wraps that in a memo it can read and pass on:
 
 ```rust
@@ -557,15 +615,15 @@ let text = create_memo(move || content.get());
 ```
 
 When the component also writes that value itself — a toggle whose `checked` prop
-seeds state that clicking then changes — seed a signal from `peek()` and keep it
+seeds state that clicking then changes — seed a signal from `get_untracked()` and keep it
 in sync with an effect, so writes from the component's own handlers and writes
 from the caller's signal both land in one place. `Prop::map` adjusts the value on
 the way in:
 
 ```rust
 let value = value.map(|value| value.clamp(0.0, 1.0));
-let (value_read, set_value) = create_signal(value.peek());
-create_effect(move || set_value.set(value.get()));
+let current = create_signal(value.get_untracked());
+create_effect(move || current.set(value.get()));
 ```
 
 A component's child arity is part of its signature. A prop named `children`
@@ -609,7 +667,7 @@ child.
 A component reads such a slot with `into_run`, which answers with a `Run<T>`:
 the children written into it now, and the ones a `show`, a `dynamic` or a
 `for_each` inside it builds later. `Run::items` reads them and subscribes, so a
-run that changes wakes whoever read it; `peek` reads without subscribing, and
+run that changes wakes whoever read it; `get_untracked` reads without subscribing, and
 `build` is the usual consumer, turning the run's items into a run of children
 of its own and keeping the two in step.
 
@@ -747,7 +805,7 @@ that gained it.
     focused={focus.memo(Focus::Row(index))}
     on_focus_change={move |has_focus: bool| {
         if !has_focus && state.focus.get_untracked() == Focus::Row(index) {
-            state.set_focus.set(Focus::Away);
+            state.focus.set(Focus::Away);
         }
     }}
 />

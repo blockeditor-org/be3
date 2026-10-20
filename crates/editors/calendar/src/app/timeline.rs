@@ -110,17 +110,15 @@ fn Grid(
             let theme = use_theme();
             let hour_border = theme.border;
             let rule_border = theme.border;
-            let rule_width = column_width;
             view! {
                 <Frame height=CONTENT_HEIGHT>
                     <Interactive on_click_at={move |press: PointerPress| slot(press.local)}>
                         <Canvas>
                             <ForEach keys={hours}>|hour: u8| {
                                 let top = f32::from(hour) * HOUR_HEIGHT;
-                                let color = hour_border;
                                 view! {
                                     <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
-                                        <Frame fill={ColorRole::custom(color)} />
+                                        <Frame fill={ColorRole::custom(hour_border)} />
                                     </CanvasItem>
                                 }
                             }</ForEach>
@@ -137,12 +135,10 @@ fn Grid(
                                 }
                             }</ForEach>
                             <ForEach keys={rules}>|index: usize| {
-                                let width = rule_width;
-                                let x = create_memo(move || GUTTER + index as f32 * width.get());
-                                let color = rule_border;
+                                let x = create_memo(move || GUTTER + index as f32 * column_width.get());
                                 view! {
                                     <CanvasItem x={x} y=0.0 width=RULE height=CONTENT_HEIGHT>
-                                        <Frame fill={ColorRole::custom(color)} />
+                                        <Frame fill={ColorRole::custom(rule_border)} />
                                     </CanvasItem>
                                 }
                             }</ForEach>
@@ -171,7 +167,7 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
             .map(|item| item.event.value.title)
             .unwrap_or_default()
     });
-    let test_id = item.get_untracked().map_or_else(String::new, |item| {
+    let element_test_id = item.get_untracked().map_or_else(String::new, |item| {
         format!("calendar.event.{}", item.event.id)
     });
     let open = move || {
@@ -182,7 +178,7 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame fill=ColorRole::Accent radius={Radius::custom(3.0)}>
-                <ListRow @test_id={test_id} on_click={open} on_activate={open}>
+                <ListRow @test_id={element_test_id} on_click={open} on_activate={open}>
                     <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
                 </ListRow>
             </Frame>

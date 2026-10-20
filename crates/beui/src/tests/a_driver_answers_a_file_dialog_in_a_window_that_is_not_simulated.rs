@@ -6,10 +6,10 @@ use crate::styled::*;
 #[test]
 fn a_driver_answers_a_file_dialog_in_a_window_that_is_not_simulated() {
     let document = build(|| {
-        let (picked, set_picked) = create_signal(String::from("nothing picked"));
+        let picked = create_signal(String::from("nothing picked"));
         let picker = create_file_picker(move |file| {
             if let Ok(file) = file {
-                set_picked.set(format!("{} has {} bytes", file.name, file.data.len()));
+                picked.set(format!("{} has {} bytes", file.name, file.data.len()));
             }
         });
         view! {

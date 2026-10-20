@@ -5,12 +5,12 @@ use crate::styled::*;
 #[test]
 fn a_color_input_reports_the_hex_it_was_typed() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let (document, [_input]) = toolbar_of(|| {
         [view! {
             <ColorInput
                 value={Color32::from_rgba_unmultiplied(0x11, 0x22, 0x33, 0xFF)}
-                on_change={move |color| set_changes.update(|changes| changes.push(color))}
+                on_change={move |color| changes.update(|changes| changes.push(color))}
             />
         }]
     });

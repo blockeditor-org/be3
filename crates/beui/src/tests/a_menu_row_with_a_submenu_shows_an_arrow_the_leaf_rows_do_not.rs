@@ -7,20 +7,18 @@ use crate::styled::*;
 fn a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let (document, [menu]) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="Copy" />
-                <unstyled::MenuItem label="Share">
-                    <unstyled::MenuItem label="Email" />
-                </unstyled::MenuItem>
-            };
-            [view! {
-                <ContextMenu items>
-                    <MenuRegion @node_ref=&region />
-                </ContextMenu>
-            }]
-        }
+    let (document, [menu]) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label="Copy" />
+            <unstyled::MenuItem label="Share">
+                <unstyled::MenuItem label="Email" />
+            </unstyled::MenuItem>
+        };
+        [view! {
+            <ContextMenu items>
+                <MenuRegion @node_ref=&region />
+            </ContextMenu>
+        }]
     });
     let region = region.get();
     let mut harness = Harness::new(document);

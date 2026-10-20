@@ -90,11 +90,6 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
     });
     let selection = create_selector(move || state.selected.get());
 
-    let tile_scale = scale;
-    let marker_scale = scale;
-    let marker_world = world;
-    let underlay_scale = scale;
-    let underlay_world = world;
     let content = NodeRef::new();
     state.editor().content(&content);
 
@@ -104,31 +99,26 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
                 <MapSurface state={state} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <Canvas view={camera} @test_id={"map.canvas"}>
                         <ForEach keys={covering}>|tile: TileId| {
-                            let world = underlay_world;
-                            let scale = underlay_scale;
+                            let world = world;
+                            let scale = scale;
                             view! {
                                 <Tile state tile world scale underlay=true />
                             }
                         }</ForEach>
                         <ForEach keys={covering}>|tile: TileId| {
-                            let world = world;
-                            let scale = tile_scale;
+                            let scale = scale;
                             view! {
                                 <Tile state tile world scale />
                             }
                         }</ForEach>
-                        <ForEach keys={label_keys}>|key: labels::LabelKey| {
-                            let shown = by_key;
-                            let scale = scale;
-                            view! {
-                                <MapLabel key shown scale />
-                            }
-                        }</ForEach>
+                        <ForEach keys={label_keys}>|key: labels::LabelKey|
+                            <MapLabel key shown={by_key} scale />
+                        </ForEach>
                         <RegionOutline shown={has_region} rect={region_rect} />
                         <ForEach keys={ids}>|id: Uuid| {
                             let selected = selection.memo(Some(id));
-                            let world = marker_world;
-                            let scale = marker_scale;
+                            let world = world;
+                            let scale = scale;
                             view! {
                                 <PointMarker state id selected world scale />
                             }

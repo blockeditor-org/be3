@@ -3,8 +3,8 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use crate::reactive::{
-    OwnedSignal, Prop, ReadSignal, RenderFn, Scope, create_effect, on_cleanup, owner_scope,
-    with_document,
+    Get, OwnedSignal, Prop, ReadSignal, RenderFn, Scope, Set, create_effect, on_cleanup,
+    owner_scope, with_document,
 };
 use beui_core::base::list::Direction;
 use beui_core::node::NodeId;
@@ -44,8 +44,8 @@ where
         document.create_virtual_list(move |key: K| {
             let slot = match reusable(&building, &key) {
                 Some(slot) => {
-                    if slot.key.read().with_untracked(|shown| *shown != key) {
-                        slot.key.write().set(key);
+                    if slot.key.with_untracked(|shown| *shown != key) {
+                        slot.key.set(key);
                     }
                     slot.scope.resume();
                     slot.scope.flush_owned();
@@ -58,7 +58,7 @@ where
                         .unwrap_or_else(Scope::detached)
                         .pausable();
                     let signal = OwnedSignal::new(key);
-                    let read = signal.read();
+                    let read = signal.read_only();
                     let node = scope.run(|| item.call(read));
                     scope.flush_owned();
                     Slot {
@@ -109,7 +109,7 @@ fn reusable<K: Eq>(pool: &Rc<RefCell<Pool<K>>>, key: &K) -> Option<Slot<K>> {
         if let Some(at) = held
             .free
             .iter()
-            .rposition(|slot| slot.key.read().with_untracked(|shown| shown == key))
+            .rposition(|slot| slot.key.with_untracked(|shown| shown == key))
         {
             return Some(held.free.swap_remove(at));
         }

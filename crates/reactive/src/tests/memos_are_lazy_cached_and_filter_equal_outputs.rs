@@ -4,7 +4,7 @@ use super::*;
 fn memos_are_lazy_cached_and_filter_equal_outputs() {
     let _root = RootScope::new();
     let scope = Scope::new();
-    let (value, set_value) = create_signal(1);
+    let value = create_signal(1);
     let calls = Rc::new(Cell::new(0));
     let memo = scope.run(|| {
         let calls = calls.clone();
@@ -13,7 +13,7 @@ fn memos_are_lazy_cached_and_filter_equal_outputs() {
             value.get() % 2
         })
     });
-    set_value.set(3);
+    value.set(3);
     assert_eq!(calls.get(), 1);
     assert_eq!(memo.get(), 1);
     assert_eq!(memo.get(), 1);
@@ -23,7 +23,7 @@ fn memos_are_lazy_cached_and_filter_equal_outputs() {
         let seen = seen.clone();
         create_effect(move || seen.borrow_mut().push(memo.get()));
     });
-    set_value.set(5);
-    set_value.set(6);
+    value.set(5);
+    value.set(6);
     assert_eq!(*seen.borrow(), [1, 0]);
 }

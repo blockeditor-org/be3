@@ -63,6 +63,7 @@ or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
+`checked` state (`Some` makes it a check box item, ticked when true), a
 disabled and a danger flag, a separator above it, an `on_click` and its
 own submenu items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
@@ -103,13 +104,12 @@ obscures which component's scope owns it. This is not enforced; break it where
 another shape is clearer.
 
 When part of the tree depends on something, express it in the view rather than
-in Rust control flow around it. `Show` takes a condition, builds its child each
-time it becomes true and disposes of it when it turns false, as SolidJS's does;
-`ShowKeepAlive` is the opt-in for a child worth keeping while it is hidden, such
-as a tab's panel whose scroll position and state should survive switching away:
-it builds the child the first time it is shown and only hides it after that,
-pausing the child's effects while it is hidden so they catch up once when it
-is shown again.
+in Rust control flow around it. `Show` takes a condition, builds its children each
+time it becomes true and disposes of them when it turns false, as SolidJS's does.
+Both it and `ShowKeepAlive` accept sibling children and components returning
+`Children<_>` without a wrapper. `ShowKeepAlive` builds its children once, keeps
+their identities while hidden, and pauses their effects until shown again.
+Use it for a tab panel whose scroll position and state should survive switching away.
 `Dynamic` rebuilds a subtree when a value changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
 keyed child per item. A component that is genuinely two different trees is two
 components with a `Dynamic` or a `Show` choosing between them.
@@ -126,9 +126,20 @@ slots - a list, a `Scroll` or a `Canvas` - so one written in a single-child slot
 whole view is a `Show` returns it typed `-> DynamicSegment<ListChild>` (or
 whatever kind of child its parent takes) rather than a `NodeId`.
 
+A function containing `view!` must be `#[component]`, whatever type it returns.
+The source check exempts test code, framework trait entrypoints, and views
+inside document/HTML rendering calls or factories storing deferred render
+callbacks. Extract other helpers into
+components and call them through `view!`, including helpers returning child
+runs rather than a single node.
+
 The exception is a component whose root is a base node it creates directly —
 the base layer itself, where `List` calls `create_list` and binds setters with
 effects. Above the base layer, one `view!` is the shape.
+
+Render-slot closures can write markup directly: `<ForEach keys={keys}>|key: Key|
+<Row key /></ForEach>`. Do not wrap that markup in `{ view! { ... } }`; the
+formatter removes a redundant macro when the block has no setup statements.
 
 ### Call components from `view!`, never their builders
 
@@ -156,7 +167,7 @@ writes a `view!`, not a half-applied builder.
 
 Bind a signal or memo to a prop; do not read it while building and do not
 rebuild a subtree to show a new value. A `Prop<T>` takes a plain `T`, a
-`ReadSignal<T>`, or a `Memo<T>`, and the reactive forms install an effect that
+`Signal<T>`, a `ReadSignal<T>`, or a `Memo<T>`, and the reactive forms install an effect that
 writes just that one property when the value changes. A prop holds a signal or
 memo it is given as it is; only a closure (`Prop::dynamic`) is boxed, so pass a
 memo rather than `move || memo.get()`.
@@ -402,9 +413,16 @@ holds) and `IntoSlotHost`, so a component
 can `children.mount(...)` into it. The macros need `::beui::reactive` to
 resolve: `beui-tree` names itself `beui` for its own tests, and a crate built on
 it does the same or re-exports `beui_tree::reactive` as a `reactive` module of
-a crate it calls `beui`. `@sizing`, `@test_id` and `@node_ref` expand to
-`beui::reactive::ListChild`, `with_test_id` and `with_node_ref`, which only
-`beui-view` has, and an untyped `Render`/`RenderFn` child or a `Child` prop is
+a crate it calls `beui`. Modifiers are ordinary functions: `@name=value`
+expands to `name(built, value)` after the component is built. Paths such as
+`@my_module::decorate=value` work too. Multiple modifiers run in source order,
+including repeated names, and can change the output type. They also follow
+expression and string children: `{child} @decorate=value`. A modifier without
+`=` uses its path as its value, like prop punning. Ordinary props are set on the
+builder before any modifier runs, regardless of their position among modifiers.
+The GUI prelude (`beui::reactive::*`) supplies `sizing`, `test_id` and `node_ref`;
+other trees supply their own functions. Qualify a modifier when a local variable
+shadows its name. An untyped `Render`/`RenderFn` child or a `Child` prop is
 `beui::reactive::Child`, a `NodeId`. `beui-tree`'s tests build a small DOM this
 way.
 
@@ -433,7 +451,7 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `Grid`, `Text`,
   `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
-  `Portal`, `BackHandler`, `Shift`, `Fade` — and it stays small because most things are
+  `Portal`, `BackHandler`, `Shift`, `Turn`, `Fade` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
@@ -577,6 +595,10 @@ or `Fraction`, a weight in what is left), with `column_spacing` and
 several columns is written `<GridCell span=2>`. It is for forms and property
 panels whose labels should share one width, not for a list of rows, which is
 a `List` or a `VirtualList`.
+A table of values to compare is `styled::Table`: column headings along the
+top (each a `TableColumn`, which can carry a caption), a `TableRow` per row with its heading down the side, and a `TableCell`
+per column, each with an optional caption under its value; every row shares the
+column weights, so its cells line up, and it reads as a table to assistive tech.
 `Text` carries its own decoration too: `underline` is painted from the galley's
 baseline, so switching it on never moves anything. `Portal` shows a subtree that belongs to
 someone else: it takes a `NodeId`, lays it out and paints it where the portal
@@ -597,7 +619,11 @@ so a box sized by what it holds can still scroll once it is squeezed. Rows far
 outside its viewport are culled like any other node out of sight. `Fade` paints
 its one child faded out toward each edge over the widths its `edges` name. `Shift`
 lays its child out moved `by` a vector without moving the space it takes, and
-paints nothing while the child is off the screen, which is how a sheet slides in. `VirtualList` is an ordinary box that stands for
+paints nothing while the child is off the screen, which is how a sheet slides in. `Turn`
+paints its child turned clockwise by `quarter_turns` about the middle of its box, which
+takes the child's size with width and height swapped for an odd number of turns; pointer
+input and the accessibility tree still see the child unturned, so it is for pictures, such
+as a preview of a turned screen, not for controls. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
 the viewport reaches (see [Long lists](#long-lists)).
 `Scroll` takes a `direction`, so the same tag is a
@@ -702,8 +728,16 @@ like an overscroll. It slides up as it opens, easing out, and slides down as it
 closes, easing in from however fast it was flicked; a `ModalSheet` stays up
 while it leaves however it was closed, and fades its scrim with it. Let go, it springs to the
 stop nearest where the flick was heading, or closed below the lowest one, and
-its content flings and bounces at its ends as a `Scroll` does; the handle does
-the same for a mouse, and going back closes it.
+its content flings and bounces at its bottom end as a `Scroll` does. A fling
+reaching the content's start bounces the whole sheet down and back without
+changing its stop or dismissing it. Dragging the handle, or the backdrop above
+a modal sheet, resizes an unscrolled sheet between its stops without scrolling
+its content. When the content is scrolled, the same drag translates the whole
+sheet without resizing it or changing its scroll position: release returns it
+to fully open or dismisses it, with no intermediate stop. The
+handle also works with a mouse, and going back closes the sheet. Styled sheets
+fade the content at edges with more to scroll, using the same opacity mask as
+styled scrollers; unstyled sheets take a concrete `fade` length.
 The styled
 module supplies themed buttons, icon buttons, menu buttons, links, text styles,
 cards, checkboxes, switches, choices, text and number inputs, a multiline text
@@ -744,7 +778,7 @@ click or a tap never shows it. Moving the focus scrolls the control into view wi
 its ring, but a ring drawn outside its control still needs room inside the scroll at the
 content's edges, which is why the padding goes inside a scroll. A scroll that is one part of
 a padded surface, its content lined up with what sits beside it, takes `bleed` instead
-(`Bleed::POPOVER`, `Bleed::CARD`, with `.top(false)` and its siblings to keep a side in): the
+(`Bleed::POPOVER`, `Bleed::CARD`, `Bleed::DIALOG`, with `.top(false)` and its siblings to keep a side in): the
 scroll and its scrollbar reach out into the surface's padding up to its border, and the content
 is padded back in by as much, so it lines up as before and its rings have the padding to draw
 in. The unstyled `Scroll` takes the same as `Sides`, which it builds from a `Frame` with that much
@@ -1256,6 +1290,12 @@ sinks with the gesture and slides on down from where it was. On Android the
 runner passes `handles_back` to the activity's `setBackHandled`, and when
 nothing takes it the system's own back (to the home screen) plays instead.
 
+A `Center` overlay is never larger than its screen: content that measures taller
+or wider is laid out in the screen's size, so its bottom cannot fall off a short
+window. `styled::Dialog` puts its title and body in a fitted `Scroll` with
+`Bleed::DIALOG` that gives up length when the screen is short, so every dialog
+scrolls rather than spilling over the edge.
+
 A layer at `LayerLevel::Lock` that blocks everything is a lock screen
 (`styled::LockScreen`): it is above every other layer, so anything opened while
 it is up opens beneath it; it is never dismissable; the focus cannot leave it,
@@ -1764,9 +1804,9 @@ keeps a `PanZoomView` - the world point shown at the middle of the viewport and
 a scale - passes it in, and writes back what `on_change` reports:
 
 ```rust
-let (view, set_view) = create_signal(PanZoomView::IDENTITY);
+let camera = create_signal(PanZoomView::IDENTITY);
 view! {
-    <PanZoom view on_change={move |view| set_view.set(view)}>|handle: PanZoomHandle| {
+    <PanZoom view={camera} on_change={move |next| camera.set(next)}>|handle: PanZoomHandle| {
         let PanZoomHandle { view, scale, .. } = handle;
         view! {
             <Canvas view>
@@ -1820,7 +1860,7 @@ moving, is hidden, and reports how far it moved instead of where it is:
 view! {
     <PointerLock
         locked={looking}
-        on_change={move |looking| set_looking.set(looking)}
+        on_change={move |next| looking.set(next)}
         on_motion={move |motion: Vec2| camera.look(motion)}
         on_key={walk}
     >|handle: PointerLockHandle|
@@ -1918,7 +1958,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[component]
 fn Counter() -> NodeId {
-    let (count, set_count) = create_signal(0i64);
+    let count = create_signal(0i64);
     let label = create_memo(move || count.get().to_string());
 
     view! {
@@ -1928,12 +1968,12 @@ fn Counter() -> NodeId {
                 <Button
                     label="Decrease"
                     variant=ButtonVariant::Secondary
-                    on_click={move || set_count.update(|value| *value -= 1)}
+                    on_click={move || count.update(|value| *value -= 1)}
                 />
                 <Button
                     label="Increase"
                     variant=ButtonVariant::Primary
-                    on_click={move || set_count.update(|value| *value += 1)}
+                    on_click={move || count.update(|value| *value += 1)}
                 />
             </List>
         </Frame>
@@ -2520,22 +2560,24 @@ layout walk.
 
 ### Update a document from outside its events
 
-Component callbacks run with their `Document` installed, so signal writes from
-clicks and key events need no special handling. A host-driven update happens
-outside that context and must enter the document's reactive scope:
+A signal may be written from anywhere on the UI thread: an event handler, the
+host's frame code before or after `show`, a callback the host makes between
+frames, a future the app polls. Write it directly:
 
 ```rust
-use beui::reactive::*;
-use beui::Document;
-
-fn set_value(document: &mut Document, value: &WriteSignal<String>, next: String) {
-    let value = value.clone();
-    with_reactive_scope(document, move || value.set(next));
-}
+value.set(next);
 ```
 
-Keep the write handles the host needs next to its `Document`. Do not rebuild the
-document to display new data.
+The effects that belong to a document wait for its next frame (see Zones in
+the [reactive guide](reactive.md#zones)), and the write wakes the window, so
+nothing needs to ask for a frame. Keep the signals the host writes next to its
+`Document`. Do not rebuild the document to display new data.
+
+`with_reactive_scope(document, f)` installs a document and enters its scope
+while `f` runs. Use it for work that needs the document itself outside an
+event, such as calling `with_document`, running a callback the user wrote as
+if it were a click, or creating nodes, signals or effects in the document's
+scope; a signal write never needs it.
 
 ## Use beui in a block editor plugin
 
@@ -2585,7 +2627,7 @@ Block content reaches the view through a `ContentProjection`:
 `editor.block_content::<C>()` holds the content of the editor's own block,
 `project`, `field`, `ids` and `object` derive signals from it, and `operate`
 applies an edit and sends it to the host. The framework pumps every projection
-once at the top of the frame, inside the document's reactive scope, and
+once at the top of the frame, and
 `read` and `revision` track, so a memo or effect that reads them runs again
 when the content changes. See the [reactive guide](reactive.md#blocks).
 
@@ -2627,7 +2669,7 @@ Compose it from base components. For an interactive control this normally means:
 4. Publish the correct AccessKit role and state with `component_accessibility`.
 5. Give the caller a `Render<Handle>` or `RenderFn<Handle>` containing the
    reactive state needed to paint the control.
-6. Return the root base node directly so component state and framework slots
+6. Return the root base node directly so component state and node modifiers
    attach to the node callers receive.
 
 A catcher shows the `cursor` it is given while it is hovered or held, and
@@ -2729,7 +2771,7 @@ composes `Frame` and `Text`. Keyboard and pointer handling stay in the unstyled
 control. `styled/checkbox.rs` is a short, complete example of the pair.
 
 Read colors from the nearest theme with `styled::use_theme()`, which returns a
-`ThemeStore` — one `ReadSignal` per token. Bind a token straight to a prop with
+`ThemeStore` — one `Signal` per token. Bind a token straight to a prop with
 `theme.accent`, or read tokens inside a memo that also reads interaction
 state, so the control repaints when either changes. Because each token is its
 own signal, a component wakes only for the colors it actually uses. Radii and
@@ -3032,3 +3074,127 @@ the pull request's branch; it runs the workspace tests, lints, formatting, proje
 `view!` bodies that rustfmt cannot handle. Use a package-scoped Cargo command
 only as a narrow diagnostic after one of the supported scripts has exposed a
 failure.
+
+## HTML strings
+
+`beui-html` builds ordinary HTML elements, laid out by the browser's CSS. It
+uses `beui-tree` components and control flow, independently of the GUI's paints
+and layout and of `beui-renderer-dom`.
+
+```rust
+use beui_html::{elements as html, Text, render, view};
+
+let page = render(|| view! {
+    <html::Html>
+        <html::Body>
+            <html::P class="message"><Text value="Hello" /></html::P>
+            <html::Button name="action" value="deny" formnovalidate=true>"Deny"</html::Button>
+        </html::Body>
+    </html::Html>
+});
+```
+
+### Typed CSS
+
+Use `beui_html::tw` style components in an element's `css` prop. A component
+prop can take a view directly: `prop=<Component />`, or a run of children with
+`prop=<>...</>`. This syntax works on any component prop, not just CSS.
+Fragments `<>...</>` also work anywhere children fit, including at the root
+of `view!`; they group children without a backend node. Empty fragments
+`<></>` build empty children. Expressions, reusable components and control
+flow work inside fragments.
+
+The compiler grammar lives in `beui-macros/src/lib.rs`; the source formatter has
+its own grammar in `fix-rust-source/src/views.rs`, using lossless source tokens.
+Changes to view syntax must cover both grammars and their tests.
+
+```rust
+use beui_html::{elements as html, tw, view};
+
+view! {
+    <html::Html>
+        <html::Head><tw::Styles /></html::Head>
+        <html::Body
+            css=<>
+                <tw::FontSans />
+                <tw::BgSurface />
+                <tw::TextForeground />
+            </>
+        >
+            <html::Button
+                css=<>
+                    <tw::InlineFlex />
+                    <tw::ItemsCenter />
+                    <tw::Px4 />
+                    <tw::Py2 />
+                    <tw::BgAccent />
+                    <tw::TextOnAccent />
+                    <tw::RoundedMd />
+                    <tw::Hover><tw::BgAccentHover /></tw::Hover>
+                    <tw::Md><tw::Px4 /></tw::Md>
+                </>
+            >
+                "Continue"
+            </html::Button>
+        </html::Body>
+    </html::Html>
+}
+```
+
+Style components return `tw::Style`; reusable compositions return
+`Children<tw::Style>`. HTML and style children are different types. `Show` and
+`ForEach` work with both; removing a style contribution removes its declarations
+on the next serialization. Static styling needs no signals or effects.
+
+Put one `<tw::Styles />` in the document head, or at the beginning of a fragment.
+Serialization first collects CSS from the mounted tree, including current style
+branches, then fills the outlet. Constructed but unmounted nodes contribute
+nothing. A styled tree without an outlet is an error. Output is buffered, not
+streamed. Rendering remains string serialization, not browser DOM binding.
+
+Each distinct ordered style composition gets a deterministic generated class;
+identical compositions share rules. Existing `class` attributes are preserved.
+Within a composition, declarations keep their source order, so later declarations
+win at equal specificity. Pseudo-class and descendant selectors still follow
+normal CSS specificity. Nested breakpoint and pseudo-class components compose;
+`Descendants target=tw::Target::Input` styles matching descendants, including
+children added later by scripts. Semantic colors reference `--bht-*` CSS custom
+properties with defaults; this theme is independent of GUI beui crates. Utilities
+use rem spacing and text sizes. No reset is installed implicitly.
+
+`render` builds in a fresh reactive scope, flushes bindings, writes the doctype
+and HTML, then disposes the scope. For a retained tree, build inside a scope you
+keep and call `Node::to_html` after updates. String children are escaped static
+text; `Text` binds reactive text. `Show`, `ShowKeepAlive`, `ForEach` and the other
+`beui-tree` control flow components work with HTML children.
+
+Build HTML through `view!` and components; do not call builders directly.
+Import `beui_html::elements as html` for ordinary HTML elements. Their declarations
+in `beui-html/src/elements.rs` generate normal components with shared global
+props and element-specific attributes. Extend those declarations for missing
+standard attributes. Rust keywords use raw identifiers (`r#type`, `r#for`).
+Boolean props control attribute presence; numeric attributes take numbers.
+Other attributes take strings. Omitted attributes are absent, and signals of
+`Option<T>` remove or restore attributes reactively. Static props need no effects.
+Void elements have no children prop and reject children at compile time.
+
+Use `@data={("test-id", value)}` and `@aria={("expanded", "false")}` for
+namespaced attributes; ARIA boolean values are strings. `Element tag="custom-tag"`,
+`@attr={("custom-name", value)}` and `@flag={("custom-flag", enabled)}` are
+escape hatches for custom markup. All attribute names are checked and values escaped.
+
+Multi-child `view!` produces `Children<Node>` without a wrapper. Components can
+return that type, and iterators of nodes or child runs collect into it. Both HTML
+renderers accept a node or a child run; `render_fragment` omits the doctype.
+Low-level node construction is private to the backend. Use
+`<Stylesheet css={...} />` and `<Script kind="module" source={...} />` for CSS
+and JavaScript/import-map source. These preserve source text and reject a closing
+tag for their container. CSS can live in separate files read with `include_str!`.
+
+`view!` and `#[component]` locate their support crate automatically, including
+renamed dependencies, through `proc-macro-crate`. A caller can depend on `beui`,
+`beui-view`, `beui-html`, or `beui-tree`; no macro path setting is needed.
+
+The web entry points are generated by `local-tools web-page` through its
+`:block-index` and `:demo-index` Buck targets. Their scripts, import maps and
+styles live under `crates/local-tools/src/web_page/`.

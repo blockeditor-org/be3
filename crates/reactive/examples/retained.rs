@@ -1,7 +1,7 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use reactive::{Scope, batch, create_effect, create_memo, create_signal};
+use reactive::{Get, Scope, Set, batch, create_effect, create_memo, create_signal};
 
 #[derive(Default)]
 struct Label {
@@ -11,7 +11,7 @@ struct Label {
 fn main() {
     let scope = Scope::new();
     let label = Rc::new(RefCell::new(Label::default()));
-    let (count, set_count) = scope.run(|| create_signal(0));
+    let count = scope.run(|| create_signal(0));
 
     scope.run(|| {
         let text = create_memo(move || format!("Count: {}", count.get()));
@@ -21,13 +21,13 @@ fn main() {
 
     batch(|| {
         let _label = label.borrow_mut();
-        set_count.set(1);
-        set_count.update(|count| *count += 1);
+        count.set(1);
+        count.update(|count| *count += 1);
     });
     assert_eq!(label.borrow().text, "Count: 2");
 
     scope.dispose();
-    set_count.set(3);
+    count.set(3);
     assert_eq!(label.borrow().text, "Count: 2");
     println!("{}", label.borrow().text);
 }

@@ -114,12 +114,10 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
             on_click={on_click}
         >|handle: unstyled::ButtonHandle| {
             let unstyled::ButtonHandle { hovered, focused, .. } = handle;
-            let theme = theme;
             let fill = create_memo(move || match hovered.get() {
                 true => theme.hover.get(),
                 false => Color32::TRANSPARENT,
             });
-            let shown = shown;
             view! {
                 <Frame
                     width=COUNT_TARGET

@@ -38,7 +38,6 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
     let spreadsheet =
         create_memo(move || loaded.get() && data.kind.get() == DatabaseViewKind::Spreadsheet);
     let chrome = editor.chrome_shown();
-    let toolbar_chrome = chrome;
     let narrow = narrow_chrome();
     let header_shown = create_memo(move || {
         let covered = narrow.get()
@@ -52,7 +51,7 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
         <Frame fill=ColorRole::Background>
             <List spacing=0.0>
                 <Show condition={spreadsheet}>
-                    <Toolbar shown={toolbar_chrome}>
+                    <Toolbar shown={chrome}>
                         <CellEditor @sizing=ItemSize::Percent(100.0) data={data} />
                     </Toolbar>
                 </Show>

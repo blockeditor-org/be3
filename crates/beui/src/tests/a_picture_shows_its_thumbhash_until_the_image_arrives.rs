@@ -31,7 +31,7 @@ fn a_picture_shows_its_thumbhash_until_the_image_arrives() {
     assert_eq!((thumbhash.width, thumbhash.height), (30, 7));
     let placeholder = thumbhash.decode().expect("a fresh thumbhash decodes");
 
-    let (shown, set_shown) = create_signal(None::<Image>);
+    let shown = create_signal(None::<Image>);
     let document = build(move || {
         view! {
             <Frame width=40.0 height=40.0>
@@ -70,7 +70,7 @@ fn a_picture_shows_its_thumbhash_until_the_image_arrives() {
     );
 
     let arrived = image.clone();
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(Some(arrived)));
+    shown.set(Some(arrived));
     let after = painted(&harness.frame(Vec::new()));
     assert_eq!(after.len(), 1, "the image replaces the placeholder");
     assert_eq!(after[0].1, image);

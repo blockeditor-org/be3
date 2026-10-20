@@ -13,11 +13,9 @@ fn format_views_breaks_a_nested_view_inside_an_expression() {
         formatted(source),
         r#"fn build() -> NodeId {
     view! {
-        <Toggle checked={on}>|handle: ToggleHandle| {
-            view! {
-                <SwitchTrack handle label="a very long label goes here" outline=true />
-            }
-        }</Toggle>
+        <Toggle checked={on}>|handle: ToggleHandle|
+            <SwitchTrack handle label="a very long label goes here" outline=true />
+        </Toggle>
     }
 }
 "#

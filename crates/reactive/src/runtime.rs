@@ -6,6 +6,8 @@ use crate::computation::{Computation, no_computation};
 use crate::scope::Owner;
 use crate::signal::Tracked;
 
+type Wake = Rc<dyn Fn()>;
+
 pub(crate) struct Runtime {
     pub(crate) observer: RefCell<Weak<Computation>>,
     pub(crate) owner: RefCell<Weak<Owner>>,
@@ -17,9 +19,12 @@ pub(crate) struct Runtime {
     pub(crate) memo_depth: Cell<usize>,
     pub(crate) zone: Cell<u64>,
     pub(crate) parked: RefCell<Vec<(u64, Vec<Weak<Computation>>)>>,
+    pub(crate) wakes: RefCell<Vec<(u64, Wake)>>,
     pub(crate) sequence: Cell<u64>,
     pub(crate) flushes: Cell<u64>,
     pub(crate) removals: Cell<u64>,
+    #[cfg(debug_assertions)]
+    pub(crate) component_body: Cell<bool>,
 }
 
 impl Runtime {
@@ -35,9 +40,12 @@ impl Runtime {
             memo_depth: Cell::new(0),
             zone: Cell::new(0),
             parked: RefCell::new(Vec::new()),
+            wakes: RefCell::new(Vec::new()),
             sequence: Cell::new(0),
             flushes: Cell::new(0),
             removals: Cell::new(0),
+            #[cfg(debug_assertions)]
+            component_body: Cell::new(false),
         }
     }
 
@@ -140,7 +148,58 @@ pub fn untrack<T>(f: impl FnOnce() -> T) -> T {
         )
     });
     let _context = Context::enter_pending(no_computation(), owner, pending);
+    let _body = leave_component_body();
     f()
+}
+
+pub fn component_body<T>(f: impl FnOnce() -> T) -> T {
+    #[cfg(debug_assertions)]
+    let _body = Reset::set(|runtime| &runtime.component_body, true);
+    f()
+}
+
+pub(crate) struct LeaveBody {
+    #[cfg(debug_assertions)]
+    _reset: Reset<bool>,
+}
+
+pub(crate) fn leave_component_body() -> LeaveBody {
+    LeaveBody {
+        #[cfg(debug_assertions)]
+        _reset: Reset::set(|runtime| &runtime.component_body, false),
+    }
+}
+
+#[cfg(debug_assertions)]
+fn short_type_name(name: &str) -> String {
+    let mut short = String::new();
+    let mut word = String::new();
+    for character in name.chars() {
+        if character.is_alphanumeric() || character == '_' {
+            word.push(character);
+        } else if character == ':' {
+            word.clear();
+        } else {
+            short.push_str(&word);
+            word.clear();
+            short.push(character);
+        }
+    }
+    short + &word
+}
+
+#[track_caller]
+pub fn check_tracked_read<T: ?Sized>() {
+    #[cfg(debug_assertions)]
+    if RUNTIME.with(|runtime| runtime.component_body.get()) {
+        let name = short_type_name(std::any::type_name::<T>());
+        panic!(
+            "a component body read `{name}` with `get` or `with`, which subscribes nothing \
+             because a component body runs once. Move the read into a closure, memo or effect \
+             so it updates; or pass the signal or memo itself as the prop; or, if a one-time \
+             snapshot is intended, use `get_untracked()` or `with_untracked()`"
+        );
+    }
 }
 
 pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
@@ -152,6 +211,7 @@ pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
     );
     batch(|| {
         let _context = Context::enter(no_computation(), Weak::new());
+        let _body = leave_component_body();
         RUNTIME.with(|runtime| {
             runtime.probe.replace(Some(Probe {
                 read: Vec::new(),
@@ -281,17 +341,24 @@ fn run_queued(next: Weak<Computation>, flush: u64) {
         return;
     }
     let current = RUNTIME.with(|runtime| runtime.zone.get());
-    if computation.zone != 0 && current != 0 && computation.zone != current {
-        RUNTIME.with(|runtime| {
+    if computation.zone != current {
+        let wake = RUNTIME.with(|runtime| {
             let mut parked = runtime.parked.borrow_mut();
-            match parked
+            if let Some((_, waiting)) = parked
                 .iter_mut()
                 .find(|(zone, _)| *zone == computation.zone)
             {
-                Some((_, waiting)) => waiting.push(next),
-                None => parked.push((computation.zone, vec![next])),
+                waiting.push(next);
+                return None;
             }
+            parked.push((computation.zone, vec![next]));
+            let wakes = runtime.wakes.borrow();
+            let wake = wakes.iter().find(|(zone, _)| *zone == computation.zone);
+            wake.map(|(_, wake)| Rc::clone(wake))
         });
+        if let Some(wake) = wake {
+            wake();
+        }
         return;
     }
     computation.queued.set(false);
@@ -309,17 +376,24 @@ pub struct ZoneGuard {
 impl Drop for ZoneGuard {
     fn drop(&mut self) {
         RUNTIME.with(|runtime| runtime.zone.set(self.previous));
+        if !std::thread::panicking() {
+            run_parked(self.previous);
+        }
     }
 }
 
 pub fn enter_zone(zone: u64) -> ZoneGuard {
     let previous = RUNTIME.with(|runtime| runtime.zone.replace(zone));
+    run_parked(zone);
+    ZoneGuard { previous }
+}
+
+fn run_parked(zone: u64) {
     let parked = RUNTIME.with(|runtime| runtime.take_parked(zone));
     if let Some(parked) = parked {
         RUNTIME.with(|runtime| runtime.queue.borrow_mut().extend(parked));
         flush();
     }
-    ZoneGuard { previous }
 }
 
 pub fn zone_pending(zone: u64) -> bool {
@@ -333,8 +407,19 @@ pub fn zone_pending(zone: u64) -> bool {
     })
 }
 
+pub fn wake_zone_with(zone: u64, wake: impl Fn() + 'static) {
+    RUNTIME.with(|runtime| {
+        let mut wakes = runtime.wakes.borrow_mut();
+        wakes.retain(|(held, _)| *held != zone);
+        wakes.push((zone, Rc::new(wake)));
+    });
+}
+
 pub fn forget_zone(zone: u64) {
-    RUNTIME.with(|runtime| runtime.take_parked(zone));
+    RUNTIME.with(|runtime| {
+        runtime.take_parked(zone);
+        runtime.wakes.borrow_mut().retain(|(held, _)| *held != zone);
+    });
 }
 
 pub(crate) fn current_zone() -> u64 {

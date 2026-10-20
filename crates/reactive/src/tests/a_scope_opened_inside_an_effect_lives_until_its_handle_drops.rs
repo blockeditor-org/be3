@@ -7,7 +7,7 @@ struct Label(&'static str);
 fn a_scope_opened_inside_an_effect_lives_until_its_handle_drops() {
     let _root = RootScope::new();
     let outer = Scope::new();
-    let (tick, set_tick) = create_signal(0);
+    let tick = create_signal(0);
     let cleanups = Rc::new(Cell::new(0));
     let opened: Rc<RefCell<Vec<Scope>>> = Rc::new(RefCell::new(Vec::new()));
 
@@ -31,7 +31,7 @@ fn a_scope_opened_inside_an_effect_lives_until_its_handle_drops() {
         });
     });
 
-    set_tick.set(1);
+    tick.set(1);
     assert_eq!(opened.borrow().len(), 2, "the effect ran twice");
     assert_eq!(
         cleanups.get(),

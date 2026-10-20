@@ -15,7 +15,7 @@ impl BeuiApp for BarApp {
 #[component]
 fn BarParent(editor: Editor) -> NodeId {
     let target = Some(ChildTarget::new(SLIDE, SLIDE_TYPE));
-    let (heard, hear) = create_signal(String::from("nothing"));
+    let heard = create_signal(String::from("nothing"));
     view! {
         <List spacing=0.0>
             <Text string={heard} @test_id={"bar.heard"} />
@@ -26,7 +26,7 @@ fn BarParent(editor: Editor) -> NodeId {
                     mode=ChildMode::Live
                     own_frame=true
                     top_bar={TopBar::Phone}
-                    on_bar={move |action: BarAction| hear.set(format!("{action:?}"))}
+                    on_bar={move |action: BarAction| heard.set(format!("{action:?}"))}
                 />
             </Frame>
         </List>

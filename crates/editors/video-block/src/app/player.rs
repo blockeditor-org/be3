@@ -64,7 +64,6 @@ fn Layer(state: VideoState, id: Uuid) -> NodeId {
         let clip = clips.get().into_iter().find(|clip| clip.id == id)?;
         state.target(clip.block_id)
     });
-    let watched = block;
     view! {
         <ChildBlock
             editor={state.editor()}
@@ -72,7 +71,7 @@ fn Layer(state: VideoState, id: Uuid) -> NodeId {
             mode=ChildMode::Preview
             on_state={move |child: ChildState| {
                 if let (Some(target), Some(ratio)) =
-                    (watched.get_untracked(), child.aspect_ratio)
+                    (block.get_untracked(), child.aspect_ratio)
                 {
                     state.report_aspect_ratio(target.id, ratio);
                 }

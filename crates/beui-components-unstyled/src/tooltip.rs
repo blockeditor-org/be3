@@ -26,7 +26,7 @@ pub fn Tooltip(
     content: Render<TooltipHandle>,
 ) -> NodeId {
     let anchor = NodeRef::new();
-    let (shown, set_shown) = create_signal(false);
+    let shown = create_signal(false);
     let wanted = create_memo({
         let label = label.clone();
         move || !disabled.get() && !label.get().is_empty()
@@ -34,19 +34,19 @@ pub fn Tooltip(
     let open = create_memo(move || shown.get() && wanted.get());
 
     let dwell = create_timer(move || {
-        set_shown.set(true);
+        shown.set(true);
         None
     });
     let hover = move |hovered: bool| match hovered {
         true => dwell.restart(delay),
         false => {
             dwell.stop();
-            set_shown.set(false);
+            shown.set(false);
         }
     };
     let press = move |_: PointerPress| {
         dwell.stop();
-        set_shown.set(false);
+        shown.set(false);
     };
 
     view! {
@@ -59,7 +59,7 @@ pub fn Tooltip(
                     policy=LayerPolicy::Inert
                     traps_focus=false
                     open={open}
-                    content={move || content.call(TooltipHandle { label, shown })}
+                    content={move || content.call(TooltipHandle { label, shown: shown.read_only() })}
                 />
             </List>
         </Interactive>

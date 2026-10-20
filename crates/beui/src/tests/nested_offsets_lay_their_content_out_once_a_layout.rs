@@ -13,34 +13,32 @@ fn height(index: usize) -> f32 {
 fn nested_offsets_lay_their_content_out_once_a_layout() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <Offset fit=true>
                         <Offset fit=true>
                             <Offset fit=true>
                                 <Offset fit=true>
                                     <Offset fit=true>
-                                        <Offset fit=true>
-                                            <VirtualList
-                                                keys={indices(ROWS)}
-                                                item_size=ESTIMATE
-                                            >|index: ReadSignal<usize>|
-                                                <Frame
-                                                    height={create_memo(move || height(index.get()))}
-                                                >
-                                                    <Spacer />
-                                                </Frame>
-                                            </VirtualList>
-                                        </Offset>
+                                        <VirtualList
+                                            keys={indices(ROWS)}
+                                            item_size=ESTIMATE
+                                        >|index: ReadSignal<usize>|
+                                            <Frame
+                                                height={create_memo(move || height(index.get()))}
+                                            >
+                                                <Spacer />
+                                            </Frame>
+                                        </VirtualList>
                                     </Offset>
                                 </Offset>
                             </Offset>
                         </Offset>
                     </Offset>
-                </List>
-            }
+                </Offset>
+            </List>
         }
     });
     let scroll = scroll.get();

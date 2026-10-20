@@ -1,8 +1,11 @@
+use std::collections::BTreeMap;
 use std::time::Duration;
 
-use be_block::DisplaySettings;
 use be_block::be_model::{Document, Edit};
 use be_block::display_settings::DisplayMode;
+use be_block::{DisplaySettings, SettingsLayer};
+
+use crate::local_settings::LayerContents;
 
 #[derive(Clone, Debug, PartialEq)]
 #[cfg_attr(not(target_os = "linux"), allow(dead_code))]
@@ -21,10 +24,28 @@ impl Screen {
             .unwrap_or(self.default)
     }
 
-    fn untried(&self, settings: &DisplaySettings) -> bool {
-        self.default != self.preferred
-            && settings.mode(&self.id) != Some(self.default)
-            && self.showing(settings) == self.default
+    fn untried(&self, settings: &DisplaySettings, tried: &Tried) -> bool {
+        let showing = self.showing(settings);
+        showing != self.preferred && tried.get(&self.id) != Some(&showing)
+    }
+}
+
+pub(crate) type Tried = BTreeMap<String, DisplayMode>;
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct ModeChange {
+    pub(crate) id: String,
+    pub(crate) mode: Option<DisplayMode>,
+    pub(crate) here: bool,
+}
+
+impl ModeChange {
+    fn new(id: &str, mode: Option<DisplayMode>) -> Self {
+        Self {
+            id: id.to_owned(),
+            mode,
+            here: false,
+        }
     }
 }
 
@@ -50,11 +71,20 @@ pub(crate) struct Guard {
     previous: Option<DisplaySettings>,
     asked: Option<Asked>,
     rounds: u64,
+    tried: Tried,
 }
 
 impl Guard {
     pub(crate) fn applied(&self) -> &DisplaySettings {
         &self.applied
+    }
+
+    pub(crate) fn tried(&self) -> &Tried {
+        &self.tried
+    }
+
+    pub(crate) fn remember(&mut self, tried: Tried) {
+        self.tried = tried;
     }
 
     pub(crate) fn set_screens(&mut self, screens: Vec<Screen>) {
@@ -105,49 +135,94 @@ impl Guard {
         self.previous.is_some() || self.untried().next().is_some()
     }
 
-    pub(crate) fn keep(&mut self) -> Vec<Edit> {
+    pub(crate) fn keep(&mut self) -> Vec<ModeChange> {
         self.previous = None;
         self.asked = None;
-        let edits: Vec<Edit> = self
+        let changes: Vec<ModeChange> = self
             .untried()
-            .map(|screen| DisplaySettings::set_mode(&screen.id, Some(screen.default)))
+            .filter(|screen| self.applied.mode(&screen.id) != Some(screen.showing(&self.applied)))
+            .map(|screen| ModeChange::new(&screen.id, Some(screen.showing(&self.applied))))
             .collect();
-        self.edit(&edits);
-        edits
+        self.change(&changes);
+        self.try_showing();
+        changes
     }
 
-    pub(crate) fn revert(&mut self) -> Vec<Edit> {
+    pub(crate) fn revert(&mut self) -> Vec<ModeChange> {
         self.asked = None;
-        let mut edits = Vec::new();
+        let mut changes = Vec::new();
         if let Some(previous) = self.previous.take() {
-            let restored: Vec<Edit> = self
+            let restored: Vec<ModeChange> = self
                 .screens
                 .iter()
                 .map(|screen| &screen.id)
-                .filter(|id| previous.monitor(id) != self.applied.monitor(id))
-                .map(|id| DisplaySettings::set_mode(id, previous.mode(id)))
+                .filter(|id| previous.mode(id) != self.applied.mode(id))
+                .map(|id| ModeChange::new(id, previous.mode(id)))
                 .collect();
-            self.edit(&restored);
-            edits.extend(restored);
+            self.change(&restored);
+            changes.extend(restored);
+            let shown: Vec<(String, DisplayMode)> = self
+                .screens
+                .iter()
+                .map(|screen| (screen.id.clone(), screen.showing(&previous)))
+                .collect();
+            self.tried.extend(shown);
         }
-        let fallen_back: Vec<Edit> = self
+        let fallen_back: Vec<ModeChange> = self
             .untried()
-            .map(|screen| DisplaySettings::set_mode(&screen.id, Some(screen.preferred)))
+            .map(|screen| ModeChange {
+                here: self.applied.mode(&screen.id).is_some(),
+                ..ModeChange::new(&screen.id, Some(screen.preferred))
+            })
             .collect();
-        self.edit(&fallen_back);
-        edits.extend(fallen_back);
-        edits
+        self.change(&fallen_back);
+        changes.extend(fallen_back);
+        self.try_showing();
+        changes
     }
 
     fn untried(&self) -> impl Iterator<Item = &Screen> {
         self.screens
             .iter()
-            .filter(|screen| screen.untried(&self.applied))
+            .filter(|screen| screen.untried(&self.applied, &self.tried))
     }
 
-    fn edit(&mut self, edits: &[Edit]) {
-        self.applied = edited(&self.applied, edits);
+    fn try_showing(&mut self) {
+        let shown: Vec<(String, DisplayMode)> = self
+            .screens
+            .iter()
+            .map(|screen| (screen.id.clone(), screen.showing(&self.applied)))
+            .collect();
+        self.tried.extend(shown);
     }
+
+    fn change(&mut self, changes: &[ModeChange]) {
+        for change in changes {
+            let edit = self.applied.set_mode(&change.id, change.mode);
+            self.applied = edited(&self.applied, &[edit]);
+        }
+    }
+}
+
+pub(crate) fn written(
+    layers: &LayerContents<DisplaySettings>,
+    changes: &[ModeChange],
+) -> Vec<(SettingsLayer, Edit)> {
+    let mut layers = layers.clone();
+    changes
+        .iter()
+        .map(|change| {
+            let setting = DisplaySettings::mode_setting(&change.id);
+            let layer = match change.here {
+                true => SettingsLayer::ThisDevice,
+                false => setting.layer(&layers.own(SettingsLayer::ThisDevice)),
+            };
+            let own = layers.own(layer);
+            let edit = setting.set(&own, change.mode);
+            layers.set(layer, edited(&own, std::slice::from_ref(&edit)));
+            (layer, edit)
+        })
+        .collect()
 }
 
 pub(crate) fn edited(settings: &DisplaySettings, edits: &[Edit]) -> DisplaySettings {

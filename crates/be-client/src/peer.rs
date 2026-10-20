@@ -10,13 +10,16 @@ use be_commit::{
 use be_graph::{Access, BlockParent};
 use be_keys::RecoverySecret;
 use be_protocol::{
-    AccessEntry, BlockSummary, ClientId, ClientMessage, ErrorCode, HistoryEntry, KeyKind, KeySet,
-    OrganizationRole, ServerMessage, SessionState, WrappedBy,
+    AccessEntry, BlockSummary, ByteBuf, ClientId, ClientMessage, ErrorCode, HistoryEntry, KeyKind,
+    KeySet, OrganizationRole, ServerMessage, SessionState, WrappedBy,
 };
 use be_store::{ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, StoreError, Vault};
 use uuid::Uuid;
 
 use crate::{ClientError, connection::Connection, keys::KeyBook};
+
+const CARRIED_BYTES: usize = be_protocol::MAX_FRAME_BYTES / 2;
+const CONTENTS_BLOCKS: usize = 256;
 
 mod import;
 mod rotation;
@@ -25,15 +28,6 @@ pub use import::Imported;
 
 #[derive(Clone)]
 pub enum Credentials {
-    Register {
-        email: String,
-        display_name: String,
-        password: String,
-    },
-    Login {
-        email: String,
-        password: String,
-    },
     Token(String),
     Header,
 }
@@ -41,21 +35,6 @@ pub enum Credentials {
 impl Credentials {
     fn message(self, request: u64) -> ClientMessage {
         match self {
-            Self::Register {
-                email,
-                display_name,
-                password,
-            } => ClientMessage::Register {
-                request,
-                email,
-                display_name,
-                password,
-            },
-            Self::Login { email, password } => ClientMessage::Login {
-                request,
-                email,
-                password,
-            },
             Self::Header => ClientMessage::AuthenticateHeader { request },
             Self::Token(token) => ClientMessage::Authenticate { request, token },
         }
@@ -712,13 +691,82 @@ impl<S: ObjectStore> Peer<S> {
         self.retrying(|| Ok(self.commits.get(commit)?)).await
     }
 
+    pub async fn read_contents(
+        &self,
+        blocks: &[(Uuid, Option<CommitId>)],
+    ) -> Result<Vec<(BlockSummary, Option<Vec<u8>>)>, ClientError> {
+        let mut asked = Vec::new();
+        for group in blocks.chunks(CONTENTS_BLOCKS) {
+            let ids: Vec<Uuid> = group.iter().map(|(id, _)| *id).collect();
+            let held = group
+                .iter()
+                .filter_map(|(_, head)| *head)
+                .filter(|head| self.holds(*head))
+                .collect();
+            let answer = self
+                .connection
+                .send(|request| ClientMessage::ReadContents {
+                    request,
+                    blocks: ids.clone(),
+                    held,
+                })?;
+            asked.push((ids, answer));
+        }
+        let mut summaries = Vec::with_capacity(blocks.len());
+        for (ids, answer) in asked {
+            let ServerMessage::Contents {
+                blocks, objects, ..
+            } = answer.await?
+            else {
+                return Err(ClientError::Unexpected);
+            };
+            if !blocks.iter().map(|summary| summary.id).eq(ids) {
+                return Err(ClientError::Unexpected);
+            }
+            let store = self.commits.vault().store();
+            for object in &objects {
+                store.put(object)?;
+            }
+            for summary in &blocks {
+                self.note(summary);
+            }
+            summaries.extend(blocks);
+        }
+        futures_util::future::try_join_all(summaries.into_iter().map(|summary| async move {
+            let content = match summary.head {
+                Some(head) => {
+                    let commit = self.load_commit(head).await?;
+                    Some(self.read_manifest(&commit.manifest).await?)
+                }
+                None => None,
+            };
+            Ok((summary, content))
+        }))
+        .await
+    }
+
+    fn holds(&self, head: CommitId) -> bool {
+        let store = self.commits.vault().store();
+        matches!(
+            self.commits.try_get(head),
+            Ok(Some(commit)) if commit
+                .manifest
+                .chunk_hashes()
+                .into_iter()
+                .all(|hash| store.has(hash).unwrap_or(false))
+        )
+    }
+
     pub async fn open<C: BlockContent>(&self, block: Uuid) -> Result<Option<C>, ClientError> {
-        let Some(head) = self.remote_head(block).await? else {
+        let read = self
+            .read_contents(&[(block, self.local_head(block))])
+            .await?;
+        let Some((summary, Some(bytes))) = read.into_iter().next() else {
             return Ok(None);
         };
-        let commit = self.load_commit(head).await?;
-        let bytes = self.read_manifest(&commit.manifest).await?;
-        self.remember(block, head);
+        if let Some(head) = summary.head {
+            self.remember(block, head);
+        }
         Ok(Some(C::decode(&bytes)?))
     }
 
@@ -880,6 +928,7 @@ impl<S: ObjectStore> Peer<S> {
             chunks.push(parent.hash());
             chunks.extend(self.commits.get(*parent)?.manifest.chunk_hashes());
         }
+        let merging = !extra_parents.is_empty();
         parents.extend(extra_parents);
         let kind = if parents.len() > 1 {
             be_commit::CommitKind::Merge
@@ -896,26 +945,51 @@ impl<S: ObjectStore> Peer<S> {
             .with_metadata(encoded);
         let id = self.commits.put(key, &commit)?;
 
-        let mut objects = vec![id.hash()];
-        objects.extend(chunks.iter().copied());
-        self.push(&objects).await?;
-
+        let mut hashes = vec![id.hash()];
+        hashes.extend(chunks.iter().copied());
+        let mut carried = match merging {
+            true => None,
+            false => self.carried(id, &manifest, previous.as_ref())?,
+        };
+        if carried.is_none() {
+            self.push(&hashes).await?;
+        }
         let sealed = self.commits.vault().seal(key, &metadata.encode())?;
-        let response = self
-            .connection
-            .request(|request| ClientMessage::Publish {
+        let response = loop {
+            let publish = |request, objects| ClientMessage::Publish {
                 request,
                 block,
                 commit: id,
                 expected,
-                parents,
+                parents: parents.clone(),
                 chunks: chunks.clone(),
                 time,
                 pinned,
                 references: references.clone(),
                 metadata: sealed.clone(),
-            })
-            .await?;
+                objects,
+            };
+            match carried.take() {
+                Some(objects) => {
+                    match self
+                        .connection
+                        .request(|request| publish(request, objects))
+                        .await
+                    {
+                        Err(ClientError::Refused(ErrorCode::ObjectNotFound, _)) => {
+                            self.push(&hashes).await?;
+                        }
+                        response => break response?,
+                    }
+                }
+                None => {
+                    break self
+                        .connection
+                        .request(|request| publish(request, Vec::new()))
+                        .await?;
+                }
+            }
+        };
         match response {
             ServerMessage::Published { head, .. } => {
                 self.remember(block, head);
@@ -924,6 +998,38 @@ impl<S: ObjectStore> Peer<S> {
             ServerMessage::Rejected { head, .. } => Ok(Saved::Rejected { head }),
             _ => Err(ClientError::Unexpected),
         }
+    }
+
+    fn carried(
+        &self,
+        commit: CommitId,
+        manifest: &Manifest,
+        previous: Option<&Commit>,
+    ) -> Result<Option<Vec<ByteBuf>>, ClientError> {
+        let store = self.commits.vault().store();
+        store.sync()?;
+        let mut sent: HashSet<Hash> = previous
+            .map(|previous| previous.manifest.chunk_hashes())
+            .unwrap_or_default()
+            .into_iter()
+            .collect();
+        let mut hashes = vec![commit.hash()];
+        for hash in manifest.chunk_hashes() {
+            if sent.insert(hash) {
+                hashes.push(hash);
+            }
+        }
+        let mut room = CARRIED_BYTES;
+        let mut carried = Vec::with_capacity(hashes.len());
+        for hash in hashes {
+            let bytes = store.get(hash)?.ok_or(ClientError::MissingObject(hash))?;
+            if bytes.len() > room {
+                return Ok(None);
+            }
+            room -= bytes.len();
+            carried.push(ByteBuf::from(bytes));
+        }
+        Ok(Some(carried))
     }
 
     pub async fn hold(&self, block: Uuid, objects: &[Hash]) -> Result<(), ClientError> {

@@ -104,13 +104,13 @@ impl super::State {
             current = Some(child);
         }
         if current != self.dialog_focus.get_untracked() {
-            self.set_dialog_focus.set(current);
+            self.dialog_focus.set(current);
         }
     }
 
     pub(super) fn release_dialog_focus(&self) {
         if self.dialog_focus.get_untracked().is_some() {
-            self.set_dialog_focus.set(None);
+            self.dialog_focus.set(None);
         }
         self.settle_dialog_focus();
     }
@@ -124,13 +124,13 @@ impl super::State {
                 state.show(root);
             }
         });
-        self.set_dialog_focus.set(Some(tab));
+        self.dialog_focus.set(Some(tab));
         self.settle_dialog_focus();
     }
 
     pub(super) fn call_attention(&self) {
         if let Some(dialog) = self.dialog_focus.get_untracked() {
-            self.set_attention.update(|(count, target)| {
+            self.attention.update(|(count, target)| {
                 *count += 1;
                 *target = Some(dialog);
             });
@@ -143,7 +143,7 @@ impl super::State {
         };
         let Some(frame) = self
             .dialog_bodies
-            .get()
+            .value()
             .borrow()
             .get(&tab)
             .and_then(NodeRef::try_get)
@@ -162,7 +162,7 @@ impl super::State {
 
     fn anchor_node(&self, parent: TabId) -> Option<NodeId> {
         if self.is_dialog(parent) {
-            return self.dialog_frames.get().borrow().get(&parent)?.try_get();
+            return self.dialog_frames.value().borrow().get(&parent)?.try_get();
         }
         let shown = self.state.with_untracked(|state| state.contains(parent));
         shown.then(|| self.panel(parent))
@@ -172,7 +172,6 @@ impl super::State {
 #[component]
 pub(super) fn DockDialogs(dock: State) -> NodeId {
     let keys = dock.dialogs;
-    let settling = dock;
     let state = dock.state;
     let described = dock.dialog;
     create_effect(move || {
@@ -182,7 +181,7 @@ pub(super) fn DockDialogs(dock: State) -> NodeId {
                 parts.modal.get();
             }
         }
-        untrack(|| settling.settle_dialog_focus());
+        untrack(|| dock.settle_dialog_focus());
     });
     view! {
         <beui_view::primitives::List spacing=0.0>
@@ -209,9 +208,9 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         content,
     } = parts;
     let frame = NodeRef::new();
-    dock.dialog_frames.get().borrow_mut().insert(tab, frame);
+    dock.dialog_frames.value().borrow_mut().insert(tab, frame);
     let inside = NodeRef::new();
-    dock.dialog_bodies.get().borrow_mut().insert(tab, inside);
+    dock.dialog_bodies.value().borrow_mut().insert(tab, inside);
     on_cleanup(move || {
         dock.dialog_frames.try_with(|frames| {
             let mut frames = frames.borrow_mut();
@@ -222,7 +221,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             }
         });
         if dock.dialog_focus.get_untracked() == Some(tab) {
-            dock.set_dialog_focus.set(None);
+            dock.dialog_focus.set(None);
         }
     });
     let shown = create_memo(move || dock.dialog_shown(tab));
@@ -242,10 +241,9 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     });
     let focus = dock.dialog_focus;
     let focused = create_memo(move || focus.get() == Some(tab));
-    let (attention, set_attention) = create_signal(false);
-    let calm = set_attention;
+    let attention = create_signal(false);
     let settle = create_timer(move || {
-        calm.set(false);
+        attention.set(false);
         None
     });
     let requests = dock.attention;
@@ -253,7 +251,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         let (_, target) = requests.get();
         if target == Some(tab) {
             untrack(|| {
-                set_attention.set(true);
+                attention.set(true);
                 settle.start(ATTENTION);
             });
         }
@@ -261,7 +259,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let scope = dock.open_scope();
     let control = DockTabControl {
         tab,
-        state: dock.state,
+        state: dock.state.read_only(),
         dock,
     };
     let body = scope.context().run(|| {
@@ -281,7 +279,6 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             {body}
         </Frame>
     };
-    let closing = on_close;
     let face = dock.dialog_chrome.call(DockDialogHandle {
         tab,
         title,
@@ -289,22 +286,16 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         size,
         modal,
         focused,
-        attention,
+        attention: attention.read_only(),
         closable: on_close.is_some(),
         close: ClickCallback::new(move || {
-            if let Some(close) = &closing {
+            if let Some(close) = &on_close {
                 close.call();
             }
         }),
         body,
     });
-    let pressed = dock;
-    let attending = dock;
-    let dismissing = on_close;
-    let modal_now = blocking;
     let overlay = NodeRef::new();
-    let raised = overlay;
-    let (opening, attended) = (shown, focused);
     let view = view! {
         <Overlay
             @node_ref=&overlay
@@ -314,47 +305,42 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             traps_focus=false
             open={shown}
             on_dismiss={move |reason: Dismiss| match reason {
-                Dismiss::OutsidePress if modal_now.get_untracked() => {
-                    attending.focus_dialog(tab);
-                    attending.focus_into_dialog();
-                    attending.call_attention();
+                Dismiss::OutsidePress if blocking.get_untracked() => {
+                    dock.focus_dialog(tab);
+                    dock.focus_into_dialog();
+                    dock.call_attention();
                 }
                 Dismiss::Escape | Dismiss::Back => {
-                    if let Some(close) = &dismissing {
+                    if let Some(close) = &on_close {
                         close.call();
                     }
                 }
                 Dismiss::OutsidePress | Dismiss::WithParent => {}
             }}
         >
-            <Interactive
-                @node_ref=&frame
-                on_press={move |_: PointerPress| pressed.focus_dialog(tab)}
-            >
+            <Interactive @node_ref=&frame on_press={move |_: PointerPress| dock.focus_dialog(tab)}>
                 {face}
             </Interactive>
         </Overlay>
     };
     create_effect(move || {
-        if !(blocking.get() || attended.get()) {
+        if !(blocking.get() || focused.get()) {
             return;
         }
-        if let Some(overlay) = raised.try_get() {
+        if let Some(overlay) = overlay.try_get() {
             with_document(|document| document.raise_overlay(overlay));
         }
     });
-    let focusing = dock;
     create_effect(move || {
-        if attended.get() {
-            untrack(|| focusing.focus_into_dialog());
+        if focused.get() {
+            untrack(|| dock.focus_into_dialog());
         }
     });
-    let opened = dock;
     let was_shown = std::cell::Cell::new(false);
     create_effect(move || {
-        let now = opening.get();
+        let now = shown.get();
         if now && !was_shown.replace(true) {
-            untrack(|| opened.focus_dialog(tab));
+            untrack(|| dock.focus_dialog(tab));
         }
     });
     view

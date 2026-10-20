@@ -156,16 +156,15 @@ fn osd_level(shown: Shown, levels: MediaLevels) -> Option<OsdLevel> {
 #[component]
 pub(super) fn MediaKeys(editor: Editor) -> NodeId {
     let levels = editor.host_value::<Media>();
-    let (shown, set_shown) = create_signal(None);
-    let (shows, set_shows) = create_signal(0_u64);
+    let shown = create_signal(None);
+    let shows = create_signal(0_u64);
     for (key, media_key) in BINDINGS {
-        let (set_shown, set_shows) = (set_shown, set_shows);
         Action::new(media_key.id(), media_key.label(), move || {
             let (request, showing) = media_key.request();
             editor.act(request);
             if let Some(showing) = showing {
-                set_shown.set(Some(showing));
-                set_shows.update(|shows| *shows += 1);
+                shown.set(Some(showing));
+                shows.update(|shows| *shows += 1);
             }
         })
         .glyph(media_key.glyph())

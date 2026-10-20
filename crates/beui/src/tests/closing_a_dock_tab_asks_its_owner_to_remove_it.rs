@@ -6,7 +6,7 @@ use crate::unstyled::{DockPane, DockTab, DockingLayout, TabId, dock_state};
 fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let (closed, set_closed) = create_signal(Vec::new());
+    let closed = create_signal(Vec::new());
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {
@@ -16,7 +16,7 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
                         <DockTab
                             id
                             title={format!("Tab {id}")}
-                            on_close={move || set_closed.update(|closed| closed.push(TabId::new(id)))}
+                            on_close={move || closed.update(|closed| closed.push(TabId::new(id)))}
                         >
                             <Frame @test_id={format!("content.{id}")} />
                         </DockTab>

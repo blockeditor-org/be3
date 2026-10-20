@@ -189,7 +189,6 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
         true => None,
         false => Some(PICKER_HEIGHT),
     };
-    let (tab_act, search_act, tile_act, link_act, import_act) = (act, act, act, act, act);
     view! {
         <List spacing=10.0>
             <PlacingFields workspace held act />
@@ -202,7 +201,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                         2 => PickerTab::LinkExisting,
                         _ => PickerTab::Import,
                     };
-                    tab_act.call(PickAction::Tab(tab));
+                    act.call(PickAction::Tab(tab));
                 }}
                 options={view! {
                     <ChoiceOption label="Add" />
@@ -224,7 +223,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                                         sections.get().into_iter().find(|section| section.key == key)
                                     });
                                     view! {
-                                        <TileSectionView act={tile_act} section />
+                                        <TileSectionView act={act} section />
                                     }
                                 }</ForEach>
                             </List>
@@ -236,11 +235,11 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                             placeholder="Search by name or UUID"
                             label="Search"
                             @test_id={"picker.search"}
-                            on_change={move |value: String| search_act.call(PickAction::Search(value))}
+                            on_change={move |value: String| act.call(PickAction::Search(value))}
                         />
                     </Show>
                     <Show condition={importing}>
-                        <ImportArea held act={import_act} />
+                        <ImportArea held act={act} />
                     </Show>
                     <Show condition={linking}>
                         <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
@@ -253,7 +252,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                                         links.get().into_iter().find(|link| link.id == block)
                                     });
                                     view! {
-                                        <LinkButton act={link_act} link />
+                                        <LinkButton act={act} link />
                                     }
                                 }</ForEach>
                             </List>
@@ -520,7 +519,7 @@ fn TileFace(handle: ButtonHandle, label: Memo<String>, glyph: Memo<String>) -> N
 fn LinkButton(act: Act, link: Memo<Option<LinkRow>>) -> NodeId {
     let label = create_memo(move || link.get().map(|link| link.name).unwrap_or_default());
     let glyph = create_memo(move || link.get().map(|link| link.icon).unwrap_or_default());
-    let test_id = link
+    let link_test_id = link
         .get_untracked()
         .map(|link| format!("picker.link.{}", link.id))
         .unwrap_or_default();
@@ -529,7 +528,7 @@ fn LinkButton(act: Act, link: Memo<Option<LinkRow>>) -> NodeId {
             label={label}
             glyph={glyph}
             variant=ButtonVariant::Ghost
-            @test_id={test_id}
+            @test_id={link_test_id}
             on_click={move || {
                 if let Some(link) = link.get_untracked() {
                     act.call(PickAction::Link(link.id, link.block_type));
@@ -651,7 +650,7 @@ fn CreateBody(
     act: Act,
     creating: Memo<Option<Creating>>,
 ) -> NodeId {
-    let (state, set_state) = create_signal(ChildState::default());
+    let state = create_signal(ChildState::default());
     let working = create_memo(move || {
         creating.with(|creating| creating.as_ref().is_some_and(|creating| creating.committed))
     });
@@ -697,7 +696,7 @@ fn CreateBody(
                     @test_id={"picker.creation"}
                     on_state={move |next: ChildState| {
                         workspace.creation_state(pick, &next);
-                        set_state.set(next);
+                        state.set(next);
                     }}
                 />
             </Frame>

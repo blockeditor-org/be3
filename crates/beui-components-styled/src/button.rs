@@ -94,7 +94,6 @@ pub fn ButtonFace(
     let fill_color =
         create_memo(move || variant.fill(&theme, disabled.get(), hovered.get(), active.get()));
     let label_color = create_memo(move || variant.label(disabled.get()));
-    let icon_color = label_color;
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     let trailing = create_memo(move || trailing_glyph.get());
     let has_trailing = create_memo(move || !trailing.get().is_empty());
@@ -103,7 +102,6 @@ pub fn ButtonFace(
         true => Sides::symmetric(PADDING_VERTICAL, PADDING_VERTICAL),
         false => Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL),
     });
-    let trailing_color = label_color;
     view! {
         <FocusRing focused radius={Radius::custom(Radius::Md.px() + 4.0)} offset=FOCUS_RING_OFFSET>
             <Frame
@@ -114,7 +112,7 @@ pub fn ButtonFace(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=GLYPH_SPACING>
                     <Show condition={has_glyph}>
-                        <Text color={icon_color} align=TextAlign::Center>
+                        <Text color={label_color} align=TextAlign::Center>
                             <Icon glyph={glyph} />
                         </Text>
                     </Show>
@@ -128,7 +126,7 @@ pub fn ButtonFace(
                         />
                     </Show>
                     <Show condition={has_trailing}>
-                        <Text color={trailing_color} align=TextAlign::Center>
+                        <Text color={label_color} align=TextAlign::Center>
                             <Icon glyph={trailing} />
                         </Text>
                     </Show>

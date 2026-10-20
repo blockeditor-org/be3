@@ -240,7 +240,7 @@ fn NewEntity(state: RayState) -> NodeId {
     let metalness = create_memo(move || held.get().metalness);
     let transmission = create_memo(move || held.get().transmission);
     let ior = create_memo(move || held.get().refractive_index);
-    let edit = move |held: &block_editor_beui::beui::reactive::ReadSignal<Surface>,
+    let edit = move |held: &block_editor_beui::beui::reactive::Signal<Surface>,
                      write: fn(&mut Surface, f32)| {
         let held = *held;
         move |value: f32| {

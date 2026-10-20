@@ -134,9 +134,8 @@ pub fn Settings(artifacts: Artifacts) -> NodeId {
         None => "These settings cannot be read.".to_owned(),
     });
     let edited = artifacts.clone();
-    let scaled = decoded;
     let set_scale = move |value: f64| {
-        let Some(mut artifact) = scaled.get_untracked() else {
+        let Some(mut artifact) = decoded.get_untracked() else {
             return;
         };
         artifact.settings.scale = (value as u32).clamp(1, MAX_EXPORT_SCALE);

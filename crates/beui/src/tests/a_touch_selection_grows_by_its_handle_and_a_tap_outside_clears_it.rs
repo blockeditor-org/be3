@@ -8,16 +8,14 @@ use beui_core::rich::{CaretHandle, handle_center};
 fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
     let _root = crate::reactive::RootScope::new();
     let (first, second, region) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <SelectableText @node_ref=&region>
-                    <List spacing=30.0>
-                        <Text @node_ref=&first string="hello world" />
-                        <Text @node_ref=&second string="second line" />
-                    </List>
-                </SelectableText>
-            }
+    let document = build(move || {
+        view! {
+            <SelectableText @node_ref=&region>
+                <List spacing=30.0>
+                    <Text @node_ref=&first string="hello world" />
+                    <Text @node_ref=&second string="second line" />
+                </List>
+            </SelectableText>
         }
     });
     let mut harness = Harness::new(document);

@@ -17,13 +17,13 @@ fn ctrl_tab_walks_the_tabs_of_the_pane_the_focus_is_in() {
                             id
                             title={format!("Tab {id}")}
                             content={move || {
-                                let (typed, set_typed) = create_signal(String::new());
+                                let typed = create_signal(String::new());
                                 view! {
                                     <styled::TextInput
                                         @test_id={format!("input.{id}")}
                                         value={typed}
                                         label="Notes"
-                                        on_change={move |text: String| set_typed.set(text)}
+                                        on_change={move |text: String| typed.set(text)}
                                     />
                                 }
                             }}

@@ -5,36 +5,34 @@ use crate::reactive::*;
 #[test]
 fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
     let _root = crate::reactive::RootScope::new();
-    let (row_clicks, set_row_clicks) = create_signal(0u32);
-    let (inner_clicks, set_inner_clicks) = create_signal(0u32);
+    let row_clicks = create_signal(0u32);
+    let inner_clicks = create_signal(0u32);
     let inner = NodeRef::new();
     let row = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <unstyled::Button
-                        @node_ref=&row
-                        on_click={move || set_row_clicks.update(|row_clicks| *row_clicks += 1)}
-                    >|_: unstyled::ButtonHandle|
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Text string="a row that opens something" />
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
-                            <unstyled::Button
-                                @node_ref=&inner
-                                tab_stop=false
-                                capture_presses=true
-                                on_click={move || {
-                                    set_inner_clicks.update(|inner_clicks| *inner_clicks += 1)
-                                }}
-                                content={move |_: unstyled::ButtonHandle| view! {
-                                    <Text string="add" />
-                                }}
-                            />
-                        </List>
-                    </unstyled::Button>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <unstyled::Button
+                    @node_ref=&row
+                    on_click={move || row_clicks.update(|row_clicks| *row_clicks += 1)}
+                >|_: unstyled::ButtonHandle|
+                    <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                        <Text string="a row that opens something" />
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <unstyled::Button
+                            @node_ref=&inner
+                            tab_stop=false
+                            capture_presses=true
+                            on_click={move || {
+                                inner_clicks.update(|inner_clicks| *inner_clicks += 1)
+                            }}
+                            content={move |_: unstyled::ButtonHandle| view! {
+                                <Text string="add" />
+                            }}
+                        />
+                    </List>
+                </unstyled::Button>
+            </List>
         }
     });
 

@@ -7,7 +7,8 @@ use crate::unstyled::{DockPane, DockTab, DockingLayout};
 
 type Heard = Rc<RefCell<Vec<(u64, bool)>>>;
 
-fn control(id: u64, heard: Heard) -> NodeId {
+#[component]
+fn Control(id: u64, heard: Heard) -> NodeId {
     view! {
         <Interactive
             focusable=true
@@ -29,22 +30,26 @@ fn a_tab_hidden_while_it_has_the_focus_hands_the_focus_to_the_tab_shown() {
         view! {
             <styled::Docking layout>
                 <DockPane id="tabs">
-                    <DockTab id=1u64 title="One" content={move || control(1, Rc::clone(&one))} />
-                    <DockTab id=2u64 title="Two" content={move || control(2, Rc::clone(&two))} />
+                    <DockTab id=1u64 title="One">
+                        <Control id=1 heard=Rc::clone(&one) />
+                    </DockTab>
+                    <DockTab id=2u64 title="Two">
+                        <Control id=2 heard=Rc::clone(&two) />
+                    </DockTab>
                 </DockPane>
             </styled::Docking>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), || layout.show(&1));
+    layout.show(&1);
     harness.frame(Vec::new());
     let first = harness.find("control.1");
     harness.click(harness.center(first));
     assert_eq!(harness.document().focused_node(), Some(first));
     heard.borrow_mut().clear();
 
-    with_reactive_scope(harness.document_mut(), || layout.show(&2));
+    layout.show(&2);
     harness.frame(Vec::new());
     let second = harness.find("control.2");
     assert_eq!(
@@ -55,7 +60,7 @@ fn a_tab_hidden_while_it_has_the_focus_hands_the_focus_to_the_tab_shown() {
     assert_eq!(harness.document().focused_node(), Some(second));
 
     heard.borrow_mut().clear();
-    with_reactive_scope(harness.document_mut(), || layout.show(&1));
+    layout.show(&1);
     harness.frame(Vec::new());
     assert_eq!(*heard.borrow(), [(2, false), (1, true)]);
     assert_eq!(

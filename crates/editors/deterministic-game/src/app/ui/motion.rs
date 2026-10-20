@@ -106,32 +106,30 @@ pub(crate) fn flights(
 
 #[derive(Clone, Copy)]
 pub(crate) struct Motion {
-    pub(crate) flights: ReadSignal<Vec<Flight>>,
-    set_flights: WriteSignal<Vec<Flight>>,
-    pub(crate) clock: ReadSignal<Instant>,
-    set_clock: WriteSignal<Instant>,
+    pub(crate) flights: Signal<Vec<Flight>>,
+    pub(crate) clock: Signal<Instant>,
     pub(crate) flying: Memo<Vec<ItemId>>,
     timer: Animation,
 }
 
 impl Motion {
     pub(crate) fn new() -> Self {
-        let (flights, set_flights) = create_signal(Vec::<Flight>::new());
-        let (clock, set_clock) = create_signal(now());
+        let flights = create_signal(Vec::<Flight>::new());
+        let clock = create_signal(now());
         let timer = create_animation(
             move |frame| {
                 let now = frame.now;
-                set_clock.set(now);
+                clock.set(now);
                 let mut flying = false;
-                set_flights.update(|flights| {
+                flights.update(|flights| {
                     flights.retain(|flight| !flight.landed(now));
                     flying = !flights.is_empty();
                 });
                 flying
             },
             move || {
-                set_clock.set(now());
-                set_flights.set(Vec::new());
+                clock.set(now());
+                flights.set(Vec::new());
             },
         );
         let flying = create_memo(move || {
@@ -139,9 +137,7 @@ impl Motion {
         });
         Self {
             flights,
-            set_flights,
             clock,
-            set_clock,
             flying,
             timer,
         }
@@ -152,8 +148,8 @@ impl Motion {
             return;
         }
         let now = launched[0].start;
-        self.set_clock.set(now);
-        self.set_flights.update(|flights| {
+        self.clock.set(now);
+        self.flights.update(|flights| {
             flights.retain(|flight| launched.iter().all(|new| new.id != flight.id));
             flights.extend(launched);
             flights.sort_by(|one, other| one.distance().total_cmp(&other.distance()));

@@ -6,20 +6,18 @@ use crate::styled::*;
 fn right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent_item() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let (document, [menu]) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="Share">
-                    <unstyled::MenuItem label="Email" />
-                    <unstyled::MenuItem label="Link" />
-                </unstyled::MenuItem>
-            };
-            [view! {
-                <ContextMenu items>
-                    <MenuRegion @node_ref=&region />
-                </ContextMenu>
-            }]
-        }
+    let (document, [menu]) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label="Share">
+                <unstyled::MenuItem label="Email" />
+                <unstyled::MenuItem label="Link" />
+            </unstyled::MenuItem>
+        };
+        [view! {
+            <ContextMenu items>
+                <MenuRegion @node_ref=&region />
+            </ContextMenu>
+        }]
     });
     let region = region.get();
     let mut harness = Harness::new(document);

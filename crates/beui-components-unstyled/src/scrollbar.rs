@@ -114,7 +114,7 @@ fn over_thumb(position: ScrollPosition, at: f32) -> bool {
 }
 
 fn along(direction: &Prop<Direction>, press: PointerPress) -> f32 {
-    untrack(|| direction.get()).main(press.fraction)
+    direction.get_untracked().main(press.fraction)
 }
 
 #[component]
@@ -127,10 +127,10 @@ pub fn Scrollbar(
     #[prop(children)] content: Render<ScrollbarHandle>,
 ) -> NodeId {
     let position = create_memo(move || position.get());
-    let (hovered, set_hovered) = create_signal(false);
-    let (over_bar, set_over_bar) = create_signal(false);
-    let (dragging, set_dragging) = create_signal(false);
-    let (held, set_held) = create_signal(false);
+    let hovered = create_signal(false);
+    let over_bar = create_signal(false);
+    let dragging = create_signal(false);
+    let held = create_signal(false);
     let engaged = create_memo(move || over_bar.get() || held.get());
     create_effect(move || on_engage.call(engaged.get()));
     let grab = Rc::new(Cell::new(None::<f32>));
@@ -138,24 +138,20 @@ pub fn Scrollbar(
     let content_node = content.call(ScrollbarHandle {
         position,
         direction,
-        hovered,
-        dragging,
+        hovered: hovered.read_only(),
+        dragging: dragging.read_only(),
         engaged,
     });
 
-    let paged = on_scroll_to;
-    let (pressed_axis, dragged_axis, hovered_axis) = (direction, direction, direction);
-    let (pressed_at, dragged_at, hovered_at, hit_position) =
-        (position, position, position, position);
     let (pressed_grab, dragged_grab, active_grab) = (grab.clone(), grab.clone(), grab);
     view! {
         <Interactive
             on_press={move |press: PointerPress| {
-                let position = untrack(|| pressed_at.get());
+                let position = position.get_untracked();
                 if position.max_offset() <= 0.0 {
                     return;
                 }
-                let at = along(&pressed_axis, press);
+                let at = along(&direction, press);
                 if over_thumb(position, at) {
                     pressed_grab.set(Some(at - thumb_start(position)));
                     return;
@@ -165,35 +161,35 @@ pub fn Scrollbar(
                     true => -position.viewport,
                     false => position.viewport,
                 };
-                paged.call((position.offset + page).clamp(0.0, position.max_offset()));
+                on_scroll_to.call((position.offset + page).clamp(0.0, position.max_offset()));
             }}
             on_drag={move |press: PointerPress| {
                 let Some(grab) = dragged_grab.get() else {
                     return;
                 };
-                let position = untrack(|| dragged_at.get());
+                let position = position.get_untracked();
                 if position.max_offset() <= 0.0 {
                     return;
                 }
-                on_scroll_to.call(offset_at(position, along(&dragged_axis, press) - grab));
+                on_scroll_to.call(offset_at(position, along(&direction, press) - grab));
             }}
             on_hover_move={move |press: PointerPress| {
-                let position = untrack(|| hovered_at.get());
-                let at = along(&hovered_axis, press);
-                set_hovered.set(position.max_offset() > 0.0 && over_thumb(position, at));
+                let position = position.get_untracked();
+                let at = along(&direction, press);
+                hovered.set(position.max_offset() > 0.0 && over_thumb(position, at));
             }}
             on_hover_change={move |inside: bool| {
-                set_over_bar.set(inside);
+                over_bar.set(inside);
                 if !inside {
-                    set_hovered.set(false);
+                    hovered.set(false);
                 }
             }}
             hit_at={move |_: Pos2| {
-                untrack(|| shown.get() && hit_position.get().max_offset() > 0.0)
+                shown.get_untracked() && position.get_untracked().max_offset() > 0.0
             }}
             on_active_change={move |active: bool| {
-                set_held.set(active);
-                set_dragging.set(active && active_grab.get().is_some());
+                held.set(active);
+                dragging.set(active && active_grab.get().is_some());
                 if !active {
                     active_grab.set(None);
                 }

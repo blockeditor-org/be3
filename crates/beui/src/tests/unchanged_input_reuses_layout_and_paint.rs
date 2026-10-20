@@ -6,11 +6,9 @@ use crate::reactive::*;
 fn unchanged_input_reuses_layout_and_paint() {
     let _root = crate::reactive::RootScope::new();
     let fill = NodeRef::new();
-    let mut document = build({
-        move || {
-            view! {
-                <Frame @node_ref=&fill fill=Color32::WHITE radius=0.0 />
-            }
+    let mut document = build(move || {
+        view! {
+            <Frame @node_ref=&fill fill=Color32::WHITE radius=0.0 />
         }
     });
     let fill = kind_of::<FrameNode>(&document, fill.get());

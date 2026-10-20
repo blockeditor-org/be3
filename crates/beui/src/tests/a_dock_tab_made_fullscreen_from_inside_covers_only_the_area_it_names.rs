@@ -6,8 +6,8 @@ use crate::unstyled::{DockPane, DockTab, DockTabControl, DockingLayout, use_dock
 #[test]
 fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
     let _root = crate::reactive::RootScope::new();
-    let (hovered, set_hovered) = create_signal(false);
-    let (control, set_control) = create_signal::<Option<DockTabControl>>(None);
+    let hovered = create_signal(false);
+    let control = create_signal::<Option<DockTabControl>>(None);
     let layout = DockingLayout::<u64>::new();
     let document = {
         build(move || {
@@ -16,7 +16,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
                     <Frame height=40.0>
                         <Interactive
                             @test_id="bar"
-                            on_hover_change={move |on: bool| set_hovered.set(on)}
+                            on_hover_change={move |on: bool| hovered.set(on)}
                         />
                     </Frame>
                     <styled::Docking @sizing=ItemSize::Percent(100.0) layout>
@@ -26,7 +26,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
                                 title="Tab 1"
                                 content={move || {
                                     let tab = use_dock_tab();
-                                    set_control.update(|control| *control = tab);
+                                    control.update(|control| *control = tab);
                                     view! {
                                         <Frame @test_id="content" />
                                     }
@@ -49,9 +49,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
     );
     let bar = harness.rect(harness.find("bar"));
 
-    with_reactive_scope(harness.document_mut(), move || {
-        control.enter_fullscreen(Some(left))
-    });
+    control.enter_fullscreen(Some(left));
     harness.settle();
     assert!(control.fullscreen());
     assert_eq!(layout.fullscreen(), Some(1));
@@ -75,7 +73,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
         "inside it, nothing under the tab does"
     );
 
-    with_reactive_scope(harness.document_mut(), move || control.leave_fullscreen());
+    control.leave_fullscreen();
     harness.settle();
     assert!(!control.fullscreen());
     assert_eq!(layout.fullscreen(), None);

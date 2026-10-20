@@ -209,9 +209,6 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
     let position = create_memo(move || format!("Frame {} of {}", frame.get() + 1, count.get()));
     let at = create_memo(move || frame.get() as f32);
 
-    let back_frame = frame;
-    let forward_frame = frame;
-
     let changed_frame = create_memo(move || {
         let path = review.selected.get()?;
         let status = review.status(&path)?;
@@ -221,7 +218,6 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
             .filter(|at| *at < count.get() && *at != frame.get())
     });
     let differs = create_memo(move || changed_frame.get().is_some());
-    let jump_frame = changed_frame;
 
     view! {
         <Frame visible={many} padding={Sides::symmetric(12.0, 6.0)}>
@@ -231,7 +227,7 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
                     label="The frame before"
                     disabled={first}
                     @test_id={"paint_review.frame.previous"}
-                    on_click={move || review.seek(back_frame.get_untracked().saturating_sub(1))}
+                    on_click={move || review.seek(frame.get_untracked().saturating_sub(1))}
                 />
                 <IconButton
                     glyph={glyph}
@@ -244,22 +240,19 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
                     label="The frame after"
                     disabled={last}
                     @test_id={"paint_review.frame.next"}
-                    on_click={move || review.seek(forward_frame.get_untracked() + 1)}
+                    on_click={move || review.seek(frame.get_untracked() + 1)}
                 />
-                <Dynamic value={count}>|count: usize| {
-                    let at = at;
-                    view! {
-                        <Slider
-                            value={at}
-                            max={(count - 1) as f32}
-                            label="Frame"
-                            @test_id={"paint_review.frame.at"}
-                            on_change={move |value: f32| {
-                                review.seek(value.round().max(0.0) as usize)
-                            }}
-                        />
-                    }
-                }</Dynamic>
+                <Dynamic value={count}>|count: usize|
+                    <Slider
+                        value={at}
+                        max={(count - 1) as f32}
+                        label="Frame"
+                        @test_id={"paint_review.frame.at"}
+                        on_change={move |value: f32| {
+                            review.seek(value.round().max(0.0) as usize)
+                        }}
+                    />
+                </Dynamic>
                 <Text style=TextStyle::CAPTION string={position} />
                 <Show condition={differs}>
                     <Button
@@ -268,7 +261,7 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
                         variant=ButtonVariant::Secondary
                         @test_id={"paint_review.frame.changed"}
                         on_click={move || {
-                            if let Some(frame) = jump_frame.get_untracked() {
+                            if let Some(frame) = changed_frame.get_untracked() {
                                 review.seek(frame);
                             }
                         }}

@@ -12,8 +12,8 @@ struct Heard {
 #[test]
 fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     let _root = crate::reactive::RootScope::new();
-    let (bar, set_bar) = create_signal(Heard::default());
-    let (tab, set_tab) = create_signal(Heard::default());
+    let bar = create_signal(Heard::default());
+    let tab = create_signal(Heard::default());
     let layout = DockingLayout::<u64>::new();
     let document = {
         build(move || {
@@ -22,9 +22,9 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
                     <Frame height=40.0>
                         <Interactive
                             @test_id="bar"
-                            on_hover_change={move |on: bool| set_bar.update(|bar| bar.hovered = on)}
+                            on_hover_change={move |on: bool| bar.update(|bar| bar.hovered = on)}
                             on_scroll={move |scroll: ScrollGesture| {
-                                set_bar.update(|bar| bar.scrolled += scroll.delta);
+                                bar.update(|bar| bar.scrolled += scroll.delta);
                             }}
                         />
                     </Frame>
@@ -41,10 +41,10 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
                                         <Interactive
                                             @test_id="content.2"
                                             on_hover_change={move |on: bool| {
-                                                set_tab.update(|tab| tab.hovered = on);
+                                                tab.update(|tab| tab.hovered = on);
                                             }}
                                             on_scroll={move |scroll: ScrollGesture| {
-                                                set_tab.update(|tab| tab.scrolled += scroll.delta);
+                                                tab.update(|tab| tab.scrolled += scroll.delta);
                                             }}
                                         />
                                     }
@@ -61,9 +61,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     let docked = harness.rect(harness.find("content.2"));
     let over_bar = harness.center(harness.find("bar"));
 
-    with_reactive_scope(harness.document_mut(), move || {
-        layout.enter_fullscreen(&2, None)
-    });
+    layout.enter_fullscreen(&2, None);
     harness.settle();
     assert_eq!(layout.fullscreen(), Some(2));
     assert_eq!(
@@ -94,7 +92,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
         "and the wheel"
     );
 
-    with_reactive_scope(harness.document_mut(), move || layout.leave_fullscreen());
+    layout.leave_fullscreen();
     harness.settle();
     assert_eq!(layout.fullscreen(), None);
     assert_eq!(

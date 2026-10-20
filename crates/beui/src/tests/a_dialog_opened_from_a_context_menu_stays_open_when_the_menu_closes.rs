@@ -8,28 +8,26 @@ fn a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
     let surface = NodeRef::new();
-    let (dismissed, set_dismissed) = create_signal(0);
-    let (document, [_]) = toolbar_of({
-        move || {
-            let (open, set_open) = create_signal(false);
-            let items = view! {
-                <unstyled::MenuItem label="Inspect" />
-            };
-            [view! {
-                <List spacing=0.0>
-                    <ContextMenu items on_select={move |_path| set_open.set(true)}>
-                        <MenuRegion @node_ref=&region />
-                    </ContextMenu>
-                    <Dialog
-                        open={open}
-                        title="Inspect"
-                        on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
-                    >
-                        <Text string="Details" color=Color32::WHITE @node_ref={&surface} />
-                    </Dialog>
-                </List>
-            }]
-        }
+    let dismissed = create_signal(0);
+    let (document, [_]) = toolbar_of(move || {
+        let open = create_signal(false);
+        let items = view! {
+            <unstyled::MenuItem label="Inspect" />
+        };
+        [view! {
+            <List spacing=0.0>
+                <ContextMenu items on_select={move |_path| open.set(true)}>
+                    <MenuRegion @node_ref=&region />
+                </ContextMenu>
+                <Dialog
+                    open={open}
+                    title="Inspect"
+                    on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
+                >
+                    <Text string="Details" color=Color32::WHITE @node_ref={&surface} />
+                </Dialog>
+            </List>
+        }]
     });
     let region = region.get();
     let mut harness = Harness::new(document);

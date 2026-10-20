@@ -6,7 +6,7 @@ use crate::unstyled::{Edge, Floating};
 #[test]
 fn an_overlay_laid_out_before_its_anchor_follows_it_in_one_layout() {
     let _root = crate::reactive::RootScope::new();
-    let (banner, set_banner) = create_signal(0.0_f32);
+    let banner = create_signal(0.0_f32);
     let stage = NodeRef::new();
     let pill = NodeRef::new();
     let document = build(move || {
@@ -24,7 +24,7 @@ fn an_overlay_laid_out_before_its_anchor_follows_it_in_one_layout() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    with_reactive_scope(harness.document_mut(), move || set_banner.set(50.0));
+    banner.set(50.0);
     harness.frame(Vec::new());
     let stage = harness.rect(stage.get());
     assert_eq!(stage.top(), 50.0, "the banner pushes the stage down");

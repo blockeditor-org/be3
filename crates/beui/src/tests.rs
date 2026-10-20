@@ -7,6 +7,7 @@ mod a_back_handler_goes_back_while_enabled_without_moving_its_content;
 mod a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put;
 mod a_back_slide_carries_its_page_away_and_brings_the_next_one_in;
 mod a_back_slide_shows_the_page_it_goes_back_to_while_it_is_swiped;
+mod a_backdrop_drag_expands_an_unscrolled_half_open_sheet;
 mod a_bare_separator_rules_across_the_column_it_sits_in;
 mod a_baseline_row_lines_up_text_of_different_sizes;
 mod a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back;
@@ -14,6 +15,7 @@ mod a_button_that_leaves_focus_alone_keeps_the_keyboard_on_the_text;
 mod a_calendar_jumps_to_a_month_from_its_months_view;
 mod a_calendar_keeps_its_focus_between_its_limits;
 mod a_calendar_reaches_a_distant_year_from_its_years_view;
+mod a_cancelled_scrolled_sheet_dismissal_returns_before_a_later_drag_closes_it;
 mod a_cancelled_touch_outside_a_dialog_leaves_it_open;
 mod a_canvas_item_moved_into_view_is_laid_out_where_it_arrives;
 mod a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lands;
@@ -31,6 +33,7 @@ mod a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer;
 mod a_catcher_under_an_open_dialog_hears_no_press;
 mod a_centred_dialog_opens_on_the_screen_it_was_opened_from;
 mod a_change_inside_a_fixed_size_frame_lays_out_only_that_frame;
+mod a_change_inside_a_turned_child_still_paints_turned;
 mod a_clean_panel_is_not_laid_out_again_when_the_one_beside_it_changes;
 mod a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes;
 mod a_clearable_text_input_empties_from_its_clear_button;
@@ -61,6 +64,7 @@ mod a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it;
 mod a_dialog_of_a_dock_dialog_stacks_over_it;
 mod a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes;
 mod a_dialog_opens_in_the_middle_and_escape_dismisses_it;
+mod a_dialog_taller_than_the_screen_stays_on_it_and_scrolls;
 mod a_dialogs_scrim_dims_what_comes_after_it_in_the_tree;
 mod a_disabled_action_ignores_its_shortcut_and_disables_its_button;
 mod a_disabled_button_prop_tracks_a_signal_and_blocks_clicks_while_true;
@@ -117,6 +121,7 @@ mod a_finger_press_that_moves_the_focus_keeps_it_when_the_finger_lifts;
 mod a_finger_swiping_a_sheet_raises_it_before_scrolling_what_it_holds;
 mod a_finger_swiping_along_a_tab_bar_moves_no_tab;
 mod a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls;
+mod a_fling_to_the_start_bounces_the_whole_sheet;
 mod a_floating_child_pins_itself_over_the_scroll_it_names;
 mod a_floating_overlay_follows_an_anchor_that_only_moves;
 mod a_floating_window_the_dock_puts_on_top_is_drawn_on_top;
@@ -137,6 +142,7 @@ mod a_fragment_sits_beside_the_children_written_around_it;
 mod a_frame_keeps_its_size_between_its_min_and_max;
 mod a_frame_pads_each_side_on_its_own;
 mod a_frame_places_a_smaller_child_by_its_alignment;
+mod a_frame_reports_animating_while_a_fling_glides_and_not_after;
 mod a_frame_rounds_each_corner_on_its_own;
 mod a_frame_takes_a_fraction_of_the_space_it_is_offered;
 mod a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears;
@@ -159,6 +165,7 @@ mod a_hovered_catcher_hears_where_the_pointer_is_while_another_holds_it;
 mod a_justified_row_places_its_leftover_space;
 mod a_key_dragged_off_the_software_keyboard_types_once_when_let_go;
 mod a_key_let_go_over_the_inspector_is_not_left_held;
+mod a_key_pressed_in_a_held_select_search_shows_the_keyboard;
 mod a_key_typed_before_a_click_in_one_frame_reaches_the_field_focused_before_it;
 mod a_keyed_view_rebuilds_only_when_its_key_changes;
 mod a_launcher_closed_by_a_click_outside_opens_again;
@@ -254,6 +261,7 @@ mod a_scroll_mixes_plain_children_with_a_nested_virtual_list;
 mod a_scroll_only_re_measures_the_row_that_changed;
 mod a_scrollbar_shows_while_its_scroll_moves_and_fades_once_it_stops;
 mod a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it;
+mod a_scrolled_sheet_can_be_lowered_by_its_handle_or_backdrop;
 mod a_second_finger_cancels_the_press_the_first_began;
 mod a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch;
 mod a_second_swipe_during_a_fling_keeps_scrolling;
@@ -262,6 +270,8 @@ mod a_secondary_drag_released_as_the_pointer_leaves_still_ends;
 mod a_secondary_drag_with_the_dock_drag_modifier_moves_the_nearest_split;
 mod a_secondary_drag_with_the_dock_drag_modifier_resizes_a_window_from_its_nearest_corner;
 mod a_select_following_its_prop_does_not_report_a_change;
+mod a_select_opened_with_a_key_shows_the_keyboard_for_its_search;
+mod a_select_opened_with_a_mouse_shows_the_keyboard_for_its_search;
 mod a_selected_radio_option_marks_its_ring_with_the_accent_colour;
 mod a_selection_across_text_with_spans_is_painted;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
@@ -276,9 +286,12 @@ mod a_show_adds_and_removes_a_tab_among_the_tabs_beside_it;
 mod a_shrinking_child_gives_way_to_its_fixed_neighbour;
 mod a_signal_set_in_one_document_builds_nodes_in_the_document_that_watches_it;
 mod a_signal_write_from_a_click_handler_updates_its_bound_text_in_the_same_frame;
+mod a_signal_written_between_frames_wakes_the_app_and_lands_on_the_next_frame;
+mod a_signal_written_during_a_frame_asks_for_another_only_if_its_document_was_already_shown;
 mod a_simulated_mouse_click_lands_where_the_trackpad_moved_its_cursor;
 mod a_simulated_screen_larger_than_the_window_is_shrunk_to_fit;
 mod a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame;
+mod a_single_line_input_longer_than_its_field_scrolls_rather_than_overflows;
 mod a_skipped_element_keeps_the_repaint_deadline_it_asked_for;
 mod a_slider_reports_and_steps_within_the_range_it_was_given;
 mod a_spinner_hidden_by_a_show_stops_asking_for_frames;
@@ -327,6 +340,7 @@ mod a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown;
 mod a_touch_scroll_starts_moving_where_the_finger_leaves_the_tap_slop;
 mod a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it;
 mod a_tree_row_decides_which_part_of_it_is_clickable;
+mod a_turned_child_paints_turned_about_the_middle_of_its_box;
 mod a_twelve_hour_time_field_types_the_afternoon_with_a_p;
 mod a_two_finger_drag_on_the_simulated_trackpad_scrolls_smoothly;
 mod a_typed_paste_types_the_clipboard_key_by_key;
@@ -552,6 +566,7 @@ mod instant_back_slides_complete_without_waiting_for_frames;
 mod instant_carets_do_not_request_blink_frames;
 mod instant_mode_keeps_middle_drag_autoscroll_working;
 mod instant_scrolling_follows_the_finger_without_flinging;
+mod interrupting_a_sheet_bounce_leaves_no_displacement;
 mod jumping_up_a_virtual_scroll_only_builds_the_items_in_view;
 mod key_handlers_can_move_focus_and_change_their_tab_stop;
 mod key_repeats_and_shortcut_modifiers_do_not_accidentally_activate_controls;
@@ -584,6 +599,7 @@ mod opening_a_menu_button_damages_only_the_button_and_its_menu;
 mod opening_a_menu_damages_only_where_it_appears;
 mod opening_a_select_focuses_its_search_box_and_highlights_the_selected_option;
 mod opening_a_select_focuses_its_search_without_the_keyboard_until_it_is_tapped;
+mod optional_props_respect_explicit_defaults;
 mod overscrolling_a_sheet_bounces_its_content_back;
 mod overscrolling_squishes_the_scrollbar_thumb_against_the_end;
 mod painting_never_has_to_move_a_rect_onto_the_pixel_grid;
@@ -1520,31 +1536,29 @@ pub(crate) struct VirtualScroll {
     pub(crate) list: NodeId,
 }
 
-pub(crate) fn virtual_list(built: WriteSignal<Vec<usize>>) -> VirtualScroll {
+pub(crate) fn virtual_list(built: Signal<Vec<usize>>) -> VirtualScroll {
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            @node_ref=&list
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
-                            item_size=VIRTUAL_ITEM_HEIGHT
-                        >|index: ReadSignal<usize>| {
-                            create_binding(move || {
-                                let index = index.get();
-                                built.update(|built| built.push(index));
-                            });
-                            view! {
-                                <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
-                                    <Spacer />
-                                </Frame>
-                            }
-                        }</VirtualList>
-                    </Offset>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        @node_ref=&list
+                        keys={indices(VIRTUAL_ITEM_COUNT)}
+                        item_size=VIRTUAL_ITEM_HEIGHT
+                    >|index: ReadSignal<usize>| {
+                        create_binding(move || {
+                            let index = index.get();
+                            built.update(|built| built.push(index));
+                        });
+                        view! {
+                            <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
+                                <Spacer />
+                            </Frame>
+                        }
+                    }</VirtualList>
+                </Offset>
+            </List>
         }
     });
     VirtualScroll {
@@ -1558,44 +1572,42 @@ pub(crate) struct KeyedVirtualScroll {
     pub(crate) document: Document,
     pub(crate) scroll: NodeId,
     pub(crate) list: NodeId,
-    pub(crate) set_keys: crate::reactive::WriteSignal<Vec<usize>>,
+    pub(crate) keys: Signal<Vec<usize>>,
     _keys: crate::reactive::OwnedSignal<Vec<usize>>,
 }
 
-pub(crate) fn keyed_virtual_list(built: WriteSignal<Vec<usize>>) -> KeyedVirtualScroll {
+pub(crate) fn keyed_virtual_list(built: Signal<Vec<usize>>) -> KeyedVirtualScroll {
     let owned_keys = crate::reactive::OwnedSignal::new(indices(VIRTUAL_ITEM_COUNT));
-    let (keys, set_keys) = (owned_keys.read(), owned_keys.write());
+    let keys = owned_keys.handle();
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            @node_ref=&list
-                            keys={keys}
-                            item_size=VIRTUAL_ITEM_HEIGHT
-                        >|key: ReadSignal<usize>| {
-                            create_binding(move || {
-                                let key = key.get();
-                                built.update(|built| built.push(key));
-                            });
-                            view! {
-                                <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                    <Spacer />
-                                </Frame>
-                            }
-                        }</VirtualList>
-                    </Offset>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        @node_ref=&list
+                        keys={keys}
+                        item_size=VIRTUAL_ITEM_HEIGHT
+                    >|key: ReadSignal<usize>| {
+                        create_binding(move || {
+                            let key = key.get();
+                            built.update(|built| built.push(key));
+                        });
+                        view! {
+                            <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                <Spacer />
+                            </Frame>
+                        }
+                    }</VirtualList>
+                </Offset>
+            </List>
         }
     });
     KeyedVirtualScroll {
         document,
         scroll: scroll.get(),
         list: list.get(),
-        set_keys,
+        keys,
         _keys: owned_keys,
     }
 }
@@ -1608,15 +1620,13 @@ pub(crate) struct HelloColumn {
 
 pub(crate) fn hello_column() -> HelloColumn {
     let (padding, text) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @node_ref=&padding padding=4.0>
-                        <Text @node_ref=&text string="Hello" color=Color32::WHITE />
-                    </Frame>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @node_ref=&padding padding=4.0>
+                    <Text @node_ref=&text string="Hello" color=Color32::WHITE />
+                </Frame>
+            </List>
         }
     });
     HelloColumn {
@@ -1643,25 +1653,13 @@ pub(crate) struct ThreePanels {
 pub(crate) fn three_panels() -> ThreePanels {
     let list = NodeRef::new();
     let (top, middle, bottom) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List @node_ref=&list spacing=0.0>
-                    <Frame @node_ref=&top height=100.0 fill=Color32::WHITE radius=0.0 />
-                    <Frame
-                        @node_ref=&middle
-                        height=100.0
-                        fill={Color32::from_gray(40)}
-                        radius=0.0
-                    />
-                    <Frame
-                        @node_ref=&bottom
-                        height=100.0
-                        fill={Color32::from_gray(80)}
-                        radius=0.0
-                    />
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List @node_ref=&list spacing=0.0>
+                <Frame @node_ref=&top height=100.0 fill=Color32::WHITE radius=0.0 />
+                <Frame @node_ref=&middle height=100.0 fill={Color32::from_gray(40)} radius=0.0 />
+                <Frame @node_ref=&bottom height=100.0 fill={Color32::from_gray(80)} radius=0.0 />
+            </List>
         }
     });
     ThreePanels {
@@ -1675,14 +1673,12 @@ pub(crate) fn three_panels() -> ThreePanels {
 
 pub(crate) fn stacked_panels() -> StackedPanels {
     let (upper, lower) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @node_ref=&upper height=100.0 fill=Color32::WHITE radius=0.0 />
-                    <Frame @node_ref=&lower height=100.0 fill={Color32::from_gray(40)} radius=0.0 />
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @node_ref=&upper height=100.0 fill=Color32::WHITE radius=0.0 />
+                <Frame @node_ref=&lower height=100.0 fill={Color32::from_gray(40)} radius=0.0 />
+            </List>
         }
     });
     StackedPanels {
@@ -1750,7 +1746,7 @@ pub(crate) fn flashed(output: &crate::FrameOutput, bounds: Rect, color: Color32)
 pub(crate) const SHEET_ROWS: usize = 20;
 pub(crate) const SHEET_ROW_HEIGHT: f32 = 60.0;
 
-pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: WriteSignal<usize>) -> Document {
+pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: Signal<usize>) -> Document {
     build(move || {
         view! {
             <List spacing=0.0>
@@ -1791,7 +1787,7 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
-        let (open, set_open) = create_signal((1..=tabs as u64).collect::<Vec<_>>());
+        let open = create_signal((1..=tabs as u64).collect::<Vec<_>>());
         view! {
             <styled::Docking @node_ref=&dock layout>
                 <unstyled::DockPane id="tabs">
@@ -1799,7 +1795,7 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
                         <unstyled::DockTab
                             id
                             title={format!("Tab {id}")}
-                            on_close={move || set_open.update(|open| open.retain(|other| *other != id))}
+                            on_close={move || open.update(|open| open.retain(|other| *other != id))}
                         >
                             <Frame @test_id={format!("content.{id}")} />
                         </unstyled::DockTab>
@@ -1814,24 +1810,23 @@ pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
 pub(crate) struct SplitDock {
     pub(crate) document: Document,
     pub(crate) dock: NodeId,
-    pub(crate) presses: ReadSignal<u32>,
-    pub(crate) set_presses: WriteSignal<u32>,
+    pub(crate) presses: Signal<u32>,
 }
 
 pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
     let dock = NodeRef::new();
-    let (presses, set_presses) = create_signal(0);
+    let presses = create_signal(0);
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout drag_modifier>
                 <unstyled::DockSplit id="split">
                     <unstyled::DockPane id="left">
-                        <CountingTab id=1 presses={set_presses} />
+                        <CountingTab id=1 presses={presses} />
                     </unstyled::DockPane>
                     <unstyled::DockPane id="right">
-                        <CountingTab id=2 presses={set_presses} />
-                        <CountingTab id=3 presses={set_presses} />
+                        <CountingTab id=2 presses={presses} />
+                        <CountingTab id=3 presses={presses} />
                     </unstyled::DockPane>
                 </unstyled::DockSplit>
             </styled::Docking>
@@ -1841,12 +1836,11 @@ pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
         document,
         dock: dock.get(),
         presses,
-        set_presses,
     }
 }
 
 #[component]
-fn CountingTab(id: u64, presses: WriteSignal<u32>) -> unstyled::DockEntry<u64> {
+fn CountingTab(id: u64, presses: Signal<u32>) -> unstyled::DockEntry<u64> {
     view! {
         <unstyled::DockTab id title={format!("Tab {id}")}>
             <CountingPanel id presses />
@@ -1855,7 +1849,7 @@ fn CountingTab(id: u64, presses: WriteSignal<u32>) -> unstyled::DockEntry<u64> {
 }
 
 #[component]
-fn CountingPanel(id: u64, presses: WriteSignal<u32>) -> NodeId {
+fn CountingPanel(id: u64, presses: Signal<u32>) -> NodeId {
     view! {
         <Interactive
             on_press={move |_: crate::input::PointerPress| presses.update(|presses| *presses += 1)}
@@ -1955,17 +1949,17 @@ pub(crate) fn toolbar_of<const N: usize>(
     controls: impl FnOnce() -> [NodeId; N],
 ) -> (Document, [NodeId; N]) {
     let built = crate::reactive::OwnedSignal::new(None);
-    let set_built = built.write();
+    let handle = built.handle();
     let document = build(move || {
         let nodes = controls();
-        set_built.set(Some(nodes));
+        handle.set(Some(nodes));
         view! {
             <List spacing=8.0>
                 <ForEach keys={indices(N)}>|index: usize| { nodes[index] }</ForEach>
             </List>
         }
     });
-    let nodes = built.read().get_untracked().expect("the toolbar was built");
+    let nodes = built.get_untracked().expect("the toolbar was built");
     (document, nodes)
 }
 
@@ -1976,10 +1970,10 @@ use std::time::Duration;
 
 struct Counted {
     inner: Box<dyn Element>,
-    layouts: WriteSignal<usize>,
-    paints: WriteSignal<usize>,
-    measures: WriteSignal<usize>,
-    visits: WriteSignal<usize>,
+    layouts: Signal<usize>,
+    paints: Signal<usize>,
+    measures: Signal<usize>,
+    visits: Signal<usize>,
 }
 
 impl Element for Counted {
@@ -2036,8 +2030,7 @@ struct Counts {
     layouts: ReadSignal<usize>,
     paints: ReadSignal<usize>,
     measures: ReadSignal<usize>,
-    visits: ReadSignal<usize>,
-    set_visits: WriteSignal<usize>,
+    visits: Signal<usize>,
 }
 
 const BLINK: Duration = Duration::from_millis(530);
@@ -2065,27 +2058,26 @@ fn counted(
 
 fn counted_with_measures(document: &mut Document, node: impl Into<NodeId>) -> Counts {
     let node = node.into();
-    let (layouts, set_layouts) = create_signal(0);
-    let (paints, set_paints) = create_signal(0);
-    let (measures, set_measures) = create_signal(0);
-    let (visits, set_visits) = create_signal(0);
+    let layouts = create_signal(0);
+    let paints = create_signal(0);
+    let measures = create_signal(0);
+    let visits = create_signal(0);
     let inner = document.arena.take(node);
     document.arena.put_back(
         node,
         Box::new(Counted {
             inner,
-            layouts: set_layouts,
-            paints: set_paints,
-            measures: set_measures,
-            visits: set_visits,
+            layouts,
+            paints,
+            measures,
+            visits,
         }),
     );
     Counts {
-        layouts,
-        paints,
-        measures,
+        layouts: layouts.read_only(),
+        paints: paints.read_only(),
+        measures: measures.read_only(),
         visits,
-        set_visits,
     }
 }
 
@@ -2125,34 +2117,32 @@ fn Rows(count: usize) -> DynamicSegment<ListChild> {
 
 fn reopens_after(close: impl Fn(&mut Harness)) {
     let _root = crate::reactive::RootScope::new();
-    let (open, set_open) = create_signal(true);
-    let (heard, set_heard) = create_signal(Vec::<String>::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Button
-                        label="Programs"
-                        variant=ButtonVariant::Secondary
-                        @test_id={"reopen"}
-                        on_click={move || set_open.set(true)}
-                    />
-                    <Launcher
-                        open={open}
-                        items={Rc::new(vec![LauncherItem {
-                            key: "files".to_owned(),
-                            title: "Files".to_owned(),
-                            ..LauncherItem::default()
-                        }])}
-                        on_launch={|_: String| {}}
-                        on_run={move |line: String| set_heard.update(|heard| heard.push(format!("run {line}")))}
-                        on_close={move || {
-                            set_heard.update(|heard| heard.push("close".to_owned()));
-                            set_open.set(false);
-                        }}
-                    />
-                </List>
-            }
+    let open = create_signal(true);
+    let heard = create_signal(Vec::<String>::new());
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Button
+                    label="Programs"
+                    variant=ButtonVariant::Secondary
+                    @test_id={"reopen"}
+                    on_click={move || open.set(true)}
+                />
+                <Launcher
+                    open={open}
+                    items={Rc::new(vec![LauncherItem {
+                        key: "files".to_owned(),
+                        title: "Files".to_owned(),
+                        ..LauncherItem::default()
+                    }])}
+                    on_launch={|_: String| {}}
+                    on_run={move |line: String| heard.update(|heard| heard.push(format!("run {line}")))}
+                    on_close={move || {
+                        heard.update(|heard| heard.push("close".to_owned()));
+                        open.set(false);
+                    }}
+                />
+            </List>
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(1600.0, 1000.0));
@@ -2319,11 +2309,10 @@ pub(crate) struct DialogDock {
     pub(crate) document: Document,
     pub(crate) dock: NodeId,
     pub(crate) layout: unstyled::DockingLayout<u64>,
-    pub(crate) pressed: ReadSignal<Vec<u64>>,
-    pub(crate) set_pressed: WriteSignal<Vec<u64>>,
+    pub(crate) pressed: Signal<Vec<u64>>,
     pub(crate) keyed: ReadSignal<Vec<u64>>,
     pub(crate) attended: ReadSignal<Vec<u64>>,
-    pub(crate) set_dialogs: crate::reactive::WriteSignal<Dialogs>,
+    pub(crate) dialogs: Signal<Dialogs>,
     _dialogs: crate::reactive::OwnedSignal<Dialogs>,
 }
 
@@ -2336,12 +2325,12 @@ pub(crate) fn dialog_size(id: u64) -> Vec2 {
 
 pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let dock = NodeRef::new();
-    let (pressed, set_pressed) = create_signal(Vec::new());
-    let (keyed, set_keyed) = create_signal(Vec::new());
-    let (attended, set_attended) = create_signal(Vec::new());
+    let pressed = create_signal(Vec::new());
+    let keyed = create_signal(Vec::new());
+    let attended = create_signal(Vec::new());
     let layout = unstyled::DockingLayout::new();
     let owned_dialogs = crate::reactive::OwnedSignal::new(dialogs);
-    let (listed, set_dialogs) = (owned_dialogs.read(), owned_dialogs.write());
+    let listed = owned_dialogs.handle();
     let document = build(move || {
         let keys = crate::reactive::create_memo(move || {
             listed.with(|listed| {
@@ -2359,8 +2348,8 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                             <FocusPanel
                                 name={format!("content.{id}")}
                                 owner=id
-                                pressed={set_pressed}
-                                keyed={set_keyed}
+                                pressed={pressed}
+                                keyed={keyed}
                                 attended={None}
                                 size={None}
                             />
@@ -2382,9 +2371,9 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
                             <FocusPanel
                                 name={format!("dialog.{id}.field")}
                                 owner=id
-                                pressed={set_pressed}
-                                keyed={set_keyed}
-                                attended={Some(set_attended)}
+                                pressed={pressed}
+                                keyed={keyed}
+                                attended={Some(attended)}
                                 size={Some(dialog_size(id))}
                             />
                         </unstyled::DockDialog>
@@ -2398,10 +2387,9 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
         dock: dock.get(),
         layout,
         pressed,
-        set_pressed,
-        keyed,
-        attended,
-        set_dialogs,
+        keyed: keyed.read_only(),
+        attended: attended.read_only(),
+        dialogs: listed,
         _dialogs: owned_dialogs,
     }
 }
@@ -2410,9 +2398,9 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
 fn FocusPanel(
     name: String,
     owner: u64,
-    pressed: WriteSignal<Vec<u64>>,
-    keyed: WriteSignal<Vec<u64>>,
-    attended: Option<WriteSignal<Vec<u64>>>,
+    pressed: Signal<Vec<u64>>,
+    keyed: Signal<Vec<u64>>,
+    attended: Option<Signal<Vec<u64>>>,
     size: Option<Vec2>,
 ) -> NodeId {
     if let (Some(attended), Some(tab)) = (attended, unstyled::use_dock_tab()) {

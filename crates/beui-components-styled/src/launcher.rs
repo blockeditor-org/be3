@@ -132,11 +132,9 @@ pub fn launcher_rank(items: &[LauncherItem], query: &str) -> Vec<usize> {
 
 #[derive(Clone, Copy)]
 struct State {
-    query: ReadSignal<String>,
-    set_query: WriteSignal<String>,
+    query: Signal<String>,
     rows: Memo<Vec<Row>>,
-    highlighted: ReadSignal<Option<Row>>,
-    set_highlighted: WriteSignal<Option<Row>>,
+    highlighted: Signal<Option<Row>>,
     on_launch: Callback<String>,
     on_run: Callback<String>,
 }
@@ -177,7 +175,7 @@ impl State {
             Key::PageUp => at.map_or(0, |at| at.saturating_sub(PAGE)),
             _ => return false,
         };
-        self.set_highlighted.set(Some(rows[next].clone()));
+        self.highlighted.set(Some(rows[next].clone()));
         true
     }
 }
@@ -192,16 +190,16 @@ pub fn Launcher(
     on_run: Callback<String>,
     on_close: ClickCallback,
 ) -> NodeId {
-    let (query, set_query) = create_signal(String::new());
-    let (searching, set_searching) = create_signal(false);
-    let (highlighted, set_highlighted) = create_signal(None::<Row>);
+    let query = create_signal(String::new());
+    let searching = create_signal(false);
+    let highlighted = create_signal(None::<Row>);
     create_effect(move || {
         let opened = open.get();
         untrack(|| {
             if opened {
-                set_query.set(String::new());
+                query.set(String::new());
             }
-            set_searching.set(opened);
+            searching.set(opened);
         });
     });
     let ranked = create_memo({
@@ -226,10 +224,10 @@ pub fn Launcher(
     });
     create_effect(move || {
         let rows = rows.get();
-        let kept = untrack(|| highlighted.get()).filter(|row| rows.contains(row));
+        let kept = highlighted.get_untracked().filter(|row| rows.contains(row));
         let next = kept.or_else(|| rows.first().cloned());
-        if untrack(|| highlighted.get()) != next {
-            set_highlighted.set(next);
+        if highlighted.get_untracked() != next {
+            highlighted.set(next);
         }
     });
     let reveal = create_memo(move || {
@@ -238,10 +236,8 @@ pub fn Launcher(
     });
     let state = State {
         query,
-        set_query,
         rows,
         highlighted,
-        set_highlighted,
         on_launch,
         on_run,
     };
@@ -284,7 +280,7 @@ pub fn Launcher(
                                 content={|handle| view! {
                                     <LauncherSearch handle />
                                 }}
-                                on_change={move |text: String| state.set_query.set(text)}
+                                on_change={move |text: String| state.query.set(text)}
                                 on_submit={move |_: String| state.submit()}
                             />
                             <unstyled::Scroll
@@ -350,7 +346,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
         }
     });
     let image = create_memo(move || item.get().and_then(|item| item.image));
-    let test_id = match &row {
+    let row_test_id = match &row {
         Row::Item(key) => format!("launcher.item.{key}"),
         Row::Run => "launcher.run".to_owned(),
     };
@@ -371,7 +367,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
     let (hover_row, click_row) = (row.clone(), row);
     view! {
         <unstyled::Button
-            @test_id={test_id}
+            @test_id={row_test_id}
             accessibility
             tab_stop=false
             press_focus=false
@@ -380,7 +376,7 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
             let hovered = handle.hovered;
             create_effect(move || {
                 if hovered.get() {
-                    state.set_highlighted.set(Some(hover_row.clone()));
+                    state.highlighted.set(Some(hover_row.clone()));
                 }
             });
             view! {

@@ -36,15 +36,15 @@ pub fn ColorArea(
     on_change: Callback<Hsva>,
     on_drag_change: Callback<bool>,
 ) -> NodeId {
-    let (color, set_color) = create_signal(value.peek());
-    create_effect(move || set_color.set(value.get()));
-    let (dragging, set_dragging) = create_signal(false);
-    let (hovered, set_hovered) = create_signal(false);
-    let (has_focus, set_has_focus) = create_signal(false);
+    let color = create_signal(value.get_untracked());
+    create_effect(move || color.set(value.get()));
+    let dragging = create_signal(false);
+    let hovered = create_signal(false);
+    let has_focus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
     let x = create_memo(move || color.get().saturation);
     let y = create_memo(move || 1.0 - color.get().value);
-    set_component_state(color);
+    set_component_state(color.read_only());
 
     component_accessibility(create_memo(move || {
         let color = color.get();
@@ -70,20 +70,17 @@ pub fn ColorArea(
         node
     }));
 
-    let set = {
-        move |saturation: f32, value: f32| {
-            if disabled.get_untracked() {
-                return;
-            }
-            let current = color.get_untracked();
-            let next = Hsva::new(current.hue, saturation, value, current.alpha);
-            if next != current {
-                set_color.set(next);
-                on_change.call(next);
-            }
+    let set = move |saturation: f32, value: f32| {
+        if disabled.get_untracked() {
+            return;
+        }
+        let current = color.get_untracked();
+        let next = Hsva::new(current.hue, saturation, value, current.alpha);
+        if next != current {
+            color.set(next);
+            on_change.call(next);
         }
     };
-    let (drag_set, key_set, step_set) = (set, set, set);
     let grab = Rc::new(Cell::new(Vec2::ZERO));
     let (press_grab, press_color) = (grab.clone(), color);
     let grabbed = move |press: PointerPress| {
@@ -103,7 +100,7 @@ pub fn ColorArea(
             false => (press.fraction.x, press.fraction.y),
         }
     };
-    let (pointer, set_pointer) = create_signal(None::<PointerPress>);
+    let pointer = create_signal(None::<PointerPress>);
     let cursor = create_memo(move || {
         if dragging.get() {
             return CursorIcon::Grabbing;
@@ -118,14 +115,13 @@ pub fn ColorArea(
             false => CursorIcon::Crosshair,
         }
     });
-    let (key_color, step_color) = (color, color);
     let content_node = content.call(ColorAreaHandle {
-        color,
+        color: color.read_only(),
         x,
         y,
-        dragging,
-        hovered,
-        focused: has_focus,
+        dragging: dragging.read_only(),
+        hovered: hovered.read_only(),
+        focused: has_focus.read_only(),
         disabled,
     });
     let tab_stop = create_memo(move || !disabled.get());
@@ -134,16 +130,16 @@ pub fn ColorArea(
             focusable=true
             tab_stop
             focused
-            on_focus_change={move |focused: bool| set_has_focus.set(focused)}
+            on_focus_change={move |focused: bool| has_focus.set(focused)}
             on_step={move |delta: f32| {
-                let color = step_color.get_untracked();
-                step_set(color.saturation + delta * STEP, color.value);
+                let color = color.get_untracked();
+                set(color.saturation + delta * STEP, color.value);
             }}
             on_key={move |press: KeyPress| {
                 if press.modifiers.ctrl || press.modifiers.alt {
                     return false;
                 }
-                let color = key_color.get_untracked();
+                let color = color.get_untracked();
                 let step = if press.modifiers.shift { PAGE } else { STEP };
                 let (saturation, value) = (color.saturation, color.value);
                 let next = match press.key {
@@ -158,21 +154,21 @@ pub fn ColorArea(
                     _ => return false,
                 };
                 if press.pressed {
-                    key_set(next.0, next.1);
+                    set(next.0, next.1);
                 }
                 true
             }}
             cursor
             touch_drags=true
-            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-            on_hover_move={move |press: PointerPress| set_pointer.set(Some(press))}
+            on_hover_change={move |next: bool| hovered.set(next)}
+            on_hover_move={move |press: PointerPress| pointer.set(Some(press))}
             on_press={grabbed}
             on_drag={move |press: PointerPress| {
                 let (x, y) = dragged_to(press);
-                drag_set(x, 1.0 - y)
+                set(x, 1.0 - y)
             }}
             on_active_change={move |active: bool| {
-                set_dragging.set(active);
+                dragging.set(active);
                 on_drag_change.call(active);
             }}
             children={content_node}

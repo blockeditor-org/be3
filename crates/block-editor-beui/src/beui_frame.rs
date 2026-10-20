@@ -37,7 +37,7 @@ pub fn phone_layout() -> Memo<bool> {
 pub struct BeuiFrame {
     document: Document,
     content: NodeId,
-    set_bar: WriteSignal<FrameBar>,
+    bar: Signal<FrameBar>,
     exit: Rc<Cell<bool>>,
     menu: Rc<RefCell<Vec<Action>>>,
     _bar: OwnedSignal<FrameBar>,
@@ -46,7 +46,7 @@ pub struct BeuiFrame {
 impl BeuiFrame {
     pub fn build(editor: Editor, view: impl FnOnce() -> NodeId + 'static) -> Self {
         let owned_bar = OwnedSignal::new(FrameBar::default());
-        let (bar, set_bar) = (owned_bar.read(), owned_bar.write());
+        let bar = owned_bar.handle();
         let exit = Rc::new(Cell::new(false));
         let exit_writer = exit.clone();
         let menu: Rc<RefCell<Vec<Action>>> = Rc::default();
@@ -60,10 +60,9 @@ impl BeuiFrame {
                 true => Density::Comfortable,
                 false => Density::Compact,
             }));
-            let (palette, set_palette) = create_signal(false);
-            let opening = set_palette;
+            let palette = create_signal(false);
             let opener = Action::new("editor.palette", "Command palette", move || {
-                opening.set(true)
+                palette.set(true)
             })
             .glyph(ICON_TERMINAL)
             .shortcut(PALETTE)
@@ -82,12 +81,12 @@ impl BeuiFrame {
                 <List spacing=0.0>
                     <FrameMenu
                         editor
-                        bar
+                        bar={bar.read_only()}
                         palette={opener}
                         published
                         on_exit={move || exit_writer.set(true)}
                     />
-                    <CommandPalette open={palette} on_close={move || set_palette.set(false)} />
+                    <CommandPalette open={palette} on_close={move || palette.set(false)} />
                     <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
                         let content = view();
                         content_slot_writer.set(Some(content));
@@ -101,7 +100,7 @@ impl BeuiFrame {
             content: content_slot
                 .get()
                 .expect("view() builds its root node synchronously"),
-            set_bar,
+            bar,
             exit,
             menu,
             _bar: owned_bar,
@@ -120,8 +119,8 @@ impl BeuiFrame {
         self.content
     }
 
-    pub fn set_bar(&self) -> WriteSignal<FrameBar> {
-        self.set_bar
+    pub fn bar(&self) -> Signal<FrameBar> {
+        self.bar
     }
 
     pub fn exit(&self) -> Rc<Cell<bool>> {
@@ -317,21 +316,26 @@ pub(crate) fn FrameMenu(
     let live = create_memo(move || shown.get() || on_phone.get());
     let framed = create_memo(move || bar.get().framed);
     let answering = create_memo(move || live.get() || framed.get());
-    let (state, set_state) = create_signal(BarState::default());
+    let state = create_signal(BarState::default());
     let watched = store(Watched {
         editor,
         list: RefCell::new(None),
         watching: Cell::new(false),
     });
-    let actions = frame_actions(editor, watched, state, answering, closable, on_exit);
-    let visible = answering;
-    let tapping = answering;
+    let actions = frame_actions(
+        editor,
+        watched,
+        state.read_only(),
+        answering,
+        closable,
+        on_exit,
+    );
     on_finger_tap(move |fingers: usize| {
-        tapping.get_untracked() && watched.with(|watched| watched.finger_tap(fingers))
+        answering.get_untracked() && watched.with(|watched| watched.finger_tap(fingers))
     });
     create_effect(move || {
-        if visible.get() {
-            set_state.set(watched.with(Watched::read));
+        if answering.get() {
+            state.set(watched.with(Watched::read));
         }
     });
     let items = menu_actions();

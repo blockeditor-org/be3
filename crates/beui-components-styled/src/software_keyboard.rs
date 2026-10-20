@@ -212,7 +212,7 @@ fn Label(handle: KeyCapHandle, slot: Slot, locked: Memo<bool>, align: Align2) ->
 
 #[component]
 fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
-    let (group, set_group) = create_signal(0usize);
+    let group = create_signal(0usize);
     let shown = create_memo(move || {
         emojis_in(group.get())
             .into_iter()
@@ -233,23 +233,16 @@ fn EmojiPanel(keyboard: KeyboardHandle) -> NodeId {
                         let (_, glyph, label) = EMOJI_GROUPS[index];
                         let selected = create_memo(move || group.get() == index);
                         view! {
-                            <EmojiTab
-                                glyph
-                                label
-                                selected
-                                on_click={move || set_group.set(index)}
-                            />
+                            <EmojiTab glyph label selected on_click={move || group.set(index)} />
                         }
                     }
                 }</ForEach>
             </List>
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <List direction=Direction::Horizontal wrap=true spacing=0.0>
-                    <ForEach keys={shown}>|emoji: &'static str| {
-                        view! {
-                            <EmojiKey emoji keyboard />
-                        }
-                    }</ForEach>
+                    <ForEach keys={shown}>|emoji: &'static str|
+                        <EmojiKey emoji keyboard />
+                    </ForEach>
                 </List>
             </Scroll>
             <List direction=Direction::Horizontal spacing=0.0 @sizing=ItemSize::Fixed(EMOJI_SIZE)>

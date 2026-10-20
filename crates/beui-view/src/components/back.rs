@@ -1,4 +1,4 @@
-use crate::reactive::{Callback, Child, ClickCallback, Prop, create_effect, with_document};
+use crate::reactive::{Callback, Child, ClickCallback, Get, Prop, create_effect, with_document};
 use beui_core::input::BackGesture;
 use beui_core::node::NodeId;
 use beui_macros::component;

@@ -57,7 +57,7 @@ pub fn WindowView(
             let takes = move |local: Pos2| {
                 let position = local + rect.get_untracked().min.to_vec2();
                 !occluders
-                    .peek()
+                    .get_untracked()
                     .iter()
                     .any(|occluder| occluder.contains(position))
             };

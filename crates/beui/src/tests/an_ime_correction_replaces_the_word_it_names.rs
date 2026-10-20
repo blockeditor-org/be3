@@ -8,12 +8,12 @@ use text_editor_core::TextBuffer;
 #[test]
 fn an_ime_correction_replaces_the_word_it_names() {
     let _root = crate::reactive::RootScope::new();
-    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
+    let held = create_signal::<Option<TextAreaState>>(None);
     let document = build(move || {
         let document =
             Arc::new(TextBuffer::new(b"say helo ")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        set_held.update(|held| *held = Some(state));
+        held.update(|held| *held = Some(state));
         view! {
             <TextArea state={state} single_line=true />
         }

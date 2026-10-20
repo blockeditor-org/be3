@@ -54,6 +54,7 @@ pub struct CanvasNode {
     items: ChildList<NodeId>,
     host: Option<NodeId>,
     shift: Vec2,
+    scrolls_across: bool,
 }
 
 const CLIPPED: u8 = 1;
@@ -62,6 +63,10 @@ const UNCLIPPED: u8 = 2;
 impl CanvasNode {
     pub fn pans(&self) -> bool {
         self.view.is_some()
+    }
+
+    pub fn scrolls_across(&self) -> bool {
+        self.scrolls_across
     }
 
     fn shift(&self, doc: &Document, painter: &Painter) -> Vec2 {
@@ -249,7 +254,14 @@ impl Document {
             items: ChildList::default(),
             host: None,
             shift: Vec2::ZERO,
+            scrolls_across: false,
         })
+    }
+
+    pub fn set_canvas_scrolls_across(&mut self, canvas: NodeOf<CanvasNode>, scrolls: bool) {
+        if self.arena.get_as::<CanvasNode>(canvas).scrolls_across != scrolls {
+            self.arena.get_mut_as::<CanvasNode>(canvas).scrolls_across = scrolls;
+        }
     }
 
     pub fn set_canvas_view(&mut self, canvas: NodeOf<CanvasNode>, view: Option<CanvasView>) {

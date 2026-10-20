@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn an_embed_outliving_the_scope_that_listens_to_it_does_not_call_the_listener() {
     let _root = crate::reactive::RootScope::new();
-    let (shown, set_shown) = create_signal(true);
+    let shown = create_signal(true);
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -32,6 +32,6 @@ fn an_embed_outliving_the_scope_that_listens_to_it_does_not_call_the_listener() 
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(false));
+    shown.set(false);
     harness.frame(Vec::new());
 }

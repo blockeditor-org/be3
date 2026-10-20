@@ -168,10 +168,9 @@ impl Default for Theme {
 
 #[component]
 pub fn ThemeProvider(theme: Prop<Theme>, #[prop(children)] content: Render) -> NodeId {
-    let store = ThemeStore::new(theme.peek());
-    let provided = store;
+    let store = ThemeStore::new(theme.get_untracked());
     create_effect(move || store.set(theme.get()));
-    provide_context(provided);
+    provide_context(store);
     content.call(())
 }
 
@@ -221,12 +220,12 @@ pub trait DocumentTheme {
 impl DocumentTheme for Document {
     fn theme(&self) -> Theme {
         self.extension::<ThemeStore>()
-            .map_or(Theme::DARK, |store| untrack(|| store.get()))
+            .map_or(Theme::DARK, |store| store.get_untracked())
     }
 
     fn set_theme(&mut self, theme: Theme) {
         let store = document_theme_store(self);
-        with_reactive_scope(self, move || store.set(theme));
+        store.set(theme);
     }
 }
 

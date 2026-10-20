@@ -7,16 +7,15 @@ use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout, dock_state};
 fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let built = dock;
     let layout = DockingLayout::<u64>::new();
-    let setter = Rc::new(RefCell::new(None::<WriteSignal<Vec<u64>>>));
+    let setter = Rc::new(RefCell::new(None::<Signal<Vec<u64>>>));
     let document = {
         let (layout, setter) = (layout, setter.clone());
         build(move || {
-            let (keys, set_keys) = create_signal(vec![1u64, 2]);
-            *setter.borrow_mut() = Some(set_keys);
+            let keys = create_signal(vec![1u64, 2]);
+            *setter.borrow_mut() = Some(keys);
             view! {
-                <styled::Docking @node_ref=&built layout drag_modifier={Some(Modifiers::LOGO)}>
+                <styled::Docking @node_ref=&dock layout drag_modifier={Some(Modifiers::LOGO)}>
                     <DockPane
                         id="desktop"
                         empty={|| view! {
@@ -43,15 +42,12 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.settle();
 
-    let entering = layout;
-    with_reactive_scope(harness.document_mut(), move || {
-        entering.enter_fullscreen(&1, Some(Rect::from_min_size(Pos2::ZERO, WIDE_VIEWPORT)));
-    });
+    layout.enter_fullscreen(&1, Some(Rect::from_min_size(Pos2::ZERO, WIDE_VIEWPORT)));
     harness.settle();
     assert_eq!(layout.fullscreen(), Some(1));
 
-    let set_keys = setter.borrow_mut().take().expect("the tabs were built");
-    with_reactive_scope(harness.document_mut(), move || set_keys.set(vec![2]));
+    let keys = setter.borrow_mut().take().expect("the tabs were built");
+    keys.set(vec![2]);
     harness.settle();
     assert_eq!(
         layout.fullscreen(),

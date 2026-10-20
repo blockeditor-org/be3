@@ -163,6 +163,7 @@ pub(super) struct Placed {
 struct Pacing {
     needed: bool,
     unseen: bool,
+    animating: bool,
     paint_at: Option<Duration>,
     requested_at: Option<Duration>,
     animated: u64,
@@ -172,6 +173,7 @@ impl Pacing {
     fn reset(&mut self) {
         self.needed = false;
         self.unseen = false;
+        self.animating = false;
         self.paint_at = None;
         self.requested_at = None;
     }
@@ -458,11 +460,15 @@ impl Runtime {
         self.painting = false;
         let mut shared = self.shared.borrow_mut();
         shared.paintings.clear();
+        shared.overflows.clear();
         let Ok(paintings) = beui::painting::ScreenPaintings::decode(payload) else {
             return;
         };
         for (screen, painting) in paintings.screens {
             shared.paintings.insert(ScreenId(screen), painting);
+        }
+        for (screen, overflows) in paintings.overflows {
+            shared.overflows.insert(ScreenId(screen), overflows);
         }
     }
 
@@ -491,6 +497,9 @@ impl Runtime {
         }
         if let Some(delay) = self.pacing.wake_after(self.now(), drawing) {
             host::request_repaint_after(delay);
+        }
+        if drawing && self.pacing.animating {
+            host::note_animating();
         }
     }
 
@@ -628,6 +637,7 @@ impl Runtime {
                     true
                 }
                 Message::FrameReady(frame) => {
+                    self.pacing.animating = frame.animating;
                     self.await_next_frame(frame.repaint_after_micros);
                     if let Some(presented) = frame.presented {
                         self.presents.report(presented);
@@ -668,15 +678,21 @@ impl Runtime {
         }
     }
 
-    fn send(&mut self, mut messages: Vec<Message>) {
+    fn send(&mut self, messages: Vec<Message>) {
         if messages.is_empty() || self.error.is_some() {
             return;
         }
+        let mut messages = self.instances.hold_unreported(messages);
         for message in &mut messages {
             self.instances.translate(message, false);
         }
         self.queued.extend(self.instances.gate(messages));
         self.deliver();
+    }
+
+    fn release_reported(&mut self) {
+        let messages = self.instances.take_reported();
+        self.send(messages);
     }
 
     fn deliver(&mut self) {
@@ -949,9 +965,12 @@ pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
         };
         let ready = runtime.contain(|runtime| {
             runtime.error.is_none().then(|| {
-                runtime
-                    .instances
-                    .report_creation(instance, client_id, block_types, role)
+                let ready =
+                    runtime
+                        .instances
+                        .report_creation(instance, client_id, block_types, role);
+                runtime.release_reported();
+                ready
             })
         });
         match (ready, runtime.error.clone()) {
@@ -993,6 +1012,7 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
                 resync,
             );
             runtime.send(messages);
+            runtime.release_reported();
             runtime.instances.artifact_description(instance)
         });
         match (description, runtime.error.clone()) {
@@ -1270,14 +1290,21 @@ pub(crate) fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: Hos
 }
 
 pub(crate) fn show_block(
-    plugin_id: &str,
+    plugin: &PluginManifest,
     instance: EditorInstanceId,
     open: crate::editors::BlockOpen,
 ) {
-    with(plugin_id, |runtime| {
-        let messages = runtime.instances.show_block(instance, open);
-        runtime.send(messages);
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        let Ok(runtime) = host.runtime(plugin) else {
+            return;
+        };
+        runtime.contain(|runtime| {
+            let messages = runtime.instances.show_block(instance, open);
+            runtime.send(messages);
+        });
     });
+    mark(&plugin.identity.id);
 }
 
 pub(crate) fn set_artifact_states(
@@ -1587,6 +1614,7 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
             runtime
                 .instances
                 .mount(instance, region, client_id, role, block_types);
+            runtime.release_reported();
         });
         mark(&plugin.identity.id);
     });

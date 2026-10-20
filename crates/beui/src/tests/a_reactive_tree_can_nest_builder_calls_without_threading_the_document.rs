@@ -6,25 +6,25 @@ use crate::unstyled::Button;
 #[test]
 fn a_reactive_tree_can_nest_builder_calls_without_threading_the_document() {
     let _root = crate::reactive::RootScope::new();
-    let (value, set_value) = create_signal(None);
-    let (increment, set_increment) = create_signal(None);
+    let value = create_signal(None);
+    let increment = create_signal(None);
 
     let document = build(move || {
-        let (count, set_count) = create_signal(0i64);
+        let count = create_signal(0i64);
         let value_node = view! {
             <Text string={create_memo(move || count.get().to_string())} />
         };
         let increment_node = view! {
             <Button
                 on_click={move || {
-                    set_count.update(|count| *count += 1)
+                    count.update(|count| *count += 1)
                 }}
             >
                 <Text string="+" />
             </Button>
         };
-        set_value.set(Some(value_node));
-        set_increment.set(Some(increment_node));
+        value.set(Some(value_node));
+        increment.set(Some(increment_node));
         view! {
             <List spacing=8.0>
                 <List direction=Direction::Horizontal spacing=8.0>

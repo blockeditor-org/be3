@@ -5,25 +5,23 @@ use crate::styled::*;
 #[test]
 fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
     let _root = crate::reactive::RootScope::new();
-    let (other_clicks, set_other_clicks) = create_signal(0);
+    let other_clicks = create_signal(0);
     let (select, other) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            let options = view! {
-                <unstyled::ChoiceOption label="Apple" />
-                <unstyled::ChoiceOption label="Banana" />
-            };
-            view! {
-                <List direction=Direction::Horizontal spacing=20.0>
-                    <Select @node_ref=&select options selected=Some(0) />
-                    <unstyled::Button
-                        @node_ref=&other
-                        on_click={move || set_other_clicks.update(|other_clicks| *other_clicks += 1)}
-                    >
-                        <ButtonFace label="Other" />
-                    </unstyled::Button>
-                </List>
-            }
+    let document = build(move || {
+        let options = view! {
+            <unstyled::ChoiceOption label="Apple" />
+            <unstyled::ChoiceOption label="Banana" />
+        };
+        view! {
+            <List direction=Direction::Horizontal spacing=20.0>
+                <Select @node_ref=&select options selected=Some(0) />
+                <unstyled::Button
+                    @node_ref=&other
+                    on_click={move || other_clicks.update(|other_clicks| *other_clicks += 1)}
+                >
+                    <ButtonFace label="Other" />
+                </unstyled::Button>
+            </List>
         }
     });
     let (select, other) = (select.get(), other.get());

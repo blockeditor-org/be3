@@ -2,6 +2,7 @@ use block_editor_beui::be_block::canvas::{
     CanvasEntityKind, CanvasPoint, CanvasTextStyle, CanvasTransform,
 };
 use block_editor_beui::beui::{CursorIcon, Key, KeyPress, PointerPress};
+use block_editor_beui::reactive::Get;
 use uuid::Uuid;
 
 use crate::geometry::*;

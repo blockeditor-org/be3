@@ -1,8 +1,9 @@
+use beui::reactive::Get;
+use beui::reactive::Set;
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::marker::PhantomData;
 use std::rc::Rc;
-use std::time::Duration;
 
 use beui_adapter_plugin::PluginSurface;
 use block_editor_plugin::{
@@ -121,7 +122,7 @@ impl<A: BeuiApp> Views<A> {
         let document = self
             .preview_document
             .get_or_insert_with(|| beui::reactive::build(move || A::preview_view(editor)));
-        beui::reactive::with_reactive_scope(document, move || editor.begin_frame());
+        editor.begin_frame();
         follow_host_theme(document);
         document.show(context, rect);
         editor.end_frame(document);
@@ -132,7 +133,7 @@ impl<A: BeuiApp> Views<A> {
             return None;
         };
         let creation = creation.clone();
-        beui::reactive::with_reactive_scope(dialog, move || creation.begin_frame());
+        creation.begin_frame();
         follow_host_theme(dialog);
         dialog.show(context, rect);
         let measured = dialog.measure_root(context, beui::vec2(rect.width(), f32::INFINITY))?;
@@ -155,9 +156,7 @@ impl<A: BeuiApp> Views<A> {
             let built = artifacts.clone();
             beui::reactive::build(move || A::artifact_settings_view(built))
         });
-        let received = artifacts.clone();
-        let data = std::mem::take(draft);
-        beui::reactive::with_reactive_scope(document, move || received.receive_settings(&data));
+        artifacts.receive_settings(&std::mem::take(draft));
         follow_host_theme(document);
         document.show(context, rect);
         *draft = artifacts
@@ -196,7 +195,7 @@ impl<A: BeuiApp> Views<A> {
             .chrome
             .as_mut()
             .expect("the frame chrome is built before its region runs");
-        let set_bar = chrome.set_bar();
+        let shown_bar = chrome.bar();
         let bar = FrameBar {
             shown: region.chrome_drawn() && (spec.top_bar.shown() || spec.content.is_some()),
             framed: region.chrome_drawn(),
@@ -205,15 +204,17 @@ impl<A: BeuiApp> Views<A> {
         };
         let menu = chrome.menu();
         let editor = self.editor.as_deref().copied();
-        beui::reactive::with_reactive_scope(chrome.document_mut(), || {
-            set_bar.set(bar);
-            for id in picks {
-                beui_frame::run_menu_pick(&menu, id);
-            }
-            if let Some(editor) = &editor {
-                editor.begin_frame();
-            }
-        });
+        shown_bar.set(bar);
+        if !picks.is_empty() {
+            beui::reactive::with_reactive_scope(chrome.document_mut(), || {
+                for id in picks {
+                    beui_frame::run_menu_pick(&menu, id);
+                }
+            });
+        }
+        if let Some(editor) = &editor {
+            editor.begin_frame();
+        }
         follow_host_theme(chrome.document_mut());
         chrome.document_mut().show(context, rect);
         if let Some(editor) = &editor {
@@ -273,10 +274,6 @@ impl<A: BeuiApp> BeuiInstance<A> {
         }
     }
 
-    pub(crate) fn chrome_mut(&mut self) -> Option<&mut BeuiFrame> {
-        self.views.chrome.as_mut()
-    }
-
     pub(crate) fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput> {
         self.surfaces.get_mut(&region)?.take_output()
     }
@@ -308,23 +305,6 @@ impl<A: BeuiApp> BeuiInstance<A> {
             surface.context().keep_accessibility(keeps_accessibility);
             surface
         })
-    }
-
-    fn zone_pending(&self, region: EditorRegion) -> bool {
-        let zone = match region {
-            EditorRegion::Frame => self
-                .views
-                .chrome
-                .as_ref()
-                .map(|chrome| chrome.document().zone()),
-            EditorRegion::Preview => self
-                .views
-                .preview_document
-                .as_ref()
-                .map(beui::Document::zone),
-            _ => None,
-        };
-        zone.is_some_and(beui::reactive::zone_pending)
     }
 }
 
@@ -433,13 +413,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
         let Some(editor) = self.views.editor.as_deref().copied() else {
             return false;
         };
-        let document = self.views.chrome.as_mut().map(BeuiFrame::document_mut);
-        match document {
-            Some(document) => {
-                beui::reactive::with_reactive_scope(document, || editor.replace_child(old, new))
-            }
-            None => editor.replace_child(old, new),
-        }
+        editor.replace_child(old, new)
     }
 
     fn update(&mut self, region: &Region, settings: Option<&mut Vec<u8>>) -> Frame {
@@ -501,14 +475,18 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
                 rect: to_region(rect),
             })
             .collect();
-        if self.zone_pending(region.region) {
-            frame.repaint_after = Some(Duration::ZERO);
-        }
         frame
     }
 
     fn painting(&mut self, region: EditorRegion) -> Option<beui::painting::Painting> {
         self.surfaces.get(&region)?.painting()
+    }
+
+    fn overflows(&mut self, region: EditorRegion) -> Vec<String> {
+        self.surfaces
+            .get(&region)
+            .map(PluginSurface::overflows)
+            .unwrap_or_default()
     }
 
     #[cfg(target_arch = "wasm32")]

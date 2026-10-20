@@ -6,18 +6,12 @@ use crate::reactive::*;
 fn a_percent_child_stops_at_its_max_and_hands_the_rest_on() {
     let _root = crate::reactive::RootScope::new();
     let (capped, open) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List direction=Direction::Horizontal spacing=0.0>
-                    <Frame
-                        @sizing={ItemSize::Percent(50.0).max(40.0)}
-                        @node_ref=&capped
-                        height=10.0
-                    />
-                    <Frame @sizing=ItemSize::Percent(50.0) @node_ref=&open height=10.0 />
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List direction=Direction::Horizontal spacing=0.0>
+                <Frame @sizing={ItemSize::Percent(50.0).max(40.0)} @node_ref=&capped height=10.0 />
+                <Frame @sizing=ItemSize::Percent(50.0) @node_ref=&open height=10.0 />
+            </List>
         }
     });
     let mut harness = Harness::sized(document, vec2(200.0, 50.0));

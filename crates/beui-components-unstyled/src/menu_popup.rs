@@ -118,7 +118,6 @@ pub(crate) fn MenuPopup(
         ever_raised |= raised.get();
         ever_raised
     });
-    let traps_focus = focusing;
     let active = create_memo(move || dropped.get() && focusing.get());
     let choose = Callback::new(move |path: Vec<usize>| {
         on_select.call(path);
@@ -132,7 +131,7 @@ pub(crate) fn MenuPopup(
                 @node_ref=&overlay
                 anchor
                 placement=Placement::BelowStart
-                traps_focus
+                traps_focus={focusing}
                 open={dropped}
                 on_dismiss={move |_: Dismiss| on_dismiss.call()}
                 content={move || panel.call(view! {
@@ -148,17 +147,16 @@ pub(crate) fn MenuPopup(
             />
             <Show condition={sheet_built}>|| {
                 let (row, sheet) = sheet.unwrap_or_else(|| unreachable!());
-                let (choose, dismiss) = (sheet_choose, sheet_dismiss);
                 sheet.call(MenuSheetHandle {
                     open: raised,
-                    on_close: ClickCallback::new(move || dismiss.call()),
+                    on_close: ClickCallback::new(move || sheet_dismiss.call()),
                     menu: view! {
                         <MenuList
                             items={sheet_items.clone()}
                             row
                             panel={sheet_panel}
                             active={raised}
-                            on_select={choose}
+                            on_select={sheet_choose}
                         />
                     },
                 })

@@ -79,12 +79,12 @@ fn ConcurrentEditing() -> NodeId {
     let simulation = Arc::new(RwLock::new(Simulation::new(TEXT)));
     let left = editor(&simulation, Side::Left);
     let right = editor(&simulation, Side::Right);
-    let (paused, set_paused) = create_signal(false);
-    let (runs, set_runs) = create_signal(false);
-    let (latency, set_latency) = create_signal(START_LATENCY);
-    let (flight, set_flight) = create_signal((0usize, 0usize));
-    let (same, set_same) = create_signal(true);
-    let (seen, set_seen) = create_signal([None::<Caret>, None]);
+    let paused = create_signal(false);
+    let runs = create_signal(false);
+    let latency = create_signal(START_LATENCY);
+    let flight = create_signal((0usize, 0usize));
+    let same = create_signal(true);
+    let seen = create_signal([None::<Caret>, None]);
     let published = Cell::new([None::<Caret>, None]);
     let timer = store(Cell::new(None::<Timer>));
 
@@ -138,13 +138,13 @@ fn ConcurrentEditing() -> NodeId {
             right.external_edit();
         }
         if flight.get_untracked() != counts {
-            set_flight.set(counts);
+            flight.set(counts);
         }
         if same.get_untracked() != matching {
-            set_same.set(matching);
+            same.set(matching);
         }
         if seen.get_untracked() != carets {
-            set_seen.set(carets);
+            seen.set(carets);
         }
         if let (Some(due), Some(timer)) = (due, timer.with(Cell::get)) {
             timer.start(due.saturating_duration_since(now));
@@ -162,7 +162,7 @@ fn ConcurrentEditing() -> NodeId {
         right.cursors().get();
         paused.get();
         latency.get();
-        untrack(|| pump.call(None));
+        pump.call(None);
     });
 
     let left_remote = create_memo(move || {
@@ -183,9 +183,6 @@ fn ConcurrentEditing() -> NodeId {
         true => ICON_PLAY_ARROW.to_owned(),
         false => ICON_PAUSE.to_owned(),
     });
-    let send = pump;
-    let switched = paused;
-    let runs_pressed = runs;
     let narrow = narrower_than(COLUMNS_BREAKPOINT);
 
     view! {
@@ -205,14 +202,14 @@ fn ConcurrentEditing() -> NodeId {
                     @test_id="demo.collaboration.pause"
                     label="Network"
                     glyph={network}
-                    pressed={switched}
-                    on_change={move |on: bool| set_paused.set(on)}
+                    pressed={paused}
+                    on_change={move |on: bool| paused.set(on)}
                 />
                 <ToggleButton
                     @test_id="demo.collaboration.runs"
                     label="Runs"
-                    pressed={runs_pressed}
-                    on_change={move |on: bool| set_runs.set(on)}
+                    pressed={runs}
+                    on_change={move |on: bool| runs.set(on)}
                 />
                 <Text style=TextStyle::CAPTION string={latency_label} />
             </List>
@@ -220,7 +217,7 @@ fn ConcurrentEditing() -> NodeId {
                 value={latency}
                 max=MAX_LATENCY
                 label="Latency"
-                on_change={move |value| set_latency.set(value)}
+                on_change={move |value| latency.set(value)}
             />
             <unstyled::Stack spacing=ROW_SPACING narrow={narrow}>
                 <EditorPane
@@ -229,16 +226,21 @@ fn ConcurrentEditing() -> NodeId {
                     title="Left, the owner"
                     state={left}
                     remote={left_remote}
-                    runs={runs}
+                    runs={runs.read_only()}
                 />
-                <SendButtons send={send} flight={flight} paused narrow />
+                <SendButtons
+                    send={pump}
+                    flight={flight.read_only()}
+                    paused={paused.read_only()}
+                    narrow
+                />
                 <EditorPane
                     @sizing=ItemSize::Percent(50.0)
                     id="demo.collaboration.right"
                     title="Right, a follower"
                     state={right}
                     remote={right_remote}
-                    runs
+                    runs={runs.read_only()}
                 />
             </unstyled::Stack>
             <Text style=TextStyle::CAPTION string={status} wrap=true />

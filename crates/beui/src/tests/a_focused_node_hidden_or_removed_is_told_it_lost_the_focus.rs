@@ -7,7 +7,8 @@ use crate::reactive::*;
 
 type Heard = Rc<RefCell<Vec<(&'static str, bool)>>>;
 
-fn control(name: &'static str, heard: Heard) -> NodeId {
+#[component]
+fn Control(name: &'static str, heard: Heard) -> NodeId {
     view! {
         <Interactive
             focusable=true
@@ -23,33 +24,39 @@ fn control(name: &'static str, heard: Heard) -> NodeId {
 fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
     let _root = crate::reactive::RootScope::new();
     let heard: Heard = Rc::default();
-    let (shown, set_shown) = create_signal(None);
-    let (kept, set_kept) = create_signal(true);
+    let shown = create_signal(None);
+    let kept = create_signal(true);
     let mut controls = None;
     let listening = Rc::clone(&heard);
     let document = build(|| {
-        let first = control("first", Rc::clone(&listening));
-        let second = control("second", Rc::clone(&listening));
+        let first = view! {
+            <Control name="first" heard=Rc::clone(&listening) />
+        };
+        let second = view! {
+            <Control name="second" heard=Rc::clone(&listening) />
+        };
         controls = Some((first, second));
         let removable = Rc::clone(&listening);
         view! {
             <List spacing=0.0>
                 <Portal node={shown} />
-                <Show condition={kept}>{control("removable", Rc::clone(&removable))}</Show>
+                <Show condition={kept}>
+                    <Control name="removable" heard=Rc::clone(&removable) />
+                </Show>
             </List>
         }
     });
     let (first, second) = controls.expect("the controls were built");
     let mut harness = Harness::new(document);
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(Some(second)));
+    shown.set(Some(second));
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(Some(first)));
+    shown.set(Some(first));
     harness.frame(Vec::new());
     harness.click(harness.center(first));
     assert_eq!(harness.document().focused_node(), Some(first));
     heard.borrow_mut().clear();
 
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(Some(second)));
+    shown.set(Some(second));
     harness.frame(Vec::new());
     assert_eq!(*heard.borrow(), [("first", false)]);
     assert_eq!(
@@ -62,7 +69,7 @@ fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
     harness.click(harness.center(removable));
     assert_eq!(harness.document().focused_node(), Some(removable));
     heard.borrow_mut().clear();
-    with_reactive_scope(harness.document_mut(), move || set_kept.set(false));
+    kept.set(false);
     harness.frame(Vec::new());
     assert_eq!(
         *heard.borrow(),

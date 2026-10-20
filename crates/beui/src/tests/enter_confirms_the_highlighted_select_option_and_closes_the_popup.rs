@@ -5,7 +5,7 @@ use crate::styled::*;
 #[test]
 fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let (document, [select]) = toolbar_of(|| {
         let options = view! {
             <unstyled::ChoiceOption label="Apple" />
@@ -16,7 +16,7 @@ fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
                 options
                 selected=None
                 on_change={move |selected| {
-                    set_changes.update(|changes| changes.push(selected));
+                    changes.update(|changes| changes.push(selected));
                 }}
             />
         }]

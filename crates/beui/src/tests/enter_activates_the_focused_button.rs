@@ -4,12 +4,12 @@ use crate::reactive::*;
 #[test]
 fn enter_activates_the_focused_button() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let (document, [button]) = toolbar_of(|| {
         [view! {
             <LabelledButton
                 label="Click me"
-                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                on_click={move || clicks.update(|clicks| *clicks += 1)}
             />
         }]
     });

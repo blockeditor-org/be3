@@ -26,12 +26,9 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
             <Show condition={waiting}>
                 <Text style=TextStyle::CAPTION string="Opening the review" color={opening} />
             </Show>
-            <ForEach keys={Status::ALL.to_vec()}>|status: Status| {
-                let entries = entries;
-                view! {
-                    <StatusGroup review entries status />
-                }
-            }</ForEach>
+            <ForEach keys={Status::ALL.to_vec()}>|status: Status|
+                <StatusGroup review entries status />
+            </ForEach>
             <Show condition={searching}>
                 <Text
                     style=TextStyle::CAPTION
@@ -92,13 +89,13 @@ fn PaintingRow(
     path: String,
     selected: block_editor_beui::beui::reactive::Memo<bool>,
 ) -> NodeId {
-    let test_id = format!("paint_review.entry.{path}");
+    let element_test_id = format!("paint_review.entry.{path}");
     let label = path.clone();
     let chosen = path.clone();
     view! {
         <ListRow
             selected={selected}
-            @test_id={test_id}
+            @test_id={element_test_id}
             on_click={move || review.select(&chosen)}
             on_activate={move || {}}
         >

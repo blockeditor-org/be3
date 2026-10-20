@@ -48,7 +48,7 @@ fn calendar_block(editor: Editor) -> Memo<Option<Uuid>> {
         })
     });
     let children = editor.watch_blocks(BlockQuery::Children(editor.block_id()));
-    let (created, set_created) = create_signal(None::<Uuid>);
+    let created = create_signal(None::<Uuid>);
     let held = create_memo(move || {
         stored.get().filter(|id| {
             created.get() == Some(*id)
@@ -69,7 +69,7 @@ fn calendar_block(editor: Editor) -> Memo<Option<Uuid>> {
         untrack(|| {
             let calendar = editor.create_child(&CalendarContent::default());
             batch(|| {
-                set_created.set(Some(calendar));
+                created.set(Some(calendar));
                 editor.set_view_state(CALENDAR_STATE, Some(&ViewState::new(&(), vec![calendar])));
             });
         });

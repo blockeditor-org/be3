@@ -8,16 +8,14 @@ const PANEL_HEIGHT: f32 = 200.0;
 fn a_skipped_element_keeps_the_repaint_deadline_it_asked_for() {
     let _root = crate::reactive::RootScope::new();
     let (panel, text) = (NodeRef::new(), NodeRef::new());
-    let mut document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @node_ref=&panel height=PANEL_HEIGHT fill=Color32::WHITE radius=0.0 />
-                    <Frame width=40.0 height=20.0>
-                        <Drawing @node_ref=&text draw={blinking()} />
-                    </Frame>
-                </List>
-            }
+    let mut document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @node_ref=&panel height=PANEL_HEIGHT fill=Color32::WHITE radius=0.0 />
+                <Frame width=40.0 height=20.0>
+                    <Drawing @node_ref=&text draw={blinking()} />
+                </Frame>
+            </List>
         }
     });
     let (panel, text) = (kind_of::<FrameNode>(&document, panel.get()), text.get());

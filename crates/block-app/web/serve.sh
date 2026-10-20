@@ -8,7 +8,7 @@
 # given --allow-login and --allow-registration.
 #
 #   ./scripts/buck run //crates/block-app:web [-- --listen HOST:PORT] [--backend HOST:PORT]
-#   ./scripts/buck run //crates/block-app:web -- --domain blocks.pfg.pw [--data-dir DIR]
+#   ./scripts/buck run //crates/block-app:web -- --domain api.be3.pfg.pw [--data-dir DIR]
 set -eu
 caddy="$1" caddyfile="$2" server="$3" bundle="$4"
 shift 4
@@ -30,9 +30,6 @@ while [ "$index" -lt "$count" ]; do
 done
 
 [ -x "$caddy/caddy" ] && caddy="$caddy/caddy" || caddy="$caddy/caddy.exe"
-"$server" --build-info-file "$bundle/build-info.json" --addr "$backend" "$@" &
-server_pid=$!
-trap 'kill "$server_pid" 2> /dev/null || true' EXIT INT TERM
 if [ -n "$domain" ]; then
     address="$domain"
     echo "Serving https://$domain"
@@ -40,5 +37,8 @@ else
     address="http://$listen"
     echo "Serving $address"
 fi
+"$server" --build-info-file "$bundle/build-info.json" --addr "$backend" --auth-origin "$(case "$address" in http*) echo "$address" ;; *) echo "https://$address" ;; esac)" "$@" &
+server_pid=$!
+trap 'kill "$server_pid" 2> /dev/null || true' EXIT INT TERM
 BE3_DOMAIN_NAME="$address" BE3_BACKEND_URL="$backend" BE3_WEB_ROOT="$(cd "$bundle" && pwd)" \
     "$caddy" run --adapter caddyfile --config "$caddyfile"

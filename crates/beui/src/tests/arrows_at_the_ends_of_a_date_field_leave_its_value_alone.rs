@@ -7,14 +7,14 @@ use crate::unstyled::{Container, DateTimeParts};
 #[test]
 fn arrows_at_the_ends_of_a_date_field_leave_its_value_alone() {
     let _root = crate::reactive::RootScope::new();
-    let (reported, set_reported) = create_signal(Vec::new());
+    let reported = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <Container>|_size|
                 <DateTimeField
                     value={Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT))}
                     parts=DateTimeParts::Date
-                    on_change={move |value| set_reported.update(|reported| reported.push(value))}
+                    on_change={move |value| reported.update(|reported| reported.push(value))}
                 />
             </Container>
         }

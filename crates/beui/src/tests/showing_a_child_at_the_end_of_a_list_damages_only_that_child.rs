@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn showing_a_child_at_the_end_of_a_list_damages_only_that_child() {
     let _root = crate::reactive::RootScope::new();
-    let (shown, set_shown) = create_signal(false);
+    let shown = create_signal(false);
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -20,7 +20,7 @@ fn showing_a_child_at_the_end_of_a_list_damages_only_that_child() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    with_installed(harness.document_mut(), |_| set_shown.set(true));
+    with_installed(harness.document_mut(), |_| shown.set(true));
     let damage = harness.frame(Vec::new()).damage.bounds();
 
     assert!(damage.is_positive());

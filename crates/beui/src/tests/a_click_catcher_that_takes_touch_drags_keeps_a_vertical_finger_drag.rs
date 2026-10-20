@@ -6,19 +6,17 @@ use crate::reactive::*;
 #[test]
 fn a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag() {
     let _root = crate::reactive::RootScope::new();
-    let (drags, set_drags) = create_signal::<Vec<Pos2>>(Vec::new());
-    let (cancelled, set_cancelled) = create_signal(false);
-    let document = build({
-        move || {
-            view! {
-                <Interactive
-                    touch_drags=true
-                    on_drag={move |press: PointerPress| set_drags.update(|drags| drags.push(press.pos))}
-                    on_cancel={move || set_cancelled.set(true)}
-                >
-                    <Frame width=300.0 height=300.0 />
-                </Interactive>
-            }
+    let drags = create_signal::<Vec<Pos2>>(Vec::new());
+    let cancelled = create_signal(false);
+    let document = build(move || {
+        view! {
+            <Interactive
+                touch_drags=true
+                on_drag={move |press: PointerPress| drags.update(|drags| drags.push(press.pos))}
+                on_cancel={move || cancelled.set(true)}
+            >
+                <Frame width=300.0 height=300.0 />
+            </Interactive>
         }
     });
     let mut harness = Harness::new(document);

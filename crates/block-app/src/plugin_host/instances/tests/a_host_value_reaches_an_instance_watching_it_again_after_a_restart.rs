@@ -1,6 +1,6 @@
 use super::*;
 
-use block_plugin_api::{Displays, HostDisplay, HostDisplayMode, HostValue};
+use block_plugin_api::{Displays, HostDisplay, HostDisplayMode, HostRotation, HostValue};
 
 fn monitor(width: u32) -> HostDisplay {
     let mode = HostDisplayMode {
@@ -15,6 +15,7 @@ fn monitor(width: u32) -> HostDisplay {
         modes: vec![mode],
         default: mode,
         current: mode,
+        rotation: HostRotation::Normal,
     }
 }
 

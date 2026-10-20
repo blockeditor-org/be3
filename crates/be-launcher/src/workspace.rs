@@ -160,7 +160,6 @@ fn TargetList(model: Model) -> NodeId {
         )
     });
     let query = model.target_query;
-    let set_query = model.set_target_query;
     let refresh = move || model.refresh_targets();
     view! {
         <List spacing=0.0>
@@ -175,7 +174,7 @@ fn TargetList(model: Model) -> NodeId {
                             value={query}
                             placeholder="Filter targets, like beui or rust_test"
                             label="Filter targets"
-                            on_change={move |query| set_query.set(query)}
+                            on_change={move |next| query.set(next)}
                         />
                         <IconButton
                             glyph=ICON_REFRESH

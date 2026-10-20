@@ -7,7 +7,7 @@ use crate::unstyled::{TimeList, TimeOptionHandle};
 #[test]
 fn a_time_list_moves_through_its_times_and_picks_one() {
     let _root = crate::reactive::RootScope::new();
-    let (picked, set_picked) = create_signal(Vec::new());
+    let picked = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -20,7 +20,7 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
                         option={|handle: TimeOptionHandle| view! {
                             <Text string={handle.label} />
                         }}
-                        on_change={move |time| set_picked.update(|picked| picked.push(time))}
+                        on_change={move |time| picked.update(|picked| picked.push(time))}
                     />
                 </List>
             </List>

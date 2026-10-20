@@ -7,13 +7,13 @@ use crate::styled::*;
 #[test]
 fn a_color_input_opens_its_picker_from_the_swatch() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let (document, [input]) = toolbar_of(|| {
         [view! {
             <ColorInput
                 value={Color32::from_rgb(0x11, 0x22, 0x33)}
                 label="Fill"
-                on_change={move |color| set_changes.update(|changes| changes.push(color))}
+                on_change={move |color| changes.update(|changes| changes.push(color))}
             />
         }]
     });

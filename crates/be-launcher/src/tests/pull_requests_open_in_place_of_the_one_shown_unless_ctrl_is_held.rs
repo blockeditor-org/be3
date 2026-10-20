@@ -1,6 +1,5 @@
 use std::sync::mpsc::channel;
 
-use beui::reactive::*;
 use beui::{Event, Modifiers, Vec2};
 use block_ui_test::DocumentTest;
 
@@ -54,22 +53,18 @@ fn pull_requests_open_in_place_of_the_one_shown_unless_ctrl_is_held() {
     let tasks = Tasks::new(scratch("tabs"), sender);
     let session = Session::new(tasks.clone()).expect("a terminal");
     let LauncherApp {
-        mut document,
-        model,
-        ..
+        document, model, ..
     } = LauncherApp::with(tasks, events, move |tasks| {
         Model::new(tasks.clone(), Pane::new(session, tasks))
     });
-    with_reactive_scope(&mut document, || {
-        model.receive(tasks::Event::PullRequests(
-            Filter::Open,
-            Ok(vec![
-                pull_request(1, "Make the launcher tabbed"),
-                pull_request(2, "Fix the build"),
-                pull_request(3, "Speed up the tests"),
-            ]),
-        ));
-    });
+    model.receive(tasks::Event::PullRequests(
+        Filter::Open,
+        Ok(vec![
+            pull_request(1, "Make the launcher tabbed"),
+            pull_request(2, "Fix the build"),
+            pull_request(3, "Speed up the tests"),
+        ]),
+    ));
     let mut test = DocumentTest::new(document, WIDE);
     let is_open = |test: &DocumentTest, number: u64| {
         model

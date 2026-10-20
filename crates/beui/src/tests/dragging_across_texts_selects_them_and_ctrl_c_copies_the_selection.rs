@@ -9,19 +9,17 @@ const TITLE: &str = "Fix the launcher";
 fn dragging_across_texts_selects_them_and_ctrl_c_copies_the_selection() {
     let _root = crate::reactive::RootScope::new();
     let (title, labels, region) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <SelectableText @node_ref=&region>
-                    <List spacing=4.0>
-                        <Text @node_ref=&title string=TITLE />
-                        <List direction=Direction::Horizontal spacing=8.0>
-                            <Text string="#210 by someone" />
-                            <Text @node_ref=&labels string="ready" />
-                        </List>
+    let document = build(move || {
+        view! {
+            <SelectableText @node_ref=&region>
+                <List spacing=4.0>
+                    <Text @node_ref=&title string=TITLE />
+                    <List direction=Direction::Horizontal spacing=8.0>
+                        <Text string="#210 by someone" />
+                        <Text @node_ref=&labels string="ready" />
                     </List>
-                </SelectableText>
-            }
+                </List>
+            </SelectableText>
         }
     });
     let mut harness = Harness::new(document);

@@ -66,6 +66,10 @@ pub trait Instance: std::any::Any {
         None
     }
 
+    fn overflows(&mut self, _region: EditorRegion) -> Vec<String> {
+        Vec::new()
+    }
+
     #[cfg(target_arch = "wasm32")]
     fn paint(&mut self, target: &PaintTarget<'_>) -> Vec<SurfaceRect>;
 }
@@ -100,6 +104,7 @@ impl Region {
 pub struct Frame {
     pub changed: bool,
     pub repaint_after: Option<Duration>,
+    pub animating: bool,
     pub content: Option<Rect>,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,

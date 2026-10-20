@@ -8,14 +8,14 @@ use crate::styled::*;
 #[test]
 fn a_click_outside_an_open_color_input_closes_it_and_lands_on_what_was_clicked() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let (document, [button, input]) = toolbar_of(|| {
         [
             view! {
                 <Button
                     label="Elsewhere"
                     variant=ButtonVariant::Secondary
-                    on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                    on_click={move || clicks.update(|clicks| *clicks += 1)}
                 />
             },
             view! {

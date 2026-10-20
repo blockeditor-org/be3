@@ -124,36 +124,30 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
     });
     let log = create_memo(move || status.with(|status| status.log.clone()));
 
-    let (message, set_message) = create_signal(String::new());
+    let message = create_signal(String::new());
     let commit_blocked = create_memo(move || {
         blocked.get()
             || unchanged.get()
             || conflicted.get()
             || message.with(|message| message.trim().is_empty())
     });
-    let (branch_name, set_branch_name) = create_signal(String::new());
+    let branch_name = create_signal(String::new());
     let branch_blocked =
         create_memo(move || blocked.get() || branch_name.with(|name| name.trim().is_empty()));
 
-    let commit_message = message;
-    let clear_message = set_message;
-    let new_branch = branch_name;
-    let clear_branch = set_branch_name;
     let change_rows = move |row: ChangeRow| {
         view! {
             <ChangeLine editor row />
         }
     };
-    let resolve_blocked = blocked;
     let conflict_rows = move |row: ConflictRow| {
-        let blocked = resolve_blocked;
+        let blocked = blocked;
         view! {
             <ConflictLine editor blocked row />
         }
     };
-    let switch_blocked = blocked;
     let branch_rows = move |(name, current): (String, bool)| {
-        let blocked = switch_blocked;
+        let blocked = blocked;
         view! {
             <BranchLine editor blocked name current />
         }
@@ -235,7 +229,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         placeholder="What changed?"
                                         label="Commit message"
                                         @test_id={"checkout.message"}
-                                        on_change={move |value| set_message.set(value)}
+                                        on_change={move |value| message.set(value)}
                                     />
                                     <Button
                                         label="Commit"
@@ -243,9 +237,9 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         disabled={commit_blocked}
                                         @test_id={"checkout.commit"}
                                         on_click={move || {
-                                            let message = commit_message.get().trim().to_owned();
-                                            editor.version(VersionCommand::Commit { message });
-                                            clear_message.set(String::new());
+                                            let text = message.get().trim().to_owned();
+                                            editor.version(VersionCommand::Commit { message: text });
+                                            message.set(String::new());
                                         }}
                                     />
                                 </List>
@@ -266,7 +260,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         placeholder="New branch"
                                         label="New branch name"
                                         @test_id={"checkout.branch-name"}
-                                        on_change={move |value| set_branch_name.set(value)}
+                                        on_change={move |value| branch_name.set(value)}
                                     />
                                     <Button
                                         label="Make branch"
@@ -274,9 +268,9 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         disabled={branch_blocked}
                                         @test_id={"checkout.make-branch"}
                                         on_click={move || {
-                                            let name = new_branch.get().trim().to_owned();
+                                            let name = branch_name.get().trim().to_owned();
                                             editor.version(VersionCommand::CreateBranch { name });
-                                            clear_branch.set(String::new());
+                                            branch_name.set(String::new());
                                         }}
                                     />
                                 </List>
@@ -337,7 +331,6 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
         choose(ConflictSide::Ours),
         choose(ConflictSide::Theirs),
     );
-    let (base_blocked, ours_blocked, theirs_blocked) = (blocked, blocked, blocked);
     let (base, ours, theirs) = (side(base), side(ours), side(theirs));
     let keep = choose(ConflictSide::Merged);
     let working = Some(ChildTarget::new(block, block_type));
@@ -363,21 +356,21 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                         <Button
                             label="Take base"
                             variant=ButtonVariant::Secondary
-                            disabled={base_blocked}
+                            disabled={blocked}
                             @test_id={format!("checkout.base.{block}")}
                             on_click={take_base}
                         />
                         <Button
                             label="Take yours"
                             variant=ButtonVariant::Secondary
-                            disabled={ours_blocked}
+                            disabled={blocked}
                             @test_id={format!("checkout.ours.{block}")}
                             on_click={take_ours}
                         />
                         <Button
                             label="Take theirs"
                             variant=ButtonVariant::Secondary
-                            disabled={theirs_blocked}
+                            disabled={blocked}
                             @test_id={format!("checkout.theirs.{block}")}
                             on_click={take_theirs}
                         />
@@ -405,12 +398,13 @@ fn BranchLine(editor: Editor, blocked: Memo<bool>, name: String, current: bool) 
         true => "Current",
         false => "Switch",
     };
+    let branch_test_id = format!("checkout.branch.{name}");
     view! {
         <List
             direction=Direction::Horizontal
             align=Align::Center
             spacing=10.0
-            @test_id={format!("checkout.branch.{name}")}
+            @test_id=branch_test_id
         >
             <Text @sizing=ItemSize::Percent(100.0) string={name.clone()} />
             <Button

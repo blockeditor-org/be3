@@ -81,7 +81,6 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
     let keys = create_memo(move || (0..items.get().len()).collect::<Vec<usize>>());
     let CompletionMenu { row, panel } = menu;
     let layer = cx.completion_layer;
-    let dismissed = cx;
     view! {
         <Overlay
             @node_ref=&layer
@@ -90,16 +89,13 @@ pub(super) fn Completions(cx: Context, menu: CompletionMenu) -> NodeId {
             policy=LayerPolicy::Pass
             traps_focus=false
             open=true
-            on_dismiss={move |_: Dismiss| dismissed.dismiss()}
+            on_dismiss={move |_: Dismiss| cx.dismiss()}
         >
             {panel.call(view! {
                 <List spacing=0.0>
-                    <ForEach keys>|index: usize| {
-                        let (cx, row) = (cx, row);
-                        view! {
-                            <CompletionRow cx index row />
-                        }
-                    }</ForEach>
+                    <ForEach keys>|index: usize|
+                        <CompletionRow cx index row />
+                    </ForEach>
                 </List>
             })}
         </Overlay>
@@ -112,12 +108,12 @@ fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) 
     let completion = create_memo(move || items.get().get(index).cloned());
     let highlighted = cx.highlighted;
     let highlighted = create_memo(move || highlighted.get() == index);
-    let (hovered, set_hovered) = create_signal(false);
+    let hovered = create_signal(false);
     let content = row.call(CompletionRowHandle {
         index,
         completion,
         highlighted,
-        hovered,
+        hovered: hovered.read_only(),
     });
     view! {
         <Interactive
@@ -125,9 +121,9 @@ fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) 
             cursor=CursorIcon::PointingHand
             on_click={move || cx.complete(index)}
             on_hover_change={move |inside: bool| {
-                set_hovered.set(inside);
+                hovered.set(inside);
                 if inside {
-                    cx.set_highlighted.set(index);
+                    cx.highlighted.set(index);
                 }
             }}
             children={Some(content)}

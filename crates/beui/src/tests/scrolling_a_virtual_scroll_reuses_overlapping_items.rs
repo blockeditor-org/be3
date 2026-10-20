@@ -3,14 +3,14 @@ use super::*;
 #[test]
 fn scrolling_a_virtual_scroll_reuses_overlapping_items() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(Vec::new());
-    let scroll = virtual_list(set_built);
+    let built = create_signal(Vec::new());
+    let scroll = virtual_list(built);
     let mut harness = Harness::new(scroll.document);
     harness.frame(Vec::new());
     let original = harness.document.children(scroll.list);
     let visible = original.len();
 
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
     harness
         .document
         .set_scroll_offset(scroll.scroll, VIRTUAL_ITEM_HEIGHT * 2.0);
@@ -25,7 +25,7 @@ fn scrolling_a_virtual_scroll_reuses_overlapping_items() {
         "the rows that just left are kept"
     );
 
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
     harness
         .document
         .set_scroll_offset(scroll.scroll, VIRTUAL_ITEM_HEIGHT);

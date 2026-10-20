@@ -21,7 +21,7 @@ fn row(harness: &Harness, label: &str) -> Pos2 {
 #[test]
 fn a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown() {
     let _root = crate::reactive::RootScope::new();
-    let (picked, set_picked) = create_signal(Vec::new());
+    let picked = create_signal(Vec::new());
     let (document, [button]) = toolbar_of(|| {
         [view! {
             <MenuButton
@@ -30,7 +30,7 @@ fn a_touch_opens_a_menu_buttons_menu_as_a_sheet_and_a_click_as_a_dropdown() {
                     <MenuItem label="By name" />
                     <MenuItem label="By date" />
                 }}
-                on_select={move |path: Vec<usize>| set_picked.update(|picked| picked.push(path))}
+                on_select={move |path: Vec<usize>| picked.update(|picked| picked.push(path))}
             />
         }]
     });

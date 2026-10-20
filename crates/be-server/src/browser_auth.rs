@@ -16,13 +16,16 @@ const LIMIT: usize = 1024;
 #[derive(Default)]
 pub(crate) struct Sessions {
     pending: Mutex<HashMap<String, Pending>>,
-    forms: Mutex<HashMap<String, Instant>>,
+    forms: Mutex<HashMap<String, (Instant, String)>>,
 }
 
 struct Pending {
     client: u64,
+    secret: String,
+    denied: bool,
     expires: Instant,
     account: Option<Uuid>,
+    approved_by: String,
     _cancel: tokio::sync::oneshot::Sender<()>,
 }
 
@@ -35,7 +38,7 @@ impl Sessions {
         self: &Arc<Self>,
         client: u64,
         hub: Arc<WatchHub>,
-    ) -> Result<String, ServerError> {
+    ) -> Result<(String, String), ServerError> {
         let mut pending = self.pending.lock().unwrap();
         pending.retain(|_, entry| entry.client != client && entry.expires > Instant::now());
         if pending.len() >= LIMIT {
@@ -43,13 +46,17 @@ impl Sessions {
         }
         let random = Uuid::new_v4().simple().to_string();
         let code = format!("{}-{}-{}", &random[..4], &random[4..8], &random[8..12]);
+        let secret = Uuid::new_v4().to_string();
         let (cancel, cancelled) = tokio::sync::oneshot::channel();
         pending.insert(
             code.clone(),
             Pending {
                 client,
+                secret: secret.clone(),
+                denied: false,
                 expires: Instant::now() + LIFETIME,
                 account: None,
+                approved_by: String::new(),
                 _cancel: cancel,
             },
         );
@@ -71,83 +78,52 @@ impl Sessions {
                 }
             }
         });
-        Ok(code)
+        Ok((code, secret))
     }
 
-    pub(crate) fn cancel(&self, client: u64) {
-        self.pending
-            .lock()
-            .unwrap()
-            .retain(|_, entry| entry.client != client);
-    }
-
-    pub(crate) fn finish(&self, client: u64, code: &str) -> Result<Uuid, ServerError> {
+    pub(crate) fn finish(
+        &self,
+        client: u64,
+        code: &str,
+        secret: &str,
+    ) -> Result<Option<(Uuid, String)>, ServerError> {
         let mut pending = self.pending.lock().unwrap();
         let entry = pending
-            .get(code)
-            .filter(|entry| entry.client == client && entry.expires > Instant::now())
+            .get_mut(code)
+            .filter(|entry| entry.secret == secret && entry.expires > Instant::now())
             .ok_or_else(|| invalid("this sign-in expired or was cancelled"))?;
-        let account = entry
-            .account
-            .ok_or_else(|| invalid("approve this sign-in in the browser first"))?;
+        if entry.denied {
+            return Err(invalid("Sign-in was denied in the browser."));
+        }
+        entry.client = client;
+        let Some(account) = entry.account else {
+            return Ok(None);
+        };
+        let issuer = entry.approved_by.clone();
         pending.remove(code);
-        Ok(account)
+        Ok(Some((account, issuer)))
     }
 
-    fn form(&self) -> Result<String, ServerError> {
+    pub(crate) fn form(&self, owner: &str) -> Result<String, ServerError> {
         let mut forms = self.forms.lock().unwrap();
-        forms.retain(|_, expires| *expires > Instant::now());
+        forms.retain(|_, (expires, _)| *expires > Instant::now());
         if forms.len() >= LIMIT {
             return Err(invalid("too many open sign-in pages; try again later"));
         }
         let token = Uuid::new_v4().to_string();
-        forms.insert(token.clone(), Instant::now() + LIFETIME);
+        forms.insert(token.clone(), (Instant::now() + LIFETIME, owner.into()));
         Ok(token)
     }
 
-    fn consume_form(&self, token: &str) -> Result<(), ServerError> {
+    pub(crate) fn consume_form(&self, token: &str, owner: &str) -> Result<(), ServerError> {
         self.forms
             .lock()
             .unwrap()
             .remove(token)
-            .filter(|expires| *expires > Instant::now())
+            .filter(|(expires, bound)| *expires > Instant::now() && bound == owner)
             .ok_or_else(|| invalid("this page expired; reload it and try again"))?;
         Ok(())
     }
-}
-
-pub(crate) fn page(services: &Services, code: &str, error: &str) -> Result<String, ServerError> {
-    let csrf = services.browser_auth.form()?;
-    let login = if services.config.allow_login {
-        "<button name=action value=login>Sign in and authorize</button>"
-    } else {
-        ""
-    };
-    let register = if services.config.allow_registration {
-        "<label>Display name (for a new account)<input name=display_name autocomplete=nickname maxlength=200></label><button name=action value=register>Create account and authorize</button>"
-    } else {
-        ""
-    };
-    Ok(shell(&format!(
-        r#"<h1>Authorize Block</h1><p>Only continue if you started adding an account on your device. Check that its code matches.</p><p role=alert>{error}</p><form method=post action=/auth><input type=hidden name=csrf value="{csrf}"><label>Device code<input name=code value="{code}" required autocomplete=off maxlength=14></label><label>Email<input name=email type=email autocomplete=username></label><label>Password<input name=password type=password autocomplete=current-password></label>{login}{register}<button name=action value=deny formnovalidate>Deny</button></form>"#,
-        error = escape(error),
-        code = escape(code)
-    )))
-}
-
-pub(crate) fn shell(content: &str) -> String {
-    format!(
-        r#"<!doctype html><html lang=en><meta charset=utf-8><meta name=viewport content="width=device-width, initial-scale=1"><title>Block — authorize device</title><style>body{{font:1rem system-ui;margin:3rem auto;padding:0 1rem;max-width:28rem;color:#202124;background:#fafafa}}label{{display:block;margin:1rem 0}}input{{display:block;box-sizing:border-box;width:100%;padding:.7rem;font:inherit}}button{{padding:.7rem;margin:.4rem .4rem .4rem 0;font:inherit;cursor:pointer}}[role=alert]{{color:#a00}}</style>{content}</html>"#
-    )
-}
-
-pub(crate) fn escape(value: &str) -> String {
-    value
-        .replace('&', "&amp;")
-        .replace('<', "&lt;")
-        .replace('>', "&gt;")
-        .replace('"', "&quot;")
-        .replace('\'', "&#39;")
 }
 
 pub(crate) fn fields(body: &str) -> HashMap<String, String> {
@@ -176,60 +152,23 @@ fn decode(value: &str) -> Option<String> {
     String::from_utf8(bytes).ok()
 }
 
-pub(crate) async fn submit(
+pub(crate) async fn decide(
     services: &Services,
-    fields: &HashMap<String, String>,
+    code: &str,
+    account: Option<Uuid>,
+    issuer: &str,
 ) -> Result<(), ServerError> {
-    let field = |key: &str| fields.get(key).map(String::as_str).unwrap_or_default();
-    services.browser_auth.consume_form(field("csrf"))?;
-    let code = field("code").trim().to_ascii_lowercase();
-    {
-        let pending = services.browser_auth.pending.lock().unwrap();
-        let entry = pending
-            .get(&code)
-            .filter(|entry| entry.expires > Instant::now() && entry.account.is_none())
-            .ok_or_else(|| invalid("this code is invalid, expired, or already approved"))?;
-        let _ = entry;
+    if !services.config.allow_login {
+        return Err(invalid("This server is not accepting sign-ins."));
     }
-    if field("action") == "deny" {
-        let entry = services.browser_auth.pending.lock().unwrap().remove(&code);
-        if let Some(entry) = entry {
-            services
-                .hub
-                .send_to(
-                    entry.client,
-                    ServerMessage::BrowserLoginFinished {
-                        approved: false,
-                        message: "Sign-in was denied in the browser.".into(),
-                    },
-                )
-                .await;
-        }
-        return Ok(());
-    }
-    let (profile, token) = match field("action") {
-        "login" if services.config.allow_login => {
-            services
-                .store
-                .login(field("email"), field("password"))
-                .await?
-        }
-        "register" if services.config.allow_registration => {
-            services
-                .store
-                .register(field("email"), field("display_name"), field("password"))
-                .await?
-        }
-        _ => return Err(invalid("this server does not allow that sign-in method")),
-    };
-    services.store.logout(&token).await?;
+    let code = code.trim().to_ascii_lowercase();
     let client = {
         let mut pending = services.browser_auth.pending.lock().unwrap();
-        let entry = pending
-            .get_mut(&code)
-            .filter(|entry| entry.expires > Instant::now() && entry.account.is_none())
-            .ok_or_else(|| invalid("this sign-in expired or was cancelled"))?;
-        entry.account = Some(profile.account);
+        let entry = pending.get_mut(&code).filter(|entry| entry.expires > Instant::now() && entry.account.is_none() && !entry.denied)
+            .ok_or_else(|| invalid("This code is invalid, expired, denied, or already approved. Start sign-in again in Block."))?;
+        entry.account = account;
+        entry.approved_by = issuer.into();
+        entry.denied = account.is_none();
         entry.client
     };
     services
@@ -237,13 +176,38 @@ pub(crate) async fn submit(
         .send_to(
             client,
             ServerMessage::BrowserLoginFinished {
-                approved: true,
-                message: String::new(),
+                approved: account.is_some(),
+                message: if account.is_some() {
+                    String::new()
+                } else {
+                    "Sign-in was denied in the browser.".into()
+                },
             },
         )
         .await;
     Ok(())
 }
 
+pub(crate) fn code_status(services: &Services, code: &str) -> Result<(), ServerError> {
+    let pending = services.browser_auth.pending.lock().unwrap();
+    match pending.get(&code.trim().to_ascii_lowercase()) {
+        None => Err(invalid(
+            "This code is invalid or expired. Start sign-in again in Block.",
+        )),
+        Some(entry) if entry.expires <= Instant::now() => Err(invalid(
+            "This sign-in expired. Start sign-in again in Block.",
+        )),
+        Some(entry) if entry.denied => Err(invalid(
+            "This sign-in was denied. Start sign-in again in Block.",
+        )),
+        Some(entry) if entry.account.is_some() => Err(invalid(
+            "This sign-in was already approved. Return to Block.",
+        )),
+        Some(_) => Ok(()),
+    }
+}
+
+#[cfg(test)]
+pub(crate) use crate::portal::message;
 #[cfg(test)]
 mod tests;

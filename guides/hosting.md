@@ -6,7 +6,7 @@ Those are managed on the host, with no installation templates in this repository
 
 ## Server layout
 
-`BE3_DEPLOY_HOST` selects the SSH destination (`ubuntu@blocks.pfg.pw` by default).
+`BE3_DEPLOY_HOST` selects the SSH destination (`ubuntu@api.be3.pfg.pw` by default).
 `BE3_DEPLOY_DIR` selects the directory relative to the SSH user's home
 (`be-server` by default). The deploy user must be able to write there.
 `be-server` and `build-info.json` live together in that directory; the server
@@ -19,7 +19,7 @@ leaves the host's service configuration and reverse proxy alone.
 The server speaks plain WebSockets at `/api/be` and the same protocol over
 HTTP posts at `/api/be/http` for clients behind a proxy that refuses WebSockets.
 The host's reverse proxy supplies TLS at `api.be3.pfg.pw` and routes those API
-paths and `/auth` to the server. The web app is served separately by Bunny at `be3.pfg.pw`.
+paths, `/auth`, and `/auth/*` to the server. The web app is served separately by Bunny at `be3.pfg.pw`.
 The proxy must allow the web app's origin; native clients send no Origin header.
 A gateway can accept `Be3-Gateway-Authorization` from native clients and a
 host-only cookie from browsers, whose WebSocket API cannot set headers.
@@ -29,11 +29,41 @@ server adds missing schema tables, indexes and defaulted columns, and refuses
 incompatible schemas. This directory and its backups are frozen formats
 (guides/frozen_formats.md).
 
-Password sign-ins are disabled unless the host starts the server with
-`--allow-login`; registration requires `--allow-registration`. Devices already
-signed in reconnect with their session tokens. To create an account directly,
-stop the server and run its executable with the same `--data-dir` and
-`--add-account EMAIL NAME ORGANIZATION`, passing the password on standard input.
+The account portal requires `--auth-origin https://api.be3.pfg.pw` on a deployed
+server. This is the exact public origin used for form Origin checks, Secure cookies,
+and email links; request Host and forwarded headers cannot override it. Localhost
+HTTP development can infer its origin. Web launchers supply their public origin.
+The host's service configuration must include the flag before deploying this build;
+deployment does not change systemd or proxy configuration.
+
+Password sign-ins require `--allow-login`; verified registration also requires
+`--allow-registration`. `/auth` is the only remote password/registration interface:
+the app protocol accepts browser authorization, session tokens, and proxy headers.
+There is no command-line account provisioning flag. To bootstrap a server, enable
+registration, create and verify an account through the portal, then disable registration
+if appropriate. Existing accounts do not need retroactive email verification.
+
+Remote human sessions predating portal session metadata must sign in again. Agent and local-profile credentials
+are retained because those accounts have no password recovery path. New browser sessions last
+30 days and use a host-only HttpOnly SameSite=Lax cookie scoped to `/auth`; they cannot
+be used as app bearer credentials. App sessions are listed alongside browser sessions.
+Revocation and password reset disconnect active clients and remove their subscriptions.
+Signing out cannot remove data already held by a device.
+
+Email delivery uses `mail::Delivery`, currently `LogDelivery`: the server log contains
+recipient, subject and the complete message, including verification/reset links. Treat
+that log as access to the addressed accounts. Tests inject a capturing delivery sink.
+Verification links last one hour and password reset links 30 minutes; tokens are stored
+hashed and consumed only by POST. Repeating the requesting form sends another link,
+subject to issuance limits. Password reset changes authentication only: encrypted data
+still needs a recovery phrase or another unlocked Block device.
+
+Browser authorization lasts ten minutes independently of the initiating connection.
+The app retains a private secret separately from the displayed code, checks completion
+on fresh connections, and retries when the network is unavailable. Only that secret
+can redeem an approved request, once. Approval is explicit after portal authentication;
+email verification alone does not approve a device. A revoked approving browser session
+cannot issue an app session from an unclaimed approval.
 
 ## Deploying
 
@@ -52,8 +82,8 @@ stop the server and run its executable with the same `--data-dir` and
   `--android-id` and `--android-label` give (`com.be3.block` and `Block`, so
   it installs beside dev's `com.be3.block.dev` and CI's `com.be3.block.ci`), with
   `data/BUILD/app/index.html` linking them. Once the server runs the build (not
-  under `--skip-server`), it writes the same page to `index.html`, the one
-  people are sent to (`be3.pfg.pw/`), without reading it back
+  under `--skip-server`), it writes the same page to the unlinked
+  `web/downloads.html` with `noindex, nofollow` robots metadata, without reading it back
   through the CDN, and purges it from the CDN using the required `BUNNY_API_KEY`. A
   download connects only to a server of its build. `--skip-downloads` leaves
   the downloads out of the build, and `--skip-android` only the APK, so that
@@ -62,9 +92,9 @@ stop the server and run its executable with the same `--data-dir` and
   server executable and its build ID to `data/BUILD/server/` in the same zone;
 - copies only `be-server` and its `build-info.json` to the VPS over SSH, stops
   be-server, swaps the files and starts it again. Caddy stays running;
-- after that succeeds, publishes `/web`, the matching app HTML with a
+- after that succeeds, renders `/index.html` through the shared web-page renderer with a
   `<base href="/data/BUILD/web/">` before its import map and scripts. The browser
-  stays at `/web`, keeping query parameters and fragments, so refreshing
+  stays at `/` or `/index.html`, keeping query parameters and fragments, so refreshing
   gets the currently deployed build.
   Purges the web entry point using the required `BUNNY_API_KEY`. `--skip-server`
   uploads versioned files but leaves both live entry points unchanged.
@@ -85,13 +115,13 @@ app (they are CDN settings, not files that the uploader can set in storage):
 
 | Paths | Headers / caching |
 | --- | --- |
-| `/data/*`, `/web` | `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp` |
+| `/data/*`, `/`, `/index.html` | `Cross-Origin-Opener-Policy: same-origin`, `Cross-Origin-Embedder-Policy: require-corp` |
 | `/data/*` | CDN cache TTL one year; `Cache-Control: public, max-age=31536000, immutable` |
-| `/`, `/index.html`, `/web` | Override CDN cache TTL to one hour; send `Cache-Control: no-cache` to browsers |
+| `/`, `/index.html`, `/web/downloads.html` | Override CDN cache TTL to one hour; send `Cache-Control: no-cache` to browsers |
 
 The mutable pages stay cached at the edge until deployment purges their exact URLs after uploading replacements. Configure the CDN TTL independently of the browser header, so browsers revalidate while Bunny can serve its cached copy. Deployment checks for the purge key before uploading or swapping the server and fails if a purge fails. Dry runs and `--skip-server` do not require the purge key.
 
-Use a prefix rule for `/data/*` and exact-path rules for the three mutable entry points, so every later build inherits the cache policy. Enable directory index resolution to `index.html`. Preserve uploaded content
+Use a prefix rule for `/data/*` and exact-path rules for the mutable entry points, so every later build inherits the cache policy. Enable directory index resolution to `index.html`. Preserve uploaded content
 types, especially `application/wasm` and JavaScript MIME types. Uploading an
 HTML entry point last avoids incomplete releases; long-lived versioned paths
 avoid mixing modules and plugins from different builds. The public web bundle
@@ -165,15 +195,22 @@ decryption. `BE3_AUTHORIZATION` and the native app's gateway field now send
 `Be3-Gateway-Authorization`; the host’s gateway rules must use that header. Browsers use the gateway cookie because their WebSocket API
 cannot set request headers.
 
-Remote accounts are added through the server's `/auth` page. The app starts a
-short-lived authorization request over its gateway-authorized connection and
-opens `/auth?code=...`. The page uses same-origin form posts, checks Origin and
-an expiring form nonce, and applies `--allow-login` and `--allow-registration`.
-Approval notifies the requesting connection; only that connection can claim its
-session token, once. Closing the connection cancels its pending request. The
-browser is assumed to already have the API host's gateway cookie. No gateway
-or account token is put in the URL. The URL and code stay visible in the app;
-`--session` does not launch a browser automatically.
+Remote accounts are added through the server's `/auth` portal. The app begins a
+short-lived authorization request over its gateway-authorized connection and opens
+`/auth?code=...`. The user signs in or registers and verifies email, then approves the
+matching code. A remembered browser session usually needs only approval. The portal
+also accepts manually entered codes for another browser profile or `--session` mode.
+The app keeps its URL and code visible even when browser launch appears successful.
+The page uses server-rendered forms, same-origin POST checks and single-use form tokens
+bound to the browser credential. Field validation happens on submission; browser
+constraint validation and input length limits are disabled. Password-manager autocomplete
+stays enabled, but submitted passwords are never echoed into HTML after errors.
+Keep the portal’s Referrer-Policy at `strict-origin`: `no-referrer` makes browser
+form navigations send a null Origin, which the same-origin check rejects.
+
+The browser is assumed to already have the API host's gateway cookie. No gateway or
+account token is put in the device URL. `--session` does not launch a browser automatically.
+The portal authenticates the account; encryption unlocking and pairing stay in Block.
 
 The browser transport uses WebSockets, whose handshake includes the API host's
 cookies even when the page is on `be3.pfg.pw`. HTTP fetches added for API access

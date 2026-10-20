@@ -5,7 +5,7 @@ use crate::reactive::*;
 fn a_canvas_item_moved_into_view_is_laid_out_where_it_arrives() {
     let _root = crate::reactive::RootScope::new();
     let item = NodeRef::new();
-    let (x, set_x) = create_signal(VIEWPORT.x * 2.0);
+    let x = create_signal(VIEWPORT.x * 2.0);
     let document = {
         build(move || {
             view! {
@@ -25,7 +25,7 @@ fn a_canvas_item_moved_into_view_is_laid_out_where_it_arrives() {
         "a canvas lays out none of the items the view cannot see"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_x.set(20.0));
+    x.set(20.0);
     harness.frame(Vec::new());
 
     assert_eq!(

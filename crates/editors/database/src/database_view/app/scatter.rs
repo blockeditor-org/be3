@@ -138,12 +138,9 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                         <CanvasItem x=0.0 y=0.0 width={AXIS_LEFT * 2.0} height=LABEL_HEIGHT>
                             <Text style=TextStyle::CAPTION string={y_name} />
                         </CanvasItem>
-                        <ForEach keys={keys}>|row: usize| {
-                            let placed = placed;
-                            view! {
-                                <Dot placed={placed} data={data} row={row} />
-                            }
-                        }</ForEach>
+                        <ForEach keys={keys}>|row: usize|
+                            <Dot placed={placed} data={data} row={row} />
+                        </ForEach>
                         <Show condition={empty}>
                             <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
                                 <Text
@@ -175,7 +172,6 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
     });
     let x = create_memo(move || point.get().map_or(0.0, |point| point.x - side.get() * 0.5));
     let y = create_memo(move || point.get().map_or(0.0, |point| point.y - side.get() * 0.5));
-    let width = side;
     let theme = use_theme();
     let color = create_memo(move || match selected.get() {
         true => theme.accent.get(),
@@ -183,7 +179,7 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
     });
     let radius = create_memo(move || Radius::custom((side.get() * 0.5).floor()));
     view! {
-        <CanvasItem x={x} y={y} width={width} height={side}>
+        <CanvasItem x={x} y={y} width={side} height={side}>
             <Frame
                 @test_id={format!("database-view.point.{row}")}
                 fill={ColorRole::custom(color)}

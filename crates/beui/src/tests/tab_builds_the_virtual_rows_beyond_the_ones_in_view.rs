@@ -6,27 +6,25 @@ use crate::reactive::*;
 fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
-                            item_size=VIRTUAL_ITEM_HEIGHT
-                        >|key: ReadSignal<usize>| {
-                            let label = create_memo(move || format!("Row {}", key.get()));
-                            view! {
-                                <Interactive focusable=true>
-                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                        <Text string={label} />
-                                    </Frame>
-                                </Interactive>
-                            }
-                        }</VirtualList>
-                    </Offset>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        keys={indices(VIRTUAL_ITEM_COUNT)}
+                        item_size=VIRTUAL_ITEM_HEIGHT
+                    >|key: ReadSignal<usize>| {
+                        let label = create_memo(move || format!("Row {}", key.get()));
+                        view! {
+                            <Interactive focusable=true>
+                                <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                    <Text string={label} />
+                                </Frame>
+                            </Interactive>
+                        }
+                    }</VirtualList>
+                </Offset>
+            </List>
         }
     });
     let scroll = scroll.get();

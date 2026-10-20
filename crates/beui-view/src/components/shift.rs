@@ -1,4 +1,4 @@
-use crate::reactive::{Child, Prop, create_effect, with_document};
+use crate::reactive::{Child, Get, Prop, create_effect, with_document};
 use beui_core::geometry::Vec2;
 use beui_core::node::NodeId;
 use beui_macros::component;

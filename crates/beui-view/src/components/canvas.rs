@@ -1,4 +1,4 @@
-use crate::reactive::{Child, Children, Placed, Prop, create_effect, with_document};
+use crate::reactive::{Child, Children, Get, Placed, Prop, create_effect, with_document};
 use beui_core::base::canvas::{CanvasNode, CanvasView};
 use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2, pos2};
@@ -12,9 +12,11 @@ pub fn Canvas(
     #[prop(default = None)] view: Prop<Option<CanvasView>>,
     #[prop(default = 0.0)] width: Prop<f32>,
     #[prop(default = 0.0)] height: Prop<f32>,
+    #[prop(default = false)] scrolls_across: bool,
     children: Children<CanvasItem>,
 ) -> NodeId {
     let canvas = with_document(Document::create_canvas);
+    with_document(|document| document.set_canvas_scrolls_across(canvas, scrolls_across));
     children.mount(canvas);
     create_effect(move || with_document(|document| document.set_canvas_view(canvas, view.get())));
     create_effect(move || {

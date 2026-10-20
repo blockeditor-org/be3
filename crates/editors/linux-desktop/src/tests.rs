@@ -1,15 +1,16 @@
+use block_editor_beui::be_block::display_settings::{DisplayMode, Rotation};
 use block_editor_beui::be_block::{
-    EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR, Root, Settings, SettingsContent,
-    WORKSPACE_EDITOR,
+    DisplaySettings, DisplaySettingsContent, EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR,
+    Root, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, WORKSPACE_EDITOR,
 };
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
-    AudioOutput, BlockInfo, BlockParent, ChildContent, EditorHost, Epaper, EpaperRequest,
-    HostImage, HostProgram, HostWindow, HostWindowId, HostWindows, IncomingNotification, Media,
-    MediaLevel, MediaLevels, MediaRequest, NotificationInbox, NotificationReport,
-    NotificationRequest, NotificationSignal, Notifications, OwnedEditor, PlayerCommand, Power,
-    PowerAction, PowerAvailability, ProgramAction, Programs, Wifi, WifiLink, WifiNetwork,
-    WifiRequest, WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
+    AudioOutput, BlockInfo, BlockParent, ChildContent, Displays, EditorHost, Epaper, EpaperRequest,
+    HostDisplay, HostDisplayMode, HostImage, HostProgram, HostWindow, HostWindowId, HostWindows,
+    IncomingNotification, Media, MediaLevel, MediaLevels, MediaRequest, NotificationInbox,
+    NotificationReport, NotificationRequest, NotificationSignal, Notifications, OwnedEditor,
+    PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs, Wifi, WifiLink,
+    WifiNetwork, WifiRequest, WifiSecurity, WifiStatus, WindowAction, WindowOrigin,
 };
 use block_plugin_api::Size;
 use block_shell::{KeptWindow, saved_windows};
@@ -45,6 +46,8 @@ mod alt_tab_switches_to_the_window_two_back_once_alt_is_let_go;
 mod clicking_the_clock_opens_the_desktops_calendar_and_clicking_away_closes_it;
 mod escape_closes_the_launcher_and_gives_the_focus_back_to_its_button;
 mod escape_leaves_the_window_switcher_without_switching;
+mod picking_a_turned_monitor_writes_its_rotation_for_every_device;
+mod picking_a_turned_screen_writes_its_rotation_into_this_devices_display_settings;
 mod super_f_toggles_fullscreen_on_the_window_with_the_keyboard;
 mod the_calendar_popup_fits_a_narrow_screen;
 mod the_desktop_away_from_linux_hides_what_its_host_does_not_offer;
@@ -57,6 +60,7 @@ mod the_power_menu_locks_the_screen_without_asking;
 mod the_power_menu_offers_only_what_the_host_allows;
 mod the_programs_button_opens_the_launcher_on_the_programs_the_host_lists;
 mod the_refresh_button_shows_on_an_epaper_display_and_asks_the_host_to_refresh;
+mod the_rotate_button_shows_when_the_display_settings_ask_for_it_and_a_screen_is_reported;
 mod the_tray_shows_its_items_and_answers_their_clicks_and_menus;
 mod the_volume_in_the_bar_follows_the_host_and_opens_its_controls;
 mod the_volume_popup_asks_the_host_for_a_level_a_mute_and_an_output;
@@ -198,6 +202,43 @@ impl Fixture {
         }
         self.test.hold(Some(self.settings), settings);
         (self, blocks)
+    }
+
+    fn with_display_settings(
+        &mut self,
+        every_device: DisplaySettingsContent,
+        own: Option<DisplaySettingsContent>,
+    ) -> (Uuid, Option<Uuid>) {
+        let store = self.test.store();
+        store.add_block(BlockInfo::new(
+            self.settings,
+            Settings::CONTENT_TYPE,
+            BlockParent::Root,
+        ));
+        let shared = Uuid::new_v4();
+        let mut settings = SettingsContent::default();
+        settings.apply(&Settings::set_kind(DisplaySettings::CONTENT_TYPE, shared));
+        store.hold(Some(shared), every_device);
+        let own = own.map(|content| {
+            let (profile, block) = (Uuid::new_v4(), Uuid::new_v4());
+            settings.apply(&Settings::add_profile(self.client, profile));
+            let mut layer = SettingsProfileContent::default();
+            layer.apply(&SettingsProfile::set_kind(
+                DisplaySettings::CONTENT_TYPE,
+                block,
+            ));
+            store.hold(Some(profile), layer);
+            store.hold(Some(block), content);
+            block
+        });
+        self.test.hold(Some(self.settings), settings);
+        self.settle();
+        (shared, own)
+    }
+
+    fn report_screens(&mut self, screens: Vec<HostDisplay>) {
+        self.test.set_host_value::<Displays>(&screens);
+        self.settle();
     }
 
     fn with_windows(ids: &[u64]) -> Self {
@@ -343,6 +384,31 @@ impl Fixture {
         self.test.click_at(cross.center());
         self.settle();
     }
+}
+
+const PANEL: &str = "DPI-1";
+
+fn epaper_panel() -> HostDisplay {
+    let mode = HostDisplayMode {
+        width: 1404,
+        height: 1872,
+        refresh_millihertz: 85_000,
+    };
+    HostDisplay {
+        id: PANEL.to_owned(),
+        name: "E-paper panel".to_owned(),
+        connector: PANEL.to_owned(),
+        modes: vec![mode],
+        default: mode,
+        current: mode,
+        rotation: Default::default(),
+    }
+}
+
+fn rotate_in_bar() -> DisplaySettingsContent {
+    let mut content = DisplaySettingsContent::default();
+    content.apply(&DisplaySettings::set_rotate_in_bar(Some(true)));
+    content
 }
 
 fn network(ssid: &str, strength: u8, security: WifiSecurity, saved: bool) -> WifiNetwork {

@@ -28,18 +28,17 @@ pub fn ColorInput(
     on_change: Callback<Color32>,
     on_preview: Callback<Option<Color32>>,
 ) -> NodeId {
-    let (current, set_current) = create_signal(value.peek());
-    create_effect(move || set_current.set(value.get()));
-    let (previewed, set_previewed) = create_signal(None::<Color32>);
+    let current = create_signal(value.get_untracked());
+    create_effect(move || current.set(value.get()));
+    let previewed = create_signal(None::<Color32>);
     let shown = create_memo(move || previewed.get().unwrap_or_else(|| current.get()));
     let report = move |color: Color32| {
         if color != current.get_untracked() {
-            set_current.set(color);
+            current.set(color);
             on_change.call(color);
         }
     };
     let hex = HexText::new(shown, alpha, Callback::new(report));
-    let (edit, submit) = (hex, hex);
     let label = create_memo(move || label.get());
     let picker_label = create_memo(move || match label.get() {
         label if label.is_empty() => "Choose a color".to_owned(),
@@ -62,7 +61,7 @@ pub fn ColorInput(
                         focused={popover.open}
                         on_change={report}
                         on_preview={move |preview: Option<Color32>| {
-                            set_previewed.set(preview);
+                            previewed.set(preview);
                             on_preview.call(preview);
                         }}
                     />
@@ -74,8 +73,8 @@ pub fn ColorInput(
                 label={label}
                 placeholder={hex.placeholder()}
                 disabled={disabled}
-                on_change={move |typed: String| edit.edit(typed)}
-                on_submit={move |typed: String| submit.submit(typed)}
+                on_change={move |typed: String| hex.edit(typed)}
+                on_submit={move |typed: String| hex.submit(typed)}
             />
         </List>
     }

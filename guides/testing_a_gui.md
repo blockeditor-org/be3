@@ -197,8 +197,9 @@ way for the test to fail.
   time the block is opened, and one nobody had approved before it vanished is not reported
   at all.
 - snapshot(name), and every record() before it, also fails on what the frame shows out of
-  bounds (beui-core's `Document::overflows`): a node cut off by a clip that no scroll or
-  pannable canvas can move it out from under - the region's edge, a sidebar too narrow for a
+  bounds (beui-core's `Document::overflows`): a node cut off by a clip that no scroll,
+  pannable canvas or canvas its owner scrolls across (`Canvas scrolls_across`, as a single-line
+  text field's) can move it out from under - the region's edge, a sidebar too narrow for a
   row of controls - text drawn outside its own box, and an outline drawn outside a frame (a
   focus ring) that a clip cuts while the frame itself shows whole. Each line names the node, its
   nearest ancestor with a test id, and the two rectangles. Fix the layout - wrap or ellipsize the
@@ -214,7 +215,7 @@ way for the test to fail.
   and a person reviews them there before merging. Leave the images alone.
 - The exception is a painting you did not expect to change: if your change should not have
   touched it, find out why it changed.
-  ./scripts/buck run //crates/paint-snapshot:example-changed says, for every painting in
+  ./scripts/buck run //crates/paint-snapshot:example-changed says, for every native painting in
   snapshots/ that differs from HEAD, which frame changed and what moved in it. With
   -- --images it also writes them into target/changed-paintings as PNGs - a before, an after
   and a changes image for every frame that differs, where magenta marks every pixel that
@@ -226,7 +227,8 @@ block_ui_test::DocumentTest, which drives the document itself with only the font
 carries, never the system's. Its tests are compiled to wasm with plugin_tests like an
 editor's; crates/beui-demo paints every page of the demo that way. Its clock is a frame
 clock too: every frame() is one frame interval later, and advance(by) moves it on and paints
-a frame.
+a frame. settle() advances frames until the document stops requesting an immediate repaint,
+so a snapshot can wait for a sheet or another animation to finish.
 
 A snapshot never holds the glyph atlases. Each glyph carries its own image - coverage, or
 colour for an emoji from a colour font - keyed by what is in it, so where a glyph happened
@@ -241,6 +243,44 @@ so a test of one asserts on the block instead.
 beui shapes and rasterizes its glyphs through the HarfBuzz and FreeType it carries, with
 the fonts it carries, once it is compiled to wasm, which is how its tests run, so what an
 editor paints is comparable like anything else.
+
+Browser pages use `paint_snapshot::BrowserSnapshot` instead of native drawing commands:
+
+    BrowserSnapshot::new([390, 844], &html)
+        .file("/style.css", "text/css", css.as_bytes())
+        .file("/script.js", "text/javascript", js.as_bytes())
+        .snapshot("sign_in_phone.browser");
+
+The name ends in `.browser`, making `snapshots/<crate>.<name>.paint` a text file.
+It contains the viewport, the complete SSR document and every embedded resource, with
+DOM tokens and resource lines on separate JSON lines for readable Git diffs. Tokens
+are concatenated without adding whitespace, preserving the exact rendered document.
+Binary resources such as images and fonts can be supplied through the same `file` method.
+Resources use absolute paths or full URLs; the document is served at
+`https://snapshot.invalid/`. Include resources referenced by CSS or scripts as well.
+Keep dynamic ids, form tokens and displayed times fixed in fixtures.
+Native test crates opt into acceptance and cleanup with `cargo_test(paints = True)` in
+BUCK. The portal's tests in `crates/be-server/src/portal/tests/` demonstrate this.
+
+Tests compare the encoded bytes without starting a browser. Browser paintings share the
+native acceptance and cleanup pipeline, but Git shows their text diffs and prevents line
+merging. GitHub's painting comment and `local-tools rasterize` render them on demand through
+`crates/browser-rasterizer`, a separate binary. Paint review blocks list native paintings;
+browser paintings are reviewed in the pull request's comment and text diff.
+
+For local browser rasterization, install the optional runtime once:
+
+    python3 -m venv ~/.cache/be3/browser-rasterizer
+    ~/.cache/be3/browser-rasterizer/bin/pip install -r crates/browser-rasterizer/requirements.txt
+    ~/.cache/be3/browser-rasterizer/bin/python -m playwright install --with-deps chromium
+    export BE3_PLAYWRIGHT_PYTHON=~/.cache/be3/browser-rasterizer/bin/python
+    ./scripts/buck run //crates/local-tools:bin -- rasterize snapshots/be-server.portal_login_phone.browser.paint out.png
+
+`local-tools` builds the browser rasterizer only for browser inputs. During CI previews,
+that binary is built by the same buck2 invocation as the other verification tools.
+The runtime blocks all uncaptured network requests, waits for fonts and images, disables
+animations and reports missing resources or failed scripts instead of silently producing
+an incomplete preview. Browser rendering is not part of snapshot equality.
 
 5. Running them
 
@@ -295,7 +335,8 @@ press, a tab closing its editor) lives in block-app's compositor and plugin host
 tested in crates/app-tests instead, against the app itself. Each test there starts the native
 app headless with every plugin and the dev organization open, exactly as `:dev` does, in a data
 directory of its own; drives it with the commands `drive` has (guides/running/drive.md); paints
-the whole window, every plugin included; and fails unless the app exits cleanly when it closes.
+the whole window, every plugin included; and fails unless the app exits cleanly when it closes,
+which close() checks, so a test that ends without calling it fails too.
 
     let mut app = AppTest::start();
     add_to_my_files(&mut app, "Canvas");
@@ -320,6 +361,10 @@ the whole window, every plugin included; and fails unless the app exits cleanly 
 - record() and snapshot() are a painting as in an editor test (4), named
   snapshots/app-tests.<name>.paint and accepted the same way. The painting is `drive paint`: the
   host's own document with each plugin's painting put where the host composites its surface.
+  They also fail, as in an editor test, on what the window shows out of bounds (`drive
+  overflows`), in the host or in any plugin shown, whatever the crop.
+- ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
+  paintings of the others to be accepted.
 - A failure prints the steps so far as `drive` commands, which replay against
   `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
   the end of the app's log. A step that times out while the tree shows nothing pending means the

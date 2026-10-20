@@ -63,18 +63,12 @@ pub struct CalendarCellHandle {
 
 #[derive(Clone, Copy)]
 struct State {
-    selected: ReadSignal<Option<Date>>,
-    set_selected: WriteSignal<Option<Date>>,
-    active: ReadSignal<Date>,
-    set_active: WriteSignal<Date>,
-    day_focus: ReadSignal<Option<Date>>,
-    set_day_focus: WriteSignal<Option<Date>>,
-    month_focus: ReadSignal<Option<Date>>,
-    set_month_focus: WriteSignal<Option<Date>>,
-    year_focus: ReadSignal<Option<i32>>,
-    set_year_focus: WriteSignal<Option<i32>>,
-    mode: ReadSignal<CalendarMode>,
-    set_mode: WriteSignal<CalendarMode>,
+    selected: Signal<Option<Date>>,
+    active: Signal<Date>,
+    day_focus: Signal<Option<Date>>,
+    month_focus: Signal<Option<Date>>,
+    year_focus: Signal<Option<i32>>,
+    mode: Signal<CalendarMode>,
     min: Memo<Option<Date>>,
     max: Memo<Option<Date>>,
     today: Date,
@@ -97,33 +91,26 @@ pub fn Calendar(
     cell: RenderFn<CalendarCellHandle>,
     on_change: Callback<Date>,
 ) -> NodeId {
-    let (day, month, year) = (cell, cell, cell);
-    let today = today.peek().unwrap_or_else(Date::today);
+    let today = today.get_untracked().unwrap_or_else(Date::today);
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
-    let initial = selected.peek();
-    let (selected_read, set_selected) = create_signal(initial);
+    let initial = selected.get_untracked();
+    let picked = create_signal(initial);
     let starting = initial
         .unwrap_or(today)
         .clamp_to(min.get_untracked(), max.get_untracked());
-    let (active, set_active) = create_signal(starting);
-    let (day_focus, set_day_focus) = create_signal(None);
-    let (month_focus, set_month_focus) = create_signal(None);
-    let (year_focus, set_year_focus) = create_signal(None);
-    let (mode, set_mode) = create_signal(CalendarMode::Days);
+    let active = create_signal(starting);
+    let day_focus = create_signal(None);
+    let month_focus = create_signal(None);
+    let year_focus = create_signal(None);
+    let mode = create_signal(CalendarMode::Days);
     let state = State {
-        selected: selected_read,
-        set_selected,
+        selected: picked,
         active,
-        set_active,
         day_focus,
-        set_day_focus,
         month_focus,
-        set_month_focus,
         year_focus,
-        set_year_focus,
         mode,
-        set_mode,
         min,
         max,
         today,
@@ -134,22 +121,22 @@ pub fn Calendar(
 
     create_effect(move || {
         let requested = selected.get();
-        state.set_selected.set(requested);
+        state.selected.set(requested);
         if let Some(date) = requested {
-            state.set_active.set(clamp(state, date));
+            state.active.set(clamp(state, date));
         }
     });
     create_effect(move || {
         if let Some(date) = show.get() {
-            state.set_active.set(clamp(state, date));
-            state.set_mode.set(CalendarMode::Days);
+            state.active.set(clamp(state, date));
+            state.mode.set(CalendarMode::Days);
         }
     });
     create_effect(move || {
         if focused.get() {
             reset(state);
-            state.set_mode.set(CalendarMode::Days);
-            state.set_day_focus.set(Some(state.active.get_untracked()));
+            state.mode.set(CalendarMode::Days);
+            state.day_focus.set(Some(state.active.get_untracked()));
         }
     });
 
@@ -197,7 +184,7 @@ pub fn Calendar(
         label,
         month_label,
         year_label,
-        mode,
+        mode: mode.read_only(),
         previous: Callback::new(move |()| page(state, -1)),
         next: Callback::new(move |()| page(state, 1)),
         show_months: Callback::new(move |()| show_mode(state, CalendarMode::Months)),
@@ -217,64 +204,51 @@ pub fn Calendar(
     let days_shown = create_memo(move || mode.get() == CalendarMode::Days);
     let months_shown = create_memo(move || mode.get() == CalendarMode::Months);
     let years_shown = create_memo(move || mode.get() == CalendarMode::Years);
-    let days_label = label;
-    let months_label = label;
     view! {
         <List spacing>
             {header_node}
-            <Show condition={days_shown}>|| {
-                let (days_label, spacing, weekday) = (days_label, spacing, weekday);
-                let (grid_start, day) = (grid_start, day);
-                view! {
-                    <CalendarGrid label=days_label spacing>
-                        <List direction=Direction::Horizontal spacing>
-                            <ForEach keys={(0..DAYS_PER_WEEK).collect::<Vec<_>>()}>|column: usize|
-                                <CalendarWeekday
-                                    @sizing=ItemSize::Percent(100.0)
-                                    weekday={first_weekday.offset(column as u32)}
-                                    face={weekday}
-                                />
-                            </ForEach>
-                        </List>
-                        <ForEach keys={(0..WEEKS).collect::<Vec<_>>()}>|week: usize|
-                            <CalendarWeek
-                                state={state}
-                                week
-                                grid_start={grid_start}
-                                spacing
-                                day={day}
+            <Show condition={days_shown}>||
+                <CalendarGrid label=label spacing>
+                    <List direction=Direction::Horizontal spacing>
+                        <ForEach keys={(0..DAYS_PER_WEEK).collect::<Vec<_>>()}>|column: usize|
+                            <CalendarWeekday
+                                @sizing=ItemSize::Percent(100.0)
+                                weekday={first_weekday.offset(column as u32)}
+                                face={weekday}
                             />
                         </ForEach>
-                    </CalendarGrid>
-                }
-            }</Show>
-            <Show condition={months_shown}>|| {
-                let (months_label, spacing) = (months_label, spacing);
-                view! {
-                    <CalendarGrid label=months_label spacing>
-                        <ForEach keys={(0..MONTH_ROWS).collect::<Vec<_>>()}>|row: usize|
-                            <CalendarMonthRow state={state} row spacing month={month} />
-                        </ForEach>
-                    </CalendarGrid>
-                }
-            }</Show>
-            <Show condition={years_shown}>|| {
-                let (label, spacing) = (label, spacing);
-                let (first_year, year) = (first_year, year);
-                view! {
-                    <CalendarGrid label spacing>
-                        <ForEach keys={(0..YEAR_ROWS).collect::<Vec<_>>()}>|row: usize|
-                            <CalendarYearRow
-                                state={state}
-                                row
-                                first_year={first_year}
-                                spacing
-                                year={year}
-                            />
-                        </ForEach>
-                    </CalendarGrid>
-                }
-            }</Show>
+                    </List>
+                    <ForEach keys={(0..WEEKS).collect::<Vec<_>>()}>|week: usize|
+                        <CalendarWeek
+                            state={state}
+                            week
+                            grid_start={grid_start}
+                            spacing
+                            day={cell}
+                        />
+                    </ForEach>
+                </CalendarGrid>
+            </Show>
+            <Show condition={months_shown}>||
+                <CalendarGrid label=label spacing>
+                    <ForEach keys={(0..MONTH_ROWS).collect::<Vec<_>>()}>|row: usize|
+                        <CalendarMonthRow state={state} row spacing month={cell} />
+                    </ForEach>
+                </CalendarGrid>
+            </Show>
+            <Show condition={years_shown}>||
+                <CalendarGrid label spacing>
+                    <ForEach keys={(0..YEAR_ROWS).collect::<Vec<_>>()}>|row: usize|
+                        <CalendarYearRow
+                            state={state}
+                            row
+                            first_year={first_year}
+                            spacing
+                            year={cell}
+                        />
+                    </ForEach>
+                </CalendarGrid>
+            </Show>
         </List>
     }
 }
@@ -332,9 +306,7 @@ fn CalendarYear(
         node.set_selected(selected.get());
         node
     });
-    let (focus_year, click_year, key_year) = (year, year, year);
     let focused_as = Cell::new(None);
-    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -343,17 +315,17 @@ fn CalendarYear(
             accessibility
             on_focus_change={move |has_focus: bool| {
                 if has_focus {
-                    let year = focus_year.get_untracked();
+                    let year = year.get_untracked();
                     focused_as.set(Some(year));
-                    state.set_year_focus.set(Some(year));
+                    state.year_focus.set(Some(year));
                 } else if let Some(year) = focused_as.take()
                     && state.year_focus.get_untracked() == Some(year)
                 {
-                    state.set_year_focus.set(None);
+                    state.year_focus.set(None);
                 }
             }}
-            on_click={move || pick_year(state, click_year.get_untracked())}
-            on_key={move |press: KeyPress| year_key(state, key_year.get_untracked(), press)}
+            on_click={move || pick_year(state, year.get_untracked())}
+            on_key={move |press: KeyPress| year_key(state, year.get_untracked(), press)}
         >|button: ButtonHandle| {
             face.call(CalendarCellHandle {
                 kind: CalendarMode::Years,
@@ -361,7 +333,7 @@ fn CalendarYear(
                 selected,
                 marked: current,
                 outside: create_memo(|| false),
-                disabled: handle_disabled,
+                disabled,
                 hovered: button.hovered,
                 active: button.active,
                 focused: button.focused,
@@ -445,9 +417,7 @@ fn CalendarDay(
         node.set_selected(selected.get());
         node
     });
-    let (focus_date, click_date, key_date) = (date, date, date);
     let focused_as = Cell::new(None);
-    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -456,18 +426,18 @@ fn CalendarDay(
             accessibility
             on_focus_change={move |has_focus: bool| {
                 if has_focus {
-                    let date = focus_date.get_untracked();
+                    let date = date.get_untracked();
                     focused_as.set(Some(date));
-                    state.set_day_focus.set(Some(date));
-                    state.set_active.set(date);
+                    state.day_focus.set(Some(date));
+                    state.active.set(date);
                 } else if let Some(date) = focused_as.take()
                     && state.day_focus.get_untracked() == Some(date)
                 {
-                    state.set_day_focus.set(None);
+                    state.day_focus.set(None);
                 }
             }}
-            on_click={move || choose(state, click_date.get_untracked())}
-            on_key={move |press: KeyPress| day_key(state, key_date.get_untracked(), press)}
+            on_click={move || choose(state, date.get_untracked())}
+            on_key={move |press: KeyPress| day_key(state, date.get_untracked(), press)}
         >|button: ButtonHandle| {
             face.call(CalendarCellHandle {
                 kind: CalendarMode::Days,
@@ -475,7 +445,7 @@ fn CalendarDay(
                 selected,
                 marked: today,
                 outside,
-                disabled: handle_disabled,
+                disabled,
                 hovered: button.hovered,
                 active: button.active,
                 focused: button.focused,
@@ -532,9 +502,7 @@ fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -
         node.set_selected(selected.get());
         node
     });
-    let (focus_month, click_month) = (month, month);
     let focused_as = Cell::new(None);
-    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -543,16 +511,16 @@ fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -
             accessibility
             on_focus_change={move |has_focus: bool| {
                 if has_focus {
-                    let month = focus_month.get_untracked();
+                    let month = month.get_untracked();
                     focused_as.set(Some(month));
-                    state.set_month_focus.set(Some(month));
+                    state.month_focus.set(Some(month));
                 } else if let Some(month) = focused_as.take()
                     && state.month_focus.get_untracked() == Some(month)
                 {
-                    state.set_month_focus.set(None);
+                    state.month_focus.set(None);
                 }
             }}
-            on_click={move || pick_month(state, click_month.get_untracked())}
+            on_click={move || pick_month(state, month.get_untracked())}
             on_key={move |press: KeyPress| month_key(state, number, press)}
         >|button: ButtonHandle| {
             face.call(CalendarCellHandle {
@@ -561,7 +529,7 @@ fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -
                 selected,
                 marked: current,
                 outside: create_memo(|| false),
-                disabled: handle_disabled,
+                disabled,
                 hovered: button.hovered,
                 active: button.active,
                 focused: button.focused,
@@ -613,13 +581,13 @@ fn clamp(state: State, date: Date) -> Date {
 
 fn reset(state: State) {
     let date = state.selected.get_untracked().unwrap_or(state.today);
-    state.set_active.set(clamp(state, date));
+    state.active.set(clamp(state, date));
 }
 
 fn choose(state: State, date: Date) {
     let date = clamp(state, date);
-    state.set_selected.set(Some(date));
-    state.set_active.set(date);
+    state.selected.set(Some(date));
+    state.active.set(date);
     state.on_change.call(date);
 }
 
@@ -630,11 +598,11 @@ fn page(state: State, direction: i32) {
         CalendarMode::Months => active.add_years(direction),
         CalendarMode::Years => active.add_years(direction * YEARS_PER_PAGE),
     };
-    state.set_active.set(clamp(state, next));
+    state.active.set(clamp(state, next));
 }
 
 fn show_mode(state: State, wanted: CalendarMode) {
-    state.set_mode.update(|mode| {
+    state.mode.update(|mode| {
         *mode = match *mode == wanted {
             true => CalendarMode::Days,
             false => wanted,
@@ -657,10 +625,10 @@ fn years_label(first: i32) -> String {
 fn pick_year(state: State, year: i32) {
     let active = state.active.get_untracked();
     let date = clamp(state, Date::new(year, active.month, active.day));
-    state.set_active.set(date);
-    state.set_mode.set(CalendarMode::Months);
-    state.set_year_focus.set(None);
-    state.set_month_focus.set(Some(date.first_of_month()));
+    state.active.set(date);
+    state.mode.set(CalendarMode::Months);
+    state.year_focus.set(None);
+    state.month_focus.set(Some(date.first_of_month()));
 }
 
 fn year_key(state: State, year: i32, press: KeyPress) -> bool {
@@ -683,8 +651,8 @@ fn year_key(state: State, year: i32, press: KeyPress) -> bool {
     if press.pressed {
         let active = state.active.get_untracked();
         let next = clamp(state, Date::new(next, active.month, active.day));
-        state.set_active.set(next);
-        state.set_year_focus.set(Some(next.year));
+        state.active.set(next);
+        state.year_focus.set(Some(next.year));
     }
     true
 }
@@ -692,10 +660,10 @@ fn year_key(state: State, year: i32, press: KeyPress) -> bool {
 fn pick_month(state: State, month: Date) {
     let active = state.active.get_untracked();
     let date = clamp(state, Date::new(month.year, month.month, active.day));
-    state.set_active.set(date);
-    state.set_mode.set(CalendarMode::Days);
-    state.set_month_focus.set(None);
-    state.set_day_focus.set(Some(date));
+    state.active.set(date);
+    state.mode.set(CalendarMode::Days);
+    state.month_focus.set(None);
+    state.day_focus.set(Some(date));
 }
 
 fn day_key(state: State, date: Date, press: KeyPress) -> bool {
@@ -719,8 +687,8 @@ fn day_key(state: State, date: Date, press: KeyPress) -> bool {
     };
     if press.pressed {
         let next = clamp(state, next);
-        state.set_active.set(next);
-        state.set_day_focus.set(Some(next));
+        state.active.set(next);
+        state.day_focus.set(Some(next));
     }
     true
 }
@@ -747,8 +715,8 @@ fn month_key(state: State, number: u8, press: KeyPress) -> bool {
             state,
             Date::new(active.year, number, active.day).add_months(offset),
         );
-        state.set_active.set(next);
-        state.set_month_focus.set(Some(next.first_of_month()));
+        state.active.set(next);
+        state.month_focus.set(Some(next.first_of_month()));
     }
     true
 }

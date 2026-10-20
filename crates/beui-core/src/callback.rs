@@ -21,7 +21,7 @@ impl NodeRef {
     }
 
     pub fn fill(&self, node: NodeId) {
-        let Some(cell) = self.0.try_get() else {
+        let Some(cell) = self.0.try_value() else {
             return;
         };
         cell.set(Some(node));

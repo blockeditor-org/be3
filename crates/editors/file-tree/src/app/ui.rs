@@ -18,7 +18,7 @@ use block_editor_beui::{
 use uuid::Uuid;
 
 use super::export::{Export, ExportFormat, Exporter, formats};
-use super::menu::{RowTools, row_menu};
+use super::menu::{RowMenu, RowTools};
 use super::rows::{
     Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker, is_workspace,
 };
@@ -38,14 +38,14 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let exporter = Exporter::new(editor);
     let exported = exporter.error();
     let held: Held = store(std::cell::Cell::new(None));
-    let (inspecting, set_inspecting) = create_signal(None::<Inspection>);
-    let zoom = Zoom::new(tree);
+    let inspecting = create_signal(None::<Inspection>);
+    let zoom = Zoom::new(editor, tree);
     let tools = RowTools {
         editor,
         tree,
         picker,
         exporter,
-        inspect: set_inspecting,
+        inspect: inspecting,
         zoom,
     };
     let keys = zoom.keys();
@@ -54,7 +54,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let focused = create_memo(move || focused_block.with(focused_key));
 
     let tree_ref = NodeRef::new();
-    let (landing, set_landing) = create_signal(None::<(RowKey, bool)>);
+    let landing = create_signal(None::<(RowKey, bool)>);
     let drag = editor.drag();
     let arriving = create_memo(move || landing.get());
 
@@ -171,7 +171,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
     editor.content(&content);
     create_effect(move || {
         let landed = arrival(editor, held, rows, tree_ref, drag);
-        set_landing.set(landed);
+        landing.set(landed);
     });
     view! {
         <Frame fill=ColorRole::Background>
@@ -227,7 +227,9 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                     row_test_id={move |key: RowKey| row_test_id(&key)}
                                     reveal_test_id={"file-tree.reveal".to_owned()}
                                     outline={outline}
-                                    menu={move |key: RowKey| row_menu(tools, key)}
+                                    menu={move |key: RowKey| view! {
+                                        <RowMenu tools key />
+                                    }}
                                     on_select={open}
                                     on_expand={expand}
                                     on_reveal={reveal}
@@ -260,7 +262,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         </Frame>
                     </BackSlide>
                 </Frame>
-                <Inspector inspecting={inspecting} set_inspecting={set_inspecting} />
+                <Inspector inspecting={inspecting} />
             </List>
         </Frame>
     }
@@ -292,10 +294,7 @@ fn PhoneTitle(on_new_workspace: ClickCallback, on_menu: ClickCallback) -> NodeId
 }
 
 #[component]
-fn Inspector(
-    inspecting: ReadSignal<Option<Inspection>>,
-    set_inspecting: WriteSignal<Option<Inspection>>,
-) -> NodeId {
+fn Inspector(inspecting: Signal<Option<Inspection>>) -> NodeId {
     let open = create_memo(move || inspecting.get().is_some());
     let field = |read: fn(&Inspection) -> &String| {
         create_memo(move || {
@@ -311,8 +310,8 @@ fn Inspector(
     let access = field(|shown| &shown.access);
     let generated = field(|shown| &shown.generated);
     let shown_as = field(|shown| &shown.shown_as);
-    let dismiss = move || set_inspecting.set(None);
-    let close = move || set_inspecting.set(None);
+    let dismiss = move || inspecting.set(None);
+    let close = move || inspecting.set(None);
     view! {
         <Dialog open={open} title="Inspect" width=INSPECT_WIDTH on_dismiss={dismiss}>
             <List spacing=ROW_SPACING>
@@ -717,7 +716,7 @@ fn AddChild(
     named: String,
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
-    let (focused, set_focused) = create_signal(false);
+    let focused = create_signal(false);
     let reachable = create_memo(move || row_focused.get() || focused.get());
     let shown = create_memo(move || hovered.get() || reachable.get());
     let accessibility = create_memo(move || {
@@ -733,7 +732,7 @@ fn AddChild(
                     tab_stop={reachable}
                     capture_presses=true
                     accessibility={accessibility}
-                    on_focus_change={move |has_focus: bool| set_focused.set(has_focus)}
+                    on_focus_change={move |has_focus: bool| focused.set(has_focus)}
                     on_click={on_click}
                     content={move |button: ButtonHandle| view! {
                         <AddChildFace handle={button} shown={shown} label={label} />
@@ -838,8 +837,7 @@ fn row_rect(tree: NodeId, key: &RowKey) -> Option<Rect> {
 #[derive(Clone, Copy)]
 pub(crate) struct Picker {
     inner: Stored<PickerInner>,
-    error: block_editor_beui::beui::reactive::ReadSignal<Option<String>>,
-    set_error: block_editor_beui::beui::reactive::WriteSignal<Option<String>>,
+    error: Signal<Option<String>>,
 }
 
 struct PickerInner {
@@ -858,8 +856,8 @@ impl Picker {
     }
 
     fn request(&self, editor: Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>) {
-        self.set_error.set(None);
-        let inner = self.inner.get();
+        self.error.set(None);
+        let inner = self.inner.value();
         inner.target.set(parent);
         let place = parent.map_or(BlockParent::Root, BlockParent::Block);
         inner.picker.borrow_mut().open(
@@ -876,18 +874,17 @@ impl Picker {
 }
 
 fn picker(editor: Editor, tree: FileTree) -> Picker {
-    let (error, set_error) = create_signal(None::<String>);
+    let error = create_signal(None::<String>);
     let picker = Picker {
         inner: store(PickerInner {
             picker: std::cell::RefCell::new(BlockPicker::default()),
             target: std::cell::Cell::new(None),
         }),
         error,
-        set_error,
     };
     let host = editor.host();
     editor.on_reply(move || {
-        let Some(inner) = picker.inner.try_get() else {
+        let Some(inner) = picker.inner.try_value() else {
             return;
         };
         let Some(result) = inner.picker.borrow_mut().poll(&host) else {
@@ -897,7 +894,7 @@ fn picker(editor: Editor, tree: FileTree) -> Picker {
         let picked = match result {
             Ok(picked) => picked,
             Err(error) => {
-                picker.set_error.set(Some(error));
+                picker.error.set(Some(error));
                 return;
             }
         };

@@ -11,12 +11,10 @@ fn a_component_wrapping_a_node_less_component_keeps_its_scope() {
     let _root = crate::reactive::RootScope::new();
     let menu = NodeRef::new();
     let region = NodeRef::new();
-    let (count, set_count) = create_signal(0usize);
-    let document = crate::reactive::build({
-        move || {
-            view! {
-                <Rows @node_ref=&menu region={region} count={count} />
-            }
+    let count = create_signal(0usize);
+    let document = crate::reactive::build(move || {
+        view! {
+            <Rows @node_ref=&menu region={region} count={count.read_only()} />
         }
     });
     let mut harness = Harness::new(document);
@@ -31,7 +29,7 @@ fn a_component_wrapping_a_node_less_component_keeps_its_scope() {
     }]);
     harness.frame(Vec::new());
 
-    with_reactive_scope(harness.document_mut(), move || set_count.set(2));
+    count.set(2);
     harness.frame(Vec::new());
 
     let content = unstyled::context_menu_menu(harness.document(), menu.get());

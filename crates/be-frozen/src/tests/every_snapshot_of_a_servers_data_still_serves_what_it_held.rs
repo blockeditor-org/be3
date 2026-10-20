@@ -34,17 +34,82 @@ async fn request(
     connection.request(build).await.unwrap()
 }
 
+async fn portal_http(
+    server: &Server,
+    method: &str,
+    path: &str,
+    cookie: &str,
+    body: &str,
+) -> String {
+    use tokio::io::{AsyncReadExt, AsyncWriteExt};
+    let address = server.url.trim_start_matches("http://");
+    let mut stream = tokio::net::TcpStream::connect(address).await.unwrap();
+    stream.write_all(format!("{method} {path} HTTP/1.1\r\nHost: {address}\r\nOrigin: http://{address}\r\nCookie: be3-account={cookie}\r\nContent-Type: application/x-www-form-urlencoded\r\nContent-Length: {}\r\nConnection: close\r\n\r\n{body}", body.len()).as_bytes()).await.unwrap();
+    let mut bytes = Vec::new();
+    stream.read_to_end(&mut bytes).await.unwrap();
+    String::from_utf8(bytes).unwrap()
+}
+fn csrf(page: &str) -> &str {
+    page.split("name=\"csrf\" value=\"")
+        .nth(1)
+        .unwrap()
+        .split('"')
+        .next()
+        .unwrap()
+}
+fn form_value(value: &str) -> String {
+    value.bytes().map(|byte| format!("%{byte:02X}")).collect()
+}
 async fn sign_in(server: &Server, email: &str, password: &str) -> (Arc<Connection>, String) {
     let connection = Connection::connect(&socket(server)).await.unwrap();
+    let ServerMessage::BrowserLogin { code, secret, .. } = request(&connection, |request| {
+        ClientMessage::BeginBrowserLogin { request }
+    })
+    .await
+    else {
+        panic!("browser sign-in starts")
+    };
+    let page = portal_http(server, "GET", "/auth/login", "", "").await;
+    let signed_in = portal_http(
+        server,
+        "POST",
+        "/auth/login",
+        "",
+        &format!(
+            "csrf={}&email={}&password={}",
+            csrf(&page),
+            form_value(email),
+            form_value(password)
+        ),
+    )
+    .await;
+    assert!(signed_in.starts_with("HTTP/1.1 303"), "{signed_in}");
+    let cookie = signed_in
+        .split("Set-Cookie: be3-account=")
+        .nth(1)
+        .unwrap()
+        .split(';')
+        .next()
+        .unwrap();
+    let page = portal_http(server, "GET", &format!("/auth?code={code}"), cookie, "").await;
+    let approved = portal_http(
+        server,
+        "POST",
+        "/auth/approve",
+        cookie,
+        &format!("csrf={}&code={code}", csrf(&page)),
+    )
+    .await;
+    assert!(approved.starts_with("HTTP/1.1 303"), "{approved}");
     let ServerMessage::Authenticated { token, .. } =
-        request(&connection, |request| ClientMessage::Login {
+        request(&connection, |request| ClientMessage::FinishBrowserLogin {
             request,
-            email: email.into(),
-            password: password.into(),
+            code,
+            secret,
         })
         .await
     else {
-        panic!("{email}'s password no longer signs in");
+        panic!("{email}'s password no longer signs in")
     };
     (connection, token)
 }
@@ -68,11 +133,14 @@ async fn register(server: &Server, email: &str, organization: Uuid) -> Peer<Memo
         PeerConfig::new(
             socket(server),
             RecoveryPhrase::generate().secret(),
-            Credentials::Register {
-                email: email.into(),
-                display_name: email.into(),
-                password: "a password long enough".into(),
-            },
+            Credentials::Token(
+                be_server::ServerStore::open(&server.data)
+                    .unwrap()
+                    .register(email, email, "a password long enough")
+                    .await
+                    .unwrap()
+                    .1,
+            ),
         )
         .organization(Some(organization)),
         MemoryStore::new(),
@@ -93,7 +161,11 @@ async fn check(snapshot: &Snapshot) {
     let organization = id(snapshot.organization);
     let personal = id(snapshot.personal);
 
-    let (by_password, _) = sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
+    let (by_password, owner_token) =
+        sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
+    let store = be_server::ServerStore::open(&server.data).unwrap();
+    assert!(store.resolve_token(snapshot.owner_token).await.is_err());
+    assert!(store.resolve_token(snapshot.friend_token).await.is_err());
     let ServerMessage::RecoveryKey { public, .. } = request(&by_password, |request| {
         ClientMessage::GetRecoveryKey { request }
     })
@@ -134,13 +206,7 @@ async fn check(snapshot: &Snapshot) {
         OrganizationRole::Editor
     )));
 
-    let owner = peer(
-        &server,
-        snapshot.owner_phrase,
-        snapshot.owner_token,
-        organization,
-    )
-    .await;
+    let owner = peer(&server, snapshot.owner_phrase, &owner_token, organization).await;
     let metadata = |block: &str| {
         let owner = &owner;
         let block = id(block);
@@ -313,7 +379,10 @@ async fn check(snapshot: &Snapshot) {
     let rows = agent.list(id(snapshot.database), &[]).await.unwrap();
     let titles: Vec<_> = rows.iter().map(|row| row.title.as_str()).collect();
     assert_eq!(titles, [scene::FIRST_ROW, scene::SECOND_ROW]);
-    let first = agent.show(&rows[0].id).await.unwrap();
+    let first = agent
+        .show(id(snapshot.database), &rows[0].id)
+        .await
+        .unwrap();
     for (field, text) in [("Status", "Done"), ("Estimate", "3"), ("Urgent", "true")] {
         assert_eq!(
             first.field(field).map(|field| field.text.as_str()),
@@ -339,25 +408,14 @@ async fn check(snapshot: &Snapshot) {
     );
     assert_eq!(editor.keys().escrow(), latest);
 
-    let friend = peer(
-        &server,
-        snapshot.friend_phrase,
-        snapshot.friend_token,
-        personal,
-    )
-    .await;
+    let (_, friend_token) = sign_in(&server, scene::FRIEND_EMAIL, scene::FRIEND_PASSWORD).await;
+    let friend = peer(&server, snapshot.friend_phrase, &friend_token, personal).await;
     assert_eq!(
         text(&friend, snapshot.holiday_note).await,
         scene::HOLIDAY_NOTE
     );
     assert!(friend.summary(id(snapshot.recipes)).await.is_err());
-    let owner_personal = peer(
-        &server,
-        snapshot.owner_phrase,
-        snapshot.owner_token,
-        personal,
-    )
-    .await;
+    let owner_personal = peer(&server, snapshot.owner_phrase, &owner_token, personal).await;
     assert_eq!(
         text(&owner_personal, snapshot.holiday_note).await,
         scene::HOLIDAY_NOTE
@@ -460,13 +518,8 @@ async fn check(snapshot: &Snapshot) {
     assert!(report.objects > 0);
     assert!(backup::verify(&restored).unwrap().missing.is_empty());
     let server = Server::serve(restored).await;
-    let owner = peer(
-        &server,
-        snapshot.owner_phrase,
-        snapshot.owner_token,
-        organization,
-    )
-    .await;
+    let (_, owner_token) = sign_in(&server, scene::OWNER_EMAIL, scene::OWNER_PASSWORD).await;
+    let owner = peer(&server, snapshot.owner_phrase, &owner_token, organization).await;
     assert_eq!(text(&owner, snapshot.shopping).await, scene::SHOPPING[2]);
     assert_eq!(text(&owner, snapshot.plan).await, scene::PLAN[1]);
     drop(owner);

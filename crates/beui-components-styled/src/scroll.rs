@@ -3,6 +3,7 @@ use beui_macros::{component, view};
 
 use crate::Scrollbar;
 use crate::card;
+use crate::dialog;
 use crate::popover::PANEL_PADDING;
 use crate::text::{Icon, Text};
 use crate::theme::{BORDER_WIDTH, SCROLL_FADE, SCROLLBAR_WIDTH, use_theme};
@@ -27,6 +28,7 @@ impl Bleed {
     pub const NONE: Bleed = Bleed::new(0.0, 0.0);
     pub const POPOVER: Bleed = Bleed::new(PANEL_PADDING, PANEL_PADDING);
     pub const CARD: Bleed = Bleed::new(card::PADDING_HORIZONTAL, card::PADDING_VERTICAL);
+    pub const DIALOG: Bleed = Bleed::new(dialog::PADDING_HORIZONTAL, dialog::PADDING_VERTICAL);
 
     const fn new(horizontal: f32, vertical: f32) -> Self {
         Self {
@@ -75,11 +77,11 @@ pub fn Scroll(
     #[prop(default = false)] fit: bool,
     #[prop(default = None)] max_length: Option<f32>,
     #[prop(default = Bleed::NONE)] bleed: Bleed,
+    #[prop(default = true)] tab_stop: bool,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
     let theme = use_theme();
-    let along = direction;
     let scroll = view! {
         <unstyled::Scroll
             offset
@@ -87,6 +89,7 @@ pub fn Scroll(
             direction
             fit={fit || max_length.is_some()}
             bleed={bleed.reach}
+            tab_stop
             focus_color={theme.accent}
             scrollbar={scrollbar_style()}
             marker={|axis: Memo<Direction>| view! {
@@ -101,7 +104,7 @@ pub fn Scroll(
         return scroll;
     };
     view! {
-        <List direction={along} spacing=0.0>
+        <List direction={direction} spacing=0.0>
             {scroll} @sizing={ItemSize::Intrinsic.max(max_length)}
         </List>
     }

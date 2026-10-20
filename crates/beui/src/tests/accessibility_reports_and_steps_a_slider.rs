@@ -1,17 +1,19 @@
 use accesskit::{Action, ActionRequest, Role, TreeId};
+use beui_view::reactive::Get;
+use beui_view::reactive::Set;
 
 use super::{Harness, VIEWPORT, build, create_signal, styled, view};
 
 #[test]
 fn accessibility_reports_and_steps_a_slider() {
     let _root = crate::reactive::RootScope::new();
-    let (changed, set_changed) = create_signal(None);
+    let changed = create_signal(None);
     let document = build(move || {
         view! {
             <styled::Slider
                 value=0.5
                 label="Volume"
-                on_change={move |value| set_changed.set(Some(value))}
+                on_change={move |value| changed.set(Some(value))}
             />
         }
     });

@@ -6,17 +6,15 @@ use crate::reactive::*;
 fn a_value_written_between_tags_takes_the_sizing_after_it() {
     let _root = crate::reactive::RootScope::new();
     let (fixed, filling) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            let handed_over = view! {
-                <Frame @node_ref=&filling />
-            };
-            view! {
-                <List direction=Direction::Horizontal spacing=0.0>
-                    <Frame @node_ref=&fixed @sizing=ItemSize::Fixed(30.0) />
-                    {handed_over} @sizing=ItemSize::Percent(100.0)
-                </List>
-            }
+    let document = build(move || {
+        let handed_over = view! {
+            <Frame @node_ref=&filling />
+        };
+        view! {
+            <List direction=Direction::Horizontal spacing=0.0>
+                <Frame @node_ref=&fixed @sizing=ItemSize::Fixed(30.0) />
+                {handed_over} @sizing=ItemSize::Percent(100.0)
+            </List>
         }
     });
 

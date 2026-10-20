@@ -1,5 +1,6 @@
 use std::time::Duration;
 
+use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::datetime::{HourCycle, Time};
 use block_editor_beui::beui::icons::{
@@ -8,7 +9,7 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
-use block_editor_beui::{Epaper, EpaperRequest, Media, Power, Wifi, utc_offset};
+use block_editor_beui::{Displays, Epaper, EpaperRequest, Media, Power, Wifi, utc_offset};
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
@@ -17,6 +18,7 @@ use super::notifications::{DesktopNotifications, NotificationsButton};
 use super::placeholders::{OpenAllButton, Placeholders};
 use super::popup::BarPopup;
 use super::power::PowerMenu;
+use super::rotate::RotateButton;
 use super::sessions::Sessions;
 use super::tray::TrayItems;
 use super::volume::VolumeButton;
@@ -42,13 +44,13 @@ fn wall_clock() -> ReadSignal<String> {
         let into = unix().as_secs() % SECONDS_PER_MINUTE;
         Duration::from_secs(SECONDS_PER_MINUTE - into)
     };
-    let (clock, set_clock) = create_signal(shown());
+    let clock = create_signal(shown());
     let ticking = create_timer(move || {
-        set_clock.set(shown());
+        clock.set(shown());
         Some(until_next_minute())
     });
     ticking.start(until_next_minute());
-    clock
+    clock.read_only()
 }
 
 #[component]
@@ -73,6 +75,12 @@ pub(crate) fn DesktopBar(
     let powered = editor.host_offers::<Power>();
     let epaper = editor.host_value::<Epaper>();
     let refresh = move || editor.act(EpaperRequest::Refresh);
+    let displays = editor.host_value::<Displays>();
+    let screen = create_memo(move || displays.with(|displays| displays.first().cloned()));
+    let display_settings = editor.effective_settings::<DisplaySettings>();
+    let rotatable = create_memo(move || {
+        display_settings.with(DisplaySettings::rotate_in_bar) && screen.with(Option::is_some)
+    });
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let sessions = Sessions::new(workspace);
     let listed = sessions.listed;
@@ -84,7 +92,6 @@ pub(crate) fn DesktopBar(
                 .collect::<Vec<_>>()
         })
     });
-    let named = listed;
     let settings = sessions.settings;
     let unready = create_memo(move || settings.get().is_none());
     let listing = create_memo(move || !listed.with(Vec::is_empty));
@@ -122,9 +129,8 @@ pub(crate) fn DesktopBar(
                         @test_id={"desktop.sessions"}
                         items={view! {
                             <ForEach keys={keys}>|block: uuid::Uuid| {
-                                let named = named;
                                 let label = create_memo(move || {
-                                    named.with(|sessions| {
+                                    listed.with(|sessions| {
                                         sessions
                                             .iter()
                                             .find(|session| session.block == block)
@@ -168,6 +174,9 @@ pub(crate) fn DesktopBar(
                             press_focus=false
                             on_click={refresh}
                         />
+                    </Show>
+                    <Show condition={rotatable}>
+                        <RotateButton editor={editor} display={screen} />
                     </Show>
                     <IconButton
                         glyph={ICON_KEYBOARD.to_owned()}

@@ -72,10 +72,9 @@ these in front of the pinned buck2:
   first run), and its hosts and key go
   into a generated `.buckconfig.local`, with the server's name as
   `be3.build_server`, which picks the workers' image. For Namespace, the
-  default, the pinned `nsc` is installed into `target/tools/nsc-<version>/` the
-  first time it is missing, wakes the remote execution cluster, and names its
-  hosts (guides/build_server.md says when it asks, and where each server's key
-  comes from).
+  default, the hosts are asked of `namespace-waker` at `api.be3.pfg.pw`, which
+  wakes the remote execution cluster (guides/build_server.md says when it
+  asks, and where each server's key comes from).
 - **An HTTPS proxy.** buck2's remote execution client dials the server's hosts
   directly and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
   `scripts/internal/re-relay` with Go (1.24 or newer), leaves one running for the executor and one for the storage, on two
@@ -179,7 +178,10 @@ example is `cargo_example("<name>")`, which makes `:example-<name>`. What
 `Cargo.toml` cannot say is passed as arguments: `env`, `extra_deps`, or any
 rule attribute such as a test's `remote_execution = "disabled"`.
 
-Sources are inferred, including non-Rust files read at compile time. Libraries
+Sources are inferred, including non-Rust files read at compile time. The common
+library, binary, example and test rules also carry the manifest at
+`CARGO_MANIFEST_DIR/Cargo.toml`, so procedural macros can discover dependency
+names during remote compilation. Libraries
 use `src/**` except `src/bin/**`, `tests.rs`, `tests/**`, `main_tests.rs` and
 `main_tests/**` at any depth. Tests use all of `src/**` except `src/bin/**`.
 Keep test-only assets under a `tests/` directory. Binaries and examples in a
@@ -236,8 +238,14 @@ deletes the paintings no test named.
 **Native tests that paint**, `cargo_test(paints = True, run_env = ...)`, are
 treated the same way: `:test` runs here and `:test-run` is the action
 `./scripts/verify` reads paintings from. `run_env` is the environment the test
-runs with, kept out of its compile. crates/app-tests is the one: it runs
-block-app's `:native` headless, so it runs on Linux x86_64 only.
+runs with, kept out of its compile. crates/app-tests runs block-app's `:native` headless, so it runs on Linux x86_64 only.
+It also passes `run_apart = True`, which makes a `:test-run-<file>` for each file under
+`src/tests/` in place of one `:test-run`: a failed action keeps no outputs, so a failing test
+then loses only its own paintings, not every one the crate accepts.
+crates/be-server captures its SSR portal as text browser paintings without a browser.
+
+Each compile-fail suite keeps a `Cargo.toml` listing its dependencies. The rule
+maps it into the compiler sandbox for automatic macro support-crate discovery.
 
 `compile_fail/` holds code that must not compile: `compile_fail(name, deps)`
 in its `BUCK` makes `<name>/lib.rs` a crate and `:<name>-test`, which reads

@@ -42,3 +42,13 @@ deploy(
     web = "//crates/block-app:web",
     web_download = downloads,
 )
+
+[
+    genrule(
+        name = name + "-index",
+        cmd = "$(exe :bin) web-page " + name + " $OUT",
+        out = "index.html",
+        visibility = ["PUBLIC"],
+    )
+    for name in ["block", "demo"]
+]

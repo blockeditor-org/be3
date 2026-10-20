@@ -6,11 +6,11 @@ use crate::reactive::*;
 #[test]
 fn a_driver_holds_a_back_gesture_part_way_and_cancels_it() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal(Vec::<BackGesture>::new());
+    let heard = create_signal(Vec::<BackGesture>::new());
     let document = build(move || {
         view! {
             <BackHandler
-                on_gesture={move |gesture: BackGesture| set_heard.update(|heard| heard.push(gesture))}
+                on_gesture={move |gesture: BackGesture| heard.update(|heard| heard.push(gesture))}
             >
                 <Text string="Page" />
             </BackHandler>

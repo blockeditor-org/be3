@@ -5,8 +5,8 @@ fn a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden() {
     let _root = ::reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
-    let (open, set_open) = create_signal(true);
-    let (note, set_note) = create_signal(0);
+    let open = create_signal(true);
+    let note = create_signal(0);
     let runs = store(Cell::new(0));
     let page = scope.run(|| {
         let text = create_memo(move || {
@@ -23,9 +23,9 @@ fn a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden() {
     });
     assert_eq!(runs.with(Cell::get), 1);
 
-    set_open.set(false);
+    open.set(false);
     for next in 1..=5 {
-        set_note.set(next);
+        note.set(next);
     }
     assert_eq!(
         runs.with(Cell::get),
@@ -33,7 +33,7 @@ fn a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden() {
         "a hidden `ShowKeepAlive` runs none of its child's updates"
     );
 
-    set_open.set(true);
+    open.set(true);
     assert_eq!(runs.with(Cell::get), 2, "showing it again catches up once");
     assert_eq!(page.html(), "<div id=0><p id=1>5</p></div>");
 }

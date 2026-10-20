@@ -1,3 +1,5 @@
+pub(crate) mod portal;
+pub use portal::{AccountSession, MailLink};
 use std::{
     collections::{BTreeMap, HashMap, hash_map::Entry},
     path::{Path, PathBuf},
@@ -47,6 +49,7 @@ pub struct Profile {
 
 pub struct ServerStore {
     database: Mutex<Connection>,
+    pub(crate) session_changes: tokio::sync::watch::Sender<u64>,
     objects: FileStore,
     graphs: Mutex<HashMap<Uuid, BlockGraph>>,
     revision: std::sync::atomic::AtomicU64,
@@ -70,10 +73,13 @@ impl ServerStore {
         let root: PathBuf = root.as_ref().to_path_buf();
         std::fs::create_dir_all(&root)?;
         let connection = Connection::open(root.join("metadata.sqlite"))?;
+        connection.busy_timeout(Duration::from_secs(5))?;
         schema::initialize(&connection)?;
+        connection.execute("UPDATE sessions SET kind = 'app', public_id = lower(hex(randomblob(16))), created = ?1 WHERE kind = 'legacy' AND (account_id IN (SELECT account_id FROM agents) OR account_id IN (SELECT id FROM accounts WHERE local_profile = 1))", [portal::now()])?;
         let object_refs = load_object_refs(&connection)?;
         Ok(Self {
             database: Mutex::new(connection),
+            session_changes: tokio::sync::watch::channel(0).0,
             objects: FileStore::open(root.join("objects"))?,
             graphs: Mutex::new(HashMap::new()),
             revision: std::sync::atomic::AtomicU64::new(0),
@@ -181,7 +187,7 @@ impl ServerStore {
         ))
     }
 
-    pub async fn login(
+    pub async fn login_browser(
         &self,
         email: &str,
         password: &str,
@@ -210,7 +216,7 @@ impl ServerStore {
             .as_ref()
             .map_or_else(|| dummy_hash().to_owned(), |(_, _, hash)| hash.clone());
         let matches = self.verify(password.to_owned(), hash).await?;
-        let Some((id, display_name, _)) = row.filter(|_| matches) else {
+        let Some((id, display_name, previous_hash)) = row.filter(|_| matches) else {
             self.failed(&email);
             return Err(ServerError::Refused(
                 ErrorCode::InvalidCredentials,
@@ -219,7 +225,25 @@ impl ServerStore {
         };
         self.failures.lock().unwrap().remove(&email);
         let account = parse_uuid(&id)?;
-        let token = issue_token(&*self.database.lock().await, account)?;
+        let database = self.database.lock().await;
+        let transaction = database.unchecked_transaction()?;
+        let unchanged: bool = transaction.query_row(
+            "SELECT EXISTS(SELECT 1 FROM accounts WHERE id = ?1 AND password_hash = ?2)",
+            params![id, previous_hash],
+            |row| row.get(0),
+        )?;
+        if !unchanged {
+            return Err(ServerError::Refused(
+                ErrorCode::InvalidCredentials,
+                "Your credentials changed. Sign in again.".into(),
+            ));
+        }
+        let token = issue_token(&transaction, account)?;
+        transaction.execute(
+            "UPDATE sessions SET kind = 'browser', expires = ?2 WHERE token_hash = ?1",
+            params![hash_token(&token), portal::now() + 30 * 86400],
+        )?;
+        transaction.commit()?;
         Ok((
             Profile {
                 account,
@@ -289,7 +313,7 @@ impl ServerStore {
             .query_row(
                 "SELECT accounts.id, CASE WHEN accounts.local_profile THEN '' ELSE accounts.email END, accounts.display_name FROM sessions
                  JOIN accounts ON accounts.id = sessions.account_id
-                 WHERE sessions.token_hash = ?1",
+                 WHERE sessions.token_hash = ?1 AND sessions.kind = 'app'",
                 [hash_token(token)],
                 |row| Ok((row.get(0)?, row.get(1)?, row.get(2)?)),
             )
@@ -327,6 +351,7 @@ impl ServerStore {
             "DELETE FROM sessions WHERE token_hash = ?1",
             [hash_token(token)],
         )?;
+        self.sessions_changed();
         Ok(())
     }
 
@@ -871,20 +896,6 @@ impl ServerStore {
         Ok(self.objects.get(hash)?)
     }
 
-    pub fn get_object_range(
-        &self,
-        hash: Hash,
-        offset: u64,
-        length: u64,
-    ) -> Result<Option<Vec<u8>>, ServerError> {
-        if !self.objects.has(hash)? {
-            return Ok(None);
-        }
-        let offset = usize::try_from(offset).unwrap_or(usize::MAX);
-        let length = usize::try_from(length).unwrap_or(usize::MAX);
-        Ok(Some(self.objects.get_range(hash, offset, length)?))
-    }
-
     pub fn missing_objects(&self, hashes: &[Hash]) -> Result<Vec<Hash>, ServerError> {
         let mut missing = Vec::new();
         for hash in hashes {
@@ -914,10 +925,17 @@ fn load_object_refs(connection: &Connection) -> Result<ObjectRefs, ServerError> 
 
 pub fn normalize_email(email: &str) -> Result<String, ServerError> {
     let email = email.trim().to_ascii_lowercase();
-    if !email.contains('@') || email.len() < 3 {
+    let valid = email.split_once('@').is_some_and(|(local, domain)| {
+        !local.is_empty()
+            && local.len() <= 64
+            && !domain.is_empty()
+            && !domain.contains('@')
+            && !domain.split('.').any(str::is_empty)
+    });
+    if !valid || email.len() > 254 || email.chars().any(|c| c.is_whitespace() || c.is_control()) {
         return Err(ServerError::Refused(
             ErrorCode::InvalidRequest,
-            "that email address is not valid".into(),
+            "Email: enter a valid email address of at most 254 bytes.".into(),
         ));
     }
     Ok(email)
@@ -953,8 +971,8 @@ fn issue_token(database: &Connection, account: Uuid) -> Result<String, ServerErr
         .expect("the operating system has entropy");
     let token = Hash::from_bytes(bytes).to_hex();
     database.execute(
-        "INSERT INTO sessions (token_hash, account_id) VALUES (?1, ?2)",
-        params![hash_token(&token), account.to_string()],
+        "INSERT INTO sessions (token_hash, account_id, kind, public_id, created) VALUES (?1, ?2, 'app', ?3, ?4)",
+        params![hash_token(&token), account.to_string(), Uuid::new_v4().to_string(), portal::now()],
     )?;
     Ok(token)
 }

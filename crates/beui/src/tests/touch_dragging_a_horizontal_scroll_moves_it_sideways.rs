@@ -8,7 +8,7 @@ use crate::unstyled::Scroll;
 #[test]
 fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -21,7 +21,7 @@ fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
                         <Frame width=120.0>
                             <LabelledButton
                                 label={format!("Card {index}")}
-                                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                                on_click={move || clicks.update(|clicks| *clicks += 1)}
                             />
                         </Frame>
                     </ForEach>

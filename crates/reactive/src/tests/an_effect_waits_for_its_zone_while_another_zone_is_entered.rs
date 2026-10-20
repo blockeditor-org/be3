@@ -5,7 +5,7 @@ use crate::{enter_zone, zone_pending};
 fn an_effect_waits_for_its_zone_while_another_zone_is_entered() {
     let _root = RootScope::new();
     let seen = Rc::new(RefCell::new(Vec::new()));
-    let (count, set_count) = create_signal(0);
+    let count = create_signal(0);
     let scope = Scope::new();
     {
         let _zone = enter_zone(7);
@@ -18,7 +18,7 @@ fn an_effect_waits_for_its_zone_while_another_zone_is_entered() {
 
     {
         let _zone = enter_zone(8);
-        set_count.set(1);
+        count.set(1);
         assert_eq!(*seen.borrow(), vec![0]);
     }
     assert!(zone_pending(7));

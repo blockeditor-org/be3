@@ -5,8 +5,8 @@ use crate::reactive::*;
 fn a_released_sheet_springs_to_its_stop_or_closed() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
-    let (closed, set_closed) = create_signal(0);
-    let document = sheet_of_rows(0.5, sheet, set_closed);
+    let closed = create_signal(0);
+    let document = sheet_of_rows(0.5, sheet, closed);
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
     harness.settle();
     let sheet = sheet.get();

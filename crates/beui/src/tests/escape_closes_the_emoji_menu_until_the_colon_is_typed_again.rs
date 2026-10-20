@@ -8,11 +8,11 @@ use text_editor_core::TextBuffer;
 #[test]
 fn escape_closes_the_emoji_menu_until_the_colon_is_typed_again() {
     let _root = crate::reactive::RootScope::new();
-    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
+    let held = create_signal::<Option<TextAreaState>>(None);
     let document = build(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        set_held.update(|held| *held = Some(state));
+        held.update(|held| *held = Some(state));
         view! {
             <TextArea state={state} />
         }

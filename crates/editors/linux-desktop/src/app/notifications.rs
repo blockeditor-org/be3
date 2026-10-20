@@ -51,8 +51,7 @@ pub(crate) struct DesktopNotifications {
     revision: ReadSignal<u64>,
     pub(crate) offered: Memo<bool>,
     locked: Memo<bool>,
-    browsing: ReadSignal<bool>,
-    set_browsing: WriteSignal<bool>,
+    browsing: Signal<bool>,
 }
 
 struct Shared {
@@ -62,14 +61,14 @@ struct Shared {
     handled: Cell<u64>,
     arrived: RefCell<NotificationInbox>,
     reported: RefCell<Vec<u32>>,
-    revision: WriteSignal<u64>,
+    revision: Signal<u64>,
     shown: Cell<u64>,
     expiry: RefCell<Option<Timer>>,
 }
 
 impl DesktopNotifications {
     pub(crate) fn new(editor: Editor) -> Self {
-        let (revision, set_revision) = create_signal(0_u64);
+        let revision = create_signal(0_u64);
         let shared = store(Shared {
             editor,
             center: RefCell::new(Center::default()),
@@ -77,27 +76,26 @@ impl DesktopNotifications {
             handled: Cell::new(0),
             arrived: RefCell::new(NotificationInbox::default()),
             reported: RefCell::new(Vec::new()),
-            revision: set_revision,
+            revision,
             shown: Cell::new(0),
             expiry: RefCell::new(None),
         });
-        let expiry = create_timer(move || shared.try_get().and_then(|shared| shared.tick()));
+        let expiry = create_timer(move || shared.try_value().and_then(|shared| shared.tick()));
         shared.with(|shared| shared.expiry.replace(Some(expiry)));
         let inbox = editor.host_value::<Notifications>();
         create_effect(move || {
             let inbox = inbox.get();
-            if let Some(shared) = shared.try_get() {
+            if let Some(shared) = shared.try_value() {
                 untrack(|| shared.arrive(inbox));
             }
         });
-        let (browsing, set_browsing) = create_signal(false);
+        let browsing = create_signal(false);
         Self {
             shared,
-            revision,
+            revision: revision.read_only(),
             offered: editor.host_offers::<Notifications>(),
             locked: editor.host_value::<ScreenLocked>(),
             browsing,
-            set_browsing,
         }
     }
 
@@ -125,11 +123,11 @@ impl DesktopNotifications {
     }
 
     pub(crate) fn browse(&self, open: bool) {
-        self.set_browsing.set(open);
+        self.browsing.set(open);
     }
 
     pub(crate) fn dismiss(&self, ids: &[u32]) {
-        let shared = self.shared.get();
+        let shared = self.shared.value();
         {
             let mut center = shared.center.borrow_mut();
             for id in ids {
@@ -140,7 +138,7 @@ impl DesktopNotifications {
     }
 
     pub(crate) fn invoke(&self, id: u32, action: &str) {
-        let shared = self.shared.get();
+        let shared = self.shared.value();
         shared.center.borrow_mut().invoke(id, action);
         shared.settle();
     }

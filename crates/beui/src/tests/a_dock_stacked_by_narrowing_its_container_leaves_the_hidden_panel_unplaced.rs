@@ -10,34 +10,32 @@ const BREAKPOINT: f32 = 600.0;
 fn a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced() {
     let _root = crate::reactive::RootScope::new();
     let home = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <Container>|_| {
-                    let narrow = narrower_than(BREAKPOINT);
-                    let mode = create_memo(move || match narrow.get() {
-                        true => DockMode::Stacked,
-                        false => DockMode::Tiled,
-                    });
-                    let layout = DockingLayout::new();
-                    view! {
-                        <styled::Docking layout mode focus=2u64>
-                            <DockSplit id="split">
-                                <DockPane id="left">
-                                    <DockTab id=1u64 title="Tab 1">
-                                        <Frame @node_ref=&home />
-                                    </DockTab>
-                                </DockPane>
-                                <DockPane id="right">
-                                    <DockTab id=2u64 title="Tab 2">
-                                        <Frame />
-                                    </DockTab>
-                                </DockPane>
-                            </DockSplit>
-                        </styled::Docking>
-                    }
-                }</Container>
-            }
+    let document = build(move || {
+        view! {
+            <Container>|_| {
+                let narrow = narrower_than(BREAKPOINT);
+                let mode = create_memo(move || match narrow.get() {
+                    true => DockMode::Stacked,
+                    false => DockMode::Tiled,
+                });
+                let layout = DockingLayout::new();
+                view! {
+                    <styled::Docking layout mode focus=2u64>
+                        <DockSplit id="split">
+                            <DockPane id="left">
+                                <DockTab id=1u64 title="Tab 1">
+                                    <Frame @node_ref=&home />
+                                </DockTab>
+                            </DockPane>
+                            <DockPane id="right">
+                                <DockTab id=2u64 title="Tab 2">
+                                    <Frame />
+                                </DockTab>
+                            </DockPane>
+                        </DockSplit>
+                    </styled::Docking>
+                }
+            }</Container>
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

@@ -78,11 +78,11 @@ pub fn TextEditor(editor: Editor) -> NodeId {
 }
 
 fn intrinsic_size(state: State) {
-    let (width, set_width) = create_signal(DIRECT_EDITOR_WIDTH);
+    let width = create_signal(DIRECT_EDITOR_WIDTH);
     let resized = state.editor.resized();
     create_effect(move || {
         if let Some(size) = resized.get() {
-            set_width.set(size.x.max(1.0));
+            width.set(size.x.max(1.0));
         }
     });
     let content = state.text.content();

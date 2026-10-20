@@ -24,9 +24,8 @@ pub(crate) struct Export {
 
 #[derive(Clone, Copy)]
 pub(crate) struct Exporter {
-    set_wanted: WriteSignal<Option<Export>>,
-    error: ReadSignal<Option<String>>,
-    set_error: WriteSignal<Option<String>>,
+    wanted: Signal<Option<Export>>,
+    error: Signal<Option<String>>,
 }
 
 pub(crate) fn formats(block_type: Uuid) -> Vec<(ExportFormat, &'static str)> {
@@ -45,13 +44,9 @@ pub(crate) fn formats(block_type: Uuid) -> Vec<(ExportFormat, &'static str)> {
 
 impl Exporter {
     pub(crate) fn new(editor: Editor) -> Self {
-        let (wanted, set_wanted) = create_signal(None::<Export>);
-        let (error, set_error) = create_signal(None::<String>);
-        let exporter = Self {
-            set_wanted,
-            error,
-            set_error,
-        };
+        let wanted = create_signal(None::<Export>);
+        let error = create_signal(None::<String>);
+        let exporter = Self { wanted, error };
         let saver = Rc::new(RefCell::new(FileSaver::default()));
         let saving = Rc::clone(&saver);
         create_effect(move || {
@@ -60,7 +55,7 @@ impl Exporter {
             };
             if export.format == ExportFormat::BlockFile {
                 untrack(|| {
-                    set_wanted.set(None);
+                    wanted.set(None);
                     saving.borrow_mut().export(&editor.host(), export.id);
                 });
                 return;
@@ -69,22 +64,22 @@ impl Exporter {
                 return;
             };
             untrack(|| {
-                set_wanted.set(None);
+                wanted.set(None);
                 saving.borrow_mut().save(&editor.host(), file);
             });
         });
         let host = editor.host();
         editor.on_reply(move || {
-            if let Some(Err(error)) = saver.borrow_mut().poll(&host) {
-                set_error.set(Some(error));
+            if let Some(Err(failure)) = saver.borrow_mut().poll(&host) {
+                error.set(Some(failure));
             }
         });
         exporter
     }
 
     pub(crate) fn export(&self, export: Export) {
-        self.set_error.set(None);
-        self.set_wanted.set(Some(export));
+        self.error.set(None);
+        self.wanted.set(Some(export));
     }
 
     pub(crate) fn error(&self) -> Memo<Option<String>> {

@@ -34,7 +34,7 @@ fn a_dialog_of_a_dock_dialog_stacks_over_it() {
         "the dialog under a modal one hears no press"
     );
 
-    crate::reactive::with_reactive_scope(harness.document_mut(), || layout.show(&2));
+    layout.show(&2);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let document = harness.document();
@@ -44,7 +44,7 @@ fn a_dialog_of_a_dock_dialog_stacks_over_it() {
         "both hide with the tab they hang from"
     );
 
-    crate::reactive::with_reactive_scope(harness.document_mut(), || layout.show(&1));
+    layout.show(&1);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     harness.click(inner.center());

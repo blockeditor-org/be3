@@ -8,7 +8,7 @@ const LABELS: usize = 6;
 #[test]
 fn a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again() {
     let _root = crate::reactive::RootScope::new();
-    let (height, set_height) = create_signal(40.0);
+    let height = create_signal(40.0);
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -28,7 +28,7 @@ fn a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again()
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    with_reactive_scope(harness.document_mut(), move || set_height.set(70.0));
+    height.set(70.0);
     harness.frame(Vec::new());
     let work = harness.document().performance().latest.work;
     assert!(

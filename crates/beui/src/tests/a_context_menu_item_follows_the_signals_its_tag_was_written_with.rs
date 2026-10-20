@@ -6,25 +6,23 @@ use crate::styled::*;
 fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let (label, set_label) = create_signal("Paste".to_owned());
-    let (blocked, set_blocked) = create_signal(true);
-    let (selected, set_selected) = create_signal(Vec::new());
-    let (document, [menu]) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label disabled={blocked} />
-            };
-            [view! {
-                <ContextMenu
-                    items
-                    on_select={move |path| {
-                        set_selected.update(|selected| selected.push(path));
-                    }}
-                >
-                    <MenuRegion @node_ref=&region />
-                </ContextMenu>
-            }]
-        }
+    let label = create_signal("Paste".to_owned());
+    let blocked = create_signal(true);
+    let selected = create_signal(Vec::new());
+    let (document, [menu]) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label disabled={blocked} />
+        };
+        [view! {
+            <ContextMenu
+                items
+                on_select={move |path| {
+                    selected.update(|selected| selected.push(path));
+                }}
+            >
+                <MenuRegion @node_ref=&region />
+            </ContextMenu>
+        }]
     });
     let region = region.get();
     let mut harness = Harness::new(document);
@@ -54,10 +52,8 @@ fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
         "an item whose disabled prop reads true must not report a selection"
     );
 
-    with_reactive_scope(harness.document_mut(), move || {
-        set_label.set("Duplicate".to_owned());
-        set_blocked.set(false);
-    });
+    label.set("Duplicate".to_owned());
+    blocked.set(false);
     harness.frame(Vec::new());
     assert_eq!(
         label_within(harness.document(), row).as_deref(),

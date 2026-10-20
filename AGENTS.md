@@ -17,6 +17,7 @@ Guides:
 - guides/performance.md: benchmarks, comparing builds, profiling with perf, and ideas already set aside
 - guides/plugin_sdk.md: the shared module every plugin is linked against, and how hosts link them
 - guides/pinenote.md: block-app's session on the PineNote: e-paper, a display device that cannot draw, building for it
+- guides/pinenote_ebc.md: hrdl's `rockchip_ebc` e-paper driver: where its sources are, its hints and waveforms, its ioctl header
 - guides/reactive.md: the reactive graph under beui
 - guides/running/drive.md: how to run and test any app; read this first
 - guides/running/native.md
@@ -36,7 +37,7 @@ Commands (builds run on the build server; see guides/buck2.md and guides/build_s
 - `./scripts/buck test //crates/app-tests:test`: the app tests, which `./scripts/verify` runs too. Each starts the native app headless with every plugin and the dev workspace open, drives it as `drive` does, compares what the whole window paints, and fails unless the app exits cleanly (guides/testing_a_gui.md, 6).
 - `./scripts/buck build //crates/block-app:web`: for web-specific changes; `./scripts/buck run //crates/block-app:web` serves it on http://127.0.0.1:8080 (guides/running/web.md).
 - `./scripts/buck run //crates/block-app:android`: for Android-specific changes; builds the APK (guides/running/android.md).
-- `./scripts/be BE-7K3Q2M`: read or change a tracker row (guides/tracker.md); needs `external/.tracker-credentials`, which `./scripts/setup` fetches.
+- `./scripts/be Issues row BE-7K3Q2M`: read or change a tracker row (guides/tracker.md); needs `external/.tracker-credentials`, which `./scripts/setup` fetches.
 
 Do:
 - Use commit messages of the form `type: message`, ending with a Co-Authored-By line naming your model.
@@ -47,8 +48,9 @@ Do:
 Design principles:
 - Do not edit this list.
 - If a request seems to require violating one of these, confirm with the user using AskUserQuestion before going ahead.
-- If a request asks for a UI/UX feature that seems to violate standard conventions, use AskUserQuestion to confirm.
+- If a request asks for a feature that seems to violate standard conventions or user expectations, use AskUserQuestion to confirm.
 - General:
+  - One obvious way to do things: prefer one canonical API for a concept. Don’t add parallel forms that users must choose between and we must maintain.
   - Keep reading whatever a frozen format saved, forever (guides/frozen_formats.md: the server's data and backups, and text, folder and database blocks), and change one only by adding to it. Don't keep backward compatibility in any other serialization format or in network requests: the project is early, and users can delete that data.
   - Treat everything in the repo as in scope for any task. Fix bugs and missing features at their source (in beui, for example) rather than working around them, and update any guide you find out of date.
   - Do not edit files named README.md.

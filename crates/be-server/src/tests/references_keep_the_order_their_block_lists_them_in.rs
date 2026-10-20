@@ -35,6 +35,7 @@ async fn references_keep_the_order_their_block_lists_them_in() {
                 pinned: false,
                 references: references.clone(),
                 metadata: Vec::new(),
+                objects: Vec::new(),
             })
             .await;
         assert!(

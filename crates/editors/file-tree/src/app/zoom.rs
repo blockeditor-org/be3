@@ -1,4 +1,8 @@
-use block_editor_beui::be_block::{BlockContent, FolderContent};
+use std::cell::{Cell, RefCell};
+use std::rc::Rc;
+
+use block_editor_beui::Editor;
+use block_editor_beui::be_block::{BlockContent, FolderContent, ViewState};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_ADD, ICON_ARROW_UPWARD};
 use block_editor_beui::beui::reactive::*;
@@ -7,6 +11,7 @@ use block_editor_beui::beui::styled::*;
 use super::rows::{Row, RowKey, Tree as FileTree, is_workspace};
 
 const PADDING: f32 = 8.0;
+const ZOOMED: &str = "zoomed";
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct Focus {
@@ -19,8 +24,7 @@ pub(crate) struct Focus {
 #[derive(Clone, Copy)]
 pub(crate) struct Zoom {
     tree: FileTree,
-    zoomed: ReadSignal<Option<RowKey>>,
-    set_zoomed: WriteSignal<Option<RowKey>>,
+    zoomed: Signal<Option<RowKey>>,
     focus: Memo<Option<Focus>>,
 }
 
@@ -35,8 +39,8 @@ pub(crate) fn zooms(row: &Row) -> bool {
 }
 
 impl Zoom {
-    pub(crate) fn new(tree: FileTree) -> Self {
-        let (zoomed, set_zoomed) = create_signal(None::<RowKey>);
+    pub(crate) fn new(editor: Editor, tree: FileTree) -> Self {
+        let zoomed = create_signal(None::<RowKey>);
         let rows = tree.rows();
         let focus = create_memo(move || {
             let key = zoomed.get()?;
@@ -63,16 +67,47 @@ impl Zoom {
                 })
             })
         });
+        let seen = RefCell::new(None::<RowKey>);
         create_effect(move || {
-            if zoomed.get().is_some() && focus.get().is_none() && rows.with(|rows| !rows.is_empty())
-            {
-                set_zoomed.set(None);
+            let Some(key) = zoomed.get() else {
+                return;
+            };
+            if focus.with(Option::is_some) {
+                *seen.borrow_mut() = Some(key);
+            } else if seen.borrow().as_ref() == Some(&key) {
+                zoomed.set(None);
             }
+        });
+        let restored = Rc::new(Cell::new(false));
+        let adopted = Rc::clone(&restored);
+        create_effect(move || {
+            if adopted.get() {
+                return;
+            }
+            let Some(view) = editor.view_content() else {
+                return;
+            };
+            let Some(saved) = view.read(|held| {
+                held.root()
+                    .state(ZOOMED)
+                    .and_then(ViewState::value::<Option<RowKey>>)
+            }) else {
+                return;
+            };
+            adopted.set(true);
+            untrack(|| zoomed.set(saved.flatten()));
+        });
+        create_effect(move || {
+            let key = zoomed.get();
+            if !restored.get() {
+                return;
+            }
+            let state = ViewState::new(&key, Vec::new());
+            untrack(|| editor.set_view_state(ZOOMED, Some(&state)));
         });
         Self {
             tree,
             zoomed,
-            set_zoomed,
             focus,
         }
     }
@@ -82,7 +117,7 @@ impl Zoom {
     }
 
     pub(crate) fn zoomed(&self) -> ReadSignal<Option<RowKey>> {
-        self.zoomed
+        self.zoomed.read_only()
     }
 
     pub(crate) fn keys(&self) -> Memo<Vec<RowKey>> {
@@ -122,7 +157,7 @@ impl Zoom {
         if row.expandable && !row.expanded {
             self.tree.toggle(&row.key, row.id, false);
         }
-        self.set_zoomed.set(Some(key));
+        self.zoomed.set(Some(key));
     }
 
     pub(crate) fn up(&self) {
@@ -137,7 +172,7 @@ impl Zoom {
                 .find(|row| row.depth < focus.depth)
                 .map(|row| row.key.clone())
         });
-        self.set_zoomed.set(parent);
+        self.zoomed.set(parent);
     }
 
     pub(crate) fn leave_for(&self, key: &RowKey) {
@@ -147,7 +182,7 @@ impl Zoom {
             (Some(_), _) => false,
         };
         if !inside {
-            self.set_zoomed.set(None);
+            self.zoomed.set(None);
         }
     }
 }

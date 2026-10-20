@@ -11,10 +11,12 @@ mod a_dialog_hangs_from_the_tab_that_opened_it;
 mod a_dialog_opens_on_the_screen_it_was_asked_for_from;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
 mod a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar;
+mod a_long_sheet_fades_its_content_and_bounces_as_a_panel;
 mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
+mod a_table_lines_its_cells_up_under_its_columns;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
 mod an_instant_level_display_keeps_its_duration_without_fading;
 mod animations_paint_their_progress_and_instant_targets;
@@ -171,7 +173,7 @@ fn over_the_page(size: Vec2) -> Pos2 {
 
 fn level_display() -> DocumentTest {
     let document = build(move || {
-        let (shown, set_shown) = create_signal(0_u64);
+        let shown = create_signal(0_u64);
         let level = Some(OsdLevel {
             glyph: ICON_VOLUME_UP.to_owned(),
             label: "Volume".to_owned(),
@@ -185,7 +187,7 @@ fn level_display() -> DocumentTest {
                         @test_id={"test.show"}
                         label="Turn it up"
                         variant=ButtonVariant::Secondary
-                        on_click={move || set_shown.update(|shown| *shown += 1)}
+                        on_click={move || shown.update(|shown| *shown += 1)}
                     />
                     <LevelOsd level={level} shown={shown} />
                 </List>

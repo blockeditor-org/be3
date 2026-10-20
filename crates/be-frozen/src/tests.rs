@@ -51,11 +51,14 @@ impl Server {
                 PeerConfig::new(
                     be_client::socket_url(&self.url),
                     be_keys::RecoveryPhrase::generate().secret(),
-                    Credentials::Register {
-                        email: scene::OWNER_EMAIL.into(),
-                        display_name: scene::OWNER_NAME.into(),
-                        password: scene::OWNER_PASSWORD.into(),
-                    },
+                    Credentials::Token(
+                        be_server::ServerStore::open(&self.data)
+                            .unwrap()
+                            .register(scene::OWNER_EMAIL, scene::OWNER_NAME, scene::OWNER_PASSWORD)
+                            .await
+                            .unwrap()
+                            .1,
+                    ),
                 ),
                 MemoryStore::new(),
             )

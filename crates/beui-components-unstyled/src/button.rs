@@ -46,10 +46,10 @@ pub fn Button(
 ) -> NodeId {
     let focus_request = focused;
     let takes_text = !on_text.is_empty();
-    let (hovered, set_hovered) = create_signal(false);
-    let (active, set_active) = create_signal(false);
-    let (focused, set_focused) = create_signal(false);
-    let (key_active, set_key_active) = create_signal(false);
+    let hovered = create_signal(false);
+    let active = create_signal(false);
+    let focused = create_signal(false);
+    let key_active = create_signal(false);
     let label = action_label(action.as_ref(), label);
     let glyph = action_glyph(action.as_ref(), glyph);
     let tooltip = action_tooltip(action.as_ref(), label.clone());
@@ -74,9 +74,9 @@ pub fn Button(
 
     let content_node = content.map(|build| {
         build.call(ButtonHandle {
-            hovered,
-            active,
-            focused,
+            hovered: hovered.read_only(),
+            active: active.read_only(),
+            focused: focused.read_only(),
             disabled,
             label,
             glyph,
@@ -84,29 +84,28 @@ pub fn Button(
         })
     });
 
-    let click = {
-        move || {
-            if untrack(|| disabled.get()) {
-                return;
-            }
-            if let Some(action) = &action {
-                action.run();
-            }
-            on_click.call();
+    let click = move || {
+        if disabled.get_untracked() {
+            return;
         }
+        if let Some(action) = &action {
+            action.run();
+        }
+        on_click.call();
     };
     let key_click = click.clone();
-    let click_at = {
-        move |press: PointerPress| {
-            if untrack(|| disabled.get()) {
-                return;
-            }
-            on_click_at.call(press);
+    let click_at = move |press: PointerPress| {
+        if disabled.get_untracked() {
+            return;
         }
+        on_click_at.call(press);
     };
-    let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !disabled.get());
+    let tab_stop = Prop::dynamic(move || tab_stop.get() && !disabled.get());
 
-    set_component_state(State { active, focused });
+    set_component_state(State {
+        active: active.read_only(),
+        focused: focused.read_only(),
+    });
 
     view! {
         <Interactive
@@ -118,10 +117,10 @@ pub fn Button(
             on_text={on_text}
             takes_text
             on_focus_change={move |has_focus: bool| {
-                set_focused.set(has_focus);
+                focused.set(has_focus);
                 on_focus_change.call(has_focus);
             }}
-            on_activate_change={move |pressed: bool| set_key_active.set(pressed)}
+            on_activate_change={move |pressed: bool| key_active.set(pressed)}
             on_activate={key_click}
             cursor=CursorIcon::PointingHand
             capture_presses
@@ -129,8 +128,8 @@ pub fn Button(
             on_click={click}
             on_click_at={click_at}
             on_press={on_press}
-            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-            on_active_change={move |active: bool| set_active.set(active)}
+            on_hover_change={move |next: bool| hovered.set(next)}
+            on_active_change={move |next: bool| active.set(next)}
             children={content_node}
         />
     }

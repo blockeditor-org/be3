@@ -23,17 +23,18 @@ permissions:
   contents: read
 
 env:
-  # The token for Namespace's remote execution (guides/build_server.md), which
-  # runs every buck2 action. A pull request from a fork sees an empty value,
-  # and ./scripts/buck says so rather than building.
-  BE3_NAMESPACE_TOKEN: ${{ secrets.BE3_NAMESPACE_TOKEN }}
+  # The API gateway's header, behind which the waker names the hosts of
+  # Namespace's remote execution (guides/build_server.md), which runs every
+  # buck2 action. A pull request from a fork sees an empty value, and
+  # ./scripts/buck says so rather than building.
+  BE3_AUTHORIZATION: ${{ secrets.BE3_TRACKER_AUTHORIZATION }}
 
 # One job does the work: ci is ./scripts/ci, which verifies, builds
 # the Android app and launcher, and on a pull request renders the paint
 # previews, and uploads what each of those produced. It is also the gate: ci is
 # the one check the ruleset on main requires, on the pull request and on the
 # merge group GitHub's merge queue builds from it. It runs the pull
-# request's code, so it holds no credentials beyond Namespace's token and the
+# request's code, so it holds no credentials beyond the API gateway's header and the
 # Android keystore, both of which a build can already read.
 # The jobs after it each run nothing from the pull request and hold the one
 # credential they write with: autofix pushes the fixes, publish-summary
@@ -119,6 +120,14 @@ jobs:
           if [ -n "$ANDROID_CI_KEYSTORE_BASE64" ]; then
             (umask 077 && printf '%s' "$ANDROID_CI_KEYSTORE_BASE64" > buck/android/ci-keystore.base64)
           fi
+
+      - name: Install the browser preview runtime
+        if: ${{ !cancelled() && github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository && hashFiles('crates/browser-rasterizer/requirements.txt') != '' }}
+        run: |
+          python3 -m venv "$RUNNER_TEMP/browser-rasterizer"
+          "$RUNNER_TEMP/browser-rasterizer/bin/pip" install -r crates/browser-rasterizer/requirements.txt
+          "$RUNNER_TEMP/browser-rasterizer/bin/python" -m playwright install --with-deps chromium
+          echo "BE3_PLAYWRIGHT_PYTHON=$RUNNER_TEMP/browser-rasterizer/bin/python" >> "$GITHUB_ENV"
 
       - name: Run ./scripts/ci
         if: ${{ !cancelled() }}

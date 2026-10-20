@@ -7,16 +7,14 @@ use crate::styled::*;
 fn a_selection_across_text_with_spans_is_painted() {
     let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <SelectableText>
-                    <Text @node_ref=&text>
-                        <Span color=Color32::WHITE>"colored "</Span>
-                        <Span font={crate::FontId::proportional(14.0).bold(true)}>"words"</Span>
-                    </Text>
-                </SelectableText>
-            }
+    let document = build(move || {
+        view! {
+            <SelectableText>
+                <Text @node_ref=&text>
+                    <Span color=Color32::WHITE>"colored "</Span>
+                    <Span font={crate::FontId::proportional(14.0).bold(true)}>"words"</Span>
+                </Text>
+            </SelectableText>
         }
     });
     let mut harness = Harness::new(document);

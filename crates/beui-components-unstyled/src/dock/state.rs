@@ -388,16 +388,15 @@ impl DockTree {
                 let kept_second = second.without(dropped);
                 let first_gone = emptied(first, &kept_first);
                 let second_gone = emptied(second, &kept_second);
-                let (first, second) = (kept_first, kept_second);
                 match (first_gone, second_gone) {
                     (false, false) => DockTree::Split {
                         direction: *direction,
                         fraction: *fraction,
-                        first: Box::new(first),
-                        second: Box::new(second),
+                        first: Box::new(kept_first),
+                        second: Box::new(kept_second),
                     },
-                    (true, false) => second,
-                    (false, true) | (true, true) => first,
+                    (true, false) => kept_second,
+                    (false, true) | (true, true) => kept_first,
                 }
             }
         }

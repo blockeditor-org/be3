@@ -31,7 +31,7 @@ pub struct Timer(Stored<TimerState>);
 
 impl Timer {
     pub fn start(&self, delay: Duration) {
-        let Some(state) = self.0.try_get() else {
+        let Some(state) = self.0.try_value() else {
             return;
         };
         let due = now() + delay;
@@ -84,7 +84,7 @@ pub fn create_timer(work: impl Fn() -> Option<Duration> + 'static) -> Timer {
         due: Cell::new(None),
         work: Box::new(work),
     });
-    with_document(|document| document.register_timer(Rc::downgrade(&state.get())));
+    with_document(|document| document.register_timer(Rc::downgrade(&state.value())));
     on_cleanup(move || {
         state.try_with(|state| state.due.set(None));
     });

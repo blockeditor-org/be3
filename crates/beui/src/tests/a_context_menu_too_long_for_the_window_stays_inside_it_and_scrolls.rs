@@ -7,22 +7,20 @@ use crate::styled::*;
 fn a_context_menu_too_long_for_the_window_stays_inside_it_and_scrolls() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let (document, [menu]) = toolbar_of({
-        move || {
-            let items = view! {
-                <ForEach keys={(0..40).collect::<Vec<usize>>()}>|index: usize| {
-                    let label = format!("Item {index}");
-                    view! {
-                        <unstyled::MenuItem label />
-                    }
-                }</ForEach>
-            };
-            [view! {
-                <ContextMenu items>
-                    <MenuRegion @node_ref=&region />
-                </ContextMenu>
-            }]
-        }
+    let (document, [menu]) = toolbar_of(move || {
+        let items = view! {
+            <ForEach keys={(0..40).collect::<Vec<usize>>()}>|index: usize| {
+                let label = format!("Item {index}");
+                view! {
+                    <unstyled::MenuItem label />
+                }
+            }</ForEach>
+        };
+        [view! {
+            <ContextMenu items>
+                <MenuRegion @node_ref=&region />
+            </ContextMenu>
+        }]
     });
     let region = region.get();
     let viewport = vec2(400.0, 300.0);

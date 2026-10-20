@@ -15,6 +15,14 @@ pub fn main(arguments: Vec<String>) -> std::process::ExitCode {
 
     let bytes = std::fs::read(input)
         .unwrap_or_else(|error| fail(&format!("could not read {input}: {error}")));
+    if paint_snapshot::BrowserSnapshot::is_browser(&bytes) {
+        if !matches!(wanted, Wanted::Frame(0) | Wanted::All) {
+            fail("a browser painting has only frame 0");
+        }
+        crate::browser::rasterize(Path::new(input), Path::new(output), None)
+            .unwrap_or_else(|error| fail(&error));
+        return std::process::ExitCode::SUCCESS;
+    }
     let snapshot = Snapshot::decode(&bytes)
         .unwrap_or_else(|error| fail(&format!("{input} is unreadable: {error}")));
 

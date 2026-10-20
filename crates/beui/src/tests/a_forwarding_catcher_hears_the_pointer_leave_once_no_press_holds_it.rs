@@ -15,22 +15,20 @@ fn lefts(heard: ReadSignal<Vec<Forwarded>>) -> usize {
 #[test]
 fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal(Vec::<Forwarded>::new());
-    let document = build({
-        move || {
-            view! {
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive
-                            on_forward={move |input: ForwardedInput| {
-                                set_heard.update(|heard| heard.extend(input.events))
-                            }}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
-            }
+    let heard = create_signal(Vec::<Forwarded>::new());
+    let document = build(move || {
+        view! {
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive
+                        on_forward={move |input: ForwardedInput| {
+                            heard.update(|heard| heard.extend(input.events))
+                        }}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);
@@ -40,17 +38,25 @@ fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     harness.frame(vec![Event::PointerMoved(inside)]);
     harness.frame(vec![Event::PointerMoved(outside)]);
     harness.frame(vec![Event::PointerMoved(pos2(260.0, 50.0))]);
-    assert_eq!(lefts(heard), 1, "the catcher hears the pointer leave, once");
+    assert_eq!(
+        lefts(heard.read_only()),
+        1,
+        "the catcher hears the pointer leave, once"
+    );
 
-    set_heard.update(|heard| heard.clear());
+    heard.update(|heard| heard.clear());
     harness.press_at(inside);
     harness.frame(vec![Event::PointerMoved(outside)]);
-    assert_eq!(lefts(heard), 0, "a press it holds keeps the pointer");
+    assert_eq!(
+        lefts(heard.read_only()),
+        0,
+        "a press it holds keeps the pointer"
+    );
     harness.frame(vec![Event::PointerButton {
         pos: outside,
         button: PointerButton::Primary,
         pressed: false,
         modifiers: Modifiers::NONE,
     }]);
-    assert_eq!(lefts(heard), 1, "until it is let go");
+    assert_eq!(lefts(heard.read_only()), 1, "until it is let go");
 }

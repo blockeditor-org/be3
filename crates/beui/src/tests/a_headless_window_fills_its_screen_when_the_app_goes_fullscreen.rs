@@ -11,12 +11,12 @@ impl App for Fullscreen {
 #[test]
 fn a_headless_window_fills_its_screen_when_the_app_goes_fullscreen() {
     let _root = crate::reactive::RootScope::new();
-    let (fullscreen, set_fullscreen) = create_signal(false);
-    let mut driven = Driven::with_app(Fullscreen(fullscreen), true);
+    let fullscreen = create_signal(false);
+    let mut driven = Driven::with_app(Fullscreen(fullscreen.read_only()), true);
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(state.starts_with("window 400x300 "), "{state}");
 
-    set_fullscreen.set(true);
+    fullscreen.set(true);
     driven.ask(&["settle"]).expect("the app settles");
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(
@@ -24,7 +24,7 @@ fn a_headless_window_fills_its_screen_when_the_app_goes_fullscreen() {
         "the window grows to the screen:\n{state}"
     );
 
-    set_fullscreen.set(false);
+    fullscreen.set(false);
     driven.ask(&["settle"]).expect("the app settles");
     let state = driven.ask(&["state"]).expect("the state is read");
     assert!(

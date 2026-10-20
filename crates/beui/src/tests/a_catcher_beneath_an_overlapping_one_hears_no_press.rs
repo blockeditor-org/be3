@@ -5,22 +5,20 @@ use crate::reactive::*;
 #[test]
 fn a_catcher_beneath_an_overlapping_one_hears_no_press() {
     let _root = crate::reactive::RootScope::new();
-    let (below, set_below) = create_signal(0);
-    let (above, set_above) = create_signal(0);
-    let document = build({
-        move || {
-            view! {
-                <Layers>
-                    <Interactive on_click={move || set_below.update(|below| *below += 1)}>
-                        <Frame width=100.0 height=100.0 />
+    let below = create_signal(0);
+    let above = create_signal(0);
+    let document = build(move || {
+        view! {
+            <Layers>
+                <Interactive on_click={move || below.update(|below| *below += 1)}>
+                    <Frame width=100.0 height=100.0 />
+                </Interactive>
+                <Frame align={Align2::new(Align::End, Align::Start)}>
+                    <Interactive on_click={move || above.update(|above| *above += 1)}>
+                        <Frame width=50.0 height=50.0 />
                     </Interactive>
-                    <Frame align={Align2::new(Align::End, Align::Start)}>
-                        <Interactive on_click={move || set_above.update(|above| *above += 1)}>
-                            <Frame width=50.0 height=50.0 />
-                        </Interactive>
-                    </Frame>
-                </Layers>
-            }
+                </Frame>
+            </Layers>
         }
     });
     let mut harness = Harness::sized(document, vec2(100.0, 100.0));

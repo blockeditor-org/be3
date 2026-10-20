@@ -5,8 +5,8 @@ use crate::reactive::*;
 fn a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lands() {
     let _root = crate::reactive::RootScope::new();
     let item = NodeRef::new();
-    let (size, set_size) = create_signal(vec2(200.0, 100.0));
-    let (inset, set_inset) = create_signal(0.0f32);
+    let size = create_signal(vec2(200.0, 100.0));
+    let inset = create_signal(0.0f32);
     let mut document = build(move || {
         let width = create_memo(move || size.get().x);
         let height = create_memo(move || size.get().y);
@@ -28,10 +28,8 @@ fn a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lan
     harness.settle();
     let settled = layouts.get_untracked();
 
-    with_reactive_scope(harness.document_mut(), move || {
-        set_size.set(vec2(300.0, 150.0));
-        set_inset.set(4.0);
-    });
+    size.set(vec2(300.0, 150.0));
+    inset.set(4.0);
     harness.frame(Vec::new());
 
     assert_eq!(

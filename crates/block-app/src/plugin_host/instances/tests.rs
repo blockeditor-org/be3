@@ -135,6 +135,7 @@ fn next_screens(instances: &mut Instances) -> NextScreens {
 }
 
 mod a_block_is_named_after_its_content_until_someone_names_it;
+mod a_block_shown_before_its_instance_reports_reaches_it_once_it_does;
 mod a_click_outside_a_frame_child_hands_the_frame_back;
 mod a_database_view_given_content_references_its_database;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;

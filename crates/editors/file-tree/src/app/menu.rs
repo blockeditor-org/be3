@@ -20,11 +20,12 @@ pub(crate) struct RowTools {
     pub(crate) tree: FileTree,
     pub(crate) picker: Picker,
     pub(crate) exporter: Exporter,
-    pub(crate) inspect: WriteSignal<Option<Inspection>>,
+    pub(crate) inspect: Signal<Option<Inspection>>,
     pub(crate) zoom: Zoom,
 }
 
-pub(crate) fn row_menu(tools: RowTools, key: RowKey) -> Option<TreeMenu> {
+#[component]
+pub(crate) fn RowMenu(tools: RowTools, key: RowKey) -> Option<TreeMenu> {
     let row = tools.tree.row(key.clone());
     let shown = row.get_untracked()?;
     let zoomed = tools.zoom.zoomed();
@@ -47,8 +48,12 @@ pub(crate) fn row_menu(tools: RowTools, key: RowKey) -> Option<TreeMenu> {
                 }
             }),
         }),
-        (Some(_), true) => Some(section_menu(tools, row, unzoomable, zoom_in)),
-        (Some(_), false) => Some(block_menu(tools, row, unzoomable, zoom_in)),
+        (Some(_), true) => Some(view! {
+            <SectionMenu tools row unzoomable zoom_in />
+        }),
+        (Some(_), false) => Some(view! {
+            <BlockMenu tools row unzoomable zoom_in />
+        }),
     }
 }
 
@@ -64,11 +69,12 @@ fn ZoomIn(disabled: Memo<bool>) -> MenuItem {
     }
 }
 
-fn section_menu(
+#[component]
+fn SectionMenu<F: Fn() + 'static>(
     tools: RowTools,
     row: Memo<Option<Row>>,
     unzoomable: Memo<bool>,
-    zoom_in: impl Fn() + 'static,
+    zoom_in: F,
 ) -> TreeMenu {
     let RowTools { editor, picker, .. } = tools;
     let unaddable = create_memo(move || !row.get().is_some_and(|row| row.can_add));
@@ -140,11 +146,12 @@ fn section_menu(
     }
 }
 
-fn block_menu(
+#[component]
+fn BlockMenu<F: Fn() + 'static>(
     tools: RowTools,
     row: Memo<Option<Row>>,
     unzoomable: Memo<bool>,
-    zoom_in: impl Fn() + 'static,
+    zoom_in: F,
 ) -> TreeMenu {
     let RowTools {
         editor,

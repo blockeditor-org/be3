@@ -4,12 +4,12 @@ use std::hash::Hash;
 
 use crate::runtime::batch;
 use crate::scope::Scope;
-use crate::signal::{OwnedSignal, ReadSignal, WriteSignal};
+use crate::signal::{Get, OwnedSignal, ReadSignal, Signal};
 use crate::stored::{OwnedStored, Stored, store};
 
 enum Target<V> {
     Unchanged,
-    Changed(WriteSignal<V>),
+    Changed(Signal<V>),
     Missing,
 }
 
@@ -98,12 +98,17 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
     }
 
     pub fn keys(&self) -> ReadSignal<Vec<K>> {
-        self.inner.with(|inner| inner.keys.read())
+        self.inner.with(|inner| inner.keys.read_only())
     }
 
     pub fn try_get(&self, key: &K) -> Option<ReadSignal<V>> {
-        self.inner
-            .with(|inner| inner.entries.borrow().get(key).map(OwnedSignal::read))
+        self.inner.with(|inner| {
+            inner
+                .entries
+                .borrow()
+                .get(key)
+                .map(|entry| entry.read_only())
+        })
     }
 
     pub fn get(&self, key: &K) -> ReadSignal<V> {
@@ -146,15 +151,15 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
     }
 
     fn write(&self, key: &K, value: &V) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let target = {
             let entries = inner.entries.borrow();
             match entries.get(key) {
                 None => Target::Missing,
-                Some(entry) if entry.read().with_untracked(|current| current == value) => {
+                Some(entry) if entry.with_untracked(|current| current == value) => {
                     Target::Unchanged
                 }
-                Some(entry) => Target::Changed(entry.write()),
+                Some(entry) => Target::Changed(entry.handle()),
             }
         };
         match target {
@@ -170,8 +175,8 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
     }
 
     fn set_keys(&self, keys: Vec<K>) {
-        let inner = self.inner.get();
-        if inner.keys.read().with_untracked(|current| *current == keys) {
+        let inner = self.inner.value();
+        if inner.keys.with_untracked(|current| *current == keys) {
             return;
         }
         let retained: HashSet<&K> = keys.iter().collect();
@@ -180,7 +185,7 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
             .borrow_mut()
             .retain(|key, _| retained.contains(key));
         drop(retained);
-        inner.keys.write().set_unconditionally(keys);
+        inner.keys.set_unconditionally(keys);
     }
 }
 

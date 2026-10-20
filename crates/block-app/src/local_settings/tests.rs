@@ -6,6 +6,7 @@ use be_block::display_settings::DisplayMode;
 use super::*;
 use crate::display::{self, Screen};
 
+mod a_committed_mode_keeps_the_rotation_of_the_layer_under_it;
 mod a_display_mode_is_saved_only_once_it_is_kept;
 mod a_reverted_display_mode_is_never_saved;
 mod edits_written_to_the_block_cover_its_content_until_it_holds_them;
@@ -62,6 +63,6 @@ fn connect_monitor() {
 
 fn showing(mode: DisplayMode) -> DisplaySettings {
     let mut document = Document::new(&DisplaySettings::default());
-    document.apply(&DisplaySettings::set_mode(MONITOR, Some(mode)));
+    document.apply(&DisplaySettings::default().set_mode(MONITOR, Some(mode)));
     document.root()
 }

@@ -7,7 +7,7 @@ use crate::unstyled::{DateSegmentHandle, DateTimeField, date_time_field_text};
 #[test]
 fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
     let _root = crate::reactive::RootScope::new();
-    let (reported, set_reported) = create_signal(Vec::new());
+    let reported = create_signal(Vec::new());
     let field = NodeRef::new();
     let document = build(move || {
         view! {
@@ -20,7 +20,7 @@ fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
                 literal={|text: String| view! {
                     <Text string=text />
                 }}
-                on_change={move |value| set_reported.update(|reported| reported.push(value))}
+                on_change={move |value| reported.update(|reported| reported.push(value))}
             />
         }
     });

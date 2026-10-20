@@ -31,7 +31,7 @@ impl State {
                 tab
             }
         };
-        self.set_given.update(|(count, target)| {
+        self.given.update(|(count, target)| {
             *count += 1;
             *target = Some(given);
         });
@@ -49,13 +49,13 @@ impl State {
         let Some(focused) = focused else {
             return false;
         };
-        self.remembered.get().borrow_mut().insert(tab, focused);
+        self.remembered.value().borrow_mut().insert(tab, focused);
         true
     }
 
     fn panel_node(&self, tab: TabId) -> Option<NodeId> {
         self.panels
-            .get()
+            .value()
             .borrow()
             .get(&tab)
             .map(|(panel, _)| *panel)
@@ -65,13 +65,13 @@ impl State {
         let Some(panel) = self.panel_node(tab) else {
             return;
         };
-        let held: Vec<TabId> = self.panels.get().borrow().keys().copied().collect();
+        let held: Vec<TabId> = self.panels.value().borrow().keys().copied().collect();
         for other in held.into_iter().filter(|other| *other != tab) {
             if self.remember_focus(other) {
                 break;
             }
         }
-        let remembered = self.remembered.get().borrow().get(&tab).copied();
+        let remembered = self.remembered.value().borrow().get(&tab).copied();
         with_document(|document| {
             if document.focus_is_within(panel) {
                 return;

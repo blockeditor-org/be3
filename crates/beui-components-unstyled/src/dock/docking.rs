@@ -264,10 +264,8 @@ struct LayoutInner<K> {
 }
 
 pub struct DockingLayout<K: 'static> {
-    state: ReadSignal<DockState>,
-    set_state: WriteSignal<DockState>,
-    restores: ReadSignal<u64>,
-    set_restores: WriteSignal<u64>,
+    state: Signal<DockState>,
+    restores: Signal<u64>,
     inner: Stored<LayoutInner<K>>,
 }
 
@@ -327,8 +325,8 @@ impl<K: DockKey> DockingLayout<K> {
 
     fn parts() -> (impl FnOnce(Stored<LayoutInner<K>>) -> Self, LayoutInner<K>) {
         let owner = RootScope::new();
-        let (state, set_state) = create_signal(DockState::default());
-        let (restores, set_restores) = create_signal(0);
+        let state = create_signal(DockState::default());
+        let restores = create_signal(0);
         let inner = LayoutInner {
             _scope: owner.into_scope(),
             keys: RefCell::default(),
@@ -336,16 +334,14 @@ impl<K: DockKey> DockingLayout<K> {
         };
         let layout = move |inner| Self {
             state,
-            set_state,
             restores,
-            set_restores,
             inner,
         };
         (layout, inner)
     }
 
     fn inner(&self) -> Rc<LayoutInner<K>> {
-        self.inner.get()
+        self.inner.value()
     }
 
     pub fn restore(&self, snapshot: DockingSnapshot<K>) {
@@ -359,15 +355,15 @@ impl<K: DockKey> DockingLayout<K> {
         }
         *self.inner().keys.borrow_mut() = map;
         self.inner().replacing.borrow_mut().clear();
-        self.set_state.set(state);
-        self.set_restores.update(|restores| *restores += 1);
+        self.state.set(state);
+        self.restores.update(|restores| *restores += 1);
     }
 
     pub fn reset(&self) {
         *self.inner().keys.borrow_mut() = KeyMap::default();
         self.inner().replacing.borrow_mut().clear();
-        self.set_state.set(DockState::default());
-        self.set_restores.update(|restores| *restores += 1);
+        self.state.set(DockState::default());
+        self.restores.update(|restores| *restores += 1);
     }
 
     pub fn snapshot(&self) -> DockingSnapshot<K> {
@@ -384,7 +380,7 @@ impl<K: DockKey> DockingLayout<K> {
     }
 
     pub fn state(&self) -> ReadSignal<DockState> {
-        self.state
+        self.state.read_only()
     }
 
     pub fn tab_of(&self, key: &K) -> Option<TabId> {
@@ -462,7 +458,7 @@ impl<K: DockKey> DockingLayout<K> {
         let mut next = current.clone();
         change(&mut next);
         if next != current {
-            self.set_state.set(next);
+            self.state.set(next);
         }
     }
 
@@ -514,7 +510,7 @@ impl<K: DockKey> DockingLayout<K> {
             keys.tabs.retain(|_, tab| kept.contains(tab));
         }
         if next != current {
-            self.set_state.set(next);
+            self.state.set(next);
         }
     }
 
@@ -740,57 +736,48 @@ where
     K: DockKey,
 {
     let nodes = children.into_run();
-    let (found, set_found) = create_signal(Rc::new(Found::<K>::default()));
+    let found = create_signal(Rc::new(Found::<K>::default()));
     create_effect(move || {
         layout.restores.get();
         let items = nodes.items();
         let mut held = Found::default();
-        let focus = focus.peek();
+        let focus = focus.get_untracked();
         let spec = layout.spec(&items, focus.as_ref(), &mut held);
         let dialogs = held.dialogs.clone();
         untrack(|| {
-            set_found.set(Rc::new(held));
+            found.set(Rc::new(held));
             layout.reconcile(&spec, &dialogs);
         });
     });
-    let listed = found;
-    let dialogs = create_memo(move || listed.with(|found| found.dialogs.clone()));
-    let described = found;
-    let dialog = Func::new(move |tab: TabId| {
-        described.with_untracked(|found| found.parts.get(&tab).cloned())
-    });
-    let titles = found;
+    let dialogs = create_memo(move || found.with(|found| found.dialogs.clone()));
+    let dialog =
+        Func::new(move |tab: TabId| found.with_untracked(|found| found.parts.get(&tab).cloned()));
     let title = Func::new(move |tab: TabId| {
-        titles
+        found
             .with(|found| found.tab(tab, |title, _, _, _| title.get()))
             .unwrap_or_default()
     });
-    let icons = found;
     let icon = Func::new(move |tab: TabId| {
-        icons
+        found
             .with(|found| found.tab(tab, |_, icon, _, _| icon.get()))
             .unwrap_or_default()
     });
-    let pictures = found;
-    let picture = Func::new(move |tab: TabId| pictures.with(|found| found.picture(tab)));
-    let closers = found;
+    let picture = Func::new(move |tab: TabId| found.with(|found| found.picture(tab)));
     let closable = Func::new(move |tab: TabId| {
-        closers
+        found
             .with(|found| found.tab(tab, |_, _, on_close, _| on_close.is_some()))
             .unwrap_or(false)
     });
-    let closing = found;
     let on_close = move |tab: TabId| {
-        let close = closing
+        let close = found
             .with_untracked(|found| found.tab(tab, |_, _, on_close, _| *on_close))
             .flatten();
         if let Some(close) = close {
             close.call();
         }
     };
-    let bodies = found;
     let content = RenderFn::new(move |tab: TabId| {
-        let content = bodies.with_untracked(|found| found.tab(tab, |_, _, _, content| *content));
+        let content = found.with_untracked(|found| found.tab(tab, |_, _, _, content| *content));
         let Some(content) = content else {
             return view! {
                 <Frame />
@@ -802,12 +789,11 @@ where
             None => body,
         }
     });
-    let empties = found;
     let empty = RenderFn::new(move |leaf: LeafId| {
         let key = layout
             .state
             .with_untracked(|state| state.pane_key(leaf).map(str::to_owned));
-        let empty = key.and_then(|key| empties.with_untracked(|found| found.empty(&key)));
+        let empty = key.and_then(|key| found.with_untracked(|found| found.empty(&key)));
         match empty {
             Some(empty) => empty.call(()),
             None => view! {
@@ -815,12 +801,11 @@ where
             },
         }
     });
-    let grouped = found;
     let group_title = Func::new(move |group: GroupId| {
         let key = layout
             .state
             .with(|state| state.group_key(group).map(str::to_owned))?;
-        let title = grouped.with(|found| found.group_title(&key))?;
+        let title = found.with(|found| found.group_title(&key))?;
         Some(title.get())
     });
     let state = layout.state();
@@ -829,7 +814,7 @@ where
             config={DockConfig {
                 state: state.into_prop(),
                 on_change: Callback::new(move |next: DockState| {
-                    layout.set_state.set(next);
+                    layout.state.set(next);
                 }),
                 on_close: Callback::new(on_close),
                 title,

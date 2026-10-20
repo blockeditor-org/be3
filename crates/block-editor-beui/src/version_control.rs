@@ -27,16 +27,13 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
             </beui::reactive::Show>
             <ForEach keys={rows}>|(id, message): ([u8; 32], String)| {
                 let short = short_id(&id);
+                let commit_test_id = format!("version.commit.{short}");
                 let message = match message.is_empty() {
                     true => "(no message)".to_owned(),
                     false => message,
                 };
                 view! {
-                    <List
-                        direction=Direction::Horizontal
-                        spacing=8.0
-                        @test_id={format!("version.commit.{short}")}
-                    >
+                    <List direction=Direction::Horizontal spacing=8.0 @test_id={commit_test_id}>
                         <Text style=TextStyle::CAPTION string={short} />
                         <Text string={message} />
                     </List>

@@ -72,9 +72,6 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
             .map_or(0.0, |attachment| attachment.offset as f64)
     });
 
-    let trimmed_clip = clip;
-    let detached_clip = clip;
-    let moved_clip = clip;
     let effects = create_memo(move || clip.get().map(|clip| clip.effects).unwrap_or_default());
     let bare = create_memo(move || effects.get().is_empty());
     let effect_ids = create_memo(move || {
@@ -88,7 +85,6 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
     let start_color = TextColor::Muted;
     let parent_color = TextColor::Muted;
     let bare_color = TextColor::Muted;
-    let hanging_row = hanging;
 
     view! {
         <List spacing=8.0>
@@ -100,7 +96,7 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                 label="Length"
                 @test_id={"video.clip-length"}
                 on_change={move |value: f64| {
-                    let Some(mut clip) = trimmed_clip.get_untracked() else {
+                    let Some(mut clip) = clip.get_untracked() else {
                         return;
                     };
                     clip.length = (value.round().max(1.0) as u64).min(MAX_CLIP_LENGTH);
@@ -115,13 +111,13 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                 <Text string="Attached to" />
                 <Text style=TextStyle::CAPTION string={parent_name} color={parent_color} />
-                <Show condition={hanging_row}>
+                <Show condition={hanging}>
                     <IconButton
                         glyph={ICON_LINK_OFF.to_owned()}
                         label="Move this clip onto the base track"
                         @test_id={"video.detach"}
                         on_click={move || {
-                            let Some(mut clip) = detached_clip.get_untracked() else {
+                            let Some(mut clip) = clip.get_untracked() else {
                                 return;
                             };
                             clip.attachment = None;
@@ -135,7 +131,7 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                     value={offset}
                     label="Offset"
                     on_change={move |value: f64| {
-                        let Some(mut clip) = moved_clip.get_untracked() else {
+                        let Some(mut clip) = clip.get_untracked() else {
                             return;
                         };
                         let Some(attachment) = clip.attachment else {
@@ -151,12 +147,9 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
             <Show condition={bare}>
                 <Text style=TextStyle::CAPTION string="No effects yet." color={bare_color} />
             </Show>
-            <ForEach keys={effect_ids}>|id: Uuid| {
-                let effects = effects;
-                view! {
-                    <EffectRow effects id />
-                }
-            }</ForEach>
+            <ForEach keys={effect_ids}>|id: Uuid|
+                <EffectRow effects id />
+            </ForEach>
         </List>
     }
 }

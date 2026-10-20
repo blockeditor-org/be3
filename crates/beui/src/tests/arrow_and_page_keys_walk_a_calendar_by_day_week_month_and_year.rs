@@ -6,14 +6,14 @@ use crate::styled::*;
 #[test]
 fn arrow_and_page_keys_walk_a_calendar_by_day_week_month_and_year() {
     let _root = crate::reactive::RootScope::new();
-    let (picked, set_picked) = create_signal(Vec::new());
+    let picked = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <Calendar
                 selected={Some(Date::new(2026, 1, 30))}
                 today={Some(Date::new(2026, 1, 1))}
                 focused=true
-                on_change={move |date| set_picked.update(|picked| picked.push(date))}
+                on_change={move |date| picked.update(|picked| picked.push(date))}
             />
         }
     });

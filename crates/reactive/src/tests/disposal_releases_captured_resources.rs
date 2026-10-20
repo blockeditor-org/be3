@@ -4,7 +4,7 @@ use super::*;
 fn disposal_releases_captured_resources() {
     let _root = RootScope::new();
     let scope = Scope::new();
-    let (value, set_value) = create_signal(1);
+    let value = create_signal(1);
     let resource = Rc::new(());
     let weak = Rc::downgrade(&resource);
     let effect = scope.run(|| {
@@ -13,7 +13,7 @@ fn disposal_releases_captured_resources() {
             value.get();
         })
     });
-    set_value.set(2);
+    value.set(2);
     assert!(weak.upgrade().is_some());
     effect.dispose();
     assert!(weak.upgrade().is_none());

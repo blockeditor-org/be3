@@ -2,7 +2,7 @@ use tokio::io::{AsyncReadExt, AsyncWriteExt};
 
 use super::*;
 
-async fn post(
+pub(super) async fn post(
     stream: &mut tokio::net::TcpStream,
     session: Option<&str>,
     frames: &[&[u8]],
@@ -82,13 +82,12 @@ async fn a_client_speaks_the_protocol_over_http_posts() {
     assert_eq!(read_hello(&frames[0]).as_deref(), Some(BUILD));
     let session = session.expect("a greeting of the same build opens a session");
 
-    let register = encode(&ClientMessage::Register {
-        request: 1,
-        email: "http@example.com".into(),
-        display_name: "Http".into(),
-        password: "a long enough password".into(),
-    })
-    .unwrap();
+    let (_, token) = ServerStore::open(&harness.directory)
+        .unwrap()
+        .register("http@example.com", "Http", "a long enough password")
+        .await
+        .unwrap();
+    let register = encode(&ClientMessage::Authenticate { request: 1, token }).unwrap();
     let (_, _, frames) = post(&mut stream, Some(&session), &[&register]).await;
     let response: ServerMessage = be_protocol::decode(frames.last().unwrap()).unwrap();
     assert!(

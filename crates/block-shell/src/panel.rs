@@ -161,10 +161,10 @@ pub(crate) fn read_info(
 
 #[component]
 pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
-    let (info, set_info) = create_signal(None::<Info>);
+    let info = create_signal(None::<Info>);
     let watched = RefCell::new(Watched::default());
     create_effect(move || {
-        set_info.set(read_info(&workspace, tab, &watched));
+        info.set(read_info(&workspace, tab, &watched));
     });
     let content = create_memo(move || match info.get() {
         Some(info) if !info.access.can_view() => Content::Denied,
@@ -176,9 +176,8 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
         true => TopBar::Phone,
         false => TopBar::Shown,
     });
-    let session = workspace
-        .tab(tab)
-        .is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
+    let session =
+        untrack(|| workspace.tab(tab)).is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
     let desktop = create_memo(move || !phone.get() && !session);
     let preview = create_memo(move || workspace.revisions.preview_for(workspace.tab(tab)));
     let previewing = create_memo(move || preview.get().is_some());
@@ -187,13 +186,13 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
         <Frame>
             <List spacing=0.0>
                 <Show condition={!session}>
-                    <ArtifactBar workspace={workspace} info={info} />
+                    <ArtifactBar workspace={workspace} info={info.read_only()} />
                 </Show>
                 <Show condition={!session}>
-                    <DeletedBar workspace={workspace} info={info} />
+                    <DeletedBar workspace={workspace} info={info.read_only()} />
                 </Show>
                 <Show condition={!session}>
-                    <LinkedBar workspace={workspace} info={info} />
+                    <LinkedBar workspace={workspace} info={info.read_only()} />
                 </Show>
                 <RevisionPreviewBar history={workspace.revisions} tab={tab} workspace />
                 <ShowKeepAlive condition={live}>
@@ -201,13 +200,16 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                         <Dynamic value={content}>|content: Content| {
                             match content {
                                 Content::Denied => view! {
-                                    <AccessDenied @sizing=ItemSize::Percent(100.0) info={info} />
+                                    <AccessDenied
+                                        @sizing=ItemSize::Percent(100.0)
+                                        info={info.read_only()}
+                                    />
                                 },
                                 Content::Block => view! {
                                     <BlockChild
                                         @sizing=ItemSize::Percent(100.0)
                                         editor={editor}
-                                        info={info}
+                                        info={info.read_only()}
                                         top_bar={top_bar}
                                         on_bar={move |action: BarAction| match action {
                                             BarAction::Details => {
@@ -234,7 +236,7 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
                     </ChildBlock>
                 </Show>
                 <Show condition={desktop}>
-                    <StatusBar workspace={workspace} info={info} />
+                    <StatusBar workspace={workspace} info={info.read_only()} />
                 </Show>
                 <DetailsSheet workspace={workspace} tab={tab} />
             </List>

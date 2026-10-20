@@ -76,10 +76,6 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     let chrome = editor.chrome_shown();
-    let anchor = content;
-    let docked = chrome;
-    let side = chrome;
-    let zoom_anchor = content;
     let scope = NodeRef::new();
     action_scope(&scope);
     provide_context(canvas_actions(state));
@@ -88,10 +84,10 @@ fn CanvasEditor(editor: Editor) -> NodeId {
             <ImportError state={state} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={state} />
-                <CanvasSidebar state={state} shown={side} />
+                <CanvasSidebar state={state} shown={chrome} />
             </List>
-            <ToolDock state={state} anchor={anchor} shown={docked} />
-            <ZoomPill state={state} anchor={zoom_anchor} shown={chrome} />
+            <ToolDock state={state} anchor={content} shown={chrome} />
+            <ZoomPill state={state} anchor={content} shown={chrome} />
         </List>
     }
 }

@@ -114,24 +114,15 @@ struct RayInner {
 pub(crate) struct RayState {
     editor: Editor,
     pub(crate) entities: ReadSignal<Vec<RayEntity>>,
-    pub(crate) lighting: ReadSignal<Option<Image>>,
-    set_lighting: WriteSignal<Option<Image>>,
-    pub(crate) rays: ReadSignal<Option<Image>>,
-    set_rays: WriteSignal<Option<Image>>,
-    pub(crate) overlay: ReadSignal<Draw>,
-    set_overlay: WriteSignal<Draw>,
-    pub(crate) tool: ReadSignal<Tool>,
-    set_tool: WriteSignal<Tool>,
-    pub(crate) color_index: ReadSignal<u8>,
-    set_color_index: WriteSignal<u8>,
-    pub(crate) selected: ReadSignal<Option<u64>>,
-    set_selected: WriteSignal<Option<u64>>,
-    pub(crate) new_light_intensity: ReadSignal<f32>,
-    set_new_light_intensity: WriteSignal<f32>,
-    pub(crate) new_surface: ReadSignal<Surface>,
-    set_new_surface: WriteSignal<Surface>,
-    poked: ReadSignal<u64>,
-    set_poked: WriteSignal<u64>,
+    pub(crate) lighting: Signal<Option<Image>>,
+    pub(crate) rays: Signal<Option<Image>>,
+    pub(crate) overlay: Signal<Draw>,
+    pub(crate) tool: Signal<Tool>,
+    pub(crate) color_index: Signal<u8>,
+    pub(crate) selected: Signal<Option<u64>>,
+    pub(crate) new_light_intensity: Signal<f32>,
+    pub(crate) new_surface: Signal<Surface>,
+    poked: Signal<u64>,
     inner: Stored<RayInner>,
 }
 
@@ -168,36 +159,27 @@ impl RayState {
                 .cloned()
                 .collect::<Vec<_>>()
         });
-        let (lighting, set_lighting) = create_signal(None);
-        let (rays, set_rays) = create_signal(None);
-        let (overlay, set_overlay) = create_signal(overlay::draw(Vec::new(), None, Preview::None));
-        let (tool, set_tool) = create_signal(Tool::Pencil);
-        let (color_index, set_color_index) = create_signal(0);
-        let (selected, set_selected) = create_signal(None);
-        let (new_light_intensity, set_new_light_intensity) = create_signal(2.0);
-        let (new_surface, set_new_surface) = create_signal(Surface::default());
-        let (poked, set_poked) = create_signal(0);
+        let lighting = create_signal(None);
+        let rays = create_signal(None);
+        let overlay = create_signal(overlay::draw(Vec::new(), None, Preview::None));
+        let tool = create_signal(Tool::Pencil);
+        let color_index = create_signal(0);
+        let selected = create_signal(None);
+        let new_light_intensity = create_signal(2.0);
+        let new_surface = create_signal(Surface::default());
+        let poked = create_signal(0);
         Self {
             editor,
             entities,
             lighting,
-            set_lighting,
             rays,
-            set_rays,
             overlay,
-            set_overlay,
             tool,
-            set_tool,
             color_index,
-            set_color_index,
             selected,
-            set_selected,
             new_light_intensity,
-            set_new_light_intensity,
             new_surface,
-            set_new_surface,
             poked,
-            set_poked,
             inner: store(RayInner {
                 block,
                 performance,
@@ -220,7 +202,7 @@ impl RayState {
     }
 
     pub(crate) fn settings(&self, view: bool) -> RaySettings {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         inner
             .block
             .read()
@@ -231,7 +213,7 @@ impl RayState {
     }
 
     pub(crate) fn set_settings(&self, view: bool, settings: RaySettings) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         match view {
             true => {
                 inner
@@ -246,23 +228,22 @@ impl RayState {
     }
 
     pub(crate) fn choose_tool(&self, tool: Tool) {
-        let inner = self.inner.get();
-        self.set_tool.set(tool);
+        let inner = self.inner.value();
+        self.tool.set(tool);
         inner.interaction.borrow_mut().take();
         if tool != Tool::Select {
-            self.set_selected.set(None);
+            self.selected.set(None);
         }
         self.poke();
     }
 
     fn poke(&self) {
-        self.set_poked
-            .update(|poked| *poked = poked.wrapping_add(1));
+        self.poked.update(|poked| *poked = poked.wrapping_add(1));
     }
 
     pub(crate) fn choose_color(&self, index: u8) {
-        let inner = self.inner.get();
-        self.set_color_index.set(index);
+        let inner = self.inner.value();
+        self.color_index.set(index);
         let Some(mut entity) = self.selected_entity() else {
             return;
         };
@@ -286,46 +267,46 @@ impl RayState {
     }
 
     pub(crate) fn update_entity(&self, entity: RayEntity) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         inner
             .block
             .operate(PixelRayTracerOperation::UpdateEntity { entity });
     }
 
     pub(crate) fn delete_selected(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let Some(id) = self.selected.get_untracked() else {
             return;
         };
-        self.set_selected.set(None);
+        self.selected.set(None);
         inner
             .block
             .operate(PixelRayTracerOperation::DeleteEntity { id });
     }
 
     pub(crate) fn reset(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         inner.block.operate(PixelRayTracerOperation::Reset);
-        self.set_selected.set(None);
+        self.selected.set(None);
     }
 
     pub(crate) fn set_light_intensity(&self, value: f32) {
-        self.set_new_light_intensity.set(value);
+        self.new_light_intensity.set(value);
     }
 
     pub(crate) fn set_new_surface(&self, surface: Surface) {
-        self.set_new_surface.set(surface);
+        self.new_surface.set(surface);
     }
 
     pub(crate) fn hover(&self, at: Option<Point>) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         if inner.pointer.replace(at) != at {
             self.poke();
         }
     }
 
     pub(crate) fn press(&self, at: Point) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let tool = self.tool.get_untracked();
         let snapped = snap(at);
         match tool {
@@ -355,7 +336,7 @@ impl RayState {
                             intensity: self.new_light_intensity.get_untracked(),
                         },
                     });
-                    self.set_selected.set(Some(id));
+                    self.selected.set(Some(id));
                 }
             }
             Tool::Select => self.select_or_drag(at),
@@ -370,7 +351,7 @@ impl RayState {
     }
 
     fn follow(&self, at: Point) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let tool = self.tool.get_untracked();
         let mut held = inner.interaction.borrow_mut();
         let Some(interaction) = held.as_mut() else {
@@ -398,7 +379,7 @@ impl RayState {
     }
 
     pub(crate) fn release(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let Some(interaction) = inner.interaction.borrow_mut().take() else {
             return;
         };
@@ -445,7 +426,7 @@ impl RayState {
                 inner
                     .block
                     .operate(PixelRayTracerOperation::AddEntity { entity });
-                self.set_selected.set(Some(id));
+                self.selected.set(Some(id));
             }
             Interaction::Endpoint { id, start, current } => {
                 if let Some(entity) =
@@ -465,7 +446,7 @@ impl RayState {
     }
 
     fn select_or_drag(&self, at: Point) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let entities = self.entities.get_untracked();
         if let Some(id) = self.selected.get_untracked()
             && let Some(entity) = entities.iter().find(|entity| entity.id() == id).cloned()
@@ -502,12 +483,12 @@ impl RayState {
                 _ => {}
             }
         }
-        self.set_selected
+        self.selected
             .set(closest(&entities, at).map(|entity| entity.id()));
     }
 
     fn drafted(&self) -> Option<RayEntity> {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let held = inner.interaction.borrow();
         let entities = self.entities.get_untracked();
         match held.as_ref()? {
@@ -520,7 +501,7 @@ impl RayState {
     }
 
     fn preview(&self) -> Preview {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let held = inner.interaction.borrow();
         let tool = self.tool.get_untracked();
         let color_index = self.color_index.get_untracked();
@@ -545,7 +526,7 @@ impl RayState {
     }
 
     pub(crate) fn watch(self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let (waker, woken) = self.editor.woken();
         *inner.waker.borrow_mut() = waker;
         create_effect(move || {
@@ -567,7 +548,7 @@ impl RayState {
     }
 
     fn settle_overlay(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let mut entities = self.entities.get_untracked();
         if let Some(draft) = self.drafted() {
             for entity in &mut entities {
@@ -584,7 +565,7 @@ impl RayState {
         if inner.shown_overlay.borrow().as_ref() == Some(&shown) {
             return;
         }
-        self.set_overlay.set_unconditionally(overlay::draw(
+        self.overlay.set_unconditionally(overlay::draw(
             shown.entities.clone(),
             shown.selected,
             shown.preview.clone(),
@@ -593,7 +574,7 @@ impl RayState {
     }
 
     fn settle_lighting(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let Some(scene) = inner.block.read() else {
             return;
         };
@@ -641,7 +622,7 @@ impl RayState {
     }
 
     fn land_lighting(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let landed =
             inner
                 .lighting_job
@@ -658,17 +639,17 @@ impl RayState {
                 inner
                     .performance
                     .record_duration("Lighting trace", duration);
-                self.set_lighting.set(Some(image_of(&pixels)));
+                self.lighting.set(Some(image_of(&pixels)));
                 *inner.rendered.borrow_mut() = pixels;
                 inner.ray_state.borrow_mut().take();
-                self.set_rays.set(None);
+                self.rays.set(None);
                 inner.lighting_key.set(Some(landed_key));
             }
         }
     }
 
     fn settle_rays(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         if self.tool.get_untracked() != Tool::RayTrace {
             return;
         }
@@ -716,7 +697,7 @@ impl RayState {
     }
 
     fn land_rays(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let landed =
             inner
                 .ray_job
@@ -733,7 +714,7 @@ impl RayState {
                 inner
                     .performance
                     .record_duration("View-ray trace", duration);
-                self.set_rays.set(Some(image_of(&pixels)));
+                self.rays.set(Some(image_of(&pixels)));
                 *inner.ray_state.borrow_mut() = Some(TracedRays {
                     origin,
                     revision,

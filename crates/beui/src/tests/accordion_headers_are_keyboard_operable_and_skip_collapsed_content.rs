@@ -6,19 +6,17 @@ use crate::styled::*;
 fn accordion_headers_are_keyboard_operable_and_skip_collapsed_content() {
     let _root = crate::reactive::RootScope::new();
     let child = NodeRef::new();
-    let (document, [accordion, after]) = toolbar_of({
-        move || {
-            [
-                view! {
-                    <Accordion title="Options" open=false>
-                        <LabelledButton @node_ref=&child label="Child" />
-                    </Accordion>
-                },
-                view! {
-                    <LabelledButton label="After" />
-                },
-            ]
-        }
+    let (document, [accordion, after]) = toolbar_of(move || {
+        [
+            view! {
+                <Accordion title="Options" open=false>
+                    <LabelledButton @node_ref=&child label="Child" />
+                </Accordion>
+            },
+            view! {
+                <LabelledButton label="After" />
+            },
+        ]
     });
     let child_focus = unstyled::button_focused(&document, child.get());
     let after_focus = unstyled::button_focused(&document, after);

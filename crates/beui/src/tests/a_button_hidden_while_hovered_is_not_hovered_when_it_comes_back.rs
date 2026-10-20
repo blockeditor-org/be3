@@ -5,19 +5,19 @@ use crate::unstyled::ButtonHandle;
 
 #[derive(Clone, Copy)]
 struct Held {
-    shown: WriteSignal<bool>,
+    shown: Signal<bool>,
     hovered: Option<ReadSignal<bool>>,
 }
 
 #[test]
 fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
     let _root = crate::reactive::RootScope::new();
-    let (held, set_held) = create_signal::<Option<Held>>(None);
+    let held = create_signal::<Option<Held>>(None);
     let document = build(move || {
-        let (shown, set_shown) = create_signal(true);
-        set_held.update(|held| {
+        let shown = create_signal(true);
+        held.update(|held| {
             *held = Some(Held {
-                shown: set_shown,
+                shown,
                 hovered: None,
             })
         });
@@ -28,7 +28,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
                         @test_id={"hidden.button"}
                         on_click={|| {}}
                     >|handle: ButtonHandle| {
-                        set_held.update(|held| {
+                        held.update(|held| {
                             if let Some(held) = held {
                                 held.hovered = Some(handle.hovered);
                             }
@@ -61,7 +61,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
             .get_untracked()
             .expect("the view published its setter")
             .shown;
-        with_reactive_scope(harness.document_mut(), || set.set(shown));
+        set.set(shown);
         harness.frame(Vec::new());
     };
     hide(&mut harness, false);

@@ -22,7 +22,7 @@ fn sheet_shown(harness: &Harness) -> bool {
 #[test]
 fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_sheet() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let (document, [button]) = toolbar_of(|| {
         [view! {
             <MenuButton
@@ -32,7 +32,7 @@ fn a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_
                         label="Rename"
                         glyph={ICON_EDIT.to_owned()}
                         detail="Ctrl+R"
-                        on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                        on_click={move || clicks.update(|clicks| *clicks += 1)}
                     />
                 }}
             />

@@ -43,9 +43,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         );
     });
 
-    let measured = shown;
     create_effect(move || {
-        let size = measured.get().size();
+        let size = shown.get().size();
         editor.set_intrinsic_size(Some(size));
     });
 
@@ -170,10 +169,10 @@ fn PageCanvas(
                     let image = create_memo(move || {
                         tile.get().map(|(_, image)| image)
                     });
-                    let test_id = format!("pdf.tile.{index}");
+                    let element_test_id = format!("pdf.tile.{index}");
                     view! {
                         <CanvasItem x={x} y={y} width={width} height={height}>
-                            <Picture image={image} fit=ImageFit::Fill @test_id={test_id} />
+                            <Picture image={image} fit=ImageFit::Fill @test_id={element_test_id} />
                         </CanvasItem>
                     }
                 }</ForEach>

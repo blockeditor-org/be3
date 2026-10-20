@@ -1,9 +1,9 @@
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 use std::marker::PhantomData;
 use std::rc::Rc;
 
 use reactive::{
-    ReadSignal, Scope, ScopeContext, Stored, WriteSignal, create_effect, create_signal, store,
+    Get, Scope, ScopeContext, Set, Signal, Stored, create_effect, create_signal, store,
 };
 
 use crate::child_list::{ChildList, SlotId};
@@ -153,22 +153,19 @@ impl<T: SlotChild> IntoSegment<T> for DynamicSegment<T> {
 
 struct RunState<S> {
     items: RefCell<ChildList<S>>,
-    filled: ReadSignal<u64>,
-    fill: WriteSignal<u64>,
+    filled: Signal<u64>,
 }
 
 impl<S> RunState<S> {
     fn new() -> Self {
-        let (filled, fill) = create_signal(0);
         Self {
             items: RefCell::new(ChildList::default()),
-            filled,
-            fill,
+            filled: create_signal(0),
         }
     }
 
     fn changed(&self) {
-        self.fill.update(|filled| *filled += 1);
+        self.filled.update(|filled| *filled += 1);
     }
 }
 
@@ -193,20 +190,23 @@ impl<C: SlotChild> Default for Run<C> {
 }
 
 impl<C: SlotChild> Run<C> {
+    #[track_caller]
     pub fn items(&self) -> Vec<C::Stored> {
         self.state.filled.get();
-        self.peek()
+        self.get_untracked()
     }
 
-    pub fn peek(&self) -> Vec<C::Stored> {
+    pub fn get_untracked(&self) -> Vec<C::Stored> {
         self.state.items.borrow().iter().cloned().collect()
     }
 
+    #[track_caller]
     pub fn len(&self) -> usize {
         self.state.filled.get();
         self.state.items.borrow().len()
     }
 
+    #[track_caller]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }
@@ -225,8 +225,8 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
         DynamicSegment::new(move |slot: ChildSlot<R>| {
             let held: HeldEach<T, R> = store(RefCell::new(Vec::new()));
             create_effect(move || {
-                let held = held.get();
-                let Some(states) = states.try_get() else {
+                let held = held.value();
+                let Some(states) = states.try_value() else {
                     return;
                 };
                 let items = run.items();
@@ -363,6 +363,48 @@ impl<C: SlotChild> ChildSlot<C> {
     }
 }
 
+pub(crate) struct NestedHost<C: SlotChild> {
+    slot: ChildSlot<C>,
+    items: RefCell<ChildList<C::Stored>>,
+    mounting: Cell<bool>,
+    visible: Cell<bool>,
+}
+
+impl<C: SlotChild> NestedHost<C> {
+    pub(crate) fn set_visible(&self, visible: bool) {
+        self.visible.set(visible);
+        if visible {
+            self.publish();
+        } else {
+            self.slot.fill(Vec::new());
+        }
+    }
+
+    fn publish(&self) {
+        if !self.mounting.get() && self.visible.get() {
+            self.slot
+                .fill(self.items.borrow().iter().cloned().collect());
+        }
+    }
+}
+
+impl<C: SlotChild> SlotHost<C> for NestedHost<C> {
+    fn store(&self, child: C) -> C::Stored {
+        self.slot.store(child)
+    }
+    fn append(&self, stored: C::Stored) {
+        self.items.borrow_mut().push(stored);
+        self.publish();
+    }
+    fn open(&self) -> SlotId {
+        self.items.borrow_mut().open()
+    }
+    fn fill(&self, slot: SlotId, items: Vec<C::Stored>) {
+        self.items.borrow_mut().fill(slot, items);
+        self.publish();
+    }
+}
+
 #[diagnostic::on_unimplemented(
     message = "a `{Self}` cannot be written between these tags",
     label = "this component takes `{T}` children"
@@ -437,6 +479,14 @@ pub trait ChildrenSlot {
     type Child: SlotChild;
 }
 
+impl<T: SlotChild> ChildValue for Children<T> {}
+
+impl<T: SlotChild, H: IntoSegment<T>> FromIterator<H> for Children<T> {
+    fn from_iter<I: IntoIterator<Item = H>>(iter: I) -> Self {
+        Self(iter.into_iter().map(IntoSegment::into_segment).collect())
+    }
+}
+
 impl<T: SlotChild> ChildrenSlot for Children<T> {
     type Child = T;
 }
@@ -464,7 +514,7 @@ impl<T: SlotChild> From<Run<T>> for Children<T> {
         Self::from(ChildSegment::Dynamic(DynamicSegment::new(
             move |slot: ChildSlot<T>| {
                 let held = slot.clone();
-                held.fill(run.peek());
+                held.fill(run.get_untracked());
                 create_effect(move || slot.fill(run.items()));
             },
         )))
@@ -484,6 +534,10 @@ impl<T: SlotChild> From<DynamicSegment<T>> for Children<T> {
 }
 
 impl<T: SlotChild> Children<T> {
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
     pub fn map(self, change: impl Fn(T) -> T + 'static) -> Self {
         let change: Rc<dyn Fn(T) -> T> = Rc::new(change);
         Self(
@@ -507,6 +561,19 @@ impl<T: SlotChild> Children<T> {
         for segment in self.0 {
             mount_segment(&host, segment);
         }
+    }
+
+    pub(crate) fn mount_in(self, slot: ChildSlot<T>) -> Rc<NestedHost<T>> {
+        let host = Rc::new(NestedHost {
+            slot,
+            items: RefCell::default(),
+            mounting: Cell::new(true),
+            visible: Cell::new(true),
+        });
+        self.mount(host.clone() as Rc<dyn SlotHost<T>>);
+        host.mounting.set(false);
+        host.publish();
+        host
     }
 
     pub fn from_block(block: impl IntoSegments<T>) -> Self {

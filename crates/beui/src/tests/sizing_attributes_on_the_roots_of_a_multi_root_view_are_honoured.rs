@@ -6,15 +6,13 @@ use crate::reactive::*;
 fn sizing_attributes_on_the_roots_of_a_multi_root_view_are_honoured() {
     let _root = crate::reactive::RootScope::new();
     let (left, right) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            let panes = view! {
-                <List @sizing=ItemSize::Fixed(30.0) @node_ref=&left spacing=0.0></List>
-                <List @sizing=ItemSize::Percent(100.0) @node_ref=&right spacing=0.0></List>
-            };
-            view! {
-                <List direction=Direction::Horizontal spacing=0.0 children={panes} />
-            }
+    let document = build(move || {
+        let panes = view! {
+            <List @sizing=ItemSize::Fixed(30.0) @node_ref=&left spacing=0.0></List>
+            <List @sizing=ItemSize::Percent(100.0) @node_ref=&right spacing=0.0></List>
+        };
+        view! {
+            <List direction=Direction::Horizontal spacing=0.0 children={panes} />
         }
     });
 

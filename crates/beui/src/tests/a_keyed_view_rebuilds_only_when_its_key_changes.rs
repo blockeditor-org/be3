@@ -7,38 +7,36 @@ use crate::unstyled::Button;
 fn a_keyed_view_rebuilds_only_when_its_key_changes() {
     let _root = crate::reactive::RootScope::new();
     let (holder, retitle, reshape) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            let (state, set_state) = create_signal((0u32, "first".to_owned()));
-            view! {
-                <List spacing=0.0>
-                    <List direction=Direction::Horizontal spacing=0.0>
-                        <Button
-                            @node_ref=&retitle
-                            on_click={move || set_state.set((0, "second".to_owned()))}
-                        >
-                            <Text string="retitle" />
-                        </Button>
-                        <Button
-                            @node_ref=&reshape
-                            on_click={move || set_state.set((1, "third".to_owned()))}
-                        >
-                            <Text string="reshape" />
-                        </Button>
-                    </List>
-                    <List @node_ref=&holder spacing=0.0>
-                        <Keyed
-                            value={state}
-                            key={|(shape, _): (u32, String)| shape}
-                        >|value: ReadSignal<(u32, String)>| {
-                            let label = create_memo(move || value.get().1);
-                            view! {
-                                <Text string={label} />
-                            }
-                        }</Keyed>
-                    </List>
+    let document = build(move || {
+        let state = create_signal((0u32, "first".to_owned()));
+        view! {
+            <List spacing=0.0>
+                <List direction=Direction::Horizontal spacing=0.0>
+                    <Button
+                        @node_ref=&retitle
+                        on_click={move || state.set((0, "second".to_owned()))}
+                    >
+                        <Text string="retitle" />
+                    </Button>
+                    <Button
+                        @node_ref=&reshape
+                        on_click={move || state.set((1, "third".to_owned()))}
+                    >
+                        <Text string="reshape" />
+                    </Button>
                 </List>
-            }
+                <List @node_ref=&holder spacing=0.0>
+                    <Keyed
+                        value={state}
+                        key={|(shape, _): (u32, String)| shape}
+                    >|value: ReadSignal<(u32, String)>| {
+                        let label = create_memo(move || value.get().1);
+                        view! {
+                            <Text string={label} />
+                        }
+                    }</Keyed>
+                </List>
+            </List>
         }
     });
 

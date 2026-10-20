@@ -1,6 +1,7 @@
 use std::{
     collections::HashSet,
-    fmt, fs, io,
+    fmt, fs,
+    io::{self, Write},
     path::{Path, PathBuf},
     time::{SystemTime, UNIX_EPOCH},
 };
@@ -97,8 +98,10 @@ impl Target for Directory {
         let parent = path.parent().ok_or(BackupError::Key)?;
         fs::create_dir_all(parent)?;
         let partial = path.with_extension("partial");
-        fs::write(&partial, bytes)?;
-        fs::File::open(&partial)?.sync_all()?;
+        let mut file = fs::File::create(&partial)?;
+        file.write_all(bytes)?;
+        file.sync_all()?;
+        drop(file);
         fs::rename(&partial, &path)?;
         Ok(())
     }

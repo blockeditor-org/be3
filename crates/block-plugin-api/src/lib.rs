@@ -16,8 +16,8 @@ pub use host_value::{
 };
 pub use linux::{
     AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostDisplayMode, HostInputDevice,
-    HostNotificationAction, HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows,
-    IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
+    HostNotificationAction, HostProgram, HostRotation, HostTrayItem, HostWindow, HostWindowId,
+    HostWindows, IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction,
     PowerAvailability, ProgramAction, Programs, RemapState, Remaps, ScreenLocked, Tray,
@@ -2481,6 +2481,7 @@ pub struct Modifiers {
 pub struct FrameReady {
     pub generation: u64,
     pub repaint_after_micros: Option<u64>,
+    pub animating: bool,
     pub presented: Option<PresentedFrame>,
 }
 

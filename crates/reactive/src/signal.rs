@@ -5,7 +5,7 @@ use std::rc::{Rc, Weak};
 use crate::arena::{self, Key};
 
 use crate::computation::{Computation, State, no_computation};
-use crate::runtime::{RUNTIME, batch};
+use crate::runtime::{RUNTIME, batch, check_tracked_read, untrack};
 
 pub(crate) struct Source {
     pub(crate) version: Cell<u64>,
@@ -135,57 +135,80 @@ pub(crate) struct Value<T> {
     pub(crate) value: RefCell<T>,
 }
 
+pub trait Get<T> {
+    #[track_caller]
+    fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R;
+
+    fn with_untracked<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        untrack(|| self.with(f))
+    }
+
+    #[track_caller]
+    fn get(&self) -> T
+    where
+        T: Clone,
+    {
+        self.with(T::clone)
+    }
+
+    fn get_untracked(&self) -> T
+    where
+        T: Clone,
+    {
+        self.with_untracked(T::clone)
+    }
+}
+
+pub trait Set<T> {
+    fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R;
+
+    fn set(&self, value: T)
+    where
+        T: PartialEq;
+}
+
+pub struct Signal<T> {
+    key: Key,
+    ty: PhantomData<*const T>,
+}
+
 pub struct ReadSignal<T> {
     key: Key,
     ty: PhantomData<*const T>,
 }
 
-pub struct WriteSignal<T> {
-    key: Key,
-    ty: PhantomData<*const T>,
-}
-
-pub fn create_signal<T: 'static>(value: T) -> (ReadSignal<T>, WriteSignal<T>) {
-    handles(arena::insert_owned(Rc::new(Value::new(value))))
+pub fn create_signal<T: 'static>(value: T) -> Signal<T> {
+    Signal::from_key(arena::insert_owned(Rc::new(Value::new(value))))
 }
 
 pub struct OwnedSignal<T: 'static> {
-    read: ReadSignal<T>,
-    write: WriteSignal<T>,
+    handle: Signal<T>,
 }
 
 impl<T: 'static> OwnedSignal<T> {
     pub fn new(value: T) -> Self {
-        let (read, write) = handles(arena::insert(Rc::new(Value::new(value))));
-        Self { read, write }
+        Self {
+            handle: Signal::from_key(arena::insert(Rc::new(Value::new(value)))),
+        }
     }
 
-    pub fn read(&self) -> ReadSignal<T> {
-        self.read
+    pub fn handle(&self) -> Signal<T> {
+        self.handle
     }
+}
 
-    pub fn write(&self) -> WriteSignal<T> {
-        self.write
+impl<T: 'static> std::ops::Deref for OwnedSignal<T> {
+    type Target = Signal<T>;
+
+    fn deref(&self) -> &Signal<T> {
+        &self.handle
     }
 }
 
 impl<T: 'static> Drop for OwnedSignal<T> {
     fn drop(&mut self) {
-        arena::remove(self.read.key);
+        arena::remove(self.handle.key);
     }
-}
-
-fn handles<T>(key: Key) -> (ReadSignal<T>, WriteSignal<T>) {
-    (
-        ReadSignal {
-            key,
-            ty: PhantomData,
-        },
-        WriteSignal {
-            key,
-            ty: PhantomData,
-        },
-    )
 }
 
 impl<T> Value<T> {
@@ -201,6 +224,28 @@ fn stored<T: 'static>(key: Key) -> Rc<Value<T>> {
     arena::get(key).expect("signal used after the scope that owns it was disposed")
 }
 
+fn with<T: 'static, R>(key: Key, f: impl FnOnce(&T) -> R) -> R {
+    let inner = stored::<T>(key);
+    track(inner.clone());
+    f(&inner.value.borrow())
+}
+
+fn with_untracked<T: 'static, R>(key: Key, f: impl FnOnce(&T) -> R) -> R {
+    f(&stored::<T>(key).value.borrow())
+}
+
+fn is_alive<T: 'static>(key: Key) -> bool {
+    arena::get::<Value<T>>(key).is_some()
+}
+
+impl<T> Clone for Signal<T> {
+    fn clone(&self) -> Self {
+        *self
+    }
+}
+
+impl<T> Copy for Signal<T> {}
+
 impl<T> Clone for ReadSignal<T> {
     fn clone(&self) -> Self {
         *self
@@ -209,55 +254,30 @@ impl<T> Clone for ReadSignal<T> {
 
 impl<T> Copy for ReadSignal<T> {}
 
-impl<T> Clone for WriteSignal<T> {
-    fn clone(&self) -> Self {
-        *self
+impl<T: 'static> Get<T> for Signal<T> {
+    fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        check_tracked_read::<Self>();
+        with(self.key, f)
+    }
+
+    fn with_untracked<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        with_untracked(self.key, f)
     }
 }
 
-impl<T> Copy for WriteSignal<T> {}
-
-impl<T: 'static> ReadSignal<T> {
-    pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
-        let inner = stored::<T>(self.key);
-        track(inner.clone());
-        f(&inner.value.borrow())
+impl<T: 'static> Get<T> for ReadSignal<T> {
+    fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        check_tracked_read::<Self>();
+        with(self.key, f)
     }
 
-    pub fn get(&self) -> T
-    where
-        T: Clone,
-    {
-        self.with(Clone::clone)
-    }
-
-    pub fn get_untracked(&self) -> T
-    where
-        T: Clone,
-    {
-        self.with_untracked(Clone::clone)
-    }
-
-    pub fn with_untracked<R>(&self, f: impl FnOnce(&T) -> R) -> R {
-        f(&stored::<T>(self.key).value.borrow())
-    }
-
-    pub fn is_alive(&self) -> bool {
-        arena::get::<Value<T>>(self.key).is_some()
-    }
-
-    pub fn ptr_eq(&self, other: &Self) -> bool {
-        self.key == other.key
-    }
-
-    #[cfg(test)]
-    pub(crate) fn subscribers(&self) -> usize {
-        stored::<T>(self.key).source.subscribers.borrow().len()
+    fn with_untracked<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        with_untracked(self.key, f)
     }
 }
 
-impl<T: 'static> WriteSignal<T> {
-    pub fn set(&self, value: T)
+impl<T: 'static> Set<T> for Signal<T> {
+    fn set(&self, value: T)
     where
         T: PartialEq,
     {
@@ -275,7 +295,7 @@ impl<T: 'static> WriteSignal<T> {
         });
     }
 
-    pub fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
+    fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         assert_writable();
         let inner = stored::<T>(self.key);
         batch(|| {
@@ -289,6 +309,22 @@ impl<T: 'static> WriteSignal<T> {
             }
         })
     }
+}
+
+impl<T: 'static> Signal<T> {
+    fn from_key(key: Key) -> Self {
+        Self {
+            key,
+            ty: PhantomData,
+        }
+    }
+
+    pub fn read_only(&self) -> ReadSignal<T> {
+        ReadSignal {
+            key: self.key,
+            ty: PhantomData,
+        }
+    }
 
     pub fn set_unconditionally(&self, value: T) {
         if self.is_alive() {
@@ -297,7 +333,26 @@ impl<T: 'static> WriteSignal<T> {
     }
 
     pub fn is_alive(&self) -> bool {
-        arena::get::<Value<T>>(self.key).is_some()
+        is_alive::<T>(self.key)
+    }
+
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        self.key == other.key
+    }
+
+    #[cfg(test)]
+    pub(crate) fn subscribers(&self) -> usize {
+        stored::<T>(self.key).source.subscribers.borrow().len()
+    }
+}
+
+impl<T: 'static> ReadSignal<T> {
+    pub fn is_alive(&self) -> bool {
+        is_alive::<T>(self.key)
+    }
+
+    pub fn ptr_eq(&self, other: &Self) -> bool {
+        self.key == other.key
     }
 }
 

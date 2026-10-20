@@ -7,6 +7,7 @@ mod notifications;
 mod placeholders;
 mod popup;
 mod power;
+mod rotate;
 mod sessions;
 mod switcher;
 mod tray;

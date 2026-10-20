@@ -301,10 +301,10 @@ fn PointRow(state: MapState, id: Uuid) -> NodeId {
             .get()
             .map_or(Color32::TRANSPARENT, |point| marker_color(point.color))
     });
-    let test_id = format!("map.point.{id}");
+    let element_test_id = format!("map.point.{id}");
     view! {
         <ListRow
-            @test_id={test_id}
+            @test_id={element_test_id}
             on_click={move || {
                 state.select(Some(id));
                 if let Some(point) = state.points.get_untracked().iter().find(|point| point.id == id) {
@@ -344,15 +344,9 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
         Some(ChildTarget::new(point.block_id, label.block_type))
     });
     let openable = create_memo(move || block.get().is_none());
-    let opened_block = block;
-    let centred_point = point;
     let editor = state.editor();
     let latitude = create_memo(move || point.get().map_or(0.0, |point| point.position.latitude));
     let longitude = create_memo(move || point.get().map_or(0.0, |point| point.position.longitude));
-    let moved_point = point;
-    let slid_point = point;
-    let tinted_point = point;
-    let coloured_point = point;
     let custom = create_memo(move || {
         point
             .get()
@@ -384,7 +378,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     variant=ButtonVariant::Secondary
                     disabled={openable}
                     on_click={move || {
-                        if let Some(target) = opened_block.get_untracked() {
+                        if let Some(target) = block.get_untracked() {
                             state.editor().host().open_block(target.id, target.block_type);
                         }
                     }}
@@ -393,7 +387,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                     glyph={ICON_MY_LOCATION.to_owned()}
                     label="Centre the map here"
                     on_click={move || {
-                        if let Some(point) = centred_point.get_untracked() {
+                        if let Some(point) = point.get_untracked() {
                             state.centre_on(point.position);
                         }
                     }}
@@ -416,7 +410,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 max=MAX_LATITUDE
                 label="Latitude"
                 on_change={move |value: f64| {
-                    let Some(mut point) = moved_point.get_untracked() else {
+                    let Some(mut point) = point.get_untracked() else {
                         return;
                     };
                     point.position.latitude = value;
@@ -429,7 +423,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 max=180.0
                 label="Longitude"
                 on_change={move |value: f64| {
-                    let Some(mut point) = slid_point.get_untracked() else {
+                    let Some(mut point) = point.get_untracked() else {
                         return;
                     };
                     point.position.longitude = value;
@@ -440,18 +434,15 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <ForEach
                     keys={COLOR_PRESETS.map(|(name, _)| name.to_owned()).to_vec()}
-                >|name: String| {
-                    let point = coloured_point;
-                    view! {
-                        <ColorPreset state point name />
-                    }
-                }</ForEach>
+                >|name: String|
+                    <ColorPreset state point={point} name />
+                </ForEach>
             </List>
             <ColorInput
                 value={custom}
                 label="Custom colour"
                 on_change={move |color: Color32| {
-                    let Some(mut point) = tinted_point.get_untracked() else {
+                    let Some(mut point) = point.get_untracked() else {
                         return;
                     };
                     let [red, green, blue, _] = color.to_array();

@@ -1,9 +1,9 @@
 use std::rc::Rc;
 
 use crate::reactive::{
-    Child, ChildSegment, ChildValue, Children, FromPlaced, IntoChild, IntoProp, IntoSegment,
-    IntoSlotHost, Memo, Placed, Prop, ReadSignal, SlotChild, SlotHost, SlotId, create_binding,
-    create_effect, with_document,
+    Child, ChildSegment, ChildValue, Children, FromPlaced, Get, IntoChild, IntoProp, IntoSegment,
+    IntoSlotHost, Memo, Placed, Prop, ReadSignal, Signal, SlotChild, SlotHost, SlotId,
+    create_binding, create_effect, with_document,
 };
 use beui_core::base::text::{
     FontPatch, IconSpan, SpanContent, SpanHandle, TextNode, TextPart, TextStyle,
@@ -67,6 +67,20 @@ pub enum TextChild {
     Span(Span),
     Gap(Gap),
     Item(TextItem),
+}
+
+impl ChildValue for TextChild {
+    fn finish_component(
+        &mut self,
+        component: &crate::reactive::ComponentContext,
+        scope: &crate::reactive::ScopeContext,
+    ) {
+        match self {
+            Self::Span(value) => value.finish_component(component, scope),
+            Self::Gap(value) => value.finish_component(component, scope),
+            Self::Item(value) => value.finish_component(component, scope),
+        }
+    }
 }
 
 crate::child_type!(TextChild);
@@ -149,7 +163,8 @@ text_child_from!(
     String,
     Prop<String>,
     Memo<String>,
-    ReadSignal<String>
+    ReadSignal<String>,
+    Signal<String>
 );
 
 impl IntoChild<TextChild> for Span {
@@ -233,20 +248,20 @@ impl Span {
         }
     }
 
-    fn peek(&self) -> SpanContent {
+    fn get_untracked(&self) -> SpanContent {
         SpanContent {
-            text: self.text.peek(),
-            font: self.font.peek(),
-            color: self.color.peek(),
-            underline: self.underline.peek(),
-            strikethrough: self.strikethrough.peek(),
-            break_after: self.break_after.peek(),
+            text: self.text.get_untracked(),
+            font: self.font.get_untracked(),
+            color: self.color.get_untracked(),
+            underline: self.underline.get_untracked(),
+            strikethrough: self.strikethrough.get_untracked(),
+            break_after: self.break_after.get_untracked(),
             icon: self.icon,
         }
     }
 
     fn bind(self, text: NodeOf<TextNode>) -> SpanHandle {
-        let handle = SpanHandle::new(self.peek());
+        let handle = SpanHandle::new(self.get_untracked());
         bind(text, &handle, self.text, |content, value| {
             content.text = value;
         });

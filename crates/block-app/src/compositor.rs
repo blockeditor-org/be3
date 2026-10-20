@@ -14,22 +14,18 @@ use crate::editors::EditorAction;
 pub(crate) use editors::{OwnedEditors, PresentingSurface, ShellSurface};
 pub(crate) use region::{ChildView, PluginRegion, RegionEditor};
 
-type Listeners = HashMap<String, Vec<(u64, WriteSignal<u64>)>>;
-type ShellSignal = (
-    ReadSignal<Option<uuid::Uuid>>,
-    WriteSignal<Option<uuid::Uuid>>,
-);
+type Listeners = HashMap<String, Vec<(u64, Signal<u64>)>>;
 
 thread_local! {
     static LISTENERS: RefCell<Listeners> = RefCell::new(HashMap::new());
     static NEXT_LISTENER: Cell<u64> = const { Cell::new(0) };
     static ACTIONS: RefCell<Vec<(Option<uuid::Uuid>, EditorAction)>> = const { RefCell::new(Vec::new()) };
-    static ANY: RefCell<Option<(ReadSignal<u64>, WriteSignal<u64>)>> = const { RefCell::new(None) };
+    static ANY: RefCell<Option<Signal<u64>>> = const { RefCell::new(None) };
     static CHANGED: Cell<bool> = const { Cell::new(false) };
     static STALE: Cell<u64> = const { Cell::new(0) };
     static OWED: Cell<bool> = const { Cell::new(false) };
     static PENDING_SHELL: Cell<Option<Option<uuid::Uuid>>> = const { Cell::new(None) };
-    static SHELL: RefCell<Option<ShellSignal>> = const { RefCell::new(None) };
+    static SHELL: RefCell<Option<Signal<Option<uuid::Uuid>>>> = const { RefCell::new(None) };
 }
 
 pub(crate) fn install() {
@@ -44,7 +40,7 @@ pub(crate) fn shell() -> ReadSignal<Option<uuid::Uuid>> {
         shell
             .borrow()
             .as_ref()
-            .map(|(read, _)| *read)
+            .map(|shell| shell.read_only())
             .expect("the compositor is installed while the document is built")
     })
 }
@@ -58,10 +54,10 @@ fn apply_shell() {
         return;
     };
     let held = SHELL.with(|shell| *shell.borrow());
-    if let Some((read, write)) = held
-        && read.get_untracked() != block
+    if let Some(shell) = held
+        && shell.get_untracked() != block
     {
-        write.set(block);
+        shell.set(block);
     }
 }
 
@@ -69,7 +65,7 @@ pub(crate) fn any() -> ReadSignal<u64> {
     ANY.with(|any| {
         any.borrow()
             .as_ref()
-            .map(|(read, _)| *read)
+            .map(|any| any.read_only())
             .expect("the compositor is installed while the document is built")
     })
 }
@@ -80,7 +76,7 @@ pub(crate) fn changed() {
 }
 
 pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
-    let (read, write) = create_signal(0u64);
+    let revision = create_signal(0u64);
     let id = NEXT_LISTENER.with(|next| {
         next.set(next.get() + 1);
         next.get()
@@ -90,7 +86,7 @@ pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
             .borrow_mut()
             .entry(plugin_id.to_owned())
             .or_default()
-            .push((id, write));
+            .push((id, revision));
     });
     let plugin_id = plugin_id.to_owned();
     on_cleanup(move || {
@@ -100,7 +96,7 @@ pub(crate) fn listen(plugin_id: &str) -> ReadSignal<u64> {
             }
         });
     });
-    read
+    revision.read_only()
 }
 
 pub(crate) fn release_revision_editors(ids: &[uuid::Uuid]) {
@@ -133,15 +129,15 @@ fn notify_plugins() -> bool {
     }
     let changed = crate::plugin_host::take_changed();
     let notified = !changed.is_empty() || CHANGED.with(|flag| flag.replace(false));
-    if notified && let Some((_, write)) = ANY.with(|any| *any.borrow()) {
-        write.update(|revision| *revision += 1);
+    if notified && let Some(any) = ANY.with(|any| *any.borrow()) {
+        any.update(|revision| *revision += 1);
     }
     for plugin_id in changed {
-        let writers: Vec<WriteSignal<u64>> = LISTENERS.with(|listeners| {
+        let writers: Vec<Signal<u64>> = LISTENERS.with(|listeners| {
             listeners
                 .borrow()
                 .get(&plugin_id)
-                .map(|held| held.iter().map(|(_, write)| *write).collect())
+                .map(|held| held.iter().map(|(_, listener)| *listener).collect())
                 .unwrap_or_default()
         });
         for write in writers {

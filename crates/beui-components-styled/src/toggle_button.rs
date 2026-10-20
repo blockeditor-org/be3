@@ -66,7 +66,6 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
-    let icon_color = text_color;
     let fill_color = create_memo(move || fill_for(&theme, checked.get(), hovered.get()));
     let border_color = create_memo(move || {
         let theme = theme.get();
@@ -87,7 +86,7 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                     <Show condition={has_glyph}>
-                        <Text color={icon_color} align=TextAlign::Center>
+                        <Text color={text_color} align=TextAlign::Center>
                             <Icon glyph={glyph} />
                         </Text>
                     </Show>

@@ -7,13 +7,10 @@ use crate::styled::*;
 #[test]
 fn clicking_a_link_reports_it_and_reads_as_a_link() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let (document, [link]) = toolbar_of(|| {
         [view! {
-            <Link
-                label="Open the grid"
-                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
-            />
+            <Link label="Open the grid" on_click={move || clicks.update(|clicks| *clicks += 1)} />
         }]
     });
     let mut harness = Harness::new(document);

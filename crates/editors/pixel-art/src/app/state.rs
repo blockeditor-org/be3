@@ -33,62 +33,45 @@ struct ToolsCells {
 pub(crate) struct Tools {
     cells: Stored<ToolsCells>,
     editor: Editor,
-    pub(crate) tool: ReadSignal<PixelTool>,
-    set_tool: WriteSignal<PixelTool>,
-    pub(crate) color: ReadSignal<PixelColor>,
-    set_color: WriteSignal<PixelColor>,
-    pub(crate) color_hex: ReadSignal<String>,
-    set_color_hex: WriteSignal<String>,
-    pub(crate) recent: ReadSignal<Vec<PixelColor>>,
-    set_recent: WriteSignal<Vec<PixelColor>>,
-    pub(crate) brush_size: ReadSignal<u16>,
-    pub(crate) set_brush_size: WriteSignal<u16>,
-    pub(crate) brush_shape: ReadSignal<BrushShape>,
-    pub(crate) set_brush_shape: WriteSignal<BrushShape>,
-    pub(crate) shapes_filled: ReadSignal<bool>,
-    pub(crate) set_shapes_filled: WriteSignal<bool>,
-    pub(crate) mirror_horizontal: ReadSignal<bool>,
-    pub(crate) set_mirror_horizontal: WriteSignal<bool>,
-    pub(crate) mirror_vertical: ReadSignal<bool>,
-    pub(crate) set_mirror_vertical: WriteSignal<bool>,
-    pub(crate) show_grid: ReadSignal<bool>,
-    pub(crate) set_show_grid: WriteSignal<bool>,
-    pub(crate) dialog: ReadSignal<Dialog>,
-    set_dialog: WriteSignal<Dialog>,
-    pub(crate) resize_width: ReadSignal<u16>,
-    pub(crate) set_resize_width: WriteSignal<u16>,
-    pub(crate) resize_height: ReadSignal<u16>,
-    pub(crate) set_resize_height: WriteSignal<u16>,
-    pub(crate) resize_anchor: ReadSignal<PixelArtAnchor>,
-    pub(crate) set_resize_anchor: WriteSignal<PixelArtAnchor>,
-    pub(crate) export_error: ReadSignal<Option<String>>,
-    pub(crate) set_export_error: WriteSignal<Option<String>>,
-    drawn: ReadSignal<u64>,
-    set_drawn: WriteSignal<u64>,
-    constrained: ReadSignal<bool>,
-    pub(crate) set_constrained: WriteSignal<bool>,
+    pub(crate) tool: Signal<PixelTool>,
+    pub(crate) color: Signal<PixelColor>,
+    pub(crate) color_hex: Signal<String>,
+    pub(crate) recent: Signal<Vec<PixelColor>>,
+    pub(crate) brush_size: Signal<u16>,
+    pub(crate) brush_shape: Signal<BrushShape>,
+    pub(crate) shapes_filled: Signal<bool>,
+    pub(crate) mirror_horizontal: Signal<bool>,
+    pub(crate) mirror_vertical: Signal<bool>,
+    pub(crate) show_grid: Signal<bool>,
+    pub(crate) dialog: Signal<Dialog>,
+    pub(crate) resize_width: Signal<u16>,
+    pub(crate) resize_height: Signal<u16>,
+    pub(crate) resize_anchor: Signal<PixelArtAnchor>,
+    pub(crate) export_error: Signal<Option<String>>,
+    drawn: Signal<u64>,
+    pub(crate) constrained: Signal<bool>,
 }
 
 impl Tools {
     pub(crate) fn new(editor: Editor, block: ArtBlock) -> Self {
         let black = PixelColor::new(0, 0, 0, 255);
-        let (tool, set_tool) = create_signal(PixelTool::Pencil);
-        let (color, set_color) = create_signal(black);
-        let (color_hex, set_color_hex) = create_signal(format_hex_color(black));
-        let (recent, set_recent) = create_signal(vec![black]);
-        let (brush_size, set_brush_size) = create_signal(1u16);
-        let (brush_shape, set_brush_shape) = create_signal(BrushShape::Square);
-        let (shapes_filled, set_shapes_filled) = create_signal(false);
-        let (mirror_horizontal, set_mirror_horizontal) = create_signal(false);
-        let (mirror_vertical, set_mirror_vertical) = create_signal(false);
-        let (show_grid, set_show_grid) = create_signal(true);
-        let (dialog, set_dialog) = create_signal(Dialog::None);
-        let (resize_width, set_resize_width) = create_signal(32u16);
-        let (resize_height, set_resize_height) = create_signal(32u16);
-        let (resize_anchor, set_resize_anchor) = create_signal(PixelArtAnchor::Center);
-        let (export_error, set_export_error) = create_signal(None::<String>);
-        let (drawn, set_drawn) = create_signal(0);
-        let (constrained, set_constrained) = create_signal(false);
+        let tool = create_signal(PixelTool::Pencil);
+        let color = create_signal(black);
+        let color_hex = create_signal(format_hex_color(black));
+        let recent = create_signal(vec![black]);
+        let brush_size = create_signal(1u16);
+        let brush_shape = create_signal(BrushShape::Square);
+        let shapes_filled = create_signal(false);
+        let mirror_horizontal = create_signal(false);
+        let mirror_vertical = create_signal(false);
+        let show_grid = create_signal(true);
+        let dialog = create_signal(Dialog::None);
+        let resize_width = create_signal(32u16);
+        let resize_height = create_signal(32u16);
+        let resize_anchor = create_signal(PixelArtAnchor::Center);
+        let export_error = create_signal(None::<String>);
+        let drawn = create_signal(0);
+        let constrained = create_signal(false);
         Self {
             cells: store(ToolsCells {
                 block,
@@ -98,39 +81,22 @@ impl Tools {
             }),
             editor,
             tool,
-            set_tool,
             color,
-            set_color,
             color_hex,
-            set_color_hex,
             recent,
-            set_recent,
             brush_size,
-            set_brush_size,
             brush_shape,
-            set_brush_shape,
             shapes_filled,
-            set_shapes_filled,
             mirror_horizontal,
-            set_mirror_horizontal,
             mirror_vertical,
-            set_mirror_vertical,
             show_grid,
-            set_show_grid,
             dialog,
-            set_dialog,
             resize_width,
-            set_resize_width,
             resize_height,
-            set_resize_height,
             resize_anchor,
-            set_resize_anchor,
             export_error,
-            set_export_error,
             drawn,
-            set_drawn,
             constrained,
-            set_constrained,
         }
     }
 
@@ -139,7 +105,7 @@ impl Tools {
     }
 
     pub(crate) fn block(&self) -> ArtBlock {
-        self.cells.get().block
+        self.cells.value().block
     }
 
     pub(crate) fn artwork(&self) -> Option<Rc<Artwork>> {
@@ -161,12 +127,12 @@ impl Tools {
         }
         if let Some(edit) = self
             .cells
-            .get()
+            .value()
             .block
             .read(|art| art.root().edit_for(&operation))
             && !edit.0.is_empty()
         {
-            self.cells.get().block.operate(edit);
+            self.cells.value().block.operate(edit);
         }
     }
 
@@ -185,32 +151,32 @@ impl Tools {
         self.draw(|drawing| drawing.take());
         let current = self.tool.get_untracked();
         if current.is_drawing() {
-            self.cells.get().previous_drawing_tool.set(current);
+            self.cells.value().previous_drawing_tool.set(current);
         }
         if tool.is_drawing() {
-            self.cells.get().previous_drawing_tool.set(tool);
+            self.cells.value().previous_drawing_tool.set(tool);
         }
-        self.set_tool.set(tool);
+        self.tool.set(tool);
     }
 
     pub(crate) fn previous_drawing_tool(&self) -> PixelTool {
-        self.cells.get().previous_drawing_tool.get()
+        self.cells.value().previous_drawing_tool.get()
     }
 
     pub(crate) fn set_active_color(&self, color: PixelColor, remember: bool) {
-        self.set_color.set(color);
-        self.set_color_hex.set(format_hex_color(color));
+        self.color.set(color);
+        self.color_hex.set(format_hex_color(color));
         if remember {
             self.remember_color(color);
         }
     }
 
     pub(crate) fn set_color_text(&self, text: String) {
-        self.set_color_hex.set(text);
+        self.color_hex.set(text);
     }
 
     pub(crate) fn remember_color(&self, color: PixelColor) {
-        self.set_recent.update(|recent| {
+        self.recent.update(|recent| {
             recent.retain(|remembered| *remembered != color);
             recent.insert(0, color);
             recent.truncate(MAX_RECENT_COLORS);
@@ -224,11 +190,11 @@ impl Tools {
 
     pub(crate) fn open_dialog(&self, dialog: Dialog) {
         self.draw(|drawing| drawing.take());
-        self.set_dialog.set(dialog);
+        self.dialog.set(dialog);
     }
 
     pub(crate) fn close_dialog(&self) {
-        self.set_dialog.set(Dialog::None);
+        self.dialog.set(Dialog::None);
     }
 
     pub(crate) fn busy(&self) -> bool {
@@ -236,14 +202,14 @@ impl Tools {
     }
 
     pub(crate) fn draw<R>(&self, change: impl FnOnce(&mut Option<ActiveDrawing>) -> R) -> R {
-        let changed = change(&mut self.cells.get().drawing.borrow_mut());
-        self.set_drawn.update(|drawn| *drawn += 1);
+        let changed = change(&mut self.cells.value().drawing.borrow_mut());
+        self.drawn.update(|drawn| *drawn += 1);
         changed
     }
 
     pub(crate) fn drawing<R>(&self, read: impl FnOnce(Option<&ActiveDrawing>) -> R) -> R {
         self.drawn.get();
-        read(self.cells.get().drawing.borrow().as_ref())
+        read(self.cells.value().drawing.borrow().as_ref())
     }
 }
 

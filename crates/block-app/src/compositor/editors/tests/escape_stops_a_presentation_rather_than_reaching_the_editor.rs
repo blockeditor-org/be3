@@ -9,7 +9,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
     let heard = Rc::new(RefCell::new(Vec::<Event>::new()));
     let catcher = NodeRef::new();
     let item = NodeRef::new();
-    let (menu, set_menu) = create_signal(false);
+    let menu = create_signal(false);
     let mut document = build({
         let stopped = Rc::clone(&stopped);
         let heard = Rc::clone(&heard);
@@ -36,7 +36,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
                             anchor=OverlayAnchor::Point(Pos2::new(120.0, 10.0))
                             placement=Placement::At
                             open={menu}
-                            on_dismiss={move |_: Dismiss| set_menu.set(false)}
+                            on_dismiss={move |_: Dismiss| menu.set(false)}
                         >
                             <Interactive @node_ref={&item} focusable=true>
                                 <Frame width=40.0 height=20.0 />
@@ -73,7 +73,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
         heard.borrow()
     );
 
-    with_reactive_scope(&mut document, move || set_menu.set(true));
+    menu.set(true);
     frame(&mut document, Vec::new());
     document.focus_focusable(item.get());
     frame(

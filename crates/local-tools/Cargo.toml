@@ -7,6 +7,7 @@ license.workspace = true
 
 [dependencies]
 base64 = "0.22"
+beui-html = { path = "../beui-html" }
 build-id = { path = "../build-id" }
 paint-snapshot = { path = "../paint-snapshot" }
 image = { version = "0.25", default-features = false, features = ["png"] }

@@ -4,7 +4,7 @@ use super::*;
 fn selector_reads_are_current_inside_a_batch() {
     let _root = RootScope::new();
     let scope = Scope::new();
-    let (selected, set_selected) = create_signal(0usize);
+    let selected = create_signal(0usize);
     let seen = Rc::new(RefCell::new(Vec::new()));
     let selector = scope.run(|| create_selector(move || selected.get()));
     scope.run({
@@ -13,9 +13,9 @@ fn selector_reads_are_current_inside_a_batch() {
     });
     assert_eq!(*seen.borrow(), [false]);
     batch(|| {
-        set_selected.set(1);
+        selected.set(1);
         assert!(!selector.is_selected(&2));
-        set_selected.set(2);
+        selected.set(2);
         assert!(selector.is_selected(&2));
         assert_eq!(seen.borrow().len(), 1);
     });

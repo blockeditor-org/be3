@@ -11,16 +11,14 @@ const LINE: f32 = 40.0;
 fn a_text_of_spans_takes_its_alignment_and_line_height() {
     let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <Frame width=WIDTH>
-                    <Text @node_ref=&text align=TextAlign::Center line_height=LINE>
-                        "centered "
-                        <Span font={FontId::proportional(14.0).bold(true)}>"words"</Span>
-                    </Text>
-                </Frame>
-            }
+    let document = build(move || {
+        view! {
+            <Frame width=WIDTH>
+                <Text @node_ref=&text align=TextAlign::Center line_height=LINE>
+                    "centered "
+                    <Span font={FontId::proportional(14.0).bold(true)}>"words"</Span>
+                </Text>
+            </Frame>
         }
     });
     let mut harness = Harness::new(document);

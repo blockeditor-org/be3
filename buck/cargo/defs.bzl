@@ -44,6 +44,9 @@ def _env(crate, crate_name, env):
     base.update(env)
     return base
 
+def cargo_manifest_sources():
+    return {"Cargo.toml": native.package_name() + "/Cargo.toml"}
+
 def cargo_library_sources():
     return native.glob(
         ["src/**"],
@@ -86,6 +89,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], env = {}, *
         edition = crate["edition"],
         env = _env(crate, library["crate"], env),
         features = _per_platform(crate, lambda entry: entry["features"], extra_features),
+        mapped_srcs = cargo_manifest_sources(),
         proc_macro = library["proc_macro"],
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = cargo_library_sources(),
@@ -100,7 +104,7 @@ def cargo_library(name = None, extra_deps = [], extra_features = [], env = {}, *
 # A test whose env names LD_LIBRARY_PATH is a library_path_test around the
 # test harness, built as a binary, since Namespace's workers replace an
 # action's LD_LIBRARY_PATH with their own.
-def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_env = {}, **kwargs):
+def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_apart = False, run_env = {}, **kwargs):
     crate = _crate()
     library = crate["library"]
     rustc_flags = _rustc_flags(crate, kwargs)
@@ -112,6 +116,7 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_env
         deps = _per_platform(crate, lambda entry: entry["deps"] + entry["test_deps"], extra_deps),
         edition = crate["edition"],
         features = _per_platform(crate, lambda entry: entry["test_features"]),
+        mapped_srcs = cargo_manifest_sources(),
         srcs = cargo_test_sources(),
     )
     if paints:
@@ -123,7 +128,19 @@ def cargo_test(name = "test", extra_deps = [], env = {}, paints = False, run_env
             **common,
         )
         painting_test(name = name, env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", **kwargs)
-        painting_test_run(name = name + "-run", env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", **kwargs)
+        if not run_apart:
+            painting_test_run(name = name + "-run", env = run_env, harness = ":" + name + "-harness", manifest = "Cargo.toml", **kwargs)
+            return
+        for path in native.glob(["src/tests/*.rs"]):
+            test = path.removeprefix("src/tests/").removesuffix(".rs")
+            painting_test_run(
+                name = "{}-run-{}".format(name, test),
+                args = ["tests::{}::".format(test)],
+                env = run_env,
+                harness = ":" + name + "-harness",
+                manifest = "Cargo.toml",
+                **kwargs,
+            )
         return
     if "LD_LIBRARY_PATH" in env:
         compile_env = {key: value for key, value in env.items() if key != "LD_LIBRARY_PATH"}
@@ -174,9 +191,12 @@ library_path_test = rule(
 # :test runs here, so that UPDATE_SNAPSHOTS=1 writes into snapshots/, and
 # :test-run is the action ./scripts/verify builds on a worker, which accepts
 # every painting and outputs the ones that changed and the ones it compared.
-# crates/app-tests is one: block-app with its plugins, driven headless.
+# crates/app-tests is one: block-app with its plugins, driven headless. With
+# run_apart, each file under src/tests/ is a :test-run-<file> of its own, so a
+# test that fails costs only its own paintings rather than every one the crate
+# accepts, since a failed action keeps no outputs.
 def _painting_command(ctx, env):
-    command = cmd_args(ctx.attrs.harness[RunInfo])
+    command = cmd_args(ctx.attrs.harness[RunInfo], getattr(ctx.attrs, "args", []))
     if "LD_LIBRARY_PATH" in env:
         env["BE3_LD_LIBRARY_PATH"] = env.pop("LD_LIBRARY_PATH")
         command = cmd_args("sh", "-c", _restore_library_path, "sh", command)
@@ -232,6 +252,7 @@ def _painting_test_run_impl(ctx: AnalysisContext) -> list[Provider]:
 
 painting_test_run = rule(
     attrs = {
+        "args": attrs.list(attrs.string(), default = []),
         "env": attrs.dict(default = {}, key = attrs.string(), value = attrs.arg()),
         "harness": attrs.dep(providers = [RunInfo]),
         "manifest": attrs.source(),
@@ -292,6 +313,7 @@ def cargo_binary(bin = None, name = None, extra_deps = [], env = {}, **kwargs):
         deps = _per_platform(crate, lambda entry: entry["binaries"].get(bin, []), own + extra_deps),
         edition = crate["edition"],
         env = _env(crate, crate_name, env),
+        mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, binary["crate_root"]),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
@@ -318,6 +340,7 @@ def cargo_example(example, extra_deps = [], env = {}, **kwargs):
         edition = crate["edition"],
         env = _env(crate, crate_name, env),
         features = _per_platform(crate, lambda entry: entry["examples"].get(example, {}).get("features", [])),
+        mapped_srcs = cargo_manifest_sources(),
         rustc_flags = _rustc_flags(crate, kwargs),
         srcs = _target_sources(crate, examples[example]["crate_root"]),
         visibility = kwargs.pop("visibility", ["PUBLIC"]),
