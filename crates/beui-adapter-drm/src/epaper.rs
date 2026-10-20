@@ -8,12 +8,14 @@ use rustix::ioctl::{Opcode, Setter, Updater, ioctl, opcode};
 use smithay::backend::drm::DrmDeviceFd;
 use smithay::reexports::drm::Device as _;
 
+use crate::wake::{Held, Input};
+
 const DRIVER: &str = "rockchip-ebc";
 const DEFAULT_HINT: &str = "/sys/module/rockchip_ebc/parameters/default_hint";
 const HINT_MASK: u8 = 0xf0;
 const FOUR_GREYS_AT_ONCE: u8 = 0x10;
 const DITHERED_BLACK_AND_WHITE: u8 = 0x40;
-const SETTLE_AFTER_INPUT: Duration = Duration::from_millis(500);
+const QUIET: Duration = Duration::from_millis(100);
 const DRM_COMMAND_BASE: u8 = 0x40;
 
 #[repr(C)]
@@ -67,37 +69,62 @@ pub(crate) enum Change {
 pub(crate) struct Pace {
     hurried: bool,
     animating: bool,
-    touched: Option<Duration>,
+    held: Vec<Held>,
+    active: Option<Duration>,
 }
 
 impl Pace {
-    pub(crate) fn touched(&mut self, now: Duration) {
-        self.touched = Some(now);
+    pub(crate) fn input(&mut self, input: Input, now: Duration) {
+        match input {
+            Input::Press(Held::Key(_)) | Input::Release(Held::Key(_)) => {}
+            Input::Press(held) => {
+                if !self.held.contains(&held) {
+                    self.held.push(held);
+                }
+            }
+            Input::Release(held) => {
+                self.held.retain(|known| *known != held);
+                self.active = Some(now);
+            }
+            Input::Continue(_) | Input::Other => {}
+        }
     }
 
     pub(crate) fn animating(&mut self, animating: bool) {
         self.animating = animating;
     }
 
+    pub(crate) fn drew(&mut self, now: Duration) {
+        if self.hurried {
+            self.active = Some(now);
+        }
+    }
+
     pub(crate) fn settles_at(&self) -> Option<Duration> {
-        (self.hurried && !self.animating).then(|| self.settled_at())
+        (self.hurried && !self.busy()).then(|| self.quiet_at())
     }
 
     pub(crate) fn step(&mut self, now: Duration) -> Option<Change> {
-        let hurried = self.animating || now < self.settled_at();
-        if hurried == self.hurried {
-            return None;
+        match self.hurried {
+            false if self.busy() => {
+                self.hurried = true;
+                self.active = Some(now);
+                Some(Change::Hurry)
+            }
+            true if !self.busy() && now >= self.quiet_at() => {
+                self.hurried = false;
+                Some(Change::Settle)
+            }
+            _ => None,
         }
-        self.hurried = hurried;
-        Some(match hurried {
-            true => Change::Hurry,
-            false => Change::Settle,
-        })
     }
 
-    fn settled_at(&self) -> Duration {
-        self.touched
-            .map_or(Duration::ZERO, |touched| touched + SETTLE_AFTER_INPUT)
+    fn busy(&self) -> bool {
+        self.animating || !self.held.is_empty()
+    }
+
+    fn quiet_at(&self) -> Duration {
+        self.active.map_or(Duration::ZERO, |active| active + QUIET)
     }
 }
 

@@ -1,5 +1,7 @@
 use super::*;
 
+mod a_fling_started_by_the_lift_keeps_the_panel_fast;
+mod a_touch_hurries_the_panel_until_the_finger_lifts_and_the_screen_is_still;
 mod an_animation_holds_the_panel_fast_until_it_ends;
-mod input_hurries_the_panel_until_it_has_been_still_for_a_moment;
 mod the_ioctls_match_the_drivers_numbers;
+mod typing_leaves_the_panel_in_four_greys;

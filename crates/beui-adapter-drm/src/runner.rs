@@ -461,10 +461,13 @@ impl Session {
             return;
         };
         panel.change(change);
-        if change == Change::Settle {
-            for output in &mut self.displays.borrow_mut().outputs {
-                output.screen.invalidate();
+        for output in &mut self.displays.borrow_mut().outputs {
+            match change {
+                Change::Hurry => output.screen.hurry(),
+                Change::Settle => output.screen.settle(),
             }
+        }
+        if change == Change::Settle {
             self.pacer.ask();
         }
     }
@@ -623,6 +626,9 @@ impl Session {
         };
         if let Some((panel, _)) = &mut self.epaper {
             panel.pace.animating(frame.animating);
+            if frame.pending {
+                panel.pace.drew(now);
+            }
         }
         let wait = |after: Duration| (after != Duration::MAX).then(|| after.min(LONGEST_WAIT));
         match self.blanked {
@@ -916,12 +922,10 @@ impl Session {
             return;
         }
         let now = self.now();
-        if !matches!(
-            event,
-            InputEvent::DeviceAdded { .. } | InputEvent::DeviceRemoved { .. }
-        ) && let Some((panel, _)) = &mut self.epaper
+        if let Some((panel, _)) = &mut self.epaper
+            && let Some((input, _)) = gate_input(&event)
         {
-            panel.pace.touched(now);
+            panel.pace.input(input, now);
         }
         match event {
             InputEvent::DeviceAdded { mut device } => {

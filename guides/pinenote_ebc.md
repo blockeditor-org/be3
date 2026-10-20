@@ -39,10 +39,10 @@ global, waits for ongoing updates, and enters through a global refresh, so beui 
 ## What beui-adapter-drm does
 
 `epaper.rs` sets the default hint to Y2 threshold (`0x10`) while the screen is still, and to
-dithered Y1 (`0x40`) while an animation runs (the runner's `Frame::animating`) or for half a
-second after input. When it settles it sets Y2 again and repaints the whole screen, which sends
-no damage clips, so the driver redraws everything the fast hint drew at Y2. It leaves
-`redraw_delay` alone and never sets REDRAW.
+dithered Y1 (`0x40`) while it moves (guides/pinenote.md says when). To settle it sets Y2 again
+and commits the unchanged framebuffer with damage clips covering everything drawn at Y1, which
+the driver converts again and redraws at Y2. It leaves `redraw_delay` alone and never sets
+REDRAW.
 
 ## `include/uapi/drm/rockchip_ebc_drm.h`
 
