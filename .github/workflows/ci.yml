@@ -39,7 +39,8 @@ env:
 # The jobs after it each run nothing from the pull request and hold the one
 # credential they write with: autofix pushes the fixes, publish-summary
 # comments with the summary, publish-android puts the Android build where the
-# launcher on Android finds it. Everything builds on the
+# launcher on Android finds it, publish-bootstrap uploads a new release of
+# crates/bootstrap. Everything builds on the
 # build server, so what a runner needs is buck2 and whatever runs here rather
 # than there.
 jobs:
@@ -73,6 +74,7 @@ jobs:
     runs-on: ubuntu-24.04
     outputs:
       android: ${{ steps.outputs.outputs.android }}
+      bootstrap: ${{ steps.outputs.outputs.bootstrap }}
       previews: ${{ steps.outputs.outputs.previews }}
     steps:
       # A pull request is checked out at its head rather than at the merge
@@ -134,6 +136,7 @@ jobs:
         env:
           CHECK: ${{ github.event_name != 'pull_request' }}
           PREVIEWS: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
+          BOOTSTRAP: ${{ github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name == github.repository }}
           BASE: ${{ github.event.pull_request.base.sha }}
         run: |
           set -- --android dist/android
@@ -142,6 +145,9 @@ jobs:
           fi
           if [ "$PREVIEWS" = true ]; then
             set -- "$@" --previews "$BASE" "$RUNNER_TEMP/previews"
+          fi
+          if [ "$BOOTSTRAP" = true ]; then
+            set -- "$@" --bootstrap "$RUNNER_TEMP/bootstrap"
           fi
           ./scripts/ci "$@"
 
@@ -156,6 +162,9 @@ jobs:
           if [ -f "$RUNNER_TEMP/previews/comment.md" ]; then
             echo 'previews=true' >> "$GITHUB_OUTPUT"
           fi
+          if [ -n "$(ls -A "$RUNNER_TEMP/bootstrap" 2> /dev/null)" ]; then
+            echo 'bootstrap=true' >> "$GITHUB_OUTPUT"
+          fi
 
       - if: ${{ !cancelled() && steps.outputs.outputs.android == 'true' }}
         uses: actions/upload-artifact@v7
@@ -163,6 +172,13 @@ jobs:
           name: android
           path: dist/android
           retention-days: 14
+
+      - if: ${{ !cancelled() && steps.outputs.outputs.bootstrap == 'true' }}
+        uses: actions/upload-artifact@v7
+        with:
+          name: bootstrap
+          path: ${{ runner.temp }}/bootstrap
+          retention-days: 1
 
       - if: ${{ !cancelled() && steps.outputs.outputs.previews == 'true' }}
         uses: actions/upload-artifact@v7
@@ -237,14 +253,19 @@ jobs:
   #
   # This is not part of the gate. Whether the pull request passes was decided
   # by ci; this only decides whether its author has to push the fix themselves.
+  #
+  # A fix that pins a new release of crates/bootstrap waits for
+  # publish-bootstrap, since the run its push starts downloads that release,
+  # and is not pushed if the upload failed.
   autofix:
     name: push autofixes
     if: >-
       !cancelled() &&
       github.event_name == 'pull_request' &&
       github.event.pull_request.head.repo.full_name == github.repository &&
-      contains(needs.*.result, 'failure')
-    needs: [ci]
+      needs.ci.result == 'failure' &&
+      needs.publish-bootstrap.result != 'failure'
+    needs: [ci, publish-bootstrap]
     runs-on: ubuntu-24.04
     steps:
       # A run that failed without changing anything uploaded nothing, so
@@ -321,6 +342,50 @@ jobs:
           git show --stat HEAD
 
           git push "https://x-access-token:$TOKEN@github.com/$REPOSITORY.git" "HEAD:refs/heads/$BRANCH"
+
+  # Every script runs crates/bootstrap's release that scripts/internal/pins
+  # names (guides/bootstrap.md). When a pull request changes the crate, ci
+  # builds it for every platform and pins it, and this uploads each binary to
+  # the be3-ci Bunny storage zone as bootstrap/<sha256>, which the pin's
+  # downloads come from through the zone's CDN. A name that is its content's
+  # hash never changes what it points at, so nothing an older commit pins is
+  # ever replaced; nothing deletes them. What the artifact holds was built by
+  # the pull request's code, so here it is only data: each file's hash is
+  # checked against its name before it is uploaded. The storage key is given
+  # to the upload step alone.
+  publish-bootstrap:
+    name: publish the bootstrap
+    needs: [ci]
+    if: >-
+      !cancelled() &&
+      needs.ci.outputs.bootstrap == 'true' &&
+      github.event_name == 'pull_request' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/download-artifact@v8
+        with:
+          name: bootstrap
+          path: ${{ runner.temp }}/bootstrap
+
+      - name: Upload it
+        env:
+          BUNNY_STORAGE_KEY: ${{ secrets.BUNNY_STORAGE_KEY }}
+        run: |
+          set -euo pipefail
+          for binary in "$RUNNER_TEMP"/bootstrap/*; do
+            name="$(basename "$binary")"
+            if [ "$(sha256sum "$binary" | cut -c1-64)" != "$name" ]; then
+              echo "::error::$name is not the SHA-256 of its contents."
+              exit 1
+            fi
+            curl --fail --silent --show-error --retry 3 --output /dev/null \
+              --request PUT \
+              --header "AccessKey: $BUNNY_STORAGE_KEY" \
+              --header 'Content-Type: application/octet-stream' \
+              --upload-file "$binary" \
+              "https://storage.bunnycdn.com/be3-ci/bootstrap/$name"
+          done
 
   # The images go to the be3-ci Bunny storage zone as paint-previews/<hash>.png,
   # named by the SHA-256 of their bytes, and the comment links them through the

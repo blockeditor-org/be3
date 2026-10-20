@@ -1,32 +1,11 @@
 #!/bin/sh
+#
+# Fetches and checks out origin/BRANCH, then runs a script in scripts/ if one is
+# named.
+#
+# Usage:
+#   ./scripts/switch BRANCH [SCRIPT ARGUMENTS...]
+#
+# guides/bootstrap.md says what runs it.
 
-usage() {
-  echo "Usage: $0 <branch> [script args...]"
-  echo
-  echo "Fetches from origin and checks out origin/<branch> in detached HEAD state."
-  echo "Any arguments after <branch> name a script in scripts/ and its arguments, run once"
-  echo "the checkout succeeds, e.g. $0 somebranch buck run //crates/beui:example-dock"
-}
-
-case "${1:-}" in
-  -h|--help)
-    usage
-    exit 0
-    ;;
-  "")
-    usage >&2
-    exit 1
-    ;;
-esac
-
-BRANCHNAME="$1"
-shift
-
-git fetch &&
-  git -c advice.detachedHead=false checkout "origin/$BRANCHNAME" || exit $?
-
-if [ "$#" -gt 0 ]; then
-  script="$1"
-  shift
-  exec bash "$(dirname "$0")/$script" "$@"
-fi
+exec sh "$(dirname "$0")/internal/bootstrap.sh" switch "$@"

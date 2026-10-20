@@ -1,0 +1,47 @@
+# The releases the scripts download, each checked against its SHA-256 by the
+# triple it runs on. Lines are name='value', which crates/bootstrap and
+# scripts/internal/bootstrap.sh both read; an empty hash is a platform with no
+# release.
+
+# buck2. A buck2 binary carries the prelude it was built with, so this version
+# pins the build rules too, and moving it is a change to verify with a build.
+# The tag is a dated release; "latest" is repointed on every push upstream.
+# Each is also mirrored at https://lfs.pfg.pw/by-name/be3/<version>/<release>.
+buck2_version='2026-09-15'
+buck2_sha256_x86_64_unknown_linux_gnu='1268fce33fb61273091dd5dd8c60b65de1521a3caa36b88983813e882b7ffd89'
+buck2_sha256_aarch64_unknown_linux_gnu='e35027a8e3f702fd9f080074ac64ebc80e2a0fe8d669d46d85afc31b0ec4a463'
+buck2_sha256_x86_64_apple_darwin='af1e51f198ecccfc41b9d960a2c79bb16f01e238f7169a86989caed9440fba0d'
+buck2_sha256_aarch64_apple_darwin='aacdf7cabe34b9b5dc74866b8dcf7410cdbae3ad2dccef45b7ee9851cb781528'
+buck2_sha256_x86_64_pc_windows_msvc='1f0619b285ee3cbdc562a38b70f2636f73e8233b2f5156aef93e9e8a00079e2c'
+buck2_sha256_aarch64_pc_windows_msvc='58edb0718e3b89a3f875129cc72640f2f4cb80487ec42057eb88447519dff0cf'
+
+# be, the tracker's command line tool (guides/tracker.md), built from the same
+# tree as the be-server the tracker lives on. The release is that server's
+# build id, written beside be, so the server refuses this be once it is
+# deployed from another build. ./scripts/deploy uploads each platform's be to
+# be_mirror/<release>/be-<triple>/be and rewrites these lines.
+be_mirror='https://be3.pfg.pw/data'
+be_metadata_file='build-info.json'
+be_release='ba2d1bfe2d6aa63ba633ecfc881eeb4e4dfe487c'
+be_sha256_x86_64_unknown_linux_gnu='4f6aa28204b00858db5ec0c400637ef8b2110b1e6b015c8705f7eb983eb545a2'
+be_sha256_aarch64_unknown_linux_gnu='367167615d822cacf360e294c626cd7755837ffc5d7bfc510864f14b3b816b15'
+be_sha256_x86_64_apple_darwin=''
+be_sha256_aarch64_apple_darwin=''
+
+# nsc, Namespace's command line tool, for the host that runs the waker
+# (sh scripts/internal/bootstrap.sh install-nsc, guides/build_server.md).
+nsc_version='0.0.587'
+nsc_sha256_linux_amd64='f47a9eff06f41d0f342277ba097e04a215bd88019f184271042f8eb5ec94018f'
+nsc_sha256_linux_arm64='fc121a4fda8083f9e2815a2ecb4e75d06649b98316d4c793434d03fc443a1516'
+
+# crates/bootstrap, which every script runs. bootstrap_source is the SHA-256 of
+# the crate's files that the binaries were built from; CI builds, uploads and
+# pins a new release when they change (guides/bootstrap.md), each at
+# https://be3-ci.b-cdn.net/bootstrap/<sha256>.
+bootstrap_source='9fefb45eef658fe44806069d06ab2cfcfe69297173eea770276022a4ba17fcfe'
+bootstrap_sha256_x86_64_unknown_linux_gnu='19b73d87ee55d3beda588cd3013e9bc345318304ad0b786c291df2f0a7eb4153'
+bootstrap_sha256_aarch64_unknown_linux_gnu='94c95ba7a0c51e333f66e6e74d7d30eec22c7efefd797d4866161b9e2906296e'
+bootstrap_sha256_x86_64_apple_darwin='3fed354f427cdd568f13e1278656846b69c5eab3642111f520343cc0ca3f6a56'
+bootstrap_sha256_aarch64_apple_darwin='659d1866582faf462946ae0b0c9b0ee4cc52aba077a825ca17de324e06739d25'
+bootstrap_sha256_x86_64_pc_windows_msvc='92ca780fdb56c9b8ce526a7263b324e7319a93330226308edf079bf23ae6f1cf'
+bootstrap_sha256_aarch64_pc_windows_msvc='31f700685e72e8b0540f8454e4dd8cfbae98dd0ddce801d98bb5bd0239e88866'

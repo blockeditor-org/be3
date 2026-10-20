@@ -6,6 +6,7 @@ Guides:
 - guides/adding_a_block.md
 - guides/adding_a_game.md
 - guides/adding_a_plugin_editor.md
+- guides/bootstrap.md: crates/bootstrap, the prebuilt tool every script runs, and how CI publishes and pins it
 - guides/beui.md
 - guides/beui_keyboard.md
 - guides/buck2.md

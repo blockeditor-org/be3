@@ -2,7 +2,7 @@ load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
 load("@root//buck/app:defs.bzl", "plugin_data")
 load("@root//buck/cargo:defs.bzl", "cargo_library_sources", "cargo_manifest_sources", "cargo_test_sources", "cargo_wasm_facts")
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
-load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "keep_profile")
+load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "dev_only", "keep_profile")
 
 # WebAssembly modules, depended on from targets that are not WebAssembly: the
 # app and the native tests only load a game or a plugin as a module, so the
@@ -142,6 +142,15 @@ def plugin_sdk():
 # A plugin is linked against the plugin SDK unless shared_sdk is False, which a
 # plugin needs when it links a library that is not position-independent (the
 # PDF plugin's PDFium): it then carries everything it uses itself.
+#
+# Outside a release build the plugin crate itself is compiled at opt-level 0,
+# like its tests below, while its dependencies keep the plugin profile's 2.
+# Most of a plugin's code is beui's generics instantiated anew, so a change
+# under beui recompiles every plugin, and at opt-level 2 LLVM made that the
+# longest part of ./scripts/verify: thirty plugins took 1,130 seconds of
+# compiling at 2 and 270 at 0. The modules are about two and a half times the
+# size and take half as long again to precompile, and the app tests ran no
+# slower.
 def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], shared_sdk = True):
     facts = cargo_wasm_facts()
     native.rust_library(
@@ -155,7 +164,7 @@ def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps
         linker_flags = ["--be3-plugin=$(location {})".format(PLUGIN_SDK)] if shared_sdk else [],
         mapped_srcs = cargo_manifest_sources(),
         preferred_linkage = "shared",
-        rustc_flags = plugin_exports,
+        rustc_flags = plugin_exports + dev_only(["-Copt-level=0"]),
         srcs = cargo_library_sources() + ["manifest.json"],
         target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
         visibility = visibility,
@@ -228,14 +237,17 @@ def plugin_tests(exports = [], env = {}, extra_deps = []):
 # The module is compiled for wasmtime once, in an action, rather than by every
 # test process - about forty seconds a module. It is compiled for the x86_64
 # baseline, since the compile runs on a worker and the test here, and only for
-# the host: elsewhere the runner compiles it when the test runs.
+# the host: elsewhere the runner compiles it when the test runs. --quick
+# compiles it without Cranelift's optimizations, which took a quarter off the
+# compile and left the tests' running time as it was; Cranelift's single-pass
+# register allocator, which would take off more, ran a deep paint out of stack.
 def _precompiled(ctx: AnalysisContext, module: Artifact) -> cmd_args:
     if not ctx.attrs.precompile:
         return cmd_args(module)
     runner = ctx.attrs.runner[RunInfo]
     artifact = ctx.actions.declare_output(module.basename.removesuffix(".wasm") + ".cwasm")
     ctx.actions.run(
-        cmd_args(runner, "--precompile-to", "--target", "x86_64-unknown-linux-gnu", artifact.as_output(), module),
+        cmd_args(runner, "--precompile-to", "--target", "x86_64-unknown-linux-gnu", "--quick", artifact.as_output(), module),
         category = "wasm_precompile",
         identifier = module.basename,
     )

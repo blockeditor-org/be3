@@ -10,6 +10,7 @@ base64 = "0.22"
 beui-html = { path = "../beui-html" }
 build-id = { path = "../build-id" }
 paint-snapshot = { path = "../paint-snapshot" }
+prompt = { path = "../prompt" }
 jks = { version = "0.3", default-features = false }
 p12-keystore = "0.4"
 rsa = { version = "0.9", features = ["getrandom", "sha2"] }

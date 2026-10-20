@@ -1,0 +1,23 @@
+load("@root//buck/cargo:defs.bzl", "cargo_binary", "cargo_library", "cargo_test")
+load(":defs.bzl", "bootstrap_dist")
+
+# What every script in scripts/ runs (scripts/internal/bootstrap.sh downloads
+# the release scripts/internal/pins names). :dist is that release for every
+# platform; ./scripts/ci --bootstrap builds it when the crate changed.
+
+cargo_library()
+
+cargo_test()
+
+cargo_binary()
+
+bootstrap_dist(
+    name = "dist",
+    linux_arm64 = ":bin",
+    linux_x86_64 = ":bin",
+    macos_arm64 = ":bin",
+    macos_x86_64 = ":bin",
+    windows_arm64 = ":bin",
+    windows_x86_64 = ":bin",
+    visibility = ["PUBLIC"],
+)

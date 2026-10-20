@@ -16,7 +16,7 @@ buck = none
 
 # The prelude comes out of the buck2 binary rather than out of a submodule, so
 # there is no second thing to check out and no prelude version to keep in step
-# with the binary: the commit scripts/internal/common.sh pins pins both.
+# with the binary: the release scripts/internal/pins names pins both.
 [external_cells]
 prelude = bundled
 
@@ -42,9 +42,9 @@ defer_write_actions = true
 sqlite_materializer_state = true
 
 # Where the remote execution cluster is: not here. Namespace shuts it down when
-# it has been idle, so ./scripts/buck asks nsc for its hosts and writes them,
-# with the header that authenticates to them, into .buckconfig.local
-# (configure_build_server in scripts/internal/common.sh). The address is a bare
+# it has been idle, so ./scripts/buck asks the waker for its hosts and writes
+# them, with the header that authenticates to them, into .buckconfig.local
+# (crates/bootstrap/src/server.rs). The address is a bare
 # host:port (buck2 rejects grpcs:// and https://), http_headers uses a colon,
 # and there is no instance name.
 

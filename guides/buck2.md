@@ -3,8 +3,9 @@
 buck2 builds, lints and tests the workspace, and every action runs on a
 remote execution server, Namespace's unless `BE3_BUILD_SERVER` picks another
 (guides/build_server.md). Every command is a buck2 target started through
-`./scripts/buck`, except `./scripts/verify` and `./scripts/ci`, which are scripts so
-that each is one buck2 command. cargo builds nothing; `Cargo.toml` is still the one place a
+`./scripts/buck`, except `./scripts/verify` and `./scripts/ci`, which are
+commands of their own so that each is one buck2 command. Every script is
+`crates/bootstrap` (guides/bootstrap.md). cargo builds nothing; `Cargo.toml` is still the one place a
 dependency is declared, and buck2 reads it through cargo's own plans.
 
 ## Commands
@@ -62,10 +63,11 @@ file, a new id rebuilds nothing else.
 
 ## What `./scripts/buck` does
 
-It runs under bash on Linux, macOS (bash 3.2) and Git Bash on Windows, and puts
-these in front of the pinned buck2:
+It is `bootstrap buck` (guides/bootstrap.md), on Linux, macOS and Windows (from
+Git Bash, whose `sh` runs the stub), and puts these in front of the pinned
+buck2:
 
-- **buck2 itself.** The release pinned in `scripts/internal/common.sh` is
+- **buck2 itself.** The release pinned in `scripts/internal/pins` is
   installed into `target/tools/buck2-<version>/` the first time it is missing.
   A `buck2` on `PATH` is not used, since each buck2 carries its own prelude.
 - **The build server.** `BE3_BUILD_SERVER` picks it (or the prompt on the
@@ -131,6 +133,8 @@ It also lets `test` put tests on the workers (below).
   through the cache.
 - `crates/buck-tools`: the build's own helpers (the `crates.bzl` generator, the
   sysroot resolver, the APK packer, clippy's fixer and `//:rust-project`).
+- `crates/bootstrap`: what every script runs, a prebuilt release
+  (guides/bootstrap.md).
 - `crates/local-tools`: what runs on this machine after a buck2 command,
   built for it in that command: `verify`, `deploy` and `fuzz`.
 - `buck/wasm`: editors, plugin tests and the rules that build wasm modules.
@@ -346,10 +350,20 @@ extension ships: the toolchain's panics on this workspace.
   under cargo. What cargo builds for the machine running the build - proc
   macros, build scripts and their dependencies - is one build here, the
   `linux-x86_64` one, with the union of what every plan asks of it.
-- **The compiler stays stable.** `nightly_features = False` in
-  `buck/toolchains/BUCK`: otherwise the prelude sets `RUSTC_BOOTSTRAP=1`, and
-  `cfg(target_feature = "atomics")` on `wasm32-wasip1-threads` then answers
-  differently from cargo, which broke wgpu's `Send`/`Sync` checks.
+- **Pipelining.** `nightly_features = True` in `buck/toolchains/BUCK`, so a
+  crate's dependents compile against a `-Zno-codegen` metadata compile of it
+  rather than wait for its codegen; the prelude then sets `RUSTC_BOOTSTRAP=1`
+  for every rustc. The metadata compile and the real one must agree on the
+  crate's hash, so a crate must not take in the absolute path of the directory
+  its compile runs in, which is different for every action: not by
+  `env!("CARGO_MANIFEST_DIR")`, nor by a macro that writes an `include_bytes!`
+  of an absolute path. A dependent's link otherwise fails with E0460, "found
+  possibly newer version of crate". `third-party/rust/fixups.bzl` overlays the
+  third-party crates that did (witx, wasmtime's `bindgen!`).
+- **Plugins compile at opt-level 0** outside a release build, while their
+  dependencies keep the plugin profile's 2 (`editor()` and `plugin_tests()` in
+  `buck/wasm/defs.bzl`), and test modules are precompiled with Cranelift's
+  optimizations off (`--quick`): a change under beui recompiles every plugin.
 - **The key.** A server answers a call with a wrong or missing key or token
   with `UNAUTHENTICATED`, which buck2 reports as failing to reach it.
 - **Downloads.** Every `http_archive` has `size_bytes` as well as `sha256`;
@@ -360,8 +374,9 @@ extension ships: the toolchain's panics on this workspace.
   `crates/local-tools`, built for this machine, whose `verify` the script then
   runs to read the rest and write it into the checkout. Anything that runs on
   this machine after a buck2 command belongs in `crates/local-tools`, as a
-  subcommand, rather than in bash or a crate of its own, so it works the same
-  on Linux, macOS and Git Bash on Windows and builds once: `verify`, `deploy`
+  subcommand, rather than in shell or a crate of its own, so it works the same
+  on Linux, macOS and Windows and builds once (what runs before one is
+  `crates/bootstrap`): `verify`, `deploy`
   (`./scripts/deploy`) and `fuzz` (a fuzz target's runner). The autofixes are actions (`buck/dev/fix.sh`), one
   a crate: clippy's machine-applicable suggestions from every target's
   `[clippy.json]` (none if the crate failed to compile, since a `view!` that

@@ -7,8 +7,8 @@ export_file(
 )
 
 export_file(
-    name = "common.sh",
-    src = "common.sh",
+    name = "download.sh",
+    src = "download.sh",
     visibility = ["PUBLIC"],
 )
 
