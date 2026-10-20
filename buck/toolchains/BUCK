@@ -170,11 +170,17 @@ pinned_rust_toolchain(
     compiler = cross_tool(tools, "rustc"),
     default_edition = "2024",
     deny_lints = ["warnings"],
-    # Left on, the prelude sets RUSTC_BOOTSTRAP=1 for -Z flags, and a stable rustc
-    # then reports unstable target features: on wasm32-wasip1-threads,
-    # cfg(target_feature = "atomics") answered differently from cargo and broke
-    # wgpu's Send/Sync. The cost is one layer of pipelining.
-    nightly_features = False,
+    # Pipelining: a crate's dependents compile against its metadata from a
+    # -Zno-codegen compile of its own rather than wait for its codegen, which
+    # takes a chain of crates such as beui's off ./scripts/verify's critical
+    # path. -Z needs RUSTC_BOOTSTRAP=1, which the prelude then sets for every
+    # rustc. The two compiles must agree on the crate's hash, and a crate whose
+    # compile takes in the absolute path of the directory it runs in (by
+    # env!("CARGO_MANIFEST_DIR"), or an include_bytes! a macro writes) does not,
+    # since every action runs in a directory of its own; the link of a dependent
+    # then fails with E0460. third-party/rust/fixups.bzl overlays the crates that
+    # did.
+    nightly_features = True,
     # Cargo's dev profile on the host, and its plugin profile on wasm, since
     # cranelift is far slower at an unoptimised module; the opt level is also what
     # tells build scripts OPT_LEVEL. rustc turns debug assertions and overflow
