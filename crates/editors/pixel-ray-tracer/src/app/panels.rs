@@ -199,23 +199,21 @@ fn SelectedEntity(
             <Text string={kind} />
             <Show condition={surface}>
                 <List spacing=6.0>
-                    <Slider value={roughness} label="Roughness" on_change={set_roughness} />
-                    <Slider value={metalness} label="Metalness" on_change={set_metalness} />
+                    <Slider value={Binding::new(roughness, set_roughness)} label="Roughness" />
+                    <Slider value={Binding::new(metalness, set_metalness)} label="Metalness" />
                     <Slider
-                        value={transmission}
+                        value={Binding::new(transmission, set_transmission)}
                         label="Transmission"
-                        on_change={set_transmission}
                     />
-                    <Slider value={ior} min=1.0 max=3.0 label="IOR" on_change={set_ior} />
+                    <Slider value={Binding::new(ior, set_ior)} min=1.0 max=3.0 label="IOR" />
                 </List>
             </Show>
             <Show condition={light}>
                 <Slider
-                    value={intensity}
+                    value={Binding::new(intensity, set_intensity)}
                     min=0.1
                     max=8.0
                     label="Intensity"
-                    on_change={set_intensity}
                 />
             </Show>
             <Button
@@ -258,25 +256,23 @@ fn NewEntity(state: RayState) -> NodeId {
                 <List spacing=6.0>
                     <Text style=TextStyle::HEADING string="New light" />
                     <Slider
-                        value={intensity}
+                        value={Binding::new(intensity, move |value: f32| state.set_light_intensity(value))}
                         min=0.1
                         max=8.0
                         label="Intensity"
-                        on_change={move |value: f32| state.set_light_intensity(value)}
                     />
                 </List>
             </Show>
             <Show condition={surface}>
                 <List spacing=6.0>
                     <Text style=TextStyle::HEADING string="New surface" />
-                    <Slider value={roughness} label="Roughness" on_change={set_roughness} />
-                    <Slider value={metalness} label="Metalness" on_change={set_metalness} />
+                    <Slider value={Binding::new(roughness, set_roughness)} label="Roughness" />
+                    <Slider value={Binding::new(metalness, set_metalness)} label="Metalness" />
                     <Slider
-                        value={transmission}
+                        value={Binding::new(transmission, set_transmission)}
                         label="Transmission"
-                        on_change={set_transmission}
                     />
-                    <Slider value={ior} min=1.0 max=3.0 label="IOR" on_change={set_ior} />
+                    <Slider value={Binding::new(ior, set_ior)} min=1.0 max=3.0 label="IOR" />
                 </List>
             </Show>
         </List>
@@ -333,16 +329,15 @@ fn RayControls(state: RayState, view: bool) -> NodeId {
     });
     view! {
         <List spacing=6.0>
-            <Slider value={count} min=1.0 max=2048.0 label="Rays" on_change={set_count} />
+            <Slider value={Binding::new(count, set_count)} min=1.0 max=2048.0 label="Rays" />
             <Slider
-                value={step}
+                value={Binding::new(step, set_step)}
                 min=0.05
                 max=128.0
                 scale={SliderScale::Midpoint(4.0)}
                 label="Step"
-                on_change={set_step}
             />
-            <Slider value={steps} min=1.0 max=2048.0 label="Steps" on_change={set_steps} />
+            <Slider value={Binding::new(steps, set_steps)} min=1.0 max=2048.0 label="Steps" />
         </List>
     }
 }

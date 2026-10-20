@@ -169,7 +169,7 @@ enum Part {
 }
 
 pub struct ColorWheelHandle {
-    pub point: ReadSignal<WheelPoint>,
+    pub point: Binding<WheelPoint>,
     pub dragging: ReadSignal<bool>,
     pub hovered: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
@@ -178,24 +178,22 @@ pub struct ColorWheelHandle {
 
 #[component]
 pub fn ColorWheel(
-    value: Prop<WheelPoint>,
+    value: Binding<WheelPoint>,
     ring_width: f32,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = 0.0)] thumb: f32,
     #[prop(children)] content: Render<ColorWheelHandle>,
-    on_change: Callback<WheelPoint>,
     on_drag_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
-    let point = create_signal(value.get_untracked());
-    create_effect(move || point.set(value.get()));
+    let point = value;
     let dragging = create_signal(false);
     let hovered = create_signal(false);
     let has_focus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
-    set_component_state(point.read_only());
+    set_component_state(point);
 
     match accessibility {
         Some(accessibility) => component_accessibility(accessibility),
@@ -231,7 +229,6 @@ pub fn ColorWheel(
         }
         if next != point.get_untracked() {
             point.set(next);
-            on_change.call(next);
         }
     };
     let geometry =
@@ -300,7 +297,7 @@ pub fn ColorWheel(
         }
     });
     let content_node = content.call(ColorWheelHandle {
-        point: point.read_only(),
+        point,
         dragging: dragging.read_only(),
         hovered: hovered.read_only(),
         focused: has_focus.read_only(),
@@ -357,6 +354,6 @@ pub fn ColorWheel(
 
 pub fn color_wheel_value(document: &Document, wheel: NodeId) -> WheelPoint {
     document
-        .component_state::<ReadSignal<WheelPoint>>(wheel)
+        .component_state::<Binding<WheelPoint>>(wheel)
         .get_untracked()
 }

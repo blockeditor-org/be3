@@ -43,9 +43,8 @@ pub struct NumberFaceHandle {
 }
 
 pub struct NumberFieldHandle {
-    pub text: ReadSignal<String>,
+    pub text: Binding<String>,
     pub editing: ReadSignal<bool>,
-    pub on_change: Callback<String>,
     pub on_submit: Callback<String>,
     pub on_focus_change: Callback<bool>,
 }
@@ -58,7 +57,7 @@ struct Parts {
 
 #[component]
 pub fn NumberInput(
-    value: Prop<f64>,
+    value: Binding<f64>,
     #[prop(default = f64::NEG_INFINITY)] min: f64,
     #[prop(default = f64::INFINITY)] max: f64,
     #[prop(default = String::new())] label: Prop<String>,
@@ -67,7 +66,6 @@ pub fn NumberInput(
     #[prop(default = None)] decimals: Prop<Option<u32>>,
     face: Render<NumberFaceHandle>,
     field: Render<NumberFieldHandle>,
-    on_change: Callback<f64>,
     on_preview: Callback<Option<f64>>,
 ) -> NodeId {
     let text = create_signal(format_number(
@@ -127,7 +125,7 @@ pub fn NumberInput(
         held.set(Some((origin, start, true)));
         let next = next.clamp(min, max);
         text.set(format_number(next, decimals.get_untracked()));
-        on_change.call(next);
+        value.set(next);
     };
     let open = move || {
         if !off.get_untracked() {
@@ -161,7 +159,7 @@ pub fn NumberInput(
         match typed {
             Some(typed) if typed != shown => {
                 text.set(format_number(typed, decimals.get_untracked()));
-                on_change.call(typed);
+                value.set(typed);
             }
             _ => text.set(format_number(shown, decimals.get_untracked())),
         }
@@ -207,9 +205,8 @@ pub fn NumberInput(
         disabled: off,
     });
     let field = field.call(NumberFieldHandle {
-        text: text.read_only(),
+        text: Binding::new(text, edited),
         editing: editing.read_only(),
-        on_change: Callback::new(edited),
         on_submit: Callback::new(submitted),
         on_focus_change: Callback::new(focus_changed),
     });

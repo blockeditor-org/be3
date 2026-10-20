@@ -19,7 +19,7 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
                     }}
                 >
                     <Frame height=200.0>
-                        <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
+                        <PanZoomStage />
                     </Frame>
                     <ForEach keys={indices(20)}>|index: usize|
                         <Text

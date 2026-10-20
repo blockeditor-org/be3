@@ -20,13 +20,12 @@ const FOCUS_RING_OFFSET: f32 = 3.0;
 
 #[component]
 pub fn Slider(
-    value: Prop<f32>,
+    value: Binding<f32>,
     #[prop(default = 0.0)] min: f32,
     #[prop(default = 1.0)] max: f32,
     #[prop(default = SliderScale::Linear)] scale: SliderScale,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_change: Callback<f32>,
     on_drag_change: Callback<bool>,
 ) -> NodeId {
     view! {
@@ -38,7 +37,6 @@ pub fn Slider(
             thumb=KNOB_SIZE
             disabled
             label
-            on_change={on_change}
             on_drag_change={on_drag_change}
         >|handle: SliderHandle|
             <SliderTrack handle />

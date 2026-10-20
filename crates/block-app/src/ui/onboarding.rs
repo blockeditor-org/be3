@@ -476,7 +476,6 @@ pub(super) fn AddAccountDialog(
                                         label="Display name"
                                         placeholder="Your name"
                                         @test_id="account.name"
-                                        on_change={move |value: String| display_name.set(value)}
                                         on_submit={move |_| submit()}
                                     />
                                 </List>
@@ -496,7 +495,6 @@ pub(super) fn AddAccountDialog(
                                     label="Server address"
                                     placeholder="https://example.com"
                                     @test_id="account.server"
-                                    on_change={move |value: String| remote_url.set(value)}
                                     on_submit={move |_| submit()}
                                 />
                             </List>
@@ -509,7 +507,6 @@ pub(super) fn AddAccountDialog(
                                     label={gateway_label}
                                     password=true
                                     @test_id="account.gateway"
-                                    on_change={move |value: String| authorization.set(value)}
                                     on_submit={move |_| submit()}
                                 />
                             </List>
@@ -772,7 +769,6 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                             label="Invite link"
                             placeholder="https://…/#invite/…"
                             @test_id={"app.join.link"}
-                            on_change={move |value: String| link.set(value)}
                             on_submit={move |_value: String| open()}
                         />
                         <Button
@@ -983,7 +979,6 @@ fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
                 value={name}
                 placeholder="Organization name"
                 label="Organization name"
-                on_change={move |value: String| name.set(value)}
                 on_submit={move |_value: String| create()}
             />
             <Button

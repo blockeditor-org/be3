@@ -1,12 +1,12 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{PanZoomView, pan_zoom_view};
+use crate::unstyled::pan_zoom_view;
 
 #[test]
 fn plus_and_minus_zoom_a_focused_pan_zoom_and_zero_resets_the_scale() {
     let document = build(move || {
         view! {
-            <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
+            <PanZoomStage />
         }
     });
     let mut harness = Harness::new(document);

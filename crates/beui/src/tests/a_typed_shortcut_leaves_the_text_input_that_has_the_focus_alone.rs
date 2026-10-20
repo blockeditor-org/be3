@@ -17,9 +17,8 @@ fn a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone() {
             <List spacing=0.0>
                 <TextInput
                     @test_id={"field"}
-                    value
+                    value={value}
                     label="Name"
-                    on_change={move |text: String| value.set(text)}
                 />
                 <unstyled::Button @test_id={"button"}>
                     <ButtonFace label="Elsewhere" />

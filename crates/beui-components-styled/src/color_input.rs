@@ -21,24 +21,15 @@ const FOCUS_RING_OFFSET: f32 = 2.0;
 
 #[component]
 pub fn ColorInput(
-    value: Prop<Color32>,
+    value: Binding<Color32>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] alpha: bool,
-    on_change: Callback<Color32>,
     on_preview: Callback<Option<Color32>>,
 ) -> NodeId {
-    let current = create_signal(value.get_untracked());
-    create_effect(move || current.set(value.get()));
     let previewed = create_signal(None::<Color32>);
-    let shown = create_memo(move || previewed.get().unwrap_or_else(|| current.get()));
-    let report = move |color: Color32| {
-        if color != current.get_untracked() {
-            current.set(color);
-            on_change.call(color);
-        }
-    };
-    let hex = HexText::new(shown, alpha, Callback::new(report));
+    let shown = create_memo(move || previewed.get().unwrap_or_else(|| value.get()));
+    let hex = HexText::new(shown, alpha, Callback::new(move |color| value.set(color)));
     let label = create_memo(move || label.get());
     let picker_label = create_memo(move || match label.get() {
         label if label.is_empty() => "Choose a color".to_owned(),
@@ -56,10 +47,9 @@ pub fn ColorInput(
             >|popover: PopoverHandle|
                 <PopoverPanel>
                     <ColorPicker
-                        value={current}
+                        value
                         alpha
                         focused={popover.open}
-                        on_change={report}
                         on_preview={move |preview: Option<Color32>| {
                             previewed.set(preview);
                             on_preview.call(preview);
@@ -73,7 +63,6 @@ pub fn ColorInput(
                 label={label}
                 placeholder={hex.placeholder()}
                 disabled={disabled}
-                on_change={move |typed: String| hex.edit(typed)}
                 on_submit={move |typed: String| hex.submit(typed)}
             />
         </List>

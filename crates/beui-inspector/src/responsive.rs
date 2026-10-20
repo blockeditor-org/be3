@@ -133,30 +133,28 @@ fn ResponsiveToolbar(
                     <Frame width=DIMENSION_WIDTH>
                         <NumberInput
                             @test_id={"inspector.responsive.width"}
-                            value={width}
-                            min={f64::from(MINIMUM_SIZE)}
-                            max={f64::from(MAXIMUM_SIZE)}
-                            label="Width"
-                            on_change={move |width: f64| {
+                            value={Binding::new(width, move |width: f64| {
                                 state.value().update_screen(|screen| {
                                     screen.resized(vec2(width as f32, screen.size.y))
                                 });
-                            }}
+                            })}
+                            min={f64::from(MINIMUM_SIZE)}
+                            max={f64::from(MAXIMUM_SIZE)}
+                            label="Width"
                         />
                     </Frame>
                     <Text style=TextStyle::CAPTION string="x" />
                     <Frame width=DIMENSION_WIDTH>
                         <NumberInput
                             @test_id={"inspector.responsive.height"}
-                            value={height}
-                            min={f64::from(MINIMUM_SIZE)}
-                            max={f64::from(MAXIMUM_SIZE)}
-                            label="Height"
-                            on_change={move |height: f64| {
+                            value={Binding::new(height, move |height: f64| {
                                 state.value().update_screen(|screen| {
                                     screen.resized(vec2(screen.size.x, height as f32))
                                 });
-                            }}
+                            })}
+                            min={f64::from(MINIMUM_SIZE)}
+                            max={f64::from(MAXIMUM_SIZE)}
+                            label="Height"
                         />
                     </Frame>
                     <IconButton

@@ -6,7 +6,7 @@ use crate::unstyled::{PanZoomView, pan_zoom_view};
 fn arrow_keys_pan_a_focused_pan_zoom() {
     let document = build(move || {
         view! {
-            <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
+            <PanZoomStage />
         }
     });
     let mut harness = Harness::new(document);

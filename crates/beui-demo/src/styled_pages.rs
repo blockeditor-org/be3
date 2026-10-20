@@ -835,14 +835,11 @@ pub(crate) fn InputsPage() -> NodeId {
 #[sample]
 #[component]
 fn NameInput() -> NodeId {
-    let greeting = create_signal(greeting_label(""));
+    let name = create_signal(String::new());
+    let greeting = create_memo(move || name.with(|name| greeting_label(name)));
     view! {
         <List spacing=SECTION_SPACING>
-            <TextInput
-                value=String::new()
-                placeholder="Type a name"
-                on_change={move |value: String| greeting.set(greeting_label(&value))}
-            />
+            <TextInput value={name} placeholder="Type a name" />
             <Text style=TextStyle::CAPTION string={greeting} />
             <Text
                 style=TextStyle::CAPTION
@@ -906,7 +903,6 @@ fn SeatsInput() -> NodeId {
                 min=1.0
                 max=12.0
                 label="Seats"
-                on_change={move |value| seats.set(value)}
             />
             <Text style=TextStyle::CAPTION string={seats_text} />
         </List>
@@ -931,7 +927,7 @@ fn LoadSliders() -> NodeId {
                     align=TextAlign::End
                 />
             </List>
-            <Slider value=0.4 label="Load" on_change={move |value| load.set(value)} />
+            <Slider value={load} label="Load" />
             <Progress value={load} />
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text style=TextStyle::CAPTION string="Zoom, with 1x in the middle" />
@@ -948,7 +944,6 @@ fn LoadSliders() -> NodeId {
                 max=ZOOM_MAX
                 scale={SliderScale::Midpoint(ZOOM_MIDPOINT)}
                 label="Zoom"
-                on_change={move |value| zoom.set(value)}
             />
             <Text style=TextStyle::CAPTION string="Something that takes as long as it takes" />
             <Spinner width=SPINNER_WIDTH label="Working" />
@@ -1326,7 +1321,7 @@ fn AccentInput() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION string="Click the swatch to pick" />
-            <ColorInput value={accent} label="Accent" on_change={move |color| accent.set(color)} />
+            <ColorInput value={accent} label="Accent" />
         </List>
     }
 }
@@ -1344,7 +1339,6 @@ fn PaintPicker() -> NodeId {
             <ColorPicker
                 value={paint}
                 alpha=false
-                on_change={move |color| paint.set(color)}
                 on_preview={move |color| preview.set(color)}
             />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
@@ -1365,7 +1359,6 @@ fn HueWheel() -> NodeId {
         <List spacing=SECTION_SPACING>
             <ColorWheel
                 value={paint}
-                on_change={move |color| paint.set(color)}
                 on_preview={move |color| preview.set(color)}
             />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
@@ -1394,7 +1387,6 @@ fn PerceptualWheel() -> NodeId {
             <Text style=TextStyle::CAPTION string="Turning the hue keeps lightness and chroma" />
             <OklchColorWheel
                 value={paint}
-                on_change={move |color| paint.set(color)}
                 on_preview={move |color| preview.set(color)}
             />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
@@ -2163,7 +2155,6 @@ fn RenameDialog() -> NodeId {
                     label="Name"
                     clearable=true
                     @test_id={"demo.rename.field"}
-                    on_change={move |value: String| typed.set(value)}
                 />
             </Dialog>
         </List>
@@ -3245,7 +3236,6 @@ fn SettingsSections() -> NodeId {
                         min=0.0
                         max=1.0
                         label="Volume"
-                        on_change={move |value| volume.set(value)}
                     />
                 </SettingsRow>
                 <SettingsRow
@@ -3461,8 +3451,7 @@ fn ZoomableStage() -> NodeId {
             </List>
             <CanvasStage
                 @sizing=ItemSize::Fixed(STAGE_HEIGHT)
-                view={stage_view.read_only()}
-                on_change={move |view| stage_view.set(view)}
+                view={stage_view}
             />
             <Text
                 style=TextStyle::CAPTION
@@ -3486,9 +3475,9 @@ fn scale_in(view: &mut PanZoomView) {
 
 #[sample]
 #[component]
-fn CanvasStage(view: ReadSignal<PanZoomView>, on_change: Callback<PanZoomView>) -> NodeId {
+fn CanvasStage(#[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomView>) -> NodeId {
     view! {
-        <PanZoom view on_change={on_change}>|handle: PanZoomHandle| {
+        <PanZoom view>|handle: PanZoomHandle| {
             let PanZoomHandle { view, scale, focused, .. } = handle;
             view! {
                 <CanvasBoard view scale focused />

@@ -1,12 +1,12 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{MAX_SCALE, MIN_SCALE, PanZoomView, pan_zoom_view};
+use crate::unstyled::{MAX_SCALE, MIN_SCALE, pan_zoom_view};
 
 #[test]
 fn zooming_a_pan_zoom_stops_at_its_scale_limits() {
     let document = build(move || {
         view! {
-            <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
+            <PanZoomStage />
         }
     });
     let mut harness = Harness::new(document);

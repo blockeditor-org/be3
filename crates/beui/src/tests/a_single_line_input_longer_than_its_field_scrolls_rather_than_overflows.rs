@@ -8,7 +8,7 @@ fn a_single_line_input_longer_than_its_field_scrolls_rather_than_overflows() {
     let value = create_signal("a link far longer than the field it is shown in, which scrolls across to show the rest of it".to_owned());
     let (document, [_input]) = toolbar_of(move || {
         [view! {
-            <TextInput value={value} on_change={move |next: String| value.set(next)} />
+            <TextInput value={value} />
         }]
     });
     let mut harness = Harness::sized(document, Vec2::new(200.0, 100.0));

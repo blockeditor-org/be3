@@ -280,7 +280,6 @@ fn PasswordEntry(editor: Editor, ssid: String, asking: Signal<Option<String>>) -
                 placeholder="Password"
                 label
                 @test_id={format!("{id}.password")}
-                on_change={move |typed: String| password.set(typed)}
                 on_submit={move |_: String| submitted()}
             />
             <Button

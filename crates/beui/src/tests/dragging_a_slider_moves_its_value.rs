@@ -8,7 +8,7 @@ fn dragging_a_slider_moves_its_value() {
     let reported = create_signal(0.0);
     let (document, [slider]) = toolbar_of(|| {
         [view! {
-            <Slider value=0.0 on_change={move |value| reported.set(value)} />
+            <Slider value={reported} />
         }]
     });
     let mut harness = Harness::new(document);

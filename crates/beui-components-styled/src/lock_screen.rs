@@ -95,10 +95,9 @@ pub fn LockScreen(
                                     error={error}
                                     busy={busy}
                                     actions={actions}
-                                    password={password.read_only()}
+                                    password={password}
                                     focused={focused}
                                     id={format!("{}.{index}", id)}
-                                    on_change={move |typed: String| password.set(typed)}
                                     on_submit={move |typed: String| submit(typed)}
                                     on_action={on_action}
                                 />
@@ -122,10 +121,9 @@ fn LockCard(
     error: Memo<Option<String>>,
     busy: Memo<bool>,
     actions: Memo<Vec<LockAction>>,
-    password: beui_view::reactive::ReadSignal<String>,
+    password: Binding<String>,
     focused: Memo<bool>,
     id: String,
-    on_change: Callback<String>,
     on_submit: Callback<String>,
     on_action: Callback<usize>,
 ) -> NodeId {
@@ -163,7 +161,6 @@ fn LockCard(
                                 disabled={busy}
                                 focused={focused}
                                 @test_id={format!("{id}.password")}
-                                on_change={on_change}
                                 on_submit={on_submit}
                             />
                         </Frame>

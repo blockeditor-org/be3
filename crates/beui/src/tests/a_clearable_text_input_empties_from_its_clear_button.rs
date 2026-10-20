@@ -13,7 +13,6 @@ fn a_clearable_text_input_empties_from_its_clear_button() {
                 value={value}
                 glyph={ICON_SEARCH.to_owned()}
                 clearable=true
-                on_change={move |next: String| value.set(next)}
             />
         }]
     });

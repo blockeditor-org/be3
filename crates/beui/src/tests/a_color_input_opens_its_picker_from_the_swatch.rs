@@ -11,9 +11,8 @@ fn a_color_input_opens_its_picker_from_the_swatch() {
     let (document, [input]) = toolbar_of(|| {
         [view! {
             <ColorInput
-                value={Color32::from_rgb(0x11, 0x22, 0x33)}
+                value={recorded(Color32::from_rgb(0x11, 0x22, 0x33), changes)}
                 label="Fill"
-                on_change={move |color| changes.update(|changes| changes.push(color))}
             />
         }]
     });

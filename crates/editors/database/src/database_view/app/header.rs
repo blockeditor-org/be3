@@ -204,12 +204,11 @@ fn SearchField(data: Data) -> NodeId {
     let typed = move |text: String| data.set_search(text);
     view! {
         <TextInput
-            value={query}
+            value={Binding::new(query, typed)}
             placeholder="Search"
             glyph={ICON_SEARCH.to_owned()}
             clearable=true
             @test_id={"database-view.search"}
-            on_change={typed}
         />
     }
 }

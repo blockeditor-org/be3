@@ -26,7 +26,7 @@ const CLEAR_PADDING: f32 = 6.0;
 
 #[component]
 pub fn TextInput(
-    value: Prop<String>,
+    value: Binding<String>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -38,7 +38,6 @@ pub fn TextInput(
     #[prop(default = false)] clearable: Prop<bool>,
     #[prop(default = false)] copyable: Prop<bool>,
     #[prop(default = false)] multiline: bool,
-    on_change: Callback<String>,
     on_submit: Callback<String>,
     on_focus_change: Callback<bool>,
 ) -> NodeId {
@@ -50,8 +49,7 @@ pub fn TextInput(
     let glyph = create_memo(move || glyph.get());
     let clearable = create_memo(move || clearable.get());
     let copyable = create_memo(move || copyable.get());
-    let shown = value.clone();
-    let copied = create_memo(move || shown.get());
+    let copied = create_memo(move || value.get());
     let named = label.clone();
     let copy_label = create_memo(move || match named.get().is_empty() {
         true => "Copy".to_owned(),
@@ -68,7 +66,6 @@ pub fn TextInput(
             label
             multiline
             style={style}
-            on_change={on_change}
             on_submit={on_submit}
             on_focus_change={on_focus_change}
         >|handle|

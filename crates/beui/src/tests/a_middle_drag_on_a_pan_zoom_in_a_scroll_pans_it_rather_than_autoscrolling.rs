@@ -11,7 +11,7 @@ fn a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling() {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <Frame height=200.0>
-                        <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
+                        <PanZoomStage />
                     </Frame>
                     <ForEach keys={indices(20)}>|index: usize|
                         <Text

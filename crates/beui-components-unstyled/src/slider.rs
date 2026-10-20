@@ -54,7 +54,7 @@ impl SliderScale {
 }
 
 pub struct SliderHandle {
-    pub value: ReadSignal<f32>,
+    pub value: Binding<f32>,
     pub fraction: Memo<f32>,
     pub dragging: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
@@ -63,7 +63,7 @@ pub struct SliderHandle {
 
 #[component]
 pub fn Slider(
-    value: Prop<f32>,
+    value: Binding<f32>,
     #[prop(default = 0.0)] min: f32,
     #[prop(default = 1.0)] max: f32,
     #[prop(default = SliderScale::Linear)] scale: SliderScale,
@@ -71,14 +71,11 @@ pub fn Slider(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(children)] content: Option<Render<SliderHandle>>,
-    on_change: Callback<f32>,
     on_drag_change: Callback<bool>,
     on_focus_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
-    let value = value.map(move |value| value.clamp(min, max));
-    let current = create_signal(value.get_untracked());
-    create_effect(move || current.set(value.get()));
+    let current = create_memo(move || value.get().clamp(min, max));
     let fraction = create_memo(move || scale.fraction_of(current.get(), min, max));
     let dragging = create_signal(false);
     let focused = create_signal(false);
@@ -102,7 +99,7 @@ pub fn Slider(
 
     let content_node = content.map(|build| {
         build.call(SliderHandle {
-            value: current.read_only(),
+            value,
             fraction,
             dragging: dragging.read_only(),
             focused: focused.read_only(),
@@ -118,8 +115,7 @@ pub fn Slider(
         if current.get_untracked() == next {
             return;
         }
-        current.set(next);
-        on_change.call(next);
+        value.set(next);
     };
     let grab = Rc::new(Cell::new(0.0f32));
     let press_grab = grab.clone();
@@ -145,7 +141,7 @@ pub fn Slider(
         }
     };
 
-    set_component_state(current.read_only());
+    set_component_state(value);
 
     let tab_stop = create_memo(move || !disabled.get());
     view! {
@@ -191,8 +187,8 @@ pub fn Slider(
     }
 }
 
-pub fn slider_value(document: &Document, slider: NodeId) -> ReadSignal<f32> {
-    *document.component_state::<ReadSignal<f32>>(slider)
+pub fn slider_value(document: &Document, slider: NodeId) -> Binding<f32> {
+    *document.component_state::<Binding<f32>>(slider)
 }
 
 fn curved(fraction: f32, base: f32) -> f32 {

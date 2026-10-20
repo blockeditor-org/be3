@@ -190,7 +190,6 @@ fn Sidebar(model: Model) -> NodeId {
                             value={query}
                             placeholder="Filter by title, author, branch or number"
                             label="Filter pull requests"
-                            on_change={move |next| query.set(next)}
                         />
                     </List>
                     <Show condition={loading}>

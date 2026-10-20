@@ -7,7 +7,7 @@ fn a_driver_acts_on_a_slider_the_way_a_screen_reader_does() {
     let document = build(|| {
         let value = create_signal(0.5_f32);
         view! {
-            <Slider value={value} label="Volume" on_change={move |next: f32| value.set(next)} />
+            <Slider value={value} label="Volume" />
         }
     });
     let mut driven = Driven::new(document);

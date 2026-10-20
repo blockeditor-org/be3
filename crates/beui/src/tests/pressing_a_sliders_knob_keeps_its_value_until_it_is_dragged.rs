@@ -9,8 +9,7 @@ fn pressing_a_sliders_knob_keeps_its_value_until_it_is_dragged() {
     let (document, [slider]) = toolbar_of(|| {
         [view! {
             <Slider
-                value=0.3
-                on_change={move |value| changes.update(|changes| changes.push(value))}
+                value={recorded(0.3, changes)}
             />
         }]
     });

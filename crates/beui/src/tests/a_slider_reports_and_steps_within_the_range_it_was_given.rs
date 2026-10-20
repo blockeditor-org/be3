@@ -9,11 +9,10 @@ fn a_slider_reports_and_steps_within_the_range_it_was_given() {
     let (document, [slider]) = toolbar_of(|| {
         [view! {
             <Slider
-                value=1.0
+                value={recorded(1.0, reported)}
                 min=0.5
                 max=3.0
                 label="Zoom"
-                on_change={move |value| reported.update(|reported| reported.push(value))}
             />
         }]
     });

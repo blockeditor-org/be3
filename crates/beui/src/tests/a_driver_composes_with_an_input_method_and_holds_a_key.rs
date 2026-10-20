@@ -10,7 +10,6 @@ fn a_driver_composes_with_an_input_method_and_holds_a_key() {
             <TextInput
                 @test_id={"field"}
                 value={text}
-                on_change={move |next: String| text.set(next)}
             />
         }
     });

@@ -571,8 +571,7 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
             <Slider
                 @test_id={"inspector.simulation.back"}
                 label="Back gesture progress"
-                value={progress}
-                on_change={moved}
+                value={Binding::new(progress, moved)}
                 on_drag_change={released}
             />
             <Checkbox
@@ -586,8 +585,10 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
 
 #[component]
 fn FilterSection(state: Stored<State>) -> NodeId {
-    let blur_text = create_signal(blur_label(state.value().blur.get()));
-    let contrast_text = create_signal(contrast_label(state.value().contrast_reduction.get()));
+    let blur = create_signal(state.value().blur.get());
+    let contrast = create_signal(state.value().contrast_reduction.get());
+    let blur_text = create_memo(move || blur_label(blur.get()));
+    let contrast_text = create_memo(move || contrast_label(contrast.get()));
     let vision = state.value().color_vision.get();
     let selected_vision = ColorVision::ALL
         .iter()
@@ -601,24 +602,22 @@ fn FilterSection(state: Stored<State>) -> NodeId {
             <Slider
                 @test_id={"inspector.simulation.blur"}
                 label="Blur"
-                value={state.value().blur.get()}
+                value={Binding::new(blur, move |value| {
+                    blur.set(value);
+                    state.value().set_blur(value);
+                })}
                 min=0.0
                 max=MAX_BLUR
                 scale={SliderScale::Midpoint(BLUR_MIDPOINT)}
-                on_change={move |value| {
-                    state.value().set_blur(value);
-                    blur_text.set(blur_label(value));
-                }}
             />
             <Text style=TextStyle::CAPTION string={contrast_text} />
             <Slider
                 @test_id={"inspector.simulation.contrast"}
                 label="Reduce contrast"
-                value={state.value().contrast_reduction.get()}
-                on_change={move |value| {
+                value={Binding::new(contrast, move |value| {
+                    contrast.set(value);
                     state.value().set_contrast_reduction(value);
-                    contrast_text.set(contrast_label(value));
-                }}
+                })}
             />
             <Text style=TextStyle::CAPTION string="Colour vision" />
             <RadioGroup

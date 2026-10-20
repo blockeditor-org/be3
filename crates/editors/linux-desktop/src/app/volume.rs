@@ -46,10 +46,9 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Slider
                     @sizing=ItemSize::Percent(100.0)
-                    value={volume}
+                    value={Binding::new(volume, move |level: f32| editor.act(MediaRequest::SetVolume(level)))}
                     label="Volume"
                     @test_id={"desktop.volume.level"}
-                    on_change={move |level: f32| editor.act(MediaRequest::SetVolume(level))}
                 />
                 <Text @sizing=ItemSize::Fixed(PERCENT_WIDTH) string={shown} />
             </List>

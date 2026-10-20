@@ -6,14 +6,13 @@ use crate::unstyled::software_keyboard::{Layer, Value};
 
 #[test]
 fn a_key_let_go_over_the_inspector_is_not_left_held() {
-    let typed = Rc::new(RefCell::new(String::new()));
-    let seen = Rc::clone(&typed);
+    let _root = crate::reactive::RootScope::new();
+    let typed = create_signal(String::new());
     let document = build(move || {
         view! {
             <TextInput
                 @test_id="field"
-                value=String::new()
-                on_change={move |next: String| *seen.borrow_mut() = next}
+                value={typed}
             />
         }
     });
@@ -37,7 +36,7 @@ fn a_key_let_go_over_the_inspector_is_not_left_held() {
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(
-        *typed.borrow(),
+        typed.get_untracked(),
         "2",
         "a drag up and right from w let go over the inspector types its corner once and is not left held to repeat"
     );

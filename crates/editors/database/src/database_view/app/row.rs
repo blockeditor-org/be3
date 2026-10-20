@@ -195,12 +195,11 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                         <Frame padding=PADDING>
                             <List spacing={SPACING * 2.0}>
                                 <TextInput
-                                    value={title}
+                                    value={Binding::new(title, retitled)}
                                     placeholder="Title"
                                     disabled={title_off}
                                     focused={untitled}
                                     @test_id={"database-view.detail.title"}
-                                    on_change={retitled}
                                 />
                                 <List spacing=2.0>
                                     <ForEach keys={properties}>|field: Uuid|

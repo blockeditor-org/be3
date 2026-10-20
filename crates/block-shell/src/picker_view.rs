@@ -544,12 +544,11 @@ fn SurfaceHeader(
                 </List>
                 <TextInput
                     @node_ref={&field}
-                    value={search}
+                    value={Binding::new(search, move |value: String| act.call(PickAction::Search(value)))}
                     placeholder
                     label="Search"
                     glyph={ICON_SEARCH.to_owned()}
                     @test_id={"picker.search"}
-                    on_change={move |value: String| act.call(PickAction::Search(value))}
                 />
             </List>
         </Frame>

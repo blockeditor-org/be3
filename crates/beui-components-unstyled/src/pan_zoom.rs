@@ -74,20 +74,15 @@ pub struct PanZoomHandle {
 
 #[derive(Clone, Copy)]
 struct Camera {
-    view: Signal<PanZoomView>,
+    view: Binding<PanZoomView>,
     rect: ReadSignal<Rect>,
     min_scale: Memo<f32>,
     max_scale: Memo<f32>,
-    on_change: Callback<PanZoomView>,
 }
 
 impl Camera {
     fn apply(&self, next: PanZoomView) {
-        if self.view.get_untracked() == next {
-            return;
-        }
         self.view.set(next);
-        self.on_change.call(next);
     }
 
     fn pan(&self, delta: Vec2) {
@@ -142,8 +137,7 @@ impl Camera {
 
 #[component]
 pub fn PanZoom(
-    view: Prop<PanZoomView>,
-    on_change: Callback<PanZoomView>,
+    #[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomView>,
     #[prop(default = MIN_SCALE)] min_scale: Prop<f32>,
     #[prop(default = MAX_SCALE)] max_scale: Prop<f32>,
     accessibility: Option<Prop<Node>>,
@@ -151,8 +145,7 @@ pub fn PanZoom(
 ) -> NodeId {
     view! {
         <PlacementBuilder>|rect: ReadSignal<Rect>| {
-            let current = create_signal(view.get_untracked());
-            create_effect(move || current.set(view.get()));
+            let current = view;
             let panning = create_signal(false);
 
             let camera = Camera {
@@ -160,7 +153,6 @@ pub fn PanZoom(
                 rect,
                 min_scale: create_memo(move || min_scale.get()),
                 max_scale: create_memo(move || max_scale.get()),
-                on_change,
             };
 
             let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ScrollView)));
@@ -179,7 +171,7 @@ pub fn PanZoom(
                 focused: focused.read_only(),
             });
 
-            set_component_state(current.read_only());
+            set_component_state(current);
 
             view! {
                 <Interactive
@@ -205,6 +197,6 @@ pub fn PanZoom(
     }
 }
 
-pub fn pan_zoom_view(document: &Document, pan_zoom: NodeId) -> ReadSignal<PanZoomView> {
-    *document.component_state::<ReadSignal<PanZoomView>>(pan_zoom)
+pub fn pan_zoom_view(document: &Document, pan_zoom: NodeId) -> Binding<PanZoomView> {
+    *document.component_state::<Binding<PanZoomView>>(pan_zoom)
 }

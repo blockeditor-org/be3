@@ -13,8 +13,7 @@ fn a_press_inside_a_color_wheels_triangle_picks_saturation_and_value() {
             <List spacing=0.0>
                 <ColorWheel
                     @node_ref=&wheel
-                    value={Hsva::new(200.0, 1.0, 1.0, 1.0).to_color()}
-                    on_change={move |color| changes.update(|changes| changes.push(color))}
+                    value={recorded(Hsva::new(200.0, 1.0, 1.0, 1.0).to_color(), changes)}
                 />
             </List>
         }

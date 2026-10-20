@@ -210,14 +210,13 @@ pub fn Select(
                     <List spacing=6.0>
                         <unstyled::TextInput
                             @node_ref={&state.search}
-                            value={search_text}
+                            value={Binding::new(search_text, move |text: String| filter(state, &text))}
                             focused={focused.memo(Focus::Search)}
                             keyboard_on_focus=false
                             placeholder={search_placeholder}
                             style={search_style}
                             content={search_content.unwrap_or_else(|| Render::new(|handle: TextInputHandle| handle.field))}
                             on_focus_change={move |has_focus: bool| blur(state, has_focus, Focus::Search)}
-                            on_change={move |text: String| filter(state, &text)}
                             on_submit={move |_text: String| {
                                 if let Some(index) = state.highlighted.get_untracked() {
                                     confirm(state, index);

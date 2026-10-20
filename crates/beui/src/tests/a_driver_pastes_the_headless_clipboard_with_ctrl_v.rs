@@ -10,7 +10,6 @@ fn a_driver_pastes_the_headless_clipboard_with_ctrl_v() {
             <TextInput
                 @test_id={"field"}
                 value={text}
-                on_change={move |next: String| text.set(next)}
             />
         }
     });

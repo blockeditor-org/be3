@@ -335,16 +335,15 @@ fn TextSettings(state: State) -> NodeId {
                     <Frame width=NUMBER_WIDTH>
                         <NumberInput
                             label="Indentation width"
-                            value={width}
-                            min=1.0
-                            max=8.0
-                            @test_id={"text.indentation-width"}
-                            on_change={move |value: f64| {
+                            value={Binding::new(width, move |value: f64| {
                                 let width = value.round().clamp(1.0, 8.0) as u8;
                                 state.text.execute(EditorCommand::SetIndentation(
                                     TextIndentation::Spaces { width },
                                 ));
-                            }}
+                            })}
+                            min=1.0
+                            max=8.0
+                            @test_id={"text.indentation-width"}
                         />
                     </Frame>
                 </List>

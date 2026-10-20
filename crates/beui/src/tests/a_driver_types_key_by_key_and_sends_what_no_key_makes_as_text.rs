@@ -66,7 +66,6 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
                 @test_id={"form.name"}
                 value={name}
                 placeholder="Name"
-                on_change={move |next: String| name.set(next)}
             />
         }
     });

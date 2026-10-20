@@ -14,8 +14,7 @@ fn turning_an_oklch_color_wheel_keeps_its_lightness() {
             <List spacing=0.0>
                 <OklchColorWheel
                     @node_ref=&wheel
-                    value={start.to_color()}
-                    on_change={move |color| changes.update(|changes| changes.push(color))}
+                    value={recorded(start.to_color(), changes)}
                 />
             </List>
         }

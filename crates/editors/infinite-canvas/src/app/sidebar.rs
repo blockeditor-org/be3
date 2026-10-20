@@ -170,10 +170,9 @@ fn ArtboardSection(state: CanvasState) -> NodeId {
                     <List spacing=6.0>
                         <TextInput
                             label="Name"
-                            value={name}
+                            value={Binding::new(name, renamed)}
                             disabled={locked}
                             @test_id={"infinite-canvas.artboard.name"}
-                            on_change={renamed}
                         />
                         <Show condition={first}>
                             <Text
@@ -275,10 +274,9 @@ fn ArtboardBackground(
             </List>
             <ColorInput
                 label="Background color"
-                value={custom}
+                value={Binding::new(custom, typed)}
                 disabled={locked}
                 @test_id={"infinite-canvas.background"}
-                on_change={typed}
             />
         </List>
     }
@@ -395,11 +393,10 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 </Frame>
                 <NumberInput
                     label="X"
-                    value={center_x}
+                    value={Binding::new(center_x, x)}
                     disabled={locked}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.x"}
-                    on_change={x}
                     on_preview={x_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
@@ -407,11 +404,10 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 </Frame>
                 <NumberInput
                     label="Y"
-                    value={center_y}
+                    value={Binding::new(center_y, y)}
                     disabled={locked}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.y"}
-                    on_change={y}
                     on_preview={y_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
@@ -420,11 +416,10 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 <NumberInput
                     label="W"
                     min={MIN_SIZE as f64}
-                    value={size_x}
+                    value={Binding::new(size_x, width)}
                     disabled={no_width}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.width"}
-                    on_change={width}
                     on_preview={width_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
@@ -433,11 +428,10 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 <NumberInput
                     label="H"
                     min={MIN_SIZE as f64}
-                    value={size_y}
+                    value={Binding::new(size_y, height)}
                     disabled={no_height}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.height"}
-                    on_change={height}
                     on_preview={height_preview}
                 />
             </Grid>
@@ -446,11 +440,10 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 <NumberInput
                     @sizing=ItemSize::Percent(100.0)
                     label="Rotation"
-                    value={angle}
+                    value={Binding::new(angle, rotation)}
                     disabled={no_rotation}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.rotation"}
-                    on_change={rotation}
                     on_preview={rotation_preview}
                 />
             </List>
@@ -548,11 +541,10 @@ fn EditorScale(state: CanvasState) -> NodeId {
                 label="Scale"
                 min=10.0
                 max=800.0
-                value={scale}
+                value={Binding::new(scale, changed)}
                 disabled={locked}
                 drag={NumberDrag::Linear { speed: 1.0 }}
                 @test_id={"infinite-canvas.editor-scale"}
-                on_change={changed}
             />
         </List>
     }
@@ -732,9 +724,8 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION string="Color" />
                     <ColorInput
                         label="Custom color"
-                        value={custom}
+                        value={Binding::new(custom, typed)}
                         @test_id={"infinite-canvas.color"}
-                        on_change={typed}
                     />
                 </List>
             </Show>
@@ -800,9 +791,8 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
                         label="Line width"
                         min=0.5
                         max=20.0
-                        value={width}
+                        value={Binding::new(width, changed)}
                         @test_id={"infinite-canvas.line-width"}
-                        on_change={changed}
                     />
                 </List>
             </Show>
@@ -971,18 +961,16 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                     </List>
                     <ColorInput
                         label="Fill color"
-                        value={custom}
+                        value={Binding::new(custom, typed)}
                         @test_id={"infinite-canvas.fill"}
-                        on_change={typed}
                     />
                     <MixedLabel label="Corner radius" mixed={mixed} />
                     <Slider
                         label="Corner radius"
                         min=0.0
                         max=100.0
-                        value={corner}
+                        value={Binding::new(corner, rounded)}
                         @test_id={"infinite-canvas.corner-radius"}
-                        on_change={rounded}
                     />
                 </List>
             </Show>
@@ -1021,9 +1009,8 @@ fn OpacityRow(state: CanvasState) -> NodeId {
                 label="Opacity"
                 min=0.0
                 max=1.0
-                value={opacity}
+                value={Binding::new(opacity, changed)}
                 @test_id={"infinite-canvas.opacity"}
-                on_change={changed}
             />
         </List>
     }
@@ -1135,10 +1122,9 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             label="Font size"
                             min=4.0
                             max=256.0
-                            value={font_size}
+                            value={Binding::new(font_size, sized)}
                             decimals={Some(2)}
                             @test_id={"infinite-canvas.font-size"}
-                            on_change={sized}
                         />
                     </List>
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
@@ -1148,11 +1134,10 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             label="Line height"
                             min=0.5
                             max=4.0
-                            value={line_height}
+                            value={Binding::new(line_height, spaced)}
                             decimals={Some(2)}
                             drag={NumberDrag::Linear { speed: 0.05 }}
                             @test_id={"infinite-canvas.line-height"}
-                            on_change={spaced}
                         />
                     </List>
                     <Checkbox
