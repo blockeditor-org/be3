@@ -4,15 +4,18 @@ use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use crate::text::{Icon, TextColor};
 use crate::theme::use_theme;
 use beui_core::color::Color32;
-use beui_core::icons::ICON_CHEVRON_RIGHT;
+use beui_core::icons::{ICON_CHEVRON_RIGHT, ICON_MORE_HORIZ};
 use beui_macros::{component, view};
 
 use crate::border::Separator;
+use crate::icon_button::IconButtonSize;
+use crate::menu_button::IconMenuButton;
 use crate::link::Link;
 use crate::scroll::Scroll;
 use crate::text::{Text, TextSize, TextStyle};
 use beui_components_unstyled as unstyled;
 use beui_core::node::NodeId;
+use beui_components_unstyled::MenuItem;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
@@ -37,6 +40,8 @@ const RESET_SPACING: f32 = 8.0;
 const EDGE_TO_EDGE_BELOW: f32 = 520.0;
 const LINK_INSET: f32 = 4.0;
 const SECTION_TITLE: TextStyle = TextStyle::BODY.bold();
+const NOTE: TextStyle = TextStyle::CAPTION.color(TextColor::Accent);
+const MENU_INSET: f32 = 8.0;
 
 #[component]
 pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
@@ -126,16 +131,24 @@ pub fn SettingsRow(
     #[prop(default = false)] modified: Prop<bool>,
     #[prop(default = false)] locked: Prop<bool>,
     #[prop(default = String::new())] reset_test_id: Prop<String>,
+    #[prop(default = String::new())] note: Prop<String>,
+    #[prop(default = String::new())] menu_test_id: Prop<String>,
     on_reset: ClickCallback,
+    menu: Children<MenuItem>,
     children: Children<ListChild>,
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let description = create_memo(move || description.get());
     let described = create_memo(move || !description.get().is_empty());
+    let note = create_memo(move || note.get());
+    let noted = create_memo(move || !note.get().is_empty());
     let separated = create_memo(move || separated.get());
     let reset_test_id = create_memo(move || reset_test_id.get());
+    let menu_test_id = create_memo(move || menu_test_id.get());
     let modified = create_memo(move || modified.get());
-    let resets = !on_reset.is_empty();
+    let has_menu = !menu.is_empty();
+    let resets = !on_reset.is_empty() && !has_menu;
+    let locked = create_memo(move || locked.get());
     let resettable = create_memo(move || resets && modified.get() && !locked.get());
     let marker = create_memo(move || match modified.get() {
         true => ColorRole::Accent,
@@ -148,6 +161,23 @@ pub fn SettingsRow(
             ItemSize::Percent(CONTROL_WEIGHT),
         ),
     };
+    let menu_button = has_menu.then(|| {
+        view! {
+            <Frame
+                padding={Sides::new(0.0, ROW_PADDING_VERTICAL, MENU_INSET, ROW_PADDING_VERTICAL)}
+                align={Align2::new(Align::Center, Align::Center)}
+            >
+                <IconMenuButton
+                    label="More"
+                    glyph={ICON_MORE_HORIZ.to_owned()}
+                    size=IconButtonSize::Compact
+                    disabled={locked}
+                    @test_id={menu_test_id}
+                    items={menu}
+                />
+            </Frame>
+        }
+    });
     let narrow = unstyled::narrower_than(STACK_BELOW + 2.0 * ROW_PADDING_HORIZONTAL);
     let narrow = create_memo(move || !compact && narrow.get());
     let spacing = create_memo(move || match narrow.get() {
@@ -193,6 +223,9 @@ pub fn SettingsRow(
                             <Show condition={described}>
                                 <Text style=TextStyle::CAPTION string={description} wrap=true />
                             </Show>
+                            <Show condition={noted}>
+                                <Text style=NOTE string={note} wrap=true />
+                            </Show>
                         </List>
                         <List
                             @sizing={control_size}
@@ -205,6 +238,7 @@ pub fn SettingsRow(
                         </List>
                     </unstyled::Stack>
                 </Frame>
+                {menu_button}
             </List>
         </List>
     }
