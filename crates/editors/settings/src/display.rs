@@ -1,10 +1,10 @@
-use block_editor_beui::be_block::DisplaySettings;
-use block_editor_beui::{Editor, LayeredSettings};
 use block_editor_beui::Loaded;
+use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use block_editor_beui::{Editor, LayeredSettings};
 
 mod appearance;
 mod modes;
@@ -30,7 +30,11 @@ impl block_editor_beui::BeuiApp for DisplaySettingsApp {
             <Loaded loaded={loaded}>
                 <List spacing=0.0>
                     <Keyed value={device} key={|device: bool| device}>|_device: ReadSignal<bool>|
-                        <DisplaySettingsView editor={editor} settings={settings} @sizing=ItemSize::Percent(100.0) />
+                        <DisplaySettingsView
+                            editor={editor}
+                            settings={settings}
+                            @sizing=ItemSize::Percent(100.0)
+                        />
                     </Keyed>
                 </List>
             </Loaded>

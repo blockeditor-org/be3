@@ -10,11 +10,7 @@ use uuid::Uuid;
 use super::ui::Settings;
 
 #[component]
-pub(super) fn RemapperSetting(
-    editor: Editor,
-    settings: Settings,
-    read_only: Memo<bool>,
-) -> NodeId {
+pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Memo<bool>) -> NodeId {
     let effective = settings.effective();
     let remapper = InputSettings::remapper_setting();
     let set_remapper = settings.setter(&remapper);

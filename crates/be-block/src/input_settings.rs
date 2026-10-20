@@ -241,8 +241,12 @@ impl PointerField {
 
     pub fn read(self, pointer: &PointerSettings) -> Option<PointerSetting> {
         match self {
-            Self::Speed => pointer.speed.map(|speed| PointerSetting::Speed(Some(speed))),
-            Self::TapToClick => pointer.tap_to_click.map(|on| PointerSetting::TapToClick(Some(on))),
+            Self::Speed => pointer
+                .speed
+                .map(|speed| PointerSetting::Speed(Some(speed))),
+            Self::TapToClick => pointer
+                .tap_to_click
+                .map(|on| PointerSetting::TapToClick(Some(on))),
             Self::NaturalScroll => pointer
                 .natural_scroll
                 .map(|on| PointerSetting::NaturalScroll(Some(on))),

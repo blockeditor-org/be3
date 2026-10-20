@@ -106,11 +106,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                         }}
                     />
                 </SettingsSection>
-                <Pointers
-                    settings={settings}
-                    devices={devices}
-                    read_only={read_only}
-                />
+                <Pointers settings={settings} devices={devices} read_only={read_only} />
                 <SettingsSection title="Programs">
                     <SwitchSetting
                         label="Middle-click paste"
@@ -124,11 +120,7 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
                         on_change={move |on: Option<bool>| set_paste.call(on)}
                     />
                 </SettingsSection>
-                <RemapperSetting
-                    editor={editor}
-                    settings={settings}
-                    read_only={read_only}
-                />
+                <RemapperSetting editor={editor} settings={settings} read_only={read_only} />
             </Show>
             <ChangesToast changes={settings.changes()} anchor={page} />
         </SettingsPage>
@@ -274,7 +266,9 @@ fn PointerRows(
         let scope = scope.clone();
         create_memo(move || {
             let effective = effective.get();
-            devices.with(|devices| field_state(&effective, devices, scope.as_ref(), get, default, false))
+            devices.with(|devices| {
+                field_state(&effective, devices, scope.as_ref(), get, default, false)
+            })
         })
     };
     let tap = state(|pointer| pointer.tap_to_click, |device| device.tap_to_click);

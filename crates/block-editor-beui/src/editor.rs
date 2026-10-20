@@ -1370,16 +1370,11 @@ impl Editor {
                     )
                 })
                 .unwrap_or_default();
-            be_block::layered(
-                layers
-                    .bottom_up()
-                    .into_iter()
-                    .filter_map(|block| {
-                        editor
-                            .content_of::<be_block::be_model::Document<R>>(block)
-                            .read(|content| content.root())
-                    }),
-            )
+            be_block::layered(layers.bottom_up().into_iter().filter_map(|block| {
+                editor
+                    .content_of::<be_block::be_model::Document<R>>(block)
+                    .read(|content| content.root())
+            }))
         })
     }
 

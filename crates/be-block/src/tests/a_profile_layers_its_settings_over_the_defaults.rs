@@ -20,7 +20,10 @@ fn a_profile_layers_its_settings_over_the_defaults() {
     );
     assert_eq!(settings.root().layers(kind, None).bottom_up(), [shared]);
     assert_eq!(
-        settings.root().layers(kind, Some(&profile.root())).bottom_up(),
+        settings
+            .root()
+            .layers(kind, Some(&profile.root()))
+            .bottom_up(),
         [shared, own]
     );
     let replaced = edited(
@@ -36,7 +39,10 @@ fn a_profile_layers_its_settings_over_the_defaults() {
         settings.root().child_edit(ChildChange::Delete(shared)),
     );
     assert_eq!(
-        deleted.root().layers(kind, Some(&profile.root())).bottom_up(),
+        deleted
+            .root()
+            .layers(kind, Some(&profile.root()))
+            .bottom_up(),
         [own]
     );
 

@@ -179,15 +179,17 @@ impl<C: BlockContent + Default> RootSetting<C> {
                 profile
             }
         };
-        let block = graph.create(C::CONTENT_TYPE, content.encode(), BlockParent::Block(parent));
+        let block = graph.create(
+            C::CONTENT_TYPE,
+            content.encode(),
+            BlockParent::Block(parent),
+        );
         match layer {
             SettingsLayer::EveryDevice => {
                 graph.edit_settings(settings, Settings::set_kind(C::CONTENT_TYPE, block))
             }
-            SettingsLayer::ThisDevice => graph.edit_settings_profile(
-                parent,
-                SettingsProfile::set_kind(C::CONTENT_TYPE, block),
-            ),
+            SettingsLayer::ThisDevice => graph
+                .edit_settings_profile(parent, SettingsProfile::set_kind(C::CONTENT_TYPE, block)),
         }
         match layer {
             SettingsLayer::EveryDevice => self.created = Some(block),

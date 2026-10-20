@@ -35,7 +35,10 @@ impl Layers {
     }
 
     pub fn bottom_up(self) -> Vec<Uuid> {
-        self.every_device.into_iter().chain(self.this_device).collect()
+        self.every_device
+            .into_iter()
+            .chain(self.this_device)
+            .collect()
     }
 }
 

@@ -29,7 +29,10 @@ fn a_pointer_kept_here_stays_on_this_device() {
     held.apply(&Settings::add_profile(client, profile));
     store.hold(Some(settings), held);
     let mut own = SettingsProfileContent::default();
-    own.apply(&SettingsProfile::set_kind(InputSettings::CONTENT_TYPE, here));
+    own.apply(&SettingsProfile::set_kind(
+        InputSettings::CONTENT_TYPE,
+        here,
+    ));
     store.hold(Some(profile), own);
     store.hold(Some(here), InputSettingsContent::default());
     editor.run();
@@ -44,7 +47,11 @@ fn a_pointer_kept_here_stays_on_this_device() {
 
     editor.click(TAP);
     editor.run();
-    assert_eq!(tap(&editor, None), Some(false), "a change goes to every device");
+    assert_eq!(
+        tap(&editor, None),
+        Some(false),
+        "a change goes to every device"
+    );
     assert_eq!(tap(&editor, Some(here)), None);
 
     editor.click(&format!("{TAP}.menu"));
@@ -55,6 +62,10 @@ fn a_pointer_kept_here_stays_on_this_device() {
 
     editor.click(TAP);
     editor.run();
-    assert_eq!(tap(&editor, Some(here)), Some(true), "a kept pointer changes here");
+    assert_eq!(
+        tap(&editor, Some(here)),
+        Some(true),
+        "a kept pointer changes here"
+    );
     assert_eq!(tap(&editor, None), Some(false));
 }

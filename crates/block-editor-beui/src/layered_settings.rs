@@ -3,10 +3,10 @@ use std::rc::Rc;
 
 use be_block::be_model::Document;
 use be_block::{BlockContent, Layered, Layers, LiveEdit, Setting, SettingsLayer};
+use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::MenuItem;
-use beui::NodeId;
 use uuid::Uuid;
 
 use crate::Editor;
@@ -174,7 +174,10 @@ where
         }
     }
 
-    pub fn value<V: Clone + PartialEq + 'static>(&self, setting: &Setting<R, V>) -> Memo<Option<V>> {
+    pub fn value<V: Clone + PartialEq + 'static>(
+        &self,
+        setting: &Setting<R, V>,
+    ) -> Memo<Option<V>> {
         let (target, every, here, own) = (self.target, self.every, self.here, self.own);
         let setting = setting.clone();
         create_memo(move || match target.get() {
@@ -474,7 +477,7 @@ pub fn ChangesToast(changes: SettingsChanges, anchor: NodeRef) -> NodeId {
     } = changes;
     view! {
         <Toasts
-            anchor=&anchor
+            anchor=anchor
             toasts={toasts}
             on_dismiss={move |_: u64| on_dismiss.call(())}
             on_action={move |(_, key): (u64, String)| on_action.call(key)}

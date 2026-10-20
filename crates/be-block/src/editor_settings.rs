@@ -23,7 +23,10 @@ impl EditorSettings {
 }
 
 impl EditorSettings {
-    pub fn default_editor_setting(block_type: Uuid, name: impl Into<String>) -> Setting<Self, Uuid> {
+    pub fn default_editor_setting(
+        block_type: Uuid,
+        name: impl Into<String>,
+    ) -> Setting<Self, Uuid> {
         Setting::new(
             format!("default-editor.{block_type}"),
             name,

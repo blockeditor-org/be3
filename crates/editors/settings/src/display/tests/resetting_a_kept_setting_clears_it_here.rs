@@ -6,7 +6,11 @@ fn resetting_a_kept_setting_clears_it_here() {
     kept.apply(&DisplaySettings::set_theme(Some(Theme::EInk)));
     let mut settings = Harness::new().on_this_device_with(Some(kept));
     settings.choose(THEME, 0);
-    assert_eq!(settings.here().theme, None, "choosing the default clears it here");
+    assert_eq!(
+        settings.here().theme,
+        None,
+        "choosing the default clears it here"
+    );
 
     settings.choose(THEME, 1);
     assert_eq!(settings.every_device().theme, Some(Theme::Light));

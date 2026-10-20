@@ -9,13 +9,13 @@ use beui_macros::{component, view};
 
 use crate::border::Separator;
 use crate::icon_button::IconButtonSize;
-use crate::menu_button::IconMenuButton;
 use crate::link::Link;
+use crate::menu_button::IconMenuButton;
 use crate::scroll::Scroll;
 use crate::text::{Text, TextSize, TextStyle};
 use beui_components_unstyled as unstyled;
-use beui_core::node::NodeId;
 use beui_components_unstyled::MenuItem;
+use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 

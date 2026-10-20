@@ -10,10 +10,7 @@ use super::modes::{LOCK_AFTER, SCREEN_OFF, lock_after_label, screen_off_label};
 use super::ui::Settings;
 
 #[component]
-pub(super) fn PowerSection(
-    settings: Settings,
-    read_only: Memo<bool>,
-) -> NodeId {
+pub(super) fn PowerSection(settings: Settings, read_only: Memo<bool>) -> NodeId {
     let merged = settings.effective();
     let selected = create_memo(move || {
         let chosen = merged.get().screen_off();

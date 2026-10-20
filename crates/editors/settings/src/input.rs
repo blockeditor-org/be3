@@ -1,10 +1,10 @@
-use block_editor_beui::be_block::InputSettings;
-use block_editor_beui::{Editor, LayeredSettings};
 use block_editor_beui::Loaded;
+use block_editor_beui::be_block::InputSettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use block_editor_beui::{Editor, LayeredSettings};
 
 mod remapper;
 mod ui;
@@ -27,7 +27,11 @@ impl block_editor_beui::BeuiApp for InputSettingsApp {
             <Loaded loaded={loaded}>
                 <List spacing=0.0>
                     <Keyed value={device} key={|device: bool| device}>|_device: ReadSignal<bool>|
-                        <InputSettingsView editor={editor} settings={settings} @sizing=ItemSize::Percent(100.0) />
+                        <InputSettingsView
+                            editor={editor}
+                            settings={settings}
+                            @sizing=ItemSize::Percent(100.0)
+                        />
                     </Keyed>
                 </List>
             </Loaded>

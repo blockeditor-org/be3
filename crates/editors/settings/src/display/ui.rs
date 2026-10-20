@@ -2,7 +2,9 @@ use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::{ChangesToast, Displays, Editor, LayeredSettings, LayeredSettingsRow, Power};
+use block_editor_beui::{
+    ChangesToast, Displays, Editor, LayeredSettings, LayeredSettingsRow, Power,
+};
 
 use super::appearance::AppearanceSection;
 use super::power::PowerSection;

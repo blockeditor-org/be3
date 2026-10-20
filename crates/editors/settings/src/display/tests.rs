@@ -22,17 +22,17 @@ mod choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now;
 mod choosing_a_scale_stores_it;
 mod choosing_a_theme_stores_it;
 mod choosing_never_keeps_the_screens_on;
+mod each_tile_is_drawn_turned_from_the_rotation_shown_now;
 mod keeping_a_setting_copies_it_here_and_later_changes_stay_here;
 mod keeping_makes_this_devices_display_block_when_it_has_none;
-mod resetting_a_kept_setting_clears_it_here;
-mod the_toast_keeps_every_change_on_this_device_only;
-mod the_toast_undoes_every_change;
-mod each_tile_is_drawn_turned_from_the_rotation_shown_now;
 mod outside_a_session_only_the_appearance_is_shown;
 mod resetting_a_display_returns_it_to_its_default;
+mod resetting_a_kept_setting_clears_it_here;
 mod the_lock_follows_the_screens_until_given_a_time_of_its_own;
 mod the_rotate_button_in_the_bar_is_turned_on_and_reset;
 mod the_rotations_are_named_from_how_the_panel_is_built;
+mod the_toast_keeps_every_change_on_this_device_only;
+mod the_toast_undoes_every_change;
 
 const SESSION_HEIGHT: f32 = 1000.0;
 const MONITOR: &str = "DEL|DELL AW2524H|7XQ2B34";
@@ -130,13 +130,19 @@ impl Harness {
             BlockParent::Block(settings),
         ));
         let mut held = SettingsContent::default();
-        held.apply(&Settings::set_kind(DisplaySettings::CONTENT_TYPE, self.block));
+        held.apply(&Settings::set_kind(
+            DisplaySettings::CONTENT_TYPE,
+            self.block,
+        ));
         held.apply(&Settings::add_profile(self.client, self.profile));
         store.hold(Some(settings), held);
         let mut profile = SettingsProfileContent::default();
         if let Some(content) = here {
             let block = Uuid::new_v4();
-            profile.apply(&SettingsProfile::set_kind(DisplaySettings::CONTENT_TYPE, block));
+            profile.apply(&SettingsProfile::set_kind(
+                DisplaySettings::CONTENT_TYPE,
+                block,
+            ));
             store.hold(Some(block), content);
             self.here = Some(block);
         }

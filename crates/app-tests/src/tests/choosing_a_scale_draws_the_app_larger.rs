@@ -11,7 +11,7 @@ fn choosing_a_scale_draws_the_app_larger() {
         app.key("Down");
     }
     app.key("Enter");
-    app.wait("#display.scale.reset");
+    app.wait("Scale now applies on your devices");
     app.run(&["settle"]);
     app.snapshot("choosing_a_scale_draws_the_app_larger");
     app.close();

@@ -8,8 +8,8 @@ use uuid::Uuid;
 use crate::input::InputSettingsApp;
 
 mod a_device_follows_its_default_until_it_is_overridden;
-mod a_pointer_kept_here_stays_on_this_device;
 mod a_narrow_page_stacks_each_control_under_its_label;
+mod a_pointer_kept_here_stays_on_this_device;
 mod every_pointer_reads_as_mixed_until_it_is_set;
 mod middle_click_paste_is_off_until_it_is_switched_on;
 mod opening_the_remaps_makes_them_with_the_remapper_and_opens_them;
