@@ -4,6 +4,7 @@ use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::*;
 
 mod remapper;
 mod ui;
@@ -21,9 +22,14 @@ impl block_editor_beui::BeuiApp for InputSettingsApp {
         let content = editor.loaded::<block_editor_beui::be_block::InputSettingsContent>(&[]);
         let ready = settings.ready();
         let loaded = create_memo(move || content.get() && ready.get());
+        let device = settings.on_this_device();
         view! {
             <Loaded loaded={loaded}>
-                <InputSettingsView editor={editor} settings={settings} />
+                <List spacing=0.0>
+                    <Keyed value={device} key={|device: bool| device}>|_device: ReadSignal<bool>|
+                        <InputSettingsView editor={editor} settings={settings} @sizing=ItemSize::Percent(100.0) />
+                    </Keyed>
+                </List>
             </Loaded>
         }
     }

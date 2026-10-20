@@ -13,13 +13,20 @@ use uuid::Uuid;
 
 use crate::display::DisplaySettingsApp;
 
+mod a_change_here_goes_to_every_device_and_a_toast_says_so;
 mod a_profile_shows_the_theme_it_inherits;
+mod a_screen_known_by_its_connector_is_this_devices_alone;
 mod choosing_a_refresh_rate_stores_the_mode;
 mod choosing_a_resolution_uses_its_fastest_refresh_rate;
 mod choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now;
 mod choosing_a_scale_stores_it;
 mod choosing_a_theme_stores_it;
 mod choosing_never_keeps_the_screens_on;
+mod keeping_a_setting_copies_it_here_and_later_changes_stay_here;
+mod keeping_makes_this_devices_display_block_when_it_has_none;
+mod resetting_a_kept_setting_clears_it_here;
+mod the_toast_keeps_every_change_on_this_device_only;
+mod the_toast_undoes_every_change;
 mod each_tile_is_drawn_turned_from_the_rotation_shown_now;
 mod outside_a_session_only_the_appearance_is_shown;
 mod resetting_a_display_returns_it_to_its_default;
@@ -44,6 +51,8 @@ struct Harness {
     editor: BeuiTest<DisplaySettingsApp>,
     block: Uuid,
     client: Uuid,
+    profile: Uuid,
+    here: Option<Uuid>,
 }
 
 impl Harness {
@@ -70,6 +79,8 @@ impl Harness {
             editor: BeuiTest::new(editor),
             block,
             client,
+            profile: Uuid::new_v4(),
+            here: None,
         };
         harness.editor.hold(None, DisplaySettingsContent::default());
         harness.run();
@@ -99,6 +110,74 @@ impl Harness {
         store.hold(Some(shared), lower);
         self.run();
         self
+    }
+
+    fn on_this_device(self) -> Self {
+        self.on_this_device_with(Some(DisplaySettingsContent::default()))
+    }
+
+    fn on_this_device_with(mut self, here: Option<DisplaySettingsContent>) -> Self {
+        let store = self.editor.store();
+        let settings = Uuid::new_v4();
+        store.add_block(BlockInfo::new(
+            settings,
+            Settings::CONTENT_TYPE,
+            BlockParent::Root,
+        ));
+        store.add_block(BlockInfo::new(
+            self.profile,
+            SettingsProfile::CONTENT_TYPE,
+            BlockParent::Block(settings),
+        ));
+        let mut held = SettingsContent::default();
+        held.apply(&Settings::set_kind(DisplaySettings::CONTENT_TYPE, self.block));
+        held.apply(&Settings::add_profile(self.client, self.profile));
+        store.hold(Some(settings), held);
+        let mut profile = SettingsProfileContent::default();
+        if let Some(content) = here {
+            let block = Uuid::new_v4();
+            profile.apply(&SettingsProfile::set_kind(DisplaySettings::CONTENT_TYPE, block));
+            store.hold(Some(block), content);
+            self.here = Some(block);
+        }
+        store.hold(Some(self.profile), profile);
+        self.run();
+        self
+    }
+
+    fn here(&self) -> DisplaySettings {
+        let block = self.here.or_else(|| {
+            self.editor
+                .content::<SettingsProfileContent>(Some(self.profile))
+                .root()
+                .kind(DisplaySettings::CONTENT_TYPE)
+        });
+        block.map_or_else(DisplaySettings::default, |block| {
+            self.editor
+                .content::<DisplaySettingsContent>(Some(block))
+                .root()
+        })
+    }
+
+    fn every_device(&self) -> DisplaySettings {
+        self.content().root()
+    }
+
+    fn open_menu(&mut self, row: &str) {
+        self.editor.click(&format!("{row}.menu"));
+        self.run();
+    }
+
+    fn keep(&mut self, row: &str) {
+        self.open_menu(row);
+        self.editor.click(&format!("{row}.keep"));
+        self.run();
+    }
+
+    fn reset(&mut self, row: &str) {
+        self.open_menu(row);
+        self.editor.click(&format!("{row}.reset"));
+        self.run();
     }
 
     fn run(&mut self) {

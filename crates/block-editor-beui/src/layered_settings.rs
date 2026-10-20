@@ -384,16 +384,30 @@ where
     }
 
     fn ensure(&self, layer: SettingsLayer) -> Option<Uuid> {
+        self.layers
+            .get_untracked()
+            .block(layer)
+            .or_else(|| self.create(layer, Document::new(&R::default())))
+    }
+
+    fn create(&self, layer: SettingsLayer, content: Document<R>) -> Option<Uuid> {
         let client = self.editor.host().client_id();
         let mut blocks = self.blocks.with(|blocks| blocks.take());
-        let block = untrack(|| blocks.ensure_layer(&self.editor, client, layer));
+        let block = untrack(|| blocks.create_layer(&self.editor, client, layer, content));
         self.blocks.with(|held| held.replace(blocks));
         block
     }
 
     fn write<V: Clone>(&self, layer: SettingsLayer, setting: &Setting<R, V>, value: Option<V>) {
-        let block = self.ensure(layer).or_else(|| self.layers.get_untracked().top());
-        if let Some(block) = block {
+        if let Some(block) = self.layers.get_untracked().block(layer) {
+            self.write_block(block, setting, value);
+            return;
+        }
+        let mut content = Document::new(&R::default());
+        content.apply(&setting.set(&R::default(), value.clone()));
+        if self.create(layer, content).is_none()
+            && let Some(block) = self.layers.get_untracked().top()
+        {
             self.write_block(block, setting, value);
         }
     }

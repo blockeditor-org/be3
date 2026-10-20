@@ -2757,11 +2757,19 @@ fn SettingsSections() -> NodeId {
     let effects = create_signal(true);
     let volume_changed = create_memo(move || volume.get() != DEFAULT_VOLUME);
     let size_changed = create_memo(move || size.get() != Some(1));
+    let haptics = create_signal(false);
+    let haptics_pinned = create_signal(true);
+    let haptics_changed = create_memo(move || haptics.get());
+    let pinned = create_memo(move || Some(haptics_pinned.get()));
+    let note = create_memo(move || match haptics_pinned.get() {
+        true => "Kept on this device".to_owned(),
+        false => String::new(),
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <SettingsSection
                 title="Sound"
-                description="A row lays its label beside its control, and stacks them once narrow. A changed setting is marked, and its reset brings back the default."
+                description="A row lays its label beside its control, and stacks them once narrow. A changed setting is marked, and its reset brings back the default. A row can keep more in a menu, with a note under its label."
             >
                 <SettingsRow
                     label="Sounds"
@@ -2803,6 +2811,26 @@ fn SettingsSections() -> NodeId {
                         label="Text size"
                         on_change={move |index| size.set(index)}
                     />
+                </SettingsRow>
+                <SettingsRow
+                    label="Vibrate"
+                    separated=true
+                    compact=true
+                    modified={haptics_changed}
+                    note={note}
+                    menu={view! {
+                        <unstyled::MenuItem
+                            label="Keep on this device"
+                            checked={pinned}
+                            on_click={move || haptics_pinned.update(|on| *on = !*on)}
+                        />
+                        <unstyled::MenuItem
+                            label="Reset to default"
+                            on_click={move || haptics.set(false)}
+                        />
+                    }}
+                >
+                    <Switch label="Vibrate" on={haptics} on_change={move |on| haptics.set(on)} />
                 </SettingsRow>
                 <SettingsLink
                     label="Sound effects"

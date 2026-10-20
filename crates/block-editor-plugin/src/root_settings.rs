@@ -162,15 +162,13 @@ impl<C: BlockContent + Default> RootSetting<C> {
         }
     }
 
-    pub fn ensure_layer(
+    pub fn create_layer(
         &mut self,
         graph: &dyn SettingsGraph,
         client: Uuid,
         layer: SettingsLayer,
+        content: C,
     ) -> Option<Uuid> {
-        if let Some(block) = self.layer_blocks(graph, client).block(layer) {
-            return Some(block);
-        }
         let settings = self.settings.ensure(graph)?;
         graph.settings(settings)?;
         let parent = match layer {
@@ -181,11 +179,7 @@ impl<C: BlockContent + Default> RootSetting<C> {
                 profile
             }
         };
-        let block = graph.create(
-            C::CONTENT_TYPE,
-            C::default().encode(),
-            BlockParent::Block(parent),
-        );
+        let block = graph.create(C::CONTENT_TYPE, content.encode(), BlockParent::Block(parent));
         match layer {
             SettingsLayer::EveryDevice => {
                 graph.edit_settings(settings, Settings::set_kind(C::CONTENT_TYPE, block))
