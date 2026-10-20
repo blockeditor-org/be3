@@ -244,7 +244,7 @@ fn sync_written(root: &Path, _: &Unsynced) -> Result<(), StoreError> {
 #[cfg(not(any(target_os = "linux", target_os = "android")))]
 fn sync_written(_: &Path, unsynced: &Unsynced) -> Result<(), StoreError> {
     for file in &unsynced.files {
-        match fs::File::open(file) {
+        match fs::OpenOptions::new().write(true).open(file) {
             Ok(file) => file.sync_all()?,
             Err(error) if error.kind() == ErrorKind::NotFound => {}
             Err(error) => return Err(error.into()),
