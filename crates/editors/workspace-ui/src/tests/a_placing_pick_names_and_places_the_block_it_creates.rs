@@ -20,6 +20,7 @@ fn a_placing_pick_names_and_places_the_block_it_creates() {
         4,
         placing,
         BlockLocation::Block(Uuid::new_v4().into_bytes()),
+        None,
     );
     fixture.settle();
 

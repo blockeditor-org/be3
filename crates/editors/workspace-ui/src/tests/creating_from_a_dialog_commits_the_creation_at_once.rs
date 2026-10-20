@@ -11,7 +11,7 @@ fn creating_from_a_dialog_commits_the_creation_at_once() {
     let parent = Uuid::new_v4();
     fixture
         .test
-        .request_pick(5, filter(), BlockLocation::Block(parent.into_bytes()));
+        .request_pick(5, filter(), BlockLocation::Block(parent.into_bytes()), None);
     fixture.settle();
     fixture
         .test

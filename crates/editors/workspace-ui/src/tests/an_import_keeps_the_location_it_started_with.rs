@@ -18,6 +18,7 @@ fn an_import_keeps_the_location_it_started_with() {
         5,
         placing,
         BlockLocation::Block(Uuid::new_v4().into_bytes()),
+        None,
     );
     fixture.settle();
     fixture.test.take_requests();

@@ -10,7 +10,7 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
     info.set_intrinsic_name("Notes".to_owned());
     fixture.test.store().add_block(info);
 
-    fixture.test.request_pick(7, filter(), BlockLocation::Root);
+    fixture.test.request_pick(7, filter(), BlockLocation::Root, None);
     fixture.settle();
     assert!(fixture.says("Add block"), "the pick opens the picker");
 

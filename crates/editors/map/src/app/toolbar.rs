@@ -1,4 +1,4 @@
-use block_editor_beui::Toolbar;
+use block_editor_beui::{Toolbar, node_anchor};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CROP_FREE, ICON_REFRESH, ICON_ZOOM_IN, ICON_ZOOM_OUT,
@@ -15,14 +15,16 @@ pub(crate) fn MapToolbar(state: MapState, shown: Prop<bool>) -> NodeId {
     let error = state.last_error;
     let failed = create_memo(move || error.get().is_some());
     let reason = create_memo(move || error.get().unwrap_or_default());
+    let add = NodeRef::new();
 
     view! {
         <Toolbar shown={shown}>
             <IconButton
+                @node_ref={&add}
                 glyph={ICON_ADD.to_owned()}
                 label="Add a point of interest at the centre of the view"
                 @test_id={"map.add-point"}
-                on_click={move || state.open_picker(None)}
+                on_click={move || state.open_picker(None, node_anchor(&add))}
             />
             <IconButton
                 glyph={ICON_ZOOM_OUT.to_owned()}

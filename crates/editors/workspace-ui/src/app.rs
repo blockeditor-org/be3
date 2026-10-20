@@ -47,7 +47,7 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn WorkspaceBody(workspace: Workspace) -> NodeId {
+pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let narrow = narrower_than(NARROW_WIDTH);
     let was_narrow = Cell::new(false);
     create_effect(move || {

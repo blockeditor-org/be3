@@ -17,10 +17,12 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2};
+use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::{
-    BlockFilter, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
+    BlockFilter, ChildRect, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
+    child_rect,
 };
 use block_editor_beui::{BlockParent, BlockQuery};
 use serde::{Deserialize, Serialize};
@@ -1276,8 +1278,14 @@ impl CanvasState {
 
     pub(crate) fn open_block_picker(self, center: Option<CanvasPoint>) {
         let state = self;
+        let at = center.unwrap_or_else(|| self.viewport_center());
+        let on_screen = self.camera().to_screen(pos2(at.x, at.y));
+        let filter = BlockFilter {
+            anchor: Some(child_rect(Rect::from_min_size(on_screen, Vec2::ZERO))),
+            ..BlockFilter::default()
+        };
         self.editor
-            .pick_block(BlockFilter::default(), move |picked| {
+            .pick_block(filter, move |picked| {
                 if let Ok(picked) = picked
                     && state.is_alive()
                 {
@@ -1305,7 +1313,7 @@ impl CanvasState {
         });
     }
 
-    pub(crate) fn open_component_picker(self) {
+    pub(crate) fn open_component_picker(self, anchor: Option<ChildRect>) {
         let selected = self
             .selected_entities()
             .iter()
@@ -1319,6 +1327,7 @@ impl CanvasState {
                 excluded: Vec::new(),
                 templates: false,
                 place: None,
+                anchor,
             },
             move |picked| {
                 if let Ok(picked) = picked
@@ -1337,22 +1346,22 @@ impl CanvasState {
         self.record_update(before, after, false);
     }
 
-    pub(crate) fn open_value_picker(
-        self,
-        schema_id: Uuid,
-        field_id: Uuid,
-        block_type: Option<Uuid>,
-    ) {
+    pub(crate) fn open_value_picker(self, schema_id: Uuid, request: DatabaseBlockPickRequest) {
+        let field_id = request.field_id;
         let selected = self.selection.get_untracked();
-        let filter = match block_type {
+        let filter = match request.block_type {
             Some(block_type) => BlockFilter {
                 name: "Value".to_owned(),
                 block_types: vec![block_type.into_bytes()],
                 excluded: Vec::new(),
                 templates: false,
                 place: None,
+                anchor: request.anchor,
             },
-            None => BlockFilter::default(),
+            None => BlockFilter {
+                anchor: request.anchor,
+                ..BlockFilter::default()
+            },
         };
         let state = self;
         self.editor.pick_block(filter, move |picked| {

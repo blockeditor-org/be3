@@ -12,8 +12,8 @@ use block_editor_beui::be_block::database_view::{
 };
 use block_editor_beui::beui::Key;
 use block_editor_beui::{
-    BeuiApp, Creation, EditorHost, OwnedEditor,
-    block_ui::{BlockLabel, database::DatabaseBlockPickRequest},
+    BeuiApp, Creation, EditorHost, OwnedEditor, block_ui::BlockLabel,
+    database::DatabaseBlockPickRequest,
 };
 use block_ui_test::BeuiTest;
 use uuid::Uuid;

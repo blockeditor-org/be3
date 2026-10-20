@@ -1,6 +1,8 @@
 use std::collections::HashSet;
 
 use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
+use block_editor_beui::beui::Rect;
+use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::block_ui::{BlockCatalog, BlockTypes, TemplateCategory, TemplateEntry};
 use block_editor_beui::{
     BlockFilter, BlockInfo, BlockParent, BlockPick, ChildId, CreationProgress, PickRequest,
@@ -24,11 +26,18 @@ pub(crate) struct Creating {
     pub(crate) child: Option<ChildId>,
 }
 
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct PickAnchor {
+    pub rect: Option<Rect>,
+    pub tab: Option<TabId>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct Pick {
     pub(crate) pick: u64,
     pub(crate) filter: BlockFilter,
     pub(crate) parent: BlockParent,
+    pub(crate) anchor: PickAnchor,
     pub(crate) tab: PickerTab,
     pub(crate) search: String,
     pub(crate) name: String,
@@ -59,7 +68,7 @@ pub(crate) enum PickOutcome {
 }
 
 impl Pick {
-    pub(crate) fn new(request: PickRequest) -> Self {
+    pub(crate) fn new(request: PickRequest, tab: Option<TabId>) -> Self {
         let place = request
             .filter
             .place
@@ -76,6 +85,10 @@ impl Pick {
             },
             filter: request.filter,
             parent: request.parent,
+            anchor: PickAnchor {
+                rect: request.anchor,
+                tab,
+            },
             search: String::new(),
             name: String::new(),
             place,

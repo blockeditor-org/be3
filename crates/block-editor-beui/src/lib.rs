@@ -31,7 +31,7 @@ pub use chrome::{
 pub use dock::BottomDock;
 pub use editor::{
     Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, OwnedEditor, RawContent,
-    SubregionContent, fit_content,
+    SubregionContent, fit_content, node_anchor,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
 pub use instance::BeuiPlugin;

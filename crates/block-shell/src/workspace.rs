@@ -27,7 +27,7 @@ use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::kept::{self, Kept, KeptWindow};
 use super::panel::BlockPanel;
-use super::picker::{Pick, PickAction, PickOutcome};
+use super::picker::{Pick, PickAction, PickAnchor, PickOutcome};
 use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
@@ -391,7 +391,10 @@ impl Workspace {
             .host()
             .take_pick_requests()
             .into_iter()
-            .map(Pick::new)
+            .map(|request| {
+                let tab = request.within.and_then(|block| self.tab_of_block(block));
+                Pick::new(request, tab)
+            })
             .collect();
         if !requested.is_empty() {
             self.picks.update(|picks| picks.extend(requested));
@@ -521,6 +524,15 @@ impl Workspace {
         let mut held = inner.every_block.borrow_mut();
         held.get_or_insert_with(|| self.blocks().watch(BlockQuery::All))
             .read()
+    }
+
+    pub fn pick_anchor(&self, pick: u64) -> Option<PickAnchor> {
+        self.picks.with_untracked(|picks| {
+            picks
+                .iter()
+                .find(|held| held.pick == pick)
+                .map(|held| held.anchor)
+        })
     }
 
     pub(crate) fn pick(&self, pick: u64) -> Option<Pick> {
@@ -965,6 +977,13 @@ impl Workspace {
         }
     }
 
+    pub(crate) fn tab_of_block(&self, id: Uuid) -> Option<TabId> {
+        match self.files.get_untracked() == Some(id) {
+            true => Some(FILES),
+            false => self.tab_showing(id),
+        }
+    }
+
     pub(crate) fn tab_showing(&self, id: Uuid) -> Option<TabId> {
         self.tabs.with_untracked(|tabs| {
             tabs.iter()
@@ -1099,6 +1118,7 @@ impl Workspace {
                 excluded,
                 templates: false,
                 place: Some(parent.encode()),
+                anchor: None,
             },
             move |picked: Result<PickedBlock, String>| {
                 if !workspace.state.is_alive() {
@@ -1144,6 +1164,7 @@ impl Workspace {
                 excluded: vec![parent.into_bytes()],
                 templates: false,
                 place: None,
+                anchor: None,
             },
             move |picked: Result<PickedBlock, String>| {
                 if !workspace.state.is_alive() {

@@ -17,6 +17,7 @@ mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
 mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
 mod a_modal_window_sends_presses_on_its_parent_to_itself;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;
+mod a_pick_keeps_the_anchor_and_the_tab_it_was_asked_from;
 mod a_placing_pick_names_and_places_the_block_it_creates;
 mod a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them;
 mod a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown;
@@ -263,6 +264,7 @@ fn filter() -> block_editor_beui::BlockFilter {
         excluded: Vec::new(),
         templates: false,
         place: None,
+        anchor: None,
     }
 }
 

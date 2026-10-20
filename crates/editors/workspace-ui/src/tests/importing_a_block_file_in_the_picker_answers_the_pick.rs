@@ -8,7 +8,7 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
     let parent = Uuid::new_v4();
     fixture
         .test
-        .request_pick(4, filter(), BlockLocation::Block(parent.into_bytes()));
+        .request_pick(4, filter(), BlockLocation::Block(parent.into_bytes()), None);
     fixture.settle();
     fixture.test.take_requests();
 

@@ -14,9 +14,8 @@ use beui::styled::*;
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
 pub use block_ui::database::ValueLabels;
-use block_ui::database::{
-    DatabaseBlockPickRequest, DatabaseValueChange, block_reference_text, field_type_label,
-};
+use block_plugin_api::ChildRect;
+use block_ui::database::{DatabaseValueChange, block_reference_text, field_type_label};
 use uuid::Uuid;
 
 mod choice;
@@ -27,6 +26,13 @@ const SPACING: f32 = 6.0;
 const FIELD_SPACING: f32 = 12.0;
 
 pub type RowValues = BTreeMap<Uuid, DatabaseValue>;
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub struct DatabaseBlockPickRequest {
+    pub field_id: Uuid,
+    pub block_type: Option<Uuid>,
+    pub anchor: Option<ChildRect>,
+}
 
 #[component]
 pub fn DatabaseValueEditor(
@@ -503,6 +509,7 @@ fn BlockValue(
         }
         _ => "Choose block".to_owned(),
     });
+    let button = NodeRef::new();
     let choose = move || {
         let Some(field) = field.get_untracked() else {
             return;
@@ -510,11 +517,13 @@ fn BlockValue(
         on_pick.call(DatabaseBlockPickRequest {
             field_id: field.id,
             block_type: field.block_options.block_type,
+            anchor: crate::node_anchor(&button),
         });
     };
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Button
+                @node_ref={&button}
                 label={label}
                 variant=ButtonVariant::Secondary
                 disabled={disabled}

@@ -102,7 +102,7 @@ fn SectionMenu<F: Fn() + 'static>(
         };
         match path.as_slice() {
             [0] => zoom_in(),
-            [1] => add_to_section(editor, picker, id),
+            [1] => add_to_section(editor, picker, id, picker.row_anchor(&shown.key)),
             [2] => renaming.start(shown.key),
             [3] => editor.host().share_block(id),
             [4] => editor
@@ -225,7 +225,12 @@ fn BlockMenu<F: Fn() + 'static>(
         };
         match path.as_slice() {
             [0] => zoom_in(),
-            [2] => picker.open(editor, Some(id), [id].into_iter().collect()),
+            [2] => picker.open(
+                editor,
+                Some(id),
+                [id].into_iter().collect(),
+                picker.row_anchor(&shown.key),
+            ),
             [4] => renaming.start(shown.key),
             [5] => editor.host().share_block(id),
             [6] => {

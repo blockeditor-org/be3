@@ -18,12 +18,6 @@ pub struct DatabaseValueChange {
     pub continuous: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-pub struct DatabaseBlockPickRequest {
-    pub field_id: Uuid,
-    pub block_type: Option<Uuid>,
-}
-
 #[derive(Clone, Default, PartialEq)]
 pub struct ValueLabels {
     pub blocks: HashMap<Uuid, BlockLabel>,
