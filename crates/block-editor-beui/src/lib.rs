@@ -18,6 +18,7 @@ mod layered_settings;
 mod loading;
 mod related_content;
 mod rotation;
+pub mod sections;
 pub mod version_control;
 
 use be_block::presence::PresenceColor;
@@ -31,7 +32,7 @@ pub use chrome::{
 pub use dock::BottomDock;
 pub use editor::{
     Artifacts, ChildState, ChildTarget, Creation, Drag, Editor, OwnedEditor, RawContent,
-    SubregionContent, fit_content,
+    SubregionContent, fit_content, node_anchor,
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
 pub use instance::BeuiPlugin;

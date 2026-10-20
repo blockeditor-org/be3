@@ -9,7 +9,7 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::ChoiceOption;
 use block_editor_beui::BlockParent;
-use block_editor_beui::{BlockFilter, block_ui::BlockLabel};
+use block_editor_beui::{BlockFilter, block_ui::BlockLabel, child_rect};
 use text_editor_core::{EditorCommand, MarkdownCommand, TextIndentation, TextLanguage};
 
 use super::state::State;
@@ -355,6 +355,10 @@ fn TextSettings(state: State) -> NodeId {
 }
 
 fn pick_block(state: State) {
+    let caret = state.text.caret_indices().first().copied();
+    let anchor = caret
+        .and_then(|caret| state.text.layout().get_untracked().caret_rect(caret))
+        .map(child_rect);
     state.editor.pick_block(
         BlockFilter {
             name: "Insert".to_owned(),
@@ -362,6 +366,7 @@ fn pick_block(state: State) {
             excluded: Vec::new(),
             templates: false,
             place: None,
+            anchor,
         },
         move |result| {
             let Ok(block) = result else {

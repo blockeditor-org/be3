@@ -189,8 +189,25 @@ impl EditorSession {
         self.host.show_dialog(block_id, dialog);
     }
 
-    pub(crate) fn pick_requested(&self, request: crate::host::PickRequest) {
-        self.host.request_pick(request);
+    pub(crate) fn pick_requested(
+        &self,
+        pick: u64,
+        filter: block_plugin_api::BlockFilter,
+        parent: crate::graph::BlockParent,
+        within: Option<Uuid>,
+    ) {
+        let origin = self.rect(EditorRegion::Frame).min.to_vec2();
+        let anchor = filter.anchor.map(|anchor| {
+            Rect::from_min_size(pos2(anchor.x, anchor.y), vec2(anchor.width, anchor.height))
+                .translate(origin)
+        });
+        self.host.request_pick(crate::host::PickRequest {
+            pick,
+            filter,
+            parent,
+            within,
+            anchor,
+        });
     }
 
     pub(crate) fn show_panel(&self, panel: HostPanel) {

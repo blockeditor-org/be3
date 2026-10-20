@@ -76,7 +76,7 @@ pub use color_input::ColorInput;
 pub use color_picker::{ColorPicker, DEFAULT_SWATCHES, PICKER_WIDTH};
 pub use color_wheel::{ColorWheel, OklchColorWheel, WHEEL_SIZE};
 pub use command_palette::CommandPalette;
-pub use context_menu::ContextMenu;
+pub use context_menu::{ContextMenu, MenuPopup};
 pub use crash_notice::CrashNotice;
 pub use date_time_field::DateTimeField;
 pub use dialog::Dialog;

@@ -9,12 +9,12 @@ fn a_template_without_a_dialog_is_created_and_answers_the_pick() {
     let parent = Uuid::new_v4();
     fixture
         .test
-        .request_pick(3, filter(), BlockLocation::Block(parent.into_bytes()));
+        .request_pick(3, filter(), BlockLocation::Block(parent.into_bytes()), None);
     fixture.settle();
 
     fixture
         .test
-        .click(&format!("picker.tile.{TEMPLATE_EDITOR}/main"));
+        .click(&format!("picker.menu.{TEMPLATE_EDITOR}/main"));
     fixture.settle();
     fixture.settle();
 

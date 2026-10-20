@@ -9,7 +9,7 @@ use block_editor_beui::be_block::{Edit, Map, MapContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
-use block_editor_beui::{BlockFilter, ContentProjection, Drag, Editor, FileDrop, Waker};
+use block_editor_beui::{BlockFilter, ChildRect, ContentProjection, Drag, Editor, FileDrop, Waker};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
 
@@ -188,13 +188,16 @@ impl MapState {
         self.selected.set(Some(point_id));
     }
 
-    pub(crate) fn open_picker(self, at: Option<MapCoordinate>) {
-        self.editor
-            .pick_block(BlockFilter::default(), move |picked| {
-                if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
-                    self.place_picked(picked.id, at);
-                }
-            });
+    pub(crate) fn open_picker(self, at: Option<MapCoordinate>, anchor: Option<ChildRect>) {
+        let filter = BlockFilter {
+            anchor,
+            ..BlockFilter::default()
+        };
+        self.editor.pick_block(filter, move |picked| {
+            if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
+                self.place_picked(picked.id, at);
+            }
+        });
     }
 
     fn place_picked(&self, block_id: Uuid, at: Option<MapCoordinate>) {

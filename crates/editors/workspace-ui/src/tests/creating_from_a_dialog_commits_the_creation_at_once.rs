@@ -11,11 +11,11 @@ fn creating_from_a_dialog_commits_the_creation_at_once() {
     let parent = Uuid::new_v4();
     fixture
         .test
-        .request_pick(5, filter(), BlockLocation::Block(parent.into_bytes()));
+        .request_pick(5, filter(), BlockLocation::Block(parent.into_bytes()), None);
     fixture.settle();
     fixture
         .test
-        .click(&format!("picker.tile.{TEMPLATE_EDITOR}/main"));
+        .click(&format!("picker.menu.{TEMPLATE_EDITOR}/main"));
     fixture.settle();
     fixture.settle();
     report_creation(&mut fixture, CreationProgress::Options { ready: true });

@@ -10,12 +10,20 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
     info.set_intrinsic_name("Notes".to_owned());
     fixture.test.store().add_block(info);
 
-    fixture.test.request_pick(7, filter(), BlockLocation::Root);
+    fixture
+        .test
+        .request_pick(7, filter(), BlockLocation::Root, None);
     fixture.settle();
-    assert!(fixture.says("Add block"), "the pick opens the picker");
+    assert!(
+        fixture.test.shown("picker.link-existing"),
+        "the pick opens the menu"
+    );
 
-    fixture.click_text("Link existing");
-    fixture.test.click(&format!("picker.link.{linked}"));
+    fixture.test.click("picker.link-existing");
+    fixture.settle();
+    fixture
+        .test
+        .double_click(&format!("picker.link.{linked}.row"));
     fixture.settle();
 
     assert_eq!(
@@ -31,7 +39,7 @@ fn linking_a_block_in_the_picker_answers_the_pick() {
         )]
     );
     assert!(
-        !fixture.says("Add block"),
-        "an answered pick closes the picker"
+        !fixture.test.shown("picker.confirm"),
+        "an answered pick closes the sheet"
     );
 }

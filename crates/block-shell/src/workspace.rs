@@ -16,9 +16,9 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::beui::{NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, BlockPick, ChildState, Contacts, Editor, EditorHost, FocusedBlock,
-    HostPanel, HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed, ShellDialog,
-    WindowAction,
+    AccessLevel, BlockFilter, BlockPick, ChildRect, ChildState, Contacts, Editor, EditorHost,
+    FocusedBlock, HostPanel, HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed,
+    ShellDialog, WindowAction,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -27,7 +27,7 @@ use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::kept::{self, Kept, KeptWindow};
 use super::panel::BlockPanel;
-use super::picker::{Pick, PickAction, PickOutcome};
+use super::picker::{Graph, Pick, PickAction, PickAnchor, PickOutcome};
 use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
@@ -61,6 +61,9 @@ struct State {
     next_tab: Cell<u64>,
     active: Cell<Option<Uuid>>,
     every_block: RefCell<Option<BlockList>>,
+    roots: RefCell<Option<(BlockList, BlockList)>>,
+    own_pick_tab: Cell<Option<TabId>>,
+    tab_nodes: RefCell<HashMap<TabId, NodeRef>>,
 }
 
 #[derive(Clone, Copy)]
@@ -123,6 +126,9 @@ impl Workspace {
                 next_tab: Cell::new(FIRST_BLOCK_TAB),
                 active: Cell::new(None),
                 every_block: RefCell::new(None),
+                roots: RefCell::new(None),
+                own_pick_tab: Cell::new(None),
+                tab_nodes: RefCell::new(HashMap::new()),
             }),
             editor,
             with_files,
@@ -387,11 +393,19 @@ impl Workspace {
     }
 
     fn show_requested(&self) {
+        let inner = self.state.value();
+        let own = self.editor.block_id();
         let requested: Vec<Pick> = self
             .host()
             .take_pick_requests()
             .into_iter()
-            .map(Pick::new)
+            .map(|request| {
+                let tab = match request.within {
+                    Some(block) if block == own => inner.own_pick_tab.take(),
+                    within => within.and_then(|block| self.tab_of_block(block)),
+                };
+                Pick::new(request, tab)
+            })
             .collect();
         if !requested.is_empty() {
             self.picks.update(|picks| picks.extend(requested));
@@ -523,6 +537,71 @@ impl Workspace {
             .read()
     }
 
+    pub(crate) fn graph(&self) -> Graph {
+        let inner = self.state.value();
+        let (roots, shared) = {
+            let mut held = inner.roots.borrow_mut();
+            let (roots, shared) = held.get_or_insert_with(|| {
+                (
+                    self.blocks().watch(BlockQuery::Roots),
+                    self.blocks().watch(BlockQuery::Shared),
+                )
+            });
+            (roots.read(), shared.read())
+        };
+        Graph {
+            account: self.host().account_id(),
+            roots,
+            shared,
+            blocks: self
+                .every_block()
+                .into_iter()
+                .map(|block| (block.id, block))
+                .collect(),
+        }
+    }
+
+    pub(crate) fn register_tab_node(&self, tab: TabId, node: NodeRef) {
+        let inner = self.state.value();
+        inner.tab_nodes.borrow_mut().insert(tab, node);
+    }
+
+    pub(crate) fn forget_tab_node(&self, tab: TabId, node: NodeRef) {
+        self.state.try_with(|inner| {
+            let mut nodes = inner.tab_nodes.borrow_mut();
+            if nodes.get(&tab) == Some(&node) {
+                nodes.remove(&tab);
+            }
+        });
+    }
+
+    pub(crate) fn tab_node(&self, tab: TabId) -> Option<NodeRef> {
+        let inner = self.state.value();
+        inner.tab_nodes.borrow().get(&tab).copied()
+    }
+
+    pub fn picker_sheets(&self) -> Memo<Vec<(u64, TabId)>> {
+        let picks = self.picks;
+        create_memo(move || {
+            picks.with(|picks| {
+                picks
+                    .iter()
+                    .filter(|held| held.surface_open())
+                    .filter_map(|held| Some((held.pick, held.anchor.tab?)))
+                    .collect::<Vec<_>>()
+            })
+        })
+    }
+
+    pub fn pick_anchor(&self, pick: u64) -> Option<PickAnchor> {
+        self.picks.with_untracked(|picks| {
+            picks
+                .iter()
+                .find(|held| held.pick == pick)
+                .map(|held| held.anchor)
+        })
+    }
+
     pub(crate) fn pick(&self, pick: u64) -> Option<Pick> {
         self.picks
             .with(|picks| picks.iter().find(|held| held.pick == pick).cloned())
@@ -567,7 +646,6 @@ impl Workspace {
     }
 
     fn send_commit(&self, held: &mut Pick) {
-        let name = Some(held.name.trim().to_owned()).filter(|name| !name.is_empty());
         let parent = held.created_parent();
         if let Some(creating) = &mut held.creating
             && let Some(child) = creating.child
@@ -575,7 +653,7 @@ impl Workspace {
             && !creating.sent
         {
             creating.sent = true;
-            self.host().commit_child(child, parent, name);
+            self.host().commit_child(child, parent, None);
         }
     }
 
@@ -965,6 +1043,13 @@ impl Workspace {
         }
     }
 
+    pub(crate) fn tab_of_block(&self, id: Uuid) -> Option<TabId> {
+        match self.files.get_untracked() == Some(id) {
+            true => Some(FILES),
+            false => self.tab_showing(id),
+        }
+    }
+
     pub(crate) fn tab_showing(&self, id: Uuid) -> Option<TabId> {
         self.tabs.with_untracked(|tabs| {
             tabs.iter()
@@ -1092,6 +1177,8 @@ impl Workspace {
             BlockParent::Root | BlockParent::Detached => Vec::new(),
         };
         let workspace = *self;
+        let inner = self.state.value();
+        inner.own_pick_tab.set(inner.layout.shown());
         self.editor.pick_block(
             BlockFilter {
                 name: "Block".to_owned(),
@@ -1099,6 +1186,7 @@ impl Workspace {
                 excluded,
                 templates: false,
                 place: Some(parent.encode()),
+                anchor: None,
             },
             move |picked: Result<PickedBlock, String>| {
                 if !workspace.state.is_alive() {
@@ -1130,13 +1218,18 @@ impl Workspace {
                     }
                 }
                 workspace.open(TabItem::new(picked.id, picked.block_type), container);
+                if !picked.linked {
+                    workspace.open_dialog(OpenDialog::Rename(picked.id));
+                }
             },
         );
     }
 
-    pub(crate) fn open_picker(&self, parent: Uuid) {
+    pub(crate) fn open_picker(&self, parent: Uuid, anchor: Option<ChildRect>) {
         self.error.set(None);
         let workspace = *self;
+        let inner = self.state.value();
+        inner.own_pick_tab.set(inner.layout.focused());
         self.editor.pick_block(
             BlockFilter {
                 name: "Block".to_owned(),
@@ -1144,6 +1237,7 @@ impl Workspace {
                 excluded: vec![parent.into_bytes()],
                 templates: false,
                 place: None,
+                anchor,
             },
             move |picked: Result<PickedBlock, String>| {
                 if !workspace.state.is_alive() {

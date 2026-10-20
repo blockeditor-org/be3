@@ -119,7 +119,7 @@ impl Slides {
         }
     }
 
-    pub fn add(&self, index: usize) {
+    pub fn add(&self, index: usize, anchor: Option<block_editor_beui::ChildRect>) {
         let block = self.block;
         let selected = self.selected;
         self.editor.pick_block(
@@ -129,6 +129,7 @@ impl Slides {
                 excluded: Vec::new(),
                 templates: true,
                 place: None,
+                anchor,
             },
             move |picked| {
                 let Ok(picked) = picked else {

@@ -1453,5 +1453,12 @@ impl crate::root_settings::SettingsGraph for Editor {
     }
 }
 
+pub fn node_anchor(node: &NodeRef) -> Option<block_plugin_api::ChildRect> {
+    let node = node.try_get()?;
+    try_with_document(|document| document.node_rect(node))
+        .flatten()
+        .map(crate::child_rect)
+}
+
 #[cfg(test)]
 mod tests;

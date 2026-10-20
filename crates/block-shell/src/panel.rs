@@ -182,8 +182,11 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
     let preview = create_memo(move || workspace.revisions.preview_for(workspace.tab(tab)));
     let previewing = create_memo(move || preview.get().is_some());
     let live = create_memo(move || !previewing.get());
+    let top = NodeRef::new();
+    workspace.register_tab_node(tab, top);
+    on_cleanup(move || workspace.forget_tab_node(tab, top));
     view! {
-        <Frame>
+        <Frame @node_ref={&top}>
             <List spacing=0.0>
                 <Show condition={!session}>
                     <ArtifactBar workspace={workspace} info={info.read_only()} />

@@ -6,8 +6,10 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::block_ui::BlockLabel;
-use block_editor_beui::block_ui::database::{DatabaseBlockPickRequest, DatabaseValueChange};
+use block_editor_beui::block_ui::database::DatabaseValueChange;
+use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::database::{DatabaseValueEditor, RowValues, ValueLabels};
+use block_editor_beui::node_anchor;
 use uuid::Uuid;
 
 use super::state::{CanvasState, attach_component, remove_component, set_component_value};
@@ -28,7 +30,8 @@ pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
         }
         seen
     });
-    let add = move || state.open_component_picker();
+    let add_button = NodeRef::new();
+    let add = move || state.open_component_picker(node_anchor(&add_button));
     view! {
         <Accordion title="Components" open={open} on_toggle={move |next| open.set(next)}>
             <List spacing=SPACING>
@@ -37,6 +40,7 @@ pub(crate) fn CanvasComponents(state: CanvasState) -> NodeId {
                 </ForEach>
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Button
+                        @node_ref={&add_button}
                         label="Add component…"
                         variant=ButtonVariant::Secondary
                         @test_id={"infinite-canvas.add-component"}
@@ -142,7 +146,7 @@ fn ComponentRow(state: CanvasState, schema_id: Uuid) -> NodeId {
         });
     };
     let picked = move |request: DatabaseBlockPickRequest| {
-        state.open_value_picker(schema_id, request.field_id, request.block_type);
+        state.open_value_picker(schema_id, request);
     };
     let prefix = format!("infinite-canvas.component.{schema_id:?}");
     let add_id = format!("{prefix}.add-to-all");

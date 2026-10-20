@@ -24,8 +24,8 @@ use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::{HostPanel, HostWindowId};
 use block_editor_beui::{Media, Power};
 use block_shell::{
-    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialogs, Workspace,
-    WorkspaceDialogs,
+    AttachedWindow, BlockTab, Failure, FloatingWindow, PanelWindow, PickerDialogs, PickerSheet,
+    Workspace, WorkspaceDialogs,
 };
 
 use bar::DesktopBar;
@@ -83,6 +83,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
         }
     });
     let dialog_windows = workspace.dialogs();
+    let picker_sheets = workspace.picker_sheets();
     let panels = workspace.panels();
     let editor = workspace.editor();
     let launcher = ProgramLauncher::new(editor);
@@ -108,6 +109,9 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
                     </ForEach>
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
                         <AttachedWindow workspace window parent />
+                    </ForEach>
+                    <ForEach keys={picker_sheets}>|(pick, tab): (u64, TabId)|
+                        <PickerSheet workspace pick tab />
                     </ForEach>
                     <ForEach keys={panels}>|panel: HostPanel|
                         <PanelWindow workspace panel />

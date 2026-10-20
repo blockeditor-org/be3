@@ -12,6 +12,7 @@ pub use beui_core::animation;
 pub use beui_core::app::accessibility_dump;
 pub use beui_core::app::automation;
 pub use beui_core::app::{App, Setup, Waker};
+pub use beui_core::base::overlay::{OverlayAnchor, Placement};
 pub use beui_core::base::turn::TurnNode;
 pub use beui_core::base::{
     Align, Direction, ImeCursor, ItemSize, Justify, ScrollPosition, Sides, Sizing, Track,
