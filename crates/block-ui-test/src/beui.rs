@@ -860,6 +860,7 @@ impl<A: BeuiApp> BeuiTest<A> {
         pick: u64,
         filter: block_editor_beui::BlockFilter,
         parent: block_plugin_api::BlockLocation,
+        within: Option<Uuid>,
     ) {
         self.inbox
             .push(Message::Editor(EditorMessage::PickRequested {
@@ -867,6 +868,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 pick,
                 filter,
                 parent,
+                within: within.map(Uuid::into_bytes),
             }));
     }
 

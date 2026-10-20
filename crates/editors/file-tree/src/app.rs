@@ -4,6 +4,7 @@ use block_editor_beui::{BlockQuery, Editor, Loaded};
 
 mod export;
 mod menu;
+mod rename;
 mod rows;
 mod ui;
 mod zoom;

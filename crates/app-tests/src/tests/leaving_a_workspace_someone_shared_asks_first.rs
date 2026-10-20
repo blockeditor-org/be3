@@ -43,10 +43,9 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.gone("Dialog \"Contacts\"");
 
     app.click("#file-tree.new-workspace");
-    app.wait("Dialog \"Rename block\"");
-    app.key("ctrl+a");
+    app.wait("TextInput \"Name\"");
     app.type_text("Team");
-    app.click("#rename.confirm");
+    app.key("Enter");
     app.wait("TreeItem \"Team\"");
     app.run(&["click", "TreeItem \"Team\"", "right"]);
     app.click("#file-tree.section.share");

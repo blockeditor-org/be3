@@ -13,12 +13,14 @@ use block_editor_beui::beui::unstyled::{self, BackSlide, ButtonHandle, MenuItem,
 use block_editor_beui::beui::{Color32, NodeId, Rect};
 use block_editor_beui::block_ui::BlockTypes;
 use block_editor_beui::{
-    Administrator, BlockFilter, BlockPicker, Drag, Editor, Toolbar, phone_layout,
+    Administrator, BlockFilter, BlockPicker, ChildRect, Drag, Editor, Toolbar, child_rect,
+    node_anchor, phone_layout,
 };
 use uuid::Uuid;
 
 use super::export::{Export, ExportFormat, Exporter, formats};
 use super::menu::{RowMenu, RowTools};
+use super::rename::Renaming;
 use super::rows::{
     Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker, is_workspace,
 };
@@ -34,12 +36,15 @@ const FIELD_SPACING: f32 = 2.0;
 #[component]
 pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let tree = FileTree::watch(editor);
-    let picker = picker(editor, tree);
+    let zoom = Zoom::new(editor, tree);
+    let keys = zoom.keys();
+    let renaming = Renaming::new(editor, tree, keys);
+    let tree_ref = NodeRef::new();
+    let picker = picker(editor, tree, renaming, tree_ref);
     let exporter = Exporter::new(editor);
     let exported = exporter.error();
     let held: Held = store(std::cell::Cell::new(None));
     let inspecting = create_signal(None::<Inspection>);
-    let zoom = Zoom::new(editor, tree);
     let tools = RowTools {
         editor,
         tree,
@@ -47,13 +52,12 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         exporter,
         inspect: inspecting,
         zoom,
+        renaming,
     };
-    let keys = zoom.keys();
     let rows = tree.rows();
     let focused_block = editor.focused_block();
     let focused = create_memo(move || focused_block.with(focused_key));
 
-    let tree_ref = NodeRef::new();
     let landing = create_signal(None::<(RowKey, bool)>);
     let drag = editor.drag();
     let arriving = create_memo(move || landing.get());
@@ -109,7 +113,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.expand(focused.via.iter().rev().copied());
     };
     let app_menu = move || editor.host().show_app_menu(editor.block_id());
-    let new_workspace = move || new_workspace(editor);
+    let new_workspace = move || new_workspace(editor, renaming);
     let picked = picker.error();
     let failure = create_memo(move || picked.get().or_else(|| exported.get()));
     let failed = create_memo(move || failure.get().is_some());
@@ -156,6 +160,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                 .is_some_and(|focus| focus.row.id.is_some() && focus.row.can_add)
         })
     });
+    let new_button = NodeRef::new();
     let adding = move || {
         let Some(id) = focus.with_untracked(|focus| focus.as_ref().and_then(|focus| focus.row.id))
         else {
@@ -165,6 +170,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
             editor,
             Some(id),
             [id].into_iter().collect::<HashSet<Uuid>>(),
+            node_anchor(&new_button),
         );
     };
     let content = NodeRef::new();
@@ -199,7 +205,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                         <Frame fill=ColorRole::Background>
                             <List spacing=0.0>
                                 <Show condition={zoomed}>
-                                    <ZoomBar zoom addable on_new={adding} />
+                                    <ZoomBar zoom addable new_button on_new={adding} />
                                 </Show>
                                 <Show condition={failed}>
                                     <Frame padding=PADDING>
@@ -230,10 +236,14 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                     menu={move |key: RowKey| view! {
                                         <RowMenu tools key />
                                     }}
+                                    editing={renaming.editing()}
                                     on_select={open}
                                     on_expand={expand}
                                     on_reveal={reveal}
                                     on_drag_start={start}
+                                    on_edit={move |key: RowKey| renaming.start(key)}
+                                    on_rename={move |(key, name): (RowKey, String)| renaming.rename(&key, &name)}
+                                    on_cancel_edit={move |key: RowKey| renaming.finish(&key)}
                                 >|face: TreeRowFace<RowKey>| {
                                     let row = tree.row(face.key.clone());
                                     let workspace = row.get_untracked().is_some_and(|row| {
@@ -351,13 +361,13 @@ fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
     }
 }
 
-pub(crate) fn new_workspace(editor: Editor) {
+fn new_workspace(editor: Editor, renaming: Renaming) {
     let id = editor.blocks().create_named(
         &WorkspaceContent::default(),
         BlockParent::Root,
         "New workspace",
     );
-    editor.host().rename_block(id);
+    renaming.rename_when_shown(id, None);
 }
 
 fn focused_key(focused: &block_editor_beui::FocusedBlock) -> Option<RowKey> {
@@ -432,13 +442,17 @@ fn TreeRow(
             .is_none_or(|row| row.automatic || row.id.is_none() || row.marked_deleted)
     });
     let add_child = move || {
-        let Some(id) = row.get_untracked().and_then(|row| row.id) else {
+        let Some(row) = row.get_untracked() else {
+            return;
+        };
+        let Some(id) = row.id else {
             return;
         };
         picker.open(
             editor,
             Some(id),
             [id].into_iter().collect::<HashSet<Uuid>>(),
+            picker.row_anchor(&row.key),
         );
     };
     let weight = create_memo(move || match row.get().is_some_and(|row| row.section) {
@@ -511,8 +525,10 @@ fn SectionRow(
     let glyph_size = glyph_size();
     let (detail, detailed) = detail(editor, row);
     let add_child = move || {
-        if let Some(id) = row.get_untracked().and_then(|row| row.id) {
-            add_to_section(editor, picker, id);
+        if let Some(row) = row.get_untracked()
+            && let Some(id) = row.id
+        {
+            add_to_section(editor, picker, id, picker.row_anchor(&row.key));
         }
     };
     view! {
@@ -578,13 +594,14 @@ fn glyph_size() -> Memo<TextSize> {
     })
 }
 
-pub(crate) fn add_to_section(editor: Editor, picker: Picker, id: Uuid) {
+pub(crate) fn add_to_section(editor: Editor, picker: Picker, id: Uuid, anchor: Option<ChildRect>) {
     picker.open(
         editor,
         Some(id),
         [editor.block_id(), id]
             .into_iter()
             .collect::<HashSet<Uuid>>(),
+        anchor,
     );
 }
 
@@ -835,6 +852,7 @@ pub(crate) struct Picker {
 struct PickerInner {
     picker: std::cell::RefCell<BlockPicker>,
     target: std::cell::Cell<Option<Uuid>>,
+    tree: NodeRef,
 }
 
 impl Picker {
@@ -843,11 +861,13 @@ impl Picker {
         create_memo(move || error.get())
     }
 
-    pub(crate) fn open(&self, editor: Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>) {
-        self.request(editor, parent, excluded);
-    }
-
-    fn request(&self, editor: Editor, parent: Option<Uuid>, excluded: HashSet<Uuid>) {
+    pub(crate) fn open(
+        &self,
+        editor: Editor,
+        parent: Option<Uuid>,
+        excluded: HashSet<Uuid>,
+        anchor: Option<ChildRect>,
+    ) {
         self.error.set(None);
         let inner = self.inner.value();
         inner.target.set(parent);
@@ -860,17 +880,24 @@ impl Picker {
                 excluded: excluded.into_iter().map(Uuid::into_bytes).collect(),
                 templates: false,
                 place: Some(place.encode()),
+                anchor,
             },
         );
     }
+
+    pub(crate) fn row_anchor(&self, key: &RowKey) -> Option<ChildRect> {
+        let tree = self.inner.try_value()?.tree.try_get()?;
+        row_rect(tree, key).map(child_rect)
+    }
 }
 
-fn picker(editor: Editor, tree: FileTree) -> Picker {
+fn picker(editor: Editor, tree: FileTree, renaming: Renaming, tree_ref: NodeRef) -> Picker {
     let error = create_signal(None::<String>);
     let picker = Picker {
         inner: store(PickerInner {
             picker: std::cell::RefCell::new(BlockPicker::default()),
             target: std::cell::Cell::new(None),
+            tree: tree_ref,
         }),
         error,
     };
@@ -891,6 +918,9 @@ fn picker(editor: Editor, tree: FileTree) -> Picker {
             }
         };
         tree.remember(picked.id, picked.block_type);
+        if !picked.linked {
+            renaming.rename_when_shown(picked.id, target);
+        }
         if picked.placed {
             match target {
                 Some(parent) => host.open_block_via(picked.id, picked.block_type, parent),

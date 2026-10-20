@@ -1,0 +1,7 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library", "cargo_test")
+
+# The questions crates/bootstrap and crates/local-tools ask at a terminal.
+
+cargo_library()
+
+cargo_test()

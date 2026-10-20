@@ -8,14 +8,10 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
     let parent = Uuid::new_v4();
     fixture
         .test
-        .request_pick(4, filter(), BlockLocation::Block(parent.into_bytes()));
+        .request_pick(4, filter(), BlockLocation::Block(parent.into_bytes()), None);
     fixture.settle();
     fixture.test.take_requests();
 
-    fixture.click_text("Import");
-    fixture
-        .test
-        .snapshot("importing_a_block_file_in_the_picker_answers_the_pick");
     fixture.test.click("picker.import");
     fixture.settle();
 
@@ -36,18 +32,15 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
         BlockLocation::Block(parent.into_bytes()),
         "the import lands where a created block would"
     );
-    assert!(
-        fixture.says("Importing..."),
-        "the picker waits for the file"
-    );
+    assert!(fixture.says("Importing…"), "the picker waits for the file");
 
     fixture
         .test
         .reply(*request, HostReply::BlocksImported(BlockImport::Cancelled));
     fixture.settle();
     assert!(
-        fixture.says("Choose a block file"),
-        "cancelling the file picker leaves the picker open to try again"
+        fixture.says("Import a .block file…"),
+        "cancelling the file picker leaves the menu open to try again"
     );
     assert!(fixture.test.take_pick_answers().is_empty());
 
@@ -82,7 +75,7 @@ fn importing_a_block_file_in_the_picker_answers_the_pick() {
         )]
     );
     assert!(
-        !fixture.says("Add block"),
-        "an answered pick closes the picker"
+        !fixture.test.shown("picker.import"),
+        "an answered pick closes the menu"
     );
 }

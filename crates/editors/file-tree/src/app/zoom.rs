@@ -188,7 +188,12 @@ impl Zoom {
 }
 
 #[component]
-pub(crate) fn ZoomBar(zoom: Zoom, addable: Memo<bool>, on_new: ClickCallback) -> NodeId {
+pub(crate) fn ZoomBar(
+    zoom: Zoom,
+    addable: Memo<bool>,
+    new_button: NodeRef,
+    on_new: ClickCallback,
+) -> NodeId {
     let focus = zoom.focus();
     let path = create_memo(move || focus.get().map(|focus| focus.path).unwrap_or_default());
     let name = create_memo(move || focus.get().map(|focus| focus.row.label).unwrap_or_default());
@@ -207,6 +212,7 @@ pub(crate) fn ZoomBar(zoom: Zoom, addable: Memo<bool>, on_new: ClickCallback) ->
                 </List>
                 <Show condition={addable}>
                     <IconButton
+                        @node_ref={&new_button}
                         @test_id={"file-tree.new"}
                         glyph={ICON_ADD.to_owned()}
                         label="New"

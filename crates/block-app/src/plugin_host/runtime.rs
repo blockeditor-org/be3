@@ -921,13 +921,54 @@ pub(crate) fn request_pick(
     pick: u64,
     filter: block_plugin_api::BlockFilter,
     parent: block_plugin_api::BlockLocation,
+    within: Option<Uuid>,
 ) {
     with(plugin_id, |runtime| {
         let messages = runtime
             .instances
-            .request_pick(instance, pick, filter, parent);
+            .request_pick(instance, pick, filter, parent, within);
         runtime.send(messages);
     });
+}
+
+#[derive(Clone, Copy, Debug, PartialEq)]
+pub(crate) struct FramePlacement {
+    pub(crate) rect: Rect,
+    pub(crate) zoom: f32,
+}
+
+pub(crate) fn frame_placement(
+    plugin_id: &str,
+    instance: EditorInstanceId,
+) -> Option<FramePlacement> {
+    with(plugin_id, |runtime| {
+        runtime
+            .placements
+            .get(&(instance, EditorRegion::Frame))
+            .map(|placed| FramePlacement {
+                rect: placed.rect,
+                zoom: placed.zoom,
+            })
+    })
+    .flatten()
+}
+
+pub(crate) fn reanchor(
+    anchor: ChildRect,
+    from: FramePlacement,
+    to: FramePlacement,
+) -> Option<ChildRect> {
+    let scale = from.zoom / to.zoom;
+    let moved = ChildRect {
+        x: (from.rect.min.x + anchor.x * from.zoom - to.rect.min.x) / to.zoom,
+        y: (from.rect.min.y + anchor.y * from.zoom - to.rect.min.y) / to.zoom,
+        width: anchor.width.max(0.0) * scale,
+        height: anchor.height.max(0.0) * scale,
+    };
+    [moved.x, moved.y, moved.width, moved.height]
+        .iter()
+        .all(|value| value.is_finite())
+        .then_some(moved)
 }
 
 pub(crate) fn block_picked(

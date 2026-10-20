@@ -1,7 +1,7 @@
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::block_ui::BlockTypes;
-use block_editor_beui::{BlockInfo, BlockParent};
+use block_editor_beui::{BlockInfo, BlockParent, ChildRect};
 use uuid::Uuid;
 
 use super::dialogs::OpenDialog;
@@ -103,11 +103,12 @@ pub(crate) fn apply(
     reference: &BlockInfo,
     containing: Option<Uuid>,
     action: Action,
+    anchor: Option<ChildRect>,
 ) {
     let permissions = permissions(workspace, reference, containing);
     match action {
         Action::Open => workspace.open(TabItem::new(reference.id, reference.block_type), None),
-        Action::Picker => workspace.open_picker(reference.id),
+        Action::Picker => workspace.open_picker(reference.id, anchor),
         Action::MoveToMyFiles => {
             if let Some(files) = workspace.my_files()
                 && let Some(source) = permissions.source

@@ -3,7 +3,7 @@ use beui_core::layer::Dismiss;
 use beui_macros::{component, view};
 
 use crate::button::ButtonHandle;
-use crate::menu::{MenuItem, MenuList, MenuRowHandle};
+use crate::menu::{MenuItem, MenuList, MenuRowHandle, MenuThen};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
@@ -96,10 +96,11 @@ impl MenuStyle {
 }
 
 #[component]
-pub(crate) fn MenuPopup(
+pub fn MenuPopup(
     items: Run<MenuItem>,
     menu: MenuStyle,
     anchor: Prop<OverlayAnchor>,
+    #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
     open: Memo<bool>,
     touched: Memo<bool>,
     #[prop(default = true)] focusing: Prop<bool>,
@@ -119,9 +120,11 @@ pub(crate) fn MenuPopup(
         ever_raised
     });
     let active = create_memo(move || dropped.get() && focusing.get());
-    let choose = Callback::new(move |path: Vec<usize>| {
+    let choose = Callback::new(move |(path, then): (Vec<usize>, MenuThen)| {
         on_select.call(path);
-        on_dismiss.call();
+        if then == MenuThen::Close {
+            on_dismiss.call();
+        }
     });
     let (sheet_items, sheet_panel, sheet_choose, sheet_dismiss) =
         (items.clone(), panel, choose, on_dismiss);
@@ -130,7 +133,7 @@ pub(crate) fn MenuPopup(
             <Overlay
                 @node_ref=&overlay
                 anchor
-                placement=Placement::BelowStart
+                placement
                 traps_focus={focusing}
                 open={dropped}
                 on_dismiss={move |_: Dismiss| on_dismiss.call()}

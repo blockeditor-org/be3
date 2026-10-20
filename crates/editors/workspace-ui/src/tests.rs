@@ -14,10 +14,12 @@ mod a_block_tab_asks_its_editor_for_the_top_bar;
 mod a_closed_tab_gives_up_its_view_block;
 mod a_deleted_block_says_so_above_it_and_can_be_restored;
 mod a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick;
+mod a_folder_chosen_on_the_location_page_holds_the_block_made_there;
 mod a_host_panel_the_host_asks_for_is_placed_in_its_own_window;
 mod a_modal_window_sends_presses_on_its_parent_to_itself;
 mod a_phone_shows_one_file_at_a_time_and_the_dock_bar_goes_back_or_switches;
-mod a_placing_pick_names_and_places_the_block_it_creates;
+mod a_pick_keeps_the_anchor_and_the_tab_it_was_asked_from;
+mod a_presentation_offers_its_slide_templates_first;
 mod a_profile_keeps_its_tabs_as_view_blocks_and_reopens_them;
 mod a_reopened_phone_goes_back_through_the_files_in_the_order_they_were_shown;
 mod a_shown_block_is_remembered_in_the_recents;
@@ -38,15 +40,19 @@ mod creating_from_a_dialog_commits_the_creation_at_once;
 mod crossing_the_phone_width_keeps_the_block_on_show;
 mod importing_a_block_file_in_the_picker_answers_the_pick;
 mod linking_a_block_in_the_picker_answers_the_pick;
+mod on_a_phone_the_menu_and_its_location_page_rise_as_a_sheet;
 mod renaming_a_block_the_host_asks_about_saves_its_name;
 mod revision_history_follows_the_active_file_and_previews_it;
 mod revision_history_has_no_file_for_a_native_window;
 mod revision_history_on_a_phone_and_late_replies;
 mod revision_history_previews_a_file_on_a_phone;
+mod searching_the_link_tree_keeps_matches_and_the_folders_above_them;
 mod sharing_a_block_grants_the_people_added_and_lists_them_again;
 mod showing_a_block_with_another_editor_switches_its_tab;
 mod switching_from_a_block_to_a_host_panel_keeps_the_panel_on_show;
 mod the_back_gesture_on_a_phone_leaves_a_file_for_the_files;
+mod the_link_sheet_keeps_its_search_and_choice_across_tab_switches;
+mod the_location_page_shows_the_folders_as_a_tree_with_the_chosen_one_checked;
 mod the_picker_never_offers_a_deleted_block_to_link;
 mod the_share_dialog_lists_again_when_a_contact_is_made;
 mod widening_the_phone_with_its_switcher_open_keeps_the_workspace;
@@ -263,23 +269,114 @@ fn filter() -> block_editor_beui::BlockFilter {
         excluded: Vec::new(),
         templates: false,
         place: None,
+        anchor: None,
     }
 }
 
 fn catalog() -> block_editor_beui::Catalog {
+    use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
+    let kind = |block_type: Uuid, name: &str, icon: &str| block_editor_beui::BlockTypeDescriptor {
+        block_type: block_type.into_bytes(),
+        display_name: name.to_owned(),
+        icon_codepoint: icon.to_owned(),
+        children: block_plugin_api::ChildOperations {
+            add: true,
+            delete: true,
+            replace: true,
+        },
+    };
     block_editor_beui::Catalog {
-        types: Vec::new(),
+        types: vec![
+            kind(FolderContent::CONTENT_TYPE, "Folder", "\u{e2c7}"),
+            kind(WorkspaceContent::CONTENT_TYPE, "Workspace", "\u{ea0f}"),
+            kind(SHOWN_TYPE, "Text", "\u{e873}"),
+            kind(TEMPLATE_TYPE, "Note", "\u{e26c}"),
+        ],
         templates: vec![block_editor_beui::TemplateDescriptor {
             editor: TEMPLATE_EDITOR.into_bytes(),
             template: "main".to_owned(),
             block_type: TEMPLATE_TYPE.into_bytes(),
             name: "Note".to_owned(),
-            icon_codepoint: String::new(),
+            icon_codepoint: "\u{e26c}".to_owned(),
             category: block_editor_beui::TemplateCategory::Important,
             dialog: false,
         }],
         editors: Vec::new(),
     }
+}
+
+struct Places {
+    space: Uuid,
+    trips: Uuid,
+    work: Uuid,
+    q4: Uuid,
+    minutes: Uuid,
+    budget: Uuid,
+}
+
+fn places(fixture: &mut Fixture) -> Places {
+    use block_editor_beui::BlockInfo;
+    use block_editor_beui::be_block::{BlockContent, FolderContent, WorkspaceContent};
+    let places = Places {
+        space: Uuid::new_v4(),
+        trips: Uuid::new_v4(),
+        work: Uuid::new_v4(),
+        q4: Uuid::new_v4(),
+        minutes: Uuid::new_v4(),
+        budget: Uuid::new_v4(),
+    };
+    let block = |id: Uuid, block_type: Uuid, parent: BlockParent, name: &str, children: &[Uuid]| {
+        let mut info = BlockInfo::new(id, block_type, parent);
+        info.set_name(name);
+        info.references = children.to_vec();
+        info
+    };
+    let folder = FolderContent::CONTENT_TYPE;
+    let store = fixture.test.store();
+    store.add_block(block(
+        places.space,
+        WorkspaceContent::CONTENT_TYPE,
+        BlockParent::Root,
+        "Team space",
+        &[places.trips, places.work],
+    ));
+    store.add_block(block(
+        places.trips,
+        folder,
+        BlockParent::Block(places.space),
+        "Trips",
+        &[],
+    ));
+    store.add_block(block(
+        places.work,
+        folder,
+        BlockParent::Block(places.space),
+        "Work",
+        &[places.q4, places.minutes, places.budget],
+    ));
+    store.add_block(block(
+        places.q4,
+        folder,
+        BlockParent::Block(places.work),
+        "Q4",
+        &[],
+    ));
+    store.add_block(block(
+        places.minutes,
+        SHOWN_TYPE,
+        BlockParent::Block(places.work),
+        "Minutes",
+        &[],
+    ));
+    store.add_block(block(
+        places.budget,
+        SHOWN_TYPE,
+        BlockParent::Block(places.work),
+        "Budget",
+        &[],
+    ));
+    fixture.settle();
+    places
 }
 
 fn report_creation(fixture: &mut Fixture, progress: block_editor_beui::CreationProgress) {

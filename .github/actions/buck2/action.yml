@@ -3,7 +3,7 @@ description: >-
   Installs buck2 from the pinned release.
 
 # buck2 is a prebuilt release checked against the hash in
-# scripts/internal/common.sh, so installing it is a download and costs seconds.
+# scripts/internal/pins, so installing it is a download and costs seconds.
 # Nothing else is needed: every other tool is one buck2 downloads or builds.
 
 runs:
@@ -12,4 +12,4 @@ runs:
     # ./scripts/buck would install it by itself on first use; installing it
     # here is only so that the download is a step of its own in the log.
     - shell: bash
-      run: ./scripts/internal/install-buck2.sh
+      run: sh ./scripts/internal/bootstrap.sh install-buck2

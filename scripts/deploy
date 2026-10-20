@@ -1,66 +1,12 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #
-# Deploys be-server, the tracker's be and the app's downloads from this
-# checkout, in one buck2 command: it builds them in release for the platforms
-# they run on (the app for Linux, macOS and Windows on x86_64 and arm64, Android
-# and the web), then runs local-tools deploy, which uploads each be and each
-# download and unpacked web bundle to be3.pfg.pw and reads them back, copies
-# be-server and its build-info.json over with scp, swaps the running server, points the
-# mirror's download page at the build, and pins the uploaded be in
-# scripts/internal/common.sh to commit.
-#
-# After building, Rust reads or asks for the local signing key and Bunny
-# credentials. No key is an input of the build. --skip-downloads and
-# --skip-android leave the downloads, or only the APK and so the keystore, out
-# of the build (be3.deploy_downloads and be3.deploy_android). --android-id and
-# --android-label name the APK, com.be3.block and Block unless given, so that
-# it installs beside CI's com.be3.block.ci. `./scripts/deploy --help` lists
-# the other options and the environment it reads.
+# Deploys be-server, the tracker's be and the app's downloads from this checkout,
+# in one buck2 command; ./scripts/deploy --help lists the options.
 #
 # Usage:
 #   ./scripts/deploy [--dry-run] [--allow-dirty] [--skip-server] [--skip-be] [--skip-web]
-#                    [--skip-downloads] [--skip-android] [--android-id ID]
-#                    [--android-label LABEL]
+#                    [--skip-downloads] [--skip-android] [--android-id ID] [--android-label LABEL]
+#
+# guides/bootstrap.md says what runs it.
 
-set -euo pipefail
-
-source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
-
-android_id='com.be3.block'
-android_label='Block'
-downloads=true
-android=true
-arguments=()
-while [[ $# -gt 0 ]]; do
-    case "$1" in
-        --android-id | --android-label)
-            if [[ $# -lt 2 ]]; then
-                echo "deploy: $1 needs a value" >&2
-                exit 1
-            fi
-            if [[ "$1" == '--android-id' ]]; then android_id="$2"; else android_label="$2"; fi
-            shift 2
-            continue
-            ;;
-        --skip-android)
-            android=false
-            shift
-            continue
-            ;;
-        --skip-downloads) downloads=false ;;
-    esac
-    arguments+=("$1")
-    shift
-done
-if [[ ! "$android_id" =~ ^[A-Za-z][A-Za-z0-9_]*(\.[A-Za-z][A-Za-z0-9_]*)+$ ]]; then
-    echo "deploy: --android-id takes an Android application id such as com.be3.block, not '$android_id'" >&2
-    exit 1
-fi
-
-export BE3_APP_ID=Block
-export BE3_DEPLOY_DEFAULT_SERVER=true
-
-exec "$repository/scripts/buck" run -m release \
-    -c "be3.deploy_downloads=$downloads" -c "be3.deploy_android=$android" \
-    -c "be3.android_id=$android_id" -c "be3.android_label=$android_label" \
-    //crates/local-tools:deploy -- --repository "$repository" ${arguments[@]+"${arguments[@]}"}
+exec sh "$(dirname "$0")/internal/bootstrap.sh" deploy "$@"

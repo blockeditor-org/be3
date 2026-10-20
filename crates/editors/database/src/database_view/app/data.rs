@@ -18,7 +18,7 @@ use block_editor_beui::be_block::database_view::{
 use block_editor_beui::be_block::text::{TextBlock, TextContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockLabel;
-use block_editor_beui::block_ui::database::DatabaseBlockPickRequest;
+use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::database::{relation_targets, watch_inverses, watch_row_labels};
 use block_editor_beui::{BlockFilter, ContentProjection, Editor, RelatedContent};
 use uuid::Uuid;
@@ -581,6 +581,7 @@ pub fn value_block_filter(field_name: &str, request: DatabaseBlockPickRequest) -
         excluded: Vec::new(),
         templates: false,
         place: None,
+        anchor: request.anchor,
     }
 }
 

@@ -172,43 +172,39 @@ pub(crate) fn release_key() -> Result<PathBuf, String> {
         ));
     }
     eprintln!("Android updates must use the same signing key. Keep a backup of this key.");
-    eprintln!(
-        "1) generate a new release key\n2) import an existing JKS/PKCS12 file or its base64 encoding (password android)"
-    );
-    eprint!("Keystore [1-2]: ");
-    std::io::stderr()
-        .flush()
-        .map_err(|error| error.to_string())?;
-    let mut choice = String::new();
-    std::io::stdin()
-        .read_line(&mut choice)
-        .map_err(|error| error.to_string())?;
-    match choice.trim() {
-        "1" => generate_key(&saved, 4096)?,
-        "2" => {
-            eprint!("Keystore file: ");
-            std::io::stderr()
-                .flush()
-                .map_err(|error| error.to_string())?;
-            let mut path = String::new();
-            std::io::stdin()
-                .read_line(&mut path)
-                .map_err(|error| error.to_string())?;
-            let path = path.trim();
-            let path = if let Some(rest) = path.strip_prefix("~/") {
-                PathBuf::from(
-                    std::env::var_os("HOME")
-                        .or_else(|| std::env::var_os("USERPROFILE"))
-                        .ok_or("HOME or USERPROFILE is required")?,
-                )
-                .join(rest)
-            } else {
-                path.into()
-            };
-            let bytes = read_key(&path)?;
-            save_key(&saved, &bytes)?;
+    let choices = [
+        prompt::Choice {
+            label: "generate",
+            detail: "make a new release key",
+        },
+        prompt::Choice {
+            label: "import",
+            detail: "an existing JKS or PKCS12 file, or its base64 (password android)",
+        },
+    ];
+    match prompt::choose(
+        "Which release keystore should deploy sign with?",
+        &choices,
+        0,
+    ) {
+        Some(0) => generate_key(&saved, 4096)?,
+        Some(_) => {
+            let path = prompt::text("Keystore file:", "~/release.jks", |path| {
+                let path = match path.strip_prefix("~/") {
+                    Some(rest) => PathBuf::from(
+                        std::env::var_os("HOME")
+                            .or_else(|| std::env::var_os("USERPROFILE"))
+                            .unwrap_or_default(),
+                    )
+                    .join(rest),
+                    None => path.into(),
+                };
+                read_key(&path).map(|_| path.to_string_lossy().into_owned())
+            })
+            .ok_or("no keystore was given")?;
+            save_key(&saved, &read_key(Path::new(&path))?)?;
         }
-        _ => return Err("pick 1 or 2".into()),
+        None => return Err("no keystore was chosen".into()),
     }
     Ok(saved)
 }

@@ -1925,6 +1925,7 @@ impl Instances {
         pick: u64,
         filter: block_plugin_api::BlockFilter,
         parent: block_plugin_api::BlockLocation,
+        within: Option<Uuid>,
     ) -> Vec<Message> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
@@ -1934,6 +1935,7 @@ impl Instances {
             pick,
             filter,
             parent,
+            within: within.map(Uuid::into_bytes),
         })]
     }
 

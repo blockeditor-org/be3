@@ -13,9 +13,9 @@ use block_editor_beui::beui::styled::popover::PopoverPanel;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ChoiceOption, PopoverHandle, PopoverTriggerHandle};
 use block_editor_beui::block_ui::database::{
-    DatabaseBlockPickRequest, DatabaseValueChange, ValueLabels, database_value_text,
+    DatabaseValueChange, ValueLabels, database_value_text,
 };
-use block_editor_beui::database::{ChoiceMark, DatabaseValueEditor};
+use block_editor_beui::database::{ChoiceMark, DatabaseBlockPickRequest, DatabaseValueEditor};
 use uuid::Uuid;
 
 use crate::database_view::app::controls::{ControlFace, MARK};

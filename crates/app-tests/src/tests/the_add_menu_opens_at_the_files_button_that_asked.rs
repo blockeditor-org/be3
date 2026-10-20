@@ -1,0 +1,22 @@
+use super::*;
+
+#[test]
+fn the_add_menu_opens_at_the_files_button_that_asked() {
+    let mut app = AppTest::start();
+    app.click(ADD_TO_MY_FILES);
+    app.wait("#picker.more");
+    let (button_x, button_y, _, button_height) = app.place(ADD_TO_MY_FILES);
+    let (menu_x, menu_y, _, _) = app.place("#picker.location");
+    assert!(
+        menu_y >= button_y + button_height && menu_y < button_y + button_height + 40.0,
+        "the menu hangs just under the button, at {menu_y} under {button_y} + {button_height}"
+    );
+    assert!(
+        menu_x < button_x,
+        "and starts at the row the button belongs to, at {menu_x} left of {button_x}"
+    );
+    app.snapshot("the_add_menu_opens_at_the_files_button_that_asked");
+    app.key("Escape");
+    app.gone("#picker.more");
+    app.close();
+}

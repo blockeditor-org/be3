@@ -78,7 +78,7 @@ command_alias(
 )
 
 # starlark_fmt, the BUCK files' formatter, from the buck2 release
-# scripts/internal/common.sh pins. The release is a bare zstd stream, which
+# scripts/internal/pins pins. The release is a bare zstd stream, which
 # http_archive does not unpack and the worker has no zstd for, so Ubuntu's own
 # zstd is taken out of its package to do it.
 http_file(

@@ -9,7 +9,7 @@ Usage:
 
   --token FILE   Namespace's token, as `nsc reapi create-token` writes it
   --addr ADDR    Address to listen on (default: 127.0.0.1:9091)
-  --nsc PATH     The nsc to run (default: nsc); scripts/internal/install-nsc.sh
+  --nsc PATH     The nsc to run (default: nsc); `sh scripts/internal/bootstrap.sh install-nsc`
                  downloads the pinned one
 
 Answers every GET with the buck2 configuration of Namespace's remote execution

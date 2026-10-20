@@ -528,5 +528,6 @@ pub(crate) fn module_filter() -> BlockFilter {
         excluded: Vec::new(),
         templates: false,
         place: None,
+        anchor: None,
     }
 }

@@ -18,13 +18,16 @@ fn the_picker_never_offers_a_deleted_block_to_link() {
     draft.set_name("Draft");
     store.add_block(draft);
 
-    fixture.test.request_pick(7, filter(), BlockLocation::Root);
+    fixture
+        .test
+        .request_pick(7, filter(), BlockLocation::Root, None);
     fixture.settle();
-    fixture.click_text("Link existing");
+    fixture.test.click("picker.link-existing");
+    fixture.settle();
 
-    assert!(fixture.test.shown(&format!("picker.link.{kept}")));
+    assert!(fixture.test.shown(&format!("picker.link.{kept}.row")));
     assert!(
-        !fixture.test.shown(&format!("picker.link.{inside}")),
+        !fixture.test.shown(&format!("picker.link.{inside}.row")),
         "a block inside a deleted folder is deleted too, and is not offered"
     );
 }

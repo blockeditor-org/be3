@@ -672,6 +672,10 @@ impl Document {
             let Some(content) = self.overlay_content(overlay) else {
                 return Some(None);
             };
+            let content = match self.focus_into {
+                Some((into, _)) if self.contains(into) && self.is_within(into, content) => into,
+                _ => content,
+            };
             match self.focusables_within(content).first().copied() {
                 Some(first) => node = first,
                 None => return Some(None),

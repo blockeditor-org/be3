@@ -13,17 +13,23 @@ mod a_dialog_hangs_from_the_tab_that_opened_it;
 mod a_dialog_keeps_its_buttons_side_by_side_on_a_narrow_screen;
 mod a_dialog_opens_on_the_screen_it_was_asked_for_from;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
+mod a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on;
 mod a_long_press_on_the_code_of_a_sample_shows_its_selection_toolbar;
 mod a_long_sheet_fades_its_content_and_bounces_as_a_panel;
+mod a_menu_page_opens_in_place_of_the_menu_and_its_tree_follows_the_arrow_keys;
+mod a_menu_page_opens_in_place_of_the_menu_in_a_sheet;
 mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
+mod a_sheet_hangs_from_its_tab_and_waits_while_another_tab_is_shown;
+mod a_sheet_rises_from_the_bottom_on_a_phone;
 mod a_table_lines_its_cells_up_under_its_columns;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
 mod an_instant_level_display_keeps_its_duration_without_fading;
 mod animations_paint_their_progress_and_instant_targets;
 mod closing_the_rich_text_tab_disposes_its_editors;
+mod editing_a_tree_row_keeps_a_name_on_enter_or_a_click_away_and_escape_puts_it_back;
 mod every_demo_page_paints_as_accepted;
 mod every_demo_page_paints_as_accepted_on_a_phone;
 mod holding_alt_and_pressing_q_switches_between_recent_tabs;
@@ -34,6 +40,7 @@ mod replacing_a_page_closes_the_dialogs_it_opened;
 mod rich_text_styled_on_both_sides_converges_once_sent_both_ways;
 mod swiping_back_on_a_phone_shows_the_catalog_behind_the_page;
 mod tabbing_through_every_page_shows_each_focus_ring_whole;
+mod the_arrow_keys_move_across_a_menu_grid_and_on_to_the_rows_below;
 mod the_catalog_shows_a_page_in_place_of_the_one_shown_unless_ctrl_is_held;
 mod the_code_of_a_sample_can_be_selected;
 mod the_crash_notice_sample_reloads_from_its_button;
@@ -142,6 +149,12 @@ fn select_line(test: &mut DocumentTest, at: Pos2) {
     test.frame(Vec::new());
     press_key(test, beui::Key::Home);
     press_key_with(test, beui::Key::End, beui::Modifiers::SHIFT);
+}
+
+fn focused(test: &DocumentTest, test_id: &str) -> bool {
+    let document = test.document();
+    document.find_test_id(test_id).is_some()
+        && document.focused_node() == document.find_test_id(test_id)
 }
 
 fn dialog_id(index: u64) -> String {

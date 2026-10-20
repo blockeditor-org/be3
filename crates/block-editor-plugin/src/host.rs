@@ -99,6 +99,8 @@ pub struct PickRequest {
     pub pick: u64,
     pub filter: BlockFilter,
     pub parent: BlockParent,
+    pub within: Option<Uuid>,
+    pub anchor: Option<Rect>,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -1263,7 +1265,13 @@ impl EditorHost {
         })
     }
 
-    pub fn pick_block(&self, filter: BlockFilter) -> u64 {
+    pub fn pick_block(&self, mut filter: BlockFilter) -> u64 {
+        let origin = self.region.get().origin;
+        filter.anchor = filter.anchor.map(|anchor| ChildRect {
+            x: anchor.x - origin.x,
+            y: anchor.y - origin.y,
+            ..anchor
+        });
         self.ask(HostRequest::PickBlock(filter))
     }
 
@@ -1845,7 +1853,7 @@ impl FileSaver {
     }
 }
 
-fn child_rect(rect: Rect) -> ChildRect {
+pub fn child_rect(rect: Rect) -> ChildRect {
     ChildRect {
         x: rect.min.x,
         y: rect.min.y,

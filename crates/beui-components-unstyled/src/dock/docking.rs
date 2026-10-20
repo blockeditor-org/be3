@@ -7,6 +7,7 @@ use std::hash::Hash;
 use std::rc::Rc;
 
 use beui_core::base::Direction;
+use beui_core::color::Color32;
 use beui_core::geometry::{Rect, Vec2};
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
@@ -16,7 +17,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 use serde::{Deserialize, Serialize};
 
-use super::dialog::{DialogParts, DockDialogHandle};
+use super::dialog::{DialogParts, DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 use super::state::{
     DockFullscreen, DockSpec, DockSpecEntry, DockSpecNode, DockSpecPane, DockSpecWindow,
 };
@@ -152,21 +153,24 @@ pub fn DockDialog<K>(
     #[prop(default = String::new())] icon: Prop<String>,
     size: Prop<Vec2>,
     #[prop(default = false)] modal: Prop<bool>,
+    #[prop(default = DockDialogPresentation::Window)] presentation: DockDialogPresentation,
     on_close: Option<ClickCallback>,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockNode<K>
 where
     K: DockKey,
 {
+    let sheet = presentation == DockDialogPresentation::Sheet;
     DockNode {
         kind: NodeKind::Dialog {
             id,
             parent,
             parts: DialogParts {
+                presentation,
                 title: create_memo(move || title.get()),
                 icon: create_memo(move || icon.get()),
                 size: create_memo(move || size.get()),
-                modal: create_memo(move || modal.get()),
+                modal: create_memo(move || sheet || modal.get()),
                 on_close,
                 content,
             },
@@ -730,6 +734,8 @@ pub fn Docking<K>(
     switcher: Option<RenderFn<DockSwitcherHandle>>,
     switch: Option<RenderFn<DockSwitchHandle>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle>>,
+    dialog_sheet: Option<RenderFn<DockSheetHandle>>,
+    #[prop(default = Color32::TRANSPARENT)] dialog_scrim: Color32,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -845,6 +851,8 @@ where
                 dialogs,
                 dialog,
                 dialog_chrome,
+                dialog_sheet,
+                dialog_scrim,
             }}
         />
     }

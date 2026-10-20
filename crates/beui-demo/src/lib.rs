@@ -18,10 +18,10 @@ use beui::reactive::*;
 use beui::styled::theme::NARROW_WIDTH;
 use beui::styled::*;
 use beui::unstyled::{
-    ChoiceOption, Container, DateTimeParts, DockDialog, DockMode, DockPane, DockSplit, DockTab,
-    DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomView,
-    PopoverHandle, SliderScale, SyntaxColors, TabId, TextAreaState, TreeItem, dock_actions,
-    narrower_than, use_dock_tab,
+    ChoiceOption, Container, DateTimeParts, DockDialog, DockDialogPresentation, DockMode, DockPane,
+    DockSplit, DockTab, DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom,
+    PanZoomHandle, PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TabId, TextAreaState,
+    TreeItem, dock_actions, narrower_than, use_dock_tab,
 };
 use beui::{
     Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId, Rect,
@@ -34,9 +34,9 @@ use sample::{Sample, ScrollPage};
 use std::rc::Rc;
 use std::sync::Arc;
 use styled_pages::{
-    AttachedDialog, ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage, EditorPage,
-    InputsPage, LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage, RowsPage,
-    TextPage, ThemesPage, TreePage,
+    AttachedDialog, AttachedSheet, ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage,
+    EditorPage, InputsPage, LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage,
+    RowsPage, TextPage, ThemesPage, TreePage,
 };
 use text_editor_core::{
     EditorCommand, Highlighter, Language, MarkdownCommand, TextBuffer, TextLanguage,
@@ -56,6 +56,7 @@ const CATALOG: TabId = TabId::new(1);
 const DIALOG_TABS: u64 = 1 << 40;
 const DIALOG_SIZE: beui::Vec2 = beui::Vec2::new(460.0, 120.0);
 const NESTED_DIALOG_INSET: beui::Vec2 = beui::Vec2::new(56.0, 16.0);
+const SHEET_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
 const PAGE_SHARE: f32 = 0.76;
 const SHELL_PADDING: f32 = 10.0;
 const TOOLBAR_SPACING: f32 = 8.0;
@@ -369,12 +370,31 @@ struct DemoDialog {
     id: TabId,
     parent: TabId,
     modal: bool,
+    sheet: bool,
     depth: u8,
 }
 
 impl DemoDialog {
     fn size(self) -> beui::Vec2 {
-        DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth)
+        match self.sheet {
+            true => SHEET_SIZE,
+            false => DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth),
+        }
+    }
+
+    fn presentation(self) -> DockDialogPresentation {
+        match self.sheet {
+            true => DockDialogPresentation::Sheet,
+            false => DockDialogPresentation::Window,
+        }
+    }
+
+    fn title(self) -> &'static str {
+        match (self.sheet, self.modal) {
+            (true, _) => "Sheet",
+            (false, true) => "Modal dialog",
+            (false, false) => "Dialog",
+        }
     }
 }
 
@@ -394,6 +414,14 @@ impl DemoDialogs {
     }
 
     fn open(&self, parent: TabId, modal: bool) {
+        self.add(parent, modal, false);
+    }
+
+    fn open_sheet(&self, parent: TabId) {
+        self.add(parent, true, true);
+    }
+
+    fn add(&self, parent: TabId, modal: bool, sheet: bool) {
         let id = TabId::new(self.next.with(|next| next.replace(next.get() + 1)));
         self.open.update(|open| {
             let depth = open
@@ -404,6 +432,7 @@ impl DemoDialogs {
                 id,
                 parent,
                 modal,
+                sheet,
                 depth,
             });
         });
@@ -600,20 +629,30 @@ fn DemoShell() -> NodeId {
                             id={dialog.id}
                             parent={dialog.parent}
                             modal={dialog.modal}
-                            title={match dialog.modal {
-                                true => "Modal dialog",
-                                false => "Dialog",
-                            }}
+                            presentation={dialog.presentation()}
+                            title={dialog.title()}
                             icon=ICON_OPEN_IN_NEW
                             size={dialog.size()}
                             on_close={move || dialogs.close(dialog.id)}
                         >
-                            <AttachedDialog modal={dialog.modal} />
+                            <DemoDialogBody dialog />
                         </DockDialog>
                     </ForEach>
                 </Docking>
             </List>
         </Frame>
+    }
+}
+
+#[component]
+fn DemoDialogBody(dialog: DemoDialog) -> NodeId {
+    match dialog.sheet {
+        true => view! {
+            <AttachedSheet />
+        },
+        false => view! {
+            <AttachedDialog modal={dialog.modal} />
+        },
     }
 }
 
