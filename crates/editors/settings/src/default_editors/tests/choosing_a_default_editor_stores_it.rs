@@ -1,8 +1,12 @@
 use block_editor_beui::be_block::EditorSettingsContent;
 use block_editor_beui::{BlockTypeDescriptor, Catalog, ChildOperations, EditorDescriptor};
 
-use super::*;
-use crate::ui_settings::DefaultEditorsApp;
+use block_editor_beui::beui::Key;
+use block_editor_beui::{EditorHost, OwnedEditor};
+use block_ui_test::BeuiTest;
+use uuid::Uuid;
+
+use crate::default_editors::DefaultEditorsApp;
 
 #[test]
 fn choosing_a_default_editor_stores_it() {

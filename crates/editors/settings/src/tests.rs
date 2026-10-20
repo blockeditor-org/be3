@@ -1,6 +1,4 @@
-use block_editor_beui::be_block::{
-    BlockContent, DisplaySettingsContent, InputSettingsContent, UiSettingsContent,
-};
+use block_editor_beui::be_block::{BlockContent, DisplaySettingsContent, InputSettingsContent};
 
 use block_editor_beui::be_block::SettingsContent;
 use block_editor_beui::{EditorHost, OwnedEditor};
@@ -12,7 +10,6 @@ use crate::app::SettingsApp;
 mod another_accounts_settings_are_shown_but_not_changed;
 mod opening_display_settings_creates_the_block_once;
 mod opening_input_settings_creates_the_block_once;
-mod opening_ui_settings_creates_the_block_once;
 mod this_device_can_pick_a_new_settings_profile;
 
 fn editor() -> BeuiTest<SettingsApp> {

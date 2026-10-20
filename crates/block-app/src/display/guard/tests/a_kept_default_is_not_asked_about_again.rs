@@ -6,7 +6,7 @@ fn a_kept_default_is_not_asked_about_again() {
     assert!(guard.asking());
     assert_eq!(
         guard.keep(),
-        vec![DisplaySettings::set_mode(MONITOR, Some(fast()))],
+        vec![DisplaySettings::default().set_mode(MONITOR, Some(fast()))],
         "keeping the default saves it as the monitor's mode"
     );
     assert!(!guard.asking());

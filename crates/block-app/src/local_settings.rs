@@ -105,6 +105,10 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         }
     }
 
+    pub(crate) fn applied(&self) -> Option<&R> {
+        self.applied.as_ref()
+    }
+
     pub(crate) fn set_layers(&mut self, layers: Vec<Uuid>) {
         if self.layers == layers {
             return;

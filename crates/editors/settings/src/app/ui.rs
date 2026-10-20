@@ -1,10 +1,10 @@
 use block_editor_beui::be_block::settings::{Settings, SettingsProfile};
 use block_editor_beui::be_block::{
     BlockContent, DisplaySettingsContent, EditorSettingsContent, InputSettingsContent, LiveEdit,
-    SettingsContent, SettingsProfileContent, UiSettingsContent,
+    SettingsContent, SettingsProfileContent,
 };
 use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_APPS, ICON_DEVICES, ICON_KEYBOARD, ICON_MONITOR, ICON_PALETTE,
+    ICON_ADD, ICON_APPS, ICON_DEVICES, ICON_KEYBOARD, ICON_MONITOR,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -295,7 +295,6 @@ fn Kinds<C: Layer>(
     blocked: Memo<bool>,
     shown: Memo<Option<Uuid>>,
 ) -> NodeId {
-    let (open_ui, ui) = opener::<C, UiSettingsContent>(editor, layer);
     let (open_input, input) = opener::<C, InputSettingsContent>(editor, layer);
     let (open_display, display) = opener::<C, DisplaySettingsContent>(editor, layer);
     let (open_editors, editors) = opener::<C, EditorSettingsContent>(editor, layer);
@@ -305,13 +304,13 @@ fn Kinds<C: Layer>(
     view! {
         <List spacing=ROW_SPACING>
             <SettingRow
-                label="Appearance"
-                detail="Theme and scale"
-                glyph={ICON_PALETTE.to_owned()}
-                selected={showing(ui)}
+                label="Display"
+                detail="Theme, scale, screens, sleep and lock"
+                glyph={ICON_MONITOR.to_owned()}
+                selected={showing(display)}
                 disabled={blocked}
-                @test_id={"settings.ui-settings"}
-                on_click={open_ui}
+                @test_id={"settings.display"}
+                on_click={open_display}
             />
             <SettingRow
                 label="Input"
@@ -321,15 +320,6 @@ fn Kinds<C: Layer>(
                 disabled={blocked}
                 @test_id={"settings.input-settings"}
                 on_click={open_input}
-            />
-            <SettingRow
-                label="Displays"
-                detail="Resolution, sleep and lock"
-                glyph={ICON_MONITOR.to_owned()}
-                selected={showing(display)}
-                disabled={blocked}
-                @test_id={"settings.display-settings"}
-                on_click={open_display}
             />
             <SettingRow
                 label="Default editors"

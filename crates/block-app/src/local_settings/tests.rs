@@ -62,6 +62,6 @@ fn connect_monitor() {
 
 fn showing(mode: DisplayMode) -> DisplaySettings {
     let mut document = Document::new(&DisplaySettings::default());
-    document.apply(&DisplaySettings::set_mode(MONITOR, Some(mode)));
+    document.apply(&DisplaySettings::default().set_mode(MONITOR, Some(mode)));
     document.root()
 }

@@ -110,7 +110,7 @@ impl Guard {
         self.asked = None;
         let edits: Vec<Edit> = self
             .untried()
-            .map(|screen| DisplaySettings::set_mode(&screen.id, Some(screen.default)))
+            .map(|screen| self.applied.set_mode(&screen.id, Some(screen.default)))
             .collect();
         self.edit(&edits);
         edits
@@ -124,15 +124,15 @@ impl Guard {
                 .screens
                 .iter()
                 .map(|screen| &screen.id)
-                .filter(|id| previous.monitor(id) != self.applied.monitor(id))
-                .map(|id| DisplaySettings::set_mode(id, previous.mode(id)))
+                .filter(|id| previous.mode(id) != self.applied.mode(id))
+                .map(|id| self.applied.set_mode(id, previous.mode(id)))
                 .collect();
             self.edit(&restored);
             edits.extend(restored);
         }
         let fallen_back: Vec<Edit> = self
             .untried()
-            .map(|screen| DisplaySettings::set_mode(&screen.id, Some(screen.preferred)))
+            .map(|screen| self.applied.set_mode(&screen.id, Some(screen.preferred)))
             .collect();
         self.edit(&fallen_back);
         edits.extend(fallen_back);

@@ -41,7 +41,6 @@ pub mod profile;
 pub mod settings;
 pub mod streamed;
 pub mod text;
-pub mod ui_settings;
 pub mod version_control;
 pub mod video;
 pub mod workspace;
@@ -59,7 +58,7 @@ pub use counter::{Counter, CounterContent};
 pub use database::{Database, DatabaseContent};
 pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
 pub use database_view::{DatabaseView, DatabaseViewContent};
-pub use display_settings::{DisplaySettings, DisplaySettingsContent};
+pub use display_settings::{DisplaySettings, DisplaySettingsContent, Theme};
 pub use editor_settings::{EditorSettings, EditorSettingsContent};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use folder::{Folder, FolderContent};
@@ -91,7 +90,6 @@ pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
 pub use text::{TextBlock, TextContent, TextIndentation, TextLanguage};
-pub use ui_settings::{Theme, UiSettings, UiSettingsContent};
 pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,
     RepositoryContent,

@@ -63,9 +63,9 @@ pub(crate) fn apply(settings: &DisplaySettings) {
 fn config(settings: &DisplaySettings) -> DisplayConfig {
     DisplayConfig {
         modes: settings
-            .monitors
+            .screens
             .iter()
-            .filter_map(|(id, monitor)| Some((id.clone(), seat_mode(monitor.mode?))))
+            .filter_map(|(id, screen)| Some((id.clone(), seat_mode(screen.mode?))))
             .collect(),
     }
 }

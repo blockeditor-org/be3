@@ -4,7 +4,10 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::beui::reactive::*;
 
+mod appearance;
 mod modes;
+mod power;
+mod screens;
 mod ui;
 
 use ui::DisplaySettingsView;

@@ -954,23 +954,27 @@ source's type, references and metadata (without its artifact source), and the
 worker copies what the source's session shows, or its head when it is not open,
 into the copy's id before anything opens the copy.
 
-The app can read a block itself, not only through an editor: the theme and the
-scale in `sync_ui_settings` come from the UI settings (the scale is beui's zoom
-factor, multiplied into the screen's own pixels per point), and
+The app can read a block itself, not only through an editor:
 `sync_local_settings` hands the input settings (keymap, key repeat, and
 pointer settings for every pointer with per-device overrides) to the `--session`
 seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
-keyboard, and the display settings (a mode per monitor, keyed by the
-monitor's EDID make, model and serial, or by its connector when it has no EDID)
+keyboard, and the display settings to the app and the seat. `DisplaySettings` is
+one block for everything about what the device shows: the theme and the scale,
+which `sync_ui_settings` takes from the display settings last applied (the scale
+is beui's zoom factor, multiplied into the screen's own pixels per point); a
+`ScreenSettings` per screen (a mode and a rotation, keyed by the monitor's EDID
+make, model and serial, or by its connector when it has no EDID), whose modes go
 to the seat's outputs through `beui_adapter_drm::DisplayControl`, which switches
-mode live. Every setting is an `Option`, and an unset one means the default:
+mode live (the rotation is stored but not applied yet); whether the bar shows a
+rotate button; and when the screens turn off and lock. Every setting is an `Option`, and an unset one means the default:
 libinput's own for a pointer setting, which the seat reports per device and an
 editor reads as the `InputDevices` host value, and for a monitor its preferred
 resolution at the fastest refresh rate it offers there, which the seat reports
 with the monitor's modes and an editor reads as the `Displays` host value
 (guides/adding_a_plugin_editor.md says how host values reach a plugin). Because the seat runs before anyone signs in, the app
 keeps a copy of the last settings of each kind it applied in `app_state` and
-applies that at startup; the block stays the source of truth. A kind of setting
+applies that at startup, the theme and scale with it, even before anyone signs
+in; the block stays the source of truth. A kind of setting
 the app applies itself implements `local_settings::LocalSettings` and is kept by
 a `SettingsSync`; its `apply` answers whether the settings may be saved now.
 Display settings may not until someone keeps them: a change that moves what a
@@ -1059,8 +1063,12 @@ in a tab): its label and description, a chevron where a control would be, and th
 hover a button has, inset and rounded so it stays inside the card. It takes `modified`
 and `on_reset` as a row does, and with `reset_confirm` its Reset asks in a dialog
 first, for a reset that deletes the block it opens.
+A page shows a section only where the host can back it: the settings plugin's
+Display page (`editors/settings`, `display`) always has Appearance, but a
+section per screen only once the host offers `Displays`, and Power and lock only
+once it offers `Power`, which only a `--session` publishes.
 
-Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
+Each kind of setting (`InputSettings`, `DisplaySettings`,
 `EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:
 
 - The `Settings` block's `kinds` map a kind's content type to the block that
@@ -1075,8 +1083,8 @@ Each kind of setting (`UiSettings`, `InputSettings`, `DisplaySettings`,
 the profile sets wins field by field, and what it leaves unset falls through to
 the settings for every device, then to the built-in default. Every field of a
 layered kind is an `Option` for this. `Editor::inherited_settings` gives a
-kind's editor what the layers below its block resolve to, which the UI, input
-and display settings editors show for what is unset, and
+kind's editor what the layers below its block resolve to, which the input and
+display settings editors show for what is unset, and
 `Editor::effective_settings` what every layer resolves to, which is how
 workspace-ui reads `EditorSettings`: the default editor of each block type, keyed
 by the editor ids the host's catalog lists (see guides/adding_a_plugin_editor.md).

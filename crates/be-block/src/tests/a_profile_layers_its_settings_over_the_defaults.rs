@@ -1,4 +1,5 @@
 use super::*;
+use crate::display_settings::{DisplayMode, Rotation};
 use crate::input_settings::{InputDevice, PointerSetting, PointerSpeed};
 use crate::settings::{
     Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
@@ -7,7 +8,7 @@ use crate::{ChildChange, Root, Theme};
 
 #[test]
 fn a_profile_layers_its_settings_over_the_defaults() {
-    let kind = UiSettingsContent::CONTENT_TYPE;
+    let kind = DisplaySettingsContent::CONTENT_TYPE;
     let (shared, own, copy) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
     let settings = edited(
         &SettingsContent::default(),
@@ -37,18 +38,40 @@ fn a_profile_layers_its_settings_over_the_defaults() {
     assert_eq!(deleted.root().layers(kind, Some(&profile.root())), [own]);
 
     let defaults = edited(
-        &UiSettingsContent::default(),
-        [UiSettings::set_theme(Some(Theme::Light))],
+        &DisplaySettingsContent::default(),
+        [DisplaySettings::set_theme(Some(Theme::Light))],
     );
     assert_eq!(
-        layered([defaults.root(), UiSettings::default()]).theme(),
+        layered([defaults.root(), DisplaySettings::default()]).theme(),
         Theme::Light
     );
-    let dark = edited(&defaults, [UiSettings::set_theme(Some(Theme::OledDark))]);
+    let dark = edited(
+        &defaults,
+        [DisplaySettings::set_theme(Some(Theme::OledDark))],
+    );
     assert_eq!(
         layered([defaults.root(), dark.root()]).theme(),
         Theme::OledDark
     );
+
+    let screen = "DPI-1";
+    let mode = DisplayMode {
+        width: 1872,
+        height: 1404,
+        refresh_millihertz: 85_000,
+    };
+    let moded = edited(&defaults, [defaults.root().set_mode(screen, Some(mode))]);
+    let rotated = edited(
+        &DisplaySettingsContent::default(),
+        [DisplaySettings::default().set_rotation(screen, Some(Rotation::Clockwise270))],
+    );
+    let merged = layered([moded.root(), rotated.root()]);
+    assert_eq!(
+        merged.mode(screen),
+        Some(mode),
+        "a screen is layered field by field"
+    );
+    assert_eq!(merged.rotation(screen), Rotation::Clockwise270);
 
     let mouse = InputDevice {
         name: "Mouse".to_owned(),

@@ -57,9 +57,7 @@ use std::{
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::{
-    BlockContent, DisplaySettings, InputSettings, Root, UiSettingsContent, WORKSPACE_EDITOR,
-};
+use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Organization, OrganizationInvitation, OrganizationRole};
 use beui::Document;
@@ -345,6 +343,7 @@ impl beui::App for Shell {
         }
         wayland::before(context, rect, &mut self.document);
         self.app.frame(context);
+        self.app.sync_ui_settings();
         if let Some(theme) = self.app.theme.take() {
             let theme = ui::styled_theme(theme);
             if self.document.theme() != theme {
@@ -476,7 +475,7 @@ struct BlockApp {
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
-    ui_settings: Option<Vec<(Uuid, u64)>>,
+    ui_settings: Option<(be_block::Theme, u32)>,
     theme: Option<be_block::Theme>,
     scale: Option<f32>,
     input: SettingsSync<InputSettings>,
@@ -1451,7 +1450,6 @@ impl BlockApp {
         self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_session = false;
         self.shell = None;
-        self.ui_settings = None;
         self.input.set_layers(Vec::new());
         self.display.set_layers(Vec::new());
         self.keys.cancel_pairing();
@@ -1544,7 +1542,6 @@ impl BlockApp {
         self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_session = false;
         self.shell = None;
-        self.ui_settings = None;
         self.input.set_layers(Vec::new());
         self.display.set_layers(Vec::new());
         self.keys = keys::KeyState::default();
@@ -2516,7 +2513,6 @@ impl BlockApp {
             performance::end_frame();
             return;
         }
-        self.sync_ui_settings();
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
@@ -2599,36 +2595,14 @@ impl BlockApp {
     }
 
     fn sync_ui_settings(&mut self) {
-        if !self.root_settings.loaded() {
-            return;
-        }
-        let layers = self
-            .root_settings
-            .layers(UiSettingsContent::CONTENT_TYPE, self.client_id);
-        let mut revisions = Vec::with_capacity(layers.len());
-        for block in &layers {
-            be::hold(*block, UiSettingsContent::CONTENT_TYPE);
-            let Some(revision) = be::content_revision(*block) else {
-                return;
-            };
-            revisions.push((*block, revision));
-        }
-        if self.ui_settings.as_ref() == Some(&revisions) {
-            return;
-        }
-        let Some(contents) = layers
-            .iter()
-            .map(|block| {
-                be::content(*block)
-                    .and_then(|content| UiSettingsContent::decode(&content.bytes).ok())
-                    .map(|content| content.root())
-            })
-            .collect::<Option<Vec<_>>>()
-        else {
+        let Some(settings) = self.display.applied() else {
             return;
         };
-        self.ui_settings = Some(revisions);
-        let settings = be_block::layered(contents);
+        let shown = (settings.theme(), settings.scale_percent());
+        if self.ui_settings == Some(shown) {
+            return;
+        }
+        self.ui_settings = Some(shown);
         self.theme = Some(settings.theme());
         self.scale = Some(settings.scale());
     }

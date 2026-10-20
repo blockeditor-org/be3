@@ -53,7 +53,7 @@ fn office_monitor() -> Screen {
 fn saved(mode: Option<DisplayMode>) -> DisplaySettings {
     edited(
         &DisplaySettings::default(),
-        &[DisplaySettings::set_mode(MONITOR, mode)],
+        &[DisplaySettings::default().set_mode(MONITOR, mode)],
     )
 }
 

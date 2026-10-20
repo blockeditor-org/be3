@@ -4,17 +4,17 @@ use super::*;
 
 #[test]
 fn the_lock_follows_the_screens_until_given_a_time_of_its_own() {
-    let mut editor = editor(vec![gaming_monitor()]);
-    let root = content(&editor).root();
+    let mut settings = Harness::in_a_session(vec![gaming_monitor()]);
+    let root = settings.content().root();
     assert_eq!(root.lock_after(), LockAfter::WithScreens);
     assert_eq!(root.lock_time(), ScreenOff::DEFAULT.after());
 
-    choose(&mut editor, LOCK_AFTER, 3);
-    editor.snapshot("the_lock_after_five_minutes");
-    let root = content(&editor).root();
+    settings.choose(LOCK_AFTER, 3);
+    settings.editor.snapshot("the_lock_after_five_minutes");
+    let root = settings.content().root();
     assert_eq!(root.lock_after(), LockAfter::After { minutes: 5 });
     assert_eq!(root.lock_time(), Some(std::time::Duration::from_secs(300)));
 
-    choose(&mut editor, LOCK_AFTER, 8);
-    assert_eq!(content(&editor).root().lock_time(), None, "never locks");
+    settings.choose(LOCK_AFTER, 8);
+    assert_eq!(settings.content().root().lock_time(), None, "never locks");
 }

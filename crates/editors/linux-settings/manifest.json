@@ -18,14 +18,6 @@
       "regions": [
         "Frame"
       ]
-    },
-    {
-      "block_type": "64697370-6c61-792d-7365-7474696e6773",
-      "display_name": "Displays",
-      "icon": "\ueb97",
-      "regions": [
-        "Frame"
-      ]
     }
   ],
   "entry_point": "linux_settings.wasm"

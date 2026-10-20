@@ -17,5 +17,8 @@ fn opening_input_settings_creates_the_block_once() {
         entries(&editor, InputSettingsContent::CONTENT_TYPE).len(),
         1
     );
-    assert_eq!(entries(&editor, UiSettingsContent::CONTENT_TYPE).len(), 0);
+    assert_eq!(
+        entries(&editor, DisplaySettingsContent::CONTENT_TYPE).len(),
+        0
+    );
 }
