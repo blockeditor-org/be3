@@ -89,38 +89,35 @@ compare against main with `--apk`.
 
 ## Local APK finalization
 
-Both APKs require Android 7 (API 24), matching the native toolchain, and
-use v2 and v3 signatures. `target_sdk` remains 35. Buck builds aligned,
+Both APKs require Android 7 (API 24), matching the native toolchain, and are
+signed with APK Signature Scheme v2 alone: v2 covers every version from API 24,
+and v3 only adds key rotation. `target_sdk` remains 35. Buck builds aligned,
 unsigned templates without build metadata for every Android variant. `buck run`
 adds `assets/build-info.json` and signs locally, writing
 `target/android/block-app.apk` or `target/android/be-launcher.apk`.
 `buck build --out` copies an unsigned template, not an installable APK.
 
-The finalizer is `local-tools apk-sign`, shared by local runs, `./scripts/ci
---android DIR` on the CI runner, and `./scripts/deploy` before hashing and
-uploading the release APK. It embeds Wasmtime and runs apksig-go v1.1.0's
-CLI compiled for WASI from hash-pinned source and dependencies with network
-dependency resolution disabled. The published upstream WASM bundle targets
-JavaScript and is not used. No local Go, Java, Node or Android SDK is needed
-to produce signed APKs. `--install` needs adb, found through `ADB`, the SDK
-environment variables, standard SDK locations, or PATH.
+The finalizer is `local-tools apk-sign` (`crates/local-tools/src/apk_sign.rs`),
+shared by local runs, `./scripts/ci --android DIR` on the CI runner, and
+`./scripts/deploy` before hashing and uploading the release APK. It writes the
+v2 signing block itself, with RSA keys read through `p12-keystore` and `jks`.
+No Java or Android SDK is needed to produce signed APKs. `--install` needs adb,
+found through `ADB`, the SDK environment variables, standard SDK locations, or
+PATH.
 
 The dev key is `target/android-debug.keystore`, generated on first use.
 `--keystore FILE` overrides it; `--password-file FILE` overrides password
-`android`. Keys can be binary JKS/PKCS12 or base64 of either. CI reads
+`android`. Keys are RSA, in binary JKS/PKCS12 or base64 of either. CI reads
 `BE3_ANDROID_CI_KEYSTORE` or `buck/android/ci-keystore.base64`. Release reads
 `BE3_ANDROID_RELEASE_KEYSTORE` or
 `~/.config/be3/android-release-keystore.base64` (under `XDG_CONFIG_HOME` when
-set), asking at a terminal to generate or import a key when missing. Key
-generation also runs locally in WASI, without keytool or OpenSSL. Existing
+set), asking at a terminal to generate or import a key when missing. Existing
 keys and certificates must be retained so installed apps accept updates.
 No key is a Buck attribute or action input.
 
-`./scripts/buck run //buck/android:sign-wasm -- --in INPUT.apk --out OUTPUT.apk --keystore KEYSTORE`
+`./scripts/buck run //crates/local-tools:bin -- apk-sign --in INPUT.apk --out OUTPUT.apk --keystore KEYSTORE`
 finalizes a template directly. `--build-info FILE` appends metadata before
 signing and requires an APK without `assets/build-info.json`. Appending
 preserves existing entries' offsets, including 16 KB native library
-alignment. V1 signing and the upstream four-byte realignment option are
-disabled. Tests cross-check signatures and certificate identity with Google's
-signer, check alignment with `zipalign -c -P 16 4`, and verify key generation
-and base64 imports.
+alignment. Tests sign with keytool's JKS and PKCS12 keystores and generated
+keys, and check the result with Google's apksigner and `zipalign -c -P 16 4`.

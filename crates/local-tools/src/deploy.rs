@@ -50,7 +50,6 @@ Environment:
   Web files are uploaded under data/BUILD/web/; /index.html selects the live build.";
 
 struct Options {
-    apk_signer: PathBuf,
     apk_metadata: PathBuf,
     repository: PathBuf,
     server: PathBuf,
@@ -77,7 +76,6 @@ pub fn main(arguments: Vec<String>) -> ExitCode {
 
 fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String> {
     let mut options = Options {
-        apk_signer: PathBuf::new(),
         apk_metadata: PathBuf::new(),
         repository: PathBuf::new(),
         server: PathBuf::new(),
@@ -98,7 +96,6 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
                 .ok_or_else(|| format!("{argument} needs a value"))
         };
         match argument.as_str() {
-            "--apk-signer" => options.apk_signer = value()?.into(),
             "--apk-metadata" => options.apk_metadata = value()?.into(),
             "--repository" => options.repository = PathBuf::from(value()?),
             "--server" => options.server = PathBuf::from(value()?),
@@ -270,17 +267,11 @@ fn run(options: &mut Options) -> Result<(), String> {
                 if read_build(&options.apk_metadata)? != build {
                     return Err("APK metadata and native bundles have different build ids".into());
                 }
-                let key = crate::apk_sign::release_key(&options.apk_signer)?;
+                let key = crate::apk_sign::release_key()?;
                 let output = options
                     .repository
                     .join("target/deploy/block-app-android.apk");
-                crate::apk_sign::finalize(
-                    &options.apk_signer,
-                    file,
-                    &output,
-                    &key,
-                    &options.apk_metadata,
-                )?;
+                crate::apk_sign::finalize(file, &output, &key, &options.apk_metadata)?;
                 *file = output;
             }
         }

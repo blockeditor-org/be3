@@ -86,7 +86,7 @@ def _deploy_impl(ctx: AnalysisContext) -> list[Provider]:
     if ctx.attrs.app_android:
         apk = ctx.attrs.app_android[DefaultInfo].default_outputs[0]
         command.add("--download", cmd_args("android=", apk, delimiter = ""))
-        command.add("--apk-signer", ctx.attrs._signer, "--apk-metadata", ctx.attrs.be_linux_x86_64[DefaultInfo].default_outputs[0].project("build-info.json"))
+        command.add("--apk-metadata", ctx.attrs.be_linux_x86_64[DefaultInfo].default_outputs[0].project("build-info.json"))
     return [DefaultInfo(), RunInfo(args = command)]
 
 _NATIVE = ["linux_x86_64", "linux_arm64", "macos_arm64", "macos_x86_64", "windows_x86_64", "windows_arm64"]
@@ -115,7 +115,6 @@ deploy = rule(
         # Whether the web bundle is zipped as a download too.
         "web_download": attrs.bool(default = True),
         "_archive": attrs.default_only(attrs.exec_dep(default = "root//crates/buck-tools:bin", providers = [RunInfo])),
-        "_signer": attrs.default_only(attrs.source(default = "root//buck/android:apksign-wasm")),
     },
     impl = _deploy_impl,
 )

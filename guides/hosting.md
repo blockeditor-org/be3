@@ -135,7 +135,7 @@ After the build, Rust loads the storage zone's password (`BUNNY_STORAGE_KEY`,
 `bunny-api-key`, required when publishing live pages), asking at a terminal
 for missing keys and saving them in `~/.config/be3`. The same local Rust step
 reads the release keystore (`android-release-keystore.base64`), asking at a
-terminal to generate one with WASI or import an existing key when missing.
+terminal to generate one or import an existing key when missing.
 `BE3_ANDROID_RELEASE_KEYSTORE` can select another local file. It adds build
 metadata and signs the unsigned APK template before hashing and uploading it;
 no signing key enters a remote build action. Bash handles only options that

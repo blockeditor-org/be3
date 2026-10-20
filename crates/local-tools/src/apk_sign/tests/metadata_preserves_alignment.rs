@@ -1,19 +1,10 @@
-use std::{
-    fs,
-    io::{Read, Write},
-};
+use std::io::{Cursor, Read, Write};
 
 use zip::{ZipArchive, ZipWriter, write::SimpleFileOptions};
 
 #[test]
 fn metadata_preserves_alignment() {
-    let directory = std::env::temp_dir().join(format!("apk-metadata-{}", std::process::id()));
-    fs::create_dir(&directory).unwrap();
-    let scratch = super::super::Scratch(directory);
-    let apk = scratch.0.join("template.apk");
-    let metadata = scratch.0.join("build-info.json");
-    fs::write(&metadata, b"{\"id\":\"example\"}").unwrap();
-    let mut writer = ZipWriter::new(fs::File::create(&apk).unwrap());
+    let mut writer = ZipWriter::new(Cursor::new(Vec::new()));
     writer
         .start_file(
             "lib/arm64-v8a/libexample.so",
@@ -23,22 +14,20 @@ fn metadata_preserves_alignment() {
         )
         .unwrap();
     writer.write_all(b"native library").unwrap();
-    writer.finish().unwrap();
-    let before = fs::read(&apk).unwrap();
-    let offset = ZipArchive::new(fs::File::open(&apk).unwrap())
+    let before = writer.finish().unwrap().into_inner();
+    let offset = ZipArchive::new(Cursor::new(&before))
         .unwrap()
         .by_index(0)
         .unwrap()
         .data_start()
         .unwrap();
     assert_eq!(offset % 16384, 0);
-    super::super::append_metadata(&apk, &metadata).unwrap();
-    let after = fs::read(&apk).unwrap();
+    let after = super::super::append_metadata(before.clone(), b"{\"id\":\"example\"}").unwrap();
     assert_eq!(
         &before[..offset as usize + 14],
         &after[..offset as usize + 14]
     );
-    let mut archive = ZipArchive::new(fs::File::open(&apk).unwrap()).unwrap();
+    let mut archive = ZipArchive::new(Cursor::new(&after)).unwrap();
     assert_eq!(archive.by_index(0).unwrap().data_start().unwrap(), offset);
     let mut contents = String::new();
     archive
@@ -47,5 +36,5 @@ fn metadata_preserves_alignment() {
         .read_to_string(&mut contents)
         .unwrap();
     assert_eq!(contents, "{\"id\":\"example\"}");
-    assert!(super::super::append_metadata(&apk, &metadata).is_err());
+    assert!(super::super::append_metadata(after, b"{}").is_err());
 }

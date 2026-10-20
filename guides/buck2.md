@@ -313,14 +313,13 @@ A native target depends on a wasm one through a transition in
   the app's own and beui's (`//crates/beui-adapter-android:android-java`), against the
   platform alone: the APK carries no libraries. Every Android target builds
   an aligned unsigned template without build metadata. `buck2 run` appends
-  metadata and signs on the requesting machine with local-tools' WASI
-  finalizer. `:android` uses `target/android-debug.keystore`, made on first use.
+  metadata and signs on the requesting machine with `local-tools apk-sign`. `:android` uses `target/android-debug.keystore`, made on first use.
   `:android-dist` has its own identity (`com.be3.block.ci`, `Block (CI)`), and
   `./scripts/ci --android DIR` finalizes both APKs on the CI runner with its
   existing key. Deploy finalizes `:android-release` locally before upload.
   Only signed, finalized APKs can be installed; `buck build --out` returns a
   template. The minimum Android API and native toolchain API are 24, and
-  signing uses v2 and v3. Keys never enter action inputs (guides/running/android.md).
+  signing uses v2 alone. Keys never enter action inputs (guides/running/android.md).
   The host's wasmtime has cranelift's arm64 backend for the arm64 precompiles
   (a fixup on `cranelift-codegen`).
 - `crates/be-launcher` is an APK too. It downloads and installs the APKs CI

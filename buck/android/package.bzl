@@ -3,7 +3,6 @@ def _android_apk_impl(ctx: AnalysisContext) -> list[Provider]:
     run = cmd_args(
         ctx.attrs._local[RunInfo],
         "apk-sign",
-        ctx.attrs._signer,
         "--in",
         out,
         "--out",
@@ -25,7 +24,6 @@ android_apk = rule(
         "template": attrs.dep(),
         "_local": attrs.default_only(attrs.dep(default = "root//crates/local-tools:bin", providers = [RunInfo])),
         "_metadata": attrs.default_only(attrs.source(default = "root//buck/app:build-info.json")),
-        "_signer": attrs.default_only(attrs.source(default = "root//buck/android:apksign-wasm")),
     },
     impl = _android_apk_impl,
 )

@@ -11244,11 +11244,13 @@ crates = {
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
+                        "//third-party/rust:jks-0.3.3",
                         "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:p12-keystore-0.4.1",
+                        "//third-party/rust:rsa-0.9.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
-                        "//third-party/rust:wasmtime-48.0.1",
-                        "//third-party/rust:wasmtime-wasi-48.0.1",
+                        "//third-party/rust:x509-cert-0.2.5",
                         "//third-party/rust:zip-8.6.0",
                     ],
                 },
@@ -11258,11 +11260,13 @@ crates = {
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:jks-0.3.3",
                     "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:p12-keystore-0.4.1",
+                    "//third-party/rust:rsa-0.9.10",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:ureq-2.12.1",
-                    "//third-party/rust:wasmtime-48.0.1",
-                    "//third-party/rust:wasmtime-wasi-48.0.1",
+                    "//third-party/rust:x509-cert-0.2.5",
                     "//third-party/rust:zip-8.6.0",
                 ],
                 "examples": {},
@@ -11278,11 +11282,13 @@ crates = {
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
+                        "//third-party/rust:jks-0.3.3",
                         "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:p12-keystore-0.4.1",
+                        "//third-party/rust:rsa-0.9.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
-                        "//third-party/rust:wasmtime-48.0.1",
-                        "//third-party/rust:wasmtime-wasi-48.0.1",
+                        "//third-party/rust:x509-cert-0.2.5",
                         "//third-party/rust:zip-8.6.0",
                     ],
                 },
@@ -11292,11 +11298,13 @@ crates = {
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:jks-0.3.3",
                     "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:p12-keystore-0.4.1",
+                    "//third-party/rust:rsa-0.9.10",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:ureq-2.12.1",
-                    "//third-party/rust:wasmtime-48.0.1",
-                    "//third-party/rust:wasmtime-wasi-48.0.1",
+                    "//third-party/rust:x509-cert-0.2.5",
                     "//third-party/rust:zip-8.6.0",
                 ],
                 "examples": {},
@@ -11312,11 +11320,13 @@ crates = {
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
+                        "//third-party/rust:jks-0.3.3",
                         "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:p12-keystore-0.4.1",
+                        "//third-party/rust:rsa-0.9.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
-                        "//third-party/rust:wasmtime-48.0.1",
-                        "//third-party/rust:wasmtime-wasi-48.0.1",
+                        "//third-party/rust:x509-cert-0.2.5",
                         "//third-party/rust:zip-8.6.0",
                     ],
                 },
@@ -11326,11 +11336,13 @@ crates = {
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:jks-0.3.3",
                     "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:p12-keystore-0.4.1",
+                    "//third-party/rust:rsa-0.9.10",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:ureq-2.12.1",
-                    "//third-party/rust:wasmtime-48.0.1",
-                    "//third-party/rust:wasmtime-wasi-48.0.1",
+                    "//third-party/rust:x509-cert-0.2.5",
                     "//third-party/rust:zip-8.6.0",
                 ],
                 "examples": {},
@@ -11346,11 +11358,13 @@ crates = {
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
+                        "//third-party/rust:jks-0.3.3",
                         "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:p12-keystore-0.4.1",
+                        "//third-party/rust:rsa-0.9.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
-                        "//third-party/rust:wasmtime-48.0.1",
-                        "//third-party/rust:wasmtime-wasi-48.0.1",
+                        "//third-party/rust:x509-cert-0.2.5",
                         "//third-party/rust:zip-8.6.0",
                     ],
                 },
@@ -11360,11 +11374,13 @@ crates = {
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:jks-0.3.3",
                     "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:p12-keystore-0.4.1",
+                    "//third-party/rust:rsa-0.9.10",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:ureq-2.12.1",
-                    "//third-party/rust:wasmtime-48.0.1",
-                    "//third-party/rust:wasmtime-wasi-48.0.1",
+                    "//third-party/rust:x509-cert-0.2.5",
                     "//third-party/rust:zip-8.6.0",
                 ],
                 "examples": {},
@@ -11380,11 +11396,13 @@ crates = {
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
+                        "//third-party/rust:jks-0.3.3",
                         "//third-party/rust:libc-0.2.186",
+                        "//third-party/rust:p12-keystore-0.4.1",
+                        "//third-party/rust:rsa-0.9.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
-                        "//third-party/rust:wasmtime-48.0.1",
-                        "//third-party/rust:wasmtime-wasi-48.0.1",
+                        "//third-party/rust:x509-cert-0.2.5",
                         "//third-party/rust:zip-8.6.0",
                     ],
                 },
@@ -11394,11 +11412,13 @@ crates = {
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:jks-0.3.3",
                     "//third-party/rust:libc-0.2.186",
+                    "//third-party/rust:p12-keystore-0.4.1",
+                    "//third-party/rust:rsa-0.9.10",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:ureq-2.12.1",
-                    "//third-party/rust:wasmtime-48.0.1",
-                    "//third-party/rust:wasmtime-wasi-48.0.1",
+                    "//third-party/rust:x509-cert-0.2.5",
                     "//third-party/rust:zip-8.6.0",
                 ],
                 "examples": {},
@@ -11414,10 +11434,12 @@ crates = {
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
+                        "//third-party/rust:jks-0.3.3",
+                        "//third-party/rust:p12-keystore-0.4.1",
+                        "//third-party/rust:rsa-0.9.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
-                        "//third-party/rust:wasmtime-48.0.1",
-                        "//third-party/rust:wasmtime-wasi-48.0.1",
+                        "//third-party/rust:x509-cert-0.2.5",
                         "//third-party/rust:zip-8.6.0",
                     ],
                 },
@@ -11427,10 +11449,12 @@ crates = {
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:jks-0.3.3",
+                    "//third-party/rust:p12-keystore-0.4.1",
+                    "//third-party/rust:rsa-0.9.10",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:ureq-2.12.1",
-                    "//third-party/rust:wasmtime-48.0.1",
-                    "//third-party/rust:wasmtime-wasi-48.0.1",
+                    "//third-party/rust:x509-cert-0.2.5",
                     "//third-party/rust:zip-8.6.0",
                 ],
                 "examples": {},
@@ -11446,10 +11470,12 @@ crates = {
                         "//crates/paint-snapshot:paint-snapshot",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
+                        "//third-party/rust:jks-0.3.3",
+                        "//third-party/rust:p12-keystore-0.4.1",
+                        "//third-party/rust:rsa-0.9.10",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:ureq-2.12.1",
-                        "//third-party/rust:wasmtime-48.0.1",
-                        "//third-party/rust:wasmtime-wasi-48.0.1",
+                        "//third-party/rust:x509-cert-0.2.5",
                         "//third-party/rust:zip-8.6.0",
                     ],
                 },
@@ -11459,10 +11485,12 @@ crates = {
                     "//crates/paint-snapshot:paint-snapshot",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:jks-0.3.3",
+                    "//third-party/rust:p12-keystore-0.4.1",
+                    "//third-party/rust:rsa-0.9.10",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:ureq-2.12.1",
-                    "//third-party/rust:wasmtime-48.0.1",
-                    "//third-party/rust:wasmtime-wasi-48.0.1",
+                    "//third-party/rust:x509-cert-0.2.5",
                     "//third-party/rust:zip-8.6.0",
                 ],
                 "examples": {},
@@ -15475,6 +15503,283 @@ third_party = {
         "size_bytes": 15509,
         "version": "0.5.2",
     },
+    "aead-0.6.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Traits for Authenticated Encryption with Associated Data (AEAD) algorithms,\nsuch as AES-GCM as ChaCha20Poly1305, which provide a high-level API\n",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "aead",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "aead",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":inout-0.2.5",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":inout-0.2.5",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":inout-0.2.5",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":inout-0.2.5",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":inout-0.2.5",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":inout-0.2.5",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":inout-0.2.5",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
+        ],
+        "sha256": "1973cfbc1a2daf9cf550e74e1f088c28e7f7d8c1e1418fb6c9dc5184b7e84c99",
+        "size_bytes": 18672,
+        "version": "0.6.1",
+    },
+    "aes-0.9.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the Advanced Encryption Standard (a.k.a. Rijndael)",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/block-ciphers",
+            "CARGO_PKG_RUST_VERSION": "1.89",
+        },
+        "library": {
+            "crate": "aes",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "aes",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "35f0f96ce78e38c3dc6d8948aa8163d06385be74000f3c7a95bf1eef35d3ea32",
+        "size_bytes": 112408,
+        "version": "0.9.3",
+    },
+    "aes-gcm-0.11.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the AES-GCM (Galois/Counter Mode)\nAuthenticated Encryption with Associated Data (AEAD) Cipher\nwith optional architecture-specific hardware acceleration\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/AEADs",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "aes_gcm",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "aes-gcm",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":aead-0.6.1",
+                    ":aes-0.9.3",
+                    ":cipher-0.5.2",
+                    ":ctr-0.10.1",
+                    ":ctutils-0.4.3",
+                    ":ghash-0.6.0",
+                ],
+                "features": [
+                    "aes",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":aead-0.6.1",
+                    ":aes-0.9.3",
+                    ":cipher-0.5.2",
+                    ":ctr-0.10.1",
+                    ":ctutils-0.4.3",
+                    ":ghash-0.6.0",
+                ],
+                "features": [
+                    "aes",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":aead-0.6.1",
+                    ":aes-0.9.3",
+                    ":cipher-0.5.2",
+                    ":ctr-0.10.1",
+                    ":ctutils-0.4.3",
+                    ":ghash-0.6.0",
+                ],
+                "features": [
+                    "aes",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":aead-0.6.1",
+                    ":aes-0.9.3",
+                    ":cipher-0.5.2",
+                    ":ctr-0.10.1",
+                    ":ctutils-0.4.3",
+                    ":ghash-0.6.0",
+                ],
+                "features": [
+                    "aes",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":aead-0.6.1",
+                    ":aes-0.9.3",
+                    ":cipher-0.5.2",
+                    ":ctr-0.10.1",
+                    ":ctutils-0.4.3",
+                    ":ghash-0.6.0",
+                ],
+                "features": [
+                    "aes",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":aead-0.6.1",
+                    ":aes-0.9.3",
+                    ":cipher-0.5.2",
+                    ":ctr-0.10.1",
+                    ":ctutils-0.4.3",
+                    ":ghash-0.6.0",
+                ],
+                "features": [
+                    "aes",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":aead-0.6.1",
+                    ":aes-0.9.3",
+                    ":cipher-0.5.2",
+                    ":ctr-0.10.1",
+                    ":ctutils-0.4.3",
+                    ":ghash-0.6.0",
+                ],
+                "features": [
+                    "aes",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "7f2b8006a0c83f52b62ba44a97b58bf76fe2f70a329e588f67f89691d93d498f",
+        "size_bytes": 155976,
+        "version": "0.11.1",
+    },
     "ahash-0.8.12": {
         "build_script": {
             "crate_root": "build.rs",
@@ -16641,6 +16946,421 @@ third_party = {
         "sha256": "d2f3f79755c74fd155000314eb349864caa787c6592eace6c6882dad873d9c39",
         "size_bytes": 116015,
         "version": "0.11.1",
+    },
+    "asn1-rs-0.5.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Pierre Chifflier <chifflier@wzdftpd.net>",
+            "CARGO_PKG_DESCRIPTION": "Parser/encoder for ASN.1 BER/DER data",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rusticata/asn1-rs",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rusticata/asn1-rs.git",
+            "CARGO_PKG_RUST_VERSION": "1.53",
+        },
+        "library": {
+            "crate": "asn1_rs",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "asn1-rs",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":asn1-rs-derive-0.4.0",
+                    ":asn1-rs-impl-0.1.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-1.0.69",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":asn1-rs-derive-0.4.0",
+                    ":asn1-rs-impl-0.1.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-1.0.69",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-derive-0.4.0",
+                    ":asn1-rs-impl-0.1.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-1.0.69",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":asn1-rs-derive-0.4.0",
+                    ":asn1-rs-impl-0.1.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-1.0.69",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":asn1-rs-derive-0.4.0",
+                    ":asn1-rs-impl-0.1.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-1.0.69",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":asn1-rs-derive-0.4.0",
+                    ":asn1-rs-impl-0.1.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-1.0.69",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":asn1-rs-derive-0.4.0",
+                    ":asn1-rs-impl-0.1.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-1.0.69",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "7f6fd5ddaf0351dff5b8da21b2fb4ff8e08ddd02857f0bf69c47639106c0fff0",
+        "size_bytes": 82934,
+        "version": "0.5.2",
+    },
+    "asn1-rs-0.7.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Pierre Chifflier <chifflier@wzdftpd.net>",
+            "CARGO_PKG_DESCRIPTION": "Parser/encoder for ASN.1 BER/DER data",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rusticata/asn1-rs",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rusticata/asn1-rs.git",
+            "CARGO_PKG_RUST_VERSION": "1.68",
+        },
+        "library": {
+            "crate": "asn1_rs",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "asn1-rs",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":asn1-rs-derive-0.6.0",
+                    ":asn1-rs-impl-0.2.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "datetime",
+                    "default",
+                    "std",
+                    "time",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":asn1-rs-derive-0.6.0",
+                    ":asn1-rs-impl-0.2.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "datetime",
+                    "default",
+                    "std",
+                    "time",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-derive-0.6.0",
+                    ":asn1-rs-impl-0.2.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "datetime",
+                    "default",
+                    "std",
+                    "time",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":asn1-rs-derive-0.6.0",
+                    ":asn1-rs-impl-0.2.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "datetime",
+                    "default",
+                    "std",
+                    "time",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":asn1-rs-derive-0.6.0",
+                    ":asn1-rs-impl-0.2.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "datetime",
+                    "default",
+                    "std",
+                    "time",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":asn1-rs-derive-0.6.0",
+                    ":asn1-rs-impl-0.2.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "datetime",
+                    "default",
+                    "std",
+                    "time",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":asn1-rs-derive-0.6.0",
+                    ":asn1-rs-impl-0.2.0",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "datetime",
+                    "default",
+                    "std",
+                    "time",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "b7f43a50ac4fdca5df8e885c21b835997f0a1cdee65494a6847694a98652d9d8",
+        "size_bytes": 93179,
+        "version": "0.7.2",
+    },
+    "asn1-rs-derive-0.4.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Pierre Chifflier <chifflier@wzdftpd.net>",
+            "CARGO_PKG_DESCRIPTION": "Derive macros for the `asn1-rs` crate",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rusticata/asn1-rs",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rusticata/asn1-rs.git",
+        },
+        "library": {
+            "crate": "asn1_rs_derive",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": True,
+        },
+        "name": "asn1-rs-derive",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-1.0.109",
+                    ":synstructure-0.12.6",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "726535892e8eae7e70657b4c8ea93d26b8553afb1ce617caee529ef96d7dee6c",
+        "size_bytes": 5220,
+        "version": "0.4.0",
+    },
+    "asn1-rs-derive-0.6.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Pierre Chifflier <chifflier@wzdftpd.net>",
+            "CARGO_PKG_DESCRIPTION": "Derive macros for the `asn1-rs` crate",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rusticata/asn1-rs",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rusticata/asn1-rs.git",
+        },
+        "library": {
+            "crate": "asn1_rs_derive",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": True,
+        },
+        "name": "asn1-rs-derive",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                    ":synstructure-0.13.2",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "3109e49b1e4909e9db6515a30c633684d68cdeaa252f215214cb4fa1a5bfee2c",
+        "size_bytes": 11337,
+        "version": "0.6.0",
+    },
+    "asn1-rs-impl-0.1.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Pierre Chifflier <chifflier@wzdftpd.net>",
+            "CARGO_PKG_DESCRIPTION": "Implementation details for the `asn1-rs` crate",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rusticata/asn1-rs",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rusticata/asn1-rs.git",
+        },
+        "library": {
+            "crate": "asn1_rs_impl",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": True,
+        },
+        "name": "asn1-rs-impl",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-1.0.109",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "2777730b2039ac0f95f093556e61b6d26cebed5393ca6f152717777cec3a42ed",
+        "size_bytes": 2256,
+        "version": "0.1.0",
+    },
+    "asn1-rs-impl-0.2.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Pierre Chifflier <chifflier@wzdftpd.net>",
+            "CARGO_PKG_DESCRIPTION": "Implementation details for the `asn1-rs` crate",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rusticata/asn1-rs",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rusticata/asn1-rs.git",
+        },
+        "library": {
+            "crate": "asn1_rs_impl",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": True,
+        },
+        "name": "asn1-rs-impl",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "7b18050c2cd6fe86c3a76584ef5e0baf286d038cda203eb6223df2cc413565f7",
+        "size_bytes": 2261,
+        "version": "0.2.0",
     },
     "async-broadcast-0.7.2": {
         "build_script": None,
@@ -18376,6 +19096,131 @@ third_party = {
         "size_bytes": 10538,
         "version": "0.10.4",
     },
+    "block-buffer-0.12.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Buffer types for block processing of data",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/utils",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "block_buffer",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "block-buffer",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
+        ],
+        "sha256": "d2f6c7dbe95a6ed67ad9f18e57daf93a2f034c524b99fd2b76d18fdfeb6660aa",
+        "size_bytes": 15902,
+        "version": "0.12.1",
+    },
+    "block-padding-0.4.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Padding and unpadding of messages divided into blocks.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/utils",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "block_padding",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "block-padding",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "710f1dd022ef4e93f8a438b4ba958de7f64308434fa6a87104481645cc30068b",
+        "size_bytes": 9764,
+        "version": "0.4.2",
+    },
     "block2-0.6.2": {
         "build_script": None,
         "env": {
@@ -19584,6 +20429,102 @@ third_party = {
         "size_bytes": 29309,
         "version": "0.2.2",
     },
+    "cbc-0.2.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Cipher Block Chaining (CBC) block cipher mode of operation",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/block-modes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "cbc",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "cbc",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+                "features": [
+                    "alloc",
+                    "block-padding",
+                    "default",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+                "features": [
+                    "alloc",
+                    "block-padding",
+                    "default",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+                "features": [
+                    "alloc",
+                    "block-padding",
+                    "default",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+                "features": [
+                    "alloc",
+                    "block-padding",
+                    "default",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+                "features": [
+                    "alloc",
+                    "block-padding",
+                    "default",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+                "features": [
+                    "alloc",
+                    "block-padding",
+                    "default",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+                "features": [
+                    "alloc",
+                    "block-padding",
+                    "default",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "ce2dc9ee5f88d11e0beb842c88b33c8a5cf0d1329c4b19494af42b07dbfe8896",
+        "size_bytes": 25642,
+        "version": "0.2.1",
+    },
     "cc-1.2.63": {
         "build_script": None,
         "env": {
@@ -20654,6 +21595,140 @@ third_party = {
         "size_bytes": 19073,
         "version": "0.4.4",
     },
+    "cipher-0.5.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Traits for describing block ciphers and stream ciphers",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "cipher",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "cipher",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "block-padding",
+                    "stream-wrapper",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "block-padding",
+                    "stream-wrapper",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "block-padding",
+                    "stream-wrapper",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "block-padding",
+                    "stream-wrapper",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "block-padding",
+                    "stream-wrapper",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "block-padding",
+                    "stream-wrapper",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":inout-0.2.5",
+                ],
+                "features": [
+                    "alloc",
+                    "block-buffer",
+                    "block-padding",
+                    "stream-wrapper",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
+        ],
+        "sha256": "e8cf2a2c93cd704877c0858356ed03480ff301ee950b43f1cbe4573b088bfa6c",
+        "size_bytes": 28177,
+        "version": "0.5.2",
+    },
     "clang-sys-1.9.1": {
         "build_script": {
             "crate_root": "build.rs",
@@ -20783,6 +21858,122 @@ third_party = {
         "sha256": "bde03770d3df201d4fb868f2c9c59e66a3e4e2bd06692a0fe701e7103c7e84d4",
         "size_bytes": 20994,
         "version": "5.4.1",
+    },
+    "cmov-0.5.4": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Conditional move CPU intrinsics which are guaranteed on major platforms (ARM32/ARM64, x86/x86_64,\nRISC-V) to execute in constant-time and not be rewritten as branches by the compiler. Provides\nwrappers for the CMOV family of instructions on x86/x86_64 and CSEL on AArch64, along with a\nportable \"best-effort\" pure Rust fallback implementation.\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/utils",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "cmov",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "cmov",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "0c9ea0ac24bc397ab3c98583a3c9ba74fa56b09a4449bbe172b9b1ddb016027a",
+        "size_bytes": 27367,
+        "version": "0.5.4",
+    },
+    "cms-0.3.0-pre.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the Cryptographic Message Syntax (CMS) as described in RFC 5652 and RFC 3274.\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/cms",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "cms",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "cms",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "758d5272932ff167e96ec9641a04d96ab1901cccc5ea9f47c15b4cbaa6f9ea53",
+        "size_bytes": 213869,
+        "version": "0.3.0-pre.1",
     },
     "cobs-0.3.0": {
         "build_script": None,
@@ -21169,6 +22360,136 @@ third_party = {
         "sha256": "4ca0197aee26d1ae37445ee532fefce43251d24cc7c166799f4d46817f1d3973",
         "size_bytes": 22654,
         "version": "2.5.0",
+    },
+    "const-oid-0.10.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Const-friendly implementation of the ISO/IEC Object Identifier (OID) standard\nas defined in ITU X.660, with support for BER/DER encoding/decoding as well as\nheapless no_std (i.e. embedded) support\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/const-oid",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "const_oid",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "const-oid",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "db",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "db",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "db",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "db",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "db",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "db",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "db",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "a6ef517f0926dd24a1582492c791b6a4818a4d94e789a334894aa15b0d12f55c",
+        "size_bytes": 61449,
+        "version": "0.10.2",
+    },
+    "const-oid-0.9.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Const-friendly implementation of the ISO/IEC Object Identifier (OID) standard\nas defined in ITU X.660, with support for BER/DER encoding/decoding as well as\nheapless no_std (i.e. embedded) support\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/const-oid",
+            "CARGO_PKG_RUST_VERSION": "1.57",
+        },
+        "library": {
+            "crate": "const_oid",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "const-oid",
+        "platforms": {
+            "android-arm64": {
+                "features": [
+                    "db",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "db",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "db",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "db",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "db",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "db",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "db",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "c2459377285ad874054d797f3ccebf984978aa39129f6eafde5cdc8315b612f8",
+        "size_bytes": 45382,
+        "version": "0.9.6",
     },
     "cookie-0.18.1": {
         "build_script": {
@@ -21756,6 +23077,39 @@ third_party = {
         "size_bytes": 83067,
         "version": "0.5.1",
     },
+    "cpubits-0.1.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Compile-time detection heuristics for the optimal word size to use for the\ntarget CPU, which in some cases may differ from its address size a.k.a.\n`target_pointer_width`. Implemented as `macro_rules!`\n",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/utils",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "cpubits",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "cpubits",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "15b85f9c39137c3a891689859392b1bd49812121d0d61c9caf00d46ed5ce06ae",
+        "size_bytes": 10261,
+        "version": "0.1.1",
+    },
     "cpufeatures-0.2.17": {
         "build_script": None,
         "env": {
@@ -21818,8 +23172,24 @@ third_party = {
         },
         "name": "cpufeatures",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+            },
             "linux-x86_64": {},
+            "macos-arm64": {
+                "deps": [
+                    ":libc-0.2.186",
+                ],
+            },
             "macos-x86_64": {},
+            "windows-arm64": {},
             "windows-x86_64": {},
         },
         "profile_flags": [
@@ -23590,6 +24960,190 @@ third_party = {
         "size_bytes": 9619,
         "version": "0.1.7",
     },
+    "crypto-common-0.2.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Common traits used by cryptographic algorithms",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "crypto_common",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "crypto-common",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":hybrid-array-0.4.15",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "ce6e4c961d6cd6c9a86db418387425e8bdeaf05b3c8bc1411e6dca4c252f1453",
+        "size_bytes": 15449,
+        "version": "0.2.2",
+    },
+    "ctr-0.10.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "CTR block modes of operation",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/block-modes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "ctr",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "ctr",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "baaca1c4b237092596f64d571e9db6ce4109c4ef9742e27590f1709594461f21",
+        "size_bytes": 20379,
+        "version": "0.10.1",
+    },
+    "ctutils-0.4.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Constant-time utility library with selection and equality testing support targeting cryptographic\napplications. Supports `const fn` where appropriate. Built on the `cmov` crate which provides\narchitecture-specific predication intrinsics. Heavily inspired by the `subtle` crate.\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/utils/tree/master/ctutils",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/utils",
+            "CARGO_PKG_RUST_VERSION": "1.87",
+        },
+        "library": {
+            "crate": "ctutils",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "ctutils",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cmov-0.5.4",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cmov-0.5.4",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cmov-0.5.4",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cmov-0.5.4",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cmov-0.5.4",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cmov-0.5.4",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cmov-0.5.4",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "03bb0e1cc970d482d121d9a1744999169b69a07470b3d644a7894e53fcaf4574",
+        "size_bytes": 30825,
+        "version": "0.4.3",
+    },
     "cursor-icon-1.2.0": {
         "build_script": None,
         "env": {
@@ -24082,6 +25636,524 @@ third_party = {
         "size_bytes": 23862,
         "version": "0.3.2",
     },
+    "der-0.7.10": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust embedded-friendly implementation of the Distinguished Encoding Rules\n(DER) for Abstract Syntax Notation One (ASN.1) as described in ITU X.690 with\nfull support for heapless no_std targets\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/der",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "der",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "der",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der_derive-0.7.3",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-0.7.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der_derive-0.7.3",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-0.7.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der_derive-0.7.3",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-0.7.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der_derive-0.7.3",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-0.7.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der_derive-0.7.3",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-0.7.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der_derive-0.7.3",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-0.7.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der_derive-0.7.3",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-0.7.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "e7c1832837b905bbfb5101e07cc24c8deddf52f93225eee6ead5f4d63d53ddcb",
+        "size_bytes": 90111,
+        "version": "0.7.10",
+    },
+    "der-0.8.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust embedded-friendly implementation of the Distinguished Encoding Rules\n(DER) for Abstract Syntax Notation One (ASN.1) as described in ITU X.690 with\nfull support for heapless `no_std`/`no_alloc` targets\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/der",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "der",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "der",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der_derive-0.8.0",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-1.0.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ber",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der_derive-0.8.0",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-1.0.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ber",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der_derive-0.8.0",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-1.0.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ber",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der_derive-0.8.0",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-1.0.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ber",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der_derive-0.8.0",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-1.0.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ber",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der_derive-0.8.0",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-1.0.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ber",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der_derive-0.8.0",
+                    ":flagset-0.4.7",
+                    ":pem-rfc7468-1.0.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "alloc",
+                    "ber",
+                    "derive",
+                    "flagset",
+                    "oid",
+                    "pem",
+                    "std",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "a878c850e9e421b20262e9b41f9c860e4785fa07541c266b62ff9d1ef998a80a",
+        "size_bytes": 120967,
+        "version": "0.8.2",
+    },
+    "der-parser-10.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Pierre Chifflier <chifflier@wzdftpd.net>",
+            "CARGO_PKG_DESCRIPTION": "Parser/encoder for ASN.1 BER/DER data",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rusticata/der-parser",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rusticata/der-parser.git",
+            "CARGO_PKG_RUST_VERSION": "1.63",
+        },
+        "library": {
+            "crate": "der_parser",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "der-parser",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-bigint-0.4.8",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                ],
+                "features": [
+                    "bigint",
+                    "default",
+                    "num-bigint",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-bigint-0.4.8",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                ],
+                "features": [
+                    "bigint",
+                    "default",
+                    "num-bigint",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-bigint-0.4.8",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                ],
+                "features": [
+                    "bigint",
+                    "default",
+                    "num-bigint",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-bigint-0.4.8",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                ],
+                "features": [
+                    "bigint",
+                    "default",
+                    "num-bigint",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-bigint-0.4.8",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                ],
+                "features": [
+                    "bigint",
+                    "default",
+                    "num-bigint",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-bigint-0.4.8",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                ],
+                "features": [
+                    "bigint",
+                    "default",
+                    "num-bigint",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":displaydoc-0.2.6",
+                    ":nom-7.1.3",
+                    ":num-bigint-0.4.8",
+                    ":num-traits-0.2.19",
+                    ":rusticata-macros-4.1.0",
+                ],
+                "features": [
+                    "bigint",
+                    "default",
+                    "num-bigint",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "07da5016415d5a3c4dd39b11ed26f915f52fc4e0dc197d87908bc916e51bc1a6",
+        "size_bytes": 66186,
+        "version": "10.0.0",
+    },
+    "der_derive-0.7.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Custom derive support for the `der` crate's `Choice` and `Sequence` traits",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/der/derive",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "der_derive",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": True,
+        },
+        "name": "der_derive",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "8034092389675178f570469e6c3b0465d3d30b4505c294a6550db47f3c17ad18",
+        "size_bytes": 24657,
+        "version": "0.7.3",
+    },
+    "der_derive-0.8.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Custom derive support for the `der` crate's `Choice` and `Sequence` traits",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/der_derive",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "der_derive",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": True,
+        },
+        "name": "der_derive",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-2.0.117",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "59600e2c2d636fde9b65e99cc6445ac770c63d3628195ff39932b8d6d7409903",
+        "size_bytes": 29600,
+        "version": "0.8.0",
+    },
     "deranged-0.5.8": {
         "build_script": None,
         "env": {
@@ -24100,6 +26172,11 @@ third_party = {
         },
         "name": "deranged",
         "platforms": {
+            "android-arm64": {
+                "features": [
+                    "default",
+                ],
+            },
             "linux-arm64": {
                 "features": [
                     "default",
@@ -24138,6 +26215,67 @@ third_party = {
         "size_bytes": 26885,
         "version": "0.5.8",
     },
+    "des-0.9.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "DES and Triple DES (3DES, TDES) block ciphers implementation",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/block-ciphers",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "des",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "des",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "916a94e407b54f9034d71dd748234cd1e516ced6284009906ae246f177eafe5a",
+        "size_bytes": 40194,
+        "version": "0.9.0",
+    },
     "digest-0.10.7": {
         "build_script": None,
         "env": {
@@ -24158,15 +26296,18 @@ third_party = {
             "android-arm64": {
                 "deps": [
                     ":block-buffer-0.10.4",
+                    ":const-oid-0.9.6",
                     ":crypto-common-0.1.7",
                     ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
+                    "const-oid",
                     "core-api",
                     "default",
                     "mac",
+                    "oid",
                     "std",
                     "subtle",
                 ],
@@ -24174,15 +26315,18 @@ third_party = {
             "linux-arm64": {
                 "deps": [
                     ":block-buffer-0.10.4",
+                    ":const-oid-0.9.6",
                     ":crypto-common-0.1.7",
                     ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
+                    "const-oid",
                     "core-api",
                     "default",
                     "mac",
+                    "oid",
                     "std",
                     "subtle",
                 ],
@@ -24190,15 +26334,18 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":block-buffer-0.10.4",
+                    ":const-oid-0.9.6",
                     ":crypto-common-0.1.7",
                     ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
+                    "const-oid",
                     "core-api",
                     "default",
                     "mac",
+                    "oid",
                     "std",
                     "subtle",
                 ],
@@ -24206,15 +26353,18 @@ third_party = {
             "macos-arm64": {
                 "deps": [
                     ":block-buffer-0.10.4",
+                    ":const-oid-0.9.6",
                     ":crypto-common-0.1.7",
                     ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
+                    "const-oid",
                     "core-api",
                     "default",
                     "mac",
+                    "oid",
                     "std",
                     "subtle",
                 ],
@@ -24222,15 +26372,18 @@ third_party = {
             "macos-x86_64": {
                 "deps": [
                     ":block-buffer-0.10.4",
+                    ":const-oid-0.9.6",
                     ":crypto-common-0.1.7",
                     ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
+                    "const-oid",
                     "core-api",
                     "default",
                     "mac",
+                    "oid",
                     "std",
                     "subtle",
                 ],
@@ -24280,15 +26433,18 @@ third_party = {
             "windows-arm64": {
                 "deps": [
                     ":block-buffer-0.10.4",
+                    ":const-oid-0.9.6",
                     ":crypto-common-0.1.7",
                     ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
+                    "const-oid",
                     "core-api",
                     "default",
                     "mac",
+                    "oid",
                     "std",
                     "subtle",
                 ],
@@ -24296,15 +26452,18 @@ third_party = {
             "windows-x86_64": {
                 "deps": [
                     ":block-buffer-0.10.4",
+                    ":const-oid-0.9.6",
                     ":crypto-common-0.1.7",
                     ":subtle-2.6.1",
                 ],
                 "features": [
                     "alloc",
                     "block-buffer",
+                    "const-oid",
                     "core-api",
                     "default",
                     "mac",
+                    "oid",
                     "std",
                     "subtle",
                 ],
@@ -24319,6 +26478,154 @@ third_party = {
         "sha256": "9ed9a281f7bc9b7576e61468ba615a66a5c8cfdff42420a70aa82701a3b1e292",
         "size_bytes": 19557,
         "version": "0.10.7",
+    },
+    "digest-0.11.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Traits for cryptographic hash functions and message authentication codes",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "digest",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "digest",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":const-oid-0.10.2",
+                    ":ctutils-0.4.3",
+                ],
+                "features": [
+                    "alloc",
+                    "block-api",
+                    "default",
+                    "mac",
+                    "oid",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":const-oid-0.10.2",
+                    ":ctutils-0.4.3",
+                ],
+                "features": [
+                    "alloc",
+                    "block-api",
+                    "default",
+                    "mac",
+                    "oid",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":const-oid-0.10.2",
+                    ":ctutils-0.4.3",
+                ],
+                "features": [
+                    "alloc",
+                    "block-api",
+                    "default",
+                    "mac",
+                    "oid",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":const-oid-0.10.2",
+                    ":ctutils-0.4.3",
+                ],
+                "features": [
+                    "alloc",
+                    "block-api",
+                    "default",
+                    "mac",
+                    "oid",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":const-oid-0.10.2",
+                    ":ctutils-0.4.3",
+                ],
+                "features": [
+                    "alloc",
+                    "block-api",
+                    "default",
+                    "mac",
+                    "oid",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":const-oid-0.10.2",
+                    ":ctutils-0.4.3",
+                ],
+                "features": [
+                    "alloc",
+                    "block-api",
+                    "default",
+                    "mac",
+                    "oid",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":block-buffer-0.12.1",
+                    ":const-oid-0.10.2",
+                    ":ctutils-0.4.3",
+                ],
+                "features": [
+                    "alloc",
+                    "block-api",
+                    "default",
+                    "mac",
+                    "oid",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
+        ],
+        "sha256": "f1dd6dbb5841937940781866fa1281a1ff7bd3bf827091440879f9994983d5c2",
+        "size_bytes": 28955,
+        "version": "0.11.3",
     },
     "directories-next-2.0.0": {
         "build_script": None,
@@ -24623,6 +26930,10 @@ third_party = {
                     ":proc-macro2-1.0.106",
                     ":quote-1.0.45",
                     ":syn-2.0.117",
+                ],
+                "features": [
+                    "default",
+                    "std",
                 ],
             },
         },
@@ -26670,6 +28981,40 @@ third_party = {
         "sha256": "80bb028c8b4148c9ee0cca68fcd9add6044e81d3619f48577ddf13a263d047a2",
         "size_bytes": 80465,
         "version": "1.5.0",
+    },
+    "flagset-0.4.7": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nathaniel McCallum <nathaniel@profian.com>",
+            "CARGO_PKG_DESCRIPTION": "Data types and a macro for generating enumeration-based bit flags",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/enarx/flagset",
+            "CARGO_PKG_LICENSE": "Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/enarx/flagset",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "flagset",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "flagset",
+        "platforms": {
+            "android-arm64": {},
+            "linux-arm64": {},
+            "linux-x86_64": {},
+            "macos-arm64": {},
+            "macos-x86_64": {},
+            "windows-arm64": {},
+            "windows-x86_64": {},
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "b7ac824320a75a52197e8f2d787f6a38b6718bb6897a35142d749af3c0e8f4fe",
+        "size_bytes": 13688,
+        "version": "0.4.7",
     },
     "flate2-1.1.9": {
         "build_script": None,
@@ -29344,6 +31689,67 @@ third_party = {
         "size_bytes": 53905,
         "version": "0.4.2",
     },
+    "ghash-0.6.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Universal hash over GF(2^128) useful for constructing a Message Authentication Code (MAC),\nas in the AES-GCM authenticated encryption cipher.\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/universal-hashes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "ghash",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "ghash",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":polyval-0.7.3",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":polyval-0.7.3",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":polyval-0.7.3",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":polyval-0.7.3",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":polyval-0.7.3",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":polyval-0.7.3",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":polyval-0.7.3",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "2eecf2d5dc9b66b732b97707a0210906b1d30523eb773193ab777c0c84b3e8d5",
+        "size_bytes": 10780,
+        "version": "0.6.0",
+    },
     "gif-0.14.2": {
         "build_script": None,
         "env": {
@@ -31773,6 +34179,13 @@ third_party = {
         },
         "name": "hex",
         "platforms": {
+            "android-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
             "linux-arm64": {
                 "features": [
                     "alloc",
@@ -31781,6 +34194,34 @@ third_party = {
                 ],
             },
             "linux-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
                 "features": [
                     "alloc",
                     "default",
@@ -32026,6 +34467,67 @@ third_party = {
         "size_bytes": 42657,
         "version": "0.12.1",
     },
+    "hmac-0.13.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Generic implementation of Hash-based Message Authentication Code (HMAC)",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/MACs",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "hmac",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "hmac",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "6303bc9732ae41b04cb554b844a762b4115a61bfaa81e3e83050991eeb56863f",
+        "size_bytes": 45167,
+        "version": "0.13.0",
+    },
     "hound-3.5.1": {
         "build_script": None,
         "env": {
@@ -32224,6 +34726,67 @@ third_party = {
         "sha256": "6dbf3de79e51f3d586ab4cb9d5c3e2c14aa28ed23d180cf89b4df0454a69cc87",
         "size_bytes": 45190,
         "version": "1.10.1",
+    },
+    "hybrid-array-0.4.15": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Hybrid typenum-based and const generic array types designed to provide the\nflexibility of typenum-based expressions while also allowing interoperability\nand a transition path to const generics\n",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/hybrid-array",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "hybrid_array",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "hybrid-array",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":typenum-1.20.1",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":typenum-1.20.1",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":typenum-1.20.1",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":typenum-1.20.1",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":typenum-1.20.1",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":typenum-1.20.1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":typenum-1.20.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "27f864f10dfb56725ce5ce5472bc52252c8f93a4ab86327122cebf62c5f59a17",
+        "size_bytes": 36801,
+        "version": "0.4.15",
     },
     "icu_collections-2.2.0": {
         "build_script": None,
@@ -33882,6 +36445,95 @@ third_party = {
         "size_bytes": 11280,
         "version": "0.1.4",
     },
+    "inout-0.2.5": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Custom reference types for code generic over in-place and buffer-to-buffer modes of operation.",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/utils",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "inout",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "inout",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":block-padding-0.4.2",
+                    ":hybrid-array-0.4.15",
+                ],
+                "features": [
+                    "block-padding",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":block-padding-0.4.2",
+                    ":hybrid-array-0.4.15",
+                ],
+                "features": [
+                    "block-padding",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":block-padding-0.4.2",
+                    ":hybrid-array-0.4.15",
+                ],
+                "features": [
+                    "block-padding",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":block-padding-0.4.2",
+                    ":hybrid-array-0.4.15",
+                ],
+                "features": [
+                    "block-padding",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":block-padding-0.4.2",
+                    ":hybrid-array-0.4.15",
+                ],
+                "features": [
+                    "block-padding",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":block-padding-0.4.2",
+                    ":hybrid-array-0.4.15",
+                ],
+                "features": [
+                    "block-padding",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":block-padding-0.4.2",
+                    ":hybrid-array-0.4.15",
+                ],
+                "features": [
+                    "block-padding",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "3b5cf4372d022092674a83b8febf5865f7a573cc0c5baec5e49c879b6a20978f",
+        "size_bytes": 13849,
+        "version": "0.2.5",
+    },
     "input-0.9.1": {
         "build_script": None,
         "env": {
@@ -34864,6 +37516,81 @@ third_party = {
         "size_bytes": 18811,
         "version": "0.5.3",
     },
+    "jks-0.3.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "agusibrahim <hi@agusibrahim.com>",
+            "CARGO_PKG_DESCRIPTION": "Java KeyStore (JKS) and PKCS12 encoder/decoder for Rust",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/agusibrahim/jks",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/agusibrahim/jks",
+        },
+        "library": {
+            "crate": "jks",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "jks",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":asn1-rs-0.5.2",
+                    ":sha1-0.10.6",
+                    ":thiserror-1.0.69",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":asn1-rs-0.5.2",
+                    ":sha1-0.10.6",
+                    ":thiserror-1.0.69",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.5.2",
+                    ":sha1-0.10.6",
+                    ":thiserror-1.0.69",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":asn1-rs-0.5.2",
+                    ":sha1-0.10.6",
+                    ":thiserror-1.0.69",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.5.2",
+                    ":sha1-0.10.6",
+                    ":thiserror-1.0.69",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":asn1-rs-0.5.2",
+                    ":sha1-0.10.6",
+                    ":thiserror-1.0.69",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.5.2",
+                    ":sha1-0.10.6",
+                    ":thiserror-1.0.69",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "e03966fd15eea3cb2886320a78d01e77f8aaeabd3fb01504ee6a2238876c23bc",
+        "size_bytes": 34774,
+        "version": "0.3.3",
+    },
     "jni-0.21.1": {
         "build_script": None,
         "env": {
@@ -35555,13 +38282,69 @@ third_party = {
         },
         "name": "lazy_static",
         "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "android-arm64": {
+                "deps": [
+                    ":spin-0.9.9",
+                ],
+                "features": [
+                    "spin",
+                    "spin_no_std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":spin-0.9.9",
+                ],
+                "features": [
+                    "spin",
+                    "spin_no_std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":spin-0.9.9",
+                ],
+                "features": [
+                    "spin",
+                    "spin_no_std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":spin-0.9.9",
+                ],
+                "features": [
+                    "spin",
+                    "spin_no_std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":spin-0.9.9",
+                ],
+                "features": [
+                    "spin",
+                    "spin_no_std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":spin-0.9.9",
+                ],
+                "features": [
+                    "spin",
+                    "spin_no_std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":spin-0.9.9",
+                ],
+                "features": [
+                    "spin",
+                    "spin_no_std",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -37089,7 +39872,37 @@ third_party = {
         },
         "name": "minimal-lexical",
         "platforms": {
+            "android-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
             "linux-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "features": [
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
                 "features": [
                     "std",
                 ],
@@ -38164,6 +40977,28 @@ third_party = {
         },
         "name": "nom",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                    ":minimal-lexical-0.2.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                    ":minimal-lexical-0.2.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
             "linux-x86_64": {
                 "deps": [
                     ":memchr-2.8.1",
@@ -38171,6 +41006,51 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                    ":minimal-lexical-0.2.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                    ":minimal-lexical-0.2.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                    ":minimal-lexical-0.2.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":memchr-2.8.1",
+                    ":minimal-lexical-0.2.1",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
                     "std",
                 ],
             },
@@ -38256,6 +41136,269 @@ third_party = {
         "size_bytes": 29597,
         "version": "0.50.3",
     },
+    "num-bigint-0.4.8": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Rust Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Big integer implementation for Rust",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rust-num/num-bigint",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-num/num-bigint",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "num_bigint",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "num-bigint",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "default",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "c89e69e7e0f03bea5ef08013795c25018e101932225a656383bd384495ecc367",
+        "size_bytes": 109961,
+        "version": "0.4.8",
+    },
+    "num-bigint-dig-0.8.6": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2021",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "dignifiedquire <dignifiedquire@gmail.com>:The Rust Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Big integer implementation for Rust",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/dignifiedquire/num-bigint",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/dignifiedquire/num-bigint",
+            "CARGO_PKG_RUST_VERSION": "1.56",
+        },
+        "library": {
+            "crate": "num_bigint_dig",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "num-bigint-dig",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":lazy_static-1.5.0",
+                    ":libm-0.2.16",
+                    ":num-integer-0.1.47",
+                    ":num-iter-0.1.46",
+                    ":num-traits-0.2.19",
+                    ":rand-0.8.6",
+                    ":smallvec-1.15.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "i128",
+                    "prime",
+                    "rand",
+                    "u64_digit",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":lazy_static-1.5.0",
+                    ":libm-0.2.16",
+                    ":num-integer-0.1.47",
+                    ":num-iter-0.1.46",
+                    ":num-traits-0.2.19",
+                    ":rand-0.8.6",
+                    ":smallvec-1.15.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "i128",
+                    "prime",
+                    "rand",
+                    "u64_digit",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":lazy_static-1.5.0",
+                    ":libm-0.2.16",
+                    ":num-integer-0.1.47",
+                    ":num-iter-0.1.46",
+                    ":num-traits-0.2.19",
+                    ":rand-0.8.6",
+                    ":smallvec-1.15.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "i128",
+                    "prime",
+                    "rand",
+                    "u64_digit",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":lazy_static-1.5.0",
+                    ":libm-0.2.16",
+                    ":num-integer-0.1.47",
+                    ":num-iter-0.1.46",
+                    ":num-traits-0.2.19",
+                    ":rand-0.8.6",
+                    ":smallvec-1.15.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "i128",
+                    "prime",
+                    "rand",
+                    "u64_digit",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":lazy_static-1.5.0",
+                    ":libm-0.2.16",
+                    ":num-integer-0.1.47",
+                    ":num-iter-0.1.46",
+                    ":num-traits-0.2.19",
+                    ":rand-0.8.6",
+                    ":smallvec-1.15.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "i128",
+                    "prime",
+                    "rand",
+                    "u64_digit",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":lazy_static-1.5.0",
+                    ":libm-0.2.16",
+                    ":num-integer-0.1.47",
+                    ":num-iter-0.1.46",
+                    ":num-traits-0.2.19",
+                    ":rand-0.8.6",
+                    ":smallvec-1.15.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "i128",
+                    "prime",
+                    "rand",
+                    "u64_digit",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":lazy_static-1.5.0",
+                    ":libm-0.2.16",
+                    ":num-integer-0.1.47",
+                    ":num-iter-0.1.46",
+                    ":num-traits-0.2.19",
+                    ":rand-0.8.6",
+                    ":smallvec-1.15.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "i128",
+                    "prime",
+                    "rand",
+                    "u64_digit",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
+        ],
+        "sha256": "e661dda6640fad38e827a6d4a310ff4763082116fe217f279885c97f511bb0b7",
+        "size_bytes": 126196,
+        "version": "0.8.6",
+    },
     "num-conv-0.2.2": {
         "build_script": None,
         "env": {
@@ -38274,6 +41417,7 @@ third_party = {
         },
         "name": "num-conv",
         "platforms": {
+            "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
             "macos-arm64": {},
@@ -38322,6 +41466,165 @@ third_party = {
         "size_bytes": 14709,
         "version": "0.4.2",
     },
+    "num-integer-0.1.47": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Rust Project Developers",
+            "CARGO_PKG_DESCRIPTION": "Integer traits and functions",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rust-num/num-integer",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-num/num-integer",
+            "CARGO_PKG_RUST_VERSION": "1.31",
+        },
+        "library": {
+            "crate": "num_integer",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "num-integer",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "i128",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "i128",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "i128",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "i128",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "i128",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "i128",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":num-traits-0.2.19",
+                ],
+                "features": [
+                    "i128",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "7ce2d95d4b3734dc35aa2f45e1aa22cd416814592a4f9d9205e11affd5b8e10b",
+        "size_bytes": 23502,
+        "version": "0.1.47",
+    },
+    "num-iter-0.1.46": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "The Rust Project Developers",
+            "CARGO_PKG_DESCRIPTION": "External iterators for generic mathematics",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rust-num/num-iter",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rust-num/num-iter",
+            "CARGO_PKG_RUST_VERSION": "1.31",
+        },
+        "library": {
+            "crate": "num_iter",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "num-iter",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "c92800bd69a1eac91786bcfe9da64a897eb72911b8dc3095decbd07429e8048b",
+        "size_bytes": 10763,
+        "version": "0.1.46",
+    },
     "num-traits-0.2.19": {
         "build_script": {
             "crate_root": "build.rs",
@@ -38353,6 +41656,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "i128",
                     "libm",
                     "std",
                 ],
@@ -38363,6 +41667,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "i128",
                     "libm",
                     "std",
                 ],
@@ -38373,6 +41678,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "i128",
                     "libm",
                     "std",
                 ],
@@ -38383,6 +41689,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "i128",
                     "libm",
                     "std",
                 ],
@@ -38393,6 +41700,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "i128",
                     "libm",
                     "std",
                 ],
@@ -38427,6 +41735,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "i128",
                     "libm",
                     "std",
                 ],
@@ -38437,6 +41746,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "i128",
                     "libm",
                     "std",
                 ],
@@ -40041,6 +43351,162 @@ third_party = {
         "size_bytes": 27128,
         "version": "0.8.0",
     },
+    "oid-registry-0.8.1": {
+        "build_script": {
+            "crate_root": "build.rs",
+            "edition": "2018",
+        },
+        "env": {
+            "CARGO_PKG_AUTHORS": "Pierre Chifflier <chifflier@wzdftpd.net>",
+            "CARGO_PKG_DESCRIPTION": "Object Identifier (OID) database",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rusticata/oid-registry",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rusticata/oid-registry.git",
+            "CARGO_PKG_RUST_VERSION": "1.63",
+        },
+        "library": {
+            "crate": "oid_registry",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "oid-registry",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                ],
+                "features": [
+                    "crypto",
+                    "default",
+                    "kdf",
+                    "nist_algs",
+                    "pkcs1",
+                    "pkcs12",
+                    "pkcs7",
+                    "pkcs9",
+                    "registry",
+                    "x509",
+                    "x962",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                ],
+                "features": [
+                    "crypto",
+                    "default",
+                    "kdf",
+                    "nist_algs",
+                    "pkcs1",
+                    "pkcs12",
+                    "pkcs7",
+                    "pkcs9",
+                    "registry",
+                    "x509",
+                    "x962",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                ],
+                "features": [
+                    "crypto",
+                    "default",
+                    "kdf",
+                    "nist_algs",
+                    "pkcs1",
+                    "pkcs12",
+                    "pkcs7",
+                    "pkcs9",
+                    "registry",
+                    "x509",
+                    "x962",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                ],
+                "features": [
+                    "crypto",
+                    "default",
+                    "kdf",
+                    "nist_algs",
+                    "pkcs1",
+                    "pkcs12",
+                    "pkcs7",
+                    "pkcs9",
+                    "registry",
+                    "x509",
+                    "x962",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                ],
+                "features": [
+                    "crypto",
+                    "default",
+                    "kdf",
+                    "nist_algs",
+                    "pkcs1",
+                    "pkcs12",
+                    "pkcs7",
+                    "pkcs9",
+                    "registry",
+                    "x509",
+                    "x962",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                ],
+                "features": [
+                    "crypto",
+                    "default",
+                    "kdf",
+                    "nist_algs",
+                    "pkcs1",
+                    "pkcs12",
+                    "pkcs7",
+                    "pkcs9",
+                    "registry",
+                    "x509",
+                    "x962",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                ],
+                "features": [
+                    "crypto",
+                    "default",
+                    "kdf",
+                    "nist_algs",
+                    "pkcs1",
+                    "pkcs12",
+                    "pkcs7",
+                    "pkcs9",
+                    "registry",
+                    "x509",
+                    "x962",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "12f40cff3dde1b6087cc5d5f5d4d65712f34016a03ed60e9c08dcc392736b5b7",
+        "size_bytes": 16668,
+        "version": "0.8.1",
+    },
     "once_cell-1.21.4": {
         "build_script": None,
         "env": {
@@ -40342,6 +43808,193 @@ third_party = {
         "sha256": "36820e9051aca1014ddc75770aab4d68bc1e9e632f0f5627c4086bc216fb583b",
         "size_bytes": 8989,
         "version": "0.25.1",
+    },
+    "p12-keystore-0.4.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Dmitry Pankratov <dmitry@pankratov.net>",
+            "CARGO_PKG_DESCRIPTION": "Convenient API to work with PKCS#12 files",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/ancwrd1/p12-keystore",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "p12_keystore",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "p12-keystore",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cbc-0.2.1",
+                    ":cms-0.3.0-pre.1",
+                    ":der-0.8.2",
+                    ":des-0.9.0",
+                    ":hex-0.4.3",
+                    ":hmac-0.13.0",
+                    ":pkcs12-0.2.0-pre.0",
+                    ":pkcs5-0.8.1",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rc2-0.9.0",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":thiserror-2.0.18",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                    "pbes1",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cbc-0.2.1",
+                    ":cms-0.3.0-pre.1",
+                    ":der-0.8.2",
+                    ":des-0.9.0",
+                    ":hex-0.4.3",
+                    ":hmac-0.13.0",
+                    ":pkcs12-0.2.0-pre.0",
+                    ":pkcs5-0.8.1",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rc2-0.9.0",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":thiserror-2.0.18",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                    "pbes1",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cbc-0.2.1",
+                    ":cms-0.3.0-pre.1",
+                    ":der-0.8.2",
+                    ":des-0.9.0",
+                    ":hex-0.4.3",
+                    ":hmac-0.13.0",
+                    ":pkcs12-0.2.0-pre.0",
+                    ":pkcs5-0.8.1",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rc2-0.9.0",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":thiserror-2.0.18",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                    "pbes1",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cbc-0.2.1",
+                    ":cms-0.3.0-pre.1",
+                    ":der-0.8.2",
+                    ":des-0.9.0",
+                    ":hex-0.4.3",
+                    ":hmac-0.13.0",
+                    ":pkcs12-0.2.0-pre.0",
+                    ":pkcs5-0.8.1",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rc2-0.9.0",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":thiserror-2.0.18",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                    "pbes1",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cbc-0.2.1",
+                    ":cms-0.3.0-pre.1",
+                    ":der-0.8.2",
+                    ":des-0.9.0",
+                    ":hex-0.4.3",
+                    ":hmac-0.13.0",
+                    ":pkcs12-0.2.0-pre.0",
+                    ":pkcs5-0.8.1",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rc2-0.9.0",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":thiserror-2.0.18",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                    "pbes1",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cbc-0.2.1",
+                    ":cms-0.3.0-pre.1",
+                    ":der-0.8.2",
+                    ":des-0.9.0",
+                    ":hex-0.4.3",
+                    ":hmac-0.13.0",
+                    ":pkcs12-0.2.0-pre.0",
+                    ":pkcs5-0.8.1",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rc2-0.9.0",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":thiserror-2.0.18",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                    "pbes1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cbc-0.2.1",
+                    ":cms-0.3.0-pre.1",
+                    ":der-0.8.2",
+                    ":des-0.9.0",
+                    ":hex-0.4.3",
+                    ":hmac-0.13.0",
+                    ":pkcs12-0.2.0-pre.0",
+                    ":pkcs5-0.8.1",
+                    ":pkcs8-0.11.0",
+                    ":rand-0.10.2",
+                    ":rc2-0.9.0",
+                    ":sha1-0.11.0",
+                    ":sha2-0.11.1",
+                    ":thiserror-2.0.18",
+                    ":x509-parser-0.18.1",
+                ],
+                "features": [
+                    "default",
+                    "pbes1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "5c2ed4fa0ec7ec58b657d4184680c57da9e203e97771d29a566028869a5193e0",
+        "size_bytes": 67773,
+        "version": "0.4.1",
     },
     "pango-0.18.3": {
         "build_script": None,
@@ -40776,6 +44429,268 @@ third_party = {
         "sha256": "346f04948ba92c43e8469c1ee6736c7563d71012b17d40745260fe106aac2166",
         "size_bytes": 26884,
         "version": "0.5.0",
+    },
+    "pbkdf2-0.13.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Generic implementation of PBKDF2",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/password-hashes/tree/master/pbkdf2",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/password-hashes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "pbkdf2",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "pbkdf2",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":hmac-0.13.0",
+                ],
+                "features": [
+                    "default",
+                    "hmac",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":hmac-0.13.0",
+                ],
+                "features": [
+                    "default",
+                    "hmac",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":hmac-0.13.0",
+                ],
+                "features": [
+                    "default",
+                    "hmac",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":hmac-0.13.0",
+                ],
+                "features": [
+                    "default",
+                    "hmac",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":hmac-0.13.0",
+                ],
+                "features": [
+                    "default",
+                    "hmac",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":hmac-0.13.0",
+                ],
+                "features": [
+                    "default",
+                    "hmac",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":digest-0.11.3",
+                    ":hmac-0.13.0",
+                ],
+                "features": [
+                    "default",
+                    "hmac",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "112d82ceb8c5bf524d9af484d4e4970c9fd5a0cc15ba14ad93dccd28873b0629",
+        "size_bytes": 22716,
+        "version": "0.13.0",
+    },
+    "pem-rfc7468-0.7.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "PEM Encoding (RFC 7468) for PKIX, PKCS, and CMS Structures, implementing a\nstrict subset of the original Privacy-Enhanced Mail encoding intended\nspecifically for use with cryptographic keys, certificates, and other messages.\nProvides a no_std-friendly, constant-time implementation suitable for use with\ncryptographic private keys.\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/pem-rfc7468",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "pem_rfc7468",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "pem-rfc7468",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "88b39c9bfcfc231068454382784bb460aae594343fb030d46e9f50a645418412",
+        "size_bytes": 24159,
+        "version": "0.7.0",
+    },
+    "pem-rfc7468-1.0.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "PEM Encoding (RFC 7468) for PKIX, PKCS, and CMS Structures, implementing a\nstrict subset of the original Privacy-Enhanced Mail encoding intended\nspecifically for use with cryptographic keys, certificates, and other messages.\nProvides a no_std-friendly, constant-time implementation suitable for use with\ncryptographic private keys.\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/pem-rfc7468",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "pem_rfc7468",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "pem-rfc7468",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":base64ct-1.8.3",
+                ],
+                "features": [
+                    "alloc",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "a6305423e0e7738146434843d1694d621cce767262b2a86910beab705e4493d9",
+        "size_bytes": 25267,
+        "version": "1.0.0",
     },
     "percent-encoding-2.3.2": {
         "build_script": None,
@@ -41295,6 +45210,587 @@ third_party = {
         "size_bytes": 23908,
         "version": "0.2.5",
     },
+    "pkcs1-0.7.5": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of Public-Key Cryptography Standards (PKCS) #1:\nRSA Cryptography Specifications Version 2.2 (RFC 8017)\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/pkcs1",
+            "CARGO_PKG_RUST_VERSION": "1.60",
+        },
+        "library": {
+            "crate": "pkcs1",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "pkcs1",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":pkcs8-0.10.2",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":pkcs8-0.10.2",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":pkcs8-0.10.2",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":pkcs8-0.10.2",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":pkcs8-0.10.2",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":pkcs8-0.10.2",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                    "std",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":pkcs8-0.10.2",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "pkcs8",
+                    "std",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "c8ffb9f10fa047879315e6625af03c164b16962a5368d724ed16323b68ace47f",
+        "size_bytes": 35790,
+        "version": "0.7.5",
+    },
+    "pkcs12-0.2.0-pre.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of Public-Key Cryptography Standards (PKCS) #12:\nPersonal Information Exchange Syntax v1.1 (RFC7292)\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/pkcs12",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "pkcs12",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "pkcs12",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cms-0.3.0-pre.1",
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "kdf",
+                    "pem",
+                    "zeroize",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cms-0.3.0-pre.1",
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "kdf",
+                    "pem",
+                    "zeroize",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cms-0.3.0-pre.1",
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "kdf",
+                    "pem",
+                    "zeroize",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cms-0.3.0-pre.1",
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "kdf",
+                    "pem",
+                    "zeroize",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cms-0.3.0-pre.1",
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "kdf",
+                    "pem",
+                    "zeroize",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cms-0.3.0-pre.1",
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "kdf",
+                    "pem",
+                    "zeroize",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cms-0.3.0-pre.1",
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":digest-0.11.3",
+                    ":spki-0.8.1",
+                    ":x509-cert-0.3.0",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "kdf",
+                    "pem",
+                    "zeroize",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "8059bd79345d1d1c125656025814704bab5cdd204b1cefd5fab59b0fdd7476d2",
+        "size_bytes": 71734,
+        "version": "0.2.0-pre.0",
+    },
+    "pkcs5-0.8.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of Public-Key Cryptography Standards (PKCS) #5:\nPassword-Based Cryptography Specification Version 2.1 (RFC 8018)\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/pkcs5",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "pkcs5",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "pkcs5",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":cbc-0.2.1",
+                    ":der-0.8.2",
+                    ":pbkdf2-0.13.0",
+                    ":scrypt-0.12.0",
+                    ":sha2-0.11.1",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pbes2",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":cbc-0.2.1",
+                    ":der-0.8.2",
+                    ":pbkdf2-0.13.0",
+                    ":scrypt-0.12.0",
+                    ":sha2-0.11.1",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pbes2",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":cbc-0.2.1",
+                    ":der-0.8.2",
+                    ":pbkdf2-0.13.0",
+                    ":scrypt-0.12.0",
+                    ":sha2-0.11.1",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pbes2",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":cbc-0.2.1",
+                    ":der-0.8.2",
+                    ":pbkdf2-0.13.0",
+                    ":scrypt-0.12.0",
+                    ":sha2-0.11.1",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pbes2",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":cbc-0.2.1",
+                    ":der-0.8.2",
+                    ":pbkdf2-0.13.0",
+                    ":scrypt-0.12.0",
+                    ":sha2-0.11.1",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pbes2",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":cbc-0.2.1",
+                    ":der-0.8.2",
+                    ":pbkdf2-0.13.0",
+                    ":scrypt-0.12.0",
+                    ":sha2-0.11.1",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pbes2",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":aes-0.9.3",
+                    ":aes-gcm-0.11.1",
+                    ":cbc-0.2.1",
+                    ":der-0.8.2",
+                    ":pbkdf2-0.13.0",
+                    ":scrypt-0.12.0",
+                    ":sha2-0.11.1",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "alloc",
+                    "pbes2",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "63d440a804ec8d6fafbb6b84471e013286658d373248927692ab3366686220ca",
+        "size_bytes": 49232,
+        "version": "0.8.1",
+    },
+    "pkcs8-0.10.2": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of Public-Key Cryptography Standards (PKCS) #8:\nPrivate-Key Information Syntax Specification (RFC 5208), with additional\nsupport for PKCS#8v2 asymmetric key packages (RFC 5958)\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/pkcs8",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "pkcs8",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "pkcs8",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":der-0.7.10",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "f950b2377845cebe5cf8b5165cb3cc1a5e0fa5cfa3e1f7f55707d8fd82e0a7b7",
+        "size_bytes": 26360,
+        "version": "0.10.2",
+    },
+    "pkcs8-0.11.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of Public-Key Cryptography Standards (PKCS) #8:\nPrivate-Key Information Syntax Specification (RFC 5208), with additional\nsupport for PKCS#8v2 asymmetric key packages (RFC 5958)\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/pkcs8",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "pkcs8",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "pkcs8",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "451913da69c775a56034ea8d9003d27ee8948e12443eae7c038ba100a4f21cb7",
+        "size_bytes": 34863,
+        "version": "0.11.0",
+    },
     "pkg-config-0.3.33": {
         "build_script": None,
         "env": {
@@ -41699,6 +46195,102 @@ third_party = {
         "size_bytes": 22738,
         "version": "0.4.0",
     },
+    "polyval-0.7.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "POLYVAL is a GHASH-like universal hash over GF(2^128) useful for constructing\na Message Authentication Code (MAC)\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/universal-hashes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "polyval",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "polyval",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                    ":universal-hash-0.6.1",
+                ],
+                "features": [
+                    "hazmat",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                    ":universal-hash-0.6.1",
+                ],
+                "features": [
+                    "hazmat",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                    ":universal-hash-0.6.1",
+                ],
+                "features": [
+                    "hazmat",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                    ":universal-hash-0.6.1",
+                ],
+                "features": [
+                    "hazmat",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                    ":universal-hash-0.6.1",
+                ],
+                "features": [
+                    "hazmat",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                    ":universal-hash-0.6.1",
+                ],
+                "features": [
+                    "hazmat",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cpubits-0.1.1",
+                    ":cpufeatures-0.3.0",
+                    ":universal-hash-0.6.1",
+                ],
+                "features": [
+                    "hazmat",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "f0fa31d631f2b2cb2a544d0aa321ce847a94764d701ca2becc411138b93d49cd",
+        "size_bytes": 26284,
+        "version": "0.7.3",
+    },
     "portable-pty-0.9.0": {
         "build_script": None,
         "env": {
@@ -42075,6 +46667,7 @@ third_party = {
         },
         "name": "powerfmt",
         "platforms": {
+            "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
             "macos-arm64": {},
@@ -43598,6 +48191,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                     "std_rng",
                     "sys_rng",
@@ -43612,6 +48206,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                     "std_rng",
                     "sys_rng",
@@ -43626,6 +48221,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                     "std_rng",
                     "sys_rng",
@@ -43640,6 +48236,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                     "std_rng",
                     "sys_rng",
@@ -43654,6 +48251,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                     "std_rng",
                     "sys_rng",
@@ -43668,6 +48266,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                     "std_rng",
                     "sys_rng",
@@ -43682,6 +48281,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "std",
                     "std_rng",
                     "sys_rng",
@@ -44771,6 +49371,67 @@ third_party = {
         "sha256": "22e18b0f0062d30d4230b2e85ff77fdfe4326feb054b9783a3460d8435c8ab91",
         "size_bytes": 73151,
         "version": "1.13.0",
+    },
+    "rc2-0.9.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "RC2 block cipher",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/block-ciphers",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "rc2",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "rc2",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cipher-0.5.2",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "ceda21af1ae61033b63175653a1af86cae399d79cd03ca80ba347eb3a6c4a7fe",
+        "size_bytes": 11296,
+        "version": "0.9.0",
     },
     "regalloc2-0.15.2": {
         "build_script": None,
@@ -46471,6 +51132,224 @@ third_party = {
         "size_bytes": 56837,
         "version": "0.21.1",
     },
+    "rsa-0.9.10": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers:dignifiedquire <dignifiedquire@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust RSA implementation",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/RSA",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "rsa",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "rsa",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":digest-0.10.7",
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                    ":pkcs1-0.7.5",
+                    ":pkcs8-0.10.2",
+                    ":rand_core-0.6.4",
+                    ":sha2-0.10.9",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "getrandom",
+                    "pem",
+                    "sha2",
+                    "std",
+                    "u64_digit",
+                ],
+                "named_deps": {
+                    "num_bigint": ":num-bigint-dig-0.8.6",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":digest-0.10.7",
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                    ":pkcs1-0.7.5",
+                    ":pkcs8-0.10.2",
+                    ":rand_core-0.6.4",
+                    ":sha2-0.10.9",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "getrandom",
+                    "pem",
+                    "sha2",
+                    "std",
+                    "u64_digit",
+                ],
+                "named_deps": {
+                    "num_bigint": ":num-bigint-dig-0.8.6",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":digest-0.10.7",
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                    ":pkcs1-0.7.5",
+                    ":pkcs8-0.10.2",
+                    ":rand_core-0.6.4",
+                    ":sha2-0.10.9",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "getrandom",
+                    "pem",
+                    "sha2",
+                    "std",
+                    "u64_digit",
+                ],
+                "named_deps": {
+                    "num_bigint": ":num-bigint-dig-0.8.6",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":digest-0.10.7",
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                    ":pkcs1-0.7.5",
+                    ":pkcs8-0.10.2",
+                    ":rand_core-0.6.4",
+                    ":sha2-0.10.9",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "getrandom",
+                    "pem",
+                    "sha2",
+                    "std",
+                    "u64_digit",
+                ],
+                "named_deps": {
+                    "num_bigint": ":num-bigint-dig-0.8.6",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":digest-0.10.7",
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                    ":pkcs1-0.7.5",
+                    ":pkcs8-0.10.2",
+                    ":rand_core-0.6.4",
+                    ":sha2-0.10.9",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "getrandom",
+                    "pem",
+                    "sha2",
+                    "std",
+                    "u64_digit",
+                ],
+                "named_deps": {
+                    "num_bigint": ":num-bigint-dig-0.8.6",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":digest-0.10.7",
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                    ":pkcs1-0.7.5",
+                    ":pkcs8-0.10.2",
+                    ":rand_core-0.6.4",
+                    ":sha2-0.10.9",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "getrandom",
+                    "pem",
+                    "sha2",
+                    "std",
+                    "u64_digit",
+                ],
+                "named_deps": {
+                    "num_bigint": ":num-bigint-dig-0.8.6",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":digest-0.10.7",
+                    ":num-integer-0.1.47",
+                    ":num-traits-0.2.19",
+                    ":pkcs1-0.7.5",
+                    ":pkcs8-0.10.2",
+                    ":rand_core-0.6.4",
+                    ":sha2-0.10.9",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                    ":subtle-2.6.1",
+                    ":zeroize-1.9.0",
+                ],
+                "features": [
+                    "default",
+                    "getrandom",
+                    "pem",
+                    "sha2",
+                    "std",
+                    "u64_digit",
+                ],
+                "named_deps": {
+                    "num_bigint": ":num-bigint-dig-0.8.6",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
+        ],
+        "sha256": "b8573f03f5883dcaebdfcf4725caa1ecb9c15b2ef50c43a07b816e06799bb12d",
+        "size_bytes": 86417,
+        "version": "0.9.10",
+    },
     "rusqlite-0.32.1": {
         "build_script": None,
         "env": {
@@ -46856,6 +51735,67 @@ third_party = {
         "sha256": "cfcb3a22ef46e85b45de6ee7e79d063319ebb6594faafcf1c225ea92ab6e9b92",
         "size_bytes": 12245,
         "version": "0.4.1",
+    },
+    "rusticata-macros-4.1.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Pierre Chifflier <chifflier@wzdftpd.net>",
+            "CARGO_PKG_DESCRIPTION": "Helper macros for Rusticata",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rusticata/rusticata-macros",
+            "CARGO_PKG_LICENSE": "MIT/Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rusticata/rusticata-macros.git",
+        },
+        "library": {
+            "crate": "rusticata_macros",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "rusticata-macros",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":nom-7.1.3",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":nom-7.1.3",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":nom-7.1.3",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":nom-7.1.3",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":nom-7.1.3",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":nom-7.1.3",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":nom-7.1.3",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "faf0c4a6ece9950b9abdb62b1cfcf2a68b3b67a10ba445b3bb85be2a293d0632",
+        "size_bytes": 11746,
+        "version": "4.1.0",
     },
     "rustix-0.38.44": {
         "build_script": {
@@ -47678,6 +52618,74 @@ third_party = {
         "size_bytes": 21096,
         "version": "1.0.22",
     },
+    "salsa20-0.11.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the Salsa20 stream cipher",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/stream-ciphers",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "salsa20",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "salsa20",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cipher-0.5.2",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cipher-0.5.2",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cipher-0.5.2",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cipher-0.5.2",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "2f874456e72520ff1375a06c588eaf074b0f01f9e9e1aada45bd9b7954a6e42c",
+        "size_bytes": 44952,
+        "version": "0.11.0",
+    },
     "same-file-1.0.6": {
         "build_script": None,
         "env": {
@@ -47802,6 +52810,89 @@ third_party = {
         "sha256": "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49",
         "size_bytes": 11619,
         "version": "1.2.0",
+    },
+    "scrypt-0.12.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Scrypt password-based key derivation function",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/password-hashes/tree/master/scrypt",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/password-hashes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "scrypt",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "scrypt",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":pbkdf2-0.13.0",
+                    ":salsa20-0.11.0",
+                    ":sha2-0.11.1",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":pbkdf2-0.13.0",
+                    ":salsa20-0.11.0",
+                    ":sha2-0.11.1",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":pbkdf2-0.13.0",
+                    ":salsa20-0.11.0",
+                    ":sha2-0.11.1",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":pbkdf2-0.13.0",
+                    ":salsa20-0.11.0",
+                    ":sha2-0.11.1",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":pbkdf2-0.13.0",
+                    ":salsa20-0.11.0",
+                    ":sha2-0.11.1",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":pbkdf2-0.13.0",
+                    ":salsa20-0.11.0",
+                    ":sha2-0.11.1",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":pbkdf2-0.13.0",
+                    ":salsa20-0.11.0",
+                    ":sha2-0.11.1",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "d87af57419b594aa23fa95f09f0e06d80d84ba01c26148c43844cad6ff4485f0",
+        "size_bytes": 24752,
+        "version": "0.12.0",
     },
     "sctk-adwaita-0.12.0": {
         "build_script": None,
@@ -48835,6 +53926,116 @@ third_party = {
         "size_bytes": 13517,
         "version": "0.10.6",
     },
+    "sha1-0.11.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "SHA-1 hash function",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/hashes",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "sha1",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "sha1",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "aacc4cc499359472b4abe1bf11d0b12e688af9a805fa5e3016f9a386dc2d0214",
+        "size_bytes": 15458,
+        "version": "0.11.0",
+    },
     "sha2-0.10.9": {
         "build_script": None,
         "env": {
@@ -48860,6 +54061,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "oid",
                     "std",
                 ],
             },
@@ -48871,6 +54073,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "oid",
                     "std",
                 ],
             },
@@ -48882,6 +54085,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "oid",
                     "std",
                 ],
             },
@@ -48893,6 +54097,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "oid",
                     "std",
                 ],
             },
@@ -48904,6 +54109,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "oid",
                     "std",
                 ],
             },
@@ -48945,6 +54151,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "oid",
                     "std",
                 ],
             },
@@ -48956,6 +54163,7 @@ third_party = {
                 ],
                 "features": [
                     "default",
+                    "oid",
                     "std",
                 ],
             },
@@ -48969,6 +54177,119 @@ third_party = {
         "sha256": "a7507d819769d01a365ab707794a4084392c824f54a7a6a7862f8c3d0892b283",
         "size_bytes": 29271,
         "version": "0.10.9",
+    },
+    "sha2-0.11.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the SHA-2 hash function family\nincluding SHA-224, SHA-256, SHA-384, and SHA-512.\n",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/hashes",
+            "CARGO_PKG_RUST_VERSION": "1.88",
+        },
+        "library": {
+            "crate": "sha2",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "sha2",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":cfg-if-1.0.4",
+                    ":cpufeatures-0.3.0",
+                    ":digest-0.11.3",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "oid",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
+        ],
+        "sha256": "47d7069beb7d6ac7b9acd1039986e73443f24234f41074da099d6f994ac9ad19",
+        "size_bytes": 32748,
+        "version": "0.11.1",
     },
     "sharded-slab-0.1.7": {
         "build_script": None,
@@ -49268,32 +54589,62 @@ third_party = {
         "name": "signature",
         "platforms": {
             "android-arm64": {
+                "deps": [
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "rand_core",
                     "std",
                 ],
             },
             "linux-arm64": {
+                "deps": [
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "rand_core",
                     "std",
                 ],
             },
             "linux-x86_64": {
+                "deps": [
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "rand_core",
                     "std",
                 ],
             },
             "macos-arm64": {
+                "deps": [
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "rand_core",
                     "std",
                 ],
             },
             "macos-x86_64": {
+                "deps": [
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "rand_core",
                     "std",
                 ],
             },
@@ -49304,14 +54655,26 @@ third_party = {
                 ],
             },
             "windows-arm64": {
+                "deps": [
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "rand_core",
                     "std",
                 ],
             },
             "windows-x86_64": {
+                "deps": [
+                    ":digest-0.10.7",
+                    ":rand_core-0.6.4",
+                ],
                 "features": [
                     "alloc",
+                    "digest",
+                    "rand_core",
                     "std",
                 ],
             },
@@ -50954,6 +56317,7 @@ third_party = {
             "android-arm64": {
                 "features": [
                     "mutex",
+                    "once",
                     "rwlock",
                     "spin_mutex",
                     "std",
@@ -50962,6 +56326,7 @@ third_party = {
             "linux-arm64": {
                 "features": [
                     "mutex",
+                    "once",
                     "rwlock",
                     "spin_mutex",
                     "std",
@@ -50987,6 +56352,7 @@ third_party = {
             "macos-arm64": {
                 "features": [
                     "mutex",
+                    "once",
                     "rwlock",
                     "spin_mutex",
                     "std",
@@ -51020,6 +56386,7 @@ third_party = {
             "windows-arm64": {
                 "features": [
                     "mutex",
+                    "once",
                     "rwlock",
                     "spin_mutex",
                     "std",
@@ -51099,6 +56466,192 @@ third_party = {
         "sha256": "d9571ea910ebd84c86af4b3ed27f9dbdc6ad06f17c5f96146b2b671e2976744f",
         "size_bytes": 41285,
         "version": "0.4.0+sdk-1.4.341.0",
+    },
+    "spki-0.7.3": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "X.509 Subject Public Key Info (RFC5280) describing public keys as well as their\nassociated AlgorithmIdentifiers (i.e. OIDs)\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/spki",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "spki",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "spki",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":der-0.7.10",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":der-0.7.10",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":der-0.7.10",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":der-0.7.10",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "d91ed6c858b01f942cd56b37a94b3e0a1798290327d1236e4d9cf4eaca44d29d",
+        "size_bytes": 16409,
+        "version": "0.7.3",
+    },
+    "spki-0.8.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "X.509 Subject Public Key Info (RFC5280) describing public keys as well as their\nassociated AlgorithmIdentifiers (i.e. OIDs)\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/spki",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "spki",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "spki",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":der-0.8.2",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":der-0.8.2",
+                ],
+                "features": [
+                    "alloc",
+                    "pem",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "7ef958a98b9d5da290cfc78946e9f3e61e1e62a18db0d92cac0b83cc161491a9",
+        "size_bytes": 20374,
+        "version": "0.8.1",
     },
     "stable_deref_trait-1.2.1": {
         "build_script": None,
@@ -51863,7 +57416,20 @@ third_party = {
             "linux-x86_64": {
                 "deps": [
                     ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
                     ":unicode-ident-1.0.24",
+                ],
+                "features": [
+                    "clone-impls",
+                    "default",
+                    "derive",
+                    "extra-traits",
+                    "full",
+                    "parsing",
+                    "printing",
+                    "proc-macro",
+                    "quote",
+                    "visit",
                 ],
             },
         },
@@ -52064,6 +57630,43 @@ third_party = {
         "sha256": "53e9bae58849f64dfa4f5d5ae372c8341f7305f82a3868709269343628b659a3",
         "size_bytes": 312999,
         "version": "3.0.3",
+    },
+    "synstructure-0.12.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Nika Layzell <nika@thelayzells.com>",
+            "CARGO_PKG_DESCRIPTION": "Helper methods and macros for custom derives",
+            "CARGO_PKG_LICENSE": "MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/mystor/synstructure",
+        },
+        "library": {
+            "crate": "synstructure",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "synstructure",
+        "platforms": {
+            "linux-x86_64": {
+                "deps": [
+                    ":proc-macro2-1.0.106",
+                    ":quote-1.0.45",
+                    ":syn-1.0.109",
+                    ":unicode-xid-0.2.6",
+                ],
+                "features": [
+                    "default",
+                    "proc-macro",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "f36bdaa60a83aca3921b5259d5400cbf5e90fc51931376a9bd4a0eb79aa7210f",
+        "size_bytes": 18429,
+        "version": "0.12.6",
     },
     "synstructure-0.13.2": {
         "build_script": None,
@@ -52963,6 +58566,23 @@ third_party = {
         },
         "name": "time",
         "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":deranged-0.5.8",
+                    ":num-conv-0.2.2",
+                    ":powerfmt-0.2.0",
+                    ":time-core-0.1.9",
+                    ":time-macros-0.2.32",
+                ],
+                "features": [
+                    "alloc",
+                    "default",
+                    "formatting",
+                    "macros",
+                    "parsing",
+                    "std",
+                ],
+            },
             "linux-arm64": {
                 "deps": [
                     ":deranged-0.5.8",
@@ -52973,6 +58593,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "formatting",
                     "macros",
                     "parsing",
@@ -52989,6 +58610,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "formatting",
                     "macros",
                     "parsing",
@@ -53005,6 +58627,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "formatting",
                     "macros",
                     "parsing",
@@ -53021,6 +58644,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "formatting",
                     "macros",
                     "parsing",
@@ -53037,6 +58661,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "formatting",
                     "macros",
                     "parsing",
@@ -53053,6 +58678,7 @@ third_party = {
                 ],
                 "features": [
                     "alloc",
+                    "default",
                     "formatting",
                     "macros",
                     "parsing",
@@ -53084,6 +58710,7 @@ third_party = {
         },
         "name": "time-core",
         "platforms": {
+            "android-arm64": {},
             "linux-arm64": {},
             "linux-x86_64": {},
             "macos-arm64": {},
@@ -56623,16 +62250,44 @@ third_party = {
         },
         "name": "typenum",
         "platforms": {
-            "android-arm64": {},
-            "linux-arm64": {},
-            "linux-x86_64": {},
-            "macos-arm64": {},
-            "macos-x86_64": {},
+            "android-arm64": {
+                "features": [
+                    "const-generics",
+                ],
+            },
+            "linux-arm64": {
+                "features": [
+                    "const-generics",
+                ],
+            },
+            "linux-x86_64": {
+                "features": [
+                    "const-generics",
+                ],
+            },
+            "macos-arm64": {
+                "features": [
+                    "const-generics",
+                ],
+            },
+            "macos-x86_64": {
+                "features": [
+                    "const-generics",
+                ],
+            },
             "wasi": {},
             "wasi-guest": {},
             "wasm32": {},
-            "windows-arm64": {},
-            "windows-x86_64": {},
+            "windows-arm64": {
+                "features": [
+                    "const-generics",
+                ],
+            },
+            "windows-x86_64": {
+                "features": [
+                    "const-generics",
+                ],
+            },
         },
         "profile_flags": [
             "-Cdebuginfo=0",
@@ -57063,6 +62718,38 @@ third_party = {
         "size_bytes": 282768,
         "version": "0.2.2",
     },
+    "unicode-xid-0.2.6": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "erick.tryzelaar <erick.tryzelaar@gmail.com>:kwantam <kwantam@gmail.com>:Manish Goregaokar <manishsmail@gmail.com>",
+            "CARGO_PKG_DESCRIPTION": "Determine whether characters have the XID_Start\nor XID_Continue properties according to\nUnicode Standard Annex #31.\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/unicode-rs/unicode-xid",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/unicode-rs/unicode-xid",
+            "CARGO_PKG_RUST_VERSION": "1.17",
+        },
+        "library": {
+            "crate": "unicode_xid",
+            "crate_root": "src/lib.rs",
+            "edition": "2015",
+            "proc_macro": False,
+        },
+        "name": "unicode-xid",
+        "platforms": {
+            "linux-x86_64": {
+                "features": [
+                    "default",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "ebc1c04c71510c7f702b52b7c350734c9ff1295c464a03335b00bb84fc54f853",
+        "size_bytes": 15744,
+        "version": "0.2.6",
+    },
     "universal-hash-0.5.1": {
         "build_script": None,
         "env": {
@@ -57145,6 +62832,91 @@ third_party = {
         "sha256": "fc1de2c688dc15305988b563c3854064043356019f97a4b46276fe734c4f07ea",
         "size_bytes": 9146,
         "version": "0.5.1",
+    },
+    "universal-hash-0.6.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Traits which describe the functionality of universal hash functions (UHFs)",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/traits",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "universal_hash",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "universal-hash",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":ctutils-0.4.3",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":ctutils-0.4.3",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":ctutils-0.4.3",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":ctutils-0.4.3",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":ctutils-0.4.3",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":ctutils-0.4.3",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":ctutils-0.4.3",
+                ],
+                "named_deps": {
+                    "common": ":crypto-common-0.2.2",
+                },
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+            "-Copt-level=2",
+            "-Cdebug-assertions=off",
+            "-Coverflow-checks=off",
+        ],
+        "sha256": "f4987bdc12753382e0bec4a65c50738ffaabc998b9cdd1f952fb5f39b0048a96",
+        "size_bytes": 9478,
+        "version": "0.6.1",
     },
     "untrusted-0.9.0": {
         "build_script": None,
@@ -68240,6 +74012,387 @@ third_party = {
         "sha256": "c7e468321c81fb07fa7f4c636c3972b9100f0346e5b6a9f2bd0603a52f7ed277",
         "size_bytes": 87820,
         "version": "2.0.1",
+    },
+    "x509-cert-0.2.5": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the X.509 Public Key Infrastructure Certificate\nformat as described in RFC 5280\n",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats/tree/master/x509-cert",
+            "CARGO_PKG_RUST_VERSION": "1.65",
+        },
+        "library": {
+            "crate": "x509_cert",
+            "crate_root": "src/lib.rs",
+            "edition": "2021",
+            "proc_macro": False,
+        },
+        "name": "x509-cert",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der-0.7.10",
+                    ":sha1-0.10.6",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "builder",
+                    "default",
+                    "pem",
+                    "sha1",
+                    "signature",
+                    "std",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der-0.7.10",
+                    ":sha1-0.10.6",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "builder",
+                    "default",
+                    "pem",
+                    "sha1",
+                    "signature",
+                    "std",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der-0.7.10",
+                    ":sha1-0.10.6",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "builder",
+                    "default",
+                    "pem",
+                    "sha1",
+                    "signature",
+                    "std",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der-0.7.10",
+                    ":sha1-0.10.6",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "builder",
+                    "default",
+                    "pem",
+                    "sha1",
+                    "signature",
+                    "std",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der-0.7.10",
+                    ":sha1-0.10.6",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "builder",
+                    "default",
+                    "pem",
+                    "sha1",
+                    "signature",
+                    "std",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der-0.7.10",
+                    ":sha1-0.10.6",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "builder",
+                    "default",
+                    "pem",
+                    "sha1",
+                    "signature",
+                    "std",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":const-oid-0.9.6",
+                    ":der-0.7.10",
+                    ":sha1-0.10.6",
+                    ":signature-2.2.0",
+                    ":spki-0.7.3",
+                ],
+                "features": [
+                    "builder",
+                    "default",
+                    "pem",
+                    "sha1",
+                    "signature",
+                    "std",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "1301e935010a701ae5f8655edc0ad17c44bad3ac5ce8c39185f75453b720ae94",
+        "size_bytes": 99819,
+        "version": "0.2.5",
+    },
+    "x509-cert-0.3.0": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "RustCrypto Developers",
+            "CARGO_PKG_DESCRIPTION": "Pure Rust implementation of the X.509 Public Key Infrastructure Certificate\nformat as described in RFC 5280\n",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/RustCrypto/formats/tree/master/x509-cert",
+            "CARGO_PKG_LICENSE": "Apache-2.0 OR MIT",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/RustCrypto/formats",
+            "CARGO_PKG_RUST_VERSION": "1.85",
+        },
+        "library": {
+            "crate": "x509_cert",
+            "crate_root": "src/lib.rs",
+            "edition": "2024",
+            "proc_macro": False,
+        },
+        "name": "x509-cert",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "pem",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "pem",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "pem",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "pem",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "pem",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "pem",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":const-oid-0.10.2",
+                    ":der-0.8.2",
+                    ":spki-0.8.1",
+                ],
+                "features": [
+                    "pem",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "105ef4642d9cb137ef83d623d0e4bf08b8adf69e9918ca904a174adb6d3d038b",
+        "size_bytes": 127747,
+        "version": "0.3.0",
+    },
+    "x509-parser-0.18.1": {
+        "build_script": None,
+        "env": {
+            "CARGO_PKG_AUTHORS": "Pierre Chifflier <chifflier@wzdftpd.net>",
+            "CARGO_PKG_DESCRIPTION": "Parser for the X.509 v3 format (RFC 5280 certificates)",
+            "CARGO_PKG_HOMEPAGE": "https://github.com/rusticata/x509-parser",
+            "CARGO_PKG_LICENSE": "MIT OR Apache-2.0",
+            "CARGO_PKG_README": "README.md",
+            "CARGO_PKG_REPOSITORY": "https://github.com/rusticata/x509-parser.git",
+            "CARGO_PKG_RUST_VERSION": "1.67.1",
+        },
+        "library": {
+            "crate": "x509_parser",
+            "crate_root": "src/lib.rs",
+            "edition": "2018",
+            "proc_macro": False,
+        },
+        "name": "x509-parser",
+        "platforms": {
+            "android-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":data-encoding-2.11.0",
+                    ":der-parser-10.0.0",
+                    ":lazy_static-1.5.0",
+                    ":nom-7.1.3",
+                    ":oid-registry-0.8.1",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":data-encoding-2.11.0",
+                    ":der-parser-10.0.0",
+                    ":lazy_static-1.5.0",
+                    ":nom-7.1.3",
+                    ":oid-registry-0.8.1",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "linux-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":data-encoding-2.11.0",
+                    ":der-parser-10.0.0",
+                    ":lazy_static-1.5.0",
+                    ":nom-7.1.3",
+                    ":oid-registry-0.8.1",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":data-encoding-2.11.0",
+                    ":der-parser-10.0.0",
+                    ":lazy_static-1.5.0",
+                    ":nom-7.1.3",
+                    ":oid-registry-0.8.1",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "macos-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":data-encoding-2.11.0",
+                    ":der-parser-10.0.0",
+                    ":lazy_static-1.5.0",
+                    ":nom-7.1.3",
+                    ":oid-registry-0.8.1",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-arm64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":data-encoding-2.11.0",
+                    ":der-parser-10.0.0",
+                    ":lazy_static-1.5.0",
+                    ":nom-7.1.3",
+                    ":oid-registry-0.8.1",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+            "windows-x86_64": {
+                "deps": [
+                    ":asn1-rs-0.7.2",
+                    ":data-encoding-2.11.0",
+                    ":der-parser-10.0.0",
+                    ":lazy_static-1.5.0",
+                    ":nom-7.1.3",
+                    ":oid-registry-0.8.1",
+                    ":rusticata-macros-4.1.0",
+                    ":thiserror-2.0.18",
+                    ":time-0.3.54",
+                ],
+                "features": [
+                    "default",
+                ],
+            },
+        },
+        "profile_flags": [
+            "-Cdebuginfo=0",
+        ],
+        "sha256": "d43b0f71ce057da06bc0851b23ee24f3f86190b07203dd8f567d0b706a185202",
+        "size_bytes": 102625,
+        "version": "0.18.1",
     },
     "xcursor-0.3.10": {
         "build_script": None,

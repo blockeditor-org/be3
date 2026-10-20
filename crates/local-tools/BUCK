@@ -10,9 +10,7 @@ cargo_library()
 
 cargo_test(
     env = {
-        "APK_SIGNER": "$(location //buck/android:apksign-wasm)",
         "APK_SIGN_JDK": "$(location //buck/android:jdk)",
-        "APK_SIGN_KEYS": "$(location //buck/android:signer-source)",
         "APK_SIGN_TOOLS": "$(location //buck/android:build-tools)",
     },
 )

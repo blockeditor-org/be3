@@ -464,11 +464,6 @@ impl Run {
             return;
         }
         let finalize = || -> Result<(), String> {
-            let signer = self
-                .built("apk-signer")
-                .into_iter()
-                .next()
-                .ok_or("no APK signer was built")?;
             let metadata = self
                 .built("apk-metadata")
                 .into_iter()
@@ -481,13 +476,7 @@ impl Run {
                     .into_iter()
                     .next()
                     .ok_or_else(|| format!("no {apk} template was built"))?;
-                crate::apk_sign::finalize(
-                    &signer,
-                    &template,
-                    &directory.join(apk),
-                    &key,
-                    &metadata,
-                )?;
+                crate::apk_sign::finalize(&template, &directory.join(apk), &key, &metadata)?;
             }
             Ok(())
         };

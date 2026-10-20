@@ -123,7 +123,6 @@ def _impl(ctx: bxl.Context):
     if args.previews:
         printed.append(("browser-rasterizer", _host_output(ctx, "root//crates/browser-rasterizer:bin", args.host)))
     if args.android:
-        printed.append(("apk-signer", _output(ctx, "root//buck/android:apksign-wasm")))
         printed.append(("apk-metadata", actions.copy_file("android-build-info.json", _output(ctx, "root//buck/app:build-info.json"))))
         printed.append(("block-app.apk", _output(ctx, "root//crates/block-app:android-dist")))
         printed.append(("be-launcher.apk", _output(ctx, "root//crates/be-launcher:android-dist")))

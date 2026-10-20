@@ -151,7 +151,7 @@ nsc base-image optimize --image_ref nscr.io/WORKSPACE/be3-worker@sha256:DIGEST
 ## CI's Android keystore
 
 CI signs its unsigned APK templates on the GitHub runner, after the single
-Buck invocation, using the WASI finalizer in local-tools. The workflow writes
+Buck invocation, with `local-tools apk-sign`. The workflow writes
 `ANDROID_CI_KEYSTORE_BASE64` to the ignored file
 `buck/android/ci-keystore.base64`; local-tools reads it at runtime.
 `BE3_ANDROID_CI_KEYSTORE` can name a different local file. The path is retained
@@ -161,5 +161,4 @@ the build server's CAS. Previously uploaded copies are not removed by this
 change.
 
 Keep the same keystore so each build installs as an update over the last.
-Keys are JKS/PKCS12 or base64 of one, with password `android`. Local WASI key
-generation and release key handling are described in guides/running/android.md.
+Keys are JKS/PKCS12 or base64 of one, with password `android`. Key generation and release key handling are described in guides/running/android.md.
