@@ -13,6 +13,7 @@ use block_editor_beui::root_settings::is_own_settings;
 use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor, Loaded};
 use uuid::Uuid;
 
+use super::devices::DevicesTable;
 use super::setup::{DeviceSection, DeviceSetup, DifferencesSection, SetUpDone, SetUpHeading};
 
 const PADDING: f32 = 16.0;
@@ -137,6 +138,12 @@ fn DevicesAndProfiles(
                     on_click={on_back}
                 />
             </List>
+            <Section
+                title="Where devices differ"
+                caption="What each profile keeps for itself, beside what applies on all devices."
+            >
+                <DevicesTable editor={editor} settings={settings} />
+            </Section>
             <Section
                 title="Settings profiles"
                 caption="Each device uses one, and starts with one of its own. What a device keeps for itself is kept in its profile."

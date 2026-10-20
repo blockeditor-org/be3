@@ -1150,7 +1150,11 @@ that are still at their default values (`DeviceClass::display_edits`).
 The workspace's Settings tab opens the account's `Settings` block on this device's
 settings: Display, Input and Default editors open the every-device blocks (making any
 that is missing), and Devices and profiles (`settings.devices`) lists the settings
-profiles, each of which opens on its own blocks.
+profiles, each of which opens on its own blocks. Above that list, a table (settings plugin
+`app/devices.rs`) puts the display and input settings down the side and All devices and
+each profile across, with only the rows some profile keeps: a kept cell shows its value,
+"kept since setup" while it still holds its class default (`ClassDefault::holds`) and
+"kept on device" otherwise; any other cell says "same". It reads each profile's own blocks.
 The hotbar is not merged:
 the logic editors use the topmost layer that has one, and make one for every
 device when there is none yet (`RootSetting::ensure`).

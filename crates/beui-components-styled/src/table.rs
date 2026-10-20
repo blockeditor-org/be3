@@ -13,7 +13,7 @@ const CELL_PADDING_HORIZONTAL: f32 = 16.0;
 const CELL_PADDING_VERTICAL: f32 = 10.0;
 const CELL_SPACING: f32 = 12.0;
 const CAPTION_SPACING: f32 = 2.0;
-const COLUMN_CAPTION: TextStyle = TextStyle::CAPTION.color(TextColor::Faint);
+const COLUMN_TITLE: TextStyle = TextStyle::CAPTION.bold();
 
 #[derive(Clone, Debug, Default, PartialEq)]
 pub struct TableColumn {
@@ -95,9 +95,9 @@ fn ColumnHeading(weight: f32, column: Memo<TableColumn>) -> ListChild {
     }));
     view! {
         <List @sizing=ItemSize::Percent(weight) spacing=0.0>
-            <Text style=TextStyle::CAPTION string={title} wrap=true />
+            <Text style=COLUMN_TITLE string={title} wrap=true />
             <Show condition={captioned}>
-                <Text style=COLUMN_CAPTION string={caption} wrap=true />
+                <Text style=TextStyle::CAPTION string={caption} wrap=true />
             </Show>
         </List>
     }

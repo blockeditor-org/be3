@@ -7,7 +7,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::{Editor, LayeredSettings};
 
 mod appearance;
-mod modes;
+pub(crate) mod modes;
 mod power;
 mod screens;
 mod ui;
