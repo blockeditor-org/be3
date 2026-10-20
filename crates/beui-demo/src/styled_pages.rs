@@ -2769,8 +2769,13 @@ fn PlanetTable() -> NodeId {
                 heading="Planet"
                 columns={vec![TableColumn::new("Year"), TableColumn::new("Moons").caption("Known")]}
             >
-                <ForEach keys={PLANETS.to_vec()}>|(name, year, moons, caption): (&'static str, &'static str, &'static str, &'static str)|
-                    <TableRow label={name.to_owned()} @test_id={format!("table.{}", name.to_lowercase())}>
+                <ForEach
+                    keys={PLANETS.to_vec()}
+                >|(name, year, moons, caption): (&'static str, &'static str, &'static str, &'static str)|
+                    <TableRow
+                        label={name.to_owned()}
+                        @test_id={format!("table.{}", name.to_lowercase())}
+                    >
                         <TableCell
                             text={year.to_owned()}
                             color=TextColor::Muted

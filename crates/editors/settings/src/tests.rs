@@ -15,8 +15,8 @@ use crate::app::SettingsApp;
 
 mod a_new_e_paper_tablet_is_set_up_with_only_the_settings_that_differ;
 mod another_accounts_settings_are_shown_but_not_changed;
-mod devices_and_profiles_shows_only_what_a_profile_keeps;
 mod changing_the_kind_of_device_keeps_its_defaults_here;
+mod devices_and_profiles_shows_only_what_a_profile_keeps;
 mod opening_display_settings_creates_the_block_once;
 mod opening_input_settings_creates_the_block_once;
 mod this_device_can_pick_a_new_settings_profile;

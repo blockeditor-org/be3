@@ -955,9 +955,10 @@ pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
         };
         let ready = runtime.contain(|runtime| {
             runtime.error.is_none().then(|| {
-                let ready = runtime
-                    .instances
-                    .report_creation(instance, client_id, block_types, role);
+                let ready =
+                    runtime
+                        .instances
+                        .report_creation(instance, client_id, block_types, role);
                 runtime.release_reported();
                 ready
             })

@@ -14,11 +14,11 @@ fn devices_and_profiles_shows_only_what_a_profile_keeps() {
 
     let block = settings.block_id().expect("the settings are a block");
     let (shared, tablet, desktop, tablet_display, desktop_display) = (
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
-        Uuid::new_v4(),
+        Uuid::from_u128(1),
+        Uuid::from_u128(2),
+        Uuid::from_u128(3),
+        Uuid::from_u128(4),
+        Uuid::from_u128(5),
     );
     let store = settings.store();
     for (profile, class, name) in [

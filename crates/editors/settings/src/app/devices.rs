@@ -80,10 +80,10 @@ fn on_off(on: &bool) -> String {
     }
 }
 
-fn text(value: &String) -> String {
+fn text(value: &str) -> String {
     match value.is_empty() {
         true => "None".to_owned(),
-        false => value.clone(),
+        false => value.to_owned(),
     }
 }
 
@@ -133,9 +133,15 @@ fn described(screens: &BTreeSet<String>) -> Vec<Described> {
         rows.extend([mode, turned]);
     }
     rows.extend([
-        input(InputSettings::layout_setting(), text),
-        input(InputSettings::variant_setting(), text),
-        input(InputSettings::options_setting(), text),
+        input(InputSettings::layout_setting(), |value: &String| {
+            text(value)
+        }),
+        input(InputSettings::variant_setting(), |value: &String| {
+            text(value)
+        }),
+        input(InputSettings::options_setting(), |value: &String| {
+            text(value)
+        }),
         input(InputSettings::repeat_delay_setting(), |delay| {
             format!("{delay} ms")
         }),
@@ -180,7 +186,7 @@ impl Model {
     fn build(every: &Values, profiles: &[Profile]) -> Self {
         let screens: BTreeSet<String> = std::iter::once(every)
             .chain(profiles.iter().map(|profile| &profile.values))
-            .flat_map(|values| values.display.screens.iter().map(|(id, _)| id.clone()))
+            .flat_map(|values| values.display.screens.keys().cloned())
             .collect();
         let rows = described(&screens)
             .into_iter()
@@ -260,7 +266,7 @@ pub(super) fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsC
             return Model::default();
         };
         let every = values(editor, |kind| root.kind(kind));
-        let profiles: Vec<Profile> = root
+        let mut profiles: Vec<Profile> = root
             .profiles()
             .into_iter()
             .map(|id| {
@@ -285,11 +291,18 @@ pub(super) fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsC
                 }
             })
             .collect();
+        profiles.sort_by(|a, b| a.name.cmp(&b.name).then(a.id.cmp(&b.id)));
         Model::build(&every, &profiles)
     });
     let columns = create_memo(move || model.with(|model| model.columns.clone()));
     let keys = create_memo(move || {
-        model.with(|model| model.rows.iter().map(|row| row.key.clone()).collect::<Vec<_>>())
+        model.with(|model| {
+            model
+                .rows
+                .iter()
+                .map(|row| row.key.clone())
+                .collect::<Vec<_>>()
+        })
     });
     let differs = create_memo(move || !keys.with(Vec::is_empty));
     let same = create_memo(move || !differs.get());
@@ -306,9 +319,9 @@ pub(super) fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsC
             <Show condition={differs}>
                 <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius=Radius::Lg>
                     <Table label="Devices and profiles" heading="Setting" columns={columns}>
-                        <ForEach keys={keys}>|key: String| {
-                            view! { <DevicesRow model={model} key={key} /> }
-                        }</ForEach>
+                        <ForEach keys={keys}>|key: String|
+                            <DevicesRow model={model} key={key} />
+                        </ForEach>
                     </Table>
                 </Frame>
             </Show>
@@ -324,8 +337,14 @@ fn DevicesRow(model: Memo<Model>, key: String) -> NodeId {
             model.with(|model| model.rows.iter().find(|row| row.key == key).cloned())
         })
     };
-    let name = create_memo(move || row.with(|row| row.as_ref().map(|row| row.name.clone())).unwrap_or_default());
-    let every = create_memo(move || row.with(|row| row.as_ref().map(|row| row.every.clone())).unwrap_or_default());
+    let name = create_memo(move || {
+        row.with(|row| row.as_ref().map(|row| row.name.clone()))
+            .unwrap_or_default()
+    });
+    let every = create_memo(move || {
+        row.with(|row| row.as_ref().map(|row| row.every.clone()))
+            .unwrap_or_default()
+    });
     let profiles = create_memo(move || model.with(|model| model.profiles.clone()));
     let every_color = create_memo(move || match every.with(|every| every == NOT_SET) {
         true => TextColor::Muted,
