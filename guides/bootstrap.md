@@ -19,12 +19,21 @@ Where code belongs:
 A command is one buck2 invocation, and the bootstrap runs it; the one
 exception is `BE3_BOOTSTRAP=source`, below.
 
+Every question the bootstrap or `crates/local-tools` asks at a terminal goes
+through `crates/prompt`: a menu moved with
+the arrow keys, a line of text checked as it is entered, and a secret, shown as
+`*`. `prompt::Saved` is a key that comes from an environment variable, a file
+at the root of the checkout or `~/.config/be3`, or else is asked for and saved
+there. Without a terminal nothing is asked, and the caller says which variable
+to set.
+
 ## The release
 
 `scripts/internal/pins` names everything the scripts download, as
 `name='value'` lines that both the stub and the bootstrap read: buck2's
 version, be's release, nsc's, and the bootstrap's. `bootstrap_source` is the
-SHA-256 of the crate's files the release was built from, and
+SHA-256 of the files of the crate and of the workspace crates it depends on
+(`crates/prompt`) that the release was built from, and
 `bootstrap_sha256_<triple>` the SHA-256 of each platform's binary, which is
 also its name at `https://be3-ci.b-cdn.net/bootstrap/<sha256>`.
 `scripts/internal/bootstrap.sh` downloads the one for this machine into

@@ -97,6 +97,7 @@ members = [
     "crates/paint-format",
     "crates/paint-snapshot",
     "crates/plugin-test-runner",
+    "crates/prompt",
     "crates/reactive",
     "crates/remap/host",
     "crates/remap/module",

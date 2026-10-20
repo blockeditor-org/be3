@@ -30,6 +30,9 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
         command.env_remove(name);
     }
     command.env("BE3_AGENT_CREDENTIALS", bundle);
+    if let Some(key) = crate::server::gateway().stored() {
+        command.env("BE3_AUTHORIZATION", key);
+    }
     buck::exec(command)
 }
 

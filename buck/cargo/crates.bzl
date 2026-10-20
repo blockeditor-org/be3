@@ -9622,13 +9622,13 @@ crates = {
             "android-arm64": {
                 "binaries": {
                     "bootstrap": [
-                        "//third-party/rust:libc-0.2.186",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
-                    "//third-party/rust:libc-0.2.186",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -9640,13 +9640,13 @@ crates = {
             "linux-arm64": {
                 "binaries": {
                     "bootstrap": [
-                        "//third-party/rust:libc-0.2.186",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
-                    "//third-party/rust:libc-0.2.186",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -9658,13 +9658,13 @@ crates = {
             "linux-x86_64": {
                 "binaries": {
                     "bootstrap": [
-                        "//third-party/rust:libc-0.2.186",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
-                    "//third-party/rust:libc-0.2.186",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -9676,13 +9676,13 @@ crates = {
             "macos-arm64": {
                 "binaries": {
                     "bootstrap": [
-                        "//third-party/rust:libc-0.2.186",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
-                    "//third-party/rust:libc-0.2.186",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -9694,13 +9694,13 @@ crates = {
             "macos-x86_64": {
                 "binaries": {
                     "bootstrap": [
-                        "//third-party/rust:libc-0.2.186",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:sha2-0.10.9",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
-                    "//third-party/rust:libc-0.2.186",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:sha2-0.10.9",
                     "//third-party/rust:zstd-0.13.3",
                 ],
@@ -9712,14 +9712,14 @@ crates = {
             "windows-arm64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/prompt:prompt",
                         "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:windows-sys-0.61.2",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/prompt:prompt",
                     "//third-party/rust:sha2-0.10.9",
-                    "//third-party/rust:windows-sys-0.61.2",
                     "//third-party/rust:zstd-0.13.3",
                 ],
                 "examples": {},
@@ -9730,14 +9730,14 @@ crates = {
             "windows-x86_64": {
                 "binaries": {
                     "bootstrap": [
+                        "//crates/prompt:prompt",
                         "//third-party/rust:sha2-0.10.9",
-                        "//third-party/rust:windows-sys-0.61.2",
                         "//third-party/rust:zstd-0.13.3",
                     ],
                 },
                 "deps": [
+                    "//crates/prompt:prompt",
                     "//third-party/rust:sha2-0.10.9",
-                    "//third-party/rust:windows-sys-0.61.2",
                     "//third-party/rust:zstd-0.13.3",
                 ],
                 "examples": {},
@@ -11388,6 +11388,7 @@ crates = {
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:jks-0.3.3",
@@ -11404,6 +11405,7 @@ crates = {
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:jks-0.3.3",
@@ -11426,6 +11428,7 @@ crates = {
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:jks-0.3.3",
@@ -11442,6 +11445,7 @@ crates = {
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:jks-0.3.3",
@@ -11464,6 +11468,7 @@ crates = {
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:jks-0.3.3",
@@ -11480,6 +11485,7 @@ crates = {
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:jks-0.3.3",
@@ -11502,6 +11508,7 @@ crates = {
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:jks-0.3.3",
@@ -11518,6 +11525,7 @@ crates = {
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:jks-0.3.3",
@@ -11540,6 +11548,7 @@ crates = {
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:jks-0.3.3",
@@ -11556,6 +11565,7 @@ crates = {
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:jks-0.3.3",
@@ -11578,6 +11588,7 @@ crates = {
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:jks-0.3.3",
@@ -11593,6 +11604,7 @@ crates = {
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:jks-0.3.3",
@@ -11614,6 +11626,7 @@ crates = {
                         "//crates/beui-html:beui-html",
                         "//crates/build-id:build-id",
                         "//crates/paint-snapshot:paint-snapshot",
+                        "//crates/prompt:prompt",
                         "//third-party/rust:base64-0.22.1",
                         "//third-party/rust:image-0.25.10",
                         "//third-party/rust:jks-0.3.3",
@@ -11629,6 +11642,7 @@ crates = {
                     "//crates/beui-html:beui-html",
                     "//crates/build-id:build-id",
                     "//crates/paint-snapshot:paint-snapshot",
+                    "//crates/prompt:prompt",
                     "//third-party/rust:base64-0.22.1",
                     "//third-party/rust:image-0.25.10",
                     "//third-party/rust:jks-0.3.3",
@@ -12500,6 +12514,91 @@ crates = {
                     ],
                 },
                 "deps": [],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/prompt": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "prompt",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "prompt",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:libc-0.2.186",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:libc-0.2.186",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:libc-0.2.186",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:libc-0.2.186",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:libc-0.2.186",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:windows-sys-0.61.2",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:windows-sys-0.61.2",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],

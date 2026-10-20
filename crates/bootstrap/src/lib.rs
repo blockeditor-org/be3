@@ -15,7 +15,6 @@ mod server;
 mod setup;
 mod source;
 mod switch;
-mod terminal;
 mod test;
 mod verify;
 
@@ -104,15 +103,6 @@ fn partial_path(path: &Path) -> PathBuf {
     path.with_file_name(name)
 }
 
-fn config_directory() -> PathBuf {
-    if let Some(directory) = std::env::var_os("XDG_CONFIG_HOME").filter(|value| !value.is_empty()) {
-        return PathBuf::from(directory).join("be3");
-    }
-    let home = std::env::var_os("HOME")
-        .or_else(|| std::env::var_os("USERPROFILE"))
-        .unwrap_or_default();
-    PathBuf::from(home).join(".config/be3")
-}
 
 #[cfg(test)]
 mod tests;

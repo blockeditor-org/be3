@@ -1,6 +1,6 @@
 use beui_html::{elements as html, tw};
 use std::{
-    io::{IsTerminal, Read, Write},
+    io::Read,
     path::{Path, PathBuf},
     process::{Command, ExitCode},
     time::Duration,
@@ -133,107 +133,23 @@ fn parse(mut arguments: impl Iterator<Item = String>) -> Result<Options, String>
 }
 
 fn secret(variable: &str, name: &str, description: &str) -> Result<String, String> {
-    if let Ok(value) = std::env::var(variable)
-        && !value.is_empty()
-    {
-        let value = value.trim();
-        if value.is_empty() {
-            return Err(format!("{variable} is needed."));
-        }
-        return Ok(value.to_owned());
+    let saved = prompt::Saved {
+        variable,
+        name,
+        what: variable,
+        checkout: None,
+    };
+    if let Some(value) = saved.stored() {
+        return Ok(value);
     }
-    let config = std::env::var_os("XDG_CONFIG_HOME")
-        .filter(|path| !path.is_empty())
-        .map(PathBuf::from)
-        .or_else(|| std::env::var_os("HOME").map(|home| PathBuf::from(home).join(".config")))
-        .ok_or("cannot find the configuration directory")?
-        .join("be3");
-    let saved = config.join(name);
-    match std::fs::read_to_string(&saved) {
-        Ok(value) => {
-            let value: String = value.chars().filter(|c| !c.is_whitespace()).collect();
-            if value.is_empty() {
-                return Err(format!(
-                    "{variable} is needed; set it or replace the empty file at {}",
-                    saved.display()
-                ));
-            }
-            return Ok(value);
-        }
-        Err(error) if error.kind() == std::io::ErrorKind::NotFound => {}
-        Err(error) => return Err(format!("cannot read {}: {error}", saved.display())),
-    }
-    if !std::io::stdin().is_terminal() || !std::io::stderr().is_terminal() {
-        return Err(format!(
-            "set {variable}, or write {description} to {}, or run ./scripts/deploy at a terminal to be asked for it.",
-            saved.display()
-        ));
-    }
-    eprintln!("./scripts/deploy needs {description} (guides/hosting.md).");
-    eprint!("{variable}: ");
-    std::io::stderr()
-        .flush()
-        .map_err(|error| error.to_string())?;
-    let terminal = HiddenInput::new()?;
-    let mut value = String::new();
-    let result = std::io::stdin().read_line(&mut value);
-    drop(terminal);
-    eprintln!();
-    result.map_err(|error| error.to_string())?;
-    let value: String = value.chars().filter(|c| !c.is_whitespace()).collect();
-    if value.is_empty() {
-        return Err(format!("{variable} is needed."));
-    }
-    std::fs::create_dir_all(&config).map_err(|error| error.to_string())?;
-    let mut file = std::fs::OpenOptions::new();
-    file.write(true).create_new(true);
-    #[cfg(unix)]
-    {
-        use std::os::unix::fs::OpenOptionsExt;
-        file.mode(0o600);
-    }
-    writeln!(
-        file.open(&saved).map_err(|error| error.to_string())?,
-        "{value}"
-    )
-    .map_err(|error| error.to_string())?;
-    eprintln!("Saved it to {}.", saved.display());
-    Ok(value)
-}
-
-struct HiddenInput(String);
-
-impl HiddenInput {
-    fn new() -> Result<Self, String> {
-        let output = Command::new("stty")
-            .arg("-g")
-            .stdin(std::process::Stdio::inherit())
-            .output()
-            .map_err(|error| format!("cannot read terminal settings: {error}"))?;
-        if !output.status.success() {
-            return Err("cannot read terminal settings".to_owned());
-        }
-        let terminal = Self(
-            String::from_utf8(output.stdout)
-                .map_err(|error| error.to_string())?
-                .trim()
-                .to_owned(),
-        );
-        let status = Command::new("stty")
-            .arg("-echo")
-            .status()
-            .map_err(|error| error.to_string())?;
-        if !status.success() {
-            return Err("cannot hide terminal input".to_owned());
-        }
-        Ok(terminal)
-    }
-}
-
-impl Drop for HiddenInput {
-    fn drop(&mut self) {
-        let _ = Command::new("stty").arg(&self.0).status();
-    }
+    saved
+        .ask(&format!("./scripts/deploy needs {description} (guides/hosting.md)."))
+        .ok_or_else(|| {
+            format!(
+                "set {variable}, or write {description} to {}, or run ./scripts/deploy at a terminal to be asked for it.",
+                saved.path().display()
+            )
+        })
 }
 
 fn setting(name: &str, default: &str) -> String {

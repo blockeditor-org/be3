@@ -21,10 +21,13 @@ The servers share nothing: each has its own cache and its own key.
 name as `be3.build_server`; `worker_properties` (`buck/tools/defs.bzl`) reads
 that to pick the workers' image, since Namespace runs only its own copy of it.
 
-Namespace's waker is behind the API gateway, so `namespace` takes the
-gateway's `Be3-Gateway-Authorization` header from `BE3_AUTHORIZATION`, as
-`./scripts/be` does (guides/tracker.md); CI sets it, and in an agent's cloud
-session the proxy adds the header itself. A server other than `namespace` and
+Namespace's waker is behind the API gateway, so `namespace` sends the
+gateway's `Be3-Gateway-Authorization` header, as `./scripts/be` does
+(guides/tracker.md): `BE3_AUTHORIZATION`, or else `.gateway-authorization` at
+the root of the checkout or `~/.config/be3/gateway-authorization`. When the
+gateway refuses the request at a terminal, `./scripts/buck` asks for the key
+until it is accepted and saves it to the last. CI sets the variable, and in an
+agent's cloud session the proxy adds the header itself. A server other than `namespace` and
 `local` takes its key from:
 
 1. `BE3_BUILD_SERVER_KEY` in the environment

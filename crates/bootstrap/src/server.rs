@@ -4,8 +4,9 @@ use std::process::{Command, Stdio};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::download::{curl_error, sha256};
-use crate::terminal::{interactive, prompt, prompt_hidden};
-use crate::{Result, config_directory, repository};
+use prompt::{Choice, Saved, choose, config_directory, interactive, save_private, text};
+
+use crate::{Result, repository};
 
 const SERVERS: [&str; 4] = ["namespace", "api.be3.pfg.pw", "buildbuddy", "local"];
 const NAMESPACE_URL: &str = "https://api.be3.pfg.pw/build/namespace";
@@ -101,17 +102,7 @@ pub fn configure(buck2: &Path, recheck: bool) -> Result<()> {
 }
 
 fn write_private(path: &Path, text: &str) -> Result<()> {
-    let partial = crate::partial_path(path);
-    let mut options = std::fs::OpenOptions::new();
-    options.write(true).create(true).truncate(true);
-    #[cfg(unix)]
-    std::os::unix::fs::OpenOptionsExt::mode(&mut options, 0o600);
-    let written = options
-        .open(&partial)
-        .and_then(|mut file| std::io::Write::write_all(&mut file, text.as_bytes()));
-    written.map_err(|error| format!("could not write {}: {error}", partial.display()))?;
-    std::fs::rename(&partial, path)
-        .map_err(|error| format!("could not write {}: {error}", path.display()))
+    save_private(path, text).map_err(|error| format!("could not write {}: {error}", path.display()))
 }
 
 fn saved_server_file() -> PathBuf {
@@ -153,43 +144,32 @@ fn server() -> Result<String> {
 }
 
 fn ask_for_server(saved: &Path) -> Option<String> {
-    if !interactive() {
-        return None;
+    let choices: Vec<Choice> = SERVERS
+        .iter()
+        .map(|server| Choice {
+            label: server,
+            detail: match *server {
+                "namespace" => "Namespace's remote execution",
+                "api.be3.pfg.pw" => "our own NativeLink server",
+                "buildbuddy" => "BuildBuddy's remote.buildbuddy.io",
+                _ => "a NativeLink server of your own, without TLS or a key",
+            },
+        })
+        .collect();
+    if interactive() {
+        eprintln!("guides/build_server.md says more about each.");
     }
-    eprintln!("Which build server should buck2 build on? guides/build_server.md says more.");
-    for (index, server) in SERVERS.iter().enumerate() {
-        let what = match *server {
-            "namespace" => "Namespace's remote execution",
-            "api.be3.pfg.pw" => "our own NativeLink server",
-            "buildbuddy" => "BuildBuddy's remote.buildbuddy.io",
-            _ => "a NativeLink server of your own, without TLS or a key",
-        };
-        eprintln!("  {}) {server}: {what}", index + 1);
-    }
-    let server = loop {
-        let choice = prompt(&format!("Build server [1-{}]: ", SERVERS.len()))?;
-        if let Ok(index) = choice.parse::<usize>()
-            && (1..=SERVERS.len()).contains(&index)
-        {
-            break SERVERS[index - 1];
-        }
-    };
+    let server = SERVERS[choose("Which build server should buck2 build on?", &choices, 0)?];
     let mut text = format!("{server}\n");
     if server == "local" {
         text.push_str(&format!("{}\n", ask_for_local_address()?));
     }
     save(saved, &text);
-    eprintln!(
-        "Saved it to {}; delete it to be asked again.",
-        saved.display()
-    );
+    eprintln!("Saved it to {}; delete it to be asked again.", saved.display());
     Some(server.to_owned())
 }
 
 fn save(path: &Path, text: &str) {
-    if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
-    }
     if let Err(error) = write_private(path, text) {
         eprintln!("{error}");
     }
@@ -205,17 +185,14 @@ fn is_address(address: &str) -> bool {
 }
 
 fn ask_for_local_address() -> Option<String> {
-    loop {
-        let address = prompt("NativeLink address (such as 127.0.0.1:50052): ")?;
-        let address = address
-            .strip_prefix("grpc://")
-            .unwrap_or(&address)
-            .to_owned();
-        if is_address(&address) {
-            return Some(address);
+    text("NativeLink address:", "127.0.0.1:50052", |address| {
+        let address = address.strip_prefix("grpc://").unwrap_or(address);
+        if is_address(address) {
+            Ok(address.to_owned())
+        } else {
+            Err("That is not a host:port.".to_owned())
         }
-        eprintln!("That is not a host:port.");
-    }
+    })
 }
 
 fn local_address() -> Result<String> {
@@ -246,29 +223,20 @@ fn local_address() -> Result<String> {
 }
 
 fn key(server: &str) -> Result<String> {
-    if let Ok(key) = std::env::var("BE3_BUILD_SERVER_KEY")
-        && !key.is_empty()
-    {
+    let name = format!("build-server-key.{server}");
+    let what = format!("{server} key");
+    let saved = Saved {
+        variable: "BE3_BUILD_SERVER_KEY",
+        name: &name,
+        what: &what,
+        checkout: Some(repository()),
+    };
+    if let Some(key) = saved.stored() {
         return Ok(key);
     }
-    let name = format!("build-server-key.{server}");
-    let saved = config_directory().join(&name);
-    for file in [repository().join(format!(".{name}")), saved.clone()] {
-        if let Ok(text) = std::fs::read_to_string(&file) {
-            return Ok(text
-                .chars()
-                .filter(|character| !character.is_whitespace())
-                .collect());
-        }
-    }
-    if interactive() {
-        eprintln!("buck2 builds on {server}, and needs its key.");
-        eprintln!("guides/build_server.md says where to get one.");
-        if let Some(key) = prompt_hidden(&format!("{server} key: ")).filter(|key| !key.is_empty()) {
-            save(&saved, &format!("{key}\n"));
-            eprintln!("Saved it to {}.", saved.display());
-            return Ok(key);
-        }
+    let why = format!("buck2 builds on {server}, and needs its key. guides/build_server.md says where to get one.");
+    if let Some(key) = saved.ask(&why) {
+        return Ok(key);
     }
     Err(format!(
         "buck2 builds on {server}, and there is no key for it. Set\n\
@@ -276,6 +244,15 @@ fn key(server: &str) -> Result<String> {
          checkout or to ~/.config/be3/{name}. Run ./scripts/buck from a terminal\n\
          to be asked for it. guides/build_server.md has more."
     ))
+}
+
+pub fn gateway() -> Saved<'static> {
+    Saved {
+        variable: "BE3_AUTHORIZATION",
+        name: "gateway-authorization",
+        what: "api.be3.pfg.pw gateway key",
+        checkout: Some(repository()),
+    }
 }
 
 fn now() -> u64 {
@@ -338,12 +315,7 @@ mod namespace {
         std::fs::create_dir_all(&directory)
             .map_err(|error| format!("could not create {}: {error}", directory.display()))?;
         let header_file = directory.join("request-header");
-        let header = match std::env::var("BE3_AUTHORIZATION") {
-            Ok(value) if !value.is_empty() => format!("Be3-Gateway-Authorization: {value}\n"),
-            _ => String::new(),
-        };
-        write_private(&header_file, &header)?;
-        let key_hash = sha256(header.as_bytes());
+        let mut key_hash = write_header(&header_file, gateway().stored())?;
         let stamp = directory.join("asked");
         let now = now();
         let mut age = u64::MAX;
@@ -368,30 +340,26 @@ mod namespace {
         eprintln!("Waking the remote execution cluster through {NAMESPACE_URL}...");
         let answer = directory.join("buck2.buckconfig.partial");
         let response_header = directory.join("response-header");
-        let output = Command::new("curl")
-            .args(["--silent", "--show-error", "--max-time", "600", "--header"])
-            .arg(format!("@{}", header_file.display()))
-            .arg("--dump-header")
-            .arg(&response_header)
-            .arg("--output")
-            .arg(&answer)
-            .args(["--write-out", "%{http_code}", NAMESPACE_URL])
-            .stderr(Stdio::inherit())
-            .output()
-            .map_err(curl_error)?;
-        if !output.status.success() {
-            return Err(format!(
-                "Could not reach {NAMESPACE_URL} (guides/build_server.md)."
-            ));
+        let mut status = wake(&header_file, &response_header, &answer)?;
+        while status == "401" || status == "403" {
+            let why = format!(
+                "The gateway in front of {NAMESPACE_URL} refused the request ({status}), so it needs\n\
+                 the Be3-Gateway-Authorization header's value (guides/build_server.md)."
+            );
+            let Some(key) = gateway().ask(&why) else {
+                break;
+            };
+            key_hash = write_header(&header_file, Some(key))?;
+            status = wake(&header_file, &response_header, &answer)?;
         }
-        let status = String::from_utf8_lossy(&output.stdout).trim().to_owned();
         if status != "200" {
             let body = std::fs::read_to_string(&answer).unwrap_or_default();
             eprintln!("{body}");
             if status == "401" || status == "403" {
                 return Err(format!(
                     "The gateway in front of {NAMESPACE_URL} refused this request. Set\n\
-                     BE3_AUTHORIZATION to its Be3-Gateway-Authorization header (guides/build_server.md)."
+                     BE3_AUTHORIZATION to its Be3-Gateway-Authorization header, or run\n\
+                     ./scripts/buck at a terminal to be asked for it (guides/build_server.md)."
                 ));
             }
             return Err(format!(
@@ -431,6 +399,30 @@ mod namespace {
             ));
         }
         Ok(config)
+    }
+
+    fn write_header(file: &Path, key: Option<String>) -> Result<String> {
+        let header = key.map_or_else(String::new, |key| format!("Be3-Gateway-Authorization: {key}\n"));
+        write_private(file, &header)?;
+        Ok(sha256(header.as_bytes()))
+    }
+
+    fn wake(header: &Path, response_header: &Path, answer: &Path) -> Result<String> {
+        let output = Command::new("curl")
+            .args(["--silent", "--show-error", "--max-time", "600", "--header"])
+            .arg(format!("@{}", header.display()))
+            .arg("--dump-header")
+            .arg(response_header)
+            .arg("--output")
+            .arg(answer)
+            .args(["--write-out", "%{http_code}", NAMESPACE_URL])
+            .stderr(Stdio::inherit())
+            .output()
+            .map_err(curl_error)?;
+        if !output.status.success() {
+            return Err(format!("Could not reach {NAMESPACE_URL} (guides/build_server.md)."));
+        }
+        Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
     }
 
     fn answers(config: &Config) -> bool {

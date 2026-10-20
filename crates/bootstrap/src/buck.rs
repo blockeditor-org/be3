@@ -7,7 +7,8 @@ use std::process::{Command, ExitCode, ExitStatus, Stdio};
 use crate::pins::Pins;
 use crate::platform::target_platform;
 use crate::quiet::Quiet;
-use crate::terminal::columns;
+use prompt::columns;
+
 use crate::{Result, buck2, env_set, in_ci, repository, server, write_if_changed};
 
 const BUILD_COMMANDS: [&str; 11] = [

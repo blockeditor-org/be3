@@ -15,7 +15,7 @@ pub enum Outcome {
 pub fn check(built: Option<&Path>, out: Option<&Path>, check: bool) -> Result<Outcome, String> {
     let pins =
         fs::read_to_string(PINS).map_err(|error| format!("could not read {PINS}: {error}"))?;
-    let source = source_hash(Path::new(CRATE))?;
+    let source = source_hash(&crates(CRATE)?)?;
     if pinned(&pins, "bootstrap_source") == Some(source.as_str()) {
         return Ok(Outcome::Current);
     }
@@ -85,14 +85,51 @@ pub fn set(pins: &str, values: &[(String, String)]) -> Result<String, String> {
     Ok(written)
 }
 
-pub fn source_hash(root: &Path) -> Result<String, String> {
+pub fn crates(root: &str) -> Result<Vec<String>, String> {
+    let mut crates = vec![root.to_owned()];
+    let mut next = 0;
+    while next < crates.len() {
+        let manifest = format!("{}/Cargo.toml", crates[next]);
+        let text = fs::read_to_string(&manifest).map_err(|error| format!("could not read {manifest}: {error}"))?;
+        for line in text.lines() {
+            let Some((_, rest)) = line.split_once("path = \"") else {
+                continue;
+            };
+            let Some((path, _)) = rest.split_once('"') else {
+                continue;
+            };
+            let mut parts: Vec<&str> = crates[next].split('/').collect();
+            for part in path.split('/') {
+                match part {
+                    ".." => {
+                        parts.pop();
+                    }
+                    "." | "" => {}
+                    part => parts.push(part),
+                }
+            }
+            let dependency = parts.join("/");
+            if !crates.contains(&dependency) {
+                crates.push(dependency);
+            }
+        }
+        next += 1;
+    }
+    crates.sort();
+    Ok(crates)
+}
+
+pub fn source_hash(crates: &[String]) -> Result<String, String> {
     let mut files = Vec::new();
-    collect(root, root, &mut files)?;
+    for directory in crates {
+        let mut found = Vec::new();
+        collect(Path::new(directory), Path::new(directory), &mut found)?;
+        files.extend(found.into_iter().map(|path| format!("{directory}/{path}")));
+    }
     files.sort();
     let mut hasher = Sha256::new();
     for path in files {
-        let bytes = fs::read(root.join(&path))
-            .map_err(|error| format!("could not read {path}: {error}"))?;
+        let bytes = fs::read(&path).map_err(|error| format!("could not read {path}: {error}"))?;
         hasher.update(path.as_bytes());
         hasher.update([0]);
         hasher.update(hex(&Sha256::digest(&bytes)).as_bytes());
