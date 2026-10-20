@@ -769,7 +769,7 @@ click or a tap never shows it. Moving the focus scrolls the control into view wi
 its ring, but a ring drawn outside its control still needs room inside the scroll at the
 content's edges, which is why the padding goes inside a scroll. A scroll that is one part of
 a padded surface, its content lined up with what sits beside it, takes `bleed` instead
-(`Bleed::POPOVER`, `Bleed::CARD`, with `.top(false)` and its siblings to keep a side in): the
+(`Bleed::POPOVER`, `Bleed::CARD`, `Bleed::DIALOG`, with `.top(false)` and its siblings to keep a side in): the
 scroll and its scrollbar reach out into the surface's padding up to its border, and the content
 is padded back in by as much, so it lines up as before and its rings have the padding to draw
 in. The unstyled `Scroll` takes the same as `Sides`, which it builds from a `Frame` with that much
@@ -1280,6 +1280,12 @@ carries the page off from where it rests in the same slide-away. `styled::Dialog
 sinks with the gesture and slides on down from where it was. On Android the
 runner passes `handles_back` to the activity's `setBackHandled`, and when
 nothing takes it the system's own back (to the home screen) plays instead.
+
+A `Center` overlay is never larger than its screen: content that measures taller
+or wider is laid out in the screen's size, so its bottom cannot fall off a short
+window. `styled::Dialog` puts its title and body in a fitted `Scroll` with
+`Bleed::DIALOG` that gives up length when the screen is short, so every dialog
+scrolls rather than spilling over the edge.
 
 A layer at `LayerLevel::Lock` that blocks everything is a lock screen
 (`styled::LockScreen`): it is above every other layer, so anything opened while
