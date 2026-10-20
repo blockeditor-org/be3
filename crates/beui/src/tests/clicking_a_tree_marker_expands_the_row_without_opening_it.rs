@@ -28,10 +28,7 @@ fn clicking_a_tree_marker_expands_the_row_without_opening_it() {
                 on_select={move |key: usize| opened.update(|opened| opened.push(key))}
                 on_expand={move |(_, open): (usize, bool)| expanded.set(open)}
             >|row: TreeRowFace<usize>|
-                <Text
-                    @test_id={format!("row.{}", row.key)}
-                    string={format!("row {}", row.key)}
-                />
+                <Text @test_id={format!("row.{}", row.key)} string={format!("row {}", row.key)} />
             </Tree>
         }
     });

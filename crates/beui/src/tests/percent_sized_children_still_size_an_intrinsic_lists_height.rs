@@ -10,16 +10,10 @@ fn percent_sized_children_still_size_an_intrinsic_lists_height() {
         view! {
             <List spacing=0.0>
                 <List @node_ref=&row direction=Direction::Horizontal spacing=0.0>
-                    <Frame
-                        @sizing=ItemSize::Percent(50.0)
-                        padding={Sides::symmetric(0.0, 20.0)}
-                    >
+                    <Frame @sizing=ItemSize::Percent(50.0) padding={Sides::symmetric(0.0, 20.0)}>
                         <Spacer />
                     </Frame>
-                    <Frame
-                        @sizing=ItemSize::Percent(50.0)
-                        padding={Sides::symmetric(0.0, 20.0)}
-                    >
+                    <Frame @sizing=ItemSize::Percent(50.0) padding={Sides::symmetric(0.0, 20.0)}>
                         <Spacer />
                     </Frame>
                 </List>

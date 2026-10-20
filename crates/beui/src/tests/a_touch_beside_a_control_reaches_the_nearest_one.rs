@@ -13,9 +13,7 @@ fn a_touch_beside_a_control_reaches_the_nearest_one() {
                     <Interactive on_click={move || clicks.update(|clicks| clicks.push("left"))}>
                         <Frame width=30.0 height=30.0 />
                     </Interactive>
-                    <Interactive
-                        on_click={move || clicks.update(|clicks| clicks.push("right"))}
-                    >
+                    <Interactive on_click={move || clicks.update(|clicks| clicks.push("right"))}>
                         <Frame width=30.0 height=30.0 />
                     </Interactive>
                 </List>

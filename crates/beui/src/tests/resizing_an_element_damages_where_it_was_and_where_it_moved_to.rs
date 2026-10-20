@@ -18,12 +18,7 @@ fn resizing_an_element_damages_where_it_was_and_where_it_moved_to() {
         view! {
             <List spacing=0.0>
                 <Frame height=height fill=Color32::WHITE radius=0.0 />
-                <Frame
-                    @node_ref=&bottom
-                    height=BOTTOM
-                    fill={Color32::from_gray(40)}
-                    radius=0.0
-                />
+                <Frame @node_ref=&bottom height=BOTTOM fill={Color32::from_gray(40)} radius=0.0 />
             </List>
         }
     });

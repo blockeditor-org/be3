@@ -17,9 +17,7 @@ fn compacting_virtual_rows_clamps_the_scroll_anchor_at_the_end() {
                         keys={keys}
                         item_size={item_size}
                     >|_: ReadSignal<usize>|
-                        <Frame
-                            padding={create_memo(move || Sides::symmetric(0.0, padding.get()))}
-                        >
+                        <Frame padding={create_memo(move || Sides::symmetric(0.0, padding.get()))}>
                             <Spacer />
                         </Frame>
                     </VirtualList>

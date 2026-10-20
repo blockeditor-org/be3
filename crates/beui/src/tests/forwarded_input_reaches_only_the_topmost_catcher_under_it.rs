@@ -24,16 +24,12 @@ fn forwarded_input_reaches_only_the_topmost_catcher_under_it() {
         view! {
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>
-                    <Interactive
-                        on_forward={move |input| below.update(|below| below.push(input))}
-                    >
+                    <Interactive on_forward={move |input| below.update(|below| below.push(input))}>
                         <Frame />
                     </Interactive>
                 </CanvasItem>
                 <CanvasItem x=50.0 y=50.0 width=50.0 height=50.0>
-                    <Interactive
-                        on_forward={move |input| above.update(|above| above.push(input))}
-                    >
+                    <Interactive on_forward={move |input| above.update(|above| above.push(input))}>
                         <Frame />
                     </Interactive>
                 </CanvasItem>

@@ -1650,18 +1650,8 @@ pub(crate) fn three_panels() -> ThreePanels {
         view! {
             <List @node_ref=&list spacing=0.0>
                 <Frame @node_ref=&top height=100.0 fill=Color32::WHITE radius=0.0 />
-                <Frame
-                    @node_ref=&middle
-                    height=100.0
-                    fill={Color32::from_gray(40)}
-                    radius=0.0
-                />
-                <Frame
-                    @node_ref=&bottom
-                    height=100.0
-                    fill={Color32::from_gray(80)}
-                    radius=0.0
-                />
+                <Frame @node_ref=&middle height=100.0 fill={Color32::from_gray(40)} radius=0.0 />
+                <Frame @node_ref=&bottom height=100.0 fill={Color32::from_gray(80)} radius=0.0 />
             </List>
         }
     });

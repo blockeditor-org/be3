@@ -35,12 +35,7 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
                         </Interactive>
                     </CanvasItem>
                 </Canvas>
-                <Dialog
-                    open={open}
-                    title="Event"
-                    width=300.0
-                    on_dismiss={move || open.set(false)}
-                >
+                <Dialog open={open} title="Event" width=300.0 on_dismiss={move || open.set(false)}>
                     <Text string="Body" color=Color32::WHITE />
                 </Dialog>
             </List>

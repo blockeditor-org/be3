@@ -12,12 +12,7 @@ fn wrapped_rows_wrap_long_text_and_grow_percent_children() {
         view! {
             <List direction=Direction::Horizontal wrap=true spacing=10.0>
                 <Text @node_ref=&caption string=LONG wrap=true />
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref=&grown
-                    width=40.0
-                    height=20.0
-                />
+                <Frame @sizing=ItemSize::Percent(100.0) @node_ref=&grown width=40.0 height=20.0 />
                 <Frame @node_ref=&fixed width=40.0 height=20.0 />
             </List>
         }
