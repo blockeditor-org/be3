@@ -8,7 +8,12 @@ load(":defs.bzl", "deploy")
 
 cargo_library()
 
-cargo_test()
+cargo_test(
+    env = {
+        "APK_SIGN_JDK": "$(location //buck/android:jdk)",
+        "APK_SIGN_TOOLS": "$(location //buck/android:build-tools)",
+    },
+)
 
 cargo_binary()
 

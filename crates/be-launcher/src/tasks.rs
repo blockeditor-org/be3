@@ -174,7 +174,7 @@ impl Tasks {
                     "--output-attribute",
                     "^buck.type$",
                     "--output-attribute",
-                    "^(binary|run_with|ci_signed)$",
+                    "^(binary|run_with)$",
                 ],
             )
             .and_then(|listed| {
