@@ -49,8 +49,24 @@ use state::{AreaGeometry, Grab};
 pub use colors::{SyntaxColors, TextAreaColors};
 pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
 pub use emoji::{emoji_completer, search_emoji};
-pub use rows::{Prose, TextWidget};
+pub use rows::{Prose, TextWidget, VOID_SIZE, VoidSize};
 pub use state::{TextAreaLayout, TextAreaState};
+
+#[derive(Clone, Copy)]
+pub struct BlockView {
+    pub state: TextAreaState,
+    pub line: ReadSignal<usize>,
+    pub start: Memo<usize>,
+    pub props: Memo<text_editor_core::MarkSet>,
+    pub text: NodeId,
+}
+
+#[derive(Clone, Copy)]
+pub struct VoidView {
+    pub state: TextAreaState,
+    pub props: Memo<text_editor_core::MarkSet>,
+    pub size: Memo<Vec2>,
+}
 
 pub struct TextCheckbox {
     pub checked: Memo<bool>,
@@ -156,6 +172,9 @@ struct Surface {
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     checkbox: Option<RenderFn<TextCheckbox>>,
+    render_block: Option<RenderFn<BlockView>>,
+    render_void: Option<RenderFn<VoidView>>,
+    void_size: Option<VoidSize>,
     completion: Memo<Option<Query>>,
     completions: Memo<Vec<Completion>>,
     completing: Memo<bool>,
@@ -807,7 +826,7 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
                 cx.state.set_selecting(false);
                 return;
             }
-            Inline::Run => {}
+            Inline::Run | Inline::Void => {}
         }
     }
     let Some(target) = cx.hit(pos) else {
@@ -1023,6 +1042,9 @@ pub fn TextArea(
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     checkbox: Option<RenderFn<TextCheckbox>>,
+    render_block: Option<RenderFn<BlockView>>,
+    render_void: Option<RenderFn<VoidView>>,
+    #[prop(default = None)] void_size: Option<VoidSize>,
     #[prop(default = Completer::none())] completer: Completer,
     completion_menu: Option<CompletionMenu>,
     on_widget_press: Callback<usize, bool>,
@@ -1255,6 +1277,9 @@ pub fn TextArea(
                     block,
                     selected_widget,
                     checkbox,
+                    render_block,
+                    render_void,
+                    void_size,
                     completion,
                     completions,
                     completing,

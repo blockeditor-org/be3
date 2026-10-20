@@ -4,8 +4,8 @@ use std::sync::{Arc, RwLock, RwLockReadGuard, RwLockWriteGuard};
 use std::time::{Duration, Instant};
 
 use text_editor_core::{
-    Attribute, ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, FormatOp,
-    FormatRun, Mark, Marks, Pos, Position, RichOp, SeqOp, Sequence, TextChange, TextIndentation,
+    Change, ChangeLog, CursorPosition, Document, DocumentEdit, DocumentRead, FormatOp, Formats,
+    Mark, Marks, Pos, Position, RichOp, Seed, SeqOp, Sequence, TextChange, TextIndentation,
     TextLanguage, TextRun, anchor_in, anchor_index_in, changed, deleted_anchor_index_in,
     format_change, format_op, formats_in, runs_in,
 };
@@ -81,7 +81,7 @@ struct Peer {
 }
 
 impl Peer {
-    fn new(text: &str, formats: Option<&[(Range<usize>, Attribute, u8)]>) -> Self {
+    fn new(text: &str, formats: Option<&[Seed]>) -> Self {
         let confirmed = Sequence::from_items(text.as_bytes().to_vec());
         let mut visible = confirmed.clone();
         visible.mirror();
@@ -136,7 +136,7 @@ impl Simulation {
         Self::with_peers([Peer::new(text, None), Peer::new(text, None)])
     }
 
-    pub fn rich(text: &str, formats: &[(Range<usize>, Attribute, u8)]) -> Self {
+    pub fn rich(text: &str, formats: &[Seed]) -> Self {
         Self::with_peers([
             Peer::new(text, Some(formats)),
             Peer::new(text, Some(formats)),
@@ -163,7 +163,7 @@ impl Simulation {
             .count()
     }
 
-    pub fn formats(&self, side: Side) -> Option<Vec<FormatRun>> {
+    pub fn formats(&self, side: Side) -> Option<Formats> {
         let peer = &self.peers[side.index()];
         formats_in(&peer.visible, &peer.marks, peer.language)
     }
@@ -290,7 +290,7 @@ impl Simulation {
         match message {
             Message::Caret(caret) => owner.seen = Some(caret),
             Message::Mark(mark) => {
-                if owner.marks.apply(mark) {
+                if owner.marks.apply(mark.clone()) {
                     let change = format_change(&owner.visible, &mark.op);
                     owner.external = true;
                     owner.bump(Some(change));
@@ -319,7 +319,7 @@ impl Simulation {
         match message {
             Message::Caret(caret) => follower.seen = Some(caret),
             Message::Mark(mark) => {
-                if follower.marks.apply(mark) {
+                if follower.marks.apply(mark.clone()) {
                     let change = format_change(&follower.visible, &mark.op);
                     follower.external = true;
                     follower.bump(Some(change));
@@ -372,8 +372,8 @@ impl Simulation {
 
     fn mark(&mut self, side: Side, op: FormatOp, now: Instant) -> TextChange {
         let peer = &mut self.peers[side.index()];
-        let mark = peer.marks.mint(side.client(), op);
         let change = format_change(&peer.visible, &op);
+        let mark = peer.marks.mint(side.client(), op);
         let sent = self.sent(now);
         self.queue_mut(side).push_back((Message::Mark(mark), sent));
         change
@@ -389,7 +389,7 @@ impl Simulation {
                         change = change.then(made);
                     }
                 }
-                RichOp::Format(op) => change = change.then(self.mark(side, *op, now)),
+                RichOp::Format(op) => change = change.then(self.mark(side, op.clone(), now)),
             }
         }
         self.peers[side.index()].bump(Some(change));
@@ -569,7 +569,7 @@ impl DocumentRead for SideRead<'_> {
         runs_in(&self.peer().visible)
     }
 
-    fn formats(&self) -> Option<Vec<FormatRun>> {
+    fn formats(&self) -> Option<Formats> {
         let peer = self.peer();
         formats_in(&peer.visible, &peer.marks, peer.language)
     }
@@ -645,7 +645,7 @@ impl DocumentRead for Transaction<'_> {
         self.simulation.peers[self.side.index()].indentation
     }
 
-    fn formats(&self) -> Option<Vec<FormatRun>> {
+    fn formats(&self) -> Option<Formats> {
         let peer = self.peer();
         formats_in(&peer.visible, &peer.marks, peer.language)
     }
@@ -682,18 +682,16 @@ impl DocumentEdit for Transaction<'_> {
         self.run(op);
     }
 
-    fn format(&mut self, range: Range<usize>, attribute: Attribute, value: u8) {
+    fn format(&mut self, range: Range<usize>, change: &Change) {
         let peer = self.peer();
         if peer.language != TextLanguage::RichText {
             return;
         }
         let bytes = peer.visible.items();
-        let Some((op, undo)) =
-            format_op(&peer.visible, &peer.marks, &bytes, range, attribute, value)
-        else {
+        let Some((op, undo)) = format_op(&peer.visible, &peer.marks, &bytes, range, change) else {
             return;
         };
-        let made = self.simulation.mark(self.side, op, self.now);
+        let made = self.simulation.mark(self.side, op.clone(), self.now);
         self.change = self.change.then(made);
         self.group
             .undo

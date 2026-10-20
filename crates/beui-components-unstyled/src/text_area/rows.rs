@@ -2,8 +2,8 @@ use std::collections::HashMap;
 use std::ops::Range;
 
 use text_editor_core::{
-    MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
-    TextLanguage, TextRun,
+    MarkSet, MarkdownTableAlignment, SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize,
+    TextLanguage, TextRun, VOID,
 };
 
 use beui_core::base::text::DEFAULT_FONT_SIZE;
@@ -107,6 +107,7 @@ pub enum Inline {
     Checkbox { line_start: usize, checked: bool },
     Widget(usize),
     Run,
+    Void,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -115,6 +116,7 @@ pub struct InlineItem {
     pub size: Vec2,
     pub style: SpanStyle,
     pub label: String,
+    pub props: MarkSet,
 }
 
 #[derive(Clone, PartialEq, Debug)]
@@ -154,6 +156,7 @@ pub struct Row {
     pub code: Vec<Range<usize>>,
     pub code_block: bool,
     pub placeholder: bool,
+    pub props: MarkSet,
 }
 
 impl Row {
@@ -314,7 +317,12 @@ pub struct RowInputs<'a> {
     pub options: RowOptions,
     pub spacers: &'a [(usize, f32)],
     pub placeholder: Option<&'a str>,
+    pub void_size: Option<VoidSize>,
 }
+
+pub type VoidSize = fn(&MarkSet) -> Vec2;
+
+pub const VOID_SIZE: Vec2 = Vec2::new(16.0, 16.0);
 
 pub fn style_size(style: SynHlStyle, body_size: f32) -> f32 {
     if style.family == SynHlFontFamily::Monospace {
@@ -584,6 +592,7 @@ impl Builder<'_> {
             size,
             style,
             label,
+            props: MarkSet::default(),
         });
         self.row.inline.len() - 1
     }
@@ -618,6 +627,7 @@ pub fn inline_size(inline: Inline, label: &str, style: SpanStyle) -> Vec2 {
                 + RUN_CHIP_PADDING * 2.0,
             RUN_CHIP_HEIGHT,
         ),
+        Inline::Void => VOID_SIZE,
     }
 }
 
@@ -646,6 +656,8 @@ pub struct RowKey {
     spacers: Vec<(usize, f32)>,
     composition: Option<Range<usize>>,
     placeholder: Option<String>,
+    props: MarkSet,
+    voids: Vec<(MarkSet, [u32; 2])>,
 }
 
 impl RowKey {
@@ -707,6 +719,24 @@ pub fn row_key(inputs: &RowInputs, start: usize, end: usize, newline: bool) -> O
             .filter(|composition| composition.range.start < end && composition.range.end > start)
             .map(|composition| relative(&composition.range)),
         placeholder: inputs.placeholder.map(str::to_owned),
+        props: snapshot
+            .formats
+            .as_deref()
+            .and_then(|formats| formats.block_at(start))
+            .map(|block| block.props.clone())
+            .unwrap_or_default(),
+        voids: snapshot
+            .formats
+            .as_deref()
+            .map_or_else(Vec::new, |formats| {
+                memchr::memmem::find_iter(&bytes[start..end], VOID.as_bytes())
+                    .map(|at| {
+                        let props = formats.marks_at(start + at).cloned().unwrap_or_default();
+                        let size = inputs.void_size.map_or(VOID_SIZE, |size| size(&props));
+                        (props, [size.x.to_bits(), size.y.to_bits()])
+                    })
+                    .collect()
+            }),
     })
 }
 
@@ -738,12 +768,17 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
         }
         style
     };
+    let formats = snapshot.formats.as_deref();
     let mut builder = Builder {
         inputs,
         row: Row {
             line,
             start,
             end,
+            props: formats
+                .and_then(|formats| formats.block_at(start))
+                .map(|block| block.props.clone())
+                .unwrap_or_default(),
             ..Row::default()
         },
         fonts: Vec::new(),
@@ -826,6 +861,23 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
             index = widget.range.end;
             continue;
         }
+        if let Some(formats) = formats
+            && bytes[index..end].starts_with(VOID.as_bytes())
+        {
+            let props = formats.marks_at(index).cloned().unwrap_or_default();
+            let size = inputs.void_size.map_or(VOID_SIZE, |size| size(&props));
+            let item = builder.push_inline_sized(Inline::Void, base, String::new(), size);
+            builder.row.inline[item].props = props;
+            builder.push(
+                OBJECT,
+                index..index + VOID.len(),
+                false,
+                base,
+                SpanKind::Inline(item),
+            );
+            index += VOID.len();
+            continue;
+        }
         if options.mask {
             let len = next_character(&bytes[index..end]).map_or(1, |(_, len)| len);
             builder.push(MASK, index..index + len, false, base, SpanKind::Text);
@@ -866,6 +918,7 @@ pub fn build_row(inputs: &RowInputs, line: usize, start: usize, end: usize, newl
                     .any(|widget| widget.range.start == stop)
                 || style_at(stop) != style
                 || run_starts(stop)
+                || (formats.is_some() && bytes[stop..end].starts_with(VOID.as_bytes()))
                 || (invisibles && invisible_marker(bytes[stop]).is_some())
             {
                 break;
@@ -1041,6 +1094,7 @@ fn measure_table_row(
         options: inputs.options,
         spacers: &[],
         placeholder: None,
+        void_size: None,
     };
     let relative: Vec<Range<usize>> = cells
         .iter()

@@ -1,6 +1,6 @@
 use text_editor_core::{
     CopyMode, CursorHorizontalPositionMetric, CursorLeftRightStop, EditorCommand, LRDirection,
-    MoveMode, RichStyle, SyntaxNodeDirection, TextLanguage, UDDirection, VerticalMoveMode,
+    MoveMode, SyntaxNodeDirection, UDDirection, VerticalMoveMode,
 };
 
 use beui_core::input::{Key, KeyPress};
@@ -178,14 +178,62 @@ fn command(cx: &Context, press: KeyPress) -> bool {
             false => EditorCommand::Undo,
         }),
         Key::Y if command => state.execute(EditorCommand::Redo),
-        Key::B | Key::I | Key::U if command && state.language() == TextLanguage::RichText => {
-            state.execute(EditorCommand::ToggleStyle(match press.key {
-                Key::B => RichStyle::Bold,
-                Key::I => RichStyle::Italic,
-                _ => RichStyle::Underline,
-            }));
-        }
+        _ if command && !modifiers.alt => return shortcut(state, press.key),
         _ => return false,
     }
     true
+}
+
+fn shortcut(state: TextAreaState, key: Key) -> bool {
+    let Some(letter) = letter(key) else {
+        return false;
+    };
+    let Some(selected) = state.selected().get_untracked() else {
+        return false;
+    };
+    let schema = state.schema();
+    let Some(tool) = schema
+        .tools()
+        .iter()
+        .find(|tool| tool.shortcut == Some(letter))
+    else {
+        return false;
+    };
+    state.execute((tool.command)(&selected));
+    true
+}
+
+fn letter(key: Key) -> Option<char> {
+    const LETTERS: [(Key, char); 26] = [
+        (Key::A, 'a'),
+        (Key::B, 'b'),
+        (Key::C, 'c'),
+        (Key::D, 'd'),
+        (Key::E, 'e'),
+        (Key::F, 'f'),
+        (Key::G, 'g'),
+        (Key::H, 'h'),
+        (Key::I, 'i'),
+        (Key::J, 'j'),
+        (Key::K, 'k'),
+        (Key::L, 'l'),
+        (Key::M, 'm'),
+        (Key::N, 'n'),
+        (Key::O, 'o'),
+        (Key::P, 'p'),
+        (Key::Q, 'q'),
+        (Key::R, 'r'),
+        (Key::S, 's'),
+        (Key::T, 't'),
+        (Key::U, 'u'),
+        (Key::V, 'v'),
+        (Key::W, 'w'),
+        (Key::X, 'x'),
+        (Key::Y, 'y'),
+        (Key::Z, 'z'),
+    ];
+    LETTERS
+        .iter()
+        .find(|(held, _)| *held == key)
+        .map(|(_, letter)| *letter)
 }

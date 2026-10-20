@@ -5,7 +5,13 @@ const SAME: &str = "Both sides hold the same text and styles.";
 #[test]
 fn rich_text_styled_on_both_sides_converges_once_sent_both_ways() {
     let mut test = alone(WIDE, Page::RichText);
-    reveal(&mut test, "demo.collaboration.right");
+    let margin = pos2(test.size().x - 6.0, test.size().y / 2.0);
+    for _ in 0..REVEAL_TICKS {
+        if test.rect_of("demo.collaboration.right").bottom() <= test.size().y {
+            break;
+        }
+        test.scroll_at(margin, Vec2::new(0.0, -REVEAL_STEP));
+    }
     test.click("demo.collaboration.pause");
     test.frame(Vec::new());
 

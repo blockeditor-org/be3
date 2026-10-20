@@ -5,7 +5,8 @@ use tree_sitter::{InputEdit, Parser, Point, Tree};
 
 use crate::TextChange;
 use crate::document::{Document, DocumentView, TextLanguage};
-use crate::rich::{FormatRun, TextFormat};
+use crate::rich::Formats;
+use crate::schema::{Plain, Schema};
 
 mod markdown;
 mod rust;
@@ -130,27 +131,6 @@ impl SynHlStyle {
             italic: false,
             underline: false,
             strikethrough: false,
-        }
-    }
-
-    pub const fn of_format(format: TextFormat) -> Self {
-        Self {
-            color: match format.code {
-                true => SynHlColorScope::MarkdownCode,
-                false => SynHlColorScope::MarkdownPlainText,
-            },
-            family: match format.code {
-                true => SynHlFontFamily::Monospace,
-                false => SynHlFontFamily::Proportional,
-            },
-            size: match format.heading {
-                0 => SynHlTextSize::Body,
-                level => SynHlTextSize::Heading(level),
-            },
-            bold: format.bold || format.heading > 0,
-            italic: format.italic,
-            underline: format.underline,
-            strikethrough: format.strikethrough,
         }
     }
 }
@@ -309,17 +289,50 @@ impl SyntaxHighlight {
         }
     }
 
-    fn formatted(runs: &[FormatRun]) -> Self {
-        let mut end = 0;
+    fn rich(formats: &Formats, bytes: &[u8], schema: &dyn Schema) -> Self {
+        let mut runs: Vec<(usize, SynHlStyle)> = Vec::new();
+        let mut push = |len: usize, style: SynHlStyle| match runs.last_mut() {
+            Some((end, last)) if *last == style => *end += len,
+            _ => {
+                let end = runs.last().map_or(0, |(end, _)| *end);
+                runs.push((end + len, style));
+            }
+        };
+        let blocks = &formats.blocks;
+        let mut first = 0;
+        while first < blocks.len() {
+            let language = schema.decorate(&blocks[first].props);
+            let mut last = first + 1;
+            while language.is_some()
+                && last < blocks.len()
+                && schema.decorate(&blocks[last].props) == language
+            {
+                last += 1;
+            }
+            let start = blocks[first].start;
+            let decoration = language.map(|language| {
+                decorations(
+                    language,
+                    &bytes[start..blocks[last - 1].end.min(bytes.len())],
+                )
+            });
+            for block in &blocks[first..last] {
+                for (range, marks) in formats.marks_in(block.start..block.end + 1) {
+                    match &decoration {
+                        None => push(range.len(), schema.leaf_style(marks, &block.props, None)),
+                        Some(decoration) => {
+                            for at in range {
+                                let decorated = decoration.get(at - start).copied();
+                                push(1, schema.leaf_style(marks, &block.props, decorated));
+                            }
+                        }
+                    }
+                }
+            }
+            first = last;
+        }
         Self {
-            styles: Styles::Runs(
-                runs.iter()
-                    .map(|run| {
-                        end += run.len;
-                        (end, SynHlStyle::of_format(run.format))
-                    })
-                    .collect(),
-            ),
+            styles: Styles::Runs(runs),
         }
     }
 
@@ -440,6 +453,20 @@ pub struct Highlighter {
     parsed_revision: Option<u64>,
     parsed_bytes: Vec<u8>,
     language: Language,
+    schema: Arc<dyn Schema>,
+}
+
+pub(crate) fn decorations(language: Language, bytes: &[u8]) -> Vec<SynHlStyle> {
+    let highlight = match language {
+        Language::Rust => SyntaxHighlight::from_scopes(rust::scopes(bytes), bytes),
+        Language::Zig => SyntaxHighlight::from_scopes(zig::scopes(bytes), bytes),
+        Language::Toml => SyntaxHighlight::from_scopes(toml::scopes(bytes), bytes),
+        Language::Markdown => {
+            SyntaxHighlight::markdown(Arc::new(MarkdownSource::new(bytes.into())))
+        }
+        Language::RichText => SyntaxHighlight::plaintext(bytes.len()),
+    };
+    highlight.styles_in(0..bytes.len())
 }
 
 impl Highlighter {
@@ -457,7 +484,13 @@ impl Highlighter {
             parsed_revision: None,
             parsed_bytes: Vec::new(),
             language,
+            schema: Arc::new(Plain),
         }
+    }
+
+    pub fn with_schema(mut self, schema: Arc<dyn Schema>) -> Self {
+        self.schema = schema;
+        self
     }
 
     fn ensure_parsed(&mut self) -> Option<()> {
@@ -533,8 +566,9 @@ impl Highlighter {
             let Some(read) = self.document.read() else {
                 return SyntaxHighlight::plaintext(0);
             };
+            let bytes = read.slice(0..read.len());
             return match read.formats() {
-                Some(runs) => SyntaxHighlight::formatted(&runs),
+                Some(formats) => SyntaxHighlight::rich(&formats, &bytes, &*self.schema),
                 None => SyntaxHighlight::plaintext(read.len()),
             };
         }

@@ -1,139 +1,164 @@
+use std::fmt;
 use std::ops::Range;
+use std::sync::Arc;
 
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 use crate::document::{anchor_in, place_in};
 use crate::{Pos, SeqOp, Sequence};
 
+pub const VOID: &str = "\u{fffc}";
+
+#[derive(Clone, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub struct Name(Arc<str>);
+
+impl Name {
+    pub fn new(name: &str) -> Self {
+        Self(Arc::from(name))
+    }
+
+    pub fn as_str(&self) -> &str {
+        &self.0
+    }
+}
+
+impl From<&str> for Name {
+    fn from(name: &str) -> Self {
+        Self::new(name)
+    }
+}
+
+impl fmt::Debug for Name {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        write!(formatter, "{:?}", &*self.0)
+    }
+}
+
+impl fmt::Display for Name {
+    fn fmt(&self, formatter: &mut fmt::Formatter<'_>) -> fmt::Result {
+        formatter.write_str(&self.0)
+    }
+}
+
+impl Serialize for Name {
+    fn serialize<S: Serializer>(&self, serializer: S) -> Result<S::Ok, S::Error> {
+        serializer.serialize_str(&self.0)
+    }
+}
+
+impl<'de> Deserialize<'de> for Name {
+    fn deserialize<D: Deserializer<'de>>(deserializer: D) -> Result<Self, D::Error> {
+        String::deserialize(deserializer).map(|name| Self(Arc::from(name)))
+    }
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum Value {
+    Bool(bool),
+    Int(i64),
+    Text(Name),
+}
+
+impl Value {
+    pub fn text(text: &str) -> Self {
+        Self::Text(Name::new(text))
+    }
+
+    pub const fn as_int(&self) -> Option<i64> {
+        match self {
+            Self::Int(value) => Some(*value),
+            _ => None,
+        }
+    }
+
+    pub fn as_text(&self) -> Option<&str> {
+        match self {
+            Self::Text(value) => Some(value.as_str()),
+            _ => None,
+        }
+    }
+
+    pub const fn is_true(&self) -> bool {
+        matches!(self, Self::Bool(true))
+    }
+}
+
+#[derive(Clone, Debug, Default, Eq, Hash, PartialEq)]
+pub struct MarkSet(Arc<[(Name, Value)]>);
+
+impl MarkSet {
+    pub fn new(pairs: impl IntoIterator<Item = (Name, Value)>) -> Self {
+        let mut pairs: Vec<(Name, Value)> = pairs.into_iter().collect();
+        pairs.sort_by(|left, right| left.0.cmp(&right.0));
+        pairs.dedup_by(|later, earlier| later.0 == earlier.0);
+        Self(pairs.into())
+    }
+
+    pub fn get(&self, key: &str) -> Option<&Value> {
+        self.0
+            .binary_search_by(|(name, _)| name.as_str().cmp(key))
+            .ok()
+            .map(|at| &self.0[at].1)
+    }
+
+    pub fn has(&self, key: &str, value: &Value) -> bool {
+        self.get(key) == Some(value)
+    }
+
+    pub fn iter(&self) -> impl Iterator<Item = (&Name, &Value)> {
+        self.0.iter().map(|(name, value)| (name, value))
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn with(&self, key: &Name, value: Option<Value>) -> Self {
+        Self::new(
+            self.iter()
+                .filter(|(name, _)| *name != key)
+                .map(|(name, value)| (name.clone(), value.clone()))
+                .chain(value.map(|value| (key.clone(), value))),
+        )
+    }
+
+    pub fn shared(&self, other: &Self) -> Self {
+        Self::new(
+            self.iter()
+                .filter(|(name, value)| other.has(name.as_str(), value))
+                .map(|(name, value)| (name.clone(), value.clone())),
+        )
+    }
+}
+
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub enum Attribute {
-    Bold,
-    Italic,
-    Underline,
-    Strikethrough,
-    Code,
-    Heading,
-}
-
-impl Attribute {
-    pub const INLINE: [Self; 5] = [
-        Self::Bold,
-        Self::Italic,
-        Self::Underline,
-        Self::Strikethrough,
-        Self::Code,
-    ];
-
-    pub const fn is_block(self) -> bool {
-        matches!(self, Self::Heading)
-    }
-
-    const fn slot(self) -> usize {
-        match self {
-            Self::Bold => 0,
-            Self::Italic => 1,
-            Self::Underline => 2,
-            Self::Strikethrough => 3,
-            Self::Code => 4,
-            Self::Heading => 5,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub enum RichStyle {
-    Bold,
-    Italic,
-    Underline,
-    Strikethrough,
-    Code,
-    Heading(u8),
-}
-
-impl RichStyle {
-    pub const fn attribute(self) -> Attribute {
-        match self {
-            Self::Bold => Attribute::Bold,
-            Self::Italic => Attribute::Italic,
-            Self::Underline => Attribute::Underline,
-            Self::Strikethrough => Attribute::Strikethrough,
-            Self::Code => Attribute::Code,
-            Self::Heading(_) => Attribute::Heading,
-        }
-    }
-
-    pub const fn value(self) -> u8 {
-        match self {
-            Self::Heading(level) => level,
-            _ => 1,
-        }
-    }
-
-    pub const fn applies_to(self, format: TextFormat) -> bool {
-        format.get(self.attribute()) == self.value()
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, Eq, Hash, PartialEq)]
-pub struct TextFormat {
-    pub bold: bool,
-    pub italic: bool,
-    pub underline: bool,
-    pub strikethrough: bool,
-    pub code: bool,
-    pub heading: u8,
-}
-
-impl TextFormat {
-    pub const fn get(self, attribute: Attribute) -> u8 {
-        match attribute {
-            Attribute::Bold => self.bold as u8,
-            Attribute::Italic => self.italic as u8,
-            Attribute::Underline => self.underline as u8,
-            Attribute::Strikethrough => self.strikethrough as u8,
-            Attribute::Code => self.code as u8,
-            Attribute::Heading => self.heading,
-        }
-    }
-
-    pub const fn with(mut self, attribute: Attribute, value: u8) -> Self {
-        let on = value != 0;
-        match attribute {
-            Attribute::Bold => self.bold = on,
-            Attribute::Italic => self.italic = on,
-            Attribute::Underline => self.underline = on,
-            Attribute::Strikethrough => self.strikethrough = on,
-            Attribute::Code => self.code = on,
-            Attribute::Heading => self.heading = value,
-        }
-        self
-    }
-
-    pub const fn inline(self) -> Self {
-        Self { heading: 0, ..self }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Eq, PartialEq)]
-pub struct FormatRun {
-    pub len: usize,
-    pub format: TextFormat,
-}
-
-pub fn format_at(runs: &[FormatRun], index: usize) -> Option<TextFormat> {
-    let mut at = 0;
-    runs.iter().find_map(|run| {
-        at += run.len;
-        (index < at).then_some(run.format)
-    })
+pub enum Expand {
+    After,
+    Never,
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum Scope {
+    Inline,
+    Block,
+}
+
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct FormatOp {
-    pub start: Pos,
+    pub start: Option<Pos>,
     pub end: Pos,
-    pub attribute: Attribute,
-    pub value: u8,
+    pub scope: Scope,
+    pub expand: Expand,
+    pub key: Name,
+    pub value: Option<Value>,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Change {
+    pub scope: Scope,
+    pub expand: Expand,
+    pub key: Name,
+    pub value: Option<Value>,
 }
 
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
@@ -148,10 +173,137 @@ pub struct MarkId {
     pub client: u64,
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+#[derive(Clone, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub struct Mark {
     pub id: MarkId,
     pub op: FormatOp,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Seed {
+    pub range: Range<usize>,
+    pub scope: Scope,
+    pub expand: Expand,
+    pub key: Name,
+    pub value: Value,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct FormatRun {
+    pub len: usize,
+    pub marks: MarkSet,
+}
+
+#[derive(Clone, Debug, Eq, PartialEq)]
+pub struct Block {
+    pub start: usize,
+    pub end: usize,
+    pub id: Pos,
+    pub props: MarkSet,
+}
+
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
+pub struct Formats {
+    pub runs: Vec<FormatRun>,
+    pub blocks: Vec<Block>,
+    starts: Vec<usize>,
+}
+
+impl Formats {
+    pub fn new(runs: Vec<FormatRun>, blocks: Vec<Block>) -> Self {
+        let mut at = 0;
+        let starts = runs
+            .iter()
+            .map(|run| {
+                let start = at;
+                at += run.len;
+                start
+            })
+            .collect();
+        Self {
+            runs,
+            blocks,
+            starts,
+        }
+    }
+
+    pub fn marks_at(&self, index: usize) -> Option<&MarkSet> {
+        let run = self
+            .starts
+            .partition_point(|start| *start <= index)
+            .checked_sub(1)?;
+        let run = &self.runs[run];
+        (index < self.starts[self.starts.len() - 1] + self.runs[self.runs.len() - 1].len)
+            .then_some(&run.marks)
+    }
+
+    pub fn block_at(&self, index: usize) -> Option<&Block> {
+        let at = self.blocks.partition_point(|block| block.end < index);
+        self.blocks.get(at)
+    }
+
+    pub fn marks_in(&self, range: Range<usize>) -> impl Iterator<Item = (Range<usize>, &MarkSet)> {
+        let first = self
+            .starts
+            .partition_point(|start| *start <= range.start)
+            .saturating_sub(1);
+        self.starts[first..]
+            .iter()
+            .zip(&self.runs[first..])
+            .map(move |(start, run)| {
+                (
+                    (*start).max(range.start)..(start + run.len).min(range.end),
+                    &run.marks,
+                )
+            })
+            .take_while(move |(within, _)| within.start < range.end)
+            .filter(|(within, _)| within.start < within.end)
+    }
+}
+
+#[derive(Default)]
+struct Painted {
+    spans: Vec<(Range<usize>, Value)>,
+}
+
+impl Painted {
+    fn paint(&mut self, range: Range<usize>, value: Option<&Value>) {
+        if range.start >= range.end {
+            return;
+        }
+        let first = self
+            .spans
+            .partition_point(|(span, _)| span.end <= range.start);
+        let last = self
+            .spans
+            .partition_point(|(span, _)| span.start < range.end);
+        let mut replaced: Vec<(Range<usize>, Value)> = Vec::new();
+        if let Some((span, held)) = self.spans.get(first).filter(|_| first < last)
+            && span.start < range.start
+        {
+            replaced.push((span.start..range.start, held.clone()));
+        }
+        if let Some(value) = value {
+            replaced.push((range.clone(), value.clone()));
+        }
+        if let Some((span, held)) = last
+            .checked_sub(1)
+            .and_then(|at| self.spans.get(at))
+            .filter(|_| first < last)
+            && span.end > range.end
+        {
+            replaced.push((range.end..span.end, held.clone()));
+        }
+        self.spans.splice(first..last, replaced);
+    }
+
+    fn at(&self, index: usize) -> Option<&Value> {
+        let at = self.spans.partition_point(|(span, _)| span.end <= index);
+        self.spans
+            .get(at)
+            .filter(|(span, _)| span.start <= index)
+            .map(|(_, value)| value)
+    }
 }
 
 #[derive(Clone, Debug, Default, Eq, PartialEq)]
@@ -161,11 +313,19 @@ pub struct Marks {
 }
 
 impl Marks {
-    pub fn loaded(text: &Sequence<u8>, formats: &[(Range<usize>, Attribute, u8)]) -> Self {
+    pub fn loaded(text: &Sequence<u8>, seeds: &[Seed]) -> Self {
         let bytes = text.items();
         let mut marks = Self::default();
-        for (range, attribute, value) in formats {
-            if let Some(op) = Self::op(text, &bytes, range.clone(), *attribute, *value) {
+        for seed in seeds {
+            if let Some(op) = Self::op(
+                text,
+                &bytes,
+                seed.range.clone(),
+                seed.scope,
+                seed.expand,
+                &seed.key,
+                Some(seed.value.clone()),
+            ) {
                 marks.mint(sequence::LOADED, op);
             }
         }
@@ -184,7 +344,7 @@ impl Marks {
             },
             op,
         };
-        self.apply(mark);
+        self.apply(mark.clone());
         mark
     }
 
@@ -203,147 +363,194 @@ impl Marks {
         text: &Sequence<u8>,
         bytes: &[u8],
         range: Range<usize>,
-        attribute: Attribute,
-        value: u8,
+        scope: Scope,
+        expand: Expand,
+        key: &Name,
+        value: Option<Value>,
     ) -> Option<FormatOp> {
         let end = range.end.min(bytes.len());
         let start = range.start.min(end);
-        let (start, end) = match attribute.is_block() {
-            true => (line_start(bytes, start), line_end(bytes, end)),
-            false if start == end => return None,
-            false => (start, end),
+        let (start, end) = match (scope, expand) {
+            (Scope::Block, _) => {
+                let first = line_start(bytes, start);
+                let start = match first {
+                    0 => None,
+                    first => Some(anchor_in(text, first - 1)?),
+                };
+                return Some(FormatOp {
+                    start,
+                    end: anchor_in(text, line_end(bytes, end))?,
+                    scope,
+                    expand,
+                    key: key.clone(),
+                    value,
+                });
+            }
+            (Scope::Inline, _) if start == end => return None,
+            (Scope::Inline, Expand::After) => (start, end),
+            (Scope::Inline, Expand::Never) => (start, end - 1),
         };
         Some(FormatOp {
-            start: anchor_in(text, start)?,
+            start: Some(anchor_in(text, start)?),
             end: anchor_in(text, end)?,
-            attribute,
+            scope,
+            expand,
+            key: key.clone(),
             value,
         })
     }
 
     pub fn covered(text: &Sequence<u8>, bytes: &[u8], op: &FormatOp) -> Option<Range<usize>> {
-        let start = place_in(text, op.start)?;
-        let end = place_in(text, op.end)?;
-        match op.attribute.is_block() {
-            true => (start <= end)
+        let (start, end) = span_of(text, op)?;
+        match op.scope {
+            Scope::Block => (start <= end)
                 .then(|| line_start(bytes, start.min(bytes.len()))..(end + 1).min(bytes.len())),
-            false => (start < end).then_some(start..end),
+            Scope::Inline => (start < end).then_some(start..end),
         }
     }
 
     pub fn inverse(&self, text: &Sequence<u8>, bytes: &[u8], op: &FormatOp) -> Vec<FormatOp> {
-        let (Some(start), Some(end)) = (place_in(text, op.start), place_in(text, op.end)) else {
+        let Some((start, end)) = span_of(text, op) else {
             return Vec::new();
         };
-        let mut values: Vec<(Range<usize>, u8)> = Vec::new();
-        let mut extend = |range: Range<usize>, value: u8| match values.last_mut() {
-            Some((last, held)) if *held == value && last.end + 1 >= range.start => {
-                last.end = range.end;
-            }
-            _ => values.push((range, value)),
-        };
-        match op.attribute.is_block() {
-            true => {
-                let mut line = line_start(bytes, start.min(bytes.len()));
-                loop {
-                    let terminator = line_end(bytes, line);
-                    if terminator > end {
-                        break;
-                    }
-                    extend(line..terminator, self.line_heading(text, bytes, terminator));
-                    if terminator == bytes.len() {
-                        break;
-                    }
-                    line = terminator + 1;
+        let formats = self.formats(text, bytes);
+        let mut values: Vec<(Range<usize>, Option<Value>)> = Vec::new();
+        let mut extend =
+            |range: Range<usize>, value: Option<Value>, adjacent: usize| match values.last_mut() {
+                Some((last, held)) if *held == value && last.end + adjacent >= range.start => {
+                    last.end = range.end;
+                }
+                _ => values.push((range, value)),
+            };
+        match op.scope {
+            Scope::Block => {
+                for block in formats
+                    .blocks
+                    .iter()
+                    .filter(|block| start <= block.end && block.end <= end)
+                {
+                    extend(
+                        block.start..block.end,
+                        block.props.get(op.key.as_str()).cloned(),
+                        1,
+                    );
                 }
             }
-            false => {
-                let mut at = 0;
-                for run in self.formats(text, bytes) {
-                    let range = at.max(start)..(at + run.len).min(end);
-                    at += run.len;
-                    if range.start < range.end {
-                        extend(range, run.format.get(op.attribute));
-                    }
+            Scope::Inline => {
+                for (range, marks) in formats.marks_in(start..end) {
+                    extend(range, marks.get(op.key.as_str()).cloned(), 0);
                 }
             }
         }
         values
             .into_iter()
-            .filter_map(|(range, value)| Self::op(text, bytes, range, op.attribute, value))
+            .filter_map(|(range, value)| {
+                Self::op(text, bytes, range, op.scope, op.expand, &op.key, value)
+            })
             .collect()
     }
 
-    pub fn formats(&self, text: &Sequence<u8>, bytes: &[u8]) -> Vec<FormatRun> {
+    pub fn formats(&self, text: &Sequence<u8>, bytes: &[u8]) -> Formats {
         let len = bytes.len();
-        let mut inline = vec![[0u8; 5]; len + 1];
         let terminators: Vec<usize> = memchr::memchr_iter(b'\n', bytes)
             .chain(std::iter::once(len))
             .collect();
-        let mut headings = vec![0u8; terminators.len()];
+        let mut inline: Vec<(Name, Painted)> = Vec::new();
+        let mut block: Vec<(Name, Painted)> = Vec::new();
         for mark in &self.marks {
-            let (Some(start), Some(end)) =
-                (place_in(text, mark.op.start), place_in(text, mark.op.end))
-            else {
+            let Some((start, end)) = span_of(text, &mark.op) else {
                 continue;
             };
-            match mark.op.attribute.is_block() {
-                true => {
-                    let first = terminators.partition_point(|terminator| *terminator < start);
-                    let last = terminators.partition_point(|terminator| *terminator <= end);
-                    for heading in headings.iter_mut().take(last).skip(first) {
-                        *heading = mark.op.value;
-                    }
-                }
-                false => {
-                    let slot = mark.op.attribute.slot();
-                    for values in inline.iter_mut().take(end.min(len)).skip(start) {
-                        values[slot] = mark.op.value;
-                    }
-                }
-            }
-        }
-        let mut runs: Vec<FormatRun> = Vec::new();
-        let mut line = 0;
-        for (index, values) in inline.iter().enumerate() {
-            let format = TextFormat {
-                bold: values[0] != 0,
-                italic: values[1] != 0,
-                underline: values[2] != 0,
-                strikethrough: values[3] != 0,
-                code: values[4] != 0,
-                heading: headings[line],
+            let (painted, range) = match mark.op.scope {
+                Scope::Inline => (&mut inline, start..end.min(len)),
+                Scope::Block => (
+                    &mut block,
+                    terminators.partition_point(|terminator| *terminator < start)
+                        ..terminators.partition_point(|terminator| *terminator <= end),
+                ),
             };
-            if terminators[line] == index {
-                line += 1;
-            }
+            let at = match painted.iter().position(|(name, _)| *name == mark.op.key) {
+                Some(at) => at,
+                None => {
+                    painted.push((mark.op.key.clone(), Painted::default()));
+                    painted.len() - 1
+                }
+            };
+            painted[at].1.paint(range, mark.op.value.as_ref());
+        }
+        let resolve = |painted: &[(Name, Painted)], index: usize| {
+            MarkSet::new(
+                painted
+                    .iter()
+                    .filter_map(|(name, painted)| Some((name.clone(), painted.at(index)?.clone()))),
+            )
+        };
+        let mut bounds: Vec<usize> = inline
+            .iter()
+            .flat_map(|(_, painted)| painted.spans.iter())
+            .flat_map(|(span, _)| [span.start, span.end])
+            .chain([0, len + 1])
+            .filter(|at| *at <= len + 1)
+            .collect();
+        bounds.sort_unstable();
+        bounds.dedup();
+        let mut runs: Vec<FormatRun> = Vec::new();
+        for window in bounds.windows(2) {
+            let marks = resolve(&inline, window[0]);
+            let len = window[1] - window[0];
             match runs.last_mut() {
-                Some(last) if last.format == format => last.len += 1,
-                _ => runs.push(FormatRun { len: 1, format }),
+                Some(last) if last.marks == marks => last.len += len,
+                _ => runs.push(FormatRun { len, marks }),
             }
         }
-        runs
-    }
-
-    pub fn line_heading(&self, text: &Sequence<u8>, bytes: &[u8], index: usize) -> u8 {
-        let terminator = line_end(bytes, index.min(bytes.len()));
-        self.marks
+        let mut start = 0;
+        let blocks = terminators
             .iter()
-            .rev()
-            .filter(|mark| mark.op.attribute.is_block())
-            .find_map(|mark| {
-                let start = place_in(text, mark.op.start)?;
-                let end = place_in(text, mark.op.end)?;
-                (start <= terminator && terminator <= end).then_some(mark.op.value)
+            .enumerate()
+            .map(|(line, terminator)| {
+                let held = Block {
+                    start,
+                    end: *terminator,
+                    id: anchor_in(text, *terminator).unwrap_or(Pos {
+                        client: sequence::LOADED,
+                        offset: 0,
+                    }),
+                    props: resolve(&block, line),
+                };
+                start = terminator + 1;
+                held
             })
-            .unwrap_or(0)
+            .collect();
+        Formats::new(runs, blocks)
     }
 }
 
-fn line_start(bytes: &[u8], index: usize) -> usize {
-    memchr::memrchr(b'\n', &bytes[..index]).map_or(0, |newline| newline + 1)
+fn after(text: &Sequence<u8>, anchor: Pos) -> Option<usize> {
+    match text.place_of(anchor) {
+        Some((index, true)) => Some(index + 1),
+        Some((index, false)) => Some(index),
+        None => place_in(text, anchor),
+    }
 }
 
-fn line_end(bytes: &[u8], index: usize) -> usize {
+fn span_of(text: &Sequence<u8>, op: &FormatOp) -> Option<(usize, usize)> {
+    let start = match (op.scope, op.start) {
+        (_, None) => 0,
+        (Scope::Block, Some(start)) => after(text, start)?,
+        (Scope::Inline, Some(start)) => place_in(text, start)?,
+    };
+    let end = match (op.scope, op.expand) {
+        (Scope::Inline, Expand::Never) => after(text, op.end)?,
+        _ => place_in(text, op.end)?,
+    };
+    Some((start, end))
+}
+
+pub fn line_start(bytes: &[u8], index: usize) -> usize {
+    memchr::memrchr(b'\n', &bytes[..index.min(bytes.len())]).map_or(0, |newline| newline + 1)
+}
+
+pub fn line_end(bytes: &[u8], index: usize) -> usize {
+    let index = index.min(bytes.len());
     memchr::memchr(b'\n', &bytes[index..]).map_or(bytes.len(), |newline| index + newline)
 }

@@ -29,8 +29,8 @@ fn the_rich_text_bar_styles_a_selection_and_shows_the_style_under_the_caret() {
         "text typed after a toggle at the caret takes the line's style and the toggled one"
     );
 
-    test.click("demo.rich.heading3");
+    test.click("demo.rich.heading2");
     test.frame(Vec::new());
-    assert!(pressed(&test, "demo.rich.heading3"));
+    assert!(pressed(&test, "demo.rich.heading2"));
     test.snapshot("rich_text_styled");
 }

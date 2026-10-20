@@ -12,9 +12,11 @@ use beui::styled::*;
 use beui::unstyled::{self, RemoteTextCursor, TextAreaState, narrower_than};
 use beui::{Color32, Direction, ItemSize, NodeId};
 use beui_macros::{component, sample};
-use text_editor_core::{Attribute, CursorPosition, EditorCommand, TextLanguage};
+use text_editor_core::schema::basic::{self, Basic};
+use text_editor_core::{CursorPosition, EditorCommand, MarkSet, TextLanguage, Value};
 
 use super::{Caret, Side, SideDocument, Simulation};
+use crate::rich_text::{GLYPHS, mention_size, render_block, render_void};
 use crate::sample::{Sample, ScrollPage};
 use crate::{ROW_SPACING, SECTION_SPACING};
 
@@ -45,29 +47,34 @@ pub(crate) fn CollaborationPage() -> NodeId {
 }
 
 pub(crate) fn rich_simulation() -> Simulation {
-    let spans = [
-        ("Shared notes", Attribute::Heading, 1),
-        ("Bold", Attribute::Bold, 1),
-        ("italic", Attribute::Italic, 1),
-        ("code", Attribute::Code, 1),
-        ("differently", Attribute::Underline, 1),
-    ];
-    let formats: Vec<_> = spans
-        .into_iter()
-        .filter_map(|(words, attribute, value)| {
-            let start = RICH_TEXT.find(words)?;
-            Some((start..start + words.len(), attribute, value))
-        })
-        .collect();
-    Simulation::rich(RICH_TEXT, &formats)
+    let words = |words: &str| {
+        let start = RICH_TEXT.find(words).unwrap_or(0);
+        start..start + words.len()
+    };
+    Simulation::rich(
+        RICH_TEXT,
+        &[
+            basic::block(words("Shared notes"), basic::HEADING, Value::Int(1)),
+            basic::mark(words("Bold"), basic::BOLD),
+            basic::mark(words("italic"), basic::ITALIC),
+            basic::mark(words("code"), basic::CODE),
+            basic::mark(words("differently"), basic::UNDERLINE),
+            basic::block(
+                words("Pause the network"),
+                basic::LIST,
+                Value::text(basic::CHECK),
+            ),
+        ],
+    )
 }
 
 fn editor(simulation: &Arc<RwLock<Simulation>>, side: Side, rich: bool) -> TextAreaState {
     let document = Arc::new(SideDocument::new(simulation, side));
-    let state = TextAreaState::new(document as Arc<dyn text_editor_core::Document>);
-    if !rich {
-        state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
+    if rich {
+        return TextAreaState::with_schema(document, Arc::new(Basic));
     }
+    let state = TextAreaState::new(document);
+    state.execute(EditorCommand::SetLanguage(TextLanguage::Markdown));
     state
 }
 
@@ -383,7 +390,7 @@ fn EditorPane(
         <List spacing=ROW_SPACING>
             <Text style=TextStyle::CAPTION string={title} />
             <Show condition={rich}>
-                <FormatBar state={state} test_prefix={id} />
+                <FormatBar state={state} glyphs={GLYPHS.to_vec()} test_prefix={id} />
             </Show>
             <TextArea
                 @test_id=id
@@ -395,6 +402,9 @@ fn EditorPane(
                     (Side::Left.client(), LEFT_COLOR),
                     (Side::Right.client(), RIGHT_COLOR),
                 ]}
+                render_block={render_block()}
+                render_void={render_void()}
+                void_size={Some(mention_size as fn(&MarkSet) -> beui::Vec2)}
             />
         </List>
     }

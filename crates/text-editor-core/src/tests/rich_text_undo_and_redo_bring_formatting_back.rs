@@ -2,41 +2,41 @@ use super::*;
 
 #[test]
 fn rich_text_undo_and_redo_bring_formatting_back() {
-    let mut tester = EditorTester::with_language(b"abcdef", TextLanguage::RichText);
-    tester.execute(EditorCommand::SetSelection {
-        anchor: tester.pos(0),
-        focus: tester.pos(4),
-    });
-    tester.execute(EditorCommand::ToggleStyle(RichStyle::Strikethrough));
-    tester.execute(EditorCommand::SetSelection {
-        anchor: tester.pos(2),
-        focus: tester.pos(6),
-    });
-    tester.execute(EditorCommand::ToggleStyle(RichStyle::Code));
-    assert_eq!(formatted(&tester), "{s}ab{sc}cd{c}ef");
+    let mut tester = EditorTester::rich(b"abcdef");
+    select(&mut tester, 0..4);
+    tool(&mut tester, "strikethrough");
+    select(&mut tester, 2..6);
+    tool(&mut tester, "code");
+    assert_eq!(
+        formatted(&tester),
+        "{strikethrough}ab{code,strikethrough}cd{code}ef"
+    );
 
     tester.execute(EditorCommand::Undo);
-    assert_eq!(formatted(&tester), "{s}abcd{}ef");
+    assert_eq!(formatted(&tester), "{strikethrough}abcd{}ef");
     tester.execute(EditorCommand::Undo);
     assert_eq!(formatted(&tester), "abcdef");
     tester.execute(EditorCommand::Redo);
-    assert_eq!(formatted(&tester), "{s}abcd{}ef");
+    assert_eq!(formatted(&tester), "{strikethrough}abcd{}ef");
     tester.execute(EditorCommand::Redo);
-    assert_eq!(formatted(&tester), "{s}ab{sc}cd{c}ef");
+    assert_eq!(
+        formatted(&tester),
+        "{strikethrough}ab{code,strikethrough}cd{code}ef"
+    );
 
-    tester.execute(EditorCommand::SetSelection {
-        anchor: tester.pos(1),
-        focus: tester.pos(3),
-    });
+    select(&mut tester, 1..3);
     tester.execute(EditorCommand::Delete {
         direction: LRDirection::Left,
         stop: CursorLeftRightStop::UnicodeGraphemeCluster,
     });
-    assert_eq!(formatted(&tester), "{s}a{sc}d{c}ef");
+    assert_eq!(
+        formatted(&tester),
+        "{strikethrough}a{code,strikethrough}d{code}ef"
+    );
     tester.execute(EditorCommand::Undo);
     assert_eq!(
         formatted(&tester),
-        "{s}ab{sc}cd{c}ef",
+        "{strikethrough}ab{code,strikethrough}cd{code}ef",
         "deleted text comes back with its formatting"
     );
 }

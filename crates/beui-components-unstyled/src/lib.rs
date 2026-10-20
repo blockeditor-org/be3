@@ -136,10 +136,10 @@ pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use text_area::text_area_handles;
 pub use text_area::{
-    Completer, Completion, CompletionMenu, CompletionRowHandle, Prose, RemoteTextCursor,
+    BlockView, Completer, Completion, CompletionMenu, CompletionRowHandle, Prose, RemoteTextCursor,
     SyntaxColors, TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextCheckbox,
-    TextWidget, emoji_completer, search_emoji, text_area_index_at, text_area_shown,
-    text_area_state,
+    TextWidget, VOID_SIZE, VoidSize, VoidView, emoji_completer, search_emoji, text_area_index_at,
+    text_area_shown, text_area_state,
 };
 pub use text_input::text_input_handles;
 pub use text_input::{

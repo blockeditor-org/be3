@@ -3,6 +3,7 @@ mod core;
 mod document;
 mod highlighter;
 mod rich;
+pub mod schema;
 
 pub use changes::{ChangeLog, TextChange};
 pub use core::*;
@@ -16,8 +17,10 @@ pub use highlighter::{
     SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize, SyntaxHighlight,
 };
 pub use rich::{
-    Attribute, FormatOp, FormatRun, Mark, MarkId, Marks, RichOp, RichStyle, TextFormat, format_at,
+    Block, Change, Expand, FormatOp, FormatRun, Formats, Mark, MarkId, MarkSet, Marks, Name,
+    RichOp, Scope, Seed, VOID, Value,
 };
+pub use schema::{Break, Plain, Schema, Selected, Tool};
 pub use sequence::{Pos, SeqOp, Sequence, Splice};
 
 #[cfg(test)]

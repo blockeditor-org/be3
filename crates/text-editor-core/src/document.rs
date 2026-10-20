@@ -6,7 +6,7 @@ use std::{
 
 use sequence::{LOADED, Pos, SeqOp, Sequence, Splice};
 
-use crate::rich::{Attribute, FormatRun, Marks, RichOp};
+use crate::rich::{Change, FormatOp, Formats, Marks, RichOp, Seed};
 use crate::{ChangeLog, CursorPosition, TextChange};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -96,7 +96,7 @@ pub trait DocumentRead {
         Vec::new()
     }
 
-    fn formats(&self) -> Option<Vec<FormatRun>> {
+    fn formats(&self) -> Option<Formats> {
         None
     }
 
@@ -144,7 +144,7 @@ pub trait DocumentEdit {
 
     fn replace_atomically(&mut self, index: usize, delete: usize, insert: &[u8]);
 
-    fn format(&mut self, _range: Range<usize>, _attribute: Attribute, _value: u8) {}
+    fn format(&mut self, _range: Range<usize>, _change: &Change) {}
 }
 
 pub trait Document {
@@ -208,7 +208,7 @@ impl DocumentRead for DocumentView<'_> {
         self.read.runs()
     }
 
-    fn formats(&self) -> Option<Vec<FormatRun>> {
+    fn formats(&self) -> Option<Formats> {
         self.read.formats()
     }
 
@@ -256,7 +256,7 @@ pub fn formats_in(
     sequence: &Sequence<u8>,
     marks: &Marks,
     language: TextLanguage,
-) -> Option<Vec<FormatRun>> {
+) -> Option<Formats> {
     (language == TextLanguage::RichText).then(|| marks.formats(sequence, &sequence.items()))
 }
 
@@ -347,11 +347,11 @@ impl TextBuffer {
         }
     }
 
-    pub fn rich(bytes: impl AsRef<[u8]>, formats: &[(Range<usize>, Attribute, u8)]) -> Self {
+    pub fn rich(bytes: impl AsRef<[u8]>, seeds: &[Seed]) -> Self {
         let buffer = Self::new(bytes);
         {
             let mut state = buffer.write_state();
-            state.marks = Marks::loaded(&state.text, formats);
+            state.marks = Marks::loaded(&state.text, seeds);
             state.language = TextLanguage::RichText;
         }
         buffer
@@ -386,7 +386,7 @@ impl BufferState {
                     }
                 }
                 RichOp::Format(operation) => {
-                    self.marks.mint(LOCAL, *operation);
+                    self.marks.mint(LOCAL, operation.clone());
                     change = change.then(format_change(&self.text, operation));
                 }
             }
@@ -506,7 +506,7 @@ impl DocumentRead for BufferRead<'_> {
         runs_in(&self.state.text)
     }
 
-    fn formats(&self) -> Option<Vec<FormatRun>> {
+    fn formats(&self) -> Option<Formats> {
         formats_in(&self.state.text, &self.state.marks, self.state.language)
     }
 
@@ -566,7 +566,7 @@ impl DocumentRead for BufferEdit<'_> {
         runs_in(&self.state.text)
     }
 
-    fn formats(&self) -> Option<Vec<FormatRun>> {
+    fn formats(&self) -> Option<Formats> {
         formats_in(&self.state.text, &self.state.marks, self.state.language)
     }
 
@@ -609,19 +609,17 @@ impl DocumentEdit for BufferEdit<'_> {
         self.run(operation);
     }
 
-    fn format(&mut self, range: Range<usize>, attribute: Attribute, value: u8) {
+    fn format(&mut self, range: Range<usize>, change: &Change) {
         if self.state.language != TextLanguage::RichText {
             return;
         }
         let bytes = self.state.text.items();
         let state = &mut *self.state;
-        let Some((op, undo)) =
-            format_op(&state.text, &state.marks, &bytes, range, attribute, value)
-        else {
+        let Some((op, undo)) = format_op(&state.text, &state.marks, &bytes, range, change) else {
             return;
         };
-        state.marks.mint(LOCAL, op);
         state.pending = state.pending.then(format_change(&state.text, &op));
+        state.marks.mint(LOCAL, op.clone());
         self.done
             .undo
             .extend(undo.into_iter().rev().map(RichOp::Format));
@@ -634,18 +632,25 @@ pub fn format_op(
     marks: &Marks,
     bytes: &[u8],
     range: Range<usize>,
-    attribute: Attribute,
-    value: u8,
-) -> Option<(crate::FormatOp, Vec<crate::FormatOp>)> {
-    let op = Marks::op(text, bytes, range, attribute, value)?;
+    change: &Change,
+) -> Option<(FormatOp, Vec<FormatOp>)> {
+    let op = Marks::op(
+        text,
+        bytes,
+        range,
+        change.scope,
+        change.expand,
+        &change.key,
+        change.value.clone(),
+    )?;
     let undo = marks.inverse(text, bytes, &op);
-    if undo.iter().all(|undone| undone.value == value) && !undo.is_empty() {
+    if !undo.is_empty() && undo.iter().all(|undone| undone.value == change.value) {
         return None;
     }
     Some((op, undo))
 }
 
-pub fn format_change(text: &Sequence<u8>, op: &crate::FormatOp) -> TextChange {
+pub fn format_change(text: &Sequence<u8>, op: &FormatOp) -> TextChange {
     let bytes = text.items();
     Marks::covered(text, &bytes, op).map_or(TextChange::NONE, |range| {
         TextChange::replace(range.start, range.len(), range.len())
