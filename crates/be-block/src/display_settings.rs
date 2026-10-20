@@ -5,6 +5,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::Root;
+use crate::setting::Setting;
 use crate::settings::Layered;
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -215,6 +216,85 @@ impl DisplaySettings {
         Self::SCREENS
             .put(ObjectId::ROOT, &id.to_owned(), stored)
             .into()
+    }
+}
+
+impl DisplaySettings {
+    pub fn keyed_by_connector(id: &str) -> bool {
+        !id.contains('|')
+    }
+
+    pub fn theme_setting() -> Setting<Self, Theme> {
+        Setting::new(
+            "theme",
+            "Theme",
+            |settings: &Self| settings.theme,
+            |_, theme| Self::set_theme(theme),
+        )
+        .with_default(Some(Theme::default()))
+    }
+
+    pub fn scale_setting() -> Setting<Self, u32> {
+        Setting::new(
+            "scale",
+            "Scale",
+            |settings: &Self| settings.scale_percent,
+            |_, percent| Self::set_scale_percent(percent),
+        )
+        .with_default(Some(Self::DEFAULT_SCALE))
+    }
+
+    pub fn rotate_in_bar_setting() -> Setting<Self, bool> {
+        Setting::new(
+            "rotate-in-bar",
+            "The rotate button",
+            |settings: &Self| settings.rotate_in_bar,
+            |_, shown| Self::set_rotate_in_bar(shown),
+        )
+        .with_default(Some(false))
+    }
+
+    pub fn screen_off_setting() -> Setting<Self, ScreenOff> {
+        Setting::new(
+            "screen-off",
+            "Screens off",
+            |settings: &Self| settings.screen_off,
+            |_, screen_off| Self::set_screen_off(screen_off),
+        )
+        .with_default(Some(ScreenOff::DEFAULT))
+    }
+
+    pub fn lock_after_setting() -> Setting<Self, LockAfter> {
+        Setting::new(
+            "lock-after",
+            "Lock",
+            |settings: &Self| settings.lock_after,
+            |_, lock_after| Self::set_lock_after(lock_after),
+        )
+        .with_default(Some(LockAfter::DEFAULT))
+    }
+
+    pub fn mode_setting(id: &str) -> Setting<Self, DisplayMode> {
+        let (read, write) = (id.to_owned(), id.to_owned());
+        Setting::new(
+            format!("screen.{id}.mode"),
+            "Resolution",
+            move |settings: &Self| settings.mode(&read),
+            move |own: &Self, mode| own.set_mode(&write, mode),
+        )
+        .only_on_this_device(Self::keyed_by_connector(id))
+    }
+
+    pub fn rotation_setting(id: &str) -> Setting<Self, Rotation> {
+        let (read, write) = (id.to_owned(), id.to_owned());
+        Setting::new(
+            format!("screen.{id}.rotation"),
+            "Rotation",
+            move |settings: &Self| settings.screen(&read).rotation,
+            move |own: &Self, rotation| own.set_rotation(&write, rotation),
+        )
+        .with_default(Some(Rotation::Normal))
+        .only_on_this_device(Self::keyed_by_connector(id))
     }
 }
 

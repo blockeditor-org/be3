@@ -320,6 +320,7 @@ impl beui::App for Shell {
         }));
         self.app.input.boot(&self.app.app_state);
         self.app.display.boot(&self.app.app_state);
+        display::boot(&self.app.app_state);
         #[cfg(all(
             feature = "web-view",
             not(target_os = "android"),
@@ -1450,8 +1451,8 @@ impl BlockApp {
         self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_session = false;
         self.shell = None;
-        self.input.set_layers(Vec::new());
-        self.display.set_layers(Vec::new());
+        self.input.set_layers(Default::default());
+        self.display.set_layers(Default::default());
         self.keys.cancel_pairing();
         self.organization = Some(organization.clone());
         self.account.last_organization_id = Some(organization.id);
@@ -1542,8 +1543,8 @@ impl BlockApp {
         self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_session = false;
         self.shell = None;
-        self.input.set_layers(Vec::new());
-        self.display.set_layers(Vec::new());
+        self.input.set_layers(Default::default());
+        self.display.set_layers(Default::default());
         self.keys = keys::KeyState::default();
         self.identity = self.app_state.identity(&account).unwrap_or_else(|error| {
             self.organization_error = Some(error.to_string());
@@ -2421,7 +2422,7 @@ impl BlockApp {
         let now = host::now();
         let mut prompt = display::prompt(now);
         if prompt == display::Prompt::Expired {
-            let edits = display::revert(&self.display.top());
+            let edits = display::revert(&self.app_state, &self.display.layers());
             self.display.commit(&self.app_state, edits);
             prompt = display::prompt(now);
         }
@@ -2442,8 +2443,8 @@ impl BlockApp {
             return;
         }
         let edits = match keep {
-            true => display::keep(&self.display.top()),
-            false => display::revert(&self.display.top()),
+            true => display::keep(&self.app_state, &self.display.layers()),
+            false => display::revert(&self.app_state, &self.display.layers()),
         };
         self.display.commit(&self.app_state, edits);
         self.display_round = None;

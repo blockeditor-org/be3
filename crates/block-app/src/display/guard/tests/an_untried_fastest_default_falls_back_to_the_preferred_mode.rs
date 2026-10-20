@@ -8,7 +8,7 @@ fn an_untried_fastest_default_falls_back_to_the_preferred_mode() {
         "a monitor started at a fastest rate it never showed asks to keep it"
     );
 
-    assert_eq!(guard.revert(), vec![(MONITOR.to_owned(), Some(slow()))]);
+    assert_eq!(guard.revert(), vec![change(Some(slow()))]);
     assert_eq!(guard.applied().mode(MONITOR), Some(slow()));
     assert!(!guard.asking(), "the fallback is remembered");
 }

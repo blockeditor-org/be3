@@ -1,5 +1,5 @@
 use be_block::settings::{Settings, SettingsProfile};
-use be_block::{BlockContent, Edit, Root, SettingsContent};
+use be_block::{BlockContent, Edit, Root, SettingsContent, SettingsLayer};
 use uuid::Uuid;
 
 use crate::BlockParent;
@@ -11,6 +11,7 @@ pub trait SettingsGraph {
     fn settings_profile(&self, block: Uuid) -> Option<SettingsProfile>;
     fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid;
     fn edit_settings(&self, block: Uuid, edit: Edit);
+    fn edit_settings_profile(&self, block: Uuid, edit: Edit);
 }
 
 pub fn own_settings_blocks(graph: &dyn SettingsGraph) -> Option<Vec<Uuid>> {
@@ -84,24 +85,7 @@ impl RootSettings {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct Layers {
-    pub defaults: Option<Uuid>,
-    pub own: Option<Uuid>,
-}
-
-impl Layers {
-    pub fn top(self) -> Option<Uuid> {
-        self.own.or(self.defaults)
-    }
-
-    pub fn below(self, block: Uuid) -> Vec<Uuid> {
-        match self.own == Some(block) {
-            true => self.defaults.into_iter().collect(),
-            false => Vec::new(),
-        }
-    }
-}
+pub use be_block::Layers;
 
 pub fn layers(graph: &dyn SettingsGraph, held: &HeldSettings, kind: Uuid, client: Uuid) -> Layers {
     let own = held
@@ -110,14 +94,15 @@ pub fn layers(graph: &dyn SettingsGraph, held: &HeldSettings, kind: Uuid, client
         .and_then(|profile| graph.settings_profile(profile))
         .and_then(|profile| profile.kind(kind));
     Layers {
-        defaults: held.settings.kind(kind),
-        own,
+        every_device: held.settings.kind(kind),
+        this_device: own,
     }
 }
 
 pub struct RootSetting<C> {
     settings: RootSettings,
     created: Option<Uuid>,
+    created_here: Option<Uuid>,
     block: Option<Uuid>,
     content: std::marker::PhantomData<C>,
 }
@@ -127,6 +112,7 @@ impl<C> Default for RootSetting<C> {
         Self {
             settings: RootSettings::default(),
             created: None,
+            created_here: None,
             block: None,
             content: std::marker::PhantomData,
         }
@@ -166,5 +152,53 @@ impl<C: BlockContent + Default> RootSetting<C> {
         self.created = Some(block);
         self.block = Some(block);
         self.block
+    }
+
+    pub fn layer_blocks(&self, graph: &dyn SettingsGraph, client: Uuid) -> Layers {
+        let layers = self.layers(graph, client).unwrap_or_default();
+        Layers {
+            every_device: layers.every_device.or(self.created),
+            this_device: layers.this_device.or(self.created_here),
+        }
+    }
+
+    pub fn ensure_layer(
+        &mut self,
+        graph: &dyn SettingsGraph,
+        client: Uuid,
+        layer: SettingsLayer,
+    ) -> Option<Uuid> {
+        if let Some(block) = self.layer_blocks(graph, client).block(layer) {
+            return Some(block);
+        }
+        let settings = self.settings.ensure(graph)?;
+        graph.settings(settings)?;
+        let parent = match layer {
+            SettingsLayer::EveryDevice => settings,
+            SettingsLayer::ThisDevice => {
+                let profile = self.settings.read(graph)?.settings.profile(client)?;
+                graph.settings_profile(profile)?;
+                profile
+            }
+        };
+        let block = graph.create(
+            C::CONTENT_TYPE,
+            C::default().encode(),
+            BlockParent::Block(parent),
+        );
+        match layer {
+            SettingsLayer::EveryDevice => {
+                graph.edit_settings(settings, Settings::set_kind(C::CONTENT_TYPE, block))
+            }
+            SettingsLayer::ThisDevice => graph.edit_settings_profile(
+                parent,
+                SettingsProfile::set_kind(C::CONTENT_TYPE, block),
+            ),
+        }
+        match layer {
+            SettingsLayer::EveryDevice => self.created = Some(block),
+            SettingsLayer::ThisDevice => self.created_here = Some(block),
+        }
+        Some(block)
     }
 }

@@ -3,6 +3,7 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::Root;
+use crate::setting::Setting;
 use crate::settings::Layered;
 
 pub const MIN_REPEAT_DELAY: u32 = 150;
@@ -211,6 +212,160 @@ impl InputSettings {
     fn store_pointer(device: &InputDevice, pointer: PointerSettings) -> Change {
         let stored = (pointer != PointerSettings::default()).then_some(&pointer);
         Self::POINTERS.put(ObjectId::ROOT, device, stored)
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub enum PointerField {
+    Speed,
+    TapToClick,
+    NaturalScroll,
+}
+
+impl PointerField {
+    fn name(self) -> &'static str {
+        match self {
+            Self::Speed => "Pointer speed",
+            Self::TapToClick => "Tap to click",
+            Self::NaturalScroll => "Natural scrolling",
+        }
+    }
+
+    fn key(self) -> &'static str {
+        match self {
+            Self::Speed => "speed",
+            Self::TapToClick => "tap-to-click",
+            Self::NaturalScroll => "natural-scroll",
+        }
+    }
+
+    pub fn read(self, pointer: &PointerSettings) -> Option<PointerSetting> {
+        match self {
+            Self::Speed => pointer.speed.map(|speed| PointerSetting::Speed(Some(speed))),
+            Self::TapToClick => pointer.tap_to_click.map(|on| PointerSetting::TapToClick(Some(on))),
+            Self::NaturalScroll => pointer
+                .natural_scroll
+                .map(|on| PointerSetting::NaturalScroll(Some(on))),
+        }
+    }
+
+    fn unset(self) -> PointerSetting {
+        match self {
+            Self::Speed => PointerSetting::Speed(None),
+            Self::TapToClick => PointerSetting::TapToClick(None),
+            Self::NaturalScroll => PointerSetting::NaturalScroll(None),
+        }
+    }
+}
+
+impl InputSettings {
+    fn text_setting(
+        key: &'static str,
+        name: &'static str,
+        get: fn(&Self) -> Option<String>,
+        set: fn(Option<&str>) -> Edit,
+    ) -> Setting<Self, String> {
+        Setting::new(key, name, get, move |_, value: Option<String>| {
+            set(value.as_deref())
+        })
+    }
+
+    pub fn layout_setting() -> Setting<Self, String> {
+        Self::text_setting(
+            "keyboard-layout",
+            "Keyboard layout",
+            |settings| settings.keyboard_layout.clone(),
+            Self::set_keyboard_layout,
+        )
+    }
+
+    pub fn variant_setting() -> Setting<Self, String> {
+        Self::text_setting(
+            "keyboard-variant",
+            "Keyboard variant",
+            |settings| settings.keyboard_variant.clone(),
+            Self::set_keyboard_variant,
+        )
+    }
+
+    pub fn options_setting() -> Setting<Self, String> {
+        Self::text_setting(
+            "keyboard-options",
+            "Keyboard options",
+            |settings| settings.keyboard_options.clone(),
+            Self::set_keyboard_options,
+        )
+    }
+
+    pub fn repeat_delay_setting() -> Setting<Self, u32> {
+        Setting::new(
+            "repeat-delay",
+            "Repeat delay",
+            |settings: &Self| settings.repeat_delay.map(RepeatDelay::milliseconds),
+            |_, delay| Self::set_repeat_delay(delay),
+        )
+        .with_default(Some(DEFAULT_REPEAT_DELAY))
+    }
+
+    pub fn repeat_rate_setting() -> Setting<Self, u32> {
+        Setting::new(
+            "repeat-rate",
+            "Repeat rate",
+            |settings: &Self| settings.repeat_rate.map(RepeatRate::per_second),
+            |_, rate| Self::set_repeat_rate(rate),
+        )
+        .with_default(Some(DEFAULT_REPEAT_RATE))
+    }
+
+    pub fn middle_click_paste_setting() -> Setting<Self, bool> {
+        Setting::new(
+            "middle-click-paste",
+            "Middle-click paste",
+            |settings: &Self| settings.middle_click_paste,
+            |_, on| Self::set_middle_click_paste(on),
+        )
+        .with_default(Some(false))
+    }
+
+    pub fn remapper_setting() -> Setting<Self, RemapperChoice> {
+        Setting::new(
+            "remapper",
+            "Remaps",
+            |settings: &Self| settings.remapper,
+            |_, choice| Self::set_remapper(choice),
+        )
+    }
+
+    pub fn pointer_setting(
+        device: Option<InputDevice>,
+        field: PointerField,
+    ) -> Setting<Self, PointerSetting> {
+        let key = match &device {
+            Some(device) => format!(
+                "pointer.{}.{}.{}.{}",
+                device.name,
+                device.vendor,
+                device.product,
+                field.key()
+            ),
+            None => format!("pointer.{}", field.key()),
+        };
+        let read = device.clone();
+        Setting::new(
+            key,
+            field.name(),
+            move |settings: &Self| match &read {
+                Some(device) => field.read(&settings.pointer(device)),
+                None => field.read(&settings.every_pointer),
+            },
+            move |own: &Self, value| {
+                let setting = value.unwrap_or(field.unset());
+                match &device {
+                    Some(device) => own.set_device_pointer(device, setting),
+                    None => own.set_every_pointer(setting),
+                }
+            },
+        )
     }
 }
 

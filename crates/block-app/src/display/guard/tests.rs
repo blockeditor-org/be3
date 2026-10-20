@@ -6,8 +6,11 @@ mod a_change_to_a_monitor_that_is_not_connected_is_not_asked_about;
 mod a_changed_mode_waits_to_be_kept;
 mod a_kept_default_is_not_asked_about_again;
 mod a_monitor_whose_default_is_its_preferred_mode_is_not_asked_about;
+mod a_mode_kept_here_is_not_asked_about_on_the_next_start;
+mod a_synced_mode_is_asked_about_the_first_time_this_device_shows_it;
 mod a_turned_screen_is_not_asked_about;
 mod an_untried_fastest_default_falls_back_to_the_preferred_mode;
+mod reverting_a_synced_mode_keeps_the_fallback_on_this_device;
 mod another_change_while_asking_asks_again_with_the_full_time;
 mod keeping_a_mode_leaves_a_lower_layers_rotation_alone;
 mod reverting_a_change_leaves_monitors_that_are_not_connected_alone;
@@ -58,6 +61,10 @@ fn saved(mode: Option<DisplayMode>) -> DisplaySettings {
         &DisplaySettings::default(),
         &[DisplaySettings::default().set_mode(MONITOR, mode)],
     )
+}
+
+fn change(mode: Option<DisplayMode>) -> ModeChange {
+    ModeChange::new(MONITOR, mode)
 }
 
 fn showing(screen: Screen, settings: DisplaySettings) -> Guard {

@@ -258,9 +258,9 @@ impl RootSettings {
             .unwrap_or_else(|| fallback.to_owned())
     }
 
-    pub(crate) fn layers(&self, kind: Uuid, client: Uuid) -> Vec<Uuid> {
+    pub(crate) fn layers(&self, kind: Uuid, client: Uuid) -> be_block::Layers {
         let Some(settings) = self.settings() else {
-            return Vec::new();
+            return be_block::Layers::default();
         };
         let profile = self
             .current_profile(&settings, client)

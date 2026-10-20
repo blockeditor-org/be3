@@ -2,6 +2,7 @@ use be_model::{Document, Edit, Map, Model, ObjectId};
 use uuid::Uuid;
 
 use crate::Root;
+use crate::setting::Setting;
 use crate::settings::Layered;
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -18,6 +19,17 @@ impl EditorSettings {
         Self::DEFAULTS
             .put(ObjectId::ROOT, &block_type, editor.as_ref())
             .into()
+    }
+}
+
+impl EditorSettings {
+    pub fn default_editor_setting(block_type: Uuid, name: impl Into<String>) -> Setting<Self, Uuid> {
+        Setting::new(
+            format!("default-editor.{block_type}"),
+            name,
+            move |settings: &Self| settings.default_editor(block_type),
+            move |_, editor| Self::set_default_editor(block_type, editor),
+        )
     }
 }
 

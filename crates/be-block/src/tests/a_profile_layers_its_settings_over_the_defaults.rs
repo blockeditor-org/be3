@@ -18,9 +18,9 @@ fn a_profile_layers_its_settings_over_the_defaults() {
         &SettingsProfileContent::default(),
         [SettingsProfile::set_kind(kind, own)],
     );
-    assert_eq!(settings.root().layers(kind, None), [shared]);
+    assert_eq!(settings.root().layers(kind, None).bottom_up(), [shared]);
     assert_eq!(
-        settings.root().layers(kind, Some(&profile.root())),
+        settings.root().layers(kind, Some(&profile.root())).bottom_up(),
         [shared, own]
     );
     let replaced = edited(
@@ -35,7 +35,10 @@ fn a_profile_layers_its_settings_over_the_defaults() {
         &settings,
         settings.root().child_edit(ChildChange::Delete(shared)),
     );
-    assert_eq!(deleted.root().layers(kind, Some(&profile.root())), [own]);
+    assert_eq!(
+        deleted.root().layers(kind, Some(&profile.root())).bottom_up(),
+        [own]
+    );
 
     let defaults = edited(
         &DisplaySettingsContent::default(),

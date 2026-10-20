@@ -12,7 +12,7 @@ fn reverting_a_change_leaves_monitors_that_are_not_connected_alone() {
 
     assert_eq!(
         guard.revert(),
-        vec![(MONITOR.to_owned(), Some(slow()))],
+        vec![change(Some(slow()))],
         "only the connected monitor is put back"
     );
     assert_eq!(guard.applied().mode("HDMI-A-2"), Some(small()));

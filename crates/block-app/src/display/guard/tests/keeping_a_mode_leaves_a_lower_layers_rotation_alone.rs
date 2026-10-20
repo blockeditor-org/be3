@@ -10,14 +10,24 @@ fn keeping_a_mode_leaves_a_lower_layers_rotation_alone() {
     assert!(guard.asking());
 
     let changes = guard.keep();
-    let top = DisplaySettings::default();
-    let kept = edited(&top, &written(&top, &changes));
+    let layers = LayerContents {
+        every_device: Some(DisplaySettings::default()),
+        this_device: None,
+    };
+    let edits: Vec<Edit> = written(&layers, &changes)
+        .into_iter()
+        .map(|(layer, edit)| {
+            assert_eq!(layer, SettingsLayer::EveryDevice);
+            edit
+        })
+        .collect();
+    let kept = edited(&DisplaySettings::default(), &edits);
 
     assert_eq!(kept.mode(MONITOR), Some(fast()));
     assert_eq!(
         kept.screen(MONITOR).rotation,
         None,
-        "the top layer is not handed the rotation it inherits"
+        "the layer written is not handed the rotation it inherits"
     );
     assert_eq!(guard.applied().rotation(MONITOR), Rotation::Clockwise270);
     assert_eq!(guard.applied().mode(MONITOR), Some(fast()));

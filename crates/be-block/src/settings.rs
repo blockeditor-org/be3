@@ -50,11 +50,11 @@ impl Settings {
         Self::KINDS.put(ObjectId::ROOT, &kind, Some(&block)).into()
     }
 
-    pub fn layers(&self, kind: Uuid, profile: Option<&SettingsProfile>) -> Vec<Uuid> {
-        self.kind(kind)
-            .into_iter()
-            .chain(profile.and_then(|profile| profile.kind(kind)))
-            .collect()
+    pub fn layers(&self, kind: Uuid, profile: Option<&SettingsProfile>) -> crate::Layers {
+        crate::Layers {
+            every_device: self.kind(kind),
+            this_device: profile.and_then(|profile| profile.kind(kind)),
+        }
     }
 
     pub fn profile(&self, client: Uuid) -> Option<Uuid> {

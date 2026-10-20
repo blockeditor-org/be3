@@ -1372,9 +1372,8 @@ impl Editor {
                 .unwrap_or_default();
             be_block::layered(
                 layers
-                    .defaults
+                    .bottom_up()
                     .into_iter()
-                    .chain(layers.own)
                     .filter_map(|block| {
                         editor
                             .content_of::<be_block::be_model::Document<R>>(block)
@@ -1450,6 +1449,11 @@ impl crate::root_settings::SettingsGraph for Editor {
 
     fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {
         self.content_of::<be_block::SettingsContent>(block)
+            .operate(edit);
+    }
+
+    fn edit_settings_profile(&self, block: Uuid, edit: be_block::Edit) {
+        self.content_of::<be_block::SettingsProfileContent>(block)
             .operate(edit);
     }
 }

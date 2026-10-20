@@ -38,6 +38,7 @@ pub mod pixel_ray_tracer;
 pub mod presence;
 pub mod presentation;
 pub mod profile;
+pub mod setting;
 pub mod settings;
 pub mod streamed;
 pub mod text;
@@ -83,6 +84,7 @@ pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use pixel_ray_tracer::PixelRayTracerContent;
 pub use presentation::{Presentation, PresentationContent};
 pub use profile::{FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR};
+pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{
     Layered, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
 };
