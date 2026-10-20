@@ -11,6 +11,7 @@ pub struct AppTest {
     app: Option<Driven>,
     steps: Vec<String>,
     recorded: Option<Snapshot>,
+    overflows: Vec<String>,
     crop: Option<String>,
     started: Instant,
 }
@@ -36,6 +37,7 @@ impl AppTest {
             app: Some(app),
             steps: Vec::new(),
             recorded: None,
+            overflows: Vec::new(),
             crop: None,
             started,
         };
@@ -121,6 +123,8 @@ impl AppTest {
 
     pub fn record(&mut self) {
         let painted = self.paint();
+        let found = self.run(&["overflows"]);
+        self.overflows.extend(found.lines().map(str::to_owned));
         match &mut self.recorded {
             Some(recorded) => recorded.append(painted),
             None => self.recorded = Some(painted),
@@ -131,6 +135,16 @@ impl AppTest {
         self.record();
         let recorded = self.recorded.take().expect("a painting was just recorded");
         paint_snapshot::assert_accepted(name, &recorded, ACCEPT);
+        let mut found = std::mem::take(&mut self.overflows);
+        found.sort();
+        found.dedup();
+        if !found.is_empty() {
+            self.fail(&format!(
+                "the painting {name} shows {} element(s) out of bounds, cut off where nothing scrolls to them, drawn outside their own box, or with an outline cut while their box shows (guides/testing_a_gui.md, 4):\n  {}",
+                found.len(),
+                found.join("\n  ")
+            ));
+        }
     }
 
     pub fn close(mut self) {
@@ -183,6 +197,14 @@ impl AppTest {
             "{error}\n\nThe steps so far, which `drive -` replays against ./scripts/buck run //crates/block-app:dev -- --fresh:\n{}{log}",
             self.steps.join("\n")
         );
+    }
+}
+
+impl Drop for AppTest {
+    fn drop(&mut self) {
+        if self.app.is_some() && !std::thread::panicking() {
+            self.fail("the test ended with the app still open; end it with close(), which fails unless the app exits cleanly");
+        }
     }
 }
 

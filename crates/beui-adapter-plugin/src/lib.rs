@@ -270,6 +270,13 @@ impl PluginSurface {
         .ok()
     }
 
+    pub fn overflows(&self) -> Vec<String> {
+        self.runner
+            .output()
+            .map(|output| output.overflows.clone())
+            .unwrap_or_default()
+    }
+
     pub fn take_output(&mut self) -> Option<FrameOutput> {
         self.runner.take_output()
     }
