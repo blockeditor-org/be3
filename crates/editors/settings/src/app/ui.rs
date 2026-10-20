@@ -257,34 +257,39 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
                     <SetUpDone on_done={move || finished.set(true)} />
                 </Show>
                 <Show condition={browsing}>
-                <SettingsSection
-                    title="Settings profile"
-                    description="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
-                >
-                    <SettingsRow label={status}>
-                        <Show condition={unused}>
-                            <Button
-                                label="Use on this device"
-                                variant=ButtonVariant::Primary
-                                @test_id={"settings-profile.use"}
-                                on_click={move || {
-                                    if let Some(settings) = parent.get_untracked() {
-                                        editor
-                                            .content_of::<SettingsContent>(settings)
-                                            .operate(Settings::add_profile(client, block));
-                                    }
-                                }}
-                            />
-                        </Show>
-                    </SettingsRow>
-                </SettingsSection>
+                    <SettingsSection
+                        title="Settings profile"
+                        description="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
+                    >
+                        <SettingsRow label={status}>
+                            <Show condition={unused}>
+                                <Button
+                                    label="Use on this device"
+                                    variant=ButtonVariant::Primary
+                                    @test_id={"settings-profile.use"}
+                                    on_click={move || {
+                                        if let Some(settings) = parent.get_untracked() {
+                                            editor
+                                                .content_of::<SettingsContent>(settings)
+                                                .operate(Settings::add_profile(client, block));
+                                        }
+                                    }}
+                                />
+                            </Show>
+                        </SettingsRow>
+                    </SettingsSection>
                 </Show>
                 <Show condition={browsing}>
-                <SettingsSection title="In this profile">
-                    <Frame padding=CARD_PADDING>
-                        <Kinds editor={editor} layer={profile} blocked={blocked} shown={shown} />
-                    </Frame>
-                </SettingsSection>
+                    <SettingsSection title="In this profile">
+                        <Frame padding=CARD_PADDING>
+                            <Kinds
+                                editor={editor}
+                                layer={profile}
+                                blocked={blocked}
+                                shown={shown}
+                            />
+                        </Frame>
+                    </SettingsSection>
                 </Show>
             </SettingsPage>
         </Loaded>

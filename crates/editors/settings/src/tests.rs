@@ -92,7 +92,10 @@ impl SetUp {
         named.set_name(class.name());
         store.add_block(named);
         let mut held = SettingsContent::default();
-        held.apply(&Settings::set_kind(DisplaySettingsContent::CONTENT_TYPE, shared));
+        held.apply(&Settings::set_kind(
+            DisplaySettingsContent::CONTENT_TYPE,
+            shared,
+        ));
         held.apply(&Settings::add_profile(client, profile));
         store.hold(Some(settings), held);
         store.hold(Some(shared), DisplaySettingsContent::new(&every_device));
@@ -113,9 +116,7 @@ impl SetUp {
     }
 
     fn profile(&self) -> SettingsProfile {
-        self.editor
-            .content::<SettingsProfileContent>(None)
-            .root()
+        self.editor.content::<SettingsProfileContent>(None).root()
     }
 
     fn here(&self) -> DisplaySettings {

@@ -2020,7 +2020,8 @@ impl BlockApp {
                 None,
                 BlockOpen {
                     id: profile,
-                    block_type: <be_block::SettingsProfileContent as be_block::BlockContent>::CONTENT_TYPE,
+                    block_type:
+                        <be_block::SettingsProfileContent as be_block::BlockContent>::CONTENT_TYPE,
                     via: None,
                     editor: None,
                 },

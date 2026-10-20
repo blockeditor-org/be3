@@ -3,8 +3,10 @@ use super::*;
 const PATIENCE: Duration = Duration::from_secs(20);
 
 fn arrived(block: Uuid) {
-    be::wait_for(PATIENCE, |shared| shared.blocks.contains_key(&block).then_some(()))
-        .expect("the new stack never held the block");
+    be::wait_for(PATIENCE, |shared| {
+        shared.blocks.contains_key(&block).then_some(())
+    })
+    .expect("the new stack never held the block");
 }
 
 fn new_profile(class: DeviceClass) -> (RootSettings, Uuid) {
@@ -45,7 +47,11 @@ fn a_new_profile_takes_this_devices_class_and_its_defaults() {
         .expect("the display settings have content")
         .root();
     assert_eq!(kept, DeviceClass::EpaperTablet.display_settings());
-    assert_eq!(settings.take_set_up(), Some(profile), "the host opens it to set up");
+    assert_eq!(
+        settings.take_set_up(),
+        Some(profile),
+        "the host opens it to set up"
+    );
     assert_eq!(settings.take_set_up(), None, "once");
 
     let (mut settings, profile) = new_profile(DeviceClass::Desktop);

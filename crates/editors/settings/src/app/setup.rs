@@ -40,14 +40,12 @@ impl DeviceSetup {
         parent: Memo<Option<Uuid>>,
     ) -> Self {
         let class = profile.project(|profile| profile.root().class);
-        let held = profile.project(|profile| profile.root().kind(DisplaySettingsContent::CONTENT_TYPE));
+        let held =
+            profile.project(|profile| profile.root().kind(DisplaySettingsContent::CONTENT_TYPE));
         let own_block = create_memo(move || held.get());
         let settings = editor.related_content::<SettingsContent>(parent);
-        let shared = settings.project(|settings| {
-            settings
-                .root()
-                .kind(DisplaySettingsContent::CONTENT_TYPE)
-        });
+        let shared =
+            settings.project(|settings| settings.root().kind(DisplaySettingsContent::CONTENT_TYPE));
         let every_block = create_memo(move || shared.get());
         let every_content = editor.related_content::<DisplaySettingsContent>(every_block);
         let own_content = editor.related_content::<DisplaySettingsContent>(own_block);
@@ -124,7 +122,8 @@ impl DeviceSetup {
         if previous == Some(class) {
             return;
         }
-        self.profile.operate(SettingsProfile::set_class(Some(class)));
+        self.profile
+            .operate(SettingsProfile::set_class(Some(class)));
         let edits = self
             .own
             .with_untracked(|own| class.display_edits(previous, own));
@@ -209,7 +208,7 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
     });
     let locked = create_memo(move || blocked.get() || !setup.ready.get());
     view! {
-        <SettingsSection title="This device">
+        <SettingsSection title="Device">
             <SettingsRow label="Name" locked={blocked}>
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
@@ -294,9 +293,22 @@ pub(super) fn DifferencesSection(setup: DeviceSetup, blocked: Memo<bool>) -> Nod
                             @test_id={format!("setup.differs.{key}")}
                         >
                             <List direction=Direction::Horizontal spacing=0.0>
-                                <Text @sizing=ItemSize::Percent(NAME_WEIGHT) string={name} wrap=true />
-                                <Text @sizing=ItemSize::Percent(VALUE_WEIGHT) color=TextColor::Muted string={everywhere} wrap=true />
-                                <Text @sizing=ItemSize::Percent(VALUE_WEIGHT) string={here} wrap=true />
+                                <Text
+                                    @sizing=ItemSize::Percent(NAME_WEIGHT)
+                                    string={name}
+                                    wrap=true
+                                />
+                                <Text
+                                    @sizing=ItemSize::Percent(VALUE_WEIGHT)
+                                    color=TextColor::Muted
+                                    string={everywhere}
+                                    wrap=true
+                                />
+                                <Text
+                                    @sizing=ItemSize::Percent(VALUE_WEIGHT)
+                                    string={here}
+                                    wrap=true
+                                />
                             </List>
                         </Frame>
                     </List>

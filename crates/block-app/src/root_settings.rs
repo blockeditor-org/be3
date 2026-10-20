@@ -3,9 +3,9 @@ use std::collections::HashMap;
 
 use be_block::settings::{Settings, SettingsProfile};
 use be_block::{
-    BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, EditorView, EditorViewContent, LINUX_DESKTOP_EDITOR, LiveEdit,
-    MY_FILES, NAME, Root, SettingsContent, SettingsProfileContent, WORKSPACE_EDITOR,
-    WorkspaceContent,
+    BlockContent, BlockMetadata, DeviceClass, DisplaySettingsContent, EditorView,
+    EditorViewContent, LINUX_DESKTOP_EDITOR, LiveEdit, MY_FILES, NAME, Root, SettingsContent,
+    SettingsProfileContent, WORKSPACE_EDITOR, WorkspaceContent,
 };
 use be_graph::BlockParent;
 use uuid::Uuid;

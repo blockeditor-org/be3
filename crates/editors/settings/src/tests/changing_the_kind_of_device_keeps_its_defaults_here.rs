@@ -3,7 +3,10 @@ use super::*;
 #[test]
 fn changing_the_kind_of_device_keeps_its_defaults_here() {
     let mut setup = SetUp::new(DeviceClass::Desktop, DisplaySettings::default());
-    assert!(!setup.shows("setup.done"), "a desktop has nothing to set up");
+    assert!(
+        !setup.shows("setup.done"),
+        "a desktop has nothing to set up"
+    );
     assert_eq!(setup.here(), DisplaySettings::default());
 
     setup.choose_kind(DeviceClass::EpaperTablet);
