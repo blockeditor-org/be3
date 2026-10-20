@@ -1,5 +1,5 @@
 use be_block::be_model::{Document, Edit};
-use be_block::{BlockContent, Layered, LiveEdit, Root, layered};
+use be_block::{BlockContent, Layered, Layers, LiveEdit, Root, SettingsLayer, layered};
 use uuid::Uuid;
 
 use crate::app_state::{AppStateError, AppStateStore};
@@ -16,11 +16,77 @@ pub(crate) trait LocalSettings: Root + Clone + Default + PartialEq {
 }
 
 pub(crate) struct SettingsSync<R> {
-    layers: Vec<Uuid>,
+    blocks: Layers,
     seen: Option<Vec<(Uuid, u64)>>,
+    contents: Option<LayerContents<R>>,
     applied: Option<R>,
-    outbox: Outbox,
+    outboxes: [Outbox; 2],
 }
+
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct LayerContents<R> {
+    pub(crate) every_device: Option<R>,
+    pub(crate) this_device: Option<R>,
+}
+
+impl<R> Default for LayerContents<R> {
+    fn default() -> Self {
+        Self {
+            every_device: None,
+            this_device: None,
+        }
+    }
+}
+
+impl<R: Layered> LayerContents<R> {
+    fn get_mut(&mut self, layer: SettingsLayer) -> &mut Option<R> {
+        match layer {
+            SettingsLayer::EveryDevice => &mut self.every_device,
+            SettingsLayer::ThisDevice => &mut self.this_device,
+        }
+    }
+
+    pub(crate) fn own(&self, layer: SettingsLayer) -> R {
+        match layer {
+            SettingsLayer::EveryDevice => self.every_device.clone(),
+            SettingsLayer::ThisDevice => self.this_device.clone(),
+        }
+        .unwrap_or_default()
+    }
+
+    pub(crate) fn set(&mut self, layer: SettingsLayer, content: R) {
+        *self.get_mut(layer) = Some(content);
+    }
+
+    fn target(&self, layer: SettingsLayer) -> Option<SettingsLayer> {
+        let other = match layer {
+            SettingsLayer::EveryDevice => SettingsLayer::ThisDevice,
+            SettingsLayer::ThisDevice => SettingsLayer::EveryDevice,
+        };
+        [layer, other].into_iter().find(|layer| match layer {
+            SettingsLayer::EveryDevice => self.every_device.is_some(),
+            SettingsLayer::ThisDevice => self.this_device.is_some(),
+        })
+    }
+
+    fn layered(&self) -> R {
+        layered(
+            self.every_device
+                .iter()
+                .chain(self.this_device.iter())
+                .cloned(),
+        )
+    }
+}
+
+fn slot(layer: SettingsLayer) -> usize {
+    match layer {
+        SettingsLayer::EveryDevice => 0,
+        SettingsLayer::ThisDevice => 1,
+    }
+}
+
+const LAYERS: [SettingsLayer; 2] = [SettingsLayer::EveryDevice, SettingsLayer::ThisDevice];
 
 #[derive(Default)]
 struct Outbox {
@@ -80,10 +146,11 @@ fn edited<R: Root>(settings: &R, edits: &[Edit]) -> R {
 impl<R> Default for SettingsSync<R> {
     fn default() -> Self {
         Self {
-            layers: Vec::new(),
+            blocks: Layers::default(),
             seen: None,
+            contents: None,
             applied: None,
-            outbox: Outbox::default(),
+            outboxes: [Outbox::default(), Outbox::default()],
         }
     }
 }
@@ -105,53 +172,68 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         }
     }
 
-    pub(crate) fn set_layers(&mut self, layers: Vec<Uuid>) {
-        if self.layers == layers {
+    pub(crate) fn applied(&self) -> Option<&R> {
+        self.applied.as_ref()
+    }
+
+    pub(crate) fn set_layers(&mut self, layers: Layers) {
+        if self.blocks == layers {
             return;
         }
-        if self.layers.last() != layers.last() {
-            self.outbox.clear();
+        for layer in LAYERS {
+            if self.blocks.block(layer) != layers.block(layer) {
+                self.outboxes[slot(layer)].clear();
+            }
         }
-        self.layers = layers;
+        self.blocks = layers;
         self.seen = None;
+        self.contents = None;
+    }
+
+    pub(crate) fn layers(&self) -> LayerContents<R> {
+        self.contents.clone().unwrap_or_default()
     }
 
     pub(crate) fn sync(&mut self, store: &AppStateStore) {
-        let Some(&target) = self.layers.last() else {
+        let blocks = self.blocks;
+        if blocks.top().is_none() {
             return;
-        };
-        let mut revisions = Vec::with_capacity(self.layers.len());
-        for block in &self.layers {
-            be::hold(*block, R::CONTENT_TYPE);
-            let Some(revision) = be::content_revision(*block) else {
+        }
+        let mut revisions = Vec::with_capacity(2);
+        for layer in LAYERS {
+            let Some(block) = blocks.block(layer) else {
+                continue;
+            };
+            be::hold(block, R::CONTENT_TYPE);
+            let Some(revision) = be::content_revision(block) else {
                 return;
             };
-            revisions.push((*block, revision));
+            revisions.push((block, revision));
+            Self::write(block, self.outboxes[slot(layer)].send(revision));
         }
-        let target_revision = revisions.last().map_or(0, |(_, revision)| *revision);
-        Self::write(target, self.outbox.send(target_revision));
         if self.seen.as_ref() == Some(&revisions) {
             return;
         }
-        let Some(mut contents) = self
-            .layers
-            .iter()
-            .map(|block| {
-                be::content(*block)
-                    .and_then(|content| Document::<R>::decode(&content.bytes).ok())
-                    .map(|content| content.root())
-            })
-            .collect::<Option<Vec<R>>>()
-        else {
-            return;
-        };
-        self.seen = Some(revisions);
-        if let Some(top) = contents.pop() {
-            let (top, resend) = self.outbox.overlay(target_revision, top);
-            Self::write(target, resend);
-            contents.push(top);
+        let mut contents = LayerContents::default();
+        for layer in LAYERS {
+            let Some(block) = blocks.block(layer) else {
+                continue;
+            };
+            let Some(content) = be::content(block)
+                .and_then(|content| Document::<R>::decode(&content.bytes).ok())
+                .map(|content| content.root())
+            else {
+                return;
+            };
+            let revision = be::content_revision(block).unwrap_or(0);
+            let (content, resend) = self.outboxes[slot(layer)].overlay(revision, content);
+            Self::write(block, resend);
+            contents.set(layer, content);
         }
-        self.receive(store, layered(contents));
+        self.seen = Some(revisions);
+        let settings = contents.layered();
+        self.contents = Some(contents);
+        self.receive(store, settings);
     }
 
     fn receive(&mut self, store: &AppStateStore, settings: R) {
@@ -164,15 +246,39 @@ impl<R: LocalSettings + Layered> SettingsSync<R> {
         self.applied = Some(settings);
     }
 
-    pub(crate) fn commit(&mut self, store: &AppStateStore, edits: Vec<Edit>) {
-        let settings = edited(&self.applied.clone().unwrap_or_default(), &edits);
+    pub(crate) fn commit(&mut self, store: &AppStateStore, edits: Vec<(SettingsLayer, Edit)>) {
+        let mut contents = self.contents.clone().unwrap_or_default();
+        let mut applied = self.applied.clone().unwrap_or_default();
+        let mut written = false;
+        for (layer, edit) in edits {
+            match contents.target(layer) {
+                Some(target) => {
+                    let content = edited(&contents.own(target), std::slice::from_ref(&edit));
+                    contents.set(target, content);
+                    self.outboxes[slot(target)].queue(vec![edit]);
+                    written = true;
+                }
+                None => {
+                    applied = edited(&applied, std::slice::from_ref(&edit));
+                    self.outboxes[slot(layer)].queue(vec![edit]);
+                }
+            }
+        }
+        let settings = match written {
+            true => contents.layered(),
+            false => applied,
+        };
+        if self.contents.is_some() {
+            self.contents = Some(contents);
+        }
         self.save(store, &settings);
         self.applied = Some(settings);
-        self.outbox.queue(edits);
-        if let Some(&block) = self.layers.last()
-            && let Some(revision) = be::content_revision(block)
-        {
-            Self::write(block, self.outbox.send(revision));
+        for layer in LAYERS {
+            if let Some(block) = self.blocks.block(layer)
+                && let Some(revision) = be::content_revision(block)
+            {
+                Self::write(block, self.outboxes[slot(layer)].send(revision));
+            }
         }
     }
 

@@ -6,6 +6,7 @@ const ACCOUNTS_KEY: &str = "block.accounts";
 const ACTIVE_KEY: &str = "block.active-account";
 const CLIENT_ID_KEY: &str = "block.client-id";
 const DISPLAY_SETTINGS_KEY: &str = "block.display-settings";
+const TRIED_DISPLAY_MODES_KEY: &str = "block.tried-display-modes";
 const INPUT_SETTINGS_KEY: &str = "block.input-settings";
 const REMAPPER_KEY: &str = "block.remapper";
 const IDENTITY_KEY: &str = "block.identity-secrets";
@@ -193,6 +194,14 @@ impl AppStateStore {
 
     pub fn set_display_settings(&self, content: &[u8]) -> Result<(), AppStateError> {
         self.write(DISPLAY_SETTINGS_KEY, &content)
+    }
+
+    pub fn tried_display_modes(&self) -> Result<Option<String>, AppStateError> {
+        self.read(TRIED_DISPLAY_MODES_KEY)
+    }
+
+    pub fn set_tried_display_modes(&self, modes: &str) -> Result<(), AppStateError> {
+        self.write(TRIED_DISPLAY_MODES_KEY, &modes)
     }
 
     fn read<T: serde::de::DeserializeOwned>(&self, key: &str) -> Result<Option<T>, AppStateError> {

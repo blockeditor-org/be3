@@ -1,4 +1,4 @@
-use accesskit::Role;
+use accesskit::{Node, Role, Toggled};
 use beui_core::base::overlay::Placement;
 use beui_core::document::Document;
 use beui_core::input::{Key, KeyPress};
@@ -18,6 +18,7 @@ pub struct MenuRowHandle {
     pub label: Prop<String>,
     pub glyph: Prop<String>,
     pub detail: Prop<String>,
+    pub checked: Prop<Option<bool>>,
     pub disabled: Prop<bool>,
     pub danger: Prop<bool>,
     pub separated: Prop<bool>,
@@ -31,6 +32,7 @@ pub struct MenuItem {
     pub(crate) label: Memo<String>,
     pub(crate) glyph: Memo<String>,
     detail: Memo<String>,
+    checked: Memo<Option<bool>>,
     pub(crate) disabled: Memo<bool>,
     danger: Memo<bool>,
     separated: Memo<bool>,
@@ -47,6 +49,7 @@ pub fn MenuItem(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = String::new())] detail: Prop<String>,
+    #[prop(default = None)] checked: Prop<Option<bool>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] danger: Prop<bool>,
     #[prop(default = false)] separated: Prop<bool>,
@@ -62,6 +65,7 @@ pub fn MenuItem(
         label: create_memo(move || label.get()),
         glyph: create_memo(move || glyph.get()),
         detail: create_memo(move || detail.get()),
+        checked: create_memo(move || checked.get()),
         disabled: create_memo(move || disabled.get()),
         danger: create_memo(move || danger.get()),
         separated: create_memo(move || separated.get()),
@@ -222,6 +226,15 @@ fn MenuRow(
     };
     let disabled = item.disabled;
     let (spoken, unavailable) = (item.label, item.disabled);
+    let checked = item.checked;
+    let accessibility = create_memo(move || match checked.get() {
+        Some(on) => {
+            let mut node = Node::new(Role::MenuItemCheckBox);
+            node.set_toggled(Toggled::from(on));
+            node
+        }
+        None => Node::new(Role::MenuItem),
+    });
     let test_id = item.test_id.clone();
     let action = item.action.clone();
     let clicked = item.on_click;
@@ -246,6 +259,7 @@ fn MenuRow(
             label: item.label.into_prop(),
             glyph: item.glyph.into_prop(),
             detail: item.detail.into_prop(),
+            checked: item.checked.into_prop(),
             disabled: item.disabled.into_prop(),
             danger: item.danger.into_prop(),
             separated: item.separated.into_prop(),
@@ -261,7 +275,7 @@ fn MenuRow(
             <unstyled::Button
                 @node_ref=&button
                 label={spoken}
-                role=Role::MenuItem
+                accessibility={accessibility}
                 disabled={unavailable}
                 tab_stop={focused.memo(Focus::Row(index))}
                 focused={focused.memo(Focus::Row(index))}

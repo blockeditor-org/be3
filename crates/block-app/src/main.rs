@@ -57,9 +57,7 @@ use std::{
 
 use accounts::{AccountError, Session};
 use app_state::{AppStateStore, SavedAccount, ServerLocation};
-use be_block::{
-    BlockContent, DisplaySettings, InputSettings, Root, UiSettingsContent, WORKSPACE_EDITOR,
-};
+use be_block::{DisplaySettings, InputSettings, Root, WORKSPACE_EDITOR};
 use be_graph::{Access, BlockParent};
 use be_protocol::{Organization, OrganizationInvitation, OrganizationRole};
 use beui::Document;
@@ -322,6 +320,7 @@ impl beui::App for Shell {
         }));
         self.app.input.boot(&self.app.app_state);
         self.app.display.boot(&self.app.app_state);
+        display::boot(&self.app.app_state);
         #[cfg(all(
             feature = "web-view",
             not(target_os = "android"),
@@ -345,6 +344,7 @@ impl beui::App for Shell {
         }
         wayland::before(context, rect, &mut self.document);
         self.app.frame(context);
+        self.app.sync_ui_settings();
         if let Some(theme) = self.app.theme.take() {
             let theme = ui::styled_theme(theme);
             if self.document.theme() != theme {
@@ -466,6 +466,7 @@ struct BlockApp {
     server_url: String,
     account: Account,
     root_settings: RootSettings,
+    set_up_profile: Option<Uuid>,
     choosing_session: bool,
     every_session_type: bool,
     shell: Option<Uuid>,
@@ -474,7 +475,7 @@ struct BlockApp {
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
-    ui_settings: Option<Vec<(Uuid, u64)>>,
+    ui_settings: Option<(be_block::Theme, u32)>,
     theme: Option<be_block::Theme>,
     scale: Option<f32>,
     input: SettingsSync<InputSettings>,
@@ -718,6 +719,7 @@ impl BlockApp {
             server_url,
             account,
             root_settings: RootSettings::new(WORKSPACE_EDITOR),
+            set_up_profile: None,
             choosing_session: false,
             every_session_type: false,
             shell: None,
@@ -1449,9 +1451,8 @@ impl BlockApp {
         self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_session = false;
         self.shell = None;
-        self.ui_settings = None;
-        self.input.set_layers(Vec::new());
-        self.display.set_layers(Vec::new());
+        self.input.set_layers(Default::default());
+        self.display.set_layers(Default::default());
         self.keys.cancel_pairing();
         self.organization = Some(organization.clone());
         self.account.last_organization_id = Some(organization.id);
@@ -1542,9 +1543,8 @@ impl BlockApp {
         self.root_settings = RootSettings::new(self.root_settings.shell());
         self.choosing_session = false;
         self.shell = None;
-        self.ui_settings = None;
-        self.input.set_layers(Vec::new());
-        self.display.set_layers(Vec::new());
+        self.input.set_layers(Default::default());
+        self.display.set_layers(Default::default());
         self.keys = keys::KeyState::default();
         self.identity = self.app_state.identity(&account).unwrap_or_else(|error| {
             self.organization_error = Some(error.to_string());
@@ -1862,8 +1862,12 @@ impl BlockApp {
 
     fn ensure_shell(&mut self) -> Option<Uuid> {
         self.root_settings.ensure_my_files();
-        self.root_settings.ensure_profile(self.client_id)?;
-        let id = self.root_settings.ensure_session(self.client_id)?;
+        let class = root_settings::device_class();
+        self.root_settings.ensure_profile(self.client_id, class)?;
+        if let Some(profile) = self.root_settings.take_set_up() {
+            self.set_up_profile = Some(profile);
+        }
+        let id = self.root_settings.ensure_session(self.client_id, class)?;
         if self.shell.is_some_and(|previous| previous != id) {
             self.stop_shell();
         }
@@ -2005,6 +2009,18 @@ impl BlockApp {
             .is_none()
         {
             return;
+        }
+        if let Some(profile) = self.set_up_profile.take() {
+            self.show_block(
+                None,
+                BlockOpen {
+                    id: profile,
+                    block_type:
+                        <be_block::SettingsProfileContent as be_block::BlockContent>::CONTENT_TYPE,
+                    via: None,
+                    editor: None,
+                },
+            );
         }
         if Some(wayland::revision()) != self.windows_sent {
             self.windows_sent = Some(wayland::revision());
@@ -2422,7 +2438,8 @@ impl BlockApp {
         let now = host::now();
         let mut prompt = display::prompt(now);
         if prompt == display::Prompt::Expired {
-            self.display.commit(&self.app_state, display::revert());
+            let edits = display::revert(&self.app_state, &self.display.layers());
+            self.display.commit(&self.app_state, edits);
             prompt = display::prompt(now);
         }
         self.display_round = match prompt {
@@ -2442,8 +2459,8 @@ impl BlockApp {
             return;
         }
         let edits = match keep {
-            true => display::keep(),
-            false => display::revert(),
+            true => display::keep(&self.app_state, &self.display.layers()),
+            false => display::revert(&self.app_state, &self.display.layers()),
         };
         self.display.commit(&self.app_state, edits);
         self.display_round = None;
@@ -2514,7 +2531,6 @@ impl BlockApp {
             performance::end_frame();
             return;
         }
-        self.sync_ui_settings();
         self.sync_local_settings();
         self.programs.frame();
         self.sync_be_stack();
@@ -2597,36 +2613,14 @@ impl BlockApp {
     }
 
     fn sync_ui_settings(&mut self) {
-        if !self.root_settings.loaded() {
-            return;
-        }
-        let layers = self
-            .root_settings
-            .layers(UiSettingsContent::CONTENT_TYPE, self.client_id);
-        let mut revisions = Vec::with_capacity(layers.len());
-        for block in &layers {
-            be::hold(*block, UiSettingsContent::CONTENT_TYPE);
-            let Some(revision) = be::content_revision(*block) else {
-                return;
-            };
-            revisions.push((*block, revision));
-        }
-        if self.ui_settings.as_ref() == Some(&revisions) {
-            return;
-        }
-        let Some(contents) = layers
-            .iter()
-            .map(|block| {
-                be::content(*block)
-                    .and_then(|content| UiSettingsContent::decode(&content.bytes).ok())
-                    .map(|content| content.root())
-            })
-            .collect::<Option<Vec<_>>>()
-        else {
+        let Some(settings) = self.display.applied() else {
             return;
         };
-        self.ui_settings = Some(revisions);
-        let settings = be_block::layered(contents);
+        let shown = (settings.theme(), settings.scale_percent());
+        if self.ui_settings == Some(shown) {
+            return;
+        }
+        self.ui_settings = Some(shown);
         self.theme = Some(settings.theme());
         self.scale = Some(settings.scale());
     }

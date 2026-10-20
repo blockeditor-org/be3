@@ -53,6 +53,16 @@ pub struct HostDisplay {
     pub modes: Vec<HostDisplayMode>,
     pub default: HostDisplayMode,
     pub current: HostDisplayMode,
+    pub rotation: HostRotation,
+}
+
+#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
+pub enum HostRotation {
+    #[default]
+    Normal,
+    Clockwise90,
+    Clockwise180,
+    Clockwise270,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]

@@ -16,6 +16,7 @@ pub mod counter;
 pub mod database;
 pub mod database_schema;
 pub mod database_view;
+pub mod device_class;
 pub mod display_settings;
 pub mod editor_settings;
 pub mod editor_view;
@@ -38,10 +39,10 @@ pub mod pixel_ray_tracer;
 pub mod presence;
 pub mod presentation;
 pub mod profile;
+pub mod setting;
 pub mod settings;
 pub mod streamed;
 pub mod text;
-pub mod ui_settings;
 pub mod version_control;
 pub mod video;
 pub mod workspace;
@@ -59,7 +60,8 @@ pub use counter::{Counter, CounterContent};
 pub use database::{Database, DatabaseContent};
 pub use database_schema::{DatabaseSchema, DatabaseSchemaContent};
 pub use database_view::{DatabaseView, DatabaseViewContent};
-pub use display_settings::{DisplaySettings, DisplaySettingsContent};
+pub use device_class::{ClassDefault, DeviceClass};
+pub use display_settings::{DisplaySettings, DisplaySettingsContent, Theme};
 pub use editor_settings::{EditorSettings, EditorSettingsContent};
 pub use editor_view::{EditorView, EditorViewContent, ViewState};
 pub use folder::{Folder, FolderContent};
@@ -84,6 +86,7 @@ pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use pixel_ray_tracer::PixelRayTracerContent;
 pub use presentation::{Presentation, PresentationContent};
 pub use profile::{FILES_EDITOR, LINUX_DESKTOP_EDITOR, RecentBlock, Recents, WORKSPACE_EDITOR};
+pub use setting::{Layers, Setting, SettingsLayer};
 pub use settings::{
     Layered, Settings, SettingsContent, SettingsProfile, SettingsProfileContent, layered,
 };
@@ -91,7 +94,6 @@ pub use streamed::{
     HEADER_PREFIX_BYTES, Streamed, decode_streamed, encode_streamed, payload_start,
 };
 pub use text::{TextBlock, TextContent, TextIndentation, TextLanguage};
-pub use ui_settings::{Theme, UiSettings, UiSettingsContent};
 pub use version_control::{
     Checkout, CheckoutConflict, CheckoutContent, ConflictKind, MAIN_BRANCH, Repository,
     RepositoryContent,

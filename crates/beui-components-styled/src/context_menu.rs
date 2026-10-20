@@ -14,7 +14,7 @@ use beui_components_unstyled::{
 use beui_core::base::TextAlign;
 use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect};
-use beui_core::icons::ICON_CHEVRON_RIGHT;
+use beui_core::icons::{ICON_CHECK, ICON_CHEVRON_RIGHT};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -133,6 +133,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         label,
         glyph,
         detail,
+        checked,
         disabled,
         danger,
         separated,
@@ -142,6 +143,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
         ..
     } = handle;
     let theme = use_theme();
+    let ticked = create_memo(move || checked.get() == Some(true));
     let disabled = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
     let color = create_memo(move || match (disabled.get(), danger.get()) {
@@ -187,6 +189,11 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
                             />
                         </Show>
                     </List>
+                    <Show condition={ticked}>
+                        <Text color=TextColor::Accent align=TextAlign::Center>
+                            <Icon glyph=ICON_CHECK />
+                        </Text>
+                    </Show>
                     <Frame visible={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
                             <Icon glyph=ICON_CHEVRON_RIGHT />
@@ -204,6 +211,7 @@ fn MenuSheetRow(handle: MenuRowHandle) -> NodeId {
         label,
         glyph,
         detail,
+        checked,
         disabled,
         danger,
         separated,
@@ -227,6 +235,7 @@ fn MenuSheetRow(handle: MenuRowHandle) -> NodeId {
                 disabled
                 danger
                 submenu={has_submenu}
+                checked
             />
         </List>
     }
