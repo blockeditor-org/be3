@@ -769,7 +769,7 @@ click or a tap never shows it. Moving the focus scrolls the control into view wi
 its ring, but a ring drawn outside its control still needs room inside the scroll at the
 content's edges, which is why the padding goes inside a scroll. A scroll that is one part of
 a padded surface, its content lined up with what sits beside it, takes `bleed` instead
-(`Bleed::POPOVER`, `Bleed::CARD`, with `.top(false)` and its siblings to keep a side in): the
+(`Bleed::POPOVER`, `Bleed::CARD`, `Bleed::DIALOG`, with `.top(false)` and its siblings to keep a side in): the
 scroll and its scrollbar reach out into the surface's padding up to its border, and the content
 is padded back in by as much, so it lines up as before and its rings have the padding to draw
 in. The unstyled `Scroll` takes the same as `Sides`, which it builds from a `Frame` with that much
