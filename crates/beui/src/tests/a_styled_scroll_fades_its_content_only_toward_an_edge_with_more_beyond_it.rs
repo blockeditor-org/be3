@@ -42,7 +42,7 @@ fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
         "content that fits does not fade"
     );
 
-    with_reactive_scope(harness.document_mut(), move || rows.set(40));
+    rows.set(40);
     let output = harness.frame(Vec::new());
     assert!(!fades(&output).is_empty());
     assert!(

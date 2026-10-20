@@ -33,7 +33,7 @@ fn a_disabled_action_ignores_its_shortcut_and_disables_its_button() {
     assert_eq!(runs.get_untracked(), 0);
     assert!(text_within(harness.document(), harness.find("group"), "Group").is_some());
 
-    with_reactive_scope(harness.document_mut(), move || enabled.set(true));
+    enabled.set(true);
     harness.frame(Vec::new());
     harness.key(Key::G, ctrl);
     harness.click(harness.center(harness.find("group")));

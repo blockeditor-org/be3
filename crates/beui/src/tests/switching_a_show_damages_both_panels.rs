@@ -31,7 +31,7 @@ fn switching_a_show_damages_both_panels() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    with_reactive_scope(harness.document_mut(), move || second.set(true));
+    second.set(true);
     let damage = harness
         .frame(Vec::new())
         .damage()

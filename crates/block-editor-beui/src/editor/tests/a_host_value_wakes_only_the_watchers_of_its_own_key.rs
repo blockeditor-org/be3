@@ -1,6 +1,5 @@
 use super::*;
 
-use beui::styled::*;
 use serde::{Deserialize, Deserializer, Serialize, Serializer};
 
 thread_local! {
@@ -45,17 +44,15 @@ impl HostValue for Icons {
 fn a_host_value_wakes_only_the_watchers_of_its_own_key() {
     let host = EditorHost::default();
     let editor = OwnedEditor::new(host.clone(), Uuid::new_v4());
-    let mut document = build(|| Frame().build());
-    let (windows, icons) = with_reactive_scope(&mut document, || {
-        (editor.host_value::<Windows>(), editor.host_value::<Icons>())
-    });
+    let _root = RootScope::new();
+    let (windows, icons) = (editor.host_value::<Windows>(), editor.host_value::<Icons>());
     host.set_host_value::<Icons>(&Counted(vec![7; 4096]));
-    with_reactive_scope(&mut document, || editor.begin_frame());
+    editor.begin_frame();
     assert_eq!(icons.get_untracked(), Counted(vec![7; 4096]));
     let before = decoded();
 
     host.set_host_value::<Windows>(&vec![1, 2]);
-    with_reactive_scope(&mut document, || editor.begin_frame());
+    editor.begin_frame();
     assert_eq!(windows.get_untracked(), vec![1, 2]);
     assert_eq!(
         decoded(),
@@ -64,11 +61,11 @@ fn a_host_value_wakes_only_the_watchers_of_its_own_key() {
     );
 
     host.set_host_value::<Icons>(&Counted(vec![7; 4096]));
-    with_reactive_scope(&mut document, || editor.begin_frame());
+    editor.begin_frame();
     assert_eq!(decoded(), before, "the same icons again decode nothing");
 
     host.set_host_value::<Icons>(&Counted(vec![9; 16]));
-    with_reactive_scope(&mut document, || editor.begin_frame());
+    editor.begin_frame();
     assert_eq!(icons.get_untracked(), Counted(vec![9; 16]));
     assert_eq!(decoded(), before + 1, "new icons decode once");
 }

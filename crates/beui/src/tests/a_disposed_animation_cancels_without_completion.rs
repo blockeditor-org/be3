@@ -25,7 +25,7 @@ fn a_disposed_animation_cancels_without_completion() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), || shown.set(false));
+    shown.set(false);
     harness.frame(Vec::new());
     assert!(!held.get().unwrap().running());
     held.get().unwrap().finish();

@@ -2545,21 +2545,24 @@ layout walk.
 
 ### Update a document from outside its events
 
-Component callbacks run with their `Document` installed, so signal writes from
-clicks and key events need no special handling. A host-driven update happens
-outside that context and must enter the document's reactive scope:
+A signal may be written from anywhere on the UI thread: an event handler, the
+host's frame code before or after `show`, a callback the host makes between
+frames, a future the app polls. Write it directly:
 
 ```rust
-use beui::reactive::*;
-use beui::Document;
-
-fn set_value(document: &mut Document, value: Signal<String>, next: String) {
-    with_reactive_scope(document, move || value.set(next));
-}
+value.set(next);
 ```
 
-Keep the signals the host writes next to its `Document`. Do not rebuild the
-document to display new data.
+The effects that belong to a document wait for its next frame (see Zones in
+the [reactive guide](reactive.md#zones)), and the write wakes the window, so
+nothing needs to ask for a frame. Keep the signals the host writes next to its
+`Document`. Do not rebuild the document to display new data.
+
+`with_reactive_scope(document, f)` installs a document and enters its scope
+while `f` runs. Use it for work that needs the document itself outside an
+event, such as calling `with_document`, running a callback the user wrote as
+if it were a click, or creating nodes, signals or effects in the document's
+scope; a signal write never needs it.
 
 ## Use beui in a block editor plugin
 
@@ -2609,7 +2612,7 @@ Block content reaches the view through a `ContentProjection`:
 `editor.block_content::<C>()` holds the content of the editor's own block,
 `project`, `field`, `ids` and `object` derive signals from it, and `operate`
 applies an edit and sends it to the host. The framework pumps every projection
-once at the top of the frame, inside the document's reactive scope, and
+once at the top of the frame, and
 `read` and `revision` track, so a memo or effect that reads them runs again
 when the content changes. See the [reactive guide](reactive.md#blocks).
 

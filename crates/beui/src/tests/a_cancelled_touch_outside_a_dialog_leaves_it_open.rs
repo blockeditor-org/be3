@@ -24,7 +24,7 @@ fn a_cancelled_touch_outside_a_dialog_leaves_it_open() {
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || open.set(true));
+    open.set(true);
     harness.frame(Vec::new());
 
     let outside = pos2(5.0, VIEWPORT.y - 5.0);

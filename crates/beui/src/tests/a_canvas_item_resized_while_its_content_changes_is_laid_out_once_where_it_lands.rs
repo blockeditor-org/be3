@@ -28,10 +28,8 @@ fn a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lan
     harness.settle();
     let settled = layouts.get_untracked();
 
-    with_reactive_scope(harness.document_mut(), move || {
-        size.set(vec2(300.0, 150.0));
-        inset.set(4.0);
-    });
+    size.set(vec2(300.0, 150.0));
+    inset.set(4.0);
     harness.frame(Vec::new());
 
     assert_eq!(

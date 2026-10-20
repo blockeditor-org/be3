@@ -34,6 +34,6 @@ fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {
     harness.frame(vec![]);
     assert_eq!((layouts.get_untracked(), paints.get_untracked()), (1, 2));
     let on = asking.get_untracked().expect("the drawing was built");
-    crate::reactive::with_reactive_scope(harness.document_mut(), move || on.set(false));
+    on.set(false);
     assert_eq!(harness.frame(vec![]).repaint_after, Duration::MAX);
 }

@@ -30,7 +30,7 @@ fn a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab() {
         "the dialog takes the focus when it opens"
     );
 
-    crate::reactive::with_reactive_scope(harness.document_mut(), || layout.show(&2));
+    layout.show(&2);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert!(
@@ -38,7 +38,7 @@ fn a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab() {
         "the dialog hides with its parent's tab"
     );
 
-    crate::reactive::with_reactive_scope(harness.document_mut(), || layout.show(&1));
+    layout.show(&1);
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(

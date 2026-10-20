@@ -65,6 +65,7 @@ struct View {
 
 struct Inner {
     windows: RefCell<HashMap<WindowId, WindowSignals>>,
+    scope: ScopeContext,
     views: RefCell<HashMap<WindowId, View>>,
     commands: RefCell<Vec<Command>>,
     input: RefCell<Vec<(WindowId, ForwardedInput)>>,
@@ -88,6 +89,7 @@ impl Windows {
         let idle = create_signal(false);
         Self(store(Inner {
             windows: RefCell::new(HashMap::new()),
+            scope: owner_scope().expect("windows are made inside a scope"),
             views: RefCell::new(HashMap::new()),
             commands: RefCell::new(Vec::new()),
             input: RefCell::new(Vec::new()),
@@ -218,13 +220,12 @@ impl Windows {
 
     pub(crate) fn open(&self, id: WindowId) {
         let inner = self.0.value();
-        let drawing = create_signal(None);
-        let popups = create_signal(None);
-        let focused = create_signal(false);
-        let asks = create_signal(1);
-        let typing = create_signal(None);
-        inner.windows.borrow_mut().insert(
-            id,
+        let signals = inner.scope.run(|| {
+            let drawing = create_signal(None);
+            let popups = create_signal(None);
+            let focused = create_signal(false);
+            let asks = create_signal(1);
+            let typing = create_signal(None);
             WindowSignals {
                 drawing,
                 popups,
@@ -233,8 +234,9 @@ impl Windows {
                 typing,
                 answered: Rc::new(Cell::new(0)),
                 painted: Rc::new(Cell::new(false)),
-            },
-        );
+            }
+        });
+        inner.windows.borrow_mut().insert(id, signals);
     }
 
     pub(crate) fn set_typing(&self, typing: Option<(WindowId, u64)>) {

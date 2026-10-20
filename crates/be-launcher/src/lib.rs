@@ -102,13 +102,11 @@ impl LauncherApp {
             return;
         }
         let model = self.model;
-        with_reactive_scope(&mut self.document, || {
-            for event in events {
-                model.receive(event);
-            }
-            #[cfg(not(target_os = "android"))]
-            model.pane.refresh();
-        });
+        for event in events {
+            model.receive(event);
+        }
+        #[cfg(not(target_os = "android"))]
+        model.pane.refresh();
     }
 }
 

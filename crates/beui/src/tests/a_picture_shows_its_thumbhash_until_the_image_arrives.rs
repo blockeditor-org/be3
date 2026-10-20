@@ -70,7 +70,7 @@ fn a_picture_shows_its_thumbhash_until_the_image_arrives() {
     );
 
     let arrived = image.clone();
-    with_reactive_scope(harness.document_mut(), move || shown.set(Some(arrived)));
+    shown.set(Some(arrived));
     let after = painted(&harness.frame(Vec::new()));
     assert_eq!(after.len(), 1, "the image replaces the placeholder");
     assert_eq!(after[0].1, image);

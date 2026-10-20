@@ -42,14 +42,12 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.settle();
 
-    with_reactive_scope(harness.document_mut(), move || {
-        layout.enter_fullscreen(&1, Some(Rect::from_min_size(Pos2::ZERO, WIDE_VIEWPORT)));
-    });
+    layout.enter_fullscreen(&1, Some(Rect::from_min_size(Pos2::ZERO, WIDE_VIEWPORT)));
     harness.settle();
     assert_eq!(layout.fullscreen(), Some(1));
 
     let keys = setter.borrow_mut().take().expect("the tabs were built");
-    with_reactive_scope(harness.document_mut(), move || keys.set(vec![2]));
+    keys.set(vec![2]);
     harness.settle();
     assert_eq!(
         layout.fullscreen(),

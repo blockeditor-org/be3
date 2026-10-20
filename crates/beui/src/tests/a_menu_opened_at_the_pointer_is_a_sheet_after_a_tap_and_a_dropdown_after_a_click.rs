@@ -74,7 +74,7 @@ fn a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_cl
     assert!(!harness.document().is_overlay_open(overlay));
 
     let open = setter.get_untracked().expect("the menu was built");
-    with_reactive_scope(harness.document_mut(), || open.set(false));
+    open.set(false);
     harness.settle();
     assert!(
         !sheet_shown(&harness),

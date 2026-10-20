@@ -73,7 +73,7 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
         heard.borrow()
     );
 
-    with_reactive_scope(&mut document, move || menu.set(true));
+    menu.set(true);
     frame(&mut document, Vec::new());
     document.focus_focusable(item.get());
     frame(

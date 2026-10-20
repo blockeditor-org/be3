@@ -274,7 +274,7 @@ A plugin editor reads its block's content through a `ContentProjection`
 (`block_editor_beui`). `editor.block_content::<C>()` is the one for the
 editor's own block, `editor.content_of::<C>(block)` the one for another block it
 follows; both are pumped by the plugin framework once at the top of every frame,
-inside the document's reactive scope, so an editor never pumps by hand. A
+so an editor never pumps by hand. A
 projection is a `Copy` handle that the `Editor` owns and frees with itself, so
 closures take it with `move`. One made outside an editor, as
 `EditorHost::content_of` makes one for an artifact's regeneration, is an
@@ -420,15 +420,23 @@ value because it may already have mutated it. There is no transaction rollback.
 `enter_zone(zone)` enters a zone until the guard it returns is dropped. An
 effect remembers the zone that was entered when it was created, and the effects
 it creates inherit it. While a different zone is entered, an effect woken by a
-write is parked instead of run, and it runs when its own zone is next entered;
-with no zone entered, every effect runs as it always did. `zone_pending(zone)`
+write is parked instead of run whenever its own zone is not the one entered,
+including when no zone is entered at all, and it runs when its own zone is next
+entered. Effects made outside any zone (zone 0) run at once. `zone_pending(zone)`
 says whether a zone has parked effects, and `forget_zone(zone)` drops them.
+`wake_zone_with(zone, wake)` registers a callback that runs when a zone with
+nothing parked parks its first effect, so a burst of writes wakes it once.
+
 beui gives each `Document` a zone of its own and enters it whenever the
-document is installed, which is what lets two documents share signals: a write
-made while one document is installed does not rebuild another document's nodes
-inside it, and the other document catches up the next time it is shown. A
-host driving several documents should give the others a frame when
-`zone_pending` says one of them is behind.
+document is installed, which is what lets a signal be written from anywhere on
+the thread: a write made while another document is installed, or none, does
+not run this document's effects outside it, and the document catches up the
+next time it is shown. Each document registers a wake for its zone with the
+`Context` that shows it, and the context passes it to the adapter's `Waker`,
+so the window draws a frame without the writer asking. A wake raised during a
+frame is held until the frame ends, and asks for one more frame only if the
+zone still has effects waiting, since a document shown later in the same frame
+runs them itself.
 
 ## Pausing
 
