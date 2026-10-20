@@ -26,7 +26,6 @@ pub fn Dialog(
     open: Prop<bool>,
     #[prop(default = String::new())] title: Prop<String>,
     #[prop(default = 360.0)] width: Prop<f32>,
-    #[prop(default = true)] scrolls: bool,
     on_dismiss: ClickCallback,
     #[prop(children)] content: Render,
 ) -> NodeId {
@@ -45,9 +44,7 @@ pub fn Dialog(
                     on_back={on_dismiss}
                     on_presence={move |next: f32| presence.set(next)}
                 >
-                    <DialogSurface width={width} title={title} scrolls>
-                        {content.call(())}
-                    </DialogSurface>
+                    <DialogSurface width={width} title={title}>{content.call(())}</DialogSurface>
                 </BackSlide>
             }}
         />
@@ -55,7 +52,7 @@ pub fn Dialog(
 }
 
 #[component]
-fn DialogSurface(width: Prop<f32>, title: Prop<String>, scrolls: bool, children: Child) -> NodeId {
+fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> NodeId {
     let label = create_memo(move || title.get());
     let titled = create_memo(move || !label.get().is_empty());
     component_accessibility(create_memo(move || {
@@ -66,20 +63,6 @@ fn DialogSurface(width: Prop<f32>, title: Prop<String>, scrolls: bool, children:
         }
         node
     }));
-    let body = view! {
-        <List spacing=SPACING>
-            <Show condition={titled}>
-                <Text style=TextStyle::TITLE string={label} />
-            </Show>
-            {children} @sizing={ItemSize::Intrinsic.shrink(1.0)}
-        </List>
-    };
-    let body = match scrolls {
-        true => view! {
-            <Scroll fit=true tab_stop=false bleed=Bleed::DIALOG>{body}</Scroll>
-        },
-        false => body,
-    };
     view! {
         <Frame padding=MARGIN>
             <Frame
@@ -89,7 +72,21 @@ fn DialogSurface(width: Prop<f32>, title: Prop<String>, scrolls: bool, children:
                 radius=Radius::Lg
                 padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
-                <List spacing=0.0>{body} @sizing={ItemSize::Intrinsic.shrink(1.0)}</List>
+                <List spacing=0.0>
+                    <Scroll
+                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                        fit=true
+                        tab_stop=false
+                        bleed=Bleed::DIALOG
+                    >
+                        <List spacing=SPACING>
+                            <Show condition={titled}>
+                                <Text style=TextStyle::TITLE string={label} />
+                            </Show>
+                            {children}
+                        </List>
+                    </Scroll>
+                </List>
             </Frame>
         </Frame>
     }
