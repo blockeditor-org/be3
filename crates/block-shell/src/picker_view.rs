@@ -49,7 +49,7 @@ fn act_on(workspace: Workspace, pick: u64) -> Act {
 }
 
 #[component]
-pub fn PickerDialogs(workspace: Workspace) -> NodeId {
+pub fn Pickers(workspace: Workspace) -> NodeId {
     let picks = workspace.picks;
     let ids = create_memo(move || {
         picks.with(|picks| picks.iter().map(|held| held.pick).collect::<Vec<_>>())
@@ -57,14 +57,14 @@ pub fn PickerDialogs(workspace: Workspace) -> NodeId {
     view! {
         <List spacing=0.0>
             <ForEach keys={ids}>|pick: u64|
-                <PickerDialog workspace pick />
+                <Picker workspace pick />
             </ForEach>
         </List>
     }
 }
 
 #[component]
-pub fn PickerSheet(workspace: Workspace, pick: u64, tab: TabId) -> DockNode<TabId> {
+pub fn PickerDialog(workspace: Workspace, pick: u64, tab: TabId) -> DockNode<TabId> {
     let choosing = create_memo(move || {
         workspace
             .pick(pick)
@@ -97,7 +97,7 @@ fn close_surface(workspace: Workspace, pick: u64) {
 }
 
 #[component]
-fn PickerDialog(workspace: Workspace, pick: u64) -> NodeId {
+fn Picker(workspace: Workspace, pick: u64) -> NodeId {
     let held = held_memo(workspace, pick);
     let act = act_on(workspace, pick);
     let error = create_memo(move || held.get().and_then(|held| held.error));

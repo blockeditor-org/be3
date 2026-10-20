@@ -3,7 +3,7 @@ use block_editor_beui::{BlockLocation, BlockPick};
 use super::*;
 
 #[test]
-fn the_link_sheet_keeps_its_search_and_choice_across_tab_switches() {
+fn the_link_card_keeps_its_search_and_choice_across_tab_switches() {
     let (mut fixture, _) = editor_sized(Some(Vec2::new(1000.0, 600.0)));
     fixture.test.catalog(catalog());
     let places = places(&mut fixture);
@@ -29,12 +29,12 @@ fn the_link_sheet_keeps_its_search_and_choice_across_tab_switches() {
     fixture.settle();
     fixture
         .test
-        .snapshot("the_link_sheet_shows_where_the_chosen_block_lives");
+        .snapshot("the_link_card_shows_where_the_chosen_block_lives");
 
     show(&mut fixture, other, None);
     assert!(
         !fixture.test.shown("picker.confirm"),
-        "the sheet hides with the tab it hangs from"
+        "the card hides with the tab it hangs from"
     );
     show(&mut fixture, notes, None);
     fixture.test.click("picker.confirm");

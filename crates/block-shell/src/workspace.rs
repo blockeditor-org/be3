@@ -580,7 +580,7 @@ impl Workspace {
         inner.tab_nodes.borrow().get(&tab).copied()
     }
 
-    pub fn picker_sheets(&self) -> Memo<Vec<(u64, TabId)>> {
+    pub fn picker_dialogs(&self) -> Memo<Vec<(u64, TabId)>> {
         let picks = self.picks;
         create_memo(move || {
             picks.with(|picks| {
