@@ -1871,7 +1871,10 @@ impl BlockApp {
         }
         let shell_editor = self.root_settings.session_editor(id)?;
         self.block_types.insert(id, shell_editor);
-        if !self.editors.with(|open| open.contains_key(&id)) {
+        let open_as = self
+            .editors
+            .with(|open| open.get(&id).map(PluginEditor::block_type));
+        if open_as != Some(shell_editor) {
             let editor = self.registry.open(id, shell_editor).viewed_by(Some(id));
             if let Some(missing) = ShellRequest::ALL
                 .into_iter()
@@ -1879,7 +1882,8 @@ impl BlockApp {
             {
                 eprintln!("the shell editor does not accept {missing:?} requests");
             }
-            self.editors.with(|open| open.insert(id, editor));
+            let replaced = self.editors.with(|open| open.insert(id, editor));
+            drop(replaced);
         }
         self.shell = Some(id);
         Some(id)
