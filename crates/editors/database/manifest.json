@@ -8,9 +8,7 @@
       "display_name": "Database",
       "icon": "\uf20e",
       "templates": {
-        "main": {
-          "category": "important"
-        }
+        "main": {}
       },
       "regions": [
         "Frame"
