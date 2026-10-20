@@ -1,3 +1,4 @@
+use block_editor_beui::LayeredSettingsRow;
 use block_editor_beui::be_block::{DisplaySettings, Theme};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
@@ -7,15 +8,12 @@ use block_editor_beui::beui::unstyled::ChoiceOption;
 use super::ui::Settings;
 
 #[component]
-pub(super) fn AppearanceSection(
-    settings: Settings,
-    root: ReadSignal<DisplaySettings>,
-    inherited: Memo<DisplaySettings>,
-    read_only: Memo<bool>,
-) -> NodeId {
-    let chosen = create_memo(move || root.get().theme);
+pub(super) fn AppearanceSection(settings: Settings, read_only: Memo<bool>) -> NodeId {
+    let theme = DisplaySettings::theme_setting();
+    let chosen = settings.value(&theme);
+    let below = settings.fallback(&theme);
     let inherited_label =
-        create_memo(move || format!("Default ({})", inherited.get().theme().name()));
+        create_memo(move || format!("Default ({})", below.get().unwrap_or_default().name()));
     let selected = create_memo(move || {
         Some(
             chosen
@@ -24,10 +22,15 @@ pub(super) fn AppearanceSection(
                 .map_or(0, |index| index + 1),
         )
     });
-    let modified = create_memo(move || chosen.get().is_some());
-    let chosen_scale = create_memo(move || root.get().scale_percent);
-    let inherited_scale_label =
-        create_memo(move || format!("Default ({}%)", inherited.get().scale_percent()));
+    let scale = DisplaySettings::scale_setting();
+    let chosen_scale = settings.value(&scale);
+    let below_scale = settings.fallback(&scale);
+    let inherited_scale_label = create_memo(move || {
+        format!(
+            "Default ({}%)",
+            below_scale.get().unwrap_or(DisplaySettings::DEFAULT_SCALE)
+        )
+    });
     let selected_scale = create_memo(move || {
         Some(
             chosen_scale
@@ -40,16 +43,18 @@ pub(super) fn AppearanceSection(
                 .map_or(0, |index| index + 1),
         )
     });
-    let scale_modified = create_memo(move || chosen_scale.get().is_some());
+    let theme_row = settings.row(&theme);
+    let scale_row = settings.row(&scale);
+    let set_theme = settings.setter(&theme);
+    let set_scale = settings.setter(&scale);
     view! {
         <SettingsSection title="Appearance">
-            <SettingsRow
+            <LayeredSettingsRow
+                setting={theme_row}
                 label="Theme"
                 description="The colors of the app and every editor in it."
-                modified={modified}
                 locked={read_only}
-                reset_test_id="display.theme.reset"
-                on_reset={move || settings.operate(DisplaySettings::set_theme(None))}
+                id={"display.theme".to_owned()}
             >
                 <Select
                     @sizing=ItemSize::Percent(100.0)
@@ -65,21 +70,20 @@ pub(super) fn AppearanceSection(
                     disabled={read_only}
                     @test_id={"display.theme"}
                     on_change={move |index: Option<usize>| {
-                        let theme = index
+                        let chosen = index
                             .and_then(|index| index.checked_sub(1))
                             .and_then(|index| Theme::ALL.get(index).copied());
-                        settings.operate(DisplaySettings::set_theme(theme));
+                        set_theme.call(chosen);
                     }}
                 />
-            </SettingsRow>
-            <SettingsRow
+            </LayeredSettingsRow>
+            <LayeredSettingsRow
+                setting={scale_row}
                 label="Scale"
                 description="How large the app draws everything, on top of the screen's own scale."
                 separated=true
-                modified={scale_modified}
                 locked={read_only}
-                reset_test_id="display.scale.reset"
-                on_reset={move || settings.operate(DisplaySettings::set_scale_percent(None))}
+                id={"display.scale".to_owned()}
             >
                 <Select
                     @sizing=ItemSize::Percent(100.0)
@@ -98,10 +102,10 @@ pub(super) fn AppearanceSection(
                         let percent = index
                             .and_then(|index| index.checked_sub(1))
                             .and_then(|index| DisplaySettings::SCALES.get(index).copied());
-                        settings.operate(DisplaySettings::set_scale_percent(percent));
+                        set_scale.call(percent);
                     }}
                 />
-            </SettingsRow>
+            </LayeredSettingsRow>
         </SettingsSection>
     }
 }

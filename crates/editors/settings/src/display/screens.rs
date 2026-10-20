@@ -4,7 +4,7 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
-use block_editor_beui::{HostDisplay, HostDisplayMode, RotationPicker};
+use block_editor_beui::{HostDisplay, HostDisplayMode, LayeredSettingsRow, RotationPicker};
 
 use super::modes::{
     Size, effective, mode_label, rate_label, rates, saved, size_label, size_of, sizes,
@@ -15,11 +15,10 @@ use super::ui::Settings;
 pub(super) fn ScreenSection(
     id: String,
     settings: Settings,
-    root: ReadSignal<DisplaySettings>,
-    merged: Memo<DisplaySettings>,
     displays: Memo<Vec<HostDisplay>>,
     read_only: Memo<bool>,
 ) -> NodeId {
+    let merged = settings.effective();
     let display = create_memo({
         let id = id.clone();
         move || displays.with(|displays| displays.iter().find(|display| display.id == id).cloned())
@@ -74,10 +73,6 @@ pub(super) fn ScreenSection(
             None => String::new(),
         })
     });
-    let unset = create_memo({
-        let id = id.clone();
-        move || root.get().mode(&id).is_none()
-    });
     let connector = display.with_untracked(|display| {
         display
             .as_ref()
@@ -86,44 +81,28 @@ pub(super) fn ScreenSection(
     });
     let resolution_id = format!("display.{connector}.resolution");
     let refresh_id = format!("display.{connector}.refresh");
-    let turned = create_memo({
-        let id = id.clone();
-        move || root.get().screen(&id).rotation.is_some()
-    });
-    let unturn = {
-        let id = id.clone();
-        move || {
-            let edit = root.with_untracked(|root| root.set_rotation(&id, None));
-            settings.operate(edit);
-        }
-    };
+    let mode = DisplaySettings::mode_setting(&id);
+    let rotation = DisplaySettings::rotation_setting(&id);
+    let mode_row = settings.row(&mode);
+    let rotation_row = settings.row(&rotation);
     let facing = create_memo({
         let id = id.clone();
         move || merged.with(|merged| merged.rotation(&id))
     });
-    let pick = Callback::new({
-        let id = id.clone();
-        move |rotation: Rotation| {
-            let edit = root.with_untracked(|root| root.set_rotation(&id, Some(rotation)));
-            settings.operate(edit);
-        }
-    });
-    let set = Callback::new(move |mode: Option<HostDisplayMode>| {
-        let edit = root.with_untracked(|root| root.set_mode(&id, mode.map(saved)));
-        settings.operate(edit);
-    });
-    let modified = create_memo(move || !unset.get());
+    let turn = settings.setter(&rotation);
+    let pick = Callback::new(move |picked: Rotation| turn.call(Some(picked)));
+    let choose = settings.setter(&mode);
+    let set = Callback::new(move |chosen: Option<HostDisplayMode>| choose.call(chosen.map(saved)));
     let fastest = create_memo(move || rate_list.with(|rates| rates.first().copied()));
     let slower = create_memo(move || chosen.get().is_some() && chosen.get() != fastest.get());
     view! {
         <SettingsSection title={name} description={showing}>
-            <SettingsRow
+            <LayeredSettingsRow
+                setting={mode_row}
                 label="Resolution"
                 description="Until one is chosen, its preferred resolution at its fastest refresh rate."
-                modified={modified}
                 locked={read_only}
-                reset_test_id={format!("display.{connector}.reset")}
-                on_reset={move || set.call(None)}
+                id={format!("display.{connector}")}
             >
                 <Select
                     @sizing=ItemSize::Percent(100.0)
@@ -147,7 +126,7 @@ pub(super) fn ScreenSection(
                         }
                     }}
                 />
-            </SettingsRow>
+            </LayeredSettingsRow>
             <SettingsRow
                 label="Refresh rate"
                 separated=true
@@ -176,14 +155,13 @@ pub(super) fn ScreenSection(
                     }}
                 />
             </SettingsRow>
-            <SettingsRow
+            <LayeredSettingsRow
+                setting={rotation_row}
                 label="Rotation"
                 description="Pick the screen that looks upright as you hold it."
                 separated=true
-                modified={turned}
                 locked={read_only}
-                reset_test_id={format!("display.{connector}.rotation.reset")}
-                on_reset={unturn}
+                id={format!("display.{connector}.rotation")}
             >
                 <RotationPicker
                     test_id={format!("display.{connector}.rotation")}
@@ -192,7 +170,7 @@ pub(super) fn ScreenSection(
                     read_only={read_only}
                     on_pick={pick}
                 />
-            </SettingsRow>
+            </LayeredSettingsRow>
         </SettingsSection>
     }
 }

@@ -39,7 +39,7 @@ fn picking_a_turned_screen_writes_its_rotation_into_this_devices_display_setting
             .screen(PANEL)
             .rotation,
         None,
-        "the edit goes to this device's own layer"
+        "a screen known only by its connector is this device's alone"
     );
     assert!(
         !fixture.test.shown("desktop.rotate.90"),

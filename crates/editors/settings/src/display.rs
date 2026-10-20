@@ -1,4 +1,5 @@
-use block_editor_beui::Editor;
+use block_editor_beui::be_block::DisplaySettings;
+use block_editor_beui::{Editor, LayeredSettings};
 use block_editor_beui::Loaded;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::Vec2;
@@ -19,10 +20,13 @@ pub struct DisplaySettingsApp;
 
 impl block_editor_beui::BeuiApp for DisplaySettingsApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::DisplaySettingsContent>(&[]);
+        let settings = LayeredSettings::<DisplaySettings>::page(editor);
+        let content = editor.loaded::<block_editor_beui::be_block::DisplaySettingsContent>(&[]);
+        let ready = settings.ready();
+        let loaded = create_memo(move || content.get() && ready.get());
         view! {
             <Loaded loaded={loaded}>
-                <DisplaySettingsView editor={editor} />
+                <DisplaySettingsView editor={editor} settings={settings} />
             </Loaded>
         }
     }

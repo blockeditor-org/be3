@@ -1,22 +1,19 @@
-use block_editor_beui::be_block::{DisplaySettings, DisplaySettingsContent, Layered};
+use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::{ContentProjection, Displays, Editor, Power};
+use block_editor_beui::{ChangesToast, Displays, Editor, LayeredSettings, LayeredSettingsRow, Power};
 
 use super::appearance::AppearanceSection;
 use super::power::PowerSection;
 use super::screens::ScreenSection;
 
-pub(super) type Settings = ContentProjection<DisplaySettingsContent>;
+pub(super) type Settings = LayeredSettings<DisplaySettings>;
 
 #[component]
-pub fn DisplaySettingsView(editor: Editor) -> NodeId {
-    let settings = editor.block_content::<DisplaySettingsContent>();
+pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     let read_only = editor.read_only();
-    let root = settings.project(|content| content.root());
-    let inherited = editor.inherited_settings::<DisplaySettings>();
-    let merged = create_memo(move || root.get().over(&inherited.get()));
+    let merged = settings.effective();
     let offered = editor.host_offers::<Displays>();
     let displays = editor.host_value::<Displays>();
     let ids = create_memo(move || {
@@ -29,59 +26,50 @@ pub fn DisplaySettingsView(editor: Editor) -> NodeId {
     });
     let none = create_memo(move || displays.with(Vec::is_empty));
     let in_bar = create_memo(move || merged.with(DisplaySettings::rotate_in_bar));
-    let in_bar_set = create_memo(move || root.with(|root| root.rotate_in_bar.is_some()));
+    let rotate_in_bar = DisplaySettings::rotate_in_bar_setting();
+    let in_bar_row = settings.row(&rotate_in_bar);
+    let show_in_bar = settings.setter(&rotate_in_bar);
     let power = editor.host_offers::<Power>();
+    let page = NodeRef::new();
     view! {
-        <SettingsPage>
-            <AppearanceSection
-                settings={settings}
-                root={root}
-                inherited={inherited}
-                read_only={read_only}
-            />
+        <SettingsPage @node_ref=&page>
+            <AppearanceSection settings={settings} read_only={read_only} />
             <Show condition={offered}>
                 <SettingsSection title="Screens">
                     <Show condition={none}>
                         <SettingsRow label="No screen is connected to this session." />
                     </Show>
-                    <SettingsRow
+                    <LayeredSettingsRow
+                        setting={in_bar_row}
                         label="Rotate button in the bar"
                         description="A button in the desktop's bar that turns the screen."
                         separated={none}
                         compact=true
-                        modified={in_bar_set}
                         locked={read_only}
-                        reset_test_id="display.rotate-in-bar.reset"
-                        on_reset={move || settings.operate(DisplaySettings::set_rotate_in_bar(None))}
+                        id={"display.rotate-in-bar".to_owned()}
                     >
                         <Switch
                             on={in_bar}
                             label="Rotate button in the bar"
                             disabled={read_only}
                             @test_id={"display.rotate-in-bar"}
-                            on_change={move |on: bool| settings.operate(DisplaySettings::set_rotate_in_bar(Some(on)))}
+                            on_change={move |on: bool| show_in_bar.call(Some(on))}
                         />
-                    </SettingsRow>
+                    </LayeredSettingsRow>
                 </SettingsSection>
             </Show>
             <ForEach keys={ids}>|id: String|
                 <ScreenSection
                     id={id}
                     settings={settings}
-                    root={root}
-                    merged={merged}
                     displays={displays}
                     read_only={read_only}
                 />
             </ForEach>
             <Show condition={power}>
-                <PowerSection
-                    settings={settings}
-                    root={root}
-                    merged={merged}
-                    read_only={read_only}
-                />
+                <PowerSection settings={settings} read_only={read_only} />
             </Show>
+            <ChangesToast changes={settings.changes()} anchor={page} />
         </SettingsPage>
     }
 }

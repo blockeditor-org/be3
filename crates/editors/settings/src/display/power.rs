@@ -1,3 +1,4 @@
+use block_editor_beui::LayeredSettingsRow;
 use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::be_block::display_settings::{LockAfter, ScreenOff};
 use block_editor_beui::beui::NodeId;
@@ -11,10 +12,9 @@ use super::ui::Settings;
 #[component]
 pub(super) fn PowerSection(
     settings: Settings,
-    root: ReadSignal<DisplaySettings>,
-    merged: Memo<DisplaySettings>,
     read_only: Memo<bool>,
 ) -> NodeId {
+    let merged = settings.effective();
     let selected = create_memo(move || {
         let chosen = merged.get().screen_off();
         SCREEN_OFF.iter().position(|offered| *offered == chosen)
@@ -23,24 +23,27 @@ pub(super) fn PowerSection(
         let chosen = merged.get().lock_after();
         LOCK_AFTER.iter().position(|offered| *offered == chosen)
     });
-    let screen_off_set = create_memo(move || root.get().screen_off.is_some());
-    let lock_set = create_memo(move || root.get().lock_after.is_some());
+    let screen_off = DisplaySettings::screen_off_setting();
+    let lock_after = DisplaySettings::lock_after_setting();
+    let screen_off_row = settings.row(&screen_off);
+    let lock_row = settings.row(&lock_after);
+    let set_screen_off = settings.setter(&screen_off);
+    let set_lock_after = settings.setter(&lock_after);
     view! {
         <SettingsSection title="Power and lock">
-            <SettingsRow
+            <LayeredSettingsRow
+                setting={screen_off_row}
                 label="Turn off screens after"
                 description="How long the session can go without input before every screen goes dark."
-                modified={screen_off_set}
                 locked={read_only}
-                reset_test_id="display.screen-off.reset"
-                on_reset={move || settings.operate(DisplaySettings::set_screen_off(None))}
+                id={"display.screen-off".to_owned()}
             >
                 <Select
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ForEach keys={SCREEN_OFF.to_vec()}>|screen_off: ScreenOff|
-                            <ChoiceOption label={screen_off_label(screen_off)} />
+                        <ForEach keys={SCREEN_OFF.to_vec()}>|offered: ScreenOff|
+                            <ChoiceOption label={screen_off_label(offered)} />
                         </ForEach>
                     }}
                     selected={selected}
@@ -48,26 +51,25 @@ pub(super) fn PowerSection(
                     disabled={read_only}
                     @test_id={"display.screen-off"}
                     on_change={move |index: Option<usize>| {
-                        if let Some(screen_off) = index.and_then(|index| SCREEN_OFF.get(index)) {
-                            settings.operate(DisplaySettings::set_screen_off(Some(*screen_off)));
+                        if let Some(chosen) = index.and_then(|index| SCREEN_OFF.get(index)) {
+                            set_screen_off.call(Some(*chosen));
                         }
                     }}
                 />
-            </SettingsRow>
-            <SettingsRow
+            </LayeredSettingsRow>
+            <LayeredSettingsRow
+                setting={lock_row}
                 label="Lock the screen after"
                 separated=true
-                modified={lock_set}
                 locked={read_only}
-                reset_test_id="display.lock-after.reset"
-                on_reset={move || settings.operate(DisplaySettings::set_lock_after(None))}
+                id={"display.lock-after".to_owned()}
             >
                 <Select
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
                     options={view! {
-                        <ForEach keys={LOCK_AFTER.to_vec()}>|lock_after: LockAfter|
-                            <ChoiceOption label={lock_after_label(lock_after)} />
+                        <ForEach keys={LOCK_AFTER.to_vec()}>|offered: LockAfter|
+                            <ChoiceOption label={lock_after_label(offered)} />
                         </ForEach>
                     }}
                     selected={locks}
@@ -75,12 +77,12 @@ pub(super) fn PowerSection(
                     disabled={read_only}
                     @test_id={"display.lock-after"}
                     on_change={move |index: Option<usize>| {
-                        if let Some(lock_after) = index.and_then(|index| LOCK_AFTER.get(index)) {
-                            settings.operate(DisplaySettings::set_lock_after(Some(*lock_after)));
+                        if let Some(chosen) = index.and_then(|index| LOCK_AFTER.get(index)) {
+                            set_lock_after.call(Some(*chosen));
                         }
                     }}
                 />
-            </SettingsRow>
+            </LayeredSettingsRow>
         </SettingsSection>
     }
 }

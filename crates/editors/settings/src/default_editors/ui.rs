@@ -1,5 +1,5 @@
-use block_editor_beui::Editor;
-use block_editor_beui::be_block::{EditorSettings, EditorSettingsContent};
+use block_editor_beui::be_block::EditorSettings;
+use block_editor_beui::{ChangesToast, Editor, LayeredSettings, LayeredSettingsRow};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -14,7 +14,7 @@ struct Choices {
 }
 
 #[component]
-pub fn DefaultEditorsView(editor: Editor) -> NodeId {
+pub fn DefaultEditorsView(editor: Editor, settings: LayeredSettings<EditorSettings>) -> NodeId {
     let types = create_memo(move || {
         let catalog = editor.block_types();
         let mut types: Vec<(String, Uuid)> = catalog
@@ -34,8 +34,9 @@ pub fn DefaultEditorsView(editor: Editor) -> NodeId {
             .collect::<Vec<_>>()
     });
     let empty = create_memo(move || types.with(Vec::is_empty));
+    let page = NodeRef::new();
     view! {
-        <SettingsPage>
+        <SettingsPage @node_ref=&page>
             <SettingsSection
                 title="Default editors"
                 description="The editor a block of each type opens in. Open with, in Files, opens one in another."
@@ -50,21 +51,25 @@ pub fn DefaultEditorsView(editor: Editor) -> NodeId {
                     view! {
                         <DefaultEditor
                             editor={editor}
+                            settings={settings}
                             block_type={block_type}
                             separated={separated}
                         />
                     }
                 }</ForEach>
             </SettingsSection>
+            <ChangesToast changes={settings.changes()} anchor={page} />
         </SettingsPage>
     }
 }
 
 #[component]
-fn DefaultEditor(editor: Editor, block_type: Uuid, separated: Memo<bool>) -> NodeId {
-    let settings = editor.block_content::<EditorSettingsContent>();
-    let chosen = settings.project(move |content| content.root().default_editor(block_type));
-    let inherited = editor.inherited_settings::<EditorSettings>();
+fn DefaultEditor(
+    editor: Editor,
+    settings: LayeredSettings<EditorSettings>,
+    block_type: Uuid,
+    separated: Memo<bool>,
+) -> NodeId {
     let choices = create_memo(move || {
         let catalog = editor.block_types();
         Choices {
@@ -78,8 +83,14 @@ fn DefaultEditor(editor: Editor, block_type: Uuid, separated: Memo<bool>) -> Nod
                 .collect(),
         }
     });
+    let name = choices.with_untracked(|choices| choices.name.clone());
+    let setting = EditorSettings::default_editor_setting(block_type, name);
+    let chosen = settings.value(&setting);
+    let below = settings.fallback(&setting);
+    let set = settings.setter(&setting);
+    let row = settings.row(&setting);
     let inherited_label = create_memo(move || {
-        let wanted = inherited.with(|inherited| inherited.default_editor(block_type));
+        let wanted = below.get();
         let name = choices.with(|choices| {
             wanted
                 .and_then(|wanted| choices.editors.iter().find(|(id, _)| *id == wanted))
@@ -105,15 +116,13 @@ fn DefaultEditor(editor: Editor, block_type: Uuid, separated: Memo<bool>) -> Nod
     });
     let name = create_memo(move || choices.with(|choices| choices.name.clone()));
     let read_only = editor.read_only();
-    let modified = create_memo(move || chosen.get().is_some());
     view! {
-        <SettingsRow
+        <LayeredSettingsRow
+            setting={row}
             label={name}
             separated={separated}
-            modified={modified}
             locked={read_only}
-            reset_test_id={format!("default-editors.{block_type}.reset")}
-            on_reset={move || settings.operate(EditorSettings::set_default_editor(block_type, None))}
+            id={format!("default-editors.{block_type}")}
         >
             <Select
                 @sizing=ItemSize::Percent(100.0)
@@ -143,9 +152,9 @@ fn DefaultEditor(editor: Editor, block_type: Uuid, separated: Memo<bool>) -> Nod
                     let chosen = index.and_then(|index| index.checked_sub(1)).and_then(|index| {
                         choices.with_untracked(|choices| choices.editors.get(index).map(|(id, _)| *id))
                     });
-                    settings.operate(EditorSettings::set_default_editor(block_type, chosen));
+                    set.call(chosen);
                 }}
             />
-        </SettingsRow>
+        </LayeredSettingsRow>
     }
 }

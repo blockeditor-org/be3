@@ -13,10 +13,13 @@ use super::ui::Settings;
 pub(super) fn RemapperSetting(
     editor: Editor,
     settings: Settings,
-    root: ReadSignal<InputSettings>,
-    effective: Memo<InputSettings>,
     read_only: Memo<bool>,
 ) -> NodeId {
+    let effective = settings.effective();
+    let remapper = InputSettings::remapper_setting();
+    let set_remapper = settings.setter(&remapper);
+    let own = settings.value(&remapper);
+    let row = settings.row(&remapper);
     let remappers = create_memo(move || {
         editor
             .block_types()
@@ -35,7 +38,7 @@ pub(super) fn RemapperSetting(
             keys.with(|keys| keys.iter().position(|editor| *editor == choice.editor))
         })
     });
-    let set_here = create_memo(move || root.get().remapper.is_some());
+    let set_here = row.modified();
     let none = create_memo(move || keys.with(Vec::is_empty));
     let link_off = create_memo(move || none.get() || (read_only.get() && chosen.get().is_none()));
     let detail = create_memo(move || {
@@ -61,17 +64,18 @@ pub(super) fn RemapperSetting(
                 .map(|(_, name)| name.clone())
                 .unwrap_or_default()
         });
+        let parent = settings.block_for(&InputSettings::remapper_setting())?;
         let block = editor.blocks().create_named(
             &InputRemapperContent::default(),
-            BlockParent::Block(editor.block_id()),
+            BlockParent::Block(parent),
             name,
         );
         let choice = RemapperChoice {
             block,
             editor: remapper,
         };
-        settings.operate(InputSettings::set_remapper(Some(choice)));
-        choice
+        set_remapper.call(Some(choice));
+        Some(choice)
     };
     let choose = move |index: Option<usize>| {
         let Some(remapper) =
@@ -87,7 +91,10 @@ pub(super) fn RemapperSetting(
         let choice = match chosen.get_untracked() {
             Some(choice) => choice,
             None => match keys.with_untracked(|keys| keys.first().copied()) {
-                Some(remapper) if !read_only.get_untracked() => create(remapper),
+                Some(remapper) if !read_only.get_untracked() => match create(remapper) {
+                    Some(choice) => choice,
+                    None => return,
+                },
                 _ => return,
             },
         };
@@ -96,15 +103,18 @@ pub(super) fn RemapperSetting(
             .open_block_with(choice.block, InputRemapper::CONTENT_TYPE, choice.editor);
     };
     let reset = move || {
-        if let Some(choice) = root.get_untracked().remapper {
+        let Some(choice) = own.get_untracked() else {
+            return;
+        };
+        if let Some(parent) = settings.block_for(&InputSettings::remapper_setting()) {
             editor.host().delete_block(
                 choice.block,
                 InputRemapper::CONTENT_TYPE,
-                BlockParent::Block(editor.block_id()),
+                BlockParent::Block(parent),
                 false,
             );
-            settings.operate(InputSettings::set_remapper(None));
         }
+        set_remapper.call(None);
     };
     view! {
         <SettingsSection title="Remaps">
