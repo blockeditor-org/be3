@@ -129,7 +129,7 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
         };
         workspace.set_sheet(PhoneSheet::Closed);
         if let Some(reference) = workspace.info(id) {
-            apply(&workspace, &reference, container, action);
+            apply(&workspace, &reference, container, action, None);
         }
     };
     let new_here = move || {

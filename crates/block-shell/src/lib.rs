@@ -22,7 +22,7 @@ mod workspace;
 pub use dialogs::WorkspaceDialogs;
 pub use kept::KeptWindow;
 pub use picker::PickAnchor;
-pub use picker_view::PickerDialogs;
+pub use picker_view::{PickerDialogs, PickerSheet};
 pub use saved::saved_windows;
 pub use window::{window_tab, window_title};
 pub use workspace::{

@@ -1,8 +1,8 @@
-use block_editor_beui::Toolbar;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::MenuItem;
+use block_editor_beui::{Toolbar, node_anchor};
 use uuid::Uuid;
 
 use super::access::AccessMode;
@@ -106,8 +106,10 @@ pub(crate) fn ReferenceMenu(
         true => empty.clone(),
         false => "Loading…".to_owned(),
     });
+    let button = NodeRef::new();
     view! {
         <MenuButton
+            @node_ref=&button
             @test_id={named}
             label={label}
             items={view! {
@@ -143,6 +145,7 @@ pub(crate) fn ReferenceMenu(
                     &reference,
                     containing.get_untracked(),
                     action,
+                    node_anchor(&button),
                 );
             }}
         />

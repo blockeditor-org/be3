@@ -23,7 +23,6 @@ fn an_import_keeps_the_location_it_started_with() {
     fixture.settle();
     fixture.test.take_requests();
 
-    fixture.click_text("Import");
     fixture.test.click("picker.import");
     fixture.settle();
     let (request, place) = fixture
@@ -41,6 +40,8 @@ fn an_import_keeps_the_location_it_started_with() {
         "the import goes to the location chosen"
     );
 
+    fixture.test.click("picker.location");
+    fixture.settle();
     fixture.test.click(&format!("picker.place.{folder}"));
     fixture.settle();
 

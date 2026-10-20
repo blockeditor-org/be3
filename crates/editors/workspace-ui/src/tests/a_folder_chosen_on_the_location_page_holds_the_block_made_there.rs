@@ -1,50 +1,46 @@
-use block_editor_beui::be_block::{BlockContent, FolderContent};
-use block_editor_beui::{BlockInfo, BlockLocation, BlockPick, CreationProgress};
+use block_editor_beui::{BlockCommand, BlockLocation, BlockPick, CreationProgress};
 
 use super::*;
 
 #[test]
-fn a_placing_pick_names_and_places_the_block_it_creates() {
+fn a_folder_chosen_on_the_location_page_holds_the_block_made_there() {
     let (mut fixture, _) = editor();
     fixture.test.catalog(catalog());
-    let mut trips = BlockInfo::new(
-        Uuid::new_v4(),
-        FolderContent::CONTENT_TYPE,
-        BlockParent::Root,
-    );
-    trips.set_name("Trips".to_owned());
-    fixture.test.store().add_block(trips);
+    let places = places(&mut fixture);
     let mut placing = filter();
-    placing.place = Some(BlockLocation::Root);
-    fixture.test.request_pick(
-        4,
-        placing,
-        BlockLocation::Block(Uuid::new_v4().into_bytes()),
-        None,
+    placing.place = Some(BlockLocation::Block(places.work.into_bytes()));
+    let asked = Uuid::new_v4();
+    fixture
+        .test
+        .request_pick(4, placing, BlockLocation::Block(asked.into_bytes()), None);
+    fixture.settle();
+    assert!(
+        fixture.says("Work"),
+        "the menu names the folder it makes in"
     );
-    fixture.settle();
 
-    fixture.test.click("picker.name");
+    fixture.test.click("picker.location");
     fixture.settle();
-    fixture.test.text("Minutes");
+    fixture.test.click(&format!("picker.place.{}", places.q4));
     fixture.settle();
+    assert!(
+        fixture.says("Q4"),
+        "choosing a folder goes back to the menu, which names it"
+    );
     fixture
         .test
-        .snapshot("a_placing_pick_names_and_places_the_block_it_creates");
-    fixture
-        .test
-        .click(&format!("picker.tile.{TEMPLATE_EDITOR}/main"));
+        .click(&format!("picker.menu.{TEMPLATE_EDITOR}/main"));
     fixture.settle();
     fixture.settle();
-
-    let commits = fixture.test.take_child_commits();
     assert_eq!(
-        commits
-            .iter()
-            .map(|(_, parent, name)| (*parent, name.clone()))
+        fixture
+            .test
+            .take_child_commits()
+            .into_iter()
+            .map(|(_, parent, name)| (parent, name))
             .collect::<Vec<_>>(),
-        vec![(BlockLocation::Root, Some("Minutes".to_owned()))],
-        "the block is created at the top level with the name typed for it"
+        vec![(BlockLocation::Block(asked.into_bytes()), None)],
+        "the block is made with the name its type gives it"
     );
 
     let created = Uuid::new_v4();
@@ -63,5 +59,14 @@ fn a_placing_pick_names_and_places_the_block_it_creates() {
                 placed: true,
             }
         )]
+    );
+    assert!(
+        fixture
+            .test
+            .take_block_commands()
+            .iter()
+            .any(|(block, command)| *block == created
+                && matches!(command, BlockCommand::Place { parent, .. } if *parent == places.q4.into_bytes())),
+        "the new block is placed in the folder chosen"
     );
 }
