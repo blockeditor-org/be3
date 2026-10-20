@@ -22,7 +22,9 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{BlockFilter, ChildTarget, ContentProjection, Editor, watch_block_label};
+use block_editor_beui::{
+    BlockFilter, ChildTarget, ContentProjection, Editor, node_anchor, watch_block_label,
+};
 use uuid::Uuid;
 
 use super::field_line_count;
@@ -824,6 +826,7 @@ fn RelationOptions(
                 .unwrap_or_default()
         })
     });
+    let button = NodeRef::new();
     let choose = move || {
         let current = options.get_untracked();
         editor.pick_block(
@@ -833,6 +836,7 @@ fn RelationOptions(
                 excluded: Vec::new(),
                 templates: false,
                 place: None,
+                anchor: node_anchor(&button),
             },
             move |picked| {
                 if let Ok(picked) = picked {
@@ -873,6 +877,7 @@ fn RelationOptions(
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                     <Text string="Links to" />
                     <Button
+                        @node_ref={&button}
                         label={label}
                         variant=ButtonVariant::Secondary
                         disabled={read_only}

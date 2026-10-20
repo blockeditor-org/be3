@@ -8,6 +8,12 @@ fn forwarded_picks_and_creation_children_round_trip() {
         excluded: vec![[3; 16]],
         templates: true,
         place: Some(BlockLocation::Root),
+        anchor: Some(ChildRect {
+            x: 300.0,
+            y: 80.0,
+            width: 32.0,
+            height: 32.0,
+        }),
     };
     for message in [
         Message::Editor(EditorMessage::PickRequested {
@@ -15,6 +21,7 @@ fn forwarded_picks_and_creation_children_round_trip() {
             pick: 9,
             filter,
             parent: BlockLocation::Block([4; 16]),
+            within: Some([8; 16]),
         }),
         Message::Editor(EditorMessage::PickAnswered {
             instance: EditorInstanceId(1),

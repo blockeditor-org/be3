@@ -65,7 +65,7 @@ because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
 `checked` state (`Some` makes it a check box item, ticked when true), a
 disabled and a danger flag, a separator above it, an `on_click` and its
-own submenu items, so a menu is written as tags and each row follows
+own submenu or page items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
 options of a tab bar, a listbox, a radio group and a select. Declare the type
 with `value_child_type!`, which makes it a `ChildValue` and says how a run of it
@@ -675,7 +675,26 @@ the same field whether or not they are being edited. A menu is never asked for a
 or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same
 features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an
-unstyled one without a sheet stays a dropdown. `MenuButton` is the button that
+unstyled one without a sheet stays a dropdown. An item's children cascade as a
+submenu, or with `page` open in place of the menu as a page led by a back row
+titled by the item (`<id>.back` for an item with a `row_test_id`); Left, Escape
+and the back row return to the item, and the dropdown or sheet resizes to each
+page. `then` says what choosing an item does: `MenuThen::Close` (the default),
+`Back` to the page before (a location picked on a page), or `Stay`. `MenuCaption` is a
+row of text nothing can choose, and `MenuGrid` lays its child items out as
+tiles in `columns`, which the arrow keys walk in two dimensions and leave for
+the rows above and below. A page of rows with a `depth` is a tree: `expanded`
+(`None` for a leaf) draws the chevron, Right and Left and the chevron report
+`on_expand`, and the caller shows the rows of open branches (a `ForEach` over
+them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check, and
+a page opens with the keyboard on that row. `lead` is a few muted words before
+an item's icon on the same line, read with its label (`New in` before a folder's
+name). The dropdown is never taller than a fixed height
+and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu
+opened by something other than a button, such as a model holding a request: it
+shows while `open` holds, under `anchor` at `placement`, as the sheet while
+`sheet` holds, `width` wide, and reports `on_dismiss` for Escape or a press
+outside. `MenuButton` is the button that
 opens a menu under itself, which is what a toolbar reaches for where `Select`
 would imply the choice sticks (`IconMenuButton` is the same with an icon
 button's face); `ContextMenu` is the same menu on a secondary press, and it
@@ -1370,7 +1389,9 @@ chevron, the indent beside it and the name to mean three different things. The
 handle carries `select`, `toggle` and `hover` for the face to call from
 wherever it decides they belong. The arrow keys, Home, End and typing move the
 keyboard between rows without selecting them, and Enter or Space selects the
-row it is on. `toggle` puts the keyboard on its row too.
+row it is on. `toggle` puts the keyboard on its row too. Given `on_open`, Enter
+and a second click select the row and report `on_open` too, for a tree whose
+rows are chosen as well as selected (the block to link).
 
 `styled::Tree` is the face that split was made for, and the one app code
 reaches for. Everything left of a row's highlight - the indent and the chevron
@@ -1391,6 +1412,18 @@ dragged out without selecting what it left behind. `row_test_id` names each
 row for tests, as `<id>.row`, `<id>.chevron` and `<id>.more`, and `outline` gives a single
 row an outline of its own, which is how a drop target says whether it will
 take what is over it.
+
+A row's name is edited in place through the controlled `editing` prop, the
+key being renamed or `None`. While it names a row, the row's face gives way
+to a field of the row's height holding `TreeItem::label`, focused with all of
+it selected and scrolled into view, named `<id>.rename` for tests. Enter and
+losing the focus, to a press elsewhere or to the window losing the keyboard,
+report `on_rename` with the trimmed name; Escape, or a name left empty or
+unchanged, reports `on_cancel_edit`; both hand the keyboard back to the row
+after Enter or Escape, and the caller clears `editing` in either. F2 on a row
+asks for an edit with `on_edit`, when one is given. Keys typed in the field
+never reach the tree's own navigation. `unstyled::TreeRowEditor` is the field
+a face places for a row whose handle reads `editing`, and owns all of that.
 
 Choosing a row never expands, collapses or scrolls anything: only the chevron
 and the arrow keys do. The styled tree owns its `Scroll` (`padding` goes inside
@@ -1715,7 +1748,25 @@ document, such as a program's window, to take the keyboard itself); the focus
 cannot move into the panel (Tab skips it, and focusing it lands in the
 dialog); and while the parent's tab is focused the focus goes to its innermost
 modal dialog. Escape or back with the focus in a dialog closes it through
-`on_close`.
+`on_close`. While a tab has a modal dialog hanging from it (or from one of its
+dialogs), its label shows a dot (`DockTabHandle::waiting`, styled
+`dock.tab.<tab>.waiting`): the tab is waiting on a choice, which matters most
+once another tab is shown in its place and hides the dialog.
+
+`presentation=DockDialogPresentation::Sheet` (rather than the default `Window`)
+shows the same dialog as a sheet attached to its tab, like an old macOS sheet:
+always modal, it drops from the top of the parent's panel, just under its tab
+bar, centred across it at `size` or smaller where the pane is smaller (the body
+is `Extent::at_most(size)`), over a backdrop (Docking's `dialog_scrim`) that dims
+that panel alone. A press on the backdrop calls the sheet's attention, while the
+tab bar, other tabs and other panes stay live. It has no title bar: its content
+draws its own header and close button (styled: square top corners flush with
+the bar, a border on the other three sides, rounded bottom corners and a
+shadow). Its layer hangs from the panel, so it follows the tab into another pane
+or a window. In a stacked dock it is `dialog_sheet` instead (styled: a
+`ModalSheet`), and the same body moves between the two through `Portal`s, so
+nothing in it is rebuilt. A dialog's body is built once when it is declared and
+kept while its tab is hidden, whichever presentation it has.
 
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or

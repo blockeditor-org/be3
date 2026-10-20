@@ -515,8 +515,10 @@ from the moment it is placed and the host never takes that away.
 An editor instance may ask the host to choose a block for it, which is what
 lets an instance acquire a child without waiting for one to be dragged in. The
 request carries the name of what is being chosen, the block types that may be
-chosen, empty for any, and whether the picker should open on the templates the
-host offers, and is answered exactly once, with the block the user chose or
+chosen, empty for any, whether the picker should open on the templates the
+host offers, and optionally an anchor: the rectangle of the control or place
+that asked, in the asking region's own coordinates, where the picker should
+open. It is answered exactly once, with the block the user chose or
 created and whether it was an existing block rather than a new one, the picker
 the user closed, or why the block could not be made.
 Requests are identified per instance and may be outstanding together. A
@@ -525,8 +527,12 @@ made until it references another one gets that block before its own exists; the
 host opens the picker over the dialog it is already showing.
 
 The host does not draw the picker itself. It forwards each pick to the
-instance that draws the window, which is told the pick, its filter and the
-block that asked, and answers it once; the host passes that answer back to the
+instance that draws the window, which is told the pick, its filter, the
+block that asked and which of its own children that block is or is inside
+(none for a creation dialog), and answers it once. The host rewrites the
+filter's anchor into the coordinates of the region it forwards the pick to,
+through where both regions are placed on screen, and drops it when either is
+not placed; the host passes that answer back to the
 instance that asked. That instance makes new blocks by placing a child that
 shows a template being made, named by its editor and template from the
 catalog the host sends with the block types. The child's status reports the

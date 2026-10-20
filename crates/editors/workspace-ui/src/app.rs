@@ -14,8 +14,8 @@ use block_editor_beui::{
     NARROW_WIDTH, TopBar,
 };
 use block_shell::{
-    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, REVISIONS,
-    RevisionHistoryPanel, SETTINGS, WindowTab, Workspace, WorkspaceDialogs,
+    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, PickerSheet,
+    REVISIONS, RevisionHistoryPanel, SETTINGS, WindowTab, Workspace, WorkspaceDialogs,
 };
 
 const FILES_SHARE: f32 = 0.22;
@@ -47,7 +47,7 @@ fn WorkspaceShell(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn WorkspaceBody(workspace: Workspace) -> NodeId {
+pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let narrow = narrower_than(NARROW_WIDTH);
     let was_narrow = Cell::new(false);
     create_effect(move || {
@@ -70,6 +70,7 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let block_tabs = workspace.block_tabs();
     let top_windows = workspace.windows();
     let dialog_windows = workspace.dialogs();
+    let picker_sheets = workspace.picker_sheets();
     let panels = workspace.panels();
     view! {
         <Frame @node_ref={&surface} fill=ColorRole::Background>
@@ -107,6 +108,9 @@ fn WorkspaceBody(workspace: Workspace) -> NodeId {
                     </ForEach>
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
                         <AttachedWindow workspace window parent />
+                    </ForEach>
+                    <ForEach keys={picker_sheets}>|(pick, tab): (u64, TabId)|
+                        <PickerSheet workspace pick tab />
                     </ForEach>
                 </Docking>
                 <PickerDialogs workspace />

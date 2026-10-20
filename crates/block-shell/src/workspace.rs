@@ -16,9 +16,9 @@ use block_editor_beui::beui::unstyled::{
 use block_editor_beui::beui::{NodeId, Rect, Vec2, pos2, vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel, BlockTypes};
 use block_editor_beui::{
-    AccessLevel, BlockFilter, BlockPick, ChildState, Contacts, Editor, EditorHost, FocusedBlock,
-    HostPanel, HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed, ShellDialog,
-    WindowAction,
+    AccessLevel, BlockFilter, BlockPick, ChildRect, ChildState, Contacts, Editor, EditorHost,
+    FocusedBlock, HostPanel, HostWindow, HostWindowId, HostWindows, PickedBlock, Pushed,
+    ShellDialog, WindowAction,
 };
 use block_editor_beui::{BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use uuid::Uuid;
@@ -27,7 +27,7 @@ use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::kept::{self, Kept, KeptWindow};
 use super::panel::BlockPanel;
-use super::picker::{Pick, PickAction, PickOutcome};
+use super::picker::{Graph, Pick, PickAction, PickAnchor, PickOutcome, PickTree, Tree, TreeRow};
 use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
@@ -60,9 +60,10 @@ struct State {
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
     next_tab: Cell<u64>,
     active: Cell<Option<Uuid>>,
-    roots: RefCell<Option<BlockList>>,
-    top: RefCell<Option<[BlockList; 2]>>,
-    browsing: RefCell<Option<(Option<Uuid>, Vec<BlockList>)>>,
+    roots: RefCell<Option<(BlockList, BlockList)>>,
+    trees: RefCell<HashMap<PickTree, HashMap<BlockQuery, BlockList>>>,
+    own_pick_tab: Cell<Option<TabId>>,
+    tab_nodes: RefCell<HashMap<TabId, NodeRef>>,
 }
 
 #[derive(Clone, Copy)]
@@ -125,8 +126,9 @@ impl Workspace {
                 next_tab: Cell::new(FIRST_BLOCK_TAB),
                 active: Cell::new(None),
                 roots: RefCell::new(None),
-                top: RefCell::new(None),
-                browsing: RefCell::new(None),
+                trees: RefCell::new(HashMap::new()),
+                own_pick_tab: Cell::new(None),
+                tab_nodes: RefCell::new(HashMap::new()),
             }),
             editor,
             with_files,
@@ -391,11 +393,19 @@ impl Workspace {
     }
 
     fn show_requested(&self) {
+        let inner = self.state.value();
+        let own = self.editor.block_id();
         let requested: Vec<Pick> = self
             .host()
             .take_pick_requests()
             .into_iter()
-            .map(Pick::new)
+            .map(|request| {
+                let tab = match request.within {
+                    Some(block) if block == own => inner.own_pick_tab.take(),
+                    within => within.and_then(|block| self.tab_of_block(block)),
+                };
+                Pick::new(request, tab)
+            })
             .collect();
         if !requested.is_empty() {
             self.picks.update(|picks| picks.extend(requested));
@@ -508,11 +518,8 @@ impl Workspace {
 
     pub(crate) fn my_files(&self) -> Option<Uuid> {
         let account = self.host().account_id();
-        let inner = self.state.value();
-        let mut roots = inner.roots.borrow_mut();
-        roots
-            .get_or_insert_with(|| self.blocks().watch(BlockQuery::Roots))
-            .read()
+        self.top()
+            .0
             .into_iter()
             .filter(|block| {
                 block.block_type == WorkspaceContent::CONTENT_TYPE
@@ -524,46 +531,120 @@ impl Workspace {
             .min()
     }
 
-    pub(crate) fn browsed(&self, folder: Option<Uuid>) -> Vec<BlockInfo> {
+    fn top(&self) -> (Vec<BlockInfo>, Vec<BlockInfo>) {
         let inner = self.state.value();
-        let mut browsing = inner.browsing.borrow_mut();
-        if browsing.as_ref().is_none_or(|(held, _)| *held != folder) {
-            let queries = match folder {
-                Some(folder) => vec![BlockQuery::Children(folder), BlockQuery::Block(folder)],
-                None => vec![BlockQuery::Roots, BlockQuery::Shared],
-            };
-            let lists = queries
-                .into_iter()
-                .map(|query| self.blocks().watch(query))
-                .collect();
-            *browsing = Some((folder, lists));
-        }
-        let (_, lists) = browsing.as_ref().expect("a folder is being browsed");
-        let mut blocks: Vec<BlockInfo> = Vec::new();
-        for list in lists {
-            for block in list.read() {
-                if !blocks.iter().any(|held| held.id == block.id) {
-                    blocks.push(block);
-                }
-            }
-        }
-        blocks
-    }
-
-    pub(crate) fn top(&self) -> Vec<BlockInfo> {
-        let inner = self.state.value();
-        let mut top = inner.top.borrow_mut();
-        let lists = top.get_or_insert_with(|| {
-            [
+        let mut held = inner.roots.borrow_mut();
+        let (roots, shared) = held.get_or_insert_with(|| {
+            (
                 self.blocks().watch(BlockQuery::Roots),
                 self.blocks().watch(BlockQuery::Shared),
-            ]
+            )
         });
-        lists.iter().flat_map(BlockList::read).collect()
+        (roots.read(), shared.read())
     }
 
-    fn stop_browsing(&self) {
-        self.state.value().browsing.borrow_mut().take();
+    fn graph(&self, tree: PickTree) -> Graph {
+        let (roots, shared) = self.top();
+        let inner = self.state.value();
+        let trees = inner.trees.borrow();
+        let lists = trees.get(&tree);
+        let mut blocks: HashMap<Uuid, BlockInfo> = HashMap::new();
+        for block in lists
+            .into_iter()
+            .flat_map(HashMap::values)
+            .flat_map(BlockList::read)
+            .chain(roots.iter().cloned())
+            .chain(shared.iter().cloned())
+        {
+            blocks.insert(block.id, block);
+        }
+        let listed = lists
+            .into_iter()
+            .flat_map(HashMap::iter)
+            .filter_map(|(query, list)| match query {
+                BlockQuery::Children(id) if list.is_loaded() => Some(*id),
+                _ => None,
+            })
+            .collect();
+        Graph {
+            account: self.host().account_id(),
+            roots,
+            shared,
+            blocks,
+            listed,
+        }
+    }
+
+    fn hold(&self, tree: PickTree, wants: &[BlockQuery]) -> bool {
+        let inner = self.state.value();
+        let mut trees = inner.trees.borrow_mut();
+        let lists = trees.entry(tree).or_default();
+        let before = lists.len();
+        lists.retain(|query, _| wants.contains(query));
+        let mut changed = lists.len() != before;
+        for query in wants {
+            if !lists.contains_key(query) {
+                lists.insert(*query, self.blocks().watch(*query));
+                changed = true;
+            }
+        }
+        changed
+    }
+
+    pub(crate) fn tree(&self, tree: PickTree, rows: impl Fn(&Graph) -> Tree) -> Vec<TreeRow> {
+        let mut built = rows(&self.graph(tree));
+        for _ in 0..8 {
+            if !self.hold(tree, &built.wants) {
+                break;
+            }
+            built = rows(&self.graph(tree));
+        }
+        built.rows
+    }
+
+    fn forget_trees(&self) {
+        self.state.value().trees.borrow_mut().clear();
+    }
+
+    pub(crate) fn register_tab_node(&self, tab: TabId, node: NodeRef) {
+        let inner = self.state.value();
+        inner.tab_nodes.borrow_mut().insert(tab, node);
+    }
+
+    pub(crate) fn forget_tab_node(&self, tab: TabId, node: NodeRef) {
+        self.state.try_with(|inner| {
+            let mut nodes = inner.tab_nodes.borrow_mut();
+            if nodes.get(&tab) == Some(&node) {
+                nodes.remove(&tab);
+            }
+        });
+    }
+
+    pub(crate) fn tab_node(&self, tab: TabId) -> Option<NodeRef> {
+        let inner = self.state.value();
+        inner.tab_nodes.borrow().get(&tab).copied()
+    }
+
+    pub fn picker_sheets(&self) -> Memo<Vec<(u64, TabId)>> {
+        let picks = self.picks;
+        create_memo(move || {
+            picks.with(|picks| {
+                picks
+                    .iter()
+                    .filter(|held| held.surface_open())
+                    .filter_map(|held| Some((held.pick, held.anchor.tab?)))
+                    .collect::<Vec<_>>()
+            })
+        })
+    }
+
+    pub fn pick_anchor(&self, pick: u64) -> Option<PickAnchor> {
+        self.picks.with_untracked(|picks| {
+            picks
+                .iter()
+                .find(|held| held.pick == pick)
+                .map(|held| held.anchor)
+        })
     }
 
     pub(crate) fn pick(&self, pick: u64) -> Option<Pick> {
@@ -610,7 +691,6 @@ impl Workspace {
     }
 
     fn send_commit(&self, held: &mut Pick) {
-        let name = Some(held.name.trim().to_owned()).filter(|name| !name.is_empty());
         let parent = held.created_parent();
         if let Some(creating) = &mut held.creating
             && let Some(child) = creating.child
@@ -618,7 +698,7 @@ impl Workspace {
             && !creating.sent
         {
             creating.sent = true;
-            self.host().commit_child(child, parent, name);
+            self.host().commit_child(child, parent, None);
         }
     }
 
@@ -651,7 +731,7 @@ impl Workspace {
                 self.picks
                     .update(|picks| picks.retain(|held| held.pick != pick));
                 if self.picks.with_untracked(Vec::is_empty) {
-                    self.stop_browsing();
+                    self.forget_trees();
                 }
                 if let (BlockPick::Chosen { .. }, Some((block, block_type, container))) =
                     (&answer, into)
@@ -1011,6 +1091,13 @@ impl Workspace {
         }
     }
 
+    pub(crate) fn tab_of_block(&self, id: Uuid) -> Option<TabId> {
+        match self.files.get_untracked() == Some(id) {
+            true => Some(FILES),
+            false => self.tab_showing(id),
+        }
+    }
+
     pub(crate) fn tab_showing(&self, id: Uuid) -> Option<TabId> {
         self.tabs.with_untracked(|tabs| {
             tabs.iter()
@@ -1138,6 +1225,8 @@ impl Workspace {
             BlockParent::Root | BlockParent::Detached => Vec::new(),
         };
         let workspace = *self;
+        let inner = self.state.value();
+        inner.own_pick_tab.set(inner.layout.shown());
         self.editor.pick_block(
             BlockFilter {
                 name: "Block".to_owned(),
@@ -1145,6 +1234,7 @@ impl Workspace {
                 excluded,
                 templates: false,
                 place: Some(parent.encode()),
+                anchor: None,
             },
             move |picked: Result<PickedBlock, String>| {
                 if !workspace.state.is_alive() {
@@ -1176,13 +1266,18 @@ impl Workspace {
                     }
                 }
                 workspace.open(TabItem::new(picked.id, picked.block_type), container);
+                if !picked.linked {
+                    workspace.open_dialog(OpenDialog::Rename(picked.id));
+                }
             },
         );
     }
 
-    pub(crate) fn open_picker(&self, parent: Uuid) {
+    pub(crate) fn open_picker(&self, parent: Uuid, anchor: Option<ChildRect>) {
         self.error.set(None);
         let workspace = *self;
+        let inner = self.state.value();
+        inner.own_pick_tab.set(inner.layout.focused());
         self.editor.pick_block(
             BlockFilter {
                 name: "Block".to_owned(),
@@ -1190,6 +1285,7 @@ impl Workspace {
                 excluded: vec![parent.into_bytes()],
                 templates: false,
                 place: None,
+                anchor,
             },
             move |picked: Result<PickedBlock, String>| {
                 if !workspace.state.is_alive() {

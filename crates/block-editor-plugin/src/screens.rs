@@ -481,13 +481,15 @@ impl Screens {
                 pick,
                 filter,
                 parent,
+                within,
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
-                    session.pick_requested(crate::host::PickRequest {
-                        pick: *pick,
-                        filter: filter.clone(),
-                        parent: crate::graph::BlockParent::decode(*parent),
-                    });
+                    session.pick_requested(
+                        *pick,
+                        filter.clone(),
+                        crate::graph::BlockParent::decode(*parent),
+                        within.map(Uuid::from_bytes),
+                    );
                 }
             }
             Message::Editor(EditorMessage::ShowDialog {

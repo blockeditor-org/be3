@@ -1931,6 +1931,19 @@ impl BlockApp {
         ))
     }
 
+    fn child_within(&self, ancestor: Uuid, block: Uuid) -> Option<Uuid> {
+        let mut visited = HashSet::new();
+        let mut current = block;
+        while visited.insert(current) {
+            let parent = self.editors.parent_of(current)?;
+            if parent == ancestor {
+                return Some(current);
+            }
+            current = parent;
+        }
+        None
+    }
+
     fn show_dialog(&mut self, from: Option<Uuid>, id: Uuid, dialog: ShellDialog) {
         if let Some(handler) = self.handler_for(from, ShellRequest::Dialog) {
             self.with_editor(handler, |handler| handler.show_dialog(id, dialog));
@@ -2162,10 +2175,21 @@ impl BlockApp {
                 self.next_pick += 1;
                 let pick = self.next_pick;
                 let handler = self.handler_for(block, ShellRequest::Pick).unwrap_or(shell);
-                let Some(picker) = pickers.get(&handler).or_else(|| pickers.get(&shell)) else {
+                let Some((picker_id, picker)) = [handler, shell]
+                    .into_iter()
+                    .find_map(|id| Some((id, pickers.get(&id)?)))
+                else {
                     source.answer(request.request_id, block_plugin_api::BlockPick::Cancelled);
                     continue;
                 };
+                filter.anchor = filter.anchor.and_then(|anchor| {
+                    crate::plugin_host::reanchor(
+                        anchor,
+                        crate::plugin_host::frame_placement(&source.plugin_id, source.instance)?,
+                        crate::plugin_host::frame_placement(&picker.plugin_id, picker.instance)?,
+                    )
+                });
+                let within = block.and_then(|block| self.child_within(picker_id, block));
                 self.forwarded_picks
                     .insert(pick, (source.clone(), request.request_id));
                 crate::plugin_host::request_pick(
@@ -2174,6 +2198,7 @@ impl BlockApp {
                     pick,
                     filter,
                     parent,
+                    within,
                 );
             }
         }

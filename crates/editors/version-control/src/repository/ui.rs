@@ -4,7 +4,8 @@ use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::{
-    BlockFilter, BlockLink, ChildTarget, Editor, VersionCommand, VersionHistory, short_id,
+    BlockFilter, BlockLink, ChildTarget, Editor, VersionCommand, VersionHistory, node_anchor,
+    short_id,
 };
 
 const PADDING: f32 = 24.0;
@@ -47,10 +48,12 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
     let no_upstream = create_memo(move || !has_upstream.get());
     let pull_blocked = create_memo(move || blocked.get() || no_upstream.get());
 
+    let adopt = NodeRef::new();
     let choose = move || {
         editor.pick_block(
             BlockFilter {
                 name: "Choose what to version".into(),
+                anchor: node_anchor(&adopt),
                 ..BlockFilter::default()
             },
             move |picked| {
@@ -94,6 +97,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                         wrap=true
                                     />
                                     <Button
+                                        @node_ref={&adopt}
                                         label="Choose what to version"
                                         variant=ButtonVariant::Primary
                                         disabled={blocked}

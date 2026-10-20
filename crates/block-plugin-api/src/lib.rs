@@ -1042,6 +1042,7 @@ pub enum EditorMessage {
         pick: u64,
         filter: BlockFilter,
         parent: BlockLocation,
+        within: Option<[u8; 16]>,
     },
     PickAnswered {
         instance: EditorInstanceId,
@@ -1598,7 +1599,7 @@ pub struct Revision {
     pub current: bool,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub enum HostRequest {
     ListRevisions([u8; 16]),
     PreviewRevision {
@@ -1653,13 +1654,14 @@ pub enum BlockImport {
     Failed(String),
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct BlockFilter {
     pub name: String,
     pub block_types: Vec<[u8; 16]>,
     pub excluded: Vec<[u8; 16]>,
     pub templates: bool,
     pub place: Option<BlockLocation>,
+    pub anchor: Option<ChildRect>,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

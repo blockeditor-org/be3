@@ -8,7 +8,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 use block_editor_beui::beui::{Color32, CursorIcon, Key, KeyPress, NodeId, Vec2};
-use block_editor_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor};
+use block_editor_beui::{ChildBlock, ChildBlockHandle, ChildMode, ChildState, Editor, node_anchor};
 use uuid::Uuid;
 
 use super::slides::Slides;
@@ -174,9 +174,10 @@ fn Toolbar(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
             None => "No slides".to_owned(),
         }
     });
+    let add_button = NodeRef::new();
     let add = move || {
         let index = slides.count();
-        slides.add(index);
+        slides.add(index, node_anchor(&add_button));
     };
     let present = move || editor.present(true);
     view! {
@@ -189,6 +190,7 @@ fn Toolbar(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
                 />
                 <Button
                     @sizing=ItemSize::Percent(100.0)
+                    @node_ref={&add_button}
                     label="Add slide"
                     variant=ButtonVariant::Primary
                     disabled={read_only}

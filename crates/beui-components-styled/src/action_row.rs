@@ -1,6 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
+use crate::context_menu::{MenuTreeLead, SHEET_TREE_CHEVRON, SHEET_TREE_INDENT};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
@@ -54,12 +55,16 @@ pub(crate) fn ActionRowFace(
     active: ReadSignal<bool>,
     focused: ReadSignal<bool>,
     label: Prop<String>,
+    #[prop(default = String::new())] lead: Prop<String>,
     glyph: Prop<String>,
     detail: Prop<String>,
     disabled: Prop<bool>,
     danger: Prop<bool>,
     #[prop(default = false)] submenu: Prop<bool>,
     #[prop(default = None)] checked: Prop<Option<bool>>,
+    #[prop(default = None)] depth: Prop<Option<usize>>,
+    #[prop(default = None)] expanded: Prop<Option<bool>>,
+    toggle: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
     let ticked = create_memo(move || checked.get() == Some(true));
@@ -82,6 +87,8 @@ pub(crate) fn ActionRowFace(
     });
     let glyph = create_memo(move || glyph.get());
     let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let lead = create_memo(move || lead.get());
+    let has_lead = create_memo(move || !lead.get().is_empty());
     let detail = create_memo(move || detail.get());
     let chevron_color = TextColor::Muted;
     let has_detail = create_memo(move || !detail.get().is_empty());
@@ -94,6 +101,16 @@ pub(crate) fn ActionRowFace(
             padding={Sides::horizontal(PADDING_HORIZONTAL)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                <MenuTreeLead
+                    depth
+                    expanded
+                    toggle
+                    indent=SHEET_TREE_INDENT
+                    chevron=SHEET_TREE_CHEVRON
+                />
+                <Show condition={has_lead}>
+                    <Text string={lead} size=TextSize::Sm color=TextColor::Muted />
+                </Show>
                 <Show condition={has_glyph}>
                     <Text color={icon_color} align=TextAlign::Center>
                         <Icon glyph={glyph} />

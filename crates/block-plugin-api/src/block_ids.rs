@@ -139,12 +139,20 @@ impl EditorMessage {
                     | BlockCommand::AppMenu => {}
                 }
             }
-            Self::PickRequested { filter, parent, .. } => {
+            Self::PickRequested {
+                filter,
+                parent,
+                within,
+                ..
+            } => {
                 filter.excluded.iter_mut().for_each(&mut existing);
                 if let Some(place) = &mut filter.place {
                     location(place, &mut existing);
                 }
                 location(parent, &mut existing);
+                if let Some(within) = within {
+                    existing(within);
+                }
             }
             Self::CommitChild { parent, .. } => location(parent, &mut existing),
             Self::PickAnswered { answer, .. } => match answer {

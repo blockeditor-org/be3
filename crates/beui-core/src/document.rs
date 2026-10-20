@@ -1235,7 +1235,14 @@ impl Document {
         if self.handles_back() {
             ctx.handle_back();
         }
-        if self.layers().takes_keyboard() {
+        let layers = self.layers();
+        let focused_modal = self
+            .focused
+            .and_then(|focused| self.layer_of(&layers, focused))
+            .is_some_and(|layer| {
+                layer > 0 && layers[layer].policy != crate::layer::LayerPolicy::Pass
+            });
+        if layers.takes_keyboard() || focused_modal {
             ctx.want_keyboard();
         }
         self.intercepted_keys

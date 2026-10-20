@@ -3,8 +3,8 @@ load(":workspace.bxl", "rust_targets")
 
 # Everything ./scripts/verify and ./scripts/ci build, in one buck2 command: the
 # generated rules and Cargo.lock, the sysroot's lockfile, the autofixes
-# (fix.sh) and every test, plugin test, and on request the Android builds and
-# the paint preview renderer; and local-tools verify, for the machine that asked
+# (fix.sh) and every test, plugin test, and on request the Android builds,
+# the paint preview renderer and crates/bootstrap's release; and local-tools verify, for the machine that asked
 # (--host, a platform in buck/platforms), which reads the rest afterwards. It
 # prints what that reads, "kind<TAB>path" a line; with --keep-going it prints
 # them all even when some fail to build, and local-tools verify reads what was
@@ -126,6 +126,8 @@ def _impl(ctx: bxl.Context):
         printed.append(("apk-metadata", actions.copy_file("android-build-info.json", _output(ctx, "root//buck/app:build-info.json"))))
         printed.append(("block-app.apk", _output(ctx, "root//crates/block-app:android-dist")))
         printed.append(("be-launcher.apk", _output(ctx, "root//crates/be-launcher:android-dist")))
+    if args.bootstrap:
+        printed.append(("bootstrap", _output(ctx, "root//crates/bootstrap:dist")))
     paths = ctx.output.ensure_multiple([artifact for _, artifact in printed])
     ctx.output.ensure_multiple(built)
     for (kind, _), path in zip(printed, paths):
@@ -134,6 +136,7 @@ def _impl(ctx: bxl.Context):
 main = bxl_main(
     cli_args = {
         "android": cli_args.bool(False),
+        "bootstrap": cli_args.bool(False),
         "host": cli_args.string("linux_x86_64"),
         "lint": cli_args.bool(False),
         "plugin_tests": cli_args.bool(False),

@@ -8,7 +8,7 @@ fn a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside() {
     add_to_my_files(&mut app, "Canvas");
     let (x, y, width, height) = app.place("Pane \"Canvas\"");
     let full = format!("Pane \"Canvas\" at {x},{y} size {width}x{height}");
-    add_to_canvas(&mut app, CANVAS_TILE);
+    add_to_canvas(&mut app, "Canvas");
     let card = app.place(SHAPE);
     app.crop("#workspace.block");
 

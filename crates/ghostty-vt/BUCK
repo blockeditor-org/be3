@@ -56,7 +56,7 @@ genrule(
     out = "libghostty-vt.a",
     srcs = {
         "scripts/internal/build-ghostty-vt.sh": "//scripts/internal:build-ghostty-vt.sh",
-        "scripts/internal/common.sh": "//scripts/internal:common.sh",
+        "scripts/internal/download.sh": "//scripts/internal:download.sh",
         "scripts/internal/ghostty-vt.patch": "//scripts/internal:ghostty-vt.patch",
     },
 )

@@ -28,8 +28,8 @@ pub use block_plugin_api::{
     ANY_BLOCK_TYPE, AccessGrant, AccessLevel, AccessListing, Administrator, ArtifactAction,
     AudioOutput, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockImport, BlockLocation,
     BlockPick, BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
-    ChildOperations, ChildPlacement, ChildStatus, ConflictSide, ContactLinkResult, Contacts,
-    CreationProgress, CursorIcon, DataListing, DescribedAction, Description, Displays,
+    ChildOperations, ChildPlacement, ChildRect, ChildStatus, ConflictSide, ContactLinkResult,
+    Contacts, CreationProgress, CursorIcon, DataListing, DescribedAction, Description, Displays,
     EditorCapabilities, EditorDescriptor, EditorInstanceId, EditorRegion, Epaper, EpaperRequest,
     FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostContact, HostDisplay,
     HostDisplayMode, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
@@ -56,6 +56,7 @@ pub use host::{
     ContentUpdate, EditorHost, FileDrop, FileFilter, FileSaver, FocusedBlock, HostContent,
     OpenRequest, PeerPresence, PerformanceMeasurementGuard, PerformanceReporter, PickRequest,
     PickedBlock, PickedFile, Pushed, SavedFile, SeededContent, ShowRequest, ShownPresence, Waker,
+    child_rect,
 };
 pub use plugin::{Claim, Frame, Ime, Instance, Plugin, Region, RegionMonitor, WindowRequests};
 #[cfg(target_arch = "wasm32")]

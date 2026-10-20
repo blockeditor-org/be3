@@ -33,6 +33,7 @@ use crate::menu_popup::MenuStyle;
 use crate::rubber_band::{Band, WINDOW_SPRING};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::base::{Direction, ItemSize};
+use beui_core::color::Color32;
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use beui_core::image::Image;
@@ -42,8 +43,8 @@ use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-pub use dialog::DockDialogHandle;
 use dialog::{DialogParts, DockDialogs};
+pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
 pub use docking::{
     DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow,
     Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
@@ -99,6 +100,7 @@ pub struct DockTabHandle {
     pub focused: ReadSignal<bool>,
     pub dragged: Memo<bool>,
     pub closable: Memo<bool>,
+    pub waiting: Memo<bool>,
     pub close: ClickCallback,
 }
 
@@ -415,6 +417,8 @@ struct State {
     dialogs: Memo<Vec<(TabId, TabId)>>,
     dialog: Func<TabId, Option<DialogParts>>,
     dialog_chrome: RenderFn<DockDialogHandle>,
+    dialog_sheet: Option<RenderFn<DockSheetHandle>>,
+    dialog_scrim: Color32,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_bodies: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_focus: Signal<Option<TabId>>,
@@ -1195,6 +1199,8 @@ pub(crate) struct DockConfig {
     pub(crate) dialogs: Memo<Vec<(TabId, TabId)>>,
     pub(crate) dialog: Func<TabId, Option<DialogParts>>,
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
+    pub(crate) dialog_sheet: Option<RenderFn<DockSheetHandle>>,
+    pub(crate) dialog_scrim: Color32,
 }
 
 #[component]
@@ -1231,6 +1237,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialogs,
         dialog,
         dialog_chrome,
+        dialog_sheet,
+        dialog_scrim,
     } = config;
     view! {
         <PlacementBuilder>|dock_rect: ReadSignal<Rect>| {
@@ -1271,6 +1279,8 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 dialog,
                 dialog_chrome: dialog_chrome
                     .unwrap_or_else(|| RenderFn::new(|handle: DockDialogHandle| handle.body)),
+                dialog_sheet,
+                dialog_scrim,
                 dialog_frames: store(RefCell::default()),
                 dialog_bodies: store(RefCell::default()),
                 dialog_focus,
@@ -2184,6 +2194,7 @@ fn DockTabView(
     let closable = create_memo(move || {
         !pinned && tabs.with(|tabs| tabs.iter().all(|tab| dock.closable.call(*tab)))
     });
+    let waiting = create_memo(move || tabs.with(|tabs| dock.waiting(tabs)));
     let face = dock.tab.call(DockTabHandle {
         entry,
         leaf,
@@ -2202,6 +2213,7 @@ fn DockTabView(
         focused,
         dragged,
         closable,
+        waiting,
         close,
     });
     let menu = dock.menu;

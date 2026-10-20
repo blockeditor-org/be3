@@ -2,9 +2,11 @@ use super::*;
 use beui::KeyAt;
 use beui::TextAlign;
 use beui::icons::{
-    ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_FOLDER, ICON_INFO, ICON_SAVE, ICON_SCHEDULE,
-    ICON_WARNING,
+    ICON_ADD, ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_CLOSE, ICON_FOLDER, ICON_FORMAT_QUOTE,
+    ICON_IMAGE, ICON_INFO, ICON_SAVE, ICON_SCHEDULE, ICON_SUBJECT, ICON_TABLE_CHART,
+    ICON_UPLOAD_FILE, ICON_WARNING,
 };
+use beui::unstyled::MenuThen;
 
 const COLUMN_SPACING: f32 = 20.0;
 const COLUMNS_BREAKPOINT: f32 = 460.0;
@@ -149,7 +151,7 @@ pub(crate) fn DockingPage() -> NodeId {
             </Sample>
             <Sample
                 title="Dialogs attached to a tab"
-                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE]}
+                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE, AttachedSheet::SOURCE]}
             >
                 <AttachedDialogs />
             </Sample>
@@ -164,7 +166,7 @@ fn AttachedDialogs() -> NodeId {
     let tab = use_dock_tab().map(|control| control.tab());
     view! {
         <List spacing=SECTION_SPACING>
-            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+            <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
                 <Button
                     @test_id="demo.dialog.open"
                     label="Open a dialog"
@@ -185,6 +187,16 @@ fn AttachedDialogs() -> NodeId {
                         }
                     }}
                 />
+                <Button
+                    @test_id="demo.dialog.sheet"
+                    label="Open a sheet"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
+                            dialogs.open_sheet(tab);
+                        }
+                    }}
+                />
             </List>
             <Text
                 style=TextStyle::CAPTION
@@ -192,6 +204,14 @@ fn AttachedDialogs() -> NodeId {
                  that tab, hides when another tab is shown in its place and comes back with it, \
                  and is never a tab of its own. A modal one takes every press and key meant \
                  for its tab until it closes, and the focus goes back to the tab when it does."
+                wrap=true
+            />
+            <Text
+                style=TextStyle::CAPTION
+                string="A sheet drops from under the tab bar, dims the tab and waits for a \
+                 choice, with a dot on the tab meanwhile. Other tabs and panes stay usable, and \
+                 the sheet keeps what was done in it while another tab is shown. On a phone it \
+                 is a sheet from the bottom of the screen."
                 wrap=true
             />
         </List>
@@ -237,6 +257,62 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
                 </List>
             </List>
         </Frame>
+    }
+}
+
+#[sample]
+#[component]
+pub(crate) fn AttachedSheet() -> NodeId {
+    let dialogs = use_context::<DemoDialogs>();
+    let tab = use_dock_tab().map(|control| control.tab());
+    let id = tab.map_or(0, TabId::value);
+    let presses = create_signal(0_u32);
+    let label = create_memo(move || match presses.get() {
+        0 => "Press me".to_owned(),
+        count => format!("Pressed {count} times"),
+    });
+    let close = move || {
+        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
+            dialogs.close(tab);
+        }
+    };
+    view! {
+        <List spacing=0.0>
+            <Frame padding=PAGE_PADDING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                    <Text
+                        style=TextStyle::HEADING
+                        string="Choose something"
+                        @sizing=ItemSize::Percent(100.0)
+                    />
+                    <IconButton
+                        @test_id={format!("demo.sheet.{id}.close")}
+                        glyph=ICON_CLOSE
+                        label="Close"
+                        variant=ButtonVariant::Ghost
+                        on_click={close}
+                    />
+                </List>
+            </Frame>
+            <Separator />
+            <Scroll @sizing=ItemSize::Percent(100.0)>
+                <Frame padding=PAGE_PADDING>
+                    <List spacing=SECTION_SPACING>
+                        <Text
+                            string="Only the tab under this sheet waits for it. Show another tab \
+                             and come back: the count below is kept."
+                            wrap=true
+                        />
+                        <Button
+                            @test_id={format!("demo.sheet.{id}.count")}
+                            label={label}
+                            variant=ButtonVariant::Secondary
+                            on_click={move || presses.update(|presses| *presses += 1)}
+                        />
+                    </List>
+                </Frame>
+            </Scroll>
+        </List>
     }
 }
 
@@ -1343,6 +1419,18 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Menu buttons" code={vec![SortMenus::SOURCE]}>
                 <SortMenus />
             </Sample>
+            <Sample
+                title="Menu pages and trees"
+                code={vec![NewBlockMenu::SOURCE, FolderRow::SOURCE, folder_shown::SOURCE]}
+            >
+                <NewBlockMenu />
+            </Sample>
+            <Sample title="Menu captions and grids" code={vec![NewSlideMenu::SOURCE]}>
+                <NewSlideMenu />
+            </Sample>
+            <Sample title="Menu opened by a model" code={vec![HeldMenu::SOURCE]}>
+                <HeldMenu />
+            </Sample>
             <Sample title="Picture menu buttons" code={vec![TrayIcons::SOURCE, badge::SOURCE]}>
                 <TrayIcons />
             </Sample>
@@ -1575,6 +1663,264 @@ fn SortMenus() -> NodeId {
                 />
             </List>
             <Text style=TextStyle::CAPTION string={sort_text} />
+        </List>
+    }
+}
+
+const FOLDERS: [(&str, usize, Option<usize>); 10] = [
+    ("Home", 0, None),
+    ("Work", 1, Some(0)),
+    ("Projects", 2, Some(1)),
+    ("Alpha", 3, Some(2)),
+    ("Beta", 3, Some(2)),
+    ("Notes", 2, Some(1)),
+    ("Personal", 1, Some(0)),
+    ("Recipes", 2, Some(6)),
+    ("Travel", 2, Some(6)),
+    ("Archive", 1, Some(0)),
+];
+const MORE_BLOCKS: [&str; 24] = [
+    "Checklist",
+    "Calendar",
+    "Chat",
+    "Code",
+    "Contacts",
+    "Diagram",
+    "Drawing",
+    "Email",
+    "Feed",
+    "Form",
+    "Gallery",
+    "Kanban board",
+    "Map",
+    "Music",
+    "Outline",
+    "Presentation",
+    "Recipe",
+    "Spreadsheet",
+    "Terminal",
+    "Timeline",
+    "Timer",
+    "Video",
+    "Web page",
+    "Whiteboard",
+];
+const SLIDE_LAYOUTS: [(&str, &str); 6] = [
+    ("Title", ICON_TITLE),
+    ("Title and body", ICON_SUBJECT),
+    ("Two columns", ICON_VIEW_COLUMN),
+    ("Picture", ICON_IMAGE),
+    ("Quote", ICON_FORMAT_QUOTE),
+    ("Blank", ICON_CROP_SQUARE),
+];
+
+#[sample]
+fn folder_shown(folder: usize, expanded: &[usize]) -> bool {
+    let mut parent = FOLDERS[folder].2;
+    while let Some(above) = parent {
+        if !expanded.contains(&above) {
+            return false;
+        }
+        parent = FOLDERS[above].2;
+    }
+    true
+}
+
+#[sample]
+#[component]
+fn FolderRow(
+    folder: usize,
+    location: Signal<usize>,
+    expanded: Signal<Vec<usize>>,
+) -> unstyled::MenuItem {
+    let (name, depth, _) = FOLDERS[folder];
+    let branch = FOLDERS.iter().any(|(_, _, parent)| *parent == Some(folder));
+    let open = create_memo(move || branch.then(|| expanded.get().contains(&folder)));
+    let checked = create_memo(move || Some(location.get() == folder));
+    view! {
+        <unstyled::MenuItem
+            label=name
+            glyph=ICON_FOLDER
+            depth={Some(depth)}
+            expanded={open}
+            checked
+            then=MenuThen::Back
+            row_test_id={format!("demo.new.folder.{folder}")}
+            on_click={move || location.set(folder)}
+            on_expand={move |open: bool| {
+                expanded.update(|expanded| match open {
+                    true => expanded.push(folder),
+                    false => expanded.retain(|other| *other != folder),
+                })
+            }}
+        />
+    }
+}
+
+#[sample]
+#[component]
+fn NewBlockMenu() -> NodeId {
+    let location = create_signal(1_usize);
+    let expanded = create_signal(vec![0_usize, 1]);
+    let added = create_signal("Nothing added yet".to_owned());
+    let shown = create_memo(move || {
+        let open = expanded.get();
+        (0..FOLDERS.len())
+            .filter(|folder| folder_shown(*folder, &open))
+            .collect::<Vec<_>>()
+    });
+    let place = create_memo(move || FOLDERS[location.get()].0.to_owned());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <MenuButton
+                    @test_id="demo.new"
+                    label="Add block"
+                    glyph=ICON_ADD
+                    items={view! {
+                        <unstyled::MenuItem
+                            lead="New in"
+                            label={place}
+                            glyph=ICON_FOLDER
+                            page=true
+                            row_test_id="demo.new.location"
+                        >
+                            <ForEach keys={shown}>|folder: usize|
+                                <FolderRow folder location expanded />
+                            </ForEach>
+                        </unstyled::MenuItem>
+                        <unstyled::MenuItem label="Text" glyph=ICON_NOTES separated=true />
+                        <unstyled::MenuItem label="Canvas" glyph=ICON_DRAW />
+                        <unstyled::MenuItem label="Folder" glyph=ICON_FOLDER />
+                        <unstyled::MenuItem label="Database" glyph=ICON_TABLE_CHART />
+                        <unstyled::MenuItem
+                            label="More blocks…"
+                            glyph=ICON_WIDGETS
+                            separated=true
+                            page=true
+                            row_test_id="demo.new.more"
+                        >
+                            <ForEach keys={(0..MORE_BLOCKS.len()).collect::<Vec<_>>()}>|kind: usize|
+                                <unstyled::MenuItem label={MORE_BLOCKS[kind]} />
+                            </ForEach>
+                        </unstyled::MenuItem>
+                        <unstyled::MenuItem label="Link existing…" glyph=ICON_LINK />
+                        <unstyled::MenuItem label="Import a .block file…" glyph=ICON_UPLOAD_FILE />
+                    }}
+                    on_select={move |path: Vec<usize>| {
+                        let kind = match path.as_slice() {
+                            [1] => "a text",
+                            [2] => "a canvas",
+                            [3] => "a folder",
+                            [4] => "a database",
+                            [5, kind] => MORE_BLOCKS[*kind],
+                            [6] => "a link",
+                            [7] => "an import",
+                            _ => return,
+                        };
+                        added.set(format!("Added {kind} in {}", place.get()));
+                    }}
+                />
+            </List>
+            <Text
+                style=TextStyle::CAPTION
+                string="New in opens a page of folders in place of the menu: arrows walk the \
+                 tree, Right and Left open and close a folder, and choosing one comes back \
+                 with it. More blocks opens a page long enough to scroll. Left or Escape goes \
+                 back a page."
+                wrap=true
+            />
+            <Text style=TextStyle::CAPTION string={added} />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn HeldMenu() -> NodeId {
+    let open = create_signal(false);
+    let chosen = create_signal("Nothing chosen yet".to_owned());
+    let button = NodeRef::new();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    @node_ref=&button
+                    @test_id="demo.held"
+                    label="Ask for a colour"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || open.set(true)}
+                />
+            </List>
+            <MenuPopup
+                anchor=button
+                open
+                width=240.0
+                on_dismiss={move || open.set(false)}
+                on_select={move |path: Vec<usize>| {
+                    let colour = ["Red", "Green", "Blue"][path.first().copied().unwrap_or_default()];
+                    chosen.set(format!("Chose {colour}"));
+                }}
+                items={view! {
+                    <unstyled::MenuItem label="Red" lead="Paint it" />
+                    <unstyled::MenuItem label="Green" lead="Paint it" />
+                    <unstyled::MenuItem label="Blue" lead="Paint it" />
+                }}
+            />
+            <Text
+                style=TextStyle::CAPTION
+                string="The menu shows while a signal says so, at whatever node or point it is anchored to, and reports Escape or a press outside so the owner can close it. A lead is a few words before the label."
+                wrap=true
+            />
+            <Text style=TextStyle::CAPTION string={chosen} />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn NewSlideMenu() -> NodeId {
+    let added = create_signal("No slide added yet".to_owned());
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <MenuButton
+                    @test_id="demo.slide"
+                    label="New slide"
+                    glyph=ICON_ADD
+                    items={view! {
+                        <unstyled::MenuCaption label="New slide" />
+                        <unstyled::MenuGrid columns=2>
+                            <ForEach
+                                keys={(0..SLIDE_LAYOUTS.len()).collect::<Vec<_>>()}
+                            >|layout: usize|
+                                <unstyled::MenuItem
+                                    label={SLIDE_LAYOUTS[layout].0}
+                                    glyph={SLIDE_LAYOUTS[layout].1}
+                                    row_test_id={format!("demo.slide.{layout}")}
+                                />
+                            </ForEach>
+                        </unstyled::MenuGrid>
+                        <unstyled::MenuItem label="Other blocks…" separated=true />
+                        <unstyled::MenuItem label="Link existing…" glyph=ICON_LINK />
+                    }}
+                    on_select={move |path: Vec<usize>| {
+                        let what = match path.as_slice() {
+                            [1, layout] => SLIDE_LAYOUTS[*layout].0,
+                            [2] => "another block",
+                            _ => "a link",
+                        };
+                        added.set(format!("Added {what}"));
+                    }}
+                />
+            </List>
+            <Text
+                style=TextStyle::CAPTION
+                string="A caption heads a grid of layouts; arrow keys move across and down the \
+                 grid and on into the rows below it."
+                wrap=true
+            />
+            <Text style=TextStyle::CAPTION string={added} />
         </List>
     }
 }
@@ -2530,6 +2876,9 @@ fn ProjectTree() -> NodeId {
     let selected = create_signal(None::<usize>);
     let chosen = create_signal(None::<String>);
     let comfortable = create_signal(false);
+    let names = create_signal(TREE_NODES.map(|(name, _)| name.to_owned()).to_vec());
+    let editing = create_signal(None::<usize>);
+    let name = move |row: usize| names.with(|names| names[row].clone());
     provide_density(create_memo(move || match comfortable.get() {
         true => Density::Comfortable,
         false => Density::Compact,
@@ -2537,14 +2886,14 @@ fn ProjectTree() -> NodeId {
     let keys = create_memo(move || visible_tree_rows(&collapsed.get()));
     let status_text = create_memo(move || match (chosen.get(), selected.get()) {
         (Some(chosen), _) => chosen,
-        (None, Some(row)) => format!("{} selected", TREE_NODES[row].0),
+        (None, Some(row)) => format!("{} selected", name(row)),
         (None, None) => "Nothing selected".to_owned(),
     });
     view! {
         <List spacing=SECTION_SPACING>
             <Text
                 style=TextStyle::CAPTION
-                string="Arrow keys walk the tree and Enter selects; the left of a row, or an arrow key, opens and closes a folder; a row's menu opens from its button, a right click or a long press"
+                string="Arrow keys walk the tree and Enter selects; the left of a row, or an arrow key, opens and closes a folder; a row's menu opens from its button, a right click or a long press; F2 or Rename edits a name in place, Enter or clicking away keeps it and Escape puts it back"
                 wrap=true
             />
             <LabelledSwitch
@@ -2556,27 +2905,39 @@ fn ProjectTree() -> NodeId {
             <Tree
                 @sizing=ItemSize::Fixed(TREE_HEIGHT)
                 keys
-                item={move |row: usize| tree_item(row, &collapsed.get())}
+                item={move |row: usize| tree_item(row, &name(row), &collapsed.get())}
                 selected
+                editing
                 ancestors={tree_ancestors}
                 row_test_id={|row: usize| format!("demo.tree.{row}")}
                 menu={move |row: usize| Some(TreeMenu {
                     items: view! {
-                        <unstyled::MenuItem label="Rename" glyph={ICON_EDIT.to_owned()} />
+                        <unstyled::MenuItem
+                            label="Rename"
+                            glyph={ICON_EDIT.to_owned()}
+                            row_test_id={"demo.tree.rename".to_owned()}
+                        />
                         <unstyled::MenuItem
                             label="Delete"
                             glyph={ICON_DELETE.to_owned()}
                             danger=true
                         />
                     },
-                    on_select: Callback::new(move |path: Vec<usize>| {
-                        let action = match path.as_slice() {
-                            [0] => "Rename",
-                            _ => "Delete",
-                        };
-                        chosen.set(Some(format!("{action} {}", TREE_NODES[row].0)));
+                    on_select: Callback::new(move |path: Vec<usize>| match path.as_slice() {
+                        [0] => editing.set(Some(row)),
+                        _ => chosen.set(Some(format!("Delete {}", name(row)))),
                     }),
                 })}
+                on_edit={move |row: usize| editing.set(Some(row))}
+                on_rename={move |(row, renamed): (usize, String)| {
+                    chosen.set(Some(format!("Renamed {} to {renamed}", name(row))));
+                    names.update(|names| names[row] = renamed);
+                    editing.set(None);
+                }}
+                on_cancel_edit={move |row: usize| {
+                    chosen.set(Some(format!("Kept {}", name(row))));
+                    editing.set(None);
+                }}
                 on_reveal={move |row: usize| {
                     collapsed.update(|collapsed| {
                         collapsed.retain(|candidate| !tree_ancestors(row).contains(candidate));
@@ -2595,7 +2956,7 @@ fn ProjectTree() -> NodeId {
                     });
                 }}
             >|row: TreeRowFace<usize>|
-                <Text string={TREE_NODES[row.key].0} />
+                <Text string={create_memo(move || name(row.key))} />
             </Tree>
             <Text style=TextStyle::CAPTION string={status_text} />
         </List>
@@ -2603,11 +2964,10 @@ fn ProjectTree() -> NodeId {
 }
 
 #[sample]
-fn tree_item(row: usize, collapsed: &[usize]) -> TreeItem {
-    let (label, depth) = TREE_NODES[row];
+fn tree_item(row: usize, name: &str, collapsed: &[usize]) -> TreeItem {
     TreeItem {
-        label: label.to_owned(),
-        depth,
+        label: name.to_owned(),
+        depth: TREE_NODES[row].1,
         expandable: has_children(row),
         expanded: !collapsed.contains(&row),
     }

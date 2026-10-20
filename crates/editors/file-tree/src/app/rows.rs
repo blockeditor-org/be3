@@ -2,12 +2,13 @@ use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
 
-use block_editor_beui::be_block::{
-    BlockContent, MY_FILES, SettingsContent, SettingsProfileContent, ViewState, WorkspaceContent,
-};
+use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::icons::{ICON_DATABASE, ICON_HISTORY, ICON_PEOPLE, ICON_WORKSPACES};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::block_ui::BlockTypes;
+pub(crate) use block_editor_beui::sections::{
+    is_workspace, own_system, shared_with_me, workspaces,
+};
 use block_editor_beui::{AccessLevel, BlockInfo, BlockList, BlockParent, BlockQuery, Blocks};
 use block_editor_beui::{Editor, label_glyph};
 use serde::{Deserialize, Serialize};
@@ -128,71 +129,6 @@ struct Watched {
     block_types: HashMap<Uuid, Uuid>,
     workspaces: HashSet<Uuid>,
     system: HashSet<Uuid>,
-}
-
-pub(crate) fn is_workspace(block_type: Uuid) -> bool {
-    block_type == WorkspaceContent::CONTENT_TYPE
-}
-
-const SYSTEM_TYPES: [Uuid; 2] = [
-    SettingsContent::CONTENT_TYPE,
-    SettingsProfileContent::CONTENT_TYPE,
-];
-
-fn is_system(block_type: Uuid) -> bool {
-    SYSTEM_TYPES.contains(&block_type)
-}
-
-pub(crate) fn is_my_files(block: &BlockInfo, account: Uuid) -> bool {
-    is_workspace(block.block_type)
-        && block.author == Some(account)
-        && block.metadata.get(&MY_FILES) == Some(true)
-}
-
-pub(crate) fn workspaces(
-    roots: Vec<BlockInfo>,
-    account: Uuid,
-    types: &dyn BlockTypes,
-) -> Vec<BlockInfo> {
-    let mut found: Vec<(bool, String, BlockInfo)> = roots
-        .into_iter()
-        .filter(|block| is_workspace(block.block_type))
-        .filter(|block| {
-            block.metadata.get(&MY_FILES) != Some(true) || block.author == Some(account)
-        })
-        .map(|block| {
-            let name = block.label(types).name.to_lowercase();
-            (!is_my_files(&block, account), name, block)
-        })
-        .collect();
-    found.sort_by(|left, right| (left.0, &left.1, left.2.id).cmp(&(right.0, &right.1, right.2.id)));
-    found.into_iter().map(|(_, _, block)| block).collect()
-}
-
-pub(crate) fn shared_with_me(roots: Vec<BlockInfo>, shared: Vec<BlockInfo>) -> Vec<BlockInfo> {
-    shared
-        .into_iter()
-        .chain(
-            roots
-                .into_iter()
-                .filter(|block| !is_workspace(block.block_type)),
-        )
-        .filter(|block| !is_system(block.block_type))
-        .collect()
-}
-
-pub(crate) fn own_system(roots: Vec<BlockInfo>, account: Uuid) -> Vec<BlockInfo> {
-    let mut found: Vec<BlockInfo> = roots
-        .into_iter()
-        .filter(|block| is_system(block.block_type) && block.author == Some(account))
-        .collect();
-    found.sort_by_key(|block| {
-        let kind = SYSTEM_TYPES
-            .iter()
-            .position(|kind| *kind == block.block_type);
-        (kind, block.id)
-    });
-    found
 }
 
 #[derive(Clone, Copy)]

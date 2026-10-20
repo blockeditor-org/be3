@@ -21,10 +21,13 @@ The servers share nothing: each has its own cache and its own key.
 name as `be3.build_server`; `worker_properties` (`buck/tools/defs.bzl`) reads
 that to pick the workers' image, since Namespace runs only its own copy of it.
 
-Namespace's waker is behind the API gateway, so `namespace` takes the
-gateway's `Be3-Gateway-Authorization` header from `BE3_AUTHORIZATION`, as
-`./scripts/be` does (guides/tracker.md); CI sets it, and in an agent's cloud
-session the proxy adds the header itself. A server other than `namespace` and
+Namespace's waker is behind the API gateway, so `namespace` sends the
+gateway's `Be3-Gateway-Authorization` header, as `./scripts/be` does
+(guides/tracker.md): `BE3_AUTHORIZATION`, or else `.gateway-authorization` at
+the root of the checkout or `~/.config/be3/gateway-authorization`. When the
+gateway refuses the request at a terminal, `./scripts/buck` asks for the key
+until it is accepted and saves it to the last. CI sets the variable, and in an
+agent's cloud session the proxy adds the header itself. A server other than `namespace` and
 `local` takes its key from:
 
 1. `BE3_BUILD_SERVER_KEY` in the environment
@@ -68,8 +71,8 @@ that holds the action cache and the CAS (`storageh-…`).
 
 Namespace shuts the cluster down when it has been idle for a while, and its
 hosts then answer 404. So no host is checked in: `./scripts/buck` asks
-`https://api.be3.pfg.pw/build/namespace` (`namespace_url` in
-`scripts/internal/common.sh`) through the API gateway, and gets back
+`https://api.be3.pfg.pw/build/namespace` (`NAMESPACE_URL` in
+`crates/bootstrap/src/server.rs`) through the API gateway, and gets back
 the buck2 configuration that names the executor, the storage and the
 `x-nsc-ingress-auth` header that authenticates to them. It keeps that answer in
 `target/namespace/`, writes it into `.buckconfig.local`, and asks again when
@@ -102,7 +105,8 @@ namespace-waker --token ns-token.json --nsc ./nsc --addr 127.0.0.1:9091
 ```
 
 `./scripts/buck build //crates/namespace-waker:bin` builds it, and
-`scripts/internal/install-nsc.sh linux_amd64` downloads the pinned `nsc` and
+`sh scripts/internal/bootstrap.sh install-nsc linux_amd64` downloads the
+`nsc` pinned in `scripts/internal/pins` and
 prints its path; the host also needs `curl`. The waker runs `nsc` with `NS_DO_NOT_UPDATE=1`, so `nsc`
 changes only when that pin does. Changing the pin can change what a setup asks
 for, which starts a new cluster: destroy the old one afterwards.

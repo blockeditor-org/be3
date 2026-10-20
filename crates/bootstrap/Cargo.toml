@@ -1,0 +1,14 @@
+[package]
+name = "bootstrap"
+description = "What every script in scripts/ runs: buck2 and its build server, and the commands around it"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+prompt = { path = "../prompt" }
+sha2 = "0.10"
+zstd = { version = "0.13", default-features = false }
+
+[lints]
+workspace = true

@@ -373,6 +373,11 @@ impl Document {
         }
     }
 
+    pub fn focus_pending_within(&self, root: NodeId) -> bool {
+        self.focus_into
+            .is_some_and(|(into, _)| self.contains(into) && self.is_within(into, root))
+    }
+
     fn settle_focus_into(&mut self) {
         let Some((root, pass)) = self.focus_into else {
             return;
