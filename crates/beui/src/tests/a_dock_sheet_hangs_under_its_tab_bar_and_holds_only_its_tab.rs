@@ -151,6 +151,13 @@ fn a_dock_sheet_hangs_under_its_tab_bar_and_holds_only_its_tab() {
         "the sheet takes the focus"
     );
 
+    harness.click(harness.center(field));
+    harness.frame(Vec::new());
+    assert!(
+        attended.with_untracked(Vec::is_empty),
+        "a press inside the sheet calls no attention"
+    );
+
     let below = pos2(panel.center().x, panel.bottom() - 12.0);
     harness.click(below);
     harness.frame(Vec::new());

@@ -180,7 +180,7 @@ impl super::State {
             return;
         };
         with_document(|document| {
-            if document.focus_is_within(frame) {
+            if document.focus_is_within(frame) || document.focus_pending_within(frame) {
                 return;
             }
             if let Some(first) = document.focusables_within(frame).first().copied() {
@@ -434,7 +434,17 @@ fn DialogLayer(
         true => view! {
             <Interactive
                 @test_id={format!("dock.dialog.{}.backdrop", tab.value())}
-                on_press={on_backdrop}
+                on_press={move |press: PointerPress| {
+                    let inside = with_document(|document| {
+                        frame
+                            .try_get()
+                            .and_then(|frame| document.node_rect(frame))
+                            .is_some_and(|rect| rect.contains(press.pos))
+                    });
+                    if !inside {
+                        on_backdrop.call(press);
+                    }
+                }}
             >
                 <Frame
                     width={Extent::fraction(1.0)}

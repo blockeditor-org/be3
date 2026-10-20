@@ -58,6 +58,7 @@ enum Finish {
 #[derive(Clone, Copy)]
 pub struct TreeRowTarget {
     select: ClickCallback,
+    open: ClickCallback,
     drag_start: ClickCallback,
     hover: Callback<bool>,
     hovered: Signal<bool>,
@@ -79,6 +80,7 @@ struct State<K> {
     buried: Memo<Option<K>>,
     focus: Signal<Option<K>>,
     on_select: Callback<K>,
+    on_open: Callback<K>,
     on_expand: Callback<(K, bool)>,
     on_edit: Callback<K>,
     on_rename: Callback<(K, String)>,
@@ -105,6 +107,7 @@ pub fn Tree<K>(
     #[prop(default = 0.0)] spacing: f32,
     #[prop(default = None)] editing: Prop<Option<K>>,
     on_select: Callback<K>,
+    on_open: Callback<K>,
     on_expand: Callback<(K, bool)>,
     on_hover_change: Callback<(K, bool)>,
     on_drag_start: Callback<K>,
@@ -160,6 +163,7 @@ where
         buried,
         focus,
         on_select,
+        on_open,
         on_expand,
         on_edit,
         on_rename,
@@ -239,8 +243,9 @@ where
         row_key.clone(),
     );
     let (nodes_key, cleanup_key) = (row_key.clone(), row_key.clone());
-    let (select_key, toggle_key) = (row_key.clone(), row_key.clone());
+    let (select_key, toggle_key, open_key) = (row_key.clone(), row_key.clone(), row_key.clone());
     let chosen = ClickCallback::new(move || select(state, &select_key));
+    let opened = ClickCallback::new(move || state.on_open.call(open_key.clone()));
     let expand = ClickCallback::new(move || toggle(state, &toggle_key));
     let hover_key = row_key.clone();
     let hover = Callback::new(move |over: bool| {
@@ -252,6 +257,7 @@ where
     let active = create_signal(false);
     let target = TreeRowTarget {
         select: chosen,
+        open: opened,
         drag_start,
         hover,
         hovered,
@@ -351,6 +357,7 @@ pub fn TreeToggle(
 pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
     let TreeRowTarget {
         select,
+        open,
         drag_start,
         hover,
         hovered,
@@ -359,6 +366,9 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
     let gesture: Stored<Cell<Option<(Pos2, bool)>>> = store(Cell::default());
     let pressed = move |press: PointerPress| {
         gesture.with(|gesture| gesture.set(Some((press.pos, false))));
+        if press.clicks >= 2 {
+            open.call();
+        }
     };
     let dragged = move |at: PointerPress| {
         let Some((origin, started)) = gesture.with(Cell::get) else {
@@ -652,6 +662,13 @@ where
             Some(parent) => parent,
             None => return true,
         },
+        Key::Enter if !state.on_open.is_empty() => {
+            if press.pressed {
+                select(state, key);
+                state.on_open.call(key.clone());
+            }
+            return true;
+        }
         Key::F2 if !state.on_edit.is_empty() => {
             if press.pressed {
                 state.on_edit.call(key.clone());

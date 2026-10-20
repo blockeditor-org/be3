@@ -107,7 +107,7 @@ pub use menu::{
     menu_list_row_submenu_content, menu_list_tile_button,
 };
 pub use menu_button::{MenuButton, MenuButtonHandle};
-pub use menu_popup::{MenuSheetHandle, MenuStyle};
+pub use menu_popup::{MenuPopup, MenuSheetHandle, MenuStyle};
 pub use number_input::{
     NumberDrag, NumberFaceHandle, NumberFieldHandle, NumberInput, number_input_face,
     number_input_field,

@@ -96,10 +96,11 @@ impl MenuStyle {
 }
 
 #[component]
-pub(crate) fn MenuPopup(
+pub fn MenuPopup(
     items: Run<MenuItem>,
     menu: MenuStyle,
     anchor: Prop<OverlayAnchor>,
+    #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
     open: Memo<bool>,
     touched: Memo<bool>,
     #[prop(default = true)] focusing: Prop<bool>,
@@ -132,7 +133,7 @@ pub(crate) fn MenuPopup(
             <Overlay
                 @node_ref=&overlay
                 anchor
-                placement=Placement::BelowStart
+                placement
                 traps_focus={focusing}
                 open={dropped}
                 on_dismiss={move |_: Dismiss| on_dismiss.call()}

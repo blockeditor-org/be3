@@ -687,8 +687,14 @@ the rows above and below. A page of rows with a `depth` is a tree: `expanded`
 (`None` for a leaf) draws the chevron, Right and Left and the chevron report
 `on_expand`, and the caller shows the rows of open branches (a `ForEach` over
 them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check, and
-a page opens with the keyboard on that row. The dropdown is never taller than a fixed height
-and scrolls the row the keyboard is on into view. `MenuButton` is the button that
+a page opens with the keyboard on that row. `lead` is a few muted words before
+an item's icon on the same line, read with its label (`New in` before a folder's
+name). The dropdown is never taller than a fixed height
+and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu
+opened by something other than a button, such as a model holding a request: it
+shows while `open` holds, under `anchor` at `placement`, as the sheet while
+`sheet` holds, `width` wide, and reports `on_dismiss` for Escape or a press
+outside. `MenuButton` is the button that
 opens a menu under itself, which is what a toolbar reaches for where `Select`
 would imply the choice sticks (`IconMenuButton` is the same with an icon
 button's face); `ContextMenu` is the same menu on a secondary press, and it
@@ -1383,7 +1389,9 @@ chevron, the indent beside it and the name to mean three different things. The
 handle carries `select`, `toggle` and `hover` for the face to call from
 wherever it decides they belong. The arrow keys, Home, End and typing move the
 keyboard between rows without selecting them, and Enter or Space selects the
-row it is on. `toggle` puts the keyboard on its row too.
+row it is on. `toggle` puts the keyboard on its row too. Given `on_open`, Enter
+and a second click select the row and report `on_open` too, for a tree whose
+rows are chosen as well as selected (the block to link).
 
 `styled::Tree` is the face that split was made for, and the one app code
 reaches for. Everything left of a row's highlight - the indent and the chevron

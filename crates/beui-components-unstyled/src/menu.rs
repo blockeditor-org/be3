@@ -37,6 +37,7 @@ pub enum MenuThen {
 pub struct MenuRowHandle {
     pub kind: MenuRowKind,
     pub label: Prop<String>,
+    pub lead: Prop<String>,
     pub glyph: Prop<String>,
     pub detail: Prop<String>,
     pub checked: Prop<Option<bool>>,
@@ -62,6 +63,7 @@ enum Kind {
 pub struct MenuItem {
     kind: Kind,
     pub(crate) label: Memo<String>,
+    lead: Memo<String>,
     pub(crate) glyph: Memo<String>,
     detail: Memo<String>,
     checked: Memo<Option<bool>>,
@@ -90,6 +92,17 @@ impl MenuItem {
         self.is_row() && !self.children.get_untracked().is_empty()
     }
 
+    fn spoken(&self) -> Memo<String> {
+        let (lead, label) = (self.lead, self.label);
+        create_memo(move || {
+            let lead = lead.get();
+            match lead.is_empty() {
+                true => label.get(),
+                false => format!("{lead} {}", label.get()),
+            }
+        })
+    }
+
     fn toggle(&self) {
         if let Some(expanded) = self.expanded.get_untracked() {
             self.on_expand.call(!expanded);
@@ -100,6 +113,7 @@ impl MenuItem {
 #[component]
 pub fn MenuItem(
     #[prop(default = String::new())] label: Prop<String>,
+    #[prop(default = String::new())] lead: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = String::new())] detail: Prop<String>,
     #[prop(default = None)] checked: Prop<Option<bool>>,
@@ -122,6 +136,7 @@ pub fn MenuItem(
     MenuItem {
         kind: Kind::Row,
         label: create_memo(move || label.get()),
+        lead: create_memo(move || lead.get()),
         glyph: create_memo(move || glyph.get()),
         detail: create_memo(move || detail.get()),
         checked: create_memo(move || checked.get()),
@@ -171,6 +186,7 @@ fn plain(label: Prop<String>, children: Run<MenuItem>) -> MenuItem {
     MenuItem {
         kind: Kind::Row,
         label: create_memo(move || label.get()),
+        lead: create_memo(String::new),
         glyph: create_memo(String::new),
         detail: create_memo(String::new),
         checked: create_memo(|| None),
@@ -385,7 +401,7 @@ fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<Child>) 
             row
             panel
             parent={leave}
-            title={Some(item.label)}
+            title={Some(item.spoken())}
             title_test_id
             active=true
             focus_first=true
@@ -442,6 +458,7 @@ fn quiet_handle(kind: MenuRowKind, label: Prop<String>) -> MenuRowHandle {
     MenuRowHandle {
         kind,
         label,
+        lead: Prop::Static(String::new()),
         glyph: Prop::Static(String::new()),
         detail: Prop::Static(String::new()),
         checked: Prop::Static(None),
@@ -463,6 +480,7 @@ fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) ->
     MenuRowHandle {
         kind,
         label: item.label.into_prop(),
+        lead: item.lead.into_prop(),
         glyph: item.glyph.into_prop(),
         detail: item.detail.into_prop(),
         checked: item.checked.into_prop(),
@@ -617,7 +635,7 @@ fn MenuRow(
         )
     };
     let at = Focus::Row(index);
-    let (spoken, unavailable) = (item.label, item.disabled);
+    let (spoken, unavailable) = (item.spoken(), item.disabled);
     let test_id = item.test_id.clone();
     let children = item.children.clone();
     let cascades = !item.page;

@@ -97,6 +97,7 @@ pub fn Tree<K>(
     #[prop(default = None)] menu: Option<Func<K, Option<TreeMenu>>>,
     #[prop(default = None)] editing: Prop<Option<K>>,
     on_select: Callback<K>,
+    on_open: Callback<K>,
     on_expand: Callback<(K, bool)>,
     on_reveal: Callback<K>,
     on_hover_change: Callback<(K, bool)>,
@@ -130,6 +131,7 @@ where
                         spacing
                         editing
                         on_select={on_select}
+                        on_open={on_open}
                         on_expand={on_expand}
                         on_hover_change={on_hover_change}
                         on_drag_start={on_drag_start}

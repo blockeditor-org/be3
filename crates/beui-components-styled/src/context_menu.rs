@@ -12,6 +12,7 @@ use beui_components_unstyled::{
     ButtonHandle, MenuItem, MenuRowHandle, MenuRowKind, MenuSheetHandle, MenuStyle, ScrollbarStyle,
 };
 use beui_core::base::TextAlign;
+use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::icons::{
@@ -78,16 +79,47 @@ pub fn ContextMenu(
     }
 }
 
+#[component]
+pub fn MenuPopup(
+    items: Children<MenuItem>,
+    anchor: Prop<OverlayAnchor>,
+    #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
+    open: Prop<bool>,
+    #[prop(default = false)] sheet: Prop<bool>,
+    #[prop(default = MENU_WIDTH)] width: f32,
+    on_dismiss: ClickCallback,
+    on_select: Callback<Vec<usize>>,
+) -> NodeId {
+    let open = create_memo(move || open.get());
+    let sheet = create_memo(move || sheet.get());
+    view! {
+        <unstyled::MenuPopup
+            items={items.into_run()}
+            menu={sized_menu_style(width)}
+            anchor
+            placement
+            open={open}
+            touched={sheet}
+            on_dismiss={on_dismiss}
+            on_select={on_select}
+        />
+    }
+}
+
 pub fn menu_style() -> MenuStyle {
+    sized_menu_style(MENU_WIDTH)
+}
+
+fn sized_menu_style(width: f32) -> MenuStyle {
     MenuStyle::new(
         |handle| {
             view! {
                 <MenuRow handle />
             }
         },
-        |content| {
+        move |content| {
             view! {
-                <MenuPanel>{content}</MenuPanel>
+                <MenuPanel width>{content}</MenuPanel>
             }
         },
     )
@@ -163,6 +195,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
     let MenuRowHandle {
         kind,
         label,
+        lead,
         glyph,
         detail,
         checked,
@@ -194,6 +227,8 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         _ => glyph.get(),
     });
     let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let lead = create_memo(move || lead.get());
+    let has_lead = create_memo(move || !lead.get().is_empty());
     let detail = create_memo(move || detail.get());
     let has_detail = create_memo(move || !detail.get().is_empty());
     let chevron_color = TextColor::Muted;
@@ -210,6 +245,9 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                     <MenuTreeLead depth expanded toggle indent=TREE_INDENT chevron=TREE_CHEVRON />
+                    <Show condition={has_lead}>
+                        <Text string={lead} size=TextSize::Sm color=TextColor::Muted />
+                    </Show>
                     <Show condition={has_glyph}>
                         <Text color={icon_color} align=TextAlign::Center>
                             <Icon glyph={glyph} />
@@ -378,6 +416,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
     let MenuRowHandle {
         kind,
         label,
+        lead,
         glyph,
         detail,
         checked,
@@ -406,6 +445,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
                 active
                 focused
                 label
+                lead
                 glyph
                 detail
                 disabled
@@ -432,6 +472,7 @@ fn MenuSheetPanel(handle: MenuSheetHandle) -> NodeId {
             open={open}
             rest={SHEET_STOPS[0]}
             stops={SHEET_STOPS.to_vec()}
+            fit=true
             on_close={on_close}
         >
             <Frame padding=SHEET_PADDING>{menu}</Frame>
@@ -440,14 +481,9 @@ fn MenuSheetPanel(handle: MenuSheetHandle) -> NodeId {
 }
 
 #[component]
-fn MenuPanel(children: Child) -> NodeId {
+fn MenuPanel(width: f32, children: Child) -> NodeId {
     view! {
-        <Frame
-            width=MENU_WIDTH
-            fill=ColorRole::SurfaceRaised
-            border={Border::DEFAULT}
-            radius=Radius::Md
-        >
+        <Frame width fill=ColorRole::SurfaceRaised border={Border::DEFAULT} radius=Radius::Md>
             <List spacing=0.0>
                 <unstyled::Scroll
                     @sizing={ItemSize::Intrinsic.max(MENU_MAX_HEIGHT).shrink(1.0)}

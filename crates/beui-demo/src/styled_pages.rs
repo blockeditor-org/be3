@@ -1428,6 +1428,9 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Menu captions and grids" code={vec![NewSlideMenu::SOURCE]}>
                 <NewSlideMenu />
             </Sample>
+            <Sample title="Menu opened by a model" code={vec![HeldMenu::SOURCE]}>
+                <HeldMenu />
+            </Sample>
             <Sample title="Picture menu buttons" code={vec![TrayIcons::SOURCE, badge::SOURCE]}>
                 <TrayIcons />
             </Sample>
@@ -1776,8 +1779,8 @@ fn NewBlockMenu() -> NodeId {
                     glyph=ICON_ADD
                     items={view! {
                         <unstyled::MenuItem
-                            label="New in"
-                            detail={place}
+                            lead="New in"
+                            label={place}
                             glyph=ICON_FOLDER
                             page=true
                             row_test_id="demo.new.location"
@@ -1828,6 +1831,48 @@ fn NewBlockMenu() -> NodeId {
                 wrap=true
             />
             <Text style=TextStyle::CAPTION string={added} />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn HeldMenu() -> NodeId {
+    let open = create_signal(false);
+    let chosen = create_signal("Nothing chosen yet".to_owned());
+    let button = NodeRef::new();
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    @node_ref=&button
+                    @test_id="demo.held"
+                    label="Ask for a colour"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || open.set(true)}
+                />
+            </List>
+            <MenuPopup
+                anchor=button
+                open
+                width=240.0
+                on_dismiss={move || open.set(false)}
+                on_select={move |path: Vec<usize>| {
+                    let colour = ["Red", "Green", "Blue"][path.first().copied().unwrap_or_default()];
+                    chosen.set(format!("Chose {colour}"));
+                }}
+                items={view! {
+                    <unstyled::MenuItem label="Red" lead="Paint it" />
+                    <unstyled::MenuItem label="Green" lead="Paint it" />
+                    <unstyled::MenuItem label="Blue" lead="Paint it" />
+                }}
+            />
+            <Text
+                style=TextStyle::CAPTION
+                string="The menu shows while a signal says so, at whatever node or point it is anchored to, and reports Escape or a press outside so the owner can close it. A lead is a few words before the label."
+                wrap=true
+            />
+            <Text style=TextStyle::CAPTION string={chosen} />
         </List>
     }
 }
