@@ -182,7 +182,11 @@ pub(crate) fn release_key() -> Result<PathBuf, String> {
             detail: "an existing JKS or PKCS12 file, or its base64 (password android)",
         },
     ];
-    match prompt::choose("Which release keystore should deploy sign with?", &choices, 0) {
+    match prompt::choose(
+        "Which release keystore should deploy sign with?",
+        &choices,
+        0,
+    ) {
         Some(0) => generate_key(&saved, 4096)?,
         Some(_) => {
             let path = prompt::text("Keystore file:", "~/release.jks", |path| {

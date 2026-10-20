@@ -90,7 +90,8 @@ pub fn crates(root: &str) -> Result<Vec<String>, String> {
     let mut next = 0;
     while next < crates.len() {
         let manifest = format!("{}/Cargo.toml", crates[next]);
-        let text = fs::read_to_string(&manifest).map_err(|error| format!("could not read {manifest}: {error}"))?;
+        let text = fs::read_to_string(&manifest)
+            .map_err(|error| format!("could not read {manifest}: {error}"))?;
         for line in text.lines() {
             let Some((_, rest)) = line.split_once("path = \"") else {
                 continue;

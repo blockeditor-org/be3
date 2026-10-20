@@ -103,6 +103,5 @@ fn partial_path(path: &Path) -> PathBuf {
     path.with_file_name(name)
 }
 
-
 #[cfg(test)]
 mod tests;

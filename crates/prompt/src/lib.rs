@@ -3,8 +3,8 @@ use std::path::{Path, PathBuf};
 
 mod terminal;
 
-pub use terminal::{columns, interactive};
 use terminal::{Key, Raw, colors, write};
+pub use terminal::{columns, interactive};
 
 pub struct Choice<'a> {
     pub label: &'a str,
@@ -18,7 +18,11 @@ pub fn choose(question: &str, choices: &[Choice], default: usize) -> Option<usiz
     let Some(raw) = Raw::enter() else {
         return choose_plainly(question, choices);
     };
-    let width = choices.iter().map(|choice| choice.label.chars().count()).max().unwrap_or(0);
+    let width = choices
+        .iter()
+        .map(|choice| choice.label.chars().count())
+        .max()
+        .unwrap_or(0);
     let mut selected = default.min(choices.len() - 1);
     let mut screen = Screen::default();
     write("\x1b[?25l");
@@ -27,7 +31,12 @@ pub fn choose(question: &str, choices: &[Choice], default: usize) -> Option<usiz
         for (index, choice) in choices.iter().enumerate() {
             let label = format!("{:width$}", choice.label);
             lines.push(if index == selected {
-                format!("{} {}  {}", style("36;1", ">"), style("36;1", &label), choice.detail)
+                format!(
+                    "{} {}  {}",
+                    style("36;1", ">"),
+                    style("36;1", &label),
+                    choice.detail
+                )
             } else {
                 format!("  {}  {}", label, style("2", choice.detail))
             });
@@ -36,7 +45,9 @@ pub fn choose(question: &str, choices: &[Choice], default: usize) -> Option<usiz
         screen.draw(&lines);
         match raw.key() {
             Key::Up | Key::Char('k') => selected = (selected + choices.len() - 1) % choices.len(),
-            Key::Down | Key::Char('j') | Key::Char('\t') => selected = (selected + 1) % choices.len(),
+            Key::Down | Key::Char('j') | Key::Char('\t') => {
+                selected = (selected + 1) % choices.len()
+            }
             Key::Char(digit @ '1'..='9') => {
                 let index = digit as usize - '1' as usize;
                 if index < choices.len() {
@@ -49,14 +60,25 @@ pub fn choose(question: &str, choices: &[Choice], default: usize) -> Option<usiz
             _ => {}
         }
     };
-    let answer = chosen.map_or_else(|| style("2", "skipped"), |index| style("36", choices[index].label));
-    screen.draw(&[format!("{} {} {answer}", style("36;1", "?"), style("1", question))]);
+    let answer = chosen.map_or_else(
+        || style("2", "skipped"),
+        |index| style("36", choices[index].label),
+    );
+    screen.draw(&[format!(
+        "{} {} {answer}",
+        style("36;1", "?"),
+        style("1", question)
+    )]);
     write("\n\x1b[?25h");
     drop(raw);
     chosen
 }
 
-pub fn text(question: &str, placeholder: &str, check: impl Fn(&str) -> Result<String, String>) -> Option<String> {
+pub fn text(
+    question: &str,
+    placeholder: &str,
+    check: impl Fn(&str) -> Result<String, String>,
+) -> Option<String> {
     line(question, placeholder, false, check)
 }
 
@@ -93,7 +115,11 @@ fn line(
         } else {
             value.clone()
         };
-        let mut lines = vec![format!("{} {} {shown}", style("36;1", "?"), style("1", question))];
+        let mut lines = vec![format!(
+            "{} {} {shown}",
+            style("36;1", "?"),
+            style("1", question)
+        )];
         if let Some(error) = &error {
             lines.push(style("31", &format!("  {error}")));
         }
@@ -111,12 +137,19 @@ fn line(
                 while value.ends_with(' ') {
                     value.pop();
                 }
-                while value.chars().last().is_some_and(|character| character != ' ') {
+                while value
+                    .chars()
+                    .last()
+                    .is_some_and(|character| character != ' ')
+                {
                     value.pop();
                 }
             }
             Key::Enter => {
-                let trimmed: String = value.chars().filter(|character| !character.is_whitespace()).collect();
+                let trimmed: String = value
+                    .chars()
+                    .filter(|character| !character.is_whitespace())
+                    .collect();
                 match check(&trimmed) {
                     Ok(accepted) => break Some(accepted),
                     Err(message) => error = Some(message),
@@ -132,7 +165,11 @@ fn line(
         Some(_) if hidden => style("36", "entered"),
         Some(accepted) => style("36", accepted),
     };
-    screen.draw(&[format!("{} {} {answer}", style("36;1", "?"), style("1", question))]);
+    screen.draw(&[format!(
+        "{} {} {answer}",
+        style("36;1", "?"),
+        style("1", question)
+    )]);
     write("\n");
     drop(raw);
     accepted
@@ -169,7 +206,11 @@ fn read_line(prompt: &str) -> Option<String> {
     let mut line = String::new();
     match std::io::stdin().read_line(&mut line) {
         Ok(0) | Err(_) => None,
-        Ok(_) => Some(line.chars().filter(|character| !character.is_whitespace()).collect()),
+        Ok(_) => Some(
+            line.chars()
+                .filter(|character| !character.is_whitespace())
+                .collect(),
+        ),
     }
 }
 
@@ -201,7 +242,13 @@ impl Screen {
             output.push_str(&format!("\x1b[{}A", self.row));
         }
         output.push_str("\r\x1b[J");
-        output.push_str(&lines.iter().map(|line| fit(line)).collect::<Vec<_>>().join("\n"));
+        output.push_str(
+            &lines
+                .iter()
+                .map(|line| fit(line))
+                .collect::<Vec<_>>()
+                .join("\n"),
+        );
         self.row = lines.len().saturating_sub(1);
         write(&output);
     }
@@ -287,12 +334,18 @@ impl Saved<'_> {
                 return Some(value.to_owned());
             }
         }
-        let checkout = self.checkout.map(|root| root.join(format!(".{}", self.name)));
+        let checkout = self
+            .checkout
+            .map(|root| root.join(format!(".{}", self.name)));
         checkout
             .into_iter()
             .chain([self.path()])
             .filter_map(|file| std::fs::read_to_string(file).ok())
-            .map(|text| text.chars().filter(|character| !character.is_whitespace()).collect::<String>())
+            .map(|text| {
+                text.chars()
+                    .filter(|character| !character.is_whitespace())
+                    .collect::<String>()
+            })
             .find(|value| !value.is_empty())
     }
 
@@ -304,7 +357,11 @@ impl Saved<'_> {
         let value = secret(&format!("{}:", self.what))?;
         let path = self.path();
         match save_private(&path, &format!("{value}\n")) {
-            Ok(()) => eprintln!("Saved it to {}; {} overrides it.", path.display(), self.variable),
+            Ok(()) => eprintln!(
+                "Saved it to {}; {} overrides it.",
+                path.display(),
+                self.variable
+            ),
             Err(error) => eprintln!("Could not save it to {}: {error}", path.display()),
         }
         Some(value)

@@ -165,7 +165,10 @@ fn ask_for_server(saved: &Path) -> Option<String> {
         text.push_str(&format!("{}\n", ask_for_local_address()?));
     }
     save(saved, &text);
-    eprintln!("Saved it to {}; delete it to be asked again.", saved.display());
+    eprintln!(
+        "Saved it to {}; delete it to be asked again.",
+        saved.display()
+    );
     Some(server.to_owned())
 }
 
@@ -234,7 +237,9 @@ fn key(server: &str) -> Result<String> {
     if let Some(key) = saved.stored() {
         return Ok(key);
     }
-    let why = format!("buck2 builds on {server}, and needs its key. guides/build_server.md says where to get one.");
+    let why = format!(
+        "buck2 builds on {server}, and needs its key. guides/build_server.md says where to get one."
+    );
     if let Some(key) = saved.ask(&why) {
         return Ok(key);
     }
@@ -402,7 +407,9 @@ mod namespace {
     }
 
     fn write_header(file: &Path, key: Option<String>) -> Result<String> {
-        let header = key.map_or_else(String::new, |key| format!("Be3-Gateway-Authorization: {key}\n"));
+        let header = key.map_or_else(String::new, |key| {
+            format!("Be3-Gateway-Authorization: {key}\n")
+        });
         write_private(file, &header)?;
         Ok(sha256(header.as_bytes()))
     }
@@ -420,7 +427,9 @@ mod namespace {
             .output()
             .map_err(curl_error)?;
         if !output.status.success() {
-            return Err(format!("Could not reach {NAMESPACE_URL} (guides/build_server.md)."));
+            return Err(format!(
+                "Could not reach {NAMESPACE_URL} (guides/build_server.md)."
+            ));
         }
         Ok(String::from_utf8_lossy(&output.stdout).trim().to_owned())
     }

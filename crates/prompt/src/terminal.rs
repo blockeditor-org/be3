@@ -1,6 +1,6 @@
-use std::io::{IsTerminal as _, Write as _};
 #[cfg(not(unix))]
 use std::io::Read as _;
+use std::io::{IsTerminal as _, Write as _};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Key {
@@ -35,7 +35,9 @@ pub fn columns() -> usize {
     {
         for descriptor in [libc::STDERR_FILENO, libc::STDOUT_FILENO, libc::STDIN_FILENO] {
             let mut size: libc::winsize = unsafe { std::mem::zeroed() };
-            if unsafe { libc::ioctl(descriptor, libc::TIOCGWINSZ, &mut size) } == 0 && size.ws_col > 0 {
+            if unsafe { libc::ioctl(descriptor, libc::TIOCGWINSZ, &mut size) } == 0
+                && size.ws_col > 0
+            {
                 return usize::from(size.ws_col);
             }
         }
@@ -102,18 +104,21 @@ impl Raw {
     #[cfg(windows)]
     fn enter_platform() -> Option<Raw> {
         use windows_sys::Win32::System::Console::{
-            ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_PROCESSED_INPUT, ENABLE_VIRTUAL_TERMINAL_INPUT,
-            ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode, GetStdHandle, STD_ERROR_HANDLE,
-            STD_INPUT_HANDLE, SetConsoleMode,
+            ENABLE_ECHO_INPUT, ENABLE_LINE_INPUT, ENABLE_PROCESSED_INPUT,
+            ENABLE_VIRTUAL_TERMINAL_INPUT, ENABLE_VIRTUAL_TERMINAL_PROCESSING, GetConsoleMode,
+            GetStdHandle, STD_ERROR_HANDLE, STD_INPUT_HANDLE, SetConsoleMode,
         };
         unsafe {
             let input = GetStdHandle(STD_INPUT_HANDLE);
             let output = GetStdHandle(STD_ERROR_HANDLE);
             let (mut input_mode, mut output_mode) = (0, 0);
-            if GetConsoleMode(input, &mut input_mode) == 0 || GetConsoleMode(output, &mut output_mode) == 0 {
+            if GetConsoleMode(input, &mut input_mode) == 0
+                || GetConsoleMode(output, &mut output_mode) == 0
+            {
                 return None;
             }
-            let raw_input = (input_mode & !(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT))
+            let raw_input = (input_mode
+                & !(ENABLE_ECHO_INPUT | ENABLE_LINE_INPUT | ENABLE_PROCESSED_INPUT))
                 | ENABLE_VIRTUAL_TERMINAL_INPUT;
             if SetConsoleMode(input, raw_input) == 0
                 || SetConsoleMode(output, output_mode | ENABLE_VIRTUAL_TERMINAL_PROCESSING) == 0
@@ -178,7 +183,8 @@ fn read_byte() -> Option<u8> {
             if read == 1 {
                 return Some(byte[0]);
             }
-            if read < 0 && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted {
+            if read < 0 && std::io::Error::last_os_error().kind() == std::io::ErrorKind::Interrupted
+            {
                 continue;
             }
             return None;
