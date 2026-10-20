@@ -11593,6 +11593,166 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
+    "crates/namespace-waker": {
+        "binaries": [
+            {
+                "crate_root": "src/main.rs",
+                "name": "namespace-waker",
+            },
+        ],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "namespace_waker",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "namespace-waker",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {
+                    "namespace-waker": [
+                        "//third-party/rust:httparse-1.10.1",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:tracing-0.1.44",
+                        "//third-party/rust:tracing-subscriber-0.3.23",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tracing-0.1.44",
+                    "//third-party/rust:tracing-subscriber-0.3.23",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {
+                    "namespace-waker": [
+                        "//third-party/rust:httparse-1.10.1",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:tracing-0.1.44",
+                        "//third-party/rust:tracing-subscriber-0.3.23",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tracing-0.1.44",
+                    "//third-party/rust:tracing-subscriber-0.3.23",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {
+                    "namespace-waker": [
+                        "//third-party/rust:httparse-1.10.1",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:tracing-0.1.44",
+                        "//third-party/rust:tracing-subscriber-0.3.23",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tracing-0.1.44",
+                    "//third-party/rust:tracing-subscriber-0.3.23",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {
+                    "namespace-waker": [
+                        "//third-party/rust:httparse-1.10.1",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:tracing-0.1.44",
+                        "//third-party/rust:tracing-subscriber-0.3.23",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tracing-0.1.44",
+                    "//third-party/rust:tracing-subscriber-0.3.23",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {
+                    "namespace-waker": [
+                        "//third-party/rust:httparse-1.10.1",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:tracing-0.1.44",
+                        "//third-party/rust:tracing-subscriber-0.3.23",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tracing-0.1.44",
+                    "//third-party/rust:tracing-subscriber-0.3.23",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {
+                    "namespace-waker": [
+                        "//third-party/rust:httparse-1.10.1",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:tracing-0.1.44",
+                        "//third-party/rust:tracing-subscriber-0.3.23",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tracing-0.1.44",
+                    "//third-party/rust:tracing-subscriber-0.3.23",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {
+                    "namespace-waker": [
+                        "//third-party/rust:httparse-1.10.1",
+                        "//third-party/rust:tokio-1.52.3",
+                        "//third-party/rust:tracing-0.1.44",
+                        "//third-party/rust:tracing-subscriber-0.3.23",
+                    ],
+                },
+                "deps": [
+                    "//third-party/rust:httparse-1.10.1",
+                    "//third-party/rust:tokio-1.52.3",
+                    "//third-party/rust:tracing-0.1.44",
+                    "//third-party/rust:tracing-subscriber-0.3.23",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
     "crates/paint-format": {
         "binaries": [],
         "edition": "2024",

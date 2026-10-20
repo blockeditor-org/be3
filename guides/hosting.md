@@ -6,7 +6,7 @@ Those are managed on the host, with no installation templates in this repository
 
 ## Server layout
 
-`BE3_DEPLOY_HOST` selects the SSH destination (`ubuntu@blocks.pfg.pw` by default).
+`BE3_DEPLOY_HOST` selects the SSH destination (`ubuntu@api.be3.pfg.pw` by default).
 `BE3_DEPLOY_DIR` selects the directory relative to the SSH user's home
 (`be-server` by default). The deploy user must be able to write there.
 `be-server` and `build-info.json` live together in that directory; the server

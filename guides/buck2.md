@@ -72,10 +72,9 @@ these in front of the pinned buck2:
   first run), and its hosts and key go
   into a generated `.buckconfig.local`, with the server's name as
   `be3.build_server`, which picks the workers' image. For Namespace, the
-  default, the pinned `nsc` is installed into `target/tools/nsc-<version>/` the
-  first time it is missing, wakes the remote execution cluster, and names its
-  hosts (guides/build_server.md says when it asks, and where each server's key
-  comes from).
+  default, the hosts are asked of `namespace-waker` at `api.be3.pfg.pw`, which
+  wakes the remote execution cluster (guides/build_server.md says when it
+  asks, and where each server's key comes from).
 - **An HTTPS proxy.** buck2's remote execution client dials the server's hosts
   directly and never reads `HTTPS_PROXY`. When it is set, `./scripts/buck` builds
   `scripts/internal/re-relay` with Go (1.24 or newer), leaves one running for the executor and one for the storage, on two
