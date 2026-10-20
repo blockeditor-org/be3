@@ -23,7 +23,7 @@ pub(super) fn copy_in_the_host(harness: &mut Harness, text: &str) {
     let document = &mut harness.document;
     let output = harness.context.run(RawInput::default(), |context| {
         let rect = Rect::from_min_size(Pos2::ZERO, SCREEN);
-        app.before(context, rect, document);
+        app.before(context, rect);
         document.show(context, rect);
         context.copy_text(text.to_owned());
         app.after(context, document);

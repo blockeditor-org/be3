@@ -31,7 +31,7 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
         "a closed dialog builds nothing it holds"
     );
 
-    with_reactive_scope(harness.document_mut(), move || open.set(true));
+    open.set(true);
     harness.frame(Vec::new());
     let body = harness.rect(surface.get());
     assert!(body.is_positive());

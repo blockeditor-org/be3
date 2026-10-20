@@ -18,7 +18,6 @@ use uuid::Uuid;
 use super::*;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 mod a_backup_restores_into_a_server_that_serves_the_same_blocks;
-mod a_batch_answers_each_request_in_order;
 mod a_block_linked_before_it_exists_is_announced_only_once_it_does;
 mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
@@ -405,6 +404,7 @@ impl TestClient {
             pinned: false,
             references: Vec::new(),
             metadata: Vec::new(),
+            objects: Vec::new(),
         })
         .await
     }

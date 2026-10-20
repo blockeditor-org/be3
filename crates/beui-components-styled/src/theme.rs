@@ -225,7 +225,7 @@ impl DocumentTheme for Document {
 
     fn set_theme(&mut self, theme: Theme) {
         let store = document_theme_store(self);
-        with_reactive_scope(self, move || store.set(theme));
+        store.set(theme);
     }
 }
 

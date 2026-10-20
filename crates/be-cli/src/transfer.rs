@@ -30,13 +30,21 @@ impl<S: ObjectStore> Tracker<S> {
             }
         }
         let peer = self.peer();
-        let mut blocks = Vec::new();
-        for (entry, parent) in order {
-            blocks.push(
-                peer.download_block(entry.id, entry.block_type, parent)
-                    .await
-                    .map_err(explain)?,
-            );
+        let wanted: Vec<_> = order
+            .iter()
+            .map(|(entry, _)| (entry.id, entry.head))
+            .collect();
+        let read = peer.read_contents(&wanted).await.map_err(explain)?;
+        let mut blocks = Vec::with_capacity(read.len());
+        for ((entry, parent), (summary, content)) in order.into_iter().zip(read) {
+            blocks.push(Saved {
+                id: entry.id,
+                block_type: entry.block_type,
+                parent,
+                metadata: peer.metadata_of_summary(&summary).await.map_err(explain)?,
+                references: summary.references,
+                content,
+            });
         }
         Ok((top, blocks))
     }
@@ -90,23 +98,28 @@ impl<S: ObjectStore> Tracker<S> {
                 ));
             }
         };
-        let peer = self.peer();
-        for block in &blocks {
-            let placed = match block.parent {
-                Some(position) => BlockParent::Block(blocks[position].id),
-                None => parent,
-            };
-            peer.create_block(block.id, block.block_type, placed, &block.metadata)
-                .await
-                .map_err(explain)?;
-            if let Some(saved) = peer.publish_content(block).await.map_err(explain)?
-                && saved.published().is_none()
-            {
-                return Err(format!(
-                    "the server would not take the content of {}",
-                    block.id
-                ));
-            }
+        let placed: Vec<_> = blocks
+            .iter()
+            .map(|block| {
+                let parent = match block.parent {
+                    Some(position) => BlockParent::Block(blocks[position].id),
+                    None => parent,
+                };
+                (block.clone(), parent)
+            })
+            .collect();
+        let mut failed = None;
+        self.peer()
+            .import_blocks(&placed, |block, imported| {
+                if let Err(error) = imported
+                    && failed.is_none()
+                {
+                    failed = Some(format!("{block} was not uploaded: {}", explain(error)));
+                }
+            })
+            .await;
+        if let Some(error) = failed {
+            return Err(error);
         }
         self.invalidate().await;
         Ok(Uploaded {

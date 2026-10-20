@@ -30,7 +30,7 @@ fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
         "a closed modal sheet builds nothing it holds"
     );
 
-    with_reactive_scope(harness.document_mut(), move || open.set(true));
+    open.set(true);
     harness.settle();
     let body = harness.rect(content.get());
     assert_eq!(

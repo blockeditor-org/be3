@@ -155,6 +155,7 @@ pub struct Document {
     damage_flashes: FlashLog<Rect>,
     painters: NodeMap<Placing>,
     motion: ::reactive::OwnedSignal<crate::animation::Motion>,
+    animations: Rc<Cell<usize>>,
 }
 
 #[derive(Clone, Copy)]
@@ -363,6 +364,7 @@ impl Document {
             damage_flashes: FlashLog::default(),
             painters: NodeMap::default(),
             motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
+            animations: Rc::default(),
         }
     }
 
@@ -769,6 +771,10 @@ impl Document {
         self.motion.get_untracked()
     }
 
+    pub(crate) fn animations(&self) -> Rc<Cell<usize>> {
+        Rc::clone(&self.animations)
+    }
+
     pub fn watch_motion(&self) -> ::reactive::ReadSignal<crate::animation::Motion> {
         self.motion.read_only()
     }
@@ -778,8 +784,7 @@ impl Document {
             return;
         }
         self.arena.invalidate();
-        let write = self.motion.handle();
-        crate::current::with_reactive_scope(self, move || write.set(motion));
+        self.motion.set(motion);
     }
 
     pub fn track_damage(&mut self, enabled: bool) {
@@ -1188,6 +1193,13 @@ impl Document {
                 true => self.relay_for_viewport(),
                 false => self.arena.invalidate(),
             }
+            if self
+                .viewport
+                .as_ref()
+                .is_none_or(|(old_ctx, _, _)| !ctx.same(old_ctx))
+            {
+                ::reactive::wake_zone_with(self.zone, ctx.zone_waker(self.zone));
+            }
             self.viewport = Some((ctx.clone(), rect, scale));
         }
         FrameMeasurement::measure(&mut measurement.timings.accessibility, || {
@@ -1297,6 +1309,9 @@ impl Document {
         }
         if let Some(deadline) = self.next_timer() {
             ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
+        }
+        if self.animations.get() > 0 {
+            ctx.note_animating();
         }
         ctx.show_painting(&self.painting, rect);
         self.send_file_picks(ctx);

@@ -17,6 +17,44 @@ pub enum Pointer<'a> {
 
 pub type Damage = Option<Vec<Rectangle<i32, Physical>>>;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+enum Drawn {
+    #[default]
+    Nothing,
+    Area(Rectangle<i32, Physical>),
+    Everything,
+}
+
+impl Drawn {
+    fn of(damage: &Damage) -> Self {
+        match damage {
+            None => Self::Everything,
+            Some(rects) => rects
+                .iter()
+                .fold(Self::Nothing, |drawn, rect| drawn.union(Self::Area(*rect))),
+        }
+    }
+
+    fn union(self, other: Self) -> Self {
+        match (self, other) {
+            (Self::Nothing, drawn) | (drawn, Self::Nothing) => drawn,
+            (Self::Area(area), Self::Area(other)) => Self::Area(area.merge(other)),
+            _ => Self::Everything,
+        }
+    }
+
+    fn add_to(self, damage: Damage) -> Damage {
+        match self {
+            Self::Nothing => damage,
+            Self::Everything => None,
+            Self::Area(area) => damage.map(|mut rects| {
+                rects.push(area);
+                rects
+            }),
+        }
+    }
+}
+
 pub struct Frame<'a> {
     pub scale: f32,
     pub clear: beui::Color32,
@@ -36,6 +74,9 @@ pub struct Screen {
     prepared: Option<Repaint>,
     pub cursor: bool,
     drawn_cursor: Option<Rectangle<i32, Physical>>,
+    last: Drawn,
+    hurried: Option<Drawn>,
+    settling: Drawn,
 }
 
 impl Screen {
@@ -55,6 +96,9 @@ impl Screen {
             prepared: None,
             cursor: false,
             drawn_cursor: None,
+            last: Drawn::Nothing,
+            hurried: None,
+            settling: Drawn::Nothing,
         }
     }
 
@@ -85,8 +129,18 @@ impl Screen {
         });
     }
 
+    pub fn hurry(&mut self) {
+        self.hurried = Some(self.last);
+    }
+
+    pub fn settle(&mut self) {
+        if let Some(hurried) = self.hurried.take() {
+            self.settling = self.settling.union(hurried);
+        }
+    }
+
     pub fn dirty(&self) -> bool {
-        self.prepared.is_some() || self.cursor
+        self.prepared.is_some() || self.cursor || self.settling != Drawn::Nothing
     }
 
     pub fn prepare(&mut self, gpu: &Gpu, output: &FrameOutput, scale: f32) {
@@ -179,6 +233,11 @@ impl Screen {
         }
         self.drawn_cursor = cursor;
         self.cursor = false;
+        self.last = Drawn::of(&damage);
+        if let Some(hurried) = &mut self.hurried {
+            *hurried = hurried.union(self.last);
+        }
+        let damage = std::mem::take(&mut self.settling).add_to(damage);
         (encoder.finish(), damage)
     }
 

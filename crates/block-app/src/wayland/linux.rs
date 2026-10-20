@@ -167,7 +167,7 @@ pub(crate) fn before(context: &Context, rect: Rect, document: &mut Document) {
                 );
             }
         }
-        running.compositor.before(context, rect, document);
+        running.compositor.before(context, rect);
     });
 }
 

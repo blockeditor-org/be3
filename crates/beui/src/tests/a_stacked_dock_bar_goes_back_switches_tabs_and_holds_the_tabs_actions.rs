@@ -77,13 +77,9 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
         "the first tab shown has nowhere to go back to"
     );
 
-    with_reactive_scope(harness.document_mut(), move || {
-        open.update(|open| open.push(2));
-    });
+    open.update(|open| open.push(2));
     harness.settle();
-    with_reactive_scope(harness.document_mut(), move || {
-        open.update(|open| open.push(3));
-    });
+    open.update(|open| open.push(3));
     harness.settle();
     assert!(laid_out(&harness, "content.3"), "a tab opens on show");
     assert!(

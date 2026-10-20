@@ -2481,6 +2481,7 @@ pub struct Modifiers {
 pub struct FrameReady {
     pub generation: u64,
     pub repaint_after_micros: Option<u64>,
+    pub animating: bool,
     pub presented: Option<PresentedFrame>,
 }
 

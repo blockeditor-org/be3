@@ -1,7 +1,6 @@
 use super::*;
 
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::*;
 
 use block_editor_beui::HostContent;
 
@@ -14,15 +13,12 @@ fn a_traced_frame_lands_without_asking_to_be_stepped_again() {
     host.set_editable(true);
     let editor = OwnedEditor::new(host.clone(), block);
     host.set_block_content(HostContent::of(&PixelRayTracerContent::default()));
-    let mut document = build(|| Frame().build());
+    let _root = RootScope::new();
 
-    let state = with_reactive_scope(&mut document, || {
-        let state = RayState::new(*editor);
-        state.watch();
-        state
-    });
+    let state = RayState::new(*editor);
+    state.watch();
     for _ in 0..2 {
-        with_reactive_scope(&mut document, || editor.begin_frame());
+        editor.begin_frame();
     }
 
     assert!(

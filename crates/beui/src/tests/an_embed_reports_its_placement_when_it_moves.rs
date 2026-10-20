@@ -35,7 +35,7 @@ fn an_embed_reports_its_placement_when_it_moves() {
     );
 
     let x = moved.get_untracked().expect("the view was built");
-    with_reactive_scope(harness.document_mut(), move || x.set(60.0));
+    x.set(60.0);
     harness.frame(Vec::new());
     assert_eq!(
         placed.get_untracked().last().copied().flatten(),

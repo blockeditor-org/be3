@@ -69,7 +69,7 @@ fn a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it() {
         "a slot typed for a node-less child receives the values its children built"
     );
 
-    with_reactive_scope(harness.document_mut(), move || shown.set(false));
+    shown.set(false);
     harness.frame(Vec::new());
     assert_eq!(text_of(harness.document(), legend.get()), "first");
     assert_eq!(

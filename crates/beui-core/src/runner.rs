@@ -98,6 +98,7 @@ pub struct Frame {
     pub deferred: bool,
     pub repaint: bool,
     pub repaint_after: Duration,
+    pub animating: bool,
 }
 
 impl Frame {
@@ -216,6 +217,7 @@ impl Runner {
         renderers.provide(&mut setup);
         self.renderers = Some(renderers);
         self.waker = Some(setup.waker.clone());
+        self.context.set_waker(setup.waker.clone());
         if let Some(automation) = &self.automation {
             automation.inbox().set_waker(setup.waker.clone());
         }
@@ -548,6 +550,7 @@ impl Runner {
             deferred: !self.events.is_empty() || self.reports.pending(),
             repaint: output.repaint,
             repaint_after: output.repaint_after,
+            animating: output.animating,
         };
         let closing = output.close_requested || self.closing;
         self.unpresented |= pending;

@@ -362,10 +362,8 @@ impl beui::App for Shell {
         let view = self.app.view();
         wayland::set_owned(view.screen == ui::Screen::Organization && self.app.shell.is_some());
         let store = self.view;
-        beui::reactive::with_reactive_scope(&mut self.document, move || {
-            compositor::notify();
-            store.set(view);
-        });
+        compositor::notify();
+        store.set(view);
         #[cfg(target_arch = "wasm32")]
         plugin_host::place_screens(
             &plugin_host::shown_blits(),

@@ -42,14 +42,14 @@ fn a_tab_hidden_while_it_has_the_focus_hands_the_focus_to_the_tab_shown() {
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), || layout.show(&1));
+    layout.show(&1);
     harness.frame(Vec::new());
     let first = harness.find("control.1");
     harness.click(harness.center(first));
     assert_eq!(harness.document().focused_node(), Some(first));
     heard.borrow_mut().clear();
 
-    with_reactive_scope(harness.document_mut(), || layout.show(&2));
+    layout.show(&2);
     harness.frame(Vec::new());
     let second = harness.find("control.2");
     assert_eq!(
@@ -60,7 +60,7 @@ fn a_tab_hidden_while_it_has_the_focus_hands_the_focus_to_the_tab_shown() {
     assert_eq!(harness.document().focused_node(), Some(second));
 
     heard.borrow_mut().clear();
-    with_reactive_scope(harness.document_mut(), || layout.show(&1));
+    layout.show(&1);
     harness.frame(Vec::new());
     assert_eq!(*heard.borrow(), [(2, false), (1, true)]);
     assert_eq!(

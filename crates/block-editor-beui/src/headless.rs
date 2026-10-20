@@ -5,7 +5,6 @@ use block_editor_plugin::Instance;
 use block_editor_plugin::headless::HeadlessPlugin as Core;
 use block_plugin_api::{EditorInstanceId, EditorRegion, Message, ScreenLayout, ScreenPlacement};
 
-use crate::beui_frame::BeuiFrame;
 use crate::instance::BeuiInstance;
 use crate::{Artifacts, BeuiApp, Creation, Editor, EditorHost, OwnedEditor};
 
@@ -31,7 +30,6 @@ impl Adopted {
 pub(crate) trait Parts {
     fn document(&self, region: EditorRegion) -> Option<&beui::Document>;
     fn editor(&self) -> Option<Editor>;
-    fn chrome_mut(&mut self) -> Option<&mut BeuiFrame>;
     fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput>;
 }
 
@@ -42,10 +40,6 @@ impl<A: BeuiApp> Parts for BeuiInstance<A> {
 
     fn editor(&self) -> Option<Editor> {
         BeuiInstance::editor(self)
-    }
-
-    fn chrome_mut(&mut self) -> Option<&mut BeuiFrame> {
-        BeuiInstance::chrome_mut(self)
     }
 
     fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput> {
@@ -148,18 +142,6 @@ impl HeadlessPlugin {
 
     pub fn editor(&self, instance: EditorInstanceId) -> Option<Editor> {
         self.parts(instance)?.editor()
-    }
-
-    pub fn in_frame<T>(
-        &mut self,
-        instance: EditorInstanceId,
-        run: impl FnOnce() -> T,
-    ) -> Option<T> {
-        let chrome = self.parts_mut(instance)?.chrome_mut()?;
-        Some(beui::reactive::with_reactive_scope(
-            chrome.document_mut(),
-            run,
-        ))
     }
 
     fn parts(&self, instance: EditorInstanceId) -> Option<&dyn Parts> {

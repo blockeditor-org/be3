@@ -29,15 +29,11 @@ fn a_row_added_to_a_for_each_keeps_the_sizes_the_rows_beside_it_chose() {
         "the only row takes the whole list"
     );
 
-    with_reactive_scope(harness.document_mut(), move || {
-        keys.set(vec![0, 1]);
-        shown.set(1);
-    });
+    keys.set(vec![0, 1]);
+    shown.set(1);
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || {
-        keys.set(vec![0, 1, 2]);
-        shown.set(2);
-    });
+    keys.set(vec![0, 1, 2]);
+    shown.set(2);
     harness.frame(Vec::new());
 
     assert_eq!(

@@ -778,7 +778,7 @@ click or a tap never shows it. Moving the focus scrolls the control into view wi
 its ring, but a ring drawn outside its control still needs room inside the scroll at the
 content's edges, which is why the padding goes inside a scroll. A scroll that is one part of
 a padded surface, its content lined up with what sits beside it, takes `bleed` instead
-(`Bleed::POPOVER`, `Bleed::CARD`, with `.top(false)` and its siblings to keep a side in): the
+(`Bleed::POPOVER`, `Bleed::CARD`, `Bleed::DIALOG`, with `.top(false)` and its siblings to keep a side in): the
 scroll and its scrollbar reach out into the surface's padding up to its border, and the content
 is padded back in by as much, so it lines up as before and its rings have the padding to draw
 in. The unstyled `Scroll` takes the same as `Sides`, which it builds from a `Frame` with that much
@@ -1289,6 +1289,12 @@ carries the page off from where it rests in the same slide-away. `styled::Dialog
 sinks with the gesture and slides on down from where it was. On Android the
 runner passes `handles_back` to the activity's `setBackHandled`, and when
 nothing takes it the system's own back (to the home screen) plays instead.
+
+A `Center` overlay is never larger than its screen: content that measures taller
+or wider is laid out in the screen's size, so its bottom cannot fall off a short
+window. `styled::Dialog` puts its title and body in a fitted `Scroll` with
+`Bleed::DIALOG` that gives up length when the screen is short, so every dialog
+scrolls rather than spilling over the edge.
 
 A layer at `LayerLevel::Lock` that blocks everything is a lock screen
 (`styled::LockScreen`): it is above every other layer, so anything opened while
@@ -2554,21 +2560,24 @@ layout walk.
 
 ### Update a document from outside its events
 
-Component callbacks run with their `Document` installed, so signal writes from
-clicks and key events need no special handling. A host-driven update happens
-outside that context and must enter the document's reactive scope:
+A signal may be written from anywhere on the UI thread: an event handler, the
+host's frame code before or after `show`, a callback the host makes between
+frames, a future the app polls. Write it directly:
 
 ```rust
-use beui::reactive::*;
-use beui::Document;
-
-fn set_value(document: &mut Document, value: Signal<String>, next: String) {
-    with_reactive_scope(document, move || value.set(next));
-}
+value.set(next);
 ```
 
-Keep the signals the host writes next to its `Document`. Do not rebuild the
-document to display new data.
+The effects that belong to a document wait for its next frame (see Zones in
+the [reactive guide](reactive.md#zones)), and the write wakes the window, so
+nothing needs to ask for a frame. Keep the signals the host writes next to its
+`Document`. Do not rebuild the document to display new data.
+
+`with_reactive_scope(document, f)` installs a document and enters its scope
+while `f` runs. Use it for work that needs the document itself outside an
+event, such as calling `with_document`, running a callback the user wrote as
+if it were a click, or creating nodes, signals or effects in the document's
+scope; a signal write never needs it.
 
 ## Use beui in a block editor plugin
 
@@ -2618,7 +2627,7 @@ Block content reaches the view through a `ContentProjection`:
 `editor.block_content::<C>()` holds the content of the editor's own block,
 `project`, `field`, `ids` and `object` derive signals from it, and `operate`
 applies an edit and sends it to the host. The framework pumps every projection
-once at the top of the frame, inside the document's reactive scope, and
+once at the top of the frame, and
 `read` and `revision` track, so a memo or effect that reads them runs again
 when the content changes. See the [reactive guide](reactive.md#blocks).
 

@@ -35,7 +35,7 @@ fn the_release_of_an_escape_that_closed_a_dialog_stays_out_of_the_app_it_returns
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     harness.document_mut().focus_focusable(catcher.get());
-    with_reactive_scope(harness.document_mut(), move || open.set(true));
+    open.set(true);
     harness.frame(Vec::new());
     assert!(harness.document().focus_is_within(field.get()));
 

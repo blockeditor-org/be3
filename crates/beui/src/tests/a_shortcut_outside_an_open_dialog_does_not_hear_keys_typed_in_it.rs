@@ -34,7 +34,7 @@ fn a_shortcut_outside_an_open_dialog_does_not_hear_keys_typed_in_it() {
         "with nothing open the shortcut hears the key"
     );
 
-    with_reactive_scope(harness.document_mut(), move || open.set(true));
+    open.set(true);
     harness.frame(Vec::new());
     harness.click(harness.center(inside.get()));
     harness.key(Key::K, Modifiers::CTRL);
