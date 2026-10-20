@@ -16,7 +16,8 @@ async fn get(address: SocketAddr, method: &str) -> (String, String) {
 
 #[tokio::test]
 async fn namespace_wakes_the_cluster_once_for_callers_together() {
-    let directory = std::env::temp_dir().join(format!("namespace-waker-test-{}", std::process::id()));
+    let directory =
+        std::env::temp_dir().join(format!("namespace-waker-test-{}", std::process::id()));
     std::fs::create_dir_all(&directory).unwrap();
     let nsc = directory.join("nsc");
     std::fs::write(
@@ -52,8 +53,14 @@ async fn namespace_wakes_the_cluster_once_for_callers_together() {
     let answers = [first, second, third];
     for (status, body) in &answers {
         assert_eq!(status, "HTTP/1.1 200 OK");
-        assert!(body.contains("engine_address = grpcs://reapih.example:443"), "{body}");
-        assert!(body.contains("http_headers = x-nsc-ingress-auth:secret"), "{body}");
+        assert!(
+            body.contains("engine_address = grpcs://reapih.example:443"),
+            "{body}"
+        );
+        assert!(
+            body.contains("http_headers = x-nsc-ingress-auth:secret"),
+            "{body}"
+        );
     }
     assert_eq!(get(address, "GET").await.1, answers[0].1);
     assert_eq!(

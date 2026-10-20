@@ -55,7 +55,9 @@ async fn run() -> Result<(), Box<dyn Error>> {
             other => return Err(format!("unknown argument {other}\n\n{USAGE}").into()),
         }
     }
-    let token = token.ok_or(format!("name Namespace's token file with --token\n\n{USAGE}"))?;
+    let token = token.ok_or(format!(
+        "name Namespace's token file with --token\n\n{USAGE}"
+    ))?;
     let config = env::temp_dir().join(format!("namespace-waker-{}.buckconfig", std::process::id()));
     let waker = Arc::new(Waker::new(nsc, token, config));
     let listener = TcpListener::bind(address).await?;

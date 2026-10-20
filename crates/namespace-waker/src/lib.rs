@@ -12,12 +12,8 @@ use tokio::{
     sync::Mutex,
 };
 
-// Every setup is asked with this key and these arguments: Namespace starts a
-// new cluster beside the old one when either differs (guides/build_server.md).
 pub const CLUSTER_KEY: &str = "buildserver";
 
-// Callers that ask within this long of a setup share its answer, so a crowd
-// that finds the cluster asleep at once wakes it once.
 const FRESH: Duration = Duration::from_secs(60);
 const MAX_HEAD_BYTES: usize = 16 * 1024;
 const READ_TIMEOUT: Duration = Duration::from_secs(10);
@@ -74,8 +70,12 @@ fn setup(nsc: &Path, token: &Path, config: &Path) -> Result<String, String> {
             String::from_utf8_lossy(&output.stderr)
         ));
     }
-    let text = fs::read_to_string(config)
-        .map_err(|error| format!("nsc wrote no configuration to {}: {error}", config.display()))?;
+    let text = fs::read_to_string(config).map_err(|error| {
+        format!(
+            "nsc wrote no configuration to {}: {error}",
+            config.display()
+        )
+    })?;
     let _ = fs::remove_file(config);
     for key in ["engine_address", "cas_address", "http_headers"] {
         if !text.lines().any(|line| line.trim_start().starts_with(key)) {
@@ -113,7 +113,10 @@ async fn respond(mut stream: TcpStream, waker: &Waker) -> io::Result<()> {
         Err(_) => return Ok(()),
     };
     let (status, body) = if method != "GET" {
-        ("405 Method Not Allowed", "GET asks for the cluster's hosts.\n".to_owned())
+        (
+            "405 Method Not Allowed",
+            "GET asks for the cluster's hosts.\n".to_owned(),
+        )
     } else {
         match waker.answer().await {
             Ok(text) => ("200 OK", text.to_string()),
@@ -148,7 +151,12 @@ async fn read_method(stream: &mut TcpStream) -> io::Result<String> {
                 return Ok(request.method.unwrap_or_default().to_owned());
             }
             Ok(httparse::Status::Partial) if head.len() < MAX_HEAD_BYTES => {}
-            _ => return Err(io::Error::new(io::ErrorKind::InvalidData, "bad request head")),
+            _ => {
+                return Err(io::Error::new(
+                    io::ErrorKind::InvalidData,
+                    "bad request head",
+                ));
+            }
         }
     }
 }
