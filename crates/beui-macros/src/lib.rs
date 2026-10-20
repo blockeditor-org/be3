@@ -16,6 +16,7 @@ struct Prop {
     inner_ty: Option<Type>,
     optional_reactive_inner_ty: Option<Type>,
     reactive_inner_ty: Option<Type>,
+    binding_inner_ty: Option<Type>,
     render: Option<Render>,
     optional_render: Option<Render>,
     func_args: Option<Vec<Type>>,
@@ -488,6 +489,11 @@ fn named_setter(prop: &Prop) -> Setter {
             quote! { value: impl ::__beui_tree::reactive::IntoProp<#inner_ty> },
             quote! { ::__beui_tree::reactive::IntoProp::into_prop(value) },
         )
+    } else if let Some(inner_ty) = &prop.binding_inner_ty {
+        plain(
+            quote! { value: impl ::__beui_tree::reactive::IntoBinding<#inner_ty> },
+            quote! { ::__beui_tree::reactive::IntoBinding::into_binding(value) },
+        )
     } else if is_string_type(&prop.ty) {
         plain(quote! { value: impl Into<String> }, quote! { value.into() })
     } else {
@@ -503,7 +509,10 @@ fn prop_is_required(prop: &Prop) -> bool {
     if prop.is_child {
         return true;
     }
-    prop.default.is_none() && prop.callback_signature.is_none() && !prop.is_click_callback
+    prop.default.is_none()
+        && prop.callback_signature.is_none()
+        && !prop.is_click_callback
+        && prop.binding_inner_ty.is_none()
 }
 
 fn angle_bracketed(items: &[proc_macro2::TokenStream]) -> proc_macro2::TokenStream {
@@ -692,6 +701,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 .as_ref()
                 .and_then(|inner| generic_inner(inner, "Prop"));
             let reactive_inner_ty = generic_inner(ty, "Prop");
+            let binding_inner_ty = generic_inner(ty, "Binding");
             let optional_render = inner_ty.as_ref().and_then(render_kind);
             let optional_func_args = inner_ty.as_ref().and_then(func_args);
             let is_children = is_named_type(ty, "Children");
@@ -705,6 +715,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 inner_ty,
                 optional_reactive_inner_ty,
                 reactive_inner_ty,
+                binding_inner_ty,
                 render: render_kind(ty),
                 optional_render,
                 func_args: func_args(ty),
@@ -1035,6 +1046,7 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
                 let ty = &prop.ty;
                 quote! { <#param as #trait_ident<#ty>>::__prop(self.#ident) }
             }
+            None if prop.binding_inner_ty.is_some() => quote! { self.#ident },
             None => match &prop.default {
                 Some(default) if prop.reactive_inner_ty.is_some() => quote! {
                     self.#ident
@@ -1061,8 +1073,26 @@ fn expand_component(item: ItemFn) -> syn::Result<proc_macro2::TokenStream> {
         }
     };
 
+    let owned_bindings = props
+        .iter()
+        .filter(|prop| prop.binding_inner_ty.is_some())
+        .map(|prop| {
+            let ident = &prop.ident;
+            let initial = match &prop.default {
+                Some(default) => quote! { #default },
+                None => quote! { ::core::default::Default::default() },
+            };
+            quote! {
+                let #ident = #ident.unwrap_or_else(|| {
+                    ::__beui_tree::reactive::Binding::from(::__beui_tree::reactive::create_signal(#initial))
+                });
+            }
+        });
     let finish = quote! {
-        ::__beui_tree::reactive::component(&::__beui_tree::reactive::ComponentInfo { name: #name, module: module_path!() }, move || #block)
+        ::__beui_tree::reactive::component(&::__beui_tree::reactive::ComponentInfo { name: #name, module: module_path!() }, move || {
+            #(#owned_bindings)*
+            #block
+        })
     };
 
     Ok(quote! {

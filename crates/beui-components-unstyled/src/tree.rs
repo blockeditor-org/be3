@@ -454,14 +454,13 @@ pub fn TreeRowEditor(
     view! {
         <TextInput
             @node_ref=&field
-            value={initial}
+            value={Binding::new(initial, move |text: String| *changed.borrow_mut() = text)}
             placeholder={String::new()}
             label
             focused=true
             select_on_focus=true
             style
             content
-            on_change={move |text: String| *changed.borrow_mut() = text}
             on_submit={move |text: String| submit(Finish::Commit(text))}
             on_focus_change={move |focused: bool| {
                 if !focused {

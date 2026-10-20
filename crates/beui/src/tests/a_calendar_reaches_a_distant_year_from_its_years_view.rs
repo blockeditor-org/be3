@@ -10,10 +10,9 @@ fn a_calendar_reaches_a_distant_year_from_its_years_view() {
     let document = build(move || {
         view! {
             <Calendar
-                selected={Some(Date::new(2026, 1, 15))}
+                selected={Binding::new(Some(Date::new(2026, 1, 15)), move |date| picked.update(|picked| picked.push(date)))}
                 today={Some(Date::new(2026, 1, 1))}
                 focused=true
-                on_change={move |date| picked.update(|picked| picked.push(date))}
             />
         }
     });
@@ -39,5 +38,5 @@ fn a_calendar_reaches_a_distant_year_from_its_years_view() {
     );
     harness.key(Key::Enter, Modifiers::NONE);
 
-    assert_eq!(picked.get_untracked(), [Date::new(1982, 4, 15)]);
+    assert_eq!(picked.get_untracked(), [Some(Date::new(1982, 4, 15))]);
 }

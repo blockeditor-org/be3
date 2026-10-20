@@ -9,8 +9,7 @@ fn a_clicked_number_input_selects_its_text_until_enter() {
     let (document, [input]) = toolbar_of(move || {
         [view! {
             <NumberInput
-                value=1234.0
-                on_change={move |value| changes.update(|changes| changes.push(value))}
+                value={Binding::new(1234.0, move |next| changes.update(|changes| changes.push(next)))}
             />
         }]
     });

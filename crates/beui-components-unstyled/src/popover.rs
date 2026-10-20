@@ -12,7 +12,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 pub struct PopoverTriggerHandle {
-    pub open: ReadSignal<bool>,
+    pub open: Binding<bool>,
     pub button: ButtonHandle,
 }
 
@@ -25,13 +25,13 @@ pub enum PopoverPlacement {
 
 #[derive(Clone, Copy)]
 pub struct PopoverHandle {
-    pub open: ReadSignal<bool>,
+    pub open: Binding<bool>,
     pub close: Callback<()>,
 }
 
 #[derive(Clone, Copy)]
 struct State {
-    open: ReadSignal<bool>,
+    open: Binding<bool>,
     trigger: NodeRef,
 }
 
@@ -42,30 +42,21 @@ pub fn Popover(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
-    #[prop(default = false)] open: Prop<bool>,
+    #[prop(default = false)] open: Binding<bool>,
     anchor: Option<NodeRef>,
     #[prop(default = PopoverPlacement::Below)] placement: PopoverPlacement,
     #[prop(default = true)] refocus_trigger: Prop<bool>,
     accessibility: Option<Prop<Node>>,
-    on_open_change: Callback<bool>,
 ) -> NodeId {
-    let requested = open;
-    let open = create_signal(false);
-    create_effect(move || {
-        if requested.get() {
-            open.set(true);
-        }
-    });
     let refocus = create_signal(false);
     let disabled = create_memo(move || disabled.get());
     let label = create_memo(move || label.get());
     let trigger_ref = NodeRef::new();
     set_component_state(State {
-        open: open.read_only(),
+        open,
         trigger: trigger_ref,
     });
 
-    create_effect(move || on_open_change.call(open.get()));
     create_effect(move || {
         if disabled.get() {
             open.set(false);
@@ -104,10 +95,7 @@ pub fn Popover(
         PopoverPlacement::Below => Placement::BelowStart,
         PopoverPlacement::Over(inset) => Placement::Over(inset),
     };
-    let handle = PopoverHandle {
-        open: open.read_only(),
-        close,
-    };
+    let handle = PopoverHandle { open, close };
     let toggle = move || {
         if !disabled.get_untracked() {
             open.update(|open| *open = !*open);
@@ -130,7 +118,7 @@ pub fn Popover(
                 on_click={toggle}
             >|button: ButtonHandle| {
                 trigger.call(PopoverTriggerHandle {
-                    open: open.read_only(),
+                    open,
                     button,
                 })
             }</unstyled::Button>

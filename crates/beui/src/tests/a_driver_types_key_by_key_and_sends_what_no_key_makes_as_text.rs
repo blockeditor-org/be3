@@ -62,12 +62,7 @@ fn a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text() {
     let document = build(|| {
         let name = create_signal(String::new());
         view! {
-            <TextInput
-                @test_id={"form.name"}
-                value={name}
-                placeholder="Name"
-                on_change={move |next: String| name.set(next)}
-            />
+            <TextInput @test_id={"form.name"} value={name} placeholder="Name" />
         }
     });
     let mut driven = Driven::new(document);

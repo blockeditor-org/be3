@@ -11,7 +11,7 @@ use crate::text::{Icon, Text, TextColor};
 use crate::theme::{field_border, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
-use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Weekday};
+use beui_components_unstyled::datetime::{Date, DateTime, HourCycle, Time, Weekday};
 use beui_components_unstyled::{
     ButtonHandle, ChoiceOption, DateSegmentHandle, DateTimeBoxHandle, DateTimeCalendarHandle,
     DateTimePanelHandle, DateTimePanelLayout, DateTimeParts, DateTimeTimesHandle,
@@ -45,7 +45,7 @@ const STACK_BREAKPOINT: f32 = 460.0;
 
 #[component]
 pub fn DateTimeField(
-    value: Prop<Option<DateTime>>,
+    #[prop(default = None)] value: Binding<Option<DateTime>>,
     #[prop(default = DateTimeParts::DateTime)] parts: DateTimeParts,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = String::new())] label: Prop<String>,
@@ -56,7 +56,6 @@ pub fn DateTimeField(
     #[prop(default = None)] today: Prop<Option<Date>>,
     #[prop(default = Weekday::Monday)] first_weekday: Weekday,
     #[prop(default = 15)] step_minutes: u32,
-    on_change: Callback<Option<DateTime>>,
 ) -> NodeId {
     let narrow = narrower_than(STACK_BREAKPOINT);
     view! {
@@ -91,7 +90,6 @@ pub fn DateTimeField(
                     <PickerPanel handle clearable first_weekday step_minutes />
                 </PopoverPanel>
             }}
-            on_change={on_change}
         />
     }
 }
@@ -340,8 +338,7 @@ fn PanelBody(
                             <ChoiceOption label="Date" />
                             <ChoiceOption label="Time" />
                         }}
-                        selected={page}
-                        on_change={show_page}
+                        selected={Binding::new(page, show_page)}
                     />
                     <Show condition={dates}>
                         <Centred>
@@ -388,7 +385,11 @@ fn CalendarPane(
     } = handle;
     view! {
         <Calendar
-            selected={date}
+            selected={Binding::new(date, move |date: Option<Date>| {
+                if let Some(date) = date {
+                    pick.call(date);
+                }
+            })}
             min
             max
             today
@@ -396,7 +397,6 @@ fn CalendarPane(
             focused
             show={shown}
             width
-            on_change={pick}
         />
     }
 }
@@ -418,7 +418,11 @@ fn TimePane(
     view! {
         <Frame height=height>
             <unstyled::TimeList
-                value={time}
+                value={Binding::new(time, move |time: Option<Time>| {
+                    if let Some(time) = time {
+                        pick.call(time);
+                    }
+                })}
                 step_minutes
                 hour_cycle
                 focused
@@ -430,7 +434,6 @@ fn TimePane(
                 option={move |handle: TimeOptionHandle| view! {
                     <TimeOptionFace handle centred />
                 }}
-                on_change={pick}
             />
         </Frame>
     }

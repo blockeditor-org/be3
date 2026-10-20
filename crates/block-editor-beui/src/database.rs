@@ -283,11 +283,10 @@ fn StringValue(
     });
     view! {
         <TextInput
-            value={text}
+            value={Binding::new(text, edited)}
             placeholder="Empty"
             disabled={disabled}
             @test_id={id}
-            on_change={edited}
             on_submit={submitted}
         />
     }
@@ -319,13 +318,12 @@ fn NumberValue(
     });
     view! {
         <NumberInput
-            value={number}
+            value={Binding::new(number, edited)}
             min={bounds.minimum.unwrap_or(f64::NEG_INFINITY)}
             max={bounds.maximum.unwrap_or(f64::INFINITY)}
             drag={number_drag(bounds)}
             disabled={disabled}
             @test_id={id}
-            on_change={edited}
         />
     }
 }
@@ -394,11 +392,10 @@ fn EnumValue(
                     }
                 }</ForEach>
             }}
-            selected={selected}
+            selected={Binding::new(selected, picked)}
             label="Value"
             disabled={disabled}
             @test_id={id}
-            on_change={picked}
         />
     }
 }
@@ -418,10 +415,9 @@ fn BooleanValue(
     view! {
         <Checkbox
             label="Checked"
-            checked={checked}
+            checked={Binding::new(checked, toggled)}
             disabled={disabled}
             @test_id={id}
-            on_change={toggled}
         />
     }
 }
@@ -449,11 +445,10 @@ fn ColorValue(
     });
     view! {
         <ColorInput
-            value={color}
+            value={Binding::new(color, edited)}
             label="Color"
             disabled={disabled}
             @test_id={id}
-            on_change={edited}
         />
     }
 }
@@ -490,7 +485,7 @@ fn DatetimeValue(
         });
     };
     view! {
-        <DateTimeField value={moment} label disabled @test_id={id} on_change={edited} />
+        <DateTimeField value={Binding::new(moment, edited)} label disabled @test_id={id} />
     }
 }
 
@@ -612,11 +607,10 @@ fn RelationValue(
                         }
                     }</ForEach>
                 }}
-                selected={selected}
+                selected={Binding::new(selected, picked)}
                 label="Row"
                 disabled={disabled}
                 @test_id={id}
-                on_change={picked}
             />
         </List>
     }
@@ -724,11 +718,10 @@ fn LinksValue(
                         }
                     }</ForEach>
                 }}
-                selected={None}
+                selected={Binding::new(None, added)}
                 label="Add a link"
                 disabled={disabled}
                 @test_id={add_id}
-                on_change={added}
             />
         </List>
     }

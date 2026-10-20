@@ -29,7 +29,6 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
                     label="Code"
                     glyph=ICON_CODE
                     pressed={open}
-                    on_change={move |shown| open.set(shown)}
                 />
             </List>
             {children}

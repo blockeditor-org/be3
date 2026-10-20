@@ -1,20 +1,15 @@
 use accesskit::{Action, ActionRequest, Role, TreeId};
 use beui_view::reactive::Get;
-use beui_view::reactive::Set;
 
 use super::{Harness, VIEWPORT, build, create_signal, styled, view};
 
 #[test]
 fn accessibility_reports_and_steps_a_slider() {
     let _root = crate::reactive::RootScope::new();
-    let changed = create_signal(None);
+    let changed = create_signal(0.5);
     let document = build(move || {
         view! {
-            <styled::Slider
-                value=0.5
-                label="Volume"
-                on_change={move |value| changed.set(Some(value))}
-            />
+            <styled::Slider value={changed} label="Volume" />
         }
     });
     let mut harness = Harness::new(document);
@@ -45,7 +40,7 @@ fn accessibility_reports_and_steps_a_slider() {
         .find_map(|(id, node)| (*id == slider_id).then_some(node))
         .expect("slider disappeared from the accessibility tree");
 
-    assert_eq!(changed.get_untracked(), Some(0.55));
+    assert_eq!(changed.get_untracked(), 0.55);
     let value = slider
         .numeric_value()
         .expect("slider lost its numeric value");

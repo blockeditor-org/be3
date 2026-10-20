@@ -390,7 +390,7 @@ fn ShowToggle() -> NodeId {
     let shown = create_signal(true);
     view! {
         <List spacing=SECTION_SPACING>
-            <LabelledSwitch label="Shown" on={shown} on_change={move |on| shown.set(on)} />
+            <LabelledSwitch label="Shown" on={shown} />
             <Show condition={shown}>
                 <Tile label="Built the first time it is shown, and kept while hidden" />
             </Show>
@@ -431,7 +431,7 @@ fn DynamicShape() -> NodeId {
     let round = create_signal(false);
     view! {
         <List spacing=SECTION_SPACING>
-            <LabelledSwitch label="Round" on={round} on_change={move |on| round.set(on)} />
+            <LabelledSwitch label="Round" on={round} />
             <Dynamic value={round}>|round: bool| {
                 match round {
                     true => view! {
@@ -485,9 +485,9 @@ fn InteractiveCard() -> NodeId {
         <List spacing=SECTION_SPACING>
             <Interactive
                 focusable=true
-                on_hover_change={move |on| hovered.set(on)}
-                on_active_change={move |on| active.set(on)}
-                on_focus_change={move |on| focused.set(on)}
+                on_hover_change={hovered}
+                on_active_change={active}
+                on_focus_change={focused}
                 on_click={move || log.set("Clicked".to_owned())}
                 on_key={move |press: KeyPress| {
                     if press.pressed {
@@ -737,12 +737,11 @@ fn AnimationSample() -> NodeId {
             <Checkbox
                 @test_id="animation.instant"
                 label="Disable animations"
-                checked={create_memo(move || !preference.get().animates())}
-                on_change={move |disabled| with_document(|document| {
+                checked={Binding::new(create_memo(move || !preference.get().animates()), move |disabled| with_document(|document| {
                     if let Some(context) = document.context() {
                         context.set_motion(if disabled { Motion::Instant } else { Motion::Animated });
                     }
-                })}
+                }))}
             />
             <Button
                 @test_id="animation.retarget"

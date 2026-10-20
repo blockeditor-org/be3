@@ -90,18 +90,17 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
         <List spacing=8.0>
             <Text string={name} />
             <NumberInput
-                value={length}
-                min=1.0
-                max={MAX_CLIP_LENGTH as f64}
-                label="Length"
-                @test_id={"video.clip-length"}
-                on_change={move |value: f64| {
+                value={Binding::new(length, move |value: f64| {
                     let Some(mut clip) = clip.get_untracked() else {
                         return;
                     };
                     clip.length = (value.round().max(1.0) as u64).min(MAX_CLIP_LENGTH);
                     state.update_clip(clip);
-                }}
+                })}
+                min=1.0
+                max={MAX_CLIP_LENGTH as f64}
+                label="Length"
+                @test_id={"video.clip-length"}
             />
             <Text style=TextStyle::CAPTION string={seconds} color={seconds_color} />
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
@@ -128,9 +127,7 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
             </List>
             <Show condition={hanging}>
                 <NumberInput
-                    value={offset}
-                    label="Offset"
-                    on_change={move |value: f64| {
+                    value={Binding::new(offset, move |value: f64| {
                         let Some(mut clip) = clip.get_untracked() else {
                             return;
                         };
@@ -140,7 +137,8 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                         clip.attachment =
                             Some(VideoAttachment::new(attachment.clip_id, value.round() as i64));
                         state.update_clip(clip);
-                    }}
+                    })}
+                    label="Offset"
                 />
             </Show>
             <Text string="Effect stack" />

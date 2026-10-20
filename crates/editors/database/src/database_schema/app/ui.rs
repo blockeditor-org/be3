@@ -224,11 +224,10 @@ fn FieldRow(
                 </Text>
                 <Frame width=NAME_WIDTH>
                     <TextInput
-                        value={name}
+                        value={Binding::new(name, renamed)}
                         label="Field name"
                         disabled={read_only}
                         @test_id={format!("database-schema.name.{id}")}
-                        on_change={renamed}
                     />
                 </Frame>
                 <Select
@@ -237,11 +236,10 @@ fn FieldRow(
                             <ChoiceOption label={FIELD_TYPES[index].1} />
                         </ForEach>
                     }}
-                    selected={selected}
+                    selected={Binding::new(selected, retyped)}
                     label="Field type"
                     disabled={read_only}
                     @test_id={format!("database-schema.type.{id}")}
-                    on_change={retyped}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <IconButton
@@ -359,11 +357,10 @@ fn NumberOptions(
                                     <ChoiceOption label={NUMBER_SCALES[index].1} />
                                 </ForEach>
                             }}
-                            selected={scale}
+                            selected={Binding::new(scale, rescaled)}
                             label="Number scale"
                             disabled={read_only}
                             @test_id={format!("database-schema.number.{id}.scale")}
-                            on_change={rescaled}
                         />
                     </List>
                 </List>
@@ -451,18 +448,16 @@ fn OptionalNumber(
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Checkbox
                 label={bound.label()}
-                checked={set}
+                checked={Binding::new(set, toggled)}
                 disabled={read_only}
                 @test_id={format!("database-schema.number.{id}.{}.set", bound.test_id())}
-                on_change={toggled}
             />
             <Frame width=NUMBER_WIDTH>
                 <NumberInput
-                    value={value}
+                    value={Binding::new(value, typed)}
                     label={bound.label()}
                     disabled={unset}
                     @test_id={format!("database-schema.number.{id}.{}", bound.test_id())}
-                    on_change={typed}
                 />
             </Frame>
             <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -613,12 +608,11 @@ fn EnumOptionRow(
             />
             <Frame width=NAME_WIDTH>
                 <TextInput
-                    value={name}
+                    value={Binding::new(name, renamed)}
                     label="Option name"
                     disabled={read_only}
                     select_on_focus=true
                     @test_id={format!("database-schema.enum.{id}.{option_id}.name")}
-                    on_change={renamed}
                 />
             </Frame>
             <unstyled::MenuButton
@@ -657,17 +651,15 @@ fn EnumOptionRow(
             />
             <ToggleButton
                 label="Closed"
-                pressed={closed}
+                pressed={Binding::new(closed, close)}
                 disabled={read_only}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.closed")}
-                on_change={close}
             />
             <ToggleButton
                 label="Default"
-                pressed={default}
+                pressed={Binding::new(default, defaulted)}
                 disabled={read_only}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.default")}
-                on_change={defaulted}
             />
             <IconButton
                 glyph={ICON_ARROW_UPWARD.to_owned()}
@@ -781,11 +773,10 @@ fn BlockOptions(
                             }
                         }</ForEach>
                     }}
-                    selected={selected}
+                    selected={Binding::new(selected, picked)}
                     label="Block type"
                     disabled={read_only}
                     @test_id={format!("database-schema.block.{id}.type")}
-                    on_change={picked}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -886,10 +877,9 @@ fn RelationOptions(
                     />
                     <Checkbox
                         label="Several rows"
-                        checked={multiple}
+                        checked={Binding::new(multiple, remultiplied)}
                         disabled={read_only}
                         @test_id={format!("database-schema.relation.{id}.multiple")}
-                        on_change={remultiplied}
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
@@ -897,11 +887,10 @@ fn RelationOptions(
                     <Text string="Shown on the linked rows as" />
                     <Frame width=NAME_WIDTH>
                         <TextInput
-                            value={inverse}
+                            value={Binding::new(inverse, renamed)}
                             placeholder="No column"
                             disabled={read_only}
                             @test_id={format!("database-schema.relation.{id}.inverse")}
-                            on_change={renamed}
                         />
                     </Frame>
                     <Spacer @sizing=ItemSize::Percent(100.0) />

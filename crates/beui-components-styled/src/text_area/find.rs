@@ -58,12 +58,11 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                         </Text>
                         <Frame width=QUERY_WIDTH>
                             <TextInput
-                                value={query}
+                                value={Binding::new(query, move |value: String| state.set_find_query(value))}
                                 placeholder="Find"
                                 label="Find"
                                 focused={focus_query}
                                 @test_id={"text.find.query"}
-                                on_change={move |value: String| state.set_find_query(value)}
                                 on_submit={move |_: String| state.find_step(FindDirection::Next)}
                             />
                         </Frame>
@@ -71,9 +70,8 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                             glyph=ICON_MATCH_CASE
                             icon_only=true
                             label="Match case"
-                            pressed={case_sensitive}
+                            pressed={Binding::new(case_sensitive, move |pressed: bool| state.set_find_case_sensitive(pressed))}
                             @test_id={"text.find.match-case"}
-                            on_change={move |pressed: bool| state.set_find_case_sensitive(pressed)}
                         />
                         <Text style=TextStyle::CAPTION string={summary} />
                         <IconButton
@@ -114,11 +112,10 @@ fn ReplaceRow(state: TextAreaState, no_current: Memo<bool>, no_matches: Memo<boo
             <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                 <Frame width=QUERY_WIDTH>
                     <TextInput
-                        value={replacement}
+                        value={Binding::new(replacement, move |value: String| state.set_find_replacement(value))}
                         placeholder="Replace"
                         label="Replace"
                         @test_id={"text.find.replacement"}
-                        on_change={move |value: String| state.set_find_replacement(value)}
                     />
                 </Frame>
                 <Button

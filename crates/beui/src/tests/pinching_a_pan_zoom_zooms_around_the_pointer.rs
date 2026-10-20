@@ -1,12 +1,12 @@
 use super::*;
 use crate::reactive::*;
-use crate::unstyled::{PanZoomView, pan_zoom_view};
+use crate::unstyled::pan_zoom_view;
 
 #[test]
 fn pinching_a_pan_zoom_zooms_around_the_pointer() {
     let document = build(move || {
         view! {
-            <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
+            <PanZoomStage />
         }
     });
     let mut harness = Harness::new(document);

@@ -31,7 +31,7 @@ fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
         let open = create_signal(true);
         view! {
             <List spacing=0.0>
-                <CommandPalette @node_ref=&palette open on_close={move || open.set(false)} />
+                <CommandPalette @node_ref=&palette open />
             </List>
         }
     });

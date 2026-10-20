@@ -116,16 +116,15 @@ struct State {
     values: Signal<Values>,
     typing: Signal<Option<(DateSegment, String)>>,
     focus: Signal<Option<DateSegment>>,
-    value: Signal<Option<DateTime>>,
+    value: Binding<Option<DateTime>>,
     disabled: Memo<bool>,
     left: Timer,
-    on_change: Callback<Option<DateTime>>,
     on_open: Callback<DateSegment>,
 }
 
 #[component]
 pub fn DateTimeField(
-    value: Prop<Option<DateTime>>,
+    #[prop(default = None)] value: Binding<Option<DateTime>>,
     #[prop(default = DateTimeParts::DateTime)] parts: DateTimeParts,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -134,7 +133,6 @@ pub fn DateTimeField(
     #[prop(default = String::new())] label: Prop<String>,
     segment: RenderFn<DateSegmentHandle>,
     literal: RenderFn<String>,
-    on_change: Callback<Option<DateTime>>,
     on_focus_change: Callback<bool>,
     on_segment_focus: Callback<Option<DateSegment>>,
     on_draft: Callback<DateDraft>,
@@ -147,7 +145,6 @@ pub fn DateTimeField(
     let values = create_signal(split(initial, hour_cycle));
     let typing = create_signal(None);
     let focus = create_signal(None);
-    let current_value = create_signal(initial);
     let disabled = create_memo(move || disabled.get());
     let left_state = store(Cell::new(None::<State>));
     let left = create_timer(move || {
@@ -163,10 +160,9 @@ pub fn DateTimeField(
         values,
         typing,
         focus,
-        value: current_value,
+        value,
         disabled,
         left,
-        on_change,
         on_open,
     };
     left_state.with(|left| left.set(Some(state)));
@@ -174,7 +170,6 @@ pub fn DateTimeField(
 
     create_effect(move || {
         let next = value.get();
-        state.value.set(next);
         let values = state.values.get_untracked();
         if compose(state, &values, next) != next || (next.is_none() && !empty(state, &values)) {
             state.values.set(split(next, state.cycle));
@@ -314,7 +309,7 @@ fn SegmentView(
             on_key={move |press: KeyPress| segment_key(state, segment, press)}
             on_text={move |typed: String| type_text(state, segment, &typed)}
             cursor=CursorIcon::Text
-            on_hover_change={move |next: bool| hovered.set(next)}
+            on_hover_change={hovered}
         >
             <List direction=Direction::Horizontal spacing=0.0>
                 <Show condition=shown>|| { literal.call(prefix.clone()) }</Show>
@@ -488,7 +483,6 @@ fn commit(state: State, mut values: Values) {
     };
     if reported != current {
         state.value.set(reported);
-        state.on_change.call(reported);
     }
 }
 

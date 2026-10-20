@@ -9,11 +9,10 @@ use beui_view::reactive::*;
 #[component]
 pub fn Listbox(
     options: Children<ChoiceOption>,
-    selected: Prop<Option<usize>>,
-    on_change: Callback<Option<usize>>,
+    #[prop(default = None)] selected: Binding<Option<usize>>,
 ) -> NodeId {
     view! {
-        <Choice options selected kind=Kind::Listbox on_change={on_change}>|handle|
+        <Choice options selected kind=Kind::Listbox>|handle|
             <OptionFace kind=Kind::Listbox handle />
         </Choice>
     }

@@ -18,12 +18,11 @@ use beui_view::reactive::*;
 #[component]
 pub fn ToggleButton(
     #[prop(default = String::new())] label: Prop<String>,
-    #[prop(default = false)] pressed: Prop<bool>,
+    #[prop(default = false)] pressed: Binding<bool>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     action: Option<Action>,
-    on_change: Callback<bool>,
 ) -> NodeId {
     let icon_only = create_memo(move || icon_only.get());
     let named = create_memo(move || !icon_only.get());
@@ -35,7 +34,6 @@ pub fn ToggleButton(
             role=Role::Button
             action
             disabled
-            on_change={on_change}
         >|handle: ToggleHandle|
             <Tooltip label={handle.tooltip} disabled={named}>
                 <ToggleButtonFace handle icon_only />

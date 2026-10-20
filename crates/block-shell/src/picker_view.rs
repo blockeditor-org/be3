@@ -400,15 +400,23 @@ fn PlaceItem(
     let label = create_memo(move || row.get().map(|row| row.name).unwrap_or_default());
     let glyph = create_memo(move || row.get().map(|row| row.icon).unwrap_or_default());
     let depth = create_memo(move || row.get().map(|row| row.depth));
-    let expanded = create_memo(move || {
-        row.get()
-            .filter(|row| row.expandable)
-            .map(|row| row.expanded)
-    });
+    let unfolded = key.clone();
+    let expanded = Binding::new(
+        Prop::dynamic(move || {
+            row.get()
+                .filter(|row| row.expandable)
+                .map(|row| row.expanded)
+        }),
+        move |open: Option<bool>| {
+            act.call(PickAction::UnfoldPlace(
+                unfolded.clone(),
+                open == Some(true),
+            ))
+        },
+    );
     let checked =
         create_memo(move || Some(id.is_some() && place.get().and_then(BlockParent::block) == id));
     let named = id.map_or_else(String::new, |id| format!("picker.place.{id}"));
-    let unfolded = key.clone();
     view! {
         <unstyled::MenuItem
             label
@@ -423,7 +431,6 @@ fn PlaceItem(
                     act.call(PickAction::Place(BlockParent::Block(id)));
                 }
             }}
-            on_expand={move |open: bool| act.call(PickAction::UnfoldPlace(unfolded.clone(), open))}
         />
     }
 }
@@ -541,12 +548,11 @@ fn SurfaceHeader(
                 </List>
                 <TextInput
                     @node_ref={&field}
-                    value={search}
+                    value={Binding::new(search, move |value: String| act.call(PickAction::Search(value)))}
                     placeholder
                     label="Search"
                     glyph={ICON_SEARCH.to_owned()}
                     @test_id={"picker.search"}
-                    on_change={move |value: String| act.call(PickAction::Search(value))}
                 />
             </List>
         </Frame>

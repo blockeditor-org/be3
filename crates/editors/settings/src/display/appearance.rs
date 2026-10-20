@@ -65,16 +65,15 @@ pub(super) fn AppearanceSection(settings: Settings, read_only: Memo<bool>) -> No
                             <ChoiceOption label={theme.name().to_owned()} />
                         </ForEach>
                     }}
-                    selected={selected}
-                    label="Theme"
-                    disabled={read_only}
-                    @test_id={"display.theme"}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(selected, move |index: Option<usize>| {
                         let chosen = index
                             .and_then(|index| index.checked_sub(1))
                             .and_then(|index| Theme::ALL.get(index).copied());
                         set_theme.call(chosen);
-                    }}
+                    })}
+                    label="Theme"
+                    disabled={read_only}
+                    @test_id={"display.theme"}
                 />
             </LayeredSettingsRow>
             <LayeredSettingsRow
@@ -94,16 +93,15 @@ pub(super) fn AppearanceSection(settings: Settings, read_only: Memo<bool>) -> No
                             <ChoiceOption label={format!("{percent}%")} />
                         </ForEach>
                     }}
-                    selected={selected_scale}
-                    label="Scale"
-                    disabled={read_only}
-                    @test_id={"display.scale"}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(selected_scale, move |index: Option<usize>| {
                         let percent = index
                             .and_then(|index| index.checked_sub(1))
                             .and_then(|index| DisplaySettings::SCALES.get(index).copied());
                         set_scale.call(percent);
-                    }}
+                    })}
+                    label="Scale"
+                    disabled={read_only}
+                    @test_id={"display.scale"}
                 />
             </LayeredSettingsRow>
         </SettingsSection>

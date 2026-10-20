@@ -70,9 +70,8 @@ pub struct VoidView {
 }
 
 pub struct TextCheckbox {
-    pub checked: Memo<bool>,
+    pub checked: Binding<bool>,
     pub disabled: Memo<bool>,
-    pub on_change: Callback<bool>,
 }
 
 pub const PADDING: Vec2 = Vec2::new(12.0, 8.0);
@@ -1449,7 +1448,7 @@ pub fn TextArea(
                                         <Scroll
                                             offset={offset}
                                             focus_color={Color32::TRANSPARENT}
-                                            on_change={move |position: ScrollPosition| scroll.set(position)}
+                                            on_change={scroll}
                                         >
                                             <Editing field={field} />
                                         </Scroll>

@@ -54,14 +54,13 @@ fn FormatToggle(state: TextAreaState, tool: Tool, glyph: &'static str, id: Strin
             glyph
             icon_only=true
             label={tool.label}
-            pressed={pressed}
-            disabled={disabled}
-            on_change={move |_: bool| {
+            pressed={Binding::new(pressed, move |_: bool| {
                 if let Some(selected) = selected.get_untracked() {
                     state.execute((tool.command)(&selected));
                 }
                 state.focus();
-            }}
+            })}
+            disabled={disabled}
         />
     }
 }

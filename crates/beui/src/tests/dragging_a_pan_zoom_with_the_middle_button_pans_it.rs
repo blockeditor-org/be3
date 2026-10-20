@@ -6,7 +6,7 @@ use crate::unstyled::{PanZoomView, pan_zoom_view};
 fn dragging_a_pan_zoom_with_the_middle_button_pans_it() {
     let document = build(move || {
         view! {
-            <PanZoomStage view=PanZoomView::IDENTITY on_change={move |_| {}} />
+            <PanZoomStage />
         }
     });
     let mut harness = Harness::new(document);

@@ -26,7 +26,7 @@ fn check_compact_rows(inset: f32) {
         let padding = create_memo(move || item_height.get() / 2.0);
         view! {
             <List spacing=0.0>
-                <Switch @node_ref=&switch on=false on_change={move |on: bool| compact.set(on)} />
+                <Switch @node_ref=&switch on={compact} />
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
                     <VirtualList
                         @node_ref=&list

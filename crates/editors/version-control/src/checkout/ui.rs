@@ -229,7 +229,6 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         placeholder="What changed?"
                                         label="Commit message"
                                         @test_id={"checkout.message"}
-                                        on_change={move |value| message.set(value)}
                                     />
                                     <Button
                                         label="Commit"
@@ -260,7 +259,6 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         placeholder="New branch"
                                         label="New branch name"
                                         @test_id={"checkout.branch-name"}
-                                        on_change={move |value| branch_name.set(value)}
                                     />
                                     <Button
                                         label="Make branch"

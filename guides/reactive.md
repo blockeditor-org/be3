@@ -127,9 +127,11 @@ it with `move` and nothing clones it.
   (it also derefs to one). Use it for state made outside a scope, such as an
   editor the host keeps.
 
-`Callback`, `ClickCallback` and `NodeRef` are `Copy` the same way. An empty
+`Callback`, `ClickCallback`, `Binding` and `NodeRef` are `Copy` the same way. An empty
 callback needs no scope; `Callback::new`, `ClickCallback::new` and
-`NodeRef::new` create stored values, so they need one. Calling a callback
+`NodeRef::new` create stored values, so they need one. A `Callback<T>` made from
+a `Signal<T>` (`Callback::from(signal)`, or the signal passed where a callback
+is expected) holds just the signal's handle and sets it when called. Calling a callback
 whose scope is gone does nothing, as `set` on a freed signal does. A callback
 runs its handler untracked, so an effect that calls one subscribes to nothing
 the handler reads.
@@ -565,7 +567,9 @@ and a component that wants a prop to be optional says so with
 "unset" apart from any value the caller could have passed. `Callback`,
 `ClickCallback`, and `Children` props keep their empty default, since a callback
 nobody listens to and a tag with no children are ordinary states rather than
-omissions.
+omissions. A `Binding<T>` prop is never required either: left unset, the
+component creates its own signal, holding the `#[prop(default = ...)]` value or
+else `T::default()`.
 
 ```rust
 #[component]
@@ -614,17 +618,59 @@ props wraps that in a memo it can read and pass on:
 let text = create_memo(move || content.get());
 ```
 
-When the component also writes that value itself — a toggle whose `checked` prop
-seeds state that clicking then changes — seed a signal from `get_untracked()` and keep it
-in sync with an effect, so writes from the component's own handlers and writes
-from the caller's signal both land in one place. `Prop::map` adjusts the value on
-the way in:
+### Bindings: state a component reads and writes
+
+When the component also writes that value itself — a toggle whose `checked`
+flips when clicked, a slider's `value`, a popover's `open` — the prop is a
+`Binding<T>` rather than a `Prop<T>` plus an `on_change` callback. A binding
+reads through `Get`, tracking like a signal, and writes through `Set`. The
+component writes to it and reads it back; it never keeps a copy in sync with an
+effect.
 
 ```rust
-let value = value.map(|value| value.clamp(0.0, 1.0));
-let current = create_signal(value.get_untracked());
-create_effect(move || current.set(value.get()));
+#[component]
+pub fn Toggle(checked: Binding<bool>, /* ... */) -> NodeId {
+    let flip = move || checked.set(!checked.get_untracked());
+    let toggled = create_memo(move || Toggled::from(checked.get()));
+    // ...
+}
 ```
+
+The caller decides who owns the state, with nothing to choose between on the
+component's side:
+
+- Leave the prop out and the component owns it: the macro creates a signal in
+  the component's scope, seeded from `#[prop(default = ...)]`. This is what
+  "uncontrolled" means here, and it is the default.
+- Pass a `Signal<T>` and the component reads and writes that signal:
+  `<Checkbox checked={done} />`. The binding holds just the signal's handle, so
+  this costs no allocation.
+- Pass a plain value to seed a signal the component then owns:
+  `<Switch on=true />`.
+- Pass `Binding::new(read, write)` for state that is derived or lives
+  elsewhere: `read` is anything `IntoProp<T>` (a memo, a `Prop`), and `write`
+  anything `IntoCallback<T>`, called with the value the component wants. The
+  component shows what `read` says, so a write the callback ignores changes
+  nothing on screen, and `set` skips a write equal to the value read. A
+  plain value as `read` seeds a signal the binding owns, which each write
+  updates before calling `write`: an uncontrolled control that also reports.
+
+```rust
+let selected = create_memo(move || state.tool.get() == tool);
+view! { <ToggleButton pressed={Binding::new(selected, move |_| state.tool.set(tool))} /> }
+```
+
+To react to a change, derive from the signal (a memo, or an effect for side
+effects outside the graph) instead of asking the component for a callback.
+Callbacks that only report what happened (`on_hover_change`, `on_focus_change`,
+`on_drag_change`, `on_preview`) stay callbacks, and take a signal as well as a
+closure: `on_hover_change={hovered}` rather than
+`on_hover_change={move |next| hovered.set(next)}`.
+
+A component hands its binding to the content it renders as it is: a handle
+field typed `Binding<T>` reads the state and could write it too. A binding is
+also `IntoProp<T>` and `IntoCallback<T>`, so it passes straight to a prop or
+callback of an inner component.
 
 A component's child arity is part of its signature. A prop named `children`
 typed `Children` takes however many are written between its tags; typed `Child`

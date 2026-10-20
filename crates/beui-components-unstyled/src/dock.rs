@@ -183,7 +183,7 @@ pub struct DockSwitcherCardHandle {
 #[derive(Clone, Copy)]
 pub struct DockTabControl {
     tab: TabId,
-    state: ReadSignal<DockState>,
+    state: Binding<DockState>,
     dock: State,
 }
 
@@ -376,8 +376,7 @@ struct Drag {
 
 #[derive(Clone, Copy)]
 struct State {
-    state: Signal<DockState>,
-    on_change: Callback<DockState>,
+    state: Binding<DockState>,
     on_close: Callback<TabId>,
     drag: Signal<Option<Drag>>,
     title: Func<TabId, String>,
@@ -435,8 +434,7 @@ impl State {
         if next == current {
             return;
         }
-        self.state.set(next.clone());
-        self.on_change.call(next);
+        self.state.set(next);
     }
 
     fn title(&self, tab: TabId) -> String {
@@ -514,7 +512,7 @@ impl State {
         let menus = self.menus;
         let control = DockTabControl {
             tab,
-            state: self.state.read_only(),
+            state: self.state,
             dock: *self,
         };
         let panel = scope.context().run(|| {
@@ -1168,8 +1166,7 @@ fn vacant_leaf(state: &DockState) -> LeafId {
 }
 
 pub(crate) struct DockConfig {
-    pub(crate) state: Prop<DockState>,
-    pub(crate) on_change: Callback<DockState>,
+    pub(crate) state: Binding<DockState>,
     pub(crate) on_close: Callback<TabId>,
     pub(crate) title: Func<TabId, String>,
     pub(crate) group_title: Func<GroupId, Option<String>>,
@@ -1207,7 +1204,6 @@ pub(crate) struct DockConfig {
 pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let DockConfig {
         state,
-        on_change,
         on_close,
         title,
         group_title,
@@ -1246,19 +1242,16 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             let dialog_focus = create_signal(None);
             let attention = create_signal((0, None));
             let given = create_signal((0, None));
-            let current = create_signal(state.get_untracked());
             let actions = create_signal(HashMap::new());
             let menus = create_signal(DockMenus::new());
             let offers = create_signal(HashMap::new());
-            create_effect(move || current.set(state.get()));
             let drag = create_signal(None);
             let dock = State {
-                state: current,
+                state,
                 windows: store(RefCell::default()),
                 fullscreen_layer: NodeRef::new(),
                 panels: store(RefCell::default()),
                 owner: store(owner_scope()),
-                on_change,
                 on_close,
                 drag,
                 title,
@@ -1355,7 +1348,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 dock.cycle(press.modifiers.shift)
             });
             create_effect(move || {
-                let tabs = current.with(DockState::all_tabs);
+                let tabs = state.with(DockState::all_tabs);
                 dock.keep_panels(&tabs);
             });
             on_cleanup(move || dock.keep_panels(&[]));
@@ -2072,10 +2065,7 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                         }
                     }</ForEach>
                 }}
-                selected={selected}
-                kind=ChoiceKind::Tabs
-                direction
-                on_change={move |index: Option<usize>| {
+                selected={Binding::new(selected, move |index: Option<usize>| {
                     let Some(index) = index else {
                         return;
                     };
@@ -2091,7 +2081,9 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     if let Some(tab) = shown.filter(|_| !picked) {
                         dock.give_keyboard(tab);
                     }
-                }}
+                })}
+                kind=ChoiceKind::Tabs
+                direction
             >|handle: ChoiceOptionHandle| {
                 let dock = dock;
                 let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();
@@ -2406,7 +2398,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         <Interactive
             capture_presses=true
             focusable=true
-            on_focus_change={move |has_focus: bool| focused.set(has_focus)}
+            on_focus_change={focused}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
                     return false;
@@ -2427,8 +2419,8 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                 Direction::Vertical => CursorIcon::ResizeVertical,
             }}
             touch_drag_axis={Some(direction)}
-            on_hover_change={move |over: bool| hovered.set(over)}
-            on_active_change={move |held: bool| active.set(held)}
+            on_hover_change={hovered}
+            on_active_change={active}
             on_press={move |press: PointerPress| {
                 grabbed.set(Some((start(), press.pos)));
             }}
@@ -2496,7 +2488,7 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
     view! {
         <Interactive
             focusable=true
-            on_focus_change={move |has_focus: bool| focused.set(has_focus)}
+            on_focus_change={focused}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
                     return false;
@@ -2512,8 +2504,8 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
             }}
             cursor=CursorIcon::ResizeHorizontal
             capture_presses=true
-            on_hover_change={move |over: bool| hovered.set(over)}
-            on_active_change={move |held: bool| active.set(held)}
+            on_hover_change={hovered}
+            on_active_change={active}
             on_press={move |press: PointerPress| {
                 grabbed.set(Some((width.get_untracked(), press.pos)));
             }}

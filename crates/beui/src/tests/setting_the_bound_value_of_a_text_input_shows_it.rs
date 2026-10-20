@@ -3,18 +3,12 @@ use crate::reactive::*;
 use crate::styled::*;
 
 #[test]
-fn setting_the_value_of_a_text_input_reports_the_change() {
+fn setting_the_bound_value_of_a_text_input_shows_it() {
     let _root = crate::reactive::RootScope::new();
-    let reported = create_signal(String::new());
     let value = create_signal(String::new());
-    let (document, [_input]) = toolbar_of(|| {
+    let (document, [input]) = toolbar_of(|| {
         [view! {
-            <TextInput
-                value
-                on_change={move |value| {
-                    reported.set(value);
-                }}
-            />
+            <TextInput value={value} />
         }]
     });
     let mut harness = Harness::new(document);
@@ -23,6 +17,10 @@ fn setting_the_value_of_a_text_input_reports_the_change() {
     with_installed(harness.document_mut(), |_| {
         value.set("typed for you".to_string());
     });
+    harness.frame(Vec::new());
 
-    assert_eq!(reported.get_untracked().as_str(), "typed for you");
+    assert_eq!(
+        styled::text_input_value(harness.document(), input),
+        "typed for you"
+    );
 }

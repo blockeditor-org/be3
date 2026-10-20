@@ -147,11 +147,10 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                             }
                         }</ForEach>
                     }}
-                    selected={selected}
+                    selected={Binding::new(selected, choose)}
                     label="Remapper"
                     disabled={read_only}
                     @test_id={"input.remapper"}
-                    on_change={choose}
                 />
             </LayeredSettingsRow>
             <SettingsLink

@@ -51,11 +51,10 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
                         id={"display.rotate-in-bar".to_owned()}
                     >
                         <Switch
-                            on={in_bar}
+                            on={Binding::new(in_bar, move |on: bool| show_in_bar.call(Some(on)))}
                             label="Rotate button in the bar"
                             disabled={read_only}
                             @test_id={"display.rotate-in-bar"}
-                            on_change={move |on: bool| show_in_bar.call(Some(on))}
                         />
                     </LayeredSettingsRow>
                 </SettingsSection>

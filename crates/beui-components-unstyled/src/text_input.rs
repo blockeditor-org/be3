@@ -1,6 +1,5 @@
 use std::cell::{Cell, RefCell};
 use std::ops::Range;
-use std::rc::Rc;
 use std::sync::Arc;
 
 use accesskit::{Node, Role};
@@ -83,7 +82,7 @@ struct Input {
 
 #[component]
 pub fn TextInput(
-    value: Prop<String>,
+    value: Binding<String>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = true)] keyboard_on_focus: bool,
     #[prop(default = false)] disabled: Prop<bool>,
@@ -94,7 +93,6 @@ pub fn TextInput(
     placeholder: Prop<String>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = TextInputStyle::default())] style: TextInputStyle,
-    on_change: Callback<String>,
     on_submit: Callback<String>,
     on_hover_change: Callback<bool>,
     on_focus_change: Callback<bool>,
@@ -139,16 +137,10 @@ pub fn TextInput(
     let clear = ClickCallback::new(move || {
         state.execute(EditorCommand::ReplaceWholeFile(b""));
     });
-    let reported = Rc::new(RefCell::new(initial));
     let content_changed = state.content();
     create_effect(move || {
         content_changed.get();
-        let value = text_of(state);
-        if *reported.borrow() == value {
-            return;
-        }
-        reported.replace(value.clone());
-        on_change.call(value);
+        value.set(text_of(state));
     });
 
     let colors = create_memo(move || TextAreaColors {

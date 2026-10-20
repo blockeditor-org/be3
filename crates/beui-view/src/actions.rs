@@ -726,13 +726,6 @@ pub fn action_disabled(action: Option<&Action>, disabled: Prop<bool>) -> Prop<bo
     }
 }
 
-pub fn action_pressed(action: Option<&Action>, pressed: Prop<bool>) -> Prop<bool> {
-    match action.and_then(Action::checked) {
-        Some(checked) => checked,
-        None => pressed,
-    }
-}
-
 pub fn action_tooltip(action: Option<&Action>, label: Prop<String>) -> Prop<String> {
     match action.and_then(Action::shortcut_label) {
         Some(shortcut) => label.map(move |label| format!("{label} ({shortcut})")),

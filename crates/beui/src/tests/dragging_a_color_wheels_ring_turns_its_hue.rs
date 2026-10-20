@@ -13,8 +13,7 @@ fn dragging_a_color_wheels_ring_turns_its_hue() {
             <List spacing=0.0>
                 <ColorWheel
                     @node_ref=&wheel
-                    value={Hsva::new(0.0, 1.0, 1.0, 1.0).to_color()}
-                    on_change={move |color| changes.update(|changes| changes.push(color))}
+                    value={Binding::new(Hsva::new(0.0, 1.0, 1.0, 1.0).to_color(), move |next| changes.update(|changes| changes.push(next)))}
                 />
             </List>
         }

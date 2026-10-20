@@ -108,6 +108,20 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
         });
     });
     let prefix = format!("desktop.tray.{id}");
+    let open = create_signal(false);
+    let mut was_open = false;
+    create_effect(move || {
+        let now = open.get();
+        if now != was_open {
+            was_open = now;
+            untrack(|| {
+                editor.act(match now {
+                    true => TrayRequest::MenuOpened(opened_id.clone()),
+                    false => TrayRequest::MenuClosed(opened_id.clone()),
+                })
+            });
+        }
+    });
     view! {
         <PictureMenuButton
             label
@@ -134,12 +148,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
                     });
                 }
             }}
-            on_open_change={move |open: bool| {
-                editor.act(match open {
-                    true => TrayRequest::MenuOpened(opened_id.clone()),
-                    false => TrayRequest::MenuClosed(opened_id.clone()),
-                });
-            }}
+            open
         />
     }
 }

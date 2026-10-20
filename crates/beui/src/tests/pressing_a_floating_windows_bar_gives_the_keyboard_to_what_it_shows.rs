@@ -6,12 +6,7 @@ use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
 fn Input(id: u64) -> NodeId {
     let typed = create_signal(String::new());
     view! {
-        <styled::TextInput
-            @test_id={format!("input.{id}")}
-            value={typed}
-            label="Notes"
-            on_change={move |text: String| typed.set(text)}
-        />
+        <styled::TextInput @test_id={format!("input.{id}")} value={typed} label="Notes" />
     }
 }
 

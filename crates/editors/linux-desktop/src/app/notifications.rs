@@ -122,8 +122,8 @@ impl DesktopNotifications {
         })
     }
 
-    pub(crate) fn browse(&self, open: bool) {
-        self.browsing.set(open);
+    pub(crate) fn browsing(&self) -> Signal<bool> {
+        self.browsing
     }
 
     pub(crate) fn dismiss(&self, ids: &[u32]) {

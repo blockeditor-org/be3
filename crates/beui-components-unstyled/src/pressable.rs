@@ -31,7 +31,7 @@ pub fn Pressable(
             focusable=true
             tab_stop={enabled}
             on_focus_change={on_focus_change}
-            on_activate_change={move |pressed| key_active.set(pressed)}
+            on_activate_change={key_active}
             on_activate={click}
             cursor=CursorIcon::PointingHand
             key_active

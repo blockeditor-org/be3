@@ -605,7 +605,7 @@ fn Scrolling(
                 <Interactive
                     focusable=true
                     tab_stop
-                    on_focus_change={move |next: bool| focused.set(next)}
+                    on_focus_change={focused}
                     on_key={move |press: KeyPress| motion.value().key(press)}
                     scroll_axis={axis}
                     @node_ref=&catcher

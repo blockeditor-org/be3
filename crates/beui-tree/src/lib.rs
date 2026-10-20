@@ -1,5 +1,6 @@
 extern crate self as beui;
 
+pub mod binding;
 pub mod callback;
 pub mod child_list;
 pub mod children;
@@ -8,6 +9,7 @@ pub mod control;
 pub mod prop;
 
 pub mod reactive {
+    pub use crate::binding::{Binding, IntoBinding};
     pub use crate::callback::{Callback, ClickCallback, IntoCallback, IntoClickCallback};
     pub use crate::child_list::{ChildList, SlotId};
     pub use crate::children::{

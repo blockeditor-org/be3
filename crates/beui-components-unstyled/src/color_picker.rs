@@ -45,36 +45,31 @@ impl ColorModel for Oklch {
 #[derive(Clone, Copy)]
 pub struct ColorPickerState<Model: ColorModel = Hsva> {
     color: Signal<Model>,
-    reported: Signal<Color32>,
+    value: Binding<Color32>,
     dragging: Signal<bool>,
     disabled: Memo<bool>,
-    on_change: Callback<Color32>,
     on_preview: Callback<Option<Color32>>,
 }
 
 impl<Model: ColorModel> ColorPickerState<Model> {
     pub fn new(
-        value: Prop<Color32>,
+        value: Binding<Color32>,
         disabled: Prop<bool>,
-        on_change: Callback<Color32>,
         on_preview: Callback<Option<Color32>>,
     ) -> Self {
         let first = value.get_untracked();
         let color = create_signal(Model::from_color_keeping(first, Model::default()));
-        let reported = create_signal(first);
         let dragging = create_signal(false);
         create_effect(move || {
             let next = value.get();
-            reported.set(next);
             let held = color.get_untracked();
             color.set(Model::from_color_keeping(next, held));
         });
         Self {
             color,
-            reported,
+            value,
             dragging,
             disabled: create_memo(move || disabled.get()),
-            on_change,
             on_preview,
         }
     }
@@ -101,14 +96,14 @@ impl<Model: ColorModel> ColorPickerState<Model> {
         if self.dragging.get_untracked() {
             self.on_preview.call(Some(color));
         } else {
-            self.report(color);
+            self.value.set(color);
         }
     }
 
     pub fn drag(&self, dragging: bool) {
         self.dragging.set(dragging);
         if !dragging {
-            self.report(self.color.get_untracked().to_color());
+            self.value.set(self.color.get_untracked().to_color());
             self.on_preview.call(None);
         }
     }
@@ -116,13 +111,6 @@ impl<Model: ColorModel> ColorPickerState<Model> {
     pub fn pick(&self, color: Color32) {
         let held = self.color.get_untracked();
         self.apply(Model::from_color_keeping(color, held));
-    }
-
-    fn report(&self, color: Color32) {
-        if color != self.reported.get_untracked() {
-            self.reported.set(color);
-            self.on_change.call(color);
-        }
     }
 }
 
@@ -242,8 +230,9 @@ impl HexText {
         }
     }
 
-    pub fn text(&self) -> ReadSignal<String> {
-        self.text.read_only()
+    pub fn text(&self) -> Binding<String> {
+        let hex = *self;
+        Binding::new(self.text, move |typed: String| hex.edit(typed))
     }
 
     pub fn placeholder(&self) -> &'static str {
@@ -305,11 +294,10 @@ pub fn ColorPickerArea(
 ) -> NodeId {
     view! {
         <ColorArea
-            value={picker.color()}
+            value={Binding::new(picker.color(), move |next: Hsva| picker.apply(next))}
             thumb
             focused
             disabled={picker.disabled()}
-            on_change={move |next: Hsva| picker.apply(next)}
             on_drag_change={move |dragging: bool| picker.drag(dragging)}
             content
         />
@@ -326,13 +314,12 @@ pub fn HueSlider(
     let hue = create_memo(move || color.get().hue);
     view! {
         <Slider
-            value={hue}
+            value={Binding::new(hue, move |hue: f32| picker.set_hue(hue))}
             min=0.0
             max=360.0
             thumb
             disabled={picker.disabled()}
             accessibility={picker.hue_accessibility()}
-            on_change={move |hue: f32| picker.set_hue(hue)}
             on_drag_change={move |dragging: bool| picker.drag(dragging)}
             content
         />
@@ -349,11 +336,10 @@ pub fn AlphaSlider(
     let alpha = create_memo(move || color.get().alpha);
     view! {
         <Slider
-            value={alpha}
+            value={Binding::new(alpha, move |alpha: f32| picker.set_alpha(alpha))}
             thumb
             disabled={picker.disabled()}
             accessibility={picker.alpha_accessibility()}
-            on_change={move |alpha: f32| picker.set_alpha(alpha)}
             on_drag_change={move |dragging: bool| picker.drag(dragging)}
             content
         />
@@ -387,15 +373,14 @@ pub fn Swatches(
                     <ChoiceOption label={labels[index].clone()} />
                 </ForEach>
             }}
-            selected={chosen}
-            kind=ChoiceKind::Radio
-            direction=Direction::Horizontal
-            wrap=true
-            on_change={move |index: Option<usize>| {
+            selected={Binding::new(chosen, move |index: Option<usize>| {
                 if let Some(swatch) = index.and_then(|index| picked.get(index)) {
                     picker.pick(*swatch);
                 }
-            }}
+            })}
+            kind=ChoiceKind::Radio
+            direction=Direction::Horizontal
+            wrap=true
         >|option: ChoiceOptionHandle| {
             let color = swatches[option.index];
             content.call(SwatchHandle { color, option })

@@ -93,29 +93,25 @@ fn ViewChoice(review: Review) -> NodeId {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <ToggleButton
                 label="Approved"
-                pressed={pressed(Showing::Approved)}
+                pressed={Binding::new(pressed(Showing::Approved), choose(review, Showing::Approved))}
                 @test_id={"paint_review.view.approved"}
-                on_change={choose(review, Showing::Approved)}
             />
             <ToggleButton
                 label="Current"
-                pressed={pressed(Showing::Current)}
+                pressed={Binding::new(pressed(Showing::Current), choose(review, Showing::Current))}
                 @test_id={"paint_review.view.current"}
-                on_change={choose(review, Showing::Current)}
             />
             <ToggleButton
                 label="Difference"
                 glyph={ICON_COMPARE.to_owned()}
-                pressed={pressed(Showing::Difference)}
+                pressed={Binding::new(pressed(Showing::Difference), choose(review, Showing::Difference))}
                 @test_id={"paint_review.view.difference"}
-                on_change={choose(review, Showing::Difference)}
             />
             <ToggleButton
                 label="Side by side"
                 glyph={ICON_VERTICAL_SPLIT.to_owned()}
-                pressed={pressed(Showing::SideBySide)}
+                pressed={Binding::new(pressed(Showing::SideBySide), choose(review, Showing::SideBySide))}
                 @test_id={"paint_review.view.side_by_side"}
-                on_change={choose(review, Showing::SideBySide)}
             />
         </List>
     }
@@ -244,13 +240,12 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
                 />
                 <Dynamic value={count}>|count: usize|
                     <Slider
-                        value={at}
+                        value={Binding::new(at, move |value: f32| {
+                            review.seek(value.round().max(0.0) as usize)
+                        })}
                         max={(count - 1) as f32}
                         label="Frame"
                         @test_id={"paint_review.frame.at"}
-                        on_change={move |value: f32| {
-                            review.seek(value.round().max(0.0) as usize)
-                        }}
                     />
                 </Dynamic>
                 <Text style=TextStyle::CAPTION string={position} />
