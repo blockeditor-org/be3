@@ -18,6 +18,7 @@ mod layered_settings;
 mod loading;
 mod related_content;
 mod rotation;
+pub mod sections;
 pub mod version_control;
 
 use be_block::presence::PresenceColor;
