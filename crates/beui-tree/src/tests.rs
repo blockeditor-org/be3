@@ -7,6 +7,9 @@ use crate::reactive::{
     create_signal, on_cleanup, store, view,
 };
 
+mod a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own;
+mod a_callback_given_a_signal_sets_it;
+mod a_derived_binding_reads_its_prop_and_writes_through_its_callback;
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
 mod a_mock_dom_row_that_leaves_disposes_the_effects_it_built;
 mod a_mock_dom_show_keep_alive_hides_the_element_it_built_and_brings_it_back;
