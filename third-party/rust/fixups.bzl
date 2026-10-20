@@ -117,10 +117,25 @@ FIXUPS = {
         },
     },
     "soup3-sys": _PKG_CONFIG,
+    # bindgen! adds an include_bytes! of every WIT file it reads, by absolute
+    # path, so that cargo rebuilds when one changes; buck2 knows the files
+    # already. An included file's path is part of the crate's hash, and that path
+    # is in the directory each compile runs in, which made the -Zno-codegen
+    # metadata wasmtime-wasi's dependents compile against and the rlib they link
+    # disagree. The overlay leaves the includes out.
+    "wasmtime-internal-component-macro": {"overlay": {"src/bindgen.rs": "overlays/wasmtime-internal-component-macro/bindgen.rs"}},
     "webkit2gtk-sys": _PKG_CONFIG,
     # Windows API imports as raw-dylib, which rustc turns into import stubs
     # itself, rather than through the import library windows_<arch>_msvc
     # vendors. That library is needed by every final link, and a build
     # script's link search path reaches only the compile of its own crate.
     "windows-targets": {"rustc_flags": ["--cfg=windows_raw_dylib"]},
+    # The snapshot lookup, which nothing here calls, starts from
+    # env!("CARGO_MANIFEST_DIR"): an absolute path into the directory each
+    # compile runs in. That made the -Zno-codegen metadata a dependent compiles
+    # against and the rlib it links disagree about the crate's hash, failing
+    # the link of wiggle's proc macro. The overlay starts from no directory, so
+    # the lookup needs WASI_REPO, as it does wherever the WASI repository is not
+    # two directories up.
+    "witx": {"overlay": {"src/phases.rs": "overlays/witx/phases.rs"}},
 }

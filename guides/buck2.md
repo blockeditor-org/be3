@@ -346,10 +346,20 @@ extension ships: the toolchain's panics on this workspace.
   under cargo. What cargo builds for the machine running the build - proc
   macros, build scripts and their dependencies - is one build here, the
   `linux-x86_64` one, with the union of what every plan asks of it.
-- **The compiler stays stable.** `nightly_features = False` in
-  `buck/toolchains/BUCK`: otherwise the prelude sets `RUSTC_BOOTSTRAP=1`, and
-  `cfg(target_feature = "atomics")` on `wasm32-wasip1-threads` then answers
-  differently from cargo, which broke wgpu's `Send`/`Sync` checks.
+- **Pipelining.** `nightly_features = True` in `buck/toolchains/BUCK`, so a
+  crate's dependents compile against a `-Zno-codegen` metadata compile of it
+  rather than wait for its codegen; the prelude then sets `RUSTC_BOOTSTRAP=1`
+  for every rustc. The metadata compile and the real one must agree on the
+  crate's hash, so a crate must not take in the absolute path of the directory
+  its compile runs in, which is different for every action: not by
+  `env!("CARGO_MANIFEST_DIR")`, nor by a macro that writes an `include_bytes!`
+  of an absolute path. A dependent's link otherwise fails with E0460, "found
+  possibly newer version of crate". `third-party/rust/fixups.bzl` overlays the
+  third-party crates that did (witx, wasmtime's `bindgen!`).
+- **Plugins compile at opt-level 0** outside a release build, while their
+  dependencies keep the plugin profile's 2 (`editor()` and `plugin_tests()` in
+  `buck/wasm/defs.bzl`), and test modules are precompiled with Cranelift's
+  optimizations off (`--quick`): a change under beui recompiles every plugin.
 - **The key.** A server answers a call with a wrong or missing key or token
   with `UNAUTHENTICATED`, which buck2 reports as failing to reach it.
 - **Downloads.** Every `http_archive` has `size_bytes` as well as `sha256`;

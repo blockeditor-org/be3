@@ -5,7 +5,7 @@ use std::{
     time::SystemTime,
 };
 
-use wasmtime::{Engine, Module};
+use wasmtime::{Engine, Module, OptLevel};
 
 use crate::{PRECOMPILED_EXTENSION, configuration, module, precompiled_beside};
 
@@ -52,8 +52,16 @@ pub fn precompile(modules: &[PathBuf], target: Option<&str>) -> Result<(), Strin
     }
 }
 
-pub fn precompile_to(wasm: &Path, artifact: &Path, target: Option<&str>) -> Result<(), String> {
+pub fn precompile_to(
+    wasm: &Path,
+    artifact: &Path,
+    target: Option<&str>,
+    quick: bool,
+) -> Result<(), String> {
     let mut configuration = configuration();
+    if quick {
+        configuration.cranelift_opt_level(OptLevel::None);
+    }
     if let Some(target) = target {
         configuration
             .target(target)
