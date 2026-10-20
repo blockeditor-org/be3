@@ -7,17 +7,15 @@ use crate::styled::*;
 fn a_modal_sheet_slides_in_and_out() {
     let _root = crate::reactive::RootScope::new();
     let content = NodeRef::new();
-    let (open, set_open) = create_signal(false);
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @sizing=ItemSize::Percent(100.0) />
-                    <ModalSheet open={open} fit=true on_close={move || set_open.set(false)}>
-                        <Frame @node_ref=&content height=120.0 />
-                    </ModalSheet>
-                </List>
-            }
+    let open = create_signal(false);
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ModalSheet open={open} fit=true on_close={move || open.set(false)}>
+                    <Frame @node_ref=&content height=120.0 />
+                </ModalSheet>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));
@@ -28,7 +26,7 @@ fn a_modal_sheet_slides_in_and_out() {
             .node_rect(content.get())
             .map(|rect| rect.top())
     };
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     let entering = top(&harness).expect("the sheet is laid out as it enters");

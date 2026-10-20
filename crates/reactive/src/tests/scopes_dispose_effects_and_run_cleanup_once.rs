@@ -5,7 +5,7 @@ fn scopes_dispose_effects_and_run_cleanup_once() {
     let _root = RootScope::new();
     let parent = Scope::new();
     let child = parent.run(Scope::new);
-    let (value, set_value) = create_signal(1);
+    let value = create_signal(1);
     let calls = Rc::new(Cell::new(0));
     let cleanups = Rc::new(Cell::new(0));
     let effect = child.run(|| {
@@ -18,13 +18,13 @@ fn scopes_dispose_effects_and_run_cleanup_once() {
             on_cleanup(move || cleanups.set(cleanups.get() + 1));
         })
     });
-    set_value.set(2);
+    value.set(2);
     assert_eq!(cleanups.get(), 1);
     parent.dispose();
     assert!(child.is_disposed());
     assert!(effect.is_disposed());
     child.dispose();
-    set_value.set(3);
+    value.set(3);
     assert_eq!(calls.get(), 2);
     assert_eq!(cleanups.get(), 2);
 }

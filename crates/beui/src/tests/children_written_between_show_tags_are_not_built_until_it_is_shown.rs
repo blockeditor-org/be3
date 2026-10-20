@@ -4,7 +4,7 @@ use crate::reactive::*;
 use crate::unstyled::Button;
 
 #[component]
-fn CountedPanel(builds: WriteSignal<usize>) -> NodeId {
+fn CountedPanel(builds: Signal<usize>) -> NodeId {
     builds.update(|builds| *builds += 1);
     view! {
         <Text string="panel" />
@@ -14,25 +14,23 @@ fn CountedPanel(builds: WriteSignal<usize>) -> NodeId {
 #[test]
 fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
     let _root = crate::reactive::RootScope::new();
-    let (builds, set_builds) = create_signal::<usize>(0);
+    let builds = create_signal::<usize>(0);
     let (toggle, panel) = (NodeRef::new(), NodeRef::new());
 
-    let document = build({
-        move || {
-            let (visible, set_visible) = create_signal(false);
-            view! {
-                <List @node_ref=&panel spacing=0.0>
-                    <Button
-                        @node_ref=&toggle
-                        on_click={move || set_visible.update(|visible| *visible = !*visible)}
-                    >
-                        <Text string="toggle" />
-                    </Button>
-                    <Show condition=visible>
-                        <CountedPanel builds={set_builds} />
-                    </Show>
-                </List>
-            }
+    let document = build(move || {
+        let visible = create_signal(false);
+        view! {
+            <List @node_ref=&panel spacing=0.0>
+                <Button
+                    @node_ref=&toggle
+                    on_click={move || visible.update(|visible| *visible = !*visible)}
+                >
+                    <Text string="toggle" />
+                </Button>
+                <Show condition=visible>
+                    <CountedPanel builds={builds} />
+                </Show>
+            </List>
         }
     });
 

@@ -21,7 +21,7 @@ pub(super) fn intercept_keys(
                     chords.iter().any(|chord| chord.tap && chord.key == key)
                 });
                 if asked && allowed() {
-                    plugin_host::intercept_tap(&plugin_id.get(), instance, region, key);
+                    plugin_host::intercept_tap(&plugin_id.value(), instance, region, key);
                 }
                 return false;
             }
@@ -39,7 +39,7 @@ pub(super) fn intercept_keys(
             held.with(|held| held.set(press.modifiers));
         }
         plugin_host::intercept_region(
-            &plugin_id.get(),
+            &plugin_id.value(),
             instance,
             region,
             Some(press),
@@ -62,6 +62,6 @@ pub(super) fn intercept_keys(
                 logo: was.logo && now.logo,
             })
         });
-        plugin_host::intercept_region(&plugin_id.get(), instance, region, None, now);
+        plugin_host::intercept_region(&plugin_id.value(), instance, region, None, now);
     });
 }

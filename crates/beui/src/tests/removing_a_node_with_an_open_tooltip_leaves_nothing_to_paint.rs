@@ -9,10 +9,10 @@ use crate::unstyled::{Tooltip, TooltipHandle};
 #[test]
 fn removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint() {
     let document = build(|| {
-        let (rows, set_rows) = create_signal(vec![1i64]);
+        let rows = create_signal(vec![1i64]);
         view! {
             <List spacing=0.0>
-                <Button on_click={move || set_rows.set(Vec::new())}>
+                <Button on_click={move || rows.set(Vec::new())}>
                     <Text string="remove" />
                 </Button>
                 <ForEach keys={rows}>|row: i64|

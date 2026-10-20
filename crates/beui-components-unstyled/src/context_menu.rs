@@ -42,10 +42,10 @@ pub fn ContextMenu(
     on_select: Callback<Vec<usize>>,
     on_toolbar_close: ClickCallback,
 ) -> NodeId {
-    let (open, set_open) = create_signal(false);
-    let (touched, set_touched) = create_signal(false);
-    let (focusing, set_focusing) = create_signal(true);
-    let (position, set_position) = create_signal(Pos2::ZERO);
+    let open = create_signal(false);
+    let touched = create_signal(false);
+    let focusing = create_signal(true);
+    let position = create_signal(Pos2::ZERO);
     let anchor = create_memo(move || OverlayAnchor::Point(position.get()));
     let (overlay, content) = (NodeRef::new(), NodeRef::new());
     let (toolbar, bar, more_button) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
@@ -57,7 +57,7 @@ pub fn ContextMenu(
     });
 
     let (requested, requested_touch, requested_position, requested_focusing) =
-        (set_open, set_touched, set_position, set_focusing);
+        (open, touched, position, focusing);
     create_effect(move || {
         let Some(at) = open_at.get() else {
             return;
@@ -68,7 +68,7 @@ pub fn ContextMenu(
         requested.set(true);
     });
     let (pointed, pointed_touch, pointed_position, pointed_focusing) =
-        (set_open, set_touched, set_position, set_focusing);
+        (open, touched, position, focusing);
     let mut pointer_opened = false;
     create_effect(move || {
         if !open_at_pointer.get() {
@@ -85,7 +85,7 @@ pub fn ContextMenu(
         pointed.set(true);
     });
     let shown = create_memo(move || open.get());
-    let touched = create_memo(move || !selection && touched.get());
+    let touch_shown = create_memo(move || !selection && touched.get());
     let mut ever_open = false;
     let built = create_memo(move || {
         ever_open |= shown.get();
@@ -99,10 +99,10 @@ pub fn ContextMenu(
     let toolbar_anchor =
         create_memo(move || OverlayAnchor::Rect(toolbar_at.get().unwrap_or(Rect::NOTHING)));
     let more = Callback::new(move |at: Pos2| {
-        set_position.set(at);
-        set_touched.set(true);
-        set_focusing.set(false);
-        set_open.set(true);
+        position.set(at);
+        touched.set(true);
+        focusing.set(false);
+        open.set(true);
         on_toolbar_close.call();
     });
     create_effect(move || {
@@ -125,10 +125,10 @@ pub fn ContextMenu(
                 if disabled.get() || (press.touch && !opens_on_hold) {
                     return;
                 }
-                set_position.set(press.pos);
-                set_touched.set(press.touch);
-                set_focusing.set(true);
-                set_open.set(true);
+                position.set(press.pos);
+                touched.set(press.touch);
+                focusing.set(true);
+                open.set(true);
             }}
             on_press_outside={move |pos: Pos2| {
                 let on_bar = with_document(|document| {
@@ -137,7 +137,7 @@ pub fn ContextMenu(
                         .is_some_and(|rect| rect.contains(pos))
                 });
                 let on_selection = toolbar_at
-                    .peek()
+                    .get_untracked()
                     .is_some_and(|rect| rect.contains(pos));
                 if toolbar_open.get_untracked() && !on_bar && !on_selection {
                     on_toolbar_close.call();
@@ -154,10 +154,10 @@ pub fn ContextMenu(
                         menu={menu}
                         anchor
                         open={shown}
-                        touched
+                        touched={touch_shown}
                         focusing
                         on_dismiss={move || {
-                            set_open.set(false);
+                            open.set(false);
                             on_close.call();
                         }}
                         on_select={on_select}
@@ -203,7 +203,7 @@ fn Toolbar(
         |_, item| item,
         move |index| {
             let item = shown.with(|shown| shown.borrow()[index].clone());
-            match item.children.peek().is_empty() {
+            match item.children.get_untracked().is_empty() {
                 true => view! {
                     <ToolbarButton item index button on_choose />
                 },

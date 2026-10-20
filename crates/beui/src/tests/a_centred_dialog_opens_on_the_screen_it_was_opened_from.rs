@@ -10,32 +10,29 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
     let _root = crate::reactive::RootScope::new();
     let left = Rect::from_min_size(pos2(0.0, 0.0), vec2(700.0, 500.0));
     let right = Rect::from_min_size(pos2(700.0, 0.0), vec2(500.0, 400.0));
-    let (open, set_open) = create_signal(false);
+    let open = create_signal(false);
     let body = NodeRef::new();
-    let document = build({
-        let (opening, reopening) = (set_open, set_open);
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <List direction=Direction::Horizontal justify=Justify::SpaceBetween spacing=0.0>
-                        <Button
-                            label="Left"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"left"}
-                            on_click={move || opening.set(true)}
-                        />
-                        <Button
-                            label="Right"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"right"}
-                            on_click={move || reopening.set(true)}
-                        />
-                    </List>
-                    <Dialog open={open} title="About" width=300.0 on_dismiss={|| {}}>
-                        <Text string="Body" color=Color32::WHITE @node_ref={&body} />
-                    </Dialog>
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <List direction=Direction::Horizontal justify=Justify::SpaceBetween spacing=0.0>
+                    <Button
+                        label="Left"
+                        variant=ButtonVariant::Secondary
+                        @test_id={"left"}
+                        on_click={move || open.set(true)}
+                    />
+                    <Button
+                        label="Right"
+                        variant=ButtonVariant::Secondary
+                        @test_id={"right"}
+                        on_click={move || open.set(true)}
+                    />
                 </List>
-            }
+                <Dialog open={open} title="About" width=300.0 on_dismiss={|| {}}>
+                    <Text string="Body" color=Color32::WHITE @node_ref={&body} />
+                </Dialog>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, vec2(1200.0, 500.0));
@@ -66,7 +63,7 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
         "the dialog is centred on its screen"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(false));
+    with_reactive_scope(harness.document_mut(), move || open.set(false));
     harness.frame(Vec::new());
     let button = harness.center(harness.find("left"));
     harness.click(button);
@@ -78,9 +75,9 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
     );
     assert!((shown.center().x - left.center().x).abs() < 2.0);
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(false));
+    with_reactive_scope(harness.document_mut(), move || open.set(false));
     harness.frame(vec![Event::PointerMoved(right.center())]);
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     harness.frame(Vec::new());
     let shown = harness.rect(body.get());
     assert!(

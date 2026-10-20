@@ -255,28 +255,24 @@ fn PickerPanel(
         };
         least.max(field_width.get())
     });
-    let width = panel_width;
     view! {
         <Frame width=panel_width>
             <List spacing=PANEL_SPACING>
                 <List direction=Direction::Horizontal spacing=0.0>
                     <Frame width=field_width>{field}</Frame>
                 </List>
-                <Dynamic value={layout}>|shape: DateTimePanelLayout| {
-                    let (page, show_page) = (page, show_page);
-                    view! {
-                        <PanelBody
-                            shape
-                            calendar
-                            times
-                            page
-                            show_page={show_page}
-                            width={width}
-                            first_weekday
-                            step_minutes
-                        />
-                    }
-                }</Dynamic>
+                <Dynamic value={layout}>|shape: DateTimePanelLayout|
+                    <PanelBody
+                        shape
+                        calendar
+                        times
+                        page
+                        show_page={show_page}
+                        width={panel_width}
+                        first_weekday
+                        step_minutes
+                    />
+                </Dynamic>
                 <List
                     direction=Direction::Horizontal
                     align=Align::Center
@@ -310,7 +306,6 @@ fn PanelBody(
     let alone = create_memo(move || width.get().min(CALENDAR_MAX_WIDTH));
     let dates = create_memo(move || page.get() == 0);
     let times_shown = create_memo(move || page.get() == 1);
-    let alone_date = alone;
     view! {
         <List spacing=PANEL_SPACING>
             <Show condition={shape == DateTimePanelLayout::Beside}>
@@ -327,7 +322,7 @@ fn PanelBody(
             </Show>
             <Show condition={shape == DateTimePanelLayout::Date}>
                 <Centred>
-                    <CalendarPane handle={calendar} width={alone_date} first_weekday />
+                    <CalendarPane handle={calendar} width={alone} first_weekday />
                 </Centred>
             </Show>
             <Show condition={shape == DateTimePanelLayout::Time}>

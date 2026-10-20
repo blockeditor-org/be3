@@ -12,14 +12,14 @@ fn a_toast_goes_away_when_dismissed_or_when_its_time_is_up() {
     };
     let document = build(move || {
         let area = NodeRef::new();
-        let (toasts, set_toasts) = create_signal(vec![toast(1), toast(2)]);
+        let toasts = create_signal(vec![toast(1), toast(2)]);
         view! {
             <Frame @node_ref=&area width={VIEWPORT.x} height={VIEWPORT.y}>
                 <Toasts
                     anchor={area}
                     toasts={toasts}
                     on_dismiss={move |id: u64| {
-                        set_toasts.update(|toasts| toasts.retain(|toast| toast.id != id))
+                        toasts.update(|toasts| toasts.retain(|toast| toast.id != id))
                     }}
                 />
             </Frame>

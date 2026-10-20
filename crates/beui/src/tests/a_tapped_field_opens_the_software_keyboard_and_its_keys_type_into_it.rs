@@ -9,14 +9,14 @@ fn a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it() {
     let typed = Rc::new(RefCell::new(String::new()));
     let seen = Rc::clone(&typed);
     let document = build(move || {
-        let (name, set_name) = create_signal(String::new());
+        let name = create_signal(String::new());
         view! {
             <TextInput
                 @test_id="field"
                 value={name}
                 on_change={move |next: String| {
                     *seen.borrow_mut() = next.clone();
-                    set_name.set(next);
+                    name.set(next);
                 }}
             />
         }

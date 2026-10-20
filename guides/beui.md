@@ -166,7 +166,7 @@ writes a `view!`, not a half-applied builder.
 
 Bind a signal or memo to a prop; do not read it while building and do not
 rebuild a subtree to show a new value. A `Prop<T>` takes a plain `T`, a
-`ReadSignal<T>`, or a `Memo<T>`, and the reactive forms install an effect that
+`Signal<T>`, a `ReadSignal<T>`, or a `Memo<T>`, and the reactive forms install an effect that
 writes just that one property when the value changes. A prop holds a signal or
 memo it is given as it is; only a closure (`Prop::dynamic`) is boxed, so pass a
 memo rather than `move || memo.get()`.
@@ -1789,9 +1789,9 @@ keeps a `PanZoomView` - the world point shown at the middle of the viewport and
 a scale - passes it in, and writes back what `on_change` reports:
 
 ```rust
-let (view, set_view) = create_signal(PanZoomView::IDENTITY);
+let camera = create_signal(PanZoomView::IDENTITY);
 view! {
-    <PanZoom view on_change={move |view| set_view.set(view)}>|handle: PanZoomHandle| {
+    <PanZoom view={camera} on_change={move |next| camera.set(next)}>|handle: PanZoomHandle| {
         let PanZoomHandle { view, scale, .. } = handle;
         view! {
             <Canvas view>
@@ -1845,7 +1845,7 @@ moving, is hidden, and reports how far it moved instead of where it is:
 view! {
     <PointerLock
         locked={looking}
-        on_change={move |looking| set_looking.set(looking)}
+        on_change={move |next| looking.set(next)}
         on_motion={move |motion: Vec2| camera.look(motion)}
         on_key={walk}
     >|handle: PointerLockHandle|
@@ -1943,7 +1943,7 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 
 #[component]
 fn Counter() -> NodeId {
-    let (count, set_count) = create_signal(0i64);
+    let count = create_signal(0i64);
     let label = create_memo(move || count.get().to_string());
 
     view! {
@@ -1953,12 +1953,12 @@ fn Counter() -> NodeId {
                 <Button
                     label="Decrease"
                     variant=ButtonVariant::Secondary
-                    on_click={move || set_count.update(|value| *value -= 1)}
+                    on_click={move || count.update(|value| *value -= 1)}
                 />
                 <Button
                     label="Increase"
                     variant=ButtonVariant::Primary
-                    on_click={move || set_count.update(|value| *value += 1)}
+                    on_click={move || count.update(|value| *value += 1)}
                 />
             </List>
         </Frame>
@@ -2553,13 +2553,12 @@ outside that context and must enter the document's reactive scope:
 use beui::reactive::*;
 use beui::Document;
 
-fn set_value(document: &mut Document, value: &WriteSignal<String>, next: String) {
-    let value = value.clone();
+fn set_value(document: &mut Document, value: Signal<String>, next: String) {
     with_reactive_scope(document, move || value.set(next));
 }
 ```
 
-Keep the write handles the host needs next to its `Document`. Do not rebuild the
+Keep the signals the host writes next to its `Document`. Do not rebuild the
 document to display new data.
 
 ## Use beui in a block editor plugin
@@ -2754,7 +2753,7 @@ composes `Frame` and `Text`. Keyboard and pointer handling stay in the unstyled
 control. `styled/checkbox.rs` is a short, complete example of the pair.
 
 Read colors from the nearest theme with `styled::use_theme()`, which returns a
-`ThemeStore` — one `ReadSignal` per token. Bind a token straight to a prop with
+`ThemeStore` — one `Signal` per token. Bind a token straight to a prop with
 `theme.accent`, or read tokens inside a memo that also reads interaction
 state, so the control repaints when either changes. Because each token is its
 own signal, a component wakes only for the colors it actually uses. Radii and

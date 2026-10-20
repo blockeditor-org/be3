@@ -1,17 +1,19 @@
 use accesskit::{Action, ActionRequest, Role, TreeId};
+use beui_view::reactive::Get;
+use beui_view::reactive::Set;
 
 use super::{Harness, VIEWPORT, build, create_signal, styled, view};
 
 #[test]
 fn accessibility_exposes_and_operates_a_button() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let document = build(move || {
         view! {
             <styled::Button
                 label="Save"
                 variant=styled::ButtonVariant::Primary
-                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                on_click={move || clicks.update(|clicks| *clicks += 1)}
             />
         }
     });

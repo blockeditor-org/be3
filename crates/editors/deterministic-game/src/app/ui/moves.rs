@@ -71,7 +71,6 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
     let at_end = create_memo(move || shown.get() >= count.get());
     let ended = create_memo(move || table.with(|table| table.ending.is_some()));
     let muted = TextColor::Muted;
-    let header_keys = column_keys;
     view! {
         <List spacing=6.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
@@ -116,7 +115,7 @@ pub(crate) fn MoveTable(table: Memo<Table>, shown: Memo<usize>, steps: Steps) ->
                     color={muted}
                     @sizing=ItemSize::Fixed(NUMBER_WIDTH)
                 />
-                <ForEach keys={header_keys}>|column: usize| {
+                <ForEach keys={column_keys}>|column: usize| {
                     let name = create_memo(move || {
                         columns.with(|columns| columns.get(column).cloned().unwrap_or_default())
                     });

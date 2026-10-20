@@ -19,33 +19,26 @@ fn presses(heard: ReadSignal<Vec<Event>>) -> usize {
 #[test]
 fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
     let _root = crate::reactive::RootScope::new();
-    let (open, set_open) = create_signal(true);
-    let (heard, set_heard) = create_signal(Vec::<Event>::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Canvas @sizing=ItemSize::Percent(100.0)>
-                        <CanvasItem x=0.0 y=0.0 width={WIDE.x} height={WIDE.y}>
-                            <Interactive
-                                on_forward={move |input: ForwardedInput| {
-                                    set_heard.update(|heard| heard.extend(flattened(input)))
-                                }}
-                            >
-                                <Frame />
-                            </Interactive>
-                        </CanvasItem>
-                    </Canvas>
-                    <Dialog
-                        open={open}
-                        title="Event"
-                        width=300.0
-                        on_dismiss={move || set_open.set(false)}
-                    >
-                        <Text string="Body" color=Color32::WHITE />
-                    </Dialog>
-                </List>
-            }
+    let open = create_signal(true);
+    let heard = create_signal(Vec::<Event>::new());
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Canvas @sizing=ItemSize::Percent(100.0)>
+                    <CanvasItem x=0.0 y=0.0 width={WIDE.x} height={WIDE.y}>
+                        <Interactive
+                            on_forward={move |input: ForwardedInput| {
+                                heard.update(|heard| heard.extend(flattened(input)))
+                            }}
+                        >
+                            <Frame />
+                        </Interactive>
+                    </CanvasItem>
+                </Canvas>
+                <Dialog open={open} title="Event" width=300.0 on_dismiss={move || open.set(false)}>
+                    <Text string="Body" color=Color32::WHITE />
+                </Dialog>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, WIDE);
@@ -67,7 +60,7 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
     harness.settle();
     assert!(!open.get_untracked(), "the press outside closes the dialog");
     assert_eq!(
-        presses(heard),
+        presses(heard.read_only()),
         0,
         "the press that closed the dialog is not also the catcher's, {:?}",
         heard.get_untracked()
@@ -75,19 +68,19 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
 
     harness.click(outside);
     assert_eq!(
-        presses(heard),
+        presses(heard.read_only()),
         1,
         "the next press reaches the catcher, {:?}",
         heard.get_untracked()
     );
 
-    with_installed(harness.document_mut(), |_| set_open.set(true));
+    with_installed(harness.document_mut(), |_| open.set(true));
     harness.settle();
     harness.click(outside);
     harness.settle();
     assert!(!open.get_untracked());
     assert_eq!(
-        presses(heard),
+        presses(heard.read_only()),
         1,
         "a press and release in frames of their own are kept from the catcher too, {:?}",
         heard.get_untracked()

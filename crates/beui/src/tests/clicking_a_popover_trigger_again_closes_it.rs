@@ -8,13 +8,11 @@ use crate::unstyled::PopoverHandle;
 fn clicking_a_popover_trigger_again_closes_it() {
     let _root = crate::reactive::RootScope::new();
     let popover = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <Popover @node_ref=&popover label="Filters">|_: PopoverHandle|
-                    <Text string="inside" />
-                </Popover>
-            }
+    let document = build(move || {
+        view! {
+            <Popover @node_ref=&popover label="Filters">|_: PopoverHandle|
+                <Text string="inside" />
+            </Popover>
         }
     });
     let mut harness = Harness::new(document);

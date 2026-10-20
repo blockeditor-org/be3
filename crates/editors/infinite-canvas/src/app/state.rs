@@ -282,33 +282,20 @@ pub(crate) struct CanvasState {
     cells: Stored<CanvasCells>,
     editor: Editor,
     preview: bool,
-    pub(crate) pointer: ReadSignal<Option<CanvasPoint>>,
-    set_pointer: WriteSignal<Option<CanvasPoint>>,
+    pub(crate) pointer: Signal<Option<CanvasPoint>>,
     pub(crate) entities: ReadSignal<Vec<CanvasEntity>>,
-    pub(crate) tool: ReadSignal<Tool>,
-    set_tool: WriteSignal<Tool>,
-    pub(crate) selection: ReadSignal<HashSet<Uuid>>,
-    set_selection: WriteSignal<HashSet<Uuid>>,
-    pub(crate) gesture: ReadSignal<Option<Gesture>>,
-    set_gesture: WriteSignal<Option<Gesture>>,
-    typed: ReadSignal<Option<CanvasEntity>>,
-    set_typed: WriteSignal<Option<CanvasEntity>>,
-    pub(crate) focused_editor: ReadSignal<Option<Uuid>>,
-    set_focused_editor: WriteSignal<Option<Uuid>>,
-    pub(crate) editing_text: ReadSignal<Option<Uuid>>,
-    set_editing_text: WriteSignal<Option<Uuid>>,
-    pub(crate) import_error: ReadSignal<Option<String>>,
-    set_import_error: WriteSignal<Option<String>>,
-    pub(crate) labels: ReadSignal<HashMap<Uuid, BlockLabel>>,
-    set_labels: WriteSignal<HashMap<Uuid, BlockLabel>>,
-    pub(crate) types: ReadSignal<HashMap<Uuid, Uuid>>,
-    set_types: WriteSignal<HashMap<Uuid, Uuid>>,
-    thumbhashes: ReadSignal<HashMap<Uuid, Thumbhash>>,
-    set_thumbhashes: WriteSignal<HashMap<Uuid, Thumbhash>>,
-    pub(crate) child_states: ReadSignal<HashMap<Uuid, ChildState>>,
-    set_child_states: WriteSignal<HashMap<Uuid, ChildState>>,
-    pub(crate) presence: ReadSignal<Presence>,
-    set_presence: WriteSignal<Presence>,
+    pub(crate) tool: Signal<Tool>,
+    pub(crate) selection: Signal<HashSet<Uuid>>,
+    pub(crate) gesture: Signal<Option<Gesture>>,
+    typed: Signal<Option<CanvasEntity>>,
+    pub(crate) focused_editor: Signal<Option<Uuid>>,
+    pub(crate) editing_text: Signal<Option<Uuid>>,
+    pub(crate) import_error: Signal<Option<String>>,
+    pub(crate) labels: Signal<HashMap<Uuid, BlockLabel>>,
+    pub(crate) types: Signal<HashMap<Uuid, Uuid>>,
+    thumbhashes: Signal<HashMap<Uuid, Thumbhash>>,
+    pub(crate) child_states: Signal<HashMap<Uuid, ChildState>>,
+    pub(crate) presence: Signal<Presence>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
 }
 
@@ -316,19 +303,19 @@ impl CanvasState {
     pub(crate) fn new(editor: Editor, preview: bool) -> Self {
         let content = editor.block_content::<CanvasContent>();
         let entities = content.project(|canvas| canvas.root().entities());
-        let (tool, set_tool) = create_signal(Tool::Select);
-        let (selection, set_selection) = create_signal(HashSet::new());
-        let (gesture, set_gesture) = create_signal(None);
-        let (typed, set_typed) = create_signal(None);
-        let (focused_editor, set_focused_editor) = create_signal(None);
-        let (editing_text, set_editing_text) = create_signal(None);
-        let (import_error, set_import_error) = create_signal(None);
-        let (labels, set_labels) = create_signal(HashMap::new());
-        let (types, set_types) = create_signal(HashMap::new());
-        let (thumbhashes, set_thumbhashes) = create_signal(HashMap::new());
-        let (child_states, set_child_states) = create_signal(HashMap::new());
-        let (presence, set_presence) = create_signal(Presence::default());
-        let (pointer, set_pointer) = create_signal(None);
+        let tool = create_signal(Tool::Select);
+        let selection = create_signal(HashSet::new());
+        let gesture = create_signal(None);
+        let typed = create_signal(None);
+        let focused_editor = create_signal(None);
+        let editing_text = create_signal(None);
+        let import_error = create_signal(None);
+        let labels = create_signal(HashMap::new());
+        let types = create_signal(HashMap::new());
+        let thumbhashes = create_signal(HashMap::new());
+        let child_states = create_signal(HashMap::new());
+        let presence = create_signal(Presence::default());
+        let pointer = create_signal(None);
         let cells = store(CanvasCells {
             dependencies: editor
                 .blocks()
@@ -357,32 +344,19 @@ impl CanvasState {
             editor,
             preview,
             pointer,
-            set_pointer,
             entities,
             tool,
-            set_tool,
             selection,
-            set_selection,
             gesture,
-            set_gesture,
             typed,
-            set_typed,
             focused_editor,
-            set_focused_editor,
             editing_text,
-            set_editing_text,
             import_error,
-            set_import_error,
             labels,
-            set_labels,
             types,
-            set_types,
             thumbhashes,
-            set_thumbhashes,
             child_states,
-            set_child_states,
             presence,
-            set_presence,
             peers: editor.peers::<CanvasCursor>(),
         }
     }
@@ -392,7 +366,7 @@ impl CanvasState {
     }
 
     pub(crate) fn set_stage(&self, stage: Rect) {
-        self.cells.get().stage.set(stage);
+        self.cells.value().stage.set(stage);
     }
 
     pub(crate) fn editor(&self) -> Editor {
@@ -415,7 +389,7 @@ impl CanvasState {
         camera_view(
             self.editor.canvas().get_untracked(),
             self.editor.world().get_untracked(),
-            self.cells.get().stage.get(),
+            self.cells.value().stage.get(),
             self.framed(),
         )
     }
@@ -434,7 +408,7 @@ impl CanvasState {
     }
 
     pub(crate) fn visible_world(&self) -> Rect {
-        self.camera().rect_to_canvas(self.cells.get().stage.get())
+        self.camera().rect_to_canvas(self.cells.value().stage.get())
     }
 
     pub(crate) fn viewport_center(&self) -> CanvasPoint {
@@ -454,7 +428,7 @@ impl CanvasState {
 
     pub(crate) fn preview_typed(&self, entity: Option<CanvasEntity>) {
         if self.typed.get_untracked() != entity {
-            self.set_typed.set(entity);
+            self.typed.set(entity);
         }
     }
 
@@ -485,7 +459,7 @@ impl CanvasState {
     pub(crate) fn report_child(&self, entity: Uuid, state: ChildState) {
         let released = self
             .cells
-            .get()
+            .value()
             .children
             .borrow()
             .get(&entity)
@@ -493,14 +467,18 @@ impl CanvasState {
         if released && self.focused_editor.get_untracked() == Some(entity) {
             self.focus_editor(None);
         }
-        self.cells.get().children.borrow_mut().insert(entity, state);
-        let held = self.cells.get().children.borrow().clone();
-        self.set_child_states.set(held);
+        self.cells
+            .value()
+            .children
+            .borrow_mut()
+            .insert(entity, state);
+        let held = self.cells.value().children.borrow().clone();
+        self.child_states.set(held);
     }
 
     fn peek_child(&self, entity: Uuid) -> ChildState {
         self.cells
-            .get()
+            .value()
             .children
             .borrow()
             .get(&entity)
@@ -622,19 +600,19 @@ impl CanvasState {
     }
 
     fn operate_all(&self, operations: &[InfiniteCanvasOperation]) {
-        if let Some(edit) = self.cells.get().content.read(|canvas| {
+        if let Some(edit) = self.cells.value().content.read(|canvas| {
             operations
                 .iter()
                 .flat_map(|operation| canvas.root().edit_for(operation).0)
                 .collect::<Edit>()
         }) && !edit.0.is_empty()
         {
-            self.cells.get().content.operate(edit);
+            self.cells.value().content.operate(edit);
         }
     }
 
     fn add_selected(&self, entities: Vec<CanvasEntity>) {
-        self.set_selection
+        self.selection
             .set(entities.iter().map(|entity| entity.id).collect());
         let operations = entities
             .into_iter()
@@ -644,7 +622,7 @@ impl CanvasState {
     }
 
     pub(crate) fn record(&self, operation: InfiniteCanvasOperation) {
-        self.cells.get().grouped_edit.set(false);
+        self.cells.value().grouped_edit.set(false);
         self.operate(&operation);
     }
 
@@ -660,7 +638,7 @@ impl CanvasState {
         let operation = InfiniteCanvasOperation::Update { entities: after };
         match group {
             true => {
-                self.cells.get().grouped_edit.set(true);
+                self.cells.value().grouped_edit.set(true);
                 self.operate(&operation);
             }
             false => self.record(operation),
@@ -668,28 +646,28 @@ impl CanvasState {
     }
 
     pub(crate) fn finish_grouped_edit(&self) {
-        self.cells.get().grouped_edit.set(false);
+        self.cells.value().grouped_edit.set(false);
     }
 
     pub(crate) fn default_style(&self) -> CanvasEntityStyle {
         CanvasEntityStyle {
-            foreground: self.cells.get().last_foreground.get(),
-            fill: self.cells.get().last_fill.get(),
+            foreground: self.cells.value().last_foreground.get(),
+            fill: self.cells.value().last_fill.get(),
             ..CanvasEntityStyle::default()
         }
     }
 
     pub(crate) fn remember_foreground(&self, color: CanvasColor) {
-        self.cells.get().last_foreground.set(color);
+        self.cells.value().last_foreground.set(color);
     }
 
     pub(crate) fn remember_fill(&self, fill: Option<CanvasColor>) {
-        self.cells.get().last_fill.set(fill);
+        self.cells.value().last_fill.set(fill);
     }
 
     pub(crate) fn set_tool(&self, tool: Tool) {
-        self.set_tool.set(tool);
-        self.set_gesture.set(None);
+        self.tool.set(tool);
+        self.gesture.set(None);
     }
 
     pub(crate) fn put_down_tool(&self) {
@@ -699,39 +677,39 @@ impl CanvasState {
     }
 
     pub(crate) fn begin_gesture(&self, gesture: Option<Gesture>) {
-        self.set_gesture.set(gesture);
+        self.gesture.set(gesture);
     }
 
     pub(crate) fn update_gesture(&self, update: impl FnOnce(&mut Gesture)) {
         let mut held = self.gesture.get_untracked();
         if let Some(gesture) = held.as_mut() {
             update(gesture);
-            self.set_gesture.set(held);
+            self.gesture.set(held);
         }
     }
 
     pub(crate) fn focus_editor(&self, entity: Option<Uuid>) {
         if self.focused_editor.get_untracked() != entity {
-            self.set_focused_editor.set(entity);
+            self.focused_editor.set(entity);
         }
         if entity.is_none() {
-            self.cells.get().confirmed_editor.set(None);
+            self.cells.value().confirmed_editor.set(None);
         }
     }
 
     pub(crate) fn edit_text(&self, entity: Option<Uuid>) {
         if self.editing_text.get_untracked() != entity {
-            self.set_editing_text.set(entity);
+            self.editing_text.set(entity);
         }
     }
 
     pub(crate) fn edit_text_at(&self, entity: Uuid, entry: TextEntry) {
-        self.cells.get().text_entry.set(Some(entry));
+        self.cells.value().text_entry.set(Some(entry));
         self.edit_text(Some(entity));
     }
 
     pub(crate) fn take_text_entry(&self) -> Option<TextEntry> {
-        self.cells.get().text_entry.take()
+        self.cells.value().text_entry.take()
     }
 
     pub(crate) fn finish_text(&self) {
@@ -740,7 +718,7 @@ impl CanvasState {
     }
 
     pub(crate) fn surface(&self) -> NodeRef {
-        self.cells.get().surface
+        self.cells.value().surface
     }
 
     pub(crate) fn focus_surface(&self) {
@@ -770,45 +748,45 @@ impl CanvasState {
     }
 
     pub(crate) fn take_context_position(&self) -> Option<CanvasPoint> {
-        self.cells.get().context_position.take()
+        self.cells.value().context_position.take()
     }
 
     pub(crate) fn note_context_position(&self, at: Option<CanvasPoint>) {
-        self.cells.get().context_position.set(at);
+        self.cells.value().context_position.set(at);
     }
 
     pub(crate) fn note_pointer(&self, at: Option<CanvasPoint>) {
         if self.pointer.get_untracked() != at {
-            self.set_pointer.set(at);
+            self.pointer.set(at);
         }
     }
 
     pub(crate) fn hold_pointer(&self, down: bool) {
-        self.cells.get().pointer_down.set(down);
+        self.cells.value().pointer_down.set(down);
     }
 
     pub(crate) fn pointer_held(&self) -> bool {
-        self.cells.get().pointer_down.get()
+        self.cells.value().pointer_down.get()
     }
 
     pub(crate) fn note_touch(&self, touch: bool) {
-        self.cells.get().touch.set(touch);
+        self.cells.value().touch.set(touch);
     }
 
     pub(crate) fn touching(&self) -> bool {
-        self.cells.get().touch.get()
+        self.cells.value().touch.get()
     }
 
     pub(crate) fn note_retap(&self, retap: Option<(Uuid, Pos2)>) {
-        self.cells.get().retapped.set(retap);
+        self.cells.value().retapped.set(retap);
     }
 
     pub(crate) fn take_retap(&self) -> Option<(Uuid, Pos2)> {
-        self.cells.get().retapped.take()
+        self.cells.value().retapped.take()
     }
 
     pub(crate) fn dismiss_import_error(&self) {
-        self.set_import_error.set(None);
+        self.import_error.set(None);
     }
 
     pub(crate) fn request_fit_selection(&self) {
@@ -887,12 +865,12 @@ impl CanvasState {
             }
             selection.extend(ids);
         }
-        self.set_selection.set(selection);
+        self.selection.set(selection);
     }
 
     pub(crate) fn clear_selection(&self) {
         if !self.selection.get_untracked().is_empty() {
-            self.set_selection.set(HashSet::new());
+            self.selection.set(HashSet::new());
         }
     }
 
@@ -938,7 +916,7 @@ impl CanvasState {
         if select_after_add {
             selection.insert(id);
         }
-        self.set_selection.set(selection);
+        self.selection.set(selection);
     }
 
     pub(crate) fn duplicate_selection(&self) {
@@ -953,7 +931,7 @@ impl CanvasState {
         let mut originals = self.selected_unlocked();
         if duplicate {
             originals = duplicate_entities(originals, CanvasPoint::default());
-            self.set_selection
+            self.selection
                 .set(originals.iter().map(|entity| entity.id).collect());
         }
         self.begin_gesture((!originals.is_empty()).then_some(Gesture::Move {
@@ -1187,7 +1165,7 @@ impl CanvasState {
                     .iter()
                     .map(|entity| entity.id)
                     .collect();
-                self.set_selection.set(all);
+                self.selection.set(all);
                 self.put_down_tool();
             }
             CanvasCommand::InvertSelection => {
@@ -1199,7 +1177,7 @@ impl CanvasState {
                     .filter(|entity| !selection.contains(&entity.id))
                     .map(|entity| entity.id)
                     .collect();
-                self.set_selection.set(inverted);
+                self.selection.set(inverted);
                 self.put_down_tool();
             }
             CanvasCommand::Duplicate => self.duplicate_selection(),
@@ -1213,7 +1191,7 @@ impl CanvasState {
                     let removed: HashSet<_> = ids.iter().copied().collect();
                     let mut selection = self.selection.get_untracked();
                     selection.retain(|id| !removed.contains(id));
-                    self.set_selection.set(selection);
+                    self.selection.set(selection);
                     self.record(InfiniteCanvasOperation::Remove { ids });
                 }
             }
@@ -1246,7 +1224,7 @@ impl CanvasState {
                 true
             }
             Err(error) => {
-                self.set_import_error
+                self.import_error
                     .set(Some(format!("Could not copy canvas objects: {error}")));
                 false
             }
@@ -1272,7 +1250,7 @@ impl CanvasState {
         let payload = match serde_json::from_str::<CanvasClipboardPayload>(json) {
             Ok(payload) => payload,
             Err(error) => {
-                self.set_import_error
+                self.import_error
                     .set(Some(format!("Could not paste canvas objects: {error}")));
                 return true;
             }
@@ -1318,7 +1296,7 @@ impl CanvasState {
     }
 
     pub(crate) fn open_image_picker(self, center: Option<CanvasPoint>) {
-        self.cells.get().pending_image_center.set(center);
+        self.cells.value().pending_image_center.set(center);
         let state = self;
         pick_file(image_filter(), move |pick| {
             if state.is_alive() {
@@ -1673,14 +1651,14 @@ impl CanvasState {
             locked: false,
             components: Vec::new(),
         };
-        self.cells.get().placeholders.borrow_mut().insert(
+        self.cells.value().placeholders.borrow_mut().insert(
             entity_id,
             Placeholder {
                 entity: entity.clone(),
                 fitted: false,
             },
         );
-        self.set_selection.set(HashSet::from([entity_id]));
+        self.selection.set(HashSet::from([entity_id]));
         self.record(InfiniteCanvasOperation::Add { entity });
     }
 
@@ -1790,7 +1768,7 @@ impl CanvasState {
                         selection.extend(Self::selection_ids(&entities, id));
                     }
                 }
-                self.set_selection.set(selection);
+                self.selection.set(selection);
             }
             Gesture::Move {
                 duplicate: true, ..
@@ -1978,7 +1956,7 @@ impl CanvasState {
 
     fn publish_references(&self) {
         let catalog = self.types();
-        let dependencies = self.cells.get().dependencies.read();
+        let dependencies = self.cells.value().dependencies.read();
         let labels: HashMap<Uuid, BlockLabel> = dependencies
             .iter()
             .map(|reference| (reference.id, reference.label(catalog.as_ref())))
@@ -2003,13 +1981,13 @@ impl CanvasState {
             .collect();
         untrack(|| {
             if self.thumbhashes.get_untracked() != thumbhashes {
-                self.set_thumbhashes.set(thumbhashes);
+                self.thumbhashes.set(thumbhashes);
             }
             if self.labels.get_untracked() != labels {
-                self.set_labels.set(labels);
+                self.labels.set(labels);
             }
             if self.types.get_untracked() != types {
-                self.set_types.set(types);
+                self.types.set(types);
             }
         });
     }
@@ -2017,10 +1995,10 @@ impl CanvasState {
     fn take_image_pick(&self, pick: FilePick) {
         match pick.map(|file| file.map(imported_image)) {
             Ok(Some(image)) => {
-                self.set_import_error.set(None);
+                self.import_error.set(None);
                 let center = self
                     .cells
-                    .get()
+                    .value()
                     .pending_image_center
                     .take()
                     .unwrap_or_else(|| self.viewport_center());
@@ -2028,10 +2006,10 @@ impl CanvasState {
                 self.put_down_tool();
             }
             Err(error) => {
-                self.cells.get().pending_image_center.set(None);
-                self.set_import_error.set(Some(error));
+                self.cells.value().pending_image_center.set(None);
+                self.import_error.set(Some(error));
             }
-            Ok(None) => self.cells.get().pending_image_center.set(None),
+            Ok(None) => self.cells.value().pending_image_center.set(None),
         }
     }
 
@@ -2058,16 +2036,16 @@ impl CanvasState {
             return;
         }
         let Some(drop) = drop else {
-            self.cells.get().pending_file_drop.set(None);
+            self.cells.value().pending_file_drop.set(None);
             return;
         };
         let at = self.world_at(drop.position);
         if !drop.dropped {
-            self.cells.get().pending_file_drop.set(Some(at));
+            self.cells.value().pending_file_drop.set(Some(at));
             return;
         }
-        self.set_import_error.set(None);
-        let base = self.cells.get().pending_file_drop.take().unwrap_or(at);
+        self.import_error.set(None);
+        let base = self.cells.value().pending_file_drop.take().unwrap_or(at);
         for (index, file) in drop.files.into_iter().enumerate() {
             let offset = IMPORT_CASCADE_OFFSET * index as f32;
             self.add_imported_image(
@@ -2083,7 +2061,7 @@ impl CanvasState {
                 self.paste_text(&text);
             }
             Pasted::Image(file) => {
-                self.set_import_error.set(None);
+                self.import_error.set(None);
                 let center = self.paste_center();
                 self.add_imported_image(ImageContent::from_file(file.name, file.data), center);
             }
@@ -2092,14 +2070,14 @@ impl CanvasState {
 
     fn publish_presence(&self) {
         let cursor = self.editor.presence_visible().get_untracked().then(|| {
-            let color = self.cells.get().color.get().unwrap_or_else(|| {
+            let color = self.cells.value().color.get().unwrap_or_else(|| {
                 let used = self
                     .peers
                     .get_untracked()
                     .into_iter()
                     .map(|(_, cursor)| cursor.color);
                 let color = pick_free_color(used);
-                self.cells.get().color.set(Some(color));
+                self.cells.value().color.set(Some(color));
                 color
             });
             CanvasCursor {
@@ -2108,11 +2086,11 @@ impl CanvasState {
                 color,
             }
         });
-        if *self.cells.get().shown.borrow() == cursor {
+        if *self.cells.value().shown.borrow() == cursor {
             return;
         }
         self.editor.show(cursor.as_ref());
-        self.cells.get().shown.replace(cursor);
+        self.cells.value().shown.replace(cursor);
     }
 
     fn read_presence(&self) {
@@ -2142,7 +2120,7 @@ impl CanvasState {
             }
         }
         if self.presence.get_untracked() != presence {
-            self.set_presence.set(presence);
+            self.presence.set(presence);
         }
     }
 
@@ -2185,7 +2163,7 @@ impl CanvasState {
     }
 
     fn fit_into_view(&self, bounds: WorldRect) {
-        let stage = self.cells.get().stage.get();
+        let stage = self.cells.value().stage.get();
         let available = (stage.size() - Vec2::splat(40.0)).max(Vec2::splat(1.0));
         let target = bounds.rect();
         let scale = self.scale();
@@ -2235,7 +2213,7 @@ impl CanvasState {
             }
             let placeholder = self
                 .cells
-                .get()
+                .value()
                 .placeholders
                 .borrow()
                 .get(&entity.id)
@@ -2243,7 +2221,7 @@ impl CanvasState {
             if let Some(placeholder) = placeholder {
                 if child.resize != ResizeMode::Both {
                     self.cells
-                        .get()
+                        .value()
                         .placeholders
                         .borrow_mut()
                         .remove(&entity.id);
@@ -2255,7 +2233,7 @@ impl CanvasState {
                     {
                         if let Some(held) = self
                             .cells
-                            .get()
+                            .value()
                             .placeholders
                             .borrow_mut()
                             .get_mut(&entity.id)
@@ -2315,7 +2293,7 @@ impl CanvasState {
 
     fn is_placeholder(&self, entity: &CanvasEntity) -> bool {
         self.cells
-            .get()
+            .value()
             .placeholders
             .borrow()
             .get(&entity.id)

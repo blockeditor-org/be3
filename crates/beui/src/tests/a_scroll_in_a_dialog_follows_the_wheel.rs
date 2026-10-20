@@ -8,28 +8,26 @@ use crate::styled::*;
 fn a_scroll_in_a_dialog_follows_the_wheel() {
     let _root = crate::reactive::RootScope::new();
     let first = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @sizing=ItemSize::Percent(100.0) />
-                    <Dialog open=true title="Add block" width=300.0 on_dismiss={|| {}}>
-                        <Frame height=200.0>
-                            <List spacing=8.0>
-                                <Show condition=true>
-                                    <Scroll @sizing=ItemSize::Percent(100.0)>
-                                        <List spacing=8.0>
-                                            <Frame @node_ref=&first height=120.0 />
-                                            <Frame height=120.0 />
-                                            <Frame height=120.0 />
-                                        </List>
-                                    </Scroll>
-                                </Show>
-                            </List>
-                        </Frame>
-                    </Dialog>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @sizing=ItemSize::Percent(100.0) />
+                <Dialog open=true title="Add block" width=300.0 on_dismiss={|| {}}>
+                    <Frame height=200.0>
+                        <List spacing=8.0>
+                            <Show condition=true>
+                                <Scroll @sizing=ItemSize::Percent(100.0)>
+                                    <List spacing=8.0>
+                                        <Frame @node_ref=&first height=120.0 />
+                                        <Frame height=120.0 />
+                                        <Frame height=120.0 />
+                                    </List>
+                                </Scroll>
+                            </Show>
+                        </List>
+                    </Frame>
+                </Dialog>
+            </List>
         }
     });
     let first = first.get();

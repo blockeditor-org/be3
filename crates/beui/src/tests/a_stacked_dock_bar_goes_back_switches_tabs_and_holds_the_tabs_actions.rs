@@ -33,8 +33,8 @@ fn tap(harness: &mut Harness, test_id: &str) {
 #[test]
 fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
     let _root = crate::reactive::RootScope::new();
-    let (closed, set_closed) = create_signal(Vec::new());
-    let (open, set_open) = create_signal(Vec::<u64>::new());
+    let closed = create_signal(Vec::new());
+    let open = create_signal(Vec::<u64>::new());
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {
@@ -48,8 +48,8 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
                             id
                             title={format!("Tab {id}")}
                             on_close={move || {
-                                set_closed.update(|closed| closed.push(TabId::new(id)));
-                                set_open.update(|open| open.retain(|other| *other != id));
+                                closed.update(|closed| closed.push(TabId::new(id)));
+                                open.update(|open| open.retain(|other| *other != id));
                             }}
                             content={move || {
                                 dock_actions(move || view! {
@@ -78,11 +78,11 @@ fn a_stacked_dock_bar_goes_back_switches_tabs_and_holds_the_tabs_actions() {
     );
 
     with_reactive_scope(harness.document_mut(), move || {
-        set_open.update(|open| open.push(2));
+        open.update(|open| open.push(2));
     });
     harness.settle();
     with_reactive_scope(harness.document_mut(), move || {
-        set_open.update(|open| open.push(3));
+        open.update(|open| open.push(3));
     });
     harness.settle();
     assert!(laid_out(&harness, "content.3"), "a tab opens on show");

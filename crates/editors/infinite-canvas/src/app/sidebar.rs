@@ -134,7 +134,7 @@ fn Inspector(state: CanvasState) -> NodeId {
 
 #[component]
 fn ArtboardSection(state: CanvasState) -> NodeId {
-    let (open, set_open) = create_signal(true);
+    let open = create_signal(true);
     let artboard = create_memo(move || {
         let selected = state.selected_entities();
         let [entity] = selected.as_slice() else {
@@ -166,7 +166,7 @@ fn ArtboardSection(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Accordion title="Artboard" open={open} on_toggle={move |open| set_open.set(open)}>
+                <Accordion title="Artboard" open={open} on_toggle={move |next| open.set(next)}>
                     <List spacing=6.0>
                         <TextInput
                             label="Name"
@@ -318,11 +318,11 @@ fn SelectionSummary(state: CanvasState) -> NodeId {
 
 #[component]
 fn TransformSection(state: CanvasState) -> NodeId {
-    let (open, set_open) = create_signal(true);
+    let open = create_signal(true);
     let single = create_memo(move || state.selected_entities().len() == 1);
     let many = create_memo(move || !single.get());
     view! {
-        <Accordion title="Transform" open={open} on_toggle={move |open| set_open.set(open)}>
+        <Accordion title="Transform" open={open} on_toggle={move |next| open.set(next)}>
             <List spacing=6.0>
                 <Show condition={many}>
                     <Text
@@ -461,7 +461,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
 
 #[component]
 fn BlockSection(state: CanvasState) -> NodeId {
-    let (open, set_open) = create_signal(true);
+    let open = create_signal(true);
     let entity = create_memo(move || {
         let selected = state.selected_entities();
         let [entity] = selected.as_slice() else {
@@ -493,7 +493,7 @@ fn BlockSection(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Accordion title="Block" open={open} on_toggle={move |open| set_open.set(open)}>
+                <Accordion title="Block" open={open} on_toggle={move |next| open.set(next)}>
                     <List spacing=6.0>
                         <Button
                             label={label}
@@ -561,7 +561,7 @@ fn EditorScale(state: CanvasState) -> NodeId {
 
 #[component]
 fn ArrangeSection(state: CanvasState) -> NodeId {
-    let (open, set_open) = create_signal(true);
+    let open = create_signal(true);
     let movable = create_memo(move || state.selected_unlocked().len());
     let cannot_align = create_memo(move || movable.get() < 2);
     let cannot_distribute = create_memo(move || movable.get() < 3);
@@ -587,7 +587,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
     let lock = move || state.run(CanvasCommand::Lock);
     let unlock = move || state.run(CanvasCommand::Unlock);
     view! {
-        <Accordion title="Arrange" open={open} on_toggle={move |open| set_open.set(open)}>
+        <Accordion title="Arrange" open={open} on_toggle={move |next| open.set(next)}>
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                     <ForEach keys={(0..ALIGNMENTS.len()).collect::<Vec<usize>>()}>|index: usize| {
@@ -673,9 +673,9 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
 
 #[component]
 fn AppearanceSection(state: CanvasState) -> NodeId {
-    let (open, set_open) = create_signal(true);
+    let open = create_signal(true);
     view! {
-        <Accordion title="Appearance" open={open} on_toggle={move |open| set_open.set(open)}>
+        <Accordion title="Appearance" open={open} on_toggle={move |next| open.set(next)}>
             <List spacing=SPACING>
                 <ForegroundRow state={state} />
                 <LineWidthRow state={state} />
@@ -1242,9 +1242,9 @@ const SHORTCUTS: [(&str, &str); 10] = [
 
 #[component]
 fn ShortcutsSection() -> NodeId {
-    let (open, set_open) = create_signal(false);
+    let open = create_signal(false);
     view! {
-        <Accordion title="Shortcuts" open={open} on_toggle={move |open| set_open.set(open)}>
+        <Accordion title="Shortcuts" open={open} on_toggle={move |next| open.set(next)}>
             <List spacing=4.0>
                 <ForEach keys={(0..SHORTCUTS.len()).collect::<Vec<usize>>()}>|index: usize| {
                     let (action, keys) = SHORTCUTS[index];

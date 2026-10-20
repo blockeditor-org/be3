@@ -49,16 +49,12 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
     });
     let chosen =
         create_memo(move || switch.with(|switch| switch.as_ref().map(|switch| switch.chosen)));
-    let rows = dock;
-    let row = Func::new(move |tab: TabId| {
-        let (titled, pictured, picked) = (rows, rows, rows);
-        DockSwitchRowHandle {
-            tab,
-            title: create_memo(move || titled.title(tab)),
-            icon: create_memo(move || pictured.icon(tab)),
-            chosen: create_memo(move || chosen.get() == Some(tab)),
-            pick: ClickCallback::new(move || picked.pick_switch(tab)),
-        }
+    let row = Func::new(move |tab: TabId| DockSwitchRowHandle {
+        tab,
+        title: create_memo(move || dock.title(tab)),
+        icon: create_memo(move || dock.icon(tab)),
+        chosen: create_memo(move || chosen.get() == Some(tab)),
+        pick: ClickCallback::new(move || dock.pick_switch(tab)),
     });
     let body = match &dock.switch {
         Some(render) => render.call(DockSwitchHandle { tabs, chosen, row }),
@@ -66,9 +62,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
             <Frame />
         },
     };
-    let cancelled = dock;
     let overlay = NodeRef::new();
-    let switching = open;
     on_global_key(move |event: KeyEvent| {
         if event.held() {
             return true;
@@ -79,7 +73,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
         let Some(overlay) = overlay.try_get() else {
             return false;
         };
-        if press.key != Key::Escape || !press.pressed || !switching.get_untracked() {
+        if press.key != Key::Escape || !press.pressed || !open.get_untracked() {
             return false;
         }
         with_document(|document| document.dismiss_overlay(overlay, Dismiss::Escape));
@@ -93,7 +87,7 @@ pub(super) fn DockSwitchView(dock: State) -> NodeId {
             policy=LayerPolicy::Pass
             traps_focus=false
             open
-            on_dismiss={move |_: Dismiss| cancelled.edit(DockState::cancel_switch)}
+            on_dismiss={move |_: Dismiss| dock.edit(DockState::cancel_switch)}
         >
             <Frame @test_id="dock.switch">{body}</Frame>
         </Overlay>

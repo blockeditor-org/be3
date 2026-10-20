@@ -15,7 +15,7 @@ fn laid_out(harness: &Harness, test_id: &str) -> bool {
 #[test]
 fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
     let _root = crate::reactive::RootScope::new();
-    let (renamed, set_renamed) = create_signal(0);
+    let renamed = create_signal(0);
     let document = build(move || {
         let layout = DockingLayout::new();
         view! {
@@ -29,7 +29,7 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
                         title="Tab 2"
                         content={move || {
                             let rename = Action::new("rename", "Rename", move || {
-                                set_renamed.update(|renamed| *renamed += 1)
+                                renamed.update(|renamed| *renamed += 1)
                             })
                             .detached();
                             dock_menu(create_memo(move || vec![rename.clone()]));

@@ -5,24 +5,22 @@ use crate::reactive::*;
 #[test]
 fn a_press_outside_an_interactive_is_reported_to_it() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal(Vec::<Pos2>::new());
+    let heard = create_signal(Vec::<Pos2>::new());
     let watcher = NodeRef::new();
     let elsewhere = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Interactive
-                        @node_ref={&watcher}
-                        on_press_outside={move |pos: Pos2| set_heard.update(|heard| heard.push(pos))}
-                    >
-                        <Frame height=100.0 />
-                    </Interactive>
-                    <Interactive @node_ref={&elsewhere} on_click={|| {}}>
-                        <Frame height=100.0 />
-                    </Interactive>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Interactive
+                    @node_ref={&watcher}
+                    on_press_outside={move |pos: Pos2| heard.update(|heard| heard.push(pos))}
+                >
+                    <Frame height=100.0 />
+                </Interactive>
+                <Interactive @node_ref={&elsewhere} on_click={|| {}}>
+                    <Frame height=100.0 />
+                </Interactive>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

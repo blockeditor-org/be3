@@ -9,7 +9,7 @@ use crate::unstyled::Container;
 #[test]
 fn on_a_narrow_screen_picking_a_date_moves_on_to_the_time() {
     let _root = crate::reactive::RootScope::new();
-    let (reported, set_reported) = create_signal(Vec::new());
+    let reported = create_signal(Vec::new());
     let field = NodeRef::new();
     let document = build(move || {
         view! {
@@ -19,7 +19,7 @@ fn on_a_narrow_screen_picking_a_date_moves_on_to_the_time() {
                         @node_ref=&field
                         value={Some(DateTime::new(Date::new(2026, 9, 27), Time::new(9, 0)))}
                         today={Some(Date::new(2026, 1, 1))}
-                        on_change={move |value| set_reported.update(|reported| reported.push(value))}
+                        on_change={move |value| reported.update(|reported| reported.push(value))}
                     />
                 </List>
             </Container>

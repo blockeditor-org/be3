@@ -47,7 +47,6 @@ pub fn TextArea(
         caret: theme.accent.get(),
         ..TextAreaColors::DEFAULT
     });
-    let masked = password;
     let surface = NodeRef::new();
     set_component_state(surface);
     let block = block.unwrap_or_else(blank_widget);
@@ -59,7 +58,7 @@ pub fn TextArea(
                 @sizing=ItemSize::Percent(100.0)
                 state={state}
                 menu={menu_style()}
-                masked
+                masked={password}
                 child_size=ItemSize::Percent(100.0)
             >|open_menu: Callback<Option<Rect>>|
                 <unstyled::TextArea

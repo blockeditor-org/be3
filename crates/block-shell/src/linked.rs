@@ -68,8 +68,6 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
     });
     let unlink_off = create_memo(move || !permission.get());
     let nowhere = create_memo(|| None);
-    let original_info = info;
-    let unlinking_info = info;
     let heading_color = TextColor::Default;
     view! {
         <Frame
@@ -90,7 +88,7 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                             label="Go to original"
                             variant=ButtonVariant::Secondary
                             on_click={move || {
-                                let Some(id) = original_info
+                                let Some(id) = info
                                     .with(|info| info.as_ref().map(|info| info.item.id))
                                 else {
                                     return;
@@ -105,7 +103,7 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                             variant=ButtonVariant::Secondary
                             disabled={unlink_off}
                             on_click={move || {
-                                let Some(info) = unlinking_info.get_untracked() else {
+                                let Some(info) = info.get_untracked() else {
                                     return;
                                 };
                                 if let Some(container) = info.container {

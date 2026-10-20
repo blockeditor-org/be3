@@ -17,7 +17,7 @@ pub fn Spinner(
     #[prop(default = 40.0)] width: Prop<f32>,
     #[prop(default = String::new())] label: Prop<String>,
 ) -> NodeId {
-    let (phase, set_phase) = create_signal(0.0_f32);
+    let phase = create_signal(0.0_f32);
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::ProgressIndicator);
         let label = label.get();
@@ -38,10 +38,10 @@ pub fn Spinner(
             if !placed.get_untracked() {
                 return false;
             }
-            set_phase.set((frame.elapsed.as_secs_f32() / PERIOD).fract());
+            phase.set((frame.elapsed.as_secs_f32() / PERIOD).fract());
             true
         },
-        move || set_phase.set(0.5),
+        move || phase.set(0.5),
     );
     let preference = with_document(|document| document.watch_motion());
     create_effect(move || {
@@ -50,7 +50,7 @@ pub fn Spinner(
             ticking.start();
         } else {
             ticking.stop();
-            set_phase.set(0.5);
+            phase.set(0.5);
         }
     });
     let width = create_memo(move || Some(width.get()));

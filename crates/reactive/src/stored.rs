@@ -39,25 +39,25 @@ impl<T> std::fmt::Debug for Stored<T> {
 }
 
 impl<T: 'static> Stored<T> {
-    pub fn get(&self) -> Rc<T> {
-        self.try_get()
+    pub fn value(&self) -> Rc<T> {
+        self.try_value()
             .expect("stored value used after the scope that owns it was disposed")
     }
 
-    pub fn try_get(&self) -> Option<Rc<T>> {
+    pub fn try_value(&self) -> Option<Rc<T>> {
         arena::get(self.key)
     }
 
     pub fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
-        f(&self.get())
+        f(&self.value())
     }
 
     pub fn try_with<R>(&self, f: impl FnOnce(&T) -> R) -> Option<R> {
-        self.try_get().map(|value| f(&value))
+        self.try_value().map(|value| f(&value))
     }
 
     pub fn is_alive(&self) -> bool {
-        self.try_get().is_some()
+        self.try_value().is_some()
     }
 }
 

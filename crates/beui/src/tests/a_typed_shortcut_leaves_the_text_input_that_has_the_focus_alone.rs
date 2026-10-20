@@ -5,21 +5,21 @@ use crate::styled::*;
 #[test]
 fn a_typed_shortcut_leaves_the_text_input_that_has_the_focus_alone() {
     let _root = crate::reactive::RootScope::new();
-    let (runs, set_runs) = create_signal(0);
+    let runs = create_signal(0);
     let document = build(move || {
         Action::new("test.rectangle", "Rectangle", move || {
-            set_runs.update(|runs| *runs += 1)
+            runs.update(|runs| *runs += 1)
         })
         .shortcut(Chord::key(Key::R))
         .register();
-        let (value, set_value) = create_signal(String::new());
+        let value = create_signal(String::new());
         view! {
             <List spacing=0.0>
                 <TextInput
                     @test_id={"field"}
                     value
                     label="Name"
-                    on_change={move |text: String| set_value.set(text)}
+                    on_change={move |text: String| value.set(text)}
                 />
                 <unstyled::Button @test_id={"button"}>
                     <ButtonFace label="Elsewhere" />

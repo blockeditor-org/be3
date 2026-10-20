@@ -18,7 +18,7 @@ struct Layer(Uuid);
 
 #[component]
 pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
-    let (open, set_open) = create_signal(true);
+    let open = create_signal(true);
     let ids = create_memo(move || {
         state
             .entities
@@ -30,7 +30,7 @@ pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
     });
     let empty = create_memo(move || ids.with(Vec::is_empty));
     view! {
-        <Accordion title="Layers" open={open} on_toggle={move |open| set_open.set(open)}>
+        <Accordion title="Layers" open={open} on_toggle={move |next| open.set(next)}>
             <List spacing=2.0 @test_id={"infinite-canvas.layers"}>
                 <Show condition={empty}>
                     <Text style=TextStyle::CAPTION string="Nothing on the canvas yet." wrap=true />

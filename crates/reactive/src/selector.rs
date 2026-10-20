@@ -8,7 +8,7 @@ use crate::computation::create_effect;
 use crate::memo::{Memo, create_memo};
 use crate::runtime::tracking;
 use crate::scope::on_cleanup;
-use crate::signal::{Source, track};
+use crate::signal::{Get, Source, track};
 
 struct Watched {
     source: Rc<Source>,

@@ -10,38 +10,36 @@ fn a_reactive_sizing_attribute_moves_a_child_between_fixed_and_percent() {
     let _root = crate::reactive::RootScope::new();
     let (toggle, left, right) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
 
-    let document = build({
-        move || {
-            let (shared, set_shared) = create_signal(false);
-            let sizing = create_memo(move || {
-                if shared.get() {
-                    ItemSize::Percent(100.0)
-                } else {
-                    ItemSize::Fixed(FIXED_WIDTH)
-                }
-            });
-            view! {
-                <List spacing=0.0>
-                    <Button
-                        @node_ref=&toggle
-                        on_click={move || set_shared.update(|shared| *shared = !*shared)}
-                    >
-                        <Text string="toggle" />
-                    </Button>
+    let document = build(move || {
+        let shared = create_signal(false);
+        let sizing = create_memo(move || {
+            if shared.get() {
+                ItemSize::Percent(100.0)
+            } else {
+                ItemSize::Fixed(FIXED_WIDTH)
+            }
+        });
+        view! {
+            <List spacing=0.0>
+                <Button
+                    @node_ref=&toggle
+                    on_click={move || shared.update(|shared| *shared = !*shared)}
+                >
+                    <Text string="toggle" />
+                </Button>
+                <List
+                    @crate::reactive::sizing=ItemSize::Percent(100.0)
+                    direction=Direction::Horizontal
+                    spacing=0.0
+                >
+                    <List @crate::reactive::sizing={sizing} @node_ref=&left spacing=0.0></List>
                     <List
                         @crate::reactive::sizing=ItemSize::Percent(100.0)
-                        direction=Direction::Horizontal
+                        @node_ref=&right
                         spacing=0.0
-                    >
-                        <List @crate::reactive::sizing={sizing} @node_ref=&left spacing=0.0></List>
-                        <List
-                            @crate::reactive::sizing=ItemSize::Percent(100.0)
-                            @node_ref=&right
-                            spacing=0.0
-                        ></List>
-                    </List>
+                    ></List>
                 </List>
-            }
+            </List>
         }
     });
 

@@ -5,14 +5,14 @@ use std::cell::Cell;
 #[test]
 fn an_animation_restarted_from_its_step_keeps_its_new_schedule() {
     let _root = RootScope::new();
-    let (runs, set_runs) = create_signal(0);
-    let (finished, set_finished) = create_signal(0);
+    let runs = create_signal(0);
+    let finished = create_signal(0);
     let held = Rc::new(Cell::new(None::<Animation>));
     let saved = held.clone();
     let document = build(move || {
         let animation = create_animation(
             move |_| {
-                set_runs.update(|n| *n += 1);
+                runs.update(|n| *n += 1);
                 if runs.get_untracked() == 1 {
                     let animation = saved.get().unwrap();
                     animation.stop();
@@ -20,7 +20,7 @@ fn an_animation_restarted_from_its_step_keeps_its_new_schedule() {
                 }
                 false
             },
-            move || set_finished.update(|n| *n += 1),
+            move || finished.update(|n| *n += 1),
         );
         held.set(Some(animation));
         animation.start();

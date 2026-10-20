@@ -6,8 +6,8 @@ fn interrupting_a_sheet_bounce_leaves_no_displacement() {
     for interruption in 0..4 {
         let _root = RootScope::new();
         let sheet = NodeRef::new();
-        let (closed, set_closed) = create_signal(0);
-        let document = sheet_of_rows(0.9, sheet, set_closed);
+        let closed = create_signal(0);
+        let document = sheet_of_rows(0.9, sheet, closed);
         let mut harness = Harness::sized(document, vec2(400.0, 600.0));
         harness.settle();
         let handle = harness.find("sheet.handle");

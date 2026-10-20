@@ -9,49 +9,47 @@ use crate::{Dismiss, KeyEvent, LayerLevel};
 #[test]
 fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     let _root = crate::reactive::RootScope::new();
-    let (locked, set_locked) = create_signal(false);
-    let (menu, set_menu) = create_signal(false);
-    let (globals, set_globals) = create_signal(0);
-    let (dismissed, set_dismissed) = create_signal(0);
-    let (typed, set_typed) = create_signal(String::new());
+    let locked = create_signal(false);
+    let menu = create_signal(false);
+    let globals = create_signal(0);
+    let dismissed = create_signal(0);
+    let typed = create_signal(String::new());
     let (lock, popup) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            on_global_key(move |event: KeyEvent| {
-                set_globals.update(|globals| *globals += 1);
-                event.press().is_some_and(|press| press.modifiers.ctrl)
-            });
-            view! {
-                <List spacing=0.0>
-                    <TextInput @test_id={"outside"} value="" />
-                    <Overlay
-                        @node_ref=&popup
-                        anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
-                        placement=Placement::At
-                        open={menu}
-                    >
-                        <Frame width=40.0 height=30.0 @test_id={"menu"} />
-                    </Overlay>
-                    <Overlay
-                        @node_ref=&lock
-                        anchor=OverlayAnchor::Point(Pos2::ZERO)
-                        placement=Placement::Fill
-                        scrim=Color32::BLACK
-                        level=LayerLevel::Lock
-                        open={locked}
-                        on_dismiss={move |_: Dismiss| set_dismissed.update(|dismissed| *dismissed += 1)}
-                    >
-                        <Frame width=200.0 height=40.0>
-                            <TextInput
-                                @test_id={"password"}
-                                value=""
-                                password=true
-                                on_change={move |value: String| set_typed.set(value)}
-                            />
-                        </Frame>
-                    </Overlay>
-                </List>
-            }
+    let document = build(move || {
+        on_global_key(move |event: KeyEvent| {
+            globals.update(|globals| *globals += 1);
+            event.press().is_some_and(|press| press.modifiers.ctrl)
+        });
+        view! {
+            <List spacing=0.0>
+                <TextInput @test_id={"outside"} value="" />
+                <Overlay
+                    @node_ref=&popup
+                    anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
+                    placement=Placement::At
+                    open={menu}
+                >
+                    <Frame width=40.0 height=30.0 @test_id={"menu"} />
+                </Overlay>
+                <Overlay
+                    @node_ref=&lock
+                    anchor=OverlayAnchor::Point(Pos2::ZERO)
+                    placement=Placement::Fill
+                    scrim=Color32::BLACK
+                    level=LayerLevel::Lock
+                    open={locked}
+                    on_dismiss={move |_: Dismiss| dismissed.update(|dismissed| *dismissed += 1)}
+                >
+                    <Frame width=200.0 height=40.0>
+                        <TextInput
+                            @test_id={"password"}
+                            value=""
+                            password=true
+                            on_change={move |value: String| typed.set(value)}
+                        />
+                    </Frame>
+                </Overlay>
+            </List>
         }
     });
     let mut harness = Harness::new(document);
@@ -59,7 +57,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     let lock = kind_of::<OverlayNode>(harness.document(), lock.get());
     let popup = kind_of::<OverlayNode>(harness.document(), popup.get());
     let outside = harness.find("outside");
-    let set = |harness: &mut Harness, signal: WriteSignal<bool>, value: bool| {
+    let set = |harness: &mut Harness, signal: Signal<bool>, value: bool| {
         with_reactive_scope(harness.document_mut(), move || signal.set(value));
         harness.frame(Vec::new());
     };
@@ -70,7 +68,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
         2,
         "global keys are heard while unlocked"
     );
-    set(&mut harness, set_locked, true);
+    set(&mut harness, locked, true);
     assert!(harness.document().locked());
 
     harness.key(Key::Escape, Modifiers::NONE);
@@ -112,7 +110,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
         "a key intercepted for a plugin is not heard while locked"
     );
 
-    set(&mut harness, set_menu, true);
+    set(&mut harness, menu, true);
     assert!(harness.document().is_overlay_open(popup.id()));
     assert_eq!(
         harness
@@ -145,7 +143,7 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
         "neither Escape nor a click on the scrim takes the focus from the lock's field"
     );
 
-    set(&mut harness, set_locked, false);
+    set(&mut harness, locked, false);
     assert!(!harness.document().locked());
     let before = globals.get_untracked();
     harness.key(Key::K, Modifiers::CTRL);

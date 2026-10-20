@@ -109,7 +109,7 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
             .unwrap_or_else(default_palette)
     });
     let palette = create_memo(move || palette.get());
-    let (hovered, set_hovered) = create_signal(None::<(u16, u16)>);
+    let hovered = create_signal(None::<(u16, u16)>);
 
     create_effect(move || {
         let (width, height) = size.get();
@@ -124,14 +124,11 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
     });
 
     let chrome = editor.chrome_shown();
-    let canvas_size = size;
-    let top_chrome = chrome;
-    let left_chrome = chrome;
     view! {
         <List spacing=0.0>
-            <TopBar tools={tools} size={size} shown={top_chrome} />
+            <TopBar tools={tools} size={size} shown={chrome} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
-                <Sidebar side=Side::Left shown={left_chrome} width=TOOLS_WIDTH>
+                <Sidebar side=Side::Left shown={chrome} width=TOOLS_WIDTH>
                     <ToolsPanel tools={tools} />
                 </Sidebar>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
@@ -140,11 +137,10 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
                         tools={tools}
                         pane={pane}
                         shown={shown}
-                        size={canvas_size}
+                        size={size}
                         hovered={hovered}
-                        set_hovered={set_hovered}
                     />
-                    <HoverLabel tools={tools} hovered={hovered} />
+                    <HoverLabel tools={tools} hovered={hovered.read_only()} />
                 </List>
                 <Sidebar shown={chrome}>
                     <ColorsPanel tools={tools} palette={palette} />
@@ -187,8 +183,8 @@ pub(crate) fn export(tools: Tools) {
                 artifact::descriptor(editor.block_id()),
             );
             editor.host().open_block(child, ImageContent::CONTENT_TYPE);
-            tools.set_export_error.set(None);
+            tools.export_error.set(None);
         }
-        Err(error) => tools.set_export_error.set(Some(error)),
+        Err(error) => tools.export_error.set(Some(error)),
     }
 }

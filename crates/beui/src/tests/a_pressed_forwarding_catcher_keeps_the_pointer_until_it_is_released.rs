@@ -6,22 +6,20 @@ use crate::reactive::*;
 #[test]
 fn a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released() {
     let _root = crate::reactive::RootScope::new();
-    let (log, set_log) = create_signal(Vec::<Event>::new());
-    let document = build({
-        move || {
-            view! {
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive
-                            on_forward={move |input: ForwardedInput| {
-                                set_log.update(|log| log.extend(flattened(input)))
-                            }}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
-            }
+    let log = create_signal(Vec::<Event>::new());
+    let document = build(move || {
+        view! {
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive
+                        on_forward={move |input: ForwardedInput| {
+                            log.update(|log| log.extend(flattened(input)))
+                        }}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);

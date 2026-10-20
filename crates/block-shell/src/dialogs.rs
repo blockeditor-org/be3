@@ -52,7 +52,7 @@ fn RenameDialog(workspace: Workspace) -> NodeId {
         _ => None,
     });
     let open = create_memo(move || block.get().is_some());
-    let (name, set_name) = create_signal(String::new());
+    let name = create_signal(String::new());
     let initial = create_memo(move || {
         block
             .get()
@@ -62,7 +62,7 @@ fn RenameDialog(workspace: Workspace) -> NodeId {
     });
     create_effect(move || {
         let initial = initial.get();
-        untrack(|| set_name.set(initial));
+        untrack(|| name.set(initial));
     });
     let invalid = create_memo(move || name.get().len() > MAX_NAME_BYTES);
     let error = create_memo(move || {
@@ -87,7 +87,7 @@ fn RenameDialog(workspace: Workspace) -> NodeId {
                     label="Name"
                     focused=true
                     @test_id={"rename.name"}
-                    on_change={move |value: String| set_name.set(value)}
+                    on_change={move |value: String| name.set(value)}
                     on_submit={move |_value: String| submit()}
                 />
                 <Show condition={invalid}>
@@ -173,7 +173,7 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
             .get()
             .map(|block| SubregionContent::ArtifactSettings { block })
     });
-    let (state, set_state) = create_signal(ChildState::default());
+    let state = create_signal(ChildState::default());
     let unchanged = create_memo(move || {
         !state.with(|state| {
             state
@@ -214,7 +214,7 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
                         placed={placed}
                         mode=ChildMode::Live
                         @test_id={"artifact-settings.editor"}
-                        on_state={move |next: ChildState| set_state.set(next)}
+                        on_state={move |next: ChildState| state.set(next)}
                     />
                 </Frame>
                 <Show condition={has_summary}>

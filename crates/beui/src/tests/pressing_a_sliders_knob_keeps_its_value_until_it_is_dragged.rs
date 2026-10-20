@@ -5,12 +5,12 @@ use crate::styled::*;
 #[test]
 fn pressing_a_sliders_knob_keeps_its_value_until_it_is_dragged() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let (document, [slider]) = toolbar_of(|| {
         [view! {
             <Slider
                 value=0.3
-                on_change={move |value| set_changes.update(|changes| changes.push(value))}
+                on_change={move |value| changes.update(|changes| changes.push(value))}
             />
         }]
     });

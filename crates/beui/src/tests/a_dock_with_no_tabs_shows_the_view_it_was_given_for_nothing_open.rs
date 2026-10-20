@@ -5,7 +5,7 @@ use crate::reactive::*;
 fn a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open() {
     let document = build(move || {
         let layout = unstyled::DockingLayout::new();
-        let (open, set_open) = create_signal(true);
+        let open = create_signal(true);
         view! {
             <styled::Docking layout>
                 <unstyled::DockPane
@@ -15,11 +15,7 @@ fn a_dock_with_no_tabs_shows_the_view_it_was_given_for_nothing_open() {
                     }}
                 >
                     <Show condition={open}>
-                        <unstyled::DockTab
-                            id=1u64
-                            title="Tab 1"
-                            on_close={move || set_open.set(false)}
-                        >
+                        <unstyled::DockTab id=1u64 title="Tab 1" on_close={move || open.set(false)}>
                             <Frame @test_id={"content.1"} />
                         </unstyled::DockTab>
                     </Show>

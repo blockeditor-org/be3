@@ -7,28 +7,26 @@ use crate::reactive::*;
 #[test]
 fn finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps() {
     let _root = crate::reactive::RootScope::new();
-    let (taps, set_taps) = create_signal(0);
-    let (policy, set_policy) = create_signal(LayerPolicy::Pass);
-    let (traps, set_traps) = create_signal(false);
-    let document = build({
-        move || {
-            on_finger_tap(move |_: usize| {
-                set_taps.update(|taps| *taps += 1);
-                true
-            });
-            view! {
-                <Frame width=400.0 height=300.0>
-                    <Overlay
-                        anchor=OverlayAnchor::Point(pos2(300.0, 200.0))
-                        placement=Placement::At
-                        policy={policy}
-                        traps_focus={traps}
-                        open=true
-                    >
-                        <Frame width=40.0 height=30.0 />
-                    </Overlay>
-                </Frame>
-            }
+    let taps = create_signal(0);
+    let policy = create_signal(LayerPolicy::Pass);
+    let traps = create_signal(false);
+    let document = build(move || {
+        on_finger_tap(move |_: usize| {
+            taps.update(|taps| *taps += 1);
+            true
+        });
+        view! {
+            <Frame width=400.0 height=300.0>
+                <Overlay
+                    anchor=OverlayAnchor::Point(pos2(300.0, 200.0))
+                    placement=Placement::At
+                    policy={policy}
+                    traps_focus={traps}
+                    open=true
+                >
+                    <Frame width=40.0 height=30.0 />
+                </Overlay>
+            </Frame>
         }
     });
     let mut harness = Harness::new(document);
@@ -48,7 +46,7 @@ fn finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps() {
         "a layer that passes and traps nothing changes neither"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_traps.set(true));
+    with_reactive_scope(harness.document_mut(), move || traps.set(true));
     assert_eq!(
         tap(&mut harness),
         (true, true),
@@ -56,8 +54,8 @@ fn finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps() {
     );
 
     with_reactive_scope(harness.document_mut(), move || {
-        set_traps.set(false);
-        set_policy.set(LayerPolicy::BlocksAll);
+        traps.set(false);
+        policy.set(LayerPolicy::BlocksAll);
     });
     assert_eq!(
         tap(&mut harness),

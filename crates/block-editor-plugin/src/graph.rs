@@ -1,3 +1,5 @@
+use reactive::Get;
+use reactive::Set;
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap};
 use std::rc::Rc;
@@ -275,7 +277,7 @@ impl GraphState {
     fn changed(&self) {
         let ready = self.ready.borrow().clone();
         match ready.is_none_or(|ready| ready()) {
-            true => self.revision.write().update(|revision| *revision += 1),
+            true => self.revision.update(|revision| *revision += 1),
             false => {
                 self.dirty.set(true);
                 self.deferred.set(self.deferred.get() + 1);
@@ -289,7 +291,7 @@ impl GraphState {
 
     pub(crate) fn flush(&self) {
         if self.dirty.replace(false) {
-            self.revision.write().update(|revision| *revision += 1);
+            self.revision.update(|revision| *revision += 1);
         }
     }
 
@@ -342,17 +344,17 @@ impl GraphState {
     }
 
     pub(crate) fn result(&self, query: BlockQuery) -> Option<Vec<BlockInfo>> {
-        self.revision.read().get();
+        self.revision.get();
         self.results.borrow().get(&query).cloned()
     }
 
     pub(crate) fn known(&self, id: Uuid) -> Option<BlockInfo> {
-        self.revision.read().get();
+        self.revision.get();
         self.known.borrow().get(&id).cloned()
     }
 
     pub(crate) fn revision(&self) -> u64 {
-        self.revision.read().get()
+        self.revision.get()
     }
 
     pub(crate) fn push(&self, command: GraphCommand) {

@@ -44,12 +44,12 @@ pub fn Toggle(
     let label = create_memo(move || label.get());
     let glyph = create_memo(move || glyph.get());
     let tooltip = create_memo(move || tooltip.get());
-    let (checked_read, set_checked) = create_signal(checked.peek());
-    create_effect(move || set_checked.set(checked.get()));
-    let (hovered, set_hovered) = create_signal(false);
-    let (active, set_active) = create_signal(false);
-    let (focused, set_focused) = create_signal(false);
-    let (key_active, set_key_active) = create_signal(false);
+    let current = create_signal(checked.get_untracked());
+    create_effect(move || current.set(checked.get()));
+    let hovered = create_signal(false);
+    let active = create_signal(false);
+    let focused = create_signal(false);
+    let key_active = create_signal(false);
     let disabled = create_memo(move || disabled.get());
     let mixed = create_memo(move || mixed.get());
 
@@ -61,7 +61,7 @@ pub fn Toggle(
         }
         node.set_toggled(match mixed.get() {
             true => Toggled::Mixed,
-            false => Toggled::from(checked_read.get()),
+            false => Toggled::from(current.get()),
         });
         if disabled.get() {
             node.set_disabled();
@@ -73,11 +73,11 @@ pub fn Toggle(
 
     let content_node = content.map(|build| {
         build.call(ToggleHandle {
-            checked: checked_read,
+            checked: current.read_only(),
             mixed,
-            hovered,
-            active,
-            focused,
+            hovered: hovered.read_only(),
+            active: active.read_only(),
+            focused: focused.read_only(),
             disabled,
             label,
             glyph,
@@ -85,29 +85,25 @@ pub fn Toggle(
         })
     });
 
-    let toggle_checked = {
-        let checked = checked_read;
-        move || {
-            if untrack(|| disabled.get()) {
-                return;
-            }
-            let next = untrack(|| mixed.get() || !checked.get());
-            set_checked.set(next);
-            if let Some(action) = &action {
-                action.run();
-            }
-            on_change.call(next);
+    let toggle_checked = move || {
+        if disabled.get() {
+            return;
         }
+        let next = mixed.get() || !current.get();
+        current.set(next);
+        if let Some(action) = &action {
+            action.run();
+        }
+        on_change.call(next);
     };
     let key_toggle = toggle_checked.clone();
-    let tab_disabled = disabled;
-    let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !tab_disabled.get());
+    let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !disabled.get());
     let cursor = create_memo(move || match disabled.get() {
         true => CursorIcon::Default,
         false => CursorIcon::PointingHand,
     });
 
-    set_component_state(checked_read);
+    set_component_state(current.read_only());
 
     view! {
         <Interactive
@@ -115,14 +111,14 @@ pub fn Toggle(
             tab_stop
             press_focus
             capture_presses
-            on_focus_change={move |focused: bool| set_focused.set(focused)}
-            on_activate_change={move |pressed: bool| set_key_active.set(pressed)}
+            on_focus_change={move |next: bool| focused.set(next)}
+            on_activate_change={move |pressed: bool| key_active.set(pressed)}
             on_activate={key_toggle}
             cursor
             key_active
             on_click={toggle_checked}
-            on_hover_change={move |hovered: bool| set_hovered.set(hovered)}
-            on_active_change={move |active: bool| set_active.set(active)}
+            on_hover_change={move |next: bool| hovered.set(next)}
+            on_active_change={move |next: bool| active.set(next)}
             children={content_node}
         />
     }

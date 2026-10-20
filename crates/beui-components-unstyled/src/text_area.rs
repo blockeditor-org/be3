@@ -138,15 +138,13 @@ struct Surface {
     gutter: Memo<f32>,
     padding: Memo<Vec2>,
     scroll: ReadSignal<ScrollPosition>,
-    set_offset: WriteSignal<f32>,
-    shift: ReadSignal<f32>,
-    set_shift: WriteSignal<f32>,
+    offset: Signal<f32>,
+    shift: Signal<f32>,
     view_width: Memo<f32>,
     view_height: Memo<f32>,
-    focused: ReadSignal<bool>,
-    set_focused: WriteSignal<bool>,
+    focused: Signal<bool>,
     keyboard: ReadSignal<bool>,
-    set_autoscroll: WriteSignal<bool>,
+    autoscroll: Signal<bool>,
     viewport: NodeRef,
     list: NodeRef,
     anchor: NodeId,
@@ -154,17 +152,15 @@ struct Surface {
     disabled: Memo<bool>,
     remote_cursors: Memo<Vec<RemoteTextCursor>>,
     drop_caret: Memo<Option<usize>>,
-    text_extent: ReadSignal<Vec2>,
-    set_text_extent: WriteSignal<Vec2>,
+    text_extent: Signal<Vec2>,
     block: Option<RenderFn<usize>>,
     selected_widget: Option<RenderFn<usize>>,
     checkbox: Option<RenderFn<TextCheckbox>>,
     completion: Memo<Option<Query>>,
     completions: Memo<Vec<Completion>>,
     completing: Memo<bool>,
-    highlighted: ReadSignal<usize>,
-    set_highlighted: WriteSignal<usize>,
-    set_dismissed: WriteSignal<Option<usize>>,
+    highlighted: Signal<usize>,
+    dismissed: Signal<Option<usize>>,
     completion_layer: NodeRef,
     on_widget_press: Callback<usize, bool>,
     on_toolbar: Callback<Option<Rect>>,
@@ -200,11 +196,11 @@ impl AreaGeometry for Surface {
 
 impl Surface {
     fn canvas_rect(&self) -> Option<Rect> {
-        self.held.get().rects.get(&self.state.canvas().try_get()?)
+        self.held.value().rects.get(&self.state.canvas().try_get()?)
     }
 
     fn node_rect(&self, node: &NodeRef) -> Option<Rect> {
-        self.held.get().rects.get(&node.try_get()?)
+        self.held.value().rects.get(&node.try_get()?)
     }
 
     fn row_estimate(&self) -> f32 {
@@ -223,7 +219,7 @@ impl Surface {
     }
 
     fn entry(&self, line: usize) -> Option<RowEntry> {
-        self.held.get().rows.borrow().get(&line).cloned()
+        self.held.value().rows.borrow().get(&line).cloned()
     }
 
     fn caret_rect_at(&self, byte: usize) -> Option<Rect> {
@@ -236,14 +232,14 @@ impl Surface {
         let line = self.line_of(byte);
         let list = self.list.try_get()?;
         let canvas = self.canvas_rect()?;
-        let rect = self.held.get().rects.get(&list)?;
+        let rect = self.held.value().rects.get(&list)?;
         let offset =
             try_with_document(|document| document.virtual_list_offset::<usize>(list, &line))??;
         Some(rect.min.y - canvas.min.y + offset)
     }
 
     fn row_at(&self, pos: Pos2) -> Option<RowEntry> {
-        let held = self.held.get();
+        let held = self.held.value();
         let rows = held.rows.borrow();
         let placed: Vec<(Rect, &RowEntry)> = rows
             .values()
@@ -285,7 +281,7 @@ impl Surface {
     fn gutter_arrow_at(&self, pos: Pos2) -> Option<usize> {
         let gutter = self.gutter.get_untracked();
         let entry = self.row_at(pos)?;
-        let rect = entry.rect(&self.held.get().rects)?;
+        let rect = entry.rect(&self.held.value().rects)?;
         if pos.x < rect.min.x || pos.x > rect.min.x + gutter {
             return None;
         }
@@ -307,7 +303,7 @@ impl Surface {
     }
 
     fn block_at(&self, pos: Pos2) -> Option<usize> {
-        let held = self.held.get();
+        let held = self.held.value();
         let rows = held.rows.borrow();
         rows.values().find_map(|entry| {
             let (index, _) = entry.row().block?;
@@ -332,7 +328,7 @@ impl Surface {
             self.reveal_rect(rect);
         }
         if !self.state.take_reveal_cursor() {
-            self.held.get().reveal_attempts.set(0);
+            self.held.value().reveal_attempts.set(0);
             return;
         }
         let Some(byte) = self.state.caret_indices().first().copied() else {
@@ -356,21 +352,21 @@ impl Surface {
         if rect.max.y + REVEAL_MARGIN.y > offset + position.viewport {
             offset = rect.max.y + REVEAL_MARGIN.y - position.viewport;
         }
-        self.set_offset
+        self.offset
             .set_unconditionally(offset.clamp(0.0, position.max_offset().max(offset)));
-        let attempts = self.held.get().reveal_attempts.get();
+        let attempts = self.held.value().reveal_attempts.get();
         if !exact && attempts < REVEAL_ATTEMPTS {
-            self.held.get().reveal_attempts.set(attempts + 1);
+            self.held.value().reveal_attempts.set(attempts + 1);
             self.state.reveal_cursor();
         } else {
-            self.held.get().reveal_attempts.set(0);
+            self.held.value().reveal_attempts.set(0);
         }
     }
 
     fn reveal_rect(&self, rect: Rect) {
         let position = self.scroll.get_untracked();
         let middle = rect.center().y - position.viewport / 2.0;
-        self.set_offset
+        self.offset
             .set_unconditionally(middle.clamp(0.0, position.max_offset()));
     }
 
@@ -388,8 +384,8 @@ impl Surface {
         }
         let highlighted = self.highlighted.get_untracked().min(count - 1);
         match press.key {
-            Key::ArrowDown => self.set_highlighted.set((highlighted + 1) % count),
-            Key::ArrowUp => self.set_highlighted.set((highlighted + count - 1) % count),
+            Key::ArrowDown => self.highlighted.set((highlighted + 1) % count),
+            Key::ArrowUp => self.highlighted.set((highlighted + count - 1) % count),
             Key::Enter | Key::Tab => self.complete(highlighted),
             _ => match self.completion_layer.try_get() {
                 Some(layer) => {
@@ -406,7 +402,7 @@ impl Surface {
             .completion
             .get_untracked()
             .map(|query| query.range.start);
-        self.set_dismissed.set(start);
+        self.dismissed.set(start);
     }
 
     fn complete(&self, index: usize) {
@@ -455,8 +451,7 @@ impl Surface {
         if x > shift + room {
             shift = x - room;
         }
-        self.set_shift
-            .set(shift.clamp(0.0, (width - room).max(0.0)));
+        self.shift.set(shift.clamp(0.0, (width - room).max(0.0)));
     }
 
     fn text_size(&self) -> Vec2 {
@@ -590,7 +585,7 @@ impl Surface {
     }
 
     fn step_beyond(&self, beyond: Option<Beyond>, mode: MoveMode) {
-        self.set_autoscroll.set(beyond.is_some());
+        self.autoscroll.set(beyond.is_some());
         let Some(beyond) = beyond else {
             return;
         };
@@ -706,7 +701,7 @@ fn press(cx: &Context, press: PointerPress) {
     if cx.disabled.get_untracked() {
         return;
     }
-    cx.set_focused.set(true);
+    cx.focused.set(true);
     cx.state.set_touch_mode(press.touch);
     cx.state.end_grab();
     if press.touch
@@ -867,7 +862,7 @@ fn blur(cx: &Context) {
     cx.state.end_grab();
     cx.state.set_selecting(false);
     cx.state.set_caret_handle(false);
-    cx.set_autoscroll.set(false);
+    cx.autoscroll.set(false);
     cx.state.external_edit();
 }
 
@@ -879,7 +874,7 @@ fn release(cx: &Context, active: bool) {
         cx.show_toolbar();
     }
     cx.state.set_selecting(false);
-    cx.set_autoscroll.set(false);
+    cx.autoscroll.set(false);
 }
 
 fn insert_text(cx: &Context, text: &str) {
@@ -990,9 +985,9 @@ struct Field {
     frame: Stored<RefCell<Option<Render<Child>>>>,
     inner: NodeRef,
     surface_color: Memo<Color32>,
-    set_field_placed: WriteSignal<Option<ReadSignal<Rect>>>,
+    field_placed: Signal<Option<ReadSignal<Rect>>>,
     cursor: Memo<CursorIcon>,
-    set_cursor: WriteSignal<CursorIcon>,
+    hover_cursor: Signal<CursorIcon>,
     autoscroll: ReadSignal<bool>,
     tab_stop: Memo<bool>,
     keyboard_on_focus: bool,
@@ -1044,7 +1039,7 @@ pub fn TextArea(
     view! {
         <LayoutBuilder>|size: ReadSignal<Vec2>|
             <PlacementBuilder>|area: ReadSignal<Rect>| {
-                let (field_placed, set_field_placed) =
+                let field_placed =
                     create_signal(None::<ReadSignal<Rect>>);
                 let placed = create_memo(move || match single_line {
                     true => field_placed.get().map_or(Rect::ZERO, |placed| placed.get()),
@@ -1052,11 +1047,11 @@ pub fn TextArea(
                 });
                 let scale = pixels_per_point();
                 let attached = with_document(|document| document.watch_context());
-                let (scroll, set_scroll) = create_signal(ScrollPosition::ZERO);
-                let (offset, set_offset) = create_signal(0.0_f32);
-                let (shift, set_shift) = create_signal(0.0_f32);
-                let (focused, set_focused) = create_signal(false);
-                let (autoscroll, set_autoscroll) = create_signal(false);
+                let scroll = create_signal(ScrollPosition::ZERO);
+                let offset = create_signal(0.0_f32);
+                let shift = create_signal(0.0_f32);
+                let focused = create_signal(false);
+                let autoscroll = create_signal(false);
                 let viewport = NodeRef::new();
                 let (outer, inner) = match single_line {
                     true => (NodeRef::new(), viewport),
@@ -1072,7 +1067,7 @@ pub fn TextArea(
                 let colors = create_memo(move || colors.get());
                 let remote_cursors = create_memo(move || remote_cursors.get());
                 let drop_caret = create_memo(move || drop_caret.get());
-                let (text_extent, set_text_extent) = create_signal(Vec2::ZERO);
+                let text_extent = create_signal(Vec2::ZERO);
                 let view_width = create_memo(move || placed.get().width());
                 let client_colors = create_memo(move || client_colors.get());
                 create_effect(move || {
@@ -1198,18 +1193,18 @@ pub fn TextArea(
                         _ => Vec::new(),
                     }
                 });
-                let (dismissed, set_dismissed) = create_signal(None::<usize>);
+                let dismissed = create_signal(None::<usize>);
                 let completing = create_memo(move || {
                     let Some(query) = completion.get() else {
                         return false;
                     };
                     dismissed.get() != Some(query.range.start) && !completions.get().is_empty()
                 });
-                let (highlighted, set_highlighted) = create_signal(0_usize);
+                let highlighted = create_signal(0_usize);
                 create_effect(move || {
                     match completion.get() {
-                        Some(_) => set_highlighted.set(0),
-                        None => set_dismissed.set(None),
+                        Some(_) => highlighted.set(0),
+                        None => dismissed.set(None),
                     }
                 });
                 let anchor = view! {
@@ -1239,16 +1234,14 @@ pub fn TextArea(
                     metrics: create_memo(move || (scale.get(), attached.get())),
                     gutter,
                     padding,
-                    scroll,
-                    set_offset,
+                    scroll: scroll.read_only(),
+                    offset,
                     shift,
-                    set_shift,
                     view_width,
                     view_height: create_memo(move || placed.get().height()),
                     focused,
-                    set_focused,
                     keyboard: use_keyboard(),
-                    set_autoscroll,
+                    autoscroll,
                     viewport,
                     list: NodeRef::new(),
                     anchor,
@@ -1257,7 +1250,6 @@ pub fn TextArea(
                     remote_cursors,
                     drop_caret,
                     text_extent,
-                    set_text_extent,
                     block,
                     selected_widget,
                     checkbox,
@@ -1265,8 +1257,7 @@ pub fn TextArea(
                     completions,
                     completing,
                     highlighted,
-                    set_highlighted,
-                    set_dismissed,
+                    dismissed,
                     completion_layer: NodeRef::new(),
                     on_widget_press,
                     on_toolbar,
@@ -1281,7 +1272,7 @@ pub fn TextArea(
                         let room = untrack(|| cx.room());
                         let most = (width - room).max(0.0);
                         if shift.get_untracked() > most {
-                            set_shift.set(most);
+                            shift.set(most);
                         }
                     });
                 }
@@ -1312,13 +1303,12 @@ pub fn TextArea(
                 });
 
                 let focus_requests = state.focus_requests();
-                let focus_writer = set_focused;
                 create_effect(move || {
                     if focus_requests.get() > 0 {
-                        focus_writer.set(true);
+                        focused.set(true);
                     }
                 });
-                create_effect(move || set_focused.set(focus_request.get()));
+                create_effect(move || focused.set(focus_request.get()));
                 let content = state.content();
                 let shown = create_memo(move || {
                     content.get();
@@ -1342,7 +1332,7 @@ pub fn TextArea(
                     reveals.get();
                     revealing.start(Duration::ZERO);
                 });
-                let (hover_cursor, set_cursor) = create_signal(CursorIcon::Text);
+                let hover_cursor = create_signal(CursorIcon::Text);
                 let cursor = create_memo(move || match disabled.get() {
                     true => CursorIcon::Default,
                     false => hover_cursor.get(),
@@ -1358,11 +1348,11 @@ pub fn TextArea(
                     frame: store(RefCell::new(frame)),
                     inner,
                     surface_color,
-                    set_field_placed,
+                    field_placed,
                     cx,
                     cursor,
-                    set_cursor,
-                    autoscroll,
+                    hover_cursor,
+                    autoscroll: autoscroll.read_only(),
                     tab_stop,
                     keyboard_on_focus,
                     ime_cursor,
@@ -1372,7 +1362,6 @@ pub fn TextArea(
                     pastes_images,
                     on_image_paste,
                 };
-                let scrolled = field;
                 let multi_line = !single_line;
                 let strip_width = create_memo(move || gutter.get());
                 let width = create_memo(move || size.get().x);
@@ -1384,15 +1373,8 @@ pub fn TextArea(
                     true => 1.0,
                     false => 0.0,
                 });
-                let (strip_height, border_height, area_width, area_height) = (
-                    height,
-                    height,
-                    width,
-                    height,
-                );
                 let has_menu = completion_menu.is_some();
                 let menu = create_memo(move || has_menu && completing.get());
-                let menu_render = completion_menu;
                 if multi_line {
                     action_scope(&outer);
                     actions::register(state, disabled);
@@ -1404,54 +1386,36 @@ pub fn TextArea(
                             <Show condition={single_line}>
                                 <Editing @sizing=ItemSize::Percent(100.0) field={field} />
                             </Show>
-                            <Show condition={multi_line}>|| {
-                                let (width, height, strip_width, strip_height) =
-                                    (width, height, strip_width, strip_height);
-                                let (gutter_color, border_x, border_width, border_height, border_color) =
-                                    (gutter_color, border_x, border_width, border_height, border_color);
-                                let (area_width, area_height, offset, set_scroll, scrolled) =
-                                    (area_width, area_height, offset, set_scroll, scrolled);
-                                view! {
-                                    <Canvas
-                                        @sizing=ItemSize::Percent(100.0)
-                                        width={width}
+                            <Show condition={multi_line}>||
+                                <Canvas
+                                    @sizing=ItemSize::Percent(100.0)
+                                    width={width}
+                                    height={height}
+                                >
+                                    <CanvasItem x=0.0 y=0.0 width={strip_width} height={height}>
+                                        <Frame fill=gutter_color />
+                                    </CanvasItem>
+                                    <CanvasItem
+                                        x={border_x}
+                                        y=0.0
+                                        width={border_width}
                                         height={height}
                                     >
-                                        <CanvasItem
-                                            x=0.0
-                                            y=0.0
-                                            width={strip_width}
-                                            height={strip_height}
+                                        <Frame fill=border_color />
+                                    </CanvasItem>
+                                    <CanvasItem x=0.0 y=0.0 width={width} height={height}>
+                                        <Scroll
+                                            offset={offset}
+                                            focus_color={Color32::TRANSPARENT}
+                                            on_change={move |position: ScrollPosition| scroll.set(position)}
                                         >
-                                            <Frame fill=gutter_color />
-                                        </CanvasItem>
-                                        <CanvasItem
-                                            x={border_x}
-                                            y=0.0
-                                            width={border_width}
-                                            height={border_height}
-                                        >
-                                            <Frame fill=border_color />
-                                        </CanvasItem>
-                                        <CanvasItem
-                                            x=0.0
-                                            y=0.0
-                                            width={area_width}
-                                            height={area_height}
-                                        >
-                                            <Scroll
-                                                offset={offset}
-                                                focus_color={Color32::TRANSPARENT}
-                                                on_change={move |position: ScrollPosition| set_scroll.set(position)}
-                                            >
-                                                <Editing field={scrolled} />
-                                            </Scroll>
-                                        </CanvasItem>
-                                    </Canvas>
-                                }
-                            }</Show>
+                                            <Editing field={field} />
+                                        </Scroll>
+                                    </CanvasItem>
+                                </Canvas>
+                            </Show>
                             <Show condition={menu}>|| {
-                                let menu = menu_render
+                                let menu = completion_menu
                                     .expect("a completion menu is only shown when the area was given one");
                                 view! {
                                     <Completions cx menu />
@@ -1473,9 +1437,9 @@ fn Editing(field: Field) -> NodeId {
         frame,
         inner,
         surface_color,
-        set_field_placed,
+        field_placed,
         cursor,
-        set_cursor,
+        hover_cursor: pointer_cursor,
         autoscroll,
         tab_stop,
         keyboard_on_focus,
@@ -1491,7 +1455,6 @@ fn Editing(field: Field) -> NodeId {
         false => vec![PasteKind::Text],
     };
     let focused = cx.focused;
-    let set_focused = cx.set_focused;
     component_accessibility(described);
     let single_line = cx.single_line;
     let disabled = cx.disabled;
@@ -1505,7 +1468,7 @@ fn Editing(field: Field) -> NodeId {
             ime_cursor
             ime_text
             on_focus_change={move |is_focused: bool| {
-                set_focused.set(is_focused);
+                focused.set(is_focused);
                 if !is_focused {
                     blur(&cx);
                 }
@@ -1536,7 +1499,7 @@ fn Editing(field: Field) -> NodeId {
             on_active_change={move |active: bool| release(&cx, active)}
             on_hover_change={on_hover_change}
             on_hover_move={move |event: PointerPress| {
-                set_cursor.set(hover_cursor(&cx, event.pos));
+                pointer_cursor.set(hover_cursor(&cx, event.pos));
             }}
         >
             {{
@@ -1549,12 +1512,12 @@ fn Editing(field: Field) -> NodeId {
                             <FieldFrame
                                 @node_ref=&inner
                                 color={surface_color}
-                                report={set_field_placed}
+                                report={field_placed}
                             >
                                 <SingleLine cx={cx} />
                             </FieldFrame>
                         };
-                        match frame.get().borrow_mut().take() {
+                        match frame.value().borrow_mut().take() {
                             Some(frame) => frame.call(field),
                             None => field,
                         }
@@ -1578,7 +1541,7 @@ pub fn text_area_index_at(document: &Document, area: NodeId, pos: Pos2) -> usize
 }
 
 fn area_hit(document: &Document, cx: &Context, pos: Pos2) -> Option<usize> {
-    let held = cx.held.get();
+    let held = cx.held.value();
     let rows = held.rows.borrow();
     let placed: Vec<(Rect, &RowEntry)> = rows
         .values()
@@ -1598,7 +1561,7 @@ pub fn text_area_state(document: &Document, area: NodeId) -> TextAreaState {
 
 pub fn text_area_handles(document: &Document, area: NodeId) -> Vec<Pos2> {
     let cx = document.component_state::<Parts>(area).cx;
-    let held = cx.held.get();
+    let held = cx.held.value();
     let rows = held.rows.borrow();
     cx.handles()
         .into_iter()
@@ -1626,7 +1589,7 @@ pub fn text_area_handles(document: &Document, area: NodeId) -> Vec<Pos2> {
 #[component]
 fn FieldFrame(
     color: Memo<Color32>,
-    report: WriteSignal<Option<ReadSignal<Rect>>>,
+    report: Signal<Option<ReadSignal<Rect>>>,
     children: Child,
 ) -> NodeId {
     view! {

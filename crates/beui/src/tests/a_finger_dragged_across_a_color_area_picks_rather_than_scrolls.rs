@@ -7,7 +7,7 @@ use crate::styled::*;
 #[test]
 fn a_finger_dragged_across_a_color_area_picks_rather_than_scrolls() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let picker = NodeRef::new();
     let document = build(move || {
         view! {
@@ -16,7 +16,7 @@ fn a_finger_dragged_across_a_color_area_picks_rather_than_scrolls() {
                     <ColorPicker
                         @node_ref=&picker
                         value={Hsva::new(120.0, 1.0, 1.0, 1.0).to_color()}
-                        on_change={move |color| set_changes.update(|changes| changes.push(color))}
+                        on_change={move |color| changes.update(|changes| changes.push(color))}
                     />
                 </Scroll>
             </List>

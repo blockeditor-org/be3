@@ -1,4 +1,4 @@
-use crate::reactive::{Child, Children, Placed, Prop, create_effect, with_document};
+use crate::reactive::{Child, Children, Get, Placed, Prop, create_effect, with_document};
 use beui_core::base::grid::{GridNode, Track};
 use beui_core::document::Document;
 use beui_core::node::NodeId;

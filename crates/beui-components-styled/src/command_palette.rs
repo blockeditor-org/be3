@@ -101,7 +101,6 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
-    let icon_color = text_color;
     let shortcut = shortcut.unwrap_or_default();
     view! {
         <Frame
@@ -111,7 +110,7 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Frame width=ICON_WIDTH>
-                    <Text color={icon_color} align=TextAlign::Center>
+                    <Text color={text_color} align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
                 </Frame>

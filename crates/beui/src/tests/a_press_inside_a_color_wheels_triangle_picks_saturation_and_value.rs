@@ -6,7 +6,7 @@ use crate::styled::*;
 #[test]
 fn a_press_inside_a_color_wheels_triangle_picks_saturation_and_value() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let wheel = NodeRef::new();
     let document = build(move || {
         view! {
@@ -14,7 +14,7 @@ fn a_press_inside_a_color_wheels_triangle_picks_saturation_and_value() {
                 <ColorWheel
                     @node_ref=&wheel
                     value={Hsva::new(200.0, 1.0, 1.0, 1.0).to_color()}
-                    on_change={move |color| set_changes.update(|changes| changes.push(color))}
+                    on_change={move |color| changes.update(|changes| changes.push(color))}
                 />
             </List>
         }

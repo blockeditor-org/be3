@@ -9,7 +9,7 @@ use text_editor_core::TextBuffer;
 #[test]
 fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
     let _root = crate::reactive::RootScope::new();
-    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
+    let held = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
     let document = build(move || {
         let lines = (1..=40)
@@ -19,7 +19,7 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
         let document =
             Arc::new(TextBuffer::new(lines.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        set_held.update(|held| *held = Some(state));
+        held.update(|held| *held = Some(state));
         view! {
             <Frame height=120.0>
                 <TextArea @node_ref=&area state={state} />

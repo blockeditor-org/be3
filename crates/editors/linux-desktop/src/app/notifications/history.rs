@@ -53,12 +53,10 @@ fn NotificationList(
     popover: PopoverHandle,
 ) -> NodeId {
     let empty = create_memo(move || listed.with(Vec::is_empty));
-    let unclearable = empty;
     let some = create_memo(move || !empty.get());
-    let cleared = listed;
     let clear = move || {
         let ids: Vec<u32> =
-            cleared.with_untracked(|listed| listed.iter().map(|shown| shown.id).collect());
+            listed.with_untracked(|listed| listed.iter().map(|shown| shown.id).collect());
         if !ids.is_empty() {
             notifications.dismiss(&ids);
         }
@@ -71,7 +69,7 @@ fn NotificationList(
                 <Button
                     label="Clear all"
                     variant=ButtonVariant::Ghost
-                    disabled={unclearable}
+                    disabled={empty}
                     @test_id={"desktop.notifications.clear"}
                     on_click={clear}
                 />

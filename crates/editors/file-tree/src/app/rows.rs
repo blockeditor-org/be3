@@ -199,11 +199,10 @@ pub(crate) fn own_system(roots: Vec<BlockInfo>, account: Uuid) -> Vec<BlockInfo>
 pub(crate) struct Tree {
     inner: Stored<Inner>,
     rows: Memo<Vec<Row>>,
-    folded: Memo<Folded>,
-    set_expanded: block_editor_beui::beui::reactive::WriteSignal<HashSet<Uuid>>,
-    set_collapsed: WriteSignal<HashSet<Uuid>>,
-    set_folded: WriteSignal<Folded>,
-    set_remembered: WriteSignal<u64>,
+    folded: Signal<Folded>,
+    expanded: Signal<HashSet<Uuid>>,
+    collapsed: Signal<HashSet<Uuid>>,
+    remembered: Signal<u64>,
 }
 
 struct Inner {
@@ -217,20 +216,19 @@ impl Tree {
         let roots = client.watch(BlockQuery::Roots);
         let shared = client.watch(BlockQuery::Shared);
         let watched = Rc::new(RefCell::new(Watched::default()));
-        let (expanded, set_expanded) = create_signal(HashSet::<Uuid>::new());
-        let (collapsed, set_collapsed) = create_signal(HashSet::<Uuid>::new());
-        let (folded, set_folded) = create_signal(Folded::default());
-        let (rows, set_rows) = create_signal(Vec::<Row>::new());
-        let (remembered, set_remembered) = create_signal(0_u64);
+        let expanded = create_signal(HashSet::<Uuid>::new());
+        let collapsed = create_signal(HashSet::<Uuid>::new());
+        let folded = create_signal(Folded::default());
+        let rows = create_signal(Vec::<Row>::new());
+        let remembered = create_signal(0_u64);
 
         let build = Rc::clone(&watched);
         let host = editor.host();
         let building = client.clone();
-        let open = expanded;
         create_effect(move || {
             remembered.get();
             let mut watched = build.borrow_mut();
-            let open = open.get();
+            let open = expanded.get();
             let collapsed = collapsed.get();
             let Folded {
                 orphans_open: showing,
@@ -289,9 +287,9 @@ impl Tree {
             builder.push_shared(loose, !shared_closed, shared.is_loaded());
             builder.push_orphans(showing);
             builder.push_system(system, system_open, roots.is_loaded());
-            let rows = builder.rows;
+            let built = builder.rows;
             drop(watched);
-            set_rows.set(rows);
+            rows.set(built);
         });
 
         let restored = Rc::new(Cell::new(false));
@@ -313,9 +311,9 @@ impl Tree {
             adopted.set(true);
             if let Some(opened) = opened {
                 untrack(|| {
-                    set_expanded.set(opened.expanded.into_iter().collect());
-                    set_collapsed.set(opened.collapsed.into_iter().collect());
-                    set_folded.set(Folded {
+                    expanded.set(opened.expanded.into_iter().collect());
+                    collapsed.set(opened.collapsed.into_iter().collect());
+                    folded.set(Folded {
                         orphans_open: opened.orphans,
                         shared_closed: opened.shared_closed,
                         system_open: opened.system,
@@ -324,7 +322,7 @@ impl Tree {
             }
         });
         create_effect(move || {
-            let mut expanded: Vec<Uuid> = open.get().into_iter().collect();
+            let mut expanded: Vec<Uuid> = expanded.get().into_iter().collect();
             let mut collapsed: Vec<Uuid> = collapsed.get().into_iter().collect();
             let Folded {
                 orphans_open,
@@ -352,11 +350,10 @@ impl Tree {
         Self {
             inner: store(Inner { client, watched }),
             rows: create_memo(move || rows.get()),
-            folded: create_memo(move || folded.get()),
-            set_expanded,
-            set_collapsed,
-            set_folded,
-            set_remembered,
+            folded,
+            expanded,
+            collapsed,
+            remembered,
         }
     }
 
@@ -377,7 +374,7 @@ impl Tree {
                 .block_types
                 .insert(id, block_type)
         });
-        self.set_remembered.update(|count| *count += 1);
+        self.remembered.update(|count| *count += 1);
     }
 
     pub(crate) fn blocks(&self) -> Blocks {
@@ -392,22 +389,22 @@ impl Tree {
     pub(crate) fn toggle(&self, key: &RowKey, id: Option<Uuid>, expanded: bool) {
         match key {
             RowKey::Orphans => {
-                let folded = untrack(|| self.folded.get());
-                self.set_folded.set(Folded {
+                let folded = self.folded.get_untracked();
+                self.folded.set(Folded {
                     orphans_open: !folded.orphans_open,
                     ..folded
                 });
             }
             RowKey::Shared => {
-                let folded = untrack(|| self.folded.get());
-                self.set_folded.set(Folded {
+                let folded = self.folded.get_untracked();
+                self.folded.set(Folded {
                     shared_closed: !folded.shared_closed,
                     ..folded
                 });
             }
             RowKey::System => {
-                let folded = untrack(|| self.folded.get());
-                self.set_folded.set(Folded {
+                let folded = self.folded.get_untracked();
+                self.folded.set(Folded {
                     system_open: !folded.system_open,
                     ..folded
                 });
@@ -418,7 +415,7 @@ impl Tree {
                 let Some(id) = id else {
                     return;
                 };
-                self.set_collapsed.update(|collapsed| match expanded {
+                self.collapsed.update(|collapsed| match expanded {
                     true => {
                         collapsed.insert(id);
                     }
@@ -431,7 +428,7 @@ impl Tree {
                 let Some(id) = id else {
                     return;
                 };
-                self.set_expanded.update(|open| match expanded {
+                self.expanded.update(|open| match expanded {
                     true => {
                         open.remove(&id);
                     }
@@ -446,12 +443,12 @@ impl Tree {
 
     pub(crate) fn expand(&self, ancestors: impl IntoIterator<Item = Uuid>) {
         let ancestors: Vec<_> = ancestors.into_iter().collect();
-        self.set_expanded.update(|open| open.extend(ancestors));
+        self.expanded.update(|open| open.extend(ancestors));
     }
 
     pub(crate) fn show_orphans(&self) {
-        let folded = untrack(|| self.folded.get());
-        self.set_folded.set(Folded {
+        let folded = self.folded.get_untracked();
+        self.folded.set(Folded {
             orphans_open: true,
             ..folded
         });
@@ -461,9 +458,9 @@ impl Tree {
         let held = self
             .inner
             .with(|inner| root.is_some_and(|id| inner.watched.borrow().system.contains(&id)));
-        let folded = untrack(|| self.folded.get());
+        let folded = self.folded.get_untracked();
         if held && !folded.system_open {
-            self.set_folded.set(Folded {
+            self.folded.set(Folded {
                 system_open: true,
                 ..folded
             });

@@ -6,24 +6,22 @@ use crate::styled::*;
 fn keys_in_one_frame_reach_the_row_the_first_one_focused() {
     let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
-    let (selected, set_selected) = create_signal(Vec::new());
-    let (document, _) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="First" />
-                <unstyled::MenuItem label="Second" />
-            };
-            [view! {
-                <MenuButton
-                    @node_ref=&button
-                    label="More"
-                    items
-                    on_select={move |path: Vec<usize>| {
-                        set_selected.update(|selected| selected.push(path));
-                    }}
-                />
-            }]
-        }
+    let selected = create_signal(Vec::new());
+    let (document, _) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label="First" />
+            <unstyled::MenuItem label="Second" />
+        };
+        [view! {
+            <MenuButton
+                @node_ref=&button
+                label="More"
+                items
+                on_select={move |path: Vec<usize>| {
+                    selected.update(|selected| selected.push(path));
+                }}
+            />
+        }]
     });
     let button = button.get();
     let mut harness = Harness::new(document);

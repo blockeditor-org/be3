@@ -8,7 +8,6 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
     let _root = crate::reactive::RootScope::new();
     let first = NodeRef::new();
     let second = NodeRef::new();
-    let (first_ref, second_ref) = (first, second);
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -19,8 +18,8 @@ fn a_horizontal_scroll_lays_its_items_out_in_a_row() {
                     offset=30.0
                 >
                     <List direction=Direction::Horizontal spacing=0.0>
-                        <Frame @node_ref=&first_ref width=120.0 />
-                        <Frame @node_ref=&second_ref width=120.0 />
+                        <Frame @node_ref=&first width=120.0 />
+                        <Frame @node_ref=&second width=120.0 />
                         <ForEach keys={indices(4)}>|_: usize|
                             <Frame width=120.0 />
                         </ForEach>

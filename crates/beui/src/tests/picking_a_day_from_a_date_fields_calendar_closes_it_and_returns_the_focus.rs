@@ -9,7 +9,7 @@ use crate::unstyled::{Container, DateTimeParts};
 #[test]
 fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
     let _root = crate::reactive::RootScope::new();
-    let (reported, set_reported) = create_signal(Vec::new());
+    let reported = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <Container>|_size|
@@ -18,7 +18,7 @@ fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
                     today={Some(Date::new(2026, 1, 1))}
                     parts=DateTimeParts::Date
                     label="Due"
-                    on_change={move |value| set_reported.update(|reported| reported.push(value))}
+                    on_change={move |value| reported.update(|reported| reported.push(value))}
                 />
             </Container>
         }

@@ -62,11 +62,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
             },
         );
     };
-    let adopt_blocked = blocked;
-    let fork_blocked = blocked;
-    let push_blocked = pull_blocked;
     let rows = move |(name, head): (String, String)| {
-        let blocked = blocked;
         view! {
             <BranchRow editor blocked name head />
         }
@@ -100,7 +96,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                     <Button
                                         label="Choose what to version"
                                         variant=ButtonVariant::Primary
-                                        disabled={adopt_blocked}
+                                        disabled={blocked}
                                         @test_id={"repository.adopt"}
                                         on_click={choose}
                                     />
@@ -140,7 +136,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                     <Button
                                         label="Fork"
                                         variant=ButtonVariant::Secondary
-                                        disabled={fork_blocked}
+                                        disabled={blocked}
                                         @test_id={"repository.fork"}
                                         on_click={move || editor.version(VersionCommand::Fork)}
                                     />
@@ -154,7 +150,7 @@ pub fn RepositoryView(editor: Editor) -> NodeId {
                                     <Button
                                         label="Push"
                                         variant=ButtonVariant::Secondary
-                                        disabled={push_blocked}
+                                        disabled={pull_blocked}
                                         @test_id={"repository.push"}
                                         on_click={move || editor.version(VersionCommand::PushUpstream)}
                                     />

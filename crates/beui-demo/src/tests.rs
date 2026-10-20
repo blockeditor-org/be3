@@ -172,7 +172,7 @@ fn over_the_page(size: Vec2) -> Pos2 {
 
 fn level_display() -> DocumentTest {
     let document = build(move || {
-        let (shown, set_shown) = create_signal(0_u64);
+        let shown = create_signal(0_u64);
         let level = Some(OsdLevel {
             glyph: ICON_VOLUME_UP.to_owned(),
             label: "Volume".to_owned(),
@@ -186,7 +186,7 @@ fn level_display() -> DocumentTest {
                         @test_id={"test.show"}
                         label="Turn it up"
                         variant=ButtonVariant::Secondary
-                        on_click={move || set_shown.update(|shown| *shown += 1)}
+                        on_click={move || shown.update(|shown| *shown += 1)}
                     />
                     <LevelOsd level={level} shown={shown} />
                 </List>

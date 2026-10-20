@@ -6,14 +6,14 @@ use crate::reactive::*;
 fn a_backdrop_drag_expands_an_unscrolled_half_open_sheet() {
     let _root = RootScope::new();
     let sheet = NodeRef::new();
-    let (closed, set_closed) = create_signal(0);
+    let closed = create_signal(0);
     let document = build(move || {
         view! {
             <ModalSheet
                 @node_ref=&sheet
                 open=true
                 rest=0.5
-                on_close={move || set_closed.update(|n| *n += 1)}
+                on_close={move || closed.update(|n| *n += 1)}
             >
                 <Frame height=2000.0 />
             </ModalSheet>

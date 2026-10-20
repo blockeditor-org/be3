@@ -26,14 +26,10 @@ pub(crate) struct Play {
     pub(crate) game: Stored<Rc<dyn GameModel>>,
     pub(crate) actions: Memo<Vec<Action>>,
     pub(crate) editable: Memo<bool>,
-    pub(crate) selected: ReadSignal<Option<Spot>>,
-    pub(crate) set_selected: WriteSignal<Option<Spot>>,
-    pub(crate) choices: ReadSignal<Vec<Action>>,
-    pub(crate) set_choices: WriteSignal<Vec<Action>>,
-    pub(crate) dragging: ReadSignal<Option<Dragging>>,
-    pub(crate) set_dragging: WriteSignal<Option<Dragging>>,
-    pub(crate) over: ReadSignal<Option<Spot>>,
-    pub(crate) set_over: WriteSignal<Option<Spot>>,
+    pub(crate) selected: Signal<Option<Spot>>,
+    pub(crate) choices: Signal<Vec<Action>>,
+    pub(crate) dragging: Signal<Option<Dragging>>,
+    pub(crate) over: Signal<Option<Spot>>,
 }
 
 impl Play {
@@ -92,13 +88,13 @@ impl Play {
         }
         let clicked = self.matching(Gesture::Click(spot));
         if !clicked.is_empty() {
-            self.set_selected.set(None);
+            self.selected.set(None);
             self.decide(clicked);
             return;
         }
         let pick = (selected != Some(spot) && self.movable_untracked(spot)).then_some(spot);
-        self.set_choices.set(Vec::new());
-        self.set_selected.set(pick);
+        self.choices.set(Vec::new());
+        self.selected.set(pick);
     }
 
     pub(crate) fn dropped(&self, from: Spot, to: Spot) {
@@ -108,26 +104,26 @@ impl Play {
     }
 
     pub(crate) fn choose(&self, action: &Action) {
-        self.set_selected.set(None);
-        self.set_choices.set(Vec::new());
-        self.game.get().choose(action.effect.clone());
+        self.selected.set(None);
+        self.choices.set(Vec::new());
+        self.game.value().choose(action.effect.clone());
     }
 
     pub(crate) fn cancel(&self) {
-        self.set_selected.set(None);
-        self.set_choices.set(Vec::new());
+        self.selected.set(None);
+        self.choices.set(Vec::new());
     }
 
     fn offer(&self, gesture: Gesture) {
-        self.set_selected.set(None);
+        self.selected.set(None);
         self.decide(self.matching(gesture));
     }
 
     fn decide(&self, matching: Vec<Action>) {
         match matching.as_slice() {
-            [] => self.set_choices.set(Vec::new()),
+            [] => self.choices.set(Vec::new()),
             [only] => self.choose(only),
-            _ => self.set_choices.set(matching),
+            _ => self.choices.set(matching),
         }
     }
 

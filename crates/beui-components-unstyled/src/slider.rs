@@ -77,17 +77,17 @@ pub fn Slider(
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let value = value.map(move |value| value.clamp(min, max));
-    let (value_read, set_value_signal) = create_signal(value.peek());
-    create_effect(move || set_value_signal.set(value.get()));
-    let fraction = create_memo(move || scale.fraction_of(value_read.get(), min, max));
-    let (dragging, set_dragging) = create_signal(false);
-    let (focused, set_focused) = create_signal(false);
+    let current = create_signal(value.get_untracked());
+    create_effect(move || current.set(value.get()));
+    let fraction = create_memo(move || scale.fraction_of(current.get(), min, max));
+    let dragging = create_signal(false);
+    let focused = create_signal(false);
     let disabled = create_memo(move || disabled.get());
 
     let accessibility = crate::labelled_node(Role::Slider, accessibility, label);
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
-        let value = value_read.get();
+        let value = current.get();
         node.set_numeric_value(value.into());
         node.set_min_numeric_value(min.into());
         node.set_max_numeric_value(max.into());
@@ -102,32 +102,27 @@ pub fn Slider(
 
     let content_node = content.map(|build| {
         build.call(SliderHandle {
-            value: value_read,
+            value: current.read_only(),
             fraction,
-            dragging,
-            focused,
+            dragging: dragging.read_only(),
+            focused: focused.read_only(),
             disabled,
         })
     });
 
-    let set_value = {
-        let value = value_read;
-        let off = disabled;
-        move |next: f32| {
-            if untrack(|| off.get()) {
-                return;
-            }
-            let next = next.clamp(min, max);
-            if untrack(|| value.get()) == next {
-                return;
-            }
-            set_value_signal.set(next);
-            on_change.call(next);
+    let set_value = move |next: f32| {
+        if disabled.get_untracked() {
+            return;
         }
+        let next = next.clamp(min, max);
+        if current.get_untracked() == next {
+            return;
+        }
+        current.set(next);
+        on_change.call(next);
     };
     let grab = Rc::new(Cell::new(0.0f32));
     let press_grab = grab.clone();
-    let press_fraction = fraction;
     let dragged_to = move |press: PointerPress| {
         let travel = press.size.x - thumb;
         match travel > 0.0 {
@@ -136,10 +131,9 @@ pub fn Slider(
         }
     };
     let jump_to = dragged_to.clone();
-    let jump_value = set_value;
     let grabbed = move |press: PointerPress| {
         let travel = (press.size.x - thumb).max(0.0);
-        let centre = thumb / 2.0 + press_fraction.get_untracked() * travel;
+        let centre = thumb / 2.0 + fraction.get_untracked() * travel;
         let on_thumb = thumb > 0.0 && (press.local.x - centre).abs() <= thumb / 2.0;
         press_grab.set(if on_thumb {
             centre - press.local.x
@@ -147,33 +141,30 @@ pub fn Slider(
             0.0
         });
         if !on_thumb {
-            jump_value(scale.value_at(jump_to(press), min, max));
+            set_value(scale.value_at(jump_to(press), min, max));
         }
     };
-    let step_value = set_value;
-    let key_value = set_value;
-    let value_for_keys = value_read;
 
-    set_component_state(value_read);
+    set_component_state(current.read_only());
 
     let tab_stop = create_memo(move || !disabled.get());
     view! {
         <Interactive
             focusable=true
             tab_stop={tab_stop}
-            on_focus_change={move |focused: bool| {
-                set_focused.set(focused);
-                on_focus_change.call(focused);
+            on_focus_change={move |next: bool| {
+                focused.set(next);
+                on_focus_change.call(next);
             }}
             on_step={move |delta: f32| {
-                let value = untrack(|| value_for_keys.get());
-                step_value(stepped(scale, value, delta * STEP, min, max));
+                let value = current.get_untracked();
+                set_value(stepped(scale, value, delta * STEP, min, max));
             }}
             on_key={move |press: KeyPress| {
                 if press.modifiers.ctrl || press.modifiers.alt {
                     return false;
                 }
-                let value = untrack(|| value_read.get());
+                let value = current.get_untracked();
                 let next = match press.key {
                     Key::Home => min,
                     Key::End => max,
@@ -182,7 +173,7 @@ pub fn Slider(
                     _ => return false,
                 };
                 if press.pressed {
-                    key_value(next);
+                    set_value(next);
                 }
                 true
             }}
@@ -191,9 +182,9 @@ pub fn Slider(
             on_drag={move |press: PointerPress| {
                 set_value(scale.value_at(dragged_to(press), min, max))
             }}
-            on_active_change={move |dragging: bool| {
-                set_dragging.set(dragging);
-                on_drag_change.call(dragging);
+            on_active_change={move |next: bool| {
+                dragging.set(next);
+                on_drag_change.call(next);
             }}
             children={content_node}
         />

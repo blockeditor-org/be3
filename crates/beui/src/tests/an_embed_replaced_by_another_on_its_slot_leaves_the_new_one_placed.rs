@@ -6,8 +6,7 @@ use crate::reactive::*;
 fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
     let _root = crate::reactive::RootScope::new();
     let slot = EmbedSlot::new();
-    let held = slot;
-    let (tall, set_tall) = create_signal(false);
+    let tall = create_signal(false);
     let document = build(move || {
         view! {
             <List spacing=0.0>
@@ -16,7 +15,7 @@ fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
                         true => 200.0,
                         false => 100.0,
                     };
-                    let slot = held;
+                    let slot = slot;
                     view! {
                         <Frame height=height>
                             <Embed slot={slot} />
@@ -29,7 +28,7 @@ fn an_embed_replaced_by_another_on_its_slot_leaves_the_new_one_placed() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    with_reactive_scope(harness.document_mut(), move || set_tall.set(true));
+    with_reactive_scope(harness.document_mut(), move || tall.set(true));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
 

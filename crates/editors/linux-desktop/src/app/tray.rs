@@ -100,10 +100,9 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
         move |request: fn(String) -> TrayRequest| editor.act(request(id.clone()))
     };
     let (click, secondary, middle) = (request.clone(), request.clone(), request);
-    let (scrolling, opening, choosing) = (editor, editor, editor);
     let (scrolled_id, opened_id, chosen_id) = (id.clone(), id.clone(), id.clone());
     let chosen = Chosen::new(move |entry: i32| {
-        choosing.act(TrayRequest::MenuChosen {
+        editor.act(TrayRequest::MenuChosen {
             item: chosen_id.clone(),
             entry,
         });
@@ -128,7 +127,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
             on_middle_click={move || middle(TrayRequest::SecondaryActivate)}
             on_scroll={move |gesture: ScrollGesture| {
                 if let Some((delta, horizontal)) = scrolled(gesture) {
-                    scrolling.act(TrayRequest::Scroll {
+                    editor.act(TrayRequest::Scroll {
                         item: scrolled_id.clone(),
                         delta,
                         horizontal,
@@ -136,7 +135,7 @@ fn TrayButton(editor: Editor, listed: Memo<Vec<HostTrayItem>>, id: String) -> No
                 }
             }}
             on_open_change={move |open: bool| {
-                opening.act(match open {
+                editor.act(match open {
                     true => TrayRequest::MenuOpened(opened_id.clone()),
                     false => TrayRequest::MenuClosed(opened_id.clone()),
                 });

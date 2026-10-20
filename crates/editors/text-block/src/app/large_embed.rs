@@ -21,7 +21,7 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
         source_start: embed.range.start,
     };
     let target = ChildTarget::new(embed.id, embed.block_type);
-    let (child, set_child) = create_signal(ChildState::default());
+    let child = create_signal(ChildState::default());
     let focused_embed = state.focused_embed;
     let focused = create_memo(move || focused_embed.get() == Some(key));
     let mode = create_memo(move || match (focused.get(), child.get().interaction) {
@@ -94,7 +94,7 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                                 variant=ButtonVariant::Secondary
                                 @test_id={format!("text.embed.{}.edit", key.id)}
                                 on_click={move || {
-                                    state.set_focused_embed.set(Some(key));
+                                    state.focused_embed.set(Some(key));
                                     state.inner().focus_confirmed.set(false);
                                 }}
                             />
@@ -109,14 +109,14 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                         block={Some(target)}
                         mode={mode}
                         on_state={move |next: ChildState| {
-                            set_child.set(next.clone());
+                            child.set(next.clone());
                             state.inner().embed_children.borrow_mut().insert(key, next.clone());
                             if let Some(size) = next.intrinsic_size
                                 && state
                                     .embed_sizes
                                     .with_untracked(|sizes| sizes.get(&key.id) != Some(&size))
                             {
-                                state.set_embed_sizes.update(|sizes| {
+                                state.embed_sizes.update(|sizes| {
                                     sizes.insert(key.id, size);
                                 });
                             }
@@ -138,7 +138,7 @@ fn confirm_focus(state: State, key: FocusedEmbed, active: bool) {
         return;
     }
     if state.inner().focus_confirmed.get() {
-        state.set_focused_embed.set(None);
+        state.focused_embed.set(None);
         state.inner().focus_confirmed.set(false);
     }
 }

@@ -38,15 +38,14 @@ pub fn KeepChanges(
     on_revert: ClickCallback,
 ) -> NodeId {
     let deadline = StoredCell::new(None::<Instant>);
-    let (left, set_left) = create_signal(timeout.peek());
-    let expire = on_revert;
+    let left = create_signal(timeout.get_untracked());
     let ticking = create_timer(move || {
         let due = deadline.get()?;
         let remaining = due.saturating_duration_since(now());
-        set_left.set(remaining);
+        left.set(remaining);
         if remaining.is_zero() {
             deadline.set(None);
-            expire.call();
+            on_revert.call();
             return None;
         }
         Some(until_next_second(remaining))
@@ -59,7 +58,7 @@ pub fn KeepChanges(
             true => {
                 let timeout = timeout.get();
                 deadline.set(Some(now() + timeout));
-                set_left.set(timeout);
+                left.set(timeout);
                 ticking.restart(until_next_second(timeout));
             }
             false => {
@@ -154,10 +153,9 @@ fn KeepChangesCard(
     let inset = create_memo(move || Sides::new(place.get().left(), place.get().top(), 0.0, 0.0));
     let width = create_memo(move || place.get().width());
     let height = create_memo(move || place.get().height());
-    let label = title;
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::AlertDialog);
-        node.set_label(label.get());
+        node.set_label(title.get());
         node
     }));
     let card_id = id.clone();

@@ -5,10 +5,10 @@ use crate::unstyled::PanZoomView;
 #[test]
 fn a_pan_zoom_follows_the_view_its_caller_sets() {
     let _root = crate::reactive::RootScope::new();
-    let (signal, set_signal) = create_signal(None);
+    let signal = create_signal(None);
     let document = build(move || {
-        let (view, set_view) = create_signal(PanZoomView::IDENTITY);
-        set_signal.update(|signal| *signal = Some(set_view));
+        let view = create_signal(PanZoomView::IDENTITY);
+        signal.update(|signal| *signal = Some(view));
         view! {
             <PanZoomStage view on_change={move |_| {}} />
         }
@@ -16,9 +16,9 @@ fn a_pan_zoom_follows_the_view_its_caller_sets() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let set_view = signal.get_untracked().expect("the view was not kept");
+    let view = signal.get_untracked().expect("the view was not kept");
     with_reactive_scope(harness.document_mut(), move || {
-        set_view.set(PanZoomView::new(pos2(50.0, 25.0), 2.0));
+        view.set(PanZoomView::new(pos2(50.0, 25.0), 2.0));
     });
     harness.frame(Vec::new());
 

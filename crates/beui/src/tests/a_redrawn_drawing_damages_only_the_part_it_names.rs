@@ -16,16 +16,14 @@ impl Draw for Blank {
 fn a_redrawn_drawing_damages_only_the_part_it_names() {
     let _root = crate::reactive::RootScope::new();
     let viewport = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame height=50.0 />
-                    <Frame width=120.0 height=100.0>
-                        <Drawing @node_ref=&viewport draw={draw_gpu(None)} />
-                    </Frame>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame height=50.0 />
+                <Frame width=120.0 height=100.0>
+                    <Drawing @node_ref=&viewport draw={draw_gpu(None)} />
+                </Frame>
+            </List>
         }
     });
     let viewport = kind_of::<DrawingNode>(&document, viewport.get());

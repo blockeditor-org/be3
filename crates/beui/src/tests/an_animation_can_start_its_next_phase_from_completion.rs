@@ -4,13 +4,13 @@ use crate::reactive::*;
 #[test]
 fn an_animation_can_start_its_next_phase_from_completion() {
     let _root = RootScope::new();
-    let (finished, set_finished) = create_signal(0);
+    let finished = create_signal(0);
     let document = build(move || {
-        let next = create_animation(|_| false, move || set_finished.update(|n| *n += 1));
+        let next = create_animation(|_| false, move || finished.update(|n| *n += 1));
         let first = create_animation(
             |_| false,
             move || {
-                set_finished.update(|n| *n += 1);
+                finished.update(|n| *n += 1);
                 next.start();
             },
         );

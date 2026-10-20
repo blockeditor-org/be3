@@ -9,20 +9,18 @@ use beui_core::display::{Group, Layer, Part};
 #[test]
 fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
     let _root = crate::reactive::RootScope::new();
-    let (rows, set_rows) = create_signal(2_usize);
+    let rows = create_signal(2_usize);
     let scroll = NodeRef::new();
-    let document = build({
-        move || {
-            let keys = create_memo(move || (0..rows.get()).collect::<Vec<usize>>());
-            view! {
-                <Scroll @node_ref=&scroll>
-                    <ForEach keys>|_: usize|
-                        <Frame height=40.0>
-                            <Spacer />
-                        </Frame>
-                    </ForEach>
-                </Scroll>
-            }
+    let document = build(move || {
+        let keys = create_memo(move || (0..rows.get()).collect::<Vec<usize>>());
+        view! {
+            <Scroll @node_ref=&scroll>
+                <ForEach keys>|_: usize|
+                    <Frame height=40.0>
+                        <Spacer />
+                    </Frame>
+                </ForEach>
+            </Scroll>
         }
     });
     let scroll = scroll.get();
@@ -44,7 +42,7 @@ fn a_styled_scroll_fades_its_content_only_toward_an_edge_with_more_beyond_it() {
         "content that fits does not fade"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_rows.set(40));
+    with_reactive_scope(harness.document_mut(), move || rows.set(40));
     let output = harness.frame(Vec::new());
     assert!(!fades(&output).is_empty());
     assert!(

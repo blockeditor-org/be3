@@ -2,9 +2,9 @@ use std::cell::{Cell, RefCell};
 use std::rc::{Rc, Weak};
 
 use crate::reactive::{
-    ChildList, ChildValue, Children, ForEach, IntoSlotHost, Prop, Scope, Show, ShowKeepAlive,
-    SlotChild, SlotHost, SlotId, WriteSignal, component, create_effect, create_memo, create_signal,
-    on_cleanup, store, view,
+    ChildList, ChildValue, Children, ForEach, Get, IntoSlotHost, Prop, Scope, Set, Show,
+    ShowKeepAlive, Signal, SlotChild, SlotHost, SlotId, component, create_effect, create_memo,
+    create_signal, on_cleanup, store, view,
 };
 
 mod a_mock_dom_follows_its_signals_through_show_and_for_each;
@@ -103,7 +103,7 @@ impl IntoSlotHost<DomNode> for &DomNode {
 fn Element(
     tag: &'static str,
     #[prop(default = String::new())] text: Prop<String>,
-    texts: Option<WriteSignal<usize>>,
+    texts: Option<Signal<usize>>,
     children: Children<DomNode>,
 ) -> DomNode {
     let element = DomNode::new(tag);

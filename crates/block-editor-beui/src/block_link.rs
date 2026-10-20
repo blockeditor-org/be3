@@ -30,15 +30,14 @@ pub fn watch_block_label(
     editor: Editor,
     target: Memo<Option<ChildTarget>>,
 ) -> ReadSignal<BlockDisplay> {
-    let (shown, set_shown) = create_signal(BlockDisplay::default());
-    let shown_now = shown;
+    let shown = create_signal(BlockDisplay::default());
     let opened = RefCell::new(None::<(ChildTarget, BlockList)>);
     let blocks = editor.blocks();
     let catalog = editor.host();
     create_effect(move || {
         let Some(next) = target.get() else {
             opened.borrow_mut().take();
-            set_shown.set(BlockDisplay::default());
+            shown.set(BlockDisplay::default());
             return;
         };
         let mut list = opened.borrow_mut();
@@ -66,11 +65,11 @@ pub fn watch_block_label(
             automatic: label.automatic,
             resolved,
         };
-        if shown_now.get_untracked() != display {
-            set_shown.set(display);
+        if shown.get_untracked() != display {
+            shown.set(display);
         }
     });
-    shown
+    shown.read_only()
 }
 
 #[component]

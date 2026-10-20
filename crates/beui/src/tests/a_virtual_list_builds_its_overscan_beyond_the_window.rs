@@ -6,24 +6,22 @@ use crate::reactive::*;
 fn a_virtual_list_builds_its_overscan_beyond_the_window() {
     let _root = crate::reactive::RootScope::new();
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            @node_ref=&list
-                            keys={indices(100)}
-                            item_size=VIRTUAL_ITEM_HEIGHT
-                            overscan={VIRTUAL_ITEM_HEIGHT * 2.0}
-                        >|_: ReadSignal<usize>|
-                            <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                <Spacer />
-                            </Frame>
-                        </VirtualList>
-                    </Offset>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        @node_ref=&list
+                        keys={indices(100)}
+                        item_size=VIRTUAL_ITEM_HEIGHT
+                        overscan={VIRTUAL_ITEM_HEIGHT * 2.0}
+                    >|_: ReadSignal<usize>|
+                        <Frame height=VIRTUAL_ITEM_HEIGHT>
+                            <Spacer />
+                        </Frame>
+                    </VirtualList>
+                </Offset>
+            </List>
         }
     });
     let (scroll, list) = (scroll.get(), list.get());

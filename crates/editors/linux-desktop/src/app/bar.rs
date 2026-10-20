@@ -42,13 +42,13 @@ fn wall_clock() -> ReadSignal<String> {
         let into = unix().as_secs() % SECONDS_PER_MINUTE;
         Duration::from_secs(SECONDS_PER_MINUTE - into)
     };
-    let (clock, set_clock) = create_signal(shown());
+    let clock = create_signal(shown());
     let ticking = create_timer(move || {
-        set_clock.set(shown());
+        clock.set(shown());
         Some(until_next_minute())
     });
     ticking.start(until_next_minute());
-    clock
+    clock.read_only()
 }
 
 #[component]
@@ -84,7 +84,6 @@ pub(crate) fn DesktopBar(
                 .collect::<Vec<_>>()
         })
     });
-    let named = listed;
     let settings = sessions.settings;
     let unready = create_memo(move || settings.get().is_none());
     let listing = create_memo(move || !listed.with(Vec::is_empty));
@@ -122,9 +121,8 @@ pub(crate) fn DesktopBar(
                         @test_id={"desktop.sessions"}
                         items={view! {
                             <ForEach keys={keys}>|block: uuid::Uuid| {
-                                let named = named;
                                 let label = create_memo(move || {
-                                    named.with(|sessions| {
+                                    listed.with(|sessions| {
                                         sessions
                                             .iter()
                                             .find(|session| session.block == block)

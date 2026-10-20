@@ -21,10 +21,10 @@ pub fn Loaded(
     #[prop(default = "Loading".to_owned())] label: Prop<String>,
     #[prop(children)] content: Render<()>,
 ) -> NodeId {
-    let (ready, set_ready) = create_signal(false);
+    let ready = create_signal(false);
     create_effect(move || {
         if loaded.get() {
-            set_ready.set(true);
+            ready.set(true);
         }
     });
     let waiting = create_memo(move || !ready.get());

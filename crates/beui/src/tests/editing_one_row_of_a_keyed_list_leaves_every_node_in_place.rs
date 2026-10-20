@@ -7,33 +7,31 @@ use crate::unstyled::Button;
 fn editing_one_row_of_a_keyed_list_leaves_every_node_in_place() {
     let _root = crate::reactive::RootScope::new();
     let (list, edit) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            let store: KeyedStore<u32, String> = KeyedStore::new();
-            store.reconcile_owned((0..3u32).map(|index| (index, format!("row {index}"))));
-            view! {
-                <List spacing=0.0>
-                    <Button
-                        @node_ref=&edit
-                        on_click={move || {
-                            store.reconcile_owned((0..3u32).map(|index| {
-                                let label = if index == 1 { "edited" } else { "row" };
-                                (index, format!("{label} {index}"))
-                            }));
-                        }}
-                    >
-                        <Text string="edit" />
-                    </Button>
-                    <List @node_ref=&list spacing=0.0>
-                        <ForEach keys={store.keys()}>|index: u32| {
-                            let item = store.get(&index);
-                            view! {
-                                <Text string={item} />
-                            }
-                        }</ForEach>
-                    </List>
+    let document = build(move || {
+        let store: KeyedStore<u32, String> = KeyedStore::new();
+        store.reconcile_owned((0..3u32).map(|index| (index, format!("row {index}"))));
+        view! {
+            <List spacing=0.0>
+                <Button
+                    @node_ref=&edit
+                    on_click={move || {
+                        store.reconcile_owned((0..3u32).map(|index| {
+                            let label = if index == 1 { "edited" } else { "row" };
+                            (index, format!("{label} {index}"))
+                        }));
+                    }}
+                >
+                    <Text string="edit" />
+                </Button>
+                <List @node_ref=&list spacing=0.0>
+                    <ForEach keys={store.keys()}>|index: u32| {
+                        let item = store.get(&index);
+                        view! {
+                            <Text string={item} />
+                        }
+                    }</ForEach>
                 </List>
-            }
+            </List>
         }
     });
 

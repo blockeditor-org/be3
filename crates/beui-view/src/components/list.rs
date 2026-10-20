@@ -3,7 +3,7 @@ use beui_core::node::NodeId;
 use beui_macros::component;
 
 use crate::reactive::{
-    Align, Children, Direction, Justify, ListChild, Prop, create_binding, with_document,
+    Align, Children, Direction, Get, Justify, ListChild, Prop, create_binding, with_document,
 };
 
 #[component]
@@ -15,7 +15,7 @@ pub fn List(
     spacing: Prop<f32>,
     children: Children<ListChild>,
 ) -> NodeId {
-    let list = with_document(|document| document.create_list(direction.peek(), 0.0));
+    let list = with_document(|document| document.create_list(direction.get_untracked(), 0.0));
     create_binding(move || {
         with_document(|document| document.set_list_direction(list, direction.get()))
     });

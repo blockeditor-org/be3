@@ -5,7 +5,7 @@ use beui_core::renderer::{Loaded, Renderer};
 use beui_core::runner::{Launch, Platform, RunOptions, Runner};
 use beui_core::window::WindowState;
 
-type Log = WriteSignal<Vec<String>>;
+type Log = Signal<Vec<String>>;
 
 struct Screen;
 
@@ -84,8 +84,8 @@ impl App for Typing {
 #[test]
 fn the_runner_tells_the_platform_only_what_changed() {
     let _root = crate::reactive::RootScope::new();
-    let (_, log) = create_signal(Vec::new());
-    let (_, typed) = create_signal(Vec::new());
+    let log = create_signal(Vec::new());
+    let typed = create_signal(Vec::new());
     let mut runner = Runner::new(Launch {
         options: RunOptions::new("runner"),
         context: context(),

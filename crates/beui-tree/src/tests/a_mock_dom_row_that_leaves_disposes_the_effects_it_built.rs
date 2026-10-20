@@ -5,18 +5,18 @@ fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
     let _root = ::reactive::RootScope::new();
     fresh_ids();
     let scope = Scope::new();
-    let (texts, set_texts) = create_signal(0);
-    let (cleanups, set_cleanups) = create_signal(0);
-    let (suffix, set_suffix) = create_signal("!".to_string());
-    let (items, set_items) = create_signal(vec![1, 2]);
+    let texts = create_signal(0);
+    let cleanups = create_signal(0);
+    let suffix = create_signal("!".to_string());
+    let items = create_signal(vec![1, 2]);
     let list = scope.run(|| {
         view! {
             <Element tag="ul">
                 <ForEach keys={items}>|item: u32| {
-                    on_cleanup(move || set_cleanups.update(|cleanups| *cleanups += 1));
+                    on_cleanup(move || cleanups.update(|cleanups| *cleanups += 1));
                     let text = create_memo(move || format!("{item}{}", suffix.get()));
                     view! {
-                        <Element tag="li" text={text} texts={set_texts} />
+                        <Element tag="li" text={text} texts={texts} />
                     }
                 }</ForEach>
             </Element>
@@ -28,7 +28,7 @@ fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
     );
     assert_eq!(texts.get_untracked(), 2);
 
-    set_items.set(vec![2]);
+    items.set(vec![2]);
     assert_eq!(list.html(), "<ul id=0><li id=2>2!</li></ul>");
     assert_eq!(
         cleanups.get_untracked(),
@@ -36,7 +36,7 @@ fn a_mock_dom_row_that_leaves_disposes_the_effects_it_built() {
         "the row that left must dispose the scope it was built in"
     );
 
-    set_suffix.set("?".to_string());
+    suffix.set("?".to_string());
     assert_eq!(list.html(), "<ul id=0><li id=2>2?</li></ul>");
     assert_eq!(
         texts.get_untracked(),

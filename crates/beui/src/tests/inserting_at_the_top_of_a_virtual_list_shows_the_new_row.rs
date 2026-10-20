@@ -3,16 +3,16 @@ use super::*;
 #[test]
 fn inserting_at_the_top_of_a_virtual_list_shows_the_new_row() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(Vec::new());
-    let scroll = keyed_virtual_list(set_built);
+    let built = create_signal(Vec::new());
+    let scroll = keyed_virtual_list(built);
     let mut harness = Harness::new(scroll.document);
     harness.frame(Vec::new());
     let first = harness.document.children(scroll.list)[0];
 
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
     let mut keys = indices(VIRTUAL_ITEM_COUNT);
     keys.insert(0, VIRTUAL_ITEM_COUNT);
-    with_installed(harness.document_mut(), |_| scroll.set_keys.set(keys));
+    with_installed(harness.document_mut(), |_| scroll.keys.set(keys));
     harness.frame(Vec::new());
 
     assert_eq!(built.get_untracked(), [VIRTUAL_ITEM_COUNT]);

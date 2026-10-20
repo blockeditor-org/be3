@@ -219,15 +219,13 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
     });
     let remove = move || data.operate_view(DatabaseView::remove_filter(id));
     let read_only = data.read_only;
-    let label = text;
     view! {
         <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius={Radius::custom(14.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <unstyled::Popover
-                    label={label}
+                    label={text}
                     @test_id={format!("database-view.filter.{}", id.as_uuid())}
                     trigger={move |handle: PopoverTriggerHandle| {
-                        let text = text;
                         view! {
                             <ControlFace handle={handle.button}>
                                 <Text style=TextStyle::CAPTION string={text} />
@@ -255,13 +253,13 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
 
 #[component]
 fn AddFilter(data: Data) -> NodeId {
-    let (adding, set_adding) = create_signal(None::<ObjectId>);
+    let adding = create_signal(None::<ObjectId>);
     let choosing = create_memo(move || adding.get().is_none());
     let editing = create_memo(move || adding.get());
     let has_editing = create_memo(move || adding.get().is_some());
     let reset = move |open: bool| {
         if !open {
-            set_adding.set(None);
+            adding.set(None);
         }
     };
     let read_only = data.read_only;
@@ -281,33 +279,29 @@ fn AddFilter(data: Data) -> NodeId {
                     </List>
                 </ControlFace>
             }}
-        >|_: PopoverHandle| {
-            let set_adding = set_adding;
-            let editing = editing;
-            view! {
-                <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
-                    <List spacing=0.0>
-                        <Show condition={choosing}>
-                            <FieldChoices
-                                data={data}
-                                on_pick={move |id: ObjectId| set_adding.set(Some(id))}
-                            />
-                        </Show>
-                        <Show condition={has_editing}>|| {
-                            let id = editing.get_untracked();
-                            match id {
-                                Some(id) => view! {
-                                    <FilterEditor data={data} id={id} />
-                                },
-                                None => view! {
-                                    <Frame />
-                                },
-                            }
-                        }</Show>
-                    </List>
-                </PopoverPanel>
-            }
-        }</unstyled::Popover>
+        >|_: PopoverHandle|
+            <PopoverPanel max_width={Some(EDITOR_WIDTH + 24.0)}>
+                <List spacing=0.0>
+                    <Show condition={choosing}>
+                        <FieldChoices
+                            data={data}
+                            on_pick={move |id: ObjectId| adding.set(Some(id))}
+                        />
+                    </Show>
+                    <Show condition={has_editing}>|| {
+                        let id = editing.get_untracked();
+                        match id {
+                            Some(id) => view! {
+                                <FilterEditor data={data} id={id} />
+                            },
+                            None => view! {
+                                <Frame />
+                            },
+                        }
+                    }</Show>
+                </List>
+            </PopoverPanel>
+        </unstyled::Popover>
     }
 }
 
@@ -329,7 +323,6 @@ fn FieldChoices(
         <List spacing=2.0>
             <Text style=TextStyle::CAPTION string="Filter by" />
             <ForEach keys={keys}>|field: Uuid| {
-                let on_pick = on_pick;
                 let name = create_memo(move || {
                     data.fields.with(|fields| {
                         fields
@@ -354,14 +347,11 @@ fn FieldChoices(
                         label={name}
                         @test_id={format!("database-view.filters.field.{field}")}
                         on_click={pick}
-                    >|handle| {
-                        let name = name;
-                        view! {
-                            <ControlFace handle={handle}>
-                                <Text string={name} />
-                            </ControlFace>
-                        }
-                    }</unstyled::Button>
+                    >|handle|
+                        <ControlFace handle={handle}>
+                            <Text string={name} />
+                        </ControlFace>
+                    </unstyled::Button>
                 }
             }</ForEach>
         </List>
@@ -451,9 +441,6 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
     let picked = |_: DatabaseBlockPickRequest| {};
     let (condition_off, value_off, text_off) = (data.read_only, data.read_only, data.read_only);
     let labels = data.labels;
-    let choice_filter = filter;
-    let choice_field = field;
-    let condition_names = kinds;
     view! {
         <Frame width=EDITOR_WIDTH>
             <List spacing={SPACING * 1.5}>
@@ -464,7 +451,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                             options={view! {
                                 <ForEach keys={kind_keys}>|index: usize| {
                                     let label = create_memo(move || {
-                                        condition_names.with(|kinds| {
+                                        kinds.with(|kinds| {
                                             kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
                                         })
                                     });
@@ -482,7 +469,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                     </Frame>
                 </List>
                 <Show condition={choosing}>
-                    <ValueChoices data={data} id={id} filter={choice_filter} field={choice_field} />
+                    <ValueChoices data={data} id={id} filter={filter} field={field} />
                 </Show>
                 <Show condition={comparing}>
                     <DatabaseValueEditor
@@ -526,7 +513,7 @@ fn ValueChoices(
     filter: Memo<ViewFilter>,
     field: Memo<Option<DatabaseField>>,
 ) -> NodeId {
-    let (query, set_query) = create_signal(String::new());
+    let query = create_signal(String::new());
     let choices = create_memo(move || {
         let Some(field) = field.get() else {
             return Vec::new();
@@ -605,7 +592,7 @@ fn ValueChoices(
     let keys =
         create_memo(move || choices.with(|choices| (0..choices.len()).collect::<Vec<usize>>()));
     let read_only = data.read_only;
-    let typed = move |text: String| set_query.set(text);
+    let typed = move |text: String| query.set(text);
     view! {
         <List spacing=SPACING>
             <Show condition={many}>
@@ -647,7 +634,6 @@ fn ValueChoices(
                             data.operate_view(DatabaseView::set_filter_condition(id, &next));
                         };
                         let element_test_id = format!("database-view.filter.{}.choice.{index}", id.as_uuid());
-                        let read_only = read_only;
                         view! {
                             <List
                                 direction=Direction::Horizontal

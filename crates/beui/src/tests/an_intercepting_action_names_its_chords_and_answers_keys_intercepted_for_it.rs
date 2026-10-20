@@ -7,11 +7,11 @@ use crate::styled::*;
 #[test]
 fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it() {
     let _root = crate::reactive::RootScope::new();
-    let (runs, set_runs) = create_signal(0);
-    let (open, set_open) = create_signal(false);
+    let runs = create_signal(0);
+    let open = create_signal(false);
     let document = build(move || {
         Action::new("test.switch", "Switch", move || {
-            set_runs.update(|runs| *runs += 1)
+            runs.update(|runs| *runs += 1)
         })
         .shortcut(Chord::key(Key::Tab).alt())
         .shortcut(Chord::key(Key::Tab))
@@ -45,7 +45,7 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
         [tab],
         "only enabled intercepting actions name their chords, and never a chord that types"
     );
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     assert_eq!(
         harness.frame(Vec::new()).window.intercepted_keys,
         [tab, escape],

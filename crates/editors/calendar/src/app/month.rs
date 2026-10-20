@@ -165,10 +165,9 @@ fn EventChip(
     title: Memo<String>,
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
-    let click = on_click;
     view! {
         <Frame fill=ColorRole::Accent radius={Radius::custom(3.0)}>
-            <ListRow on_click={click} on_activate={on_click}>
+            <ListRow on_click={on_click} on_activate={on_click}>
                 <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
             </ListRow>
         </Frame>

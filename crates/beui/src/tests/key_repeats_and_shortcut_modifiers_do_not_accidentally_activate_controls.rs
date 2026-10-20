@@ -4,13 +4,10 @@ use crate::reactive::*;
 #[test]
 fn key_repeats_and_shortcut_modifiers_do_not_accidentally_activate_controls() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let (document, [_button]) = toolbar_of(|| {
         [view! {
-            <LabelledButton
-                label="Click"
-                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
-            />
+            <LabelledButton label="Click" on_click={move || clicks.update(|clicks| *clicks += 1)} />
         }]
     });
     let mut harness = Harness::new(document);

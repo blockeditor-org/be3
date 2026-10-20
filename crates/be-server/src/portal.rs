@@ -394,7 +394,7 @@ fn session_age(created: i64) -> String {
 }
 
 fn owned(value: Stored<String>) -> String {
-    value.get().as_ref().clone()
+    value.value().as_ref().clone()
 }
 
 #[component]

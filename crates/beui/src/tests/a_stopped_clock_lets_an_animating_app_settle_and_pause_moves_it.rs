@@ -1,6 +1,6 @@
 use super::*;
 
-struct Animating(WriteSignal<Option<std::time::Instant>>);
+struct Animating(Signal<Option<std::time::Instant>>);
 
 impl App for Animating {
     fn update(&mut self, context: &Context, _rect: Rect) {
@@ -12,8 +12,8 @@ impl App for Animating {
 #[test]
 fn a_stopped_clock_lets_an_animating_app_settle_and_pause_moves_it() {
     let _root = crate::reactive::RootScope::new();
-    let (now, set_now) = create_signal(None);
-    let mut driven = Driven::with_app(Animating(set_now), true);
+    let now = create_signal(None);
+    let mut driven = Driven::with_app(Animating(now), true);
 
     driven
         .ask(&["clock", "stop"])

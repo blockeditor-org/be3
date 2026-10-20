@@ -5,7 +5,7 @@ use std::time::{Duration, Instant};
 
 use crate::current::with_document;
 use crate::timer::{Timer, create_timer, now};
-use ::reactive::{Stored, create_effect, on_cleanup, store};
+use ::reactive::{Get, Stored, create_effect, on_cleanup, store};
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub enum Motion {
@@ -46,7 +46,7 @@ pub struct Animation(Stored<State>);
 
 impl Animation {
     pub fn start(self) {
-        let Some(state) = self.0.try_get() else {
+        let Some(state) = self.0.try_value() else {
             return;
         };
         if state.active.replace(true) {
@@ -73,7 +73,7 @@ impl Animation {
     }
 
     pub fn finish(self) {
-        let Some(state) = self.0.try_get() else {
+        let Some(state) = self.0.try_value() else {
             return;
         };
         if !state.active.get() {
@@ -103,7 +103,7 @@ pub fn create_animation(
     });
     let animation = Animation(state);
     let timer = create_timer(move || {
-        let state = state.get();
+        let state = state.value();
         if !state.active.get() {
             return None;
         }

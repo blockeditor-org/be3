@@ -7,29 +7,27 @@ use crate::unstyled::Button;
 fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
     let _root = crate::reactive::RootScope::new();
     let (column, toggle) = (NodeRef::new(), NodeRef::new());
-    let (builds, set_builds) = create_signal(0);
-    let document = build({
-        move || {
-            let (visible, set_visible) = create_signal(false);
-            view! {
-                <List @node_ref=&column spacing=0.0>
-                    <Button
-                        @node_ref=&toggle
-                        on_click={move || set_visible.update(|visible| *visible = !*visible)}
-                    >
-                        <Text string="toggle" />
-                    </Button>
-                    <ShowKeepAlive
-                        condition={visible}
-                        then={move || {
-                            set_builds.update(|builds| *builds += 1);
-                            view! {
-                                <Text string="panel" />
-                            }
-                        }}
-                    />
-                </List>
-            }
+    let builds = create_signal(0);
+    let document = build(move || {
+        let visible = create_signal(false);
+        view! {
+            <List @node_ref=&column spacing=0.0>
+                <Button
+                    @node_ref=&toggle
+                    on_click={move || visible.update(|visible| *visible = !*visible)}
+                >
+                    <Text string="toggle" />
+                </Button>
+                <ShowKeepAlive
+                    condition={visible}
+                    then={move || {
+                        builds.update(|builds| *builds += 1);
+                        view! {
+                            <Text string="panel" />
+                        }
+                    }}
+                />
+            </List>
         }
     });
 

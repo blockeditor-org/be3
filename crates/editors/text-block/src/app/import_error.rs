@@ -36,7 +36,7 @@ fn ImportErrorRow(state: State) -> NodeId {
                     label="Dismiss"
                     variant=ButtonVariant::Secondary
                     @test_id={"text.image-error.dismiss"}
-                    on_click={move || state.set_import_error.set(None)}
+                    on_click={move || state.import_error.set(None)}
                 />
             </List>
         </Frame>

@@ -33,7 +33,6 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
         true => TextColor::Default,
         false => TextColor::Muted,
     });
-    let checked = selected;
     let fill_color = create_memo(move || background(&theme, selected.get(), hovered.get()));
     view! {
         <Frame
@@ -42,7 +41,7 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(14.0, 6.0)}
         >
-            <ChoiceLabel kind label color={label_color} checked />
+            <ChoiceLabel kind label color={label_color} checked={selected} />
         </Frame>
     }
 }

@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn a_canvas_places_its_items_at_the_view_it_is_given() {
     let _root = crate::reactive::RootScope::new();
-    let (items, set_items) = create_signal(Vec::new());
+    let items = create_signal(Vec::new());
 
     let document = build(move || {
         let canvas = view! {
@@ -14,7 +14,7 @@ fn a_canvas_places_its_items_at_the_view_it_is_given() {
                 <CanvasItem x=30.0 y=40.0 width=20.0 height=5.0 />
             </Canvas>
         };
-        set_items.set(with_document(|document| document.children(canvas)));
+        items.set(with_document(|document| document.children(canvas)));
         canvas
     });
 

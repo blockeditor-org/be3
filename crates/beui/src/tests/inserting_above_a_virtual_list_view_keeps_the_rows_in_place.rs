@@ -5,18 +5,18 @@ const INSERTED_AT: usize = 10;
 #[test]
 fn inserting_above_a_virtual_list_view_keeps_the_rows_in_place() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(Vec::new());
-    let scroll = keyed_virtual_list(set_built);
+    let built = create_signal(Vec::new());
+    let scroll = keyed_virtual_list(built);
     let mut harness = Harness::new(scroll.document);
     harness.document.set_scroll_offset(scroll.scroll, 1000.0);
     harness.frame(Vec::new());
     let rows = harness.document.children(scroll.list);
     let tops: Vec<f32> = rows.iter().map(|&row| harness.rect(row).top()).collect();
 
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
     let mut keys = indices(VIRTUAL_ITEM_COUNT);
     keys.insert(INSERTED_AT, VIRTUAL_ITEM_COUNT);
-    with_installed(harness.document_mut(), |_| scroll.set_keys.set(keys));
+    with_installed(harness.document_mut(), |_| scroll.keys.set(keys));
     harness.frame(Vec::new());
 
     assert!(built.with_untracked(|built| built.is_empty()));

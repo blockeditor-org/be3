@@ -7,8 +7,7 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
     let left = Rect::from_min_size(pos2(0.0, 0.0), Vec2::new(640.0, 480.0));
     let right = Rect::from_min_size(pos2(640.0, 0.0), Vec2::new(460.0, 320.0));
     let document = build(move || {
-        let (open, set_open) = create_signal(false);
-        let closing = set_open;
+        let open = create_signal(false);
         view! {
             <Frame fill=ColorRole::Background>
                 <List direction=beui::Direction::Horizontal justify=Justify::End spacing=0.0>
@@ -16,13 +15,13 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
                         label="About"
                         variant=ButtonVariant::Secondary
                         @test_id={"test.about"}
-                        on_click={move || set_open.set(true)}
+                        on_click={move || open.set(true)}
                     />
                     <Dialog
                         open={open}
                         title="About"
                         width=320.0
-                        on_dismiss={move || closing.set(false)}
+                        on_dismiss={move || open.set(false)}
                     >
                         <Text
                             style=TextStyle::PARAGRAPH

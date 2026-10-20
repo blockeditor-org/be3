@@ -4,11 +4,11 @@ use super::*;
 fn runaway_effects_are_stopped_and_scheduler_remains_usable() {
     let _root = RootScope::new();
     let scope = Scope::new();
-    let (value, set_value) = create_signal(0);
+    let value = create_signal(0);
     let effect = RefCell::new(None);
     assert!(
         catch_unwind(AssertUnwindSafe(|| scope.run(|| {
-            effect.replace(Some(create_effect(move || set_value.set(value.get() + 1))));
+            effect.replace(Some(create_effect(move || value.set(value.get() + 1))));
         })))
         .is_err()
     );

@@ -6,14 +6,14 @@ use crate::styled::*;
 #[test]
 fn a_calendar_reaches_a_distant_year_from_its_years_view() {
     let _root = crate::reactive::RootScope::new();
-    let (picked, set_picked) = create_signal(Vec::new());
+    let picked = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <Calendar
                 selected={Some(Date::new(2026, 1, 15))}
                 today={Some(Date::new(2026, 1, 1))}
                 focused=true
-                on_change={move |date| set_picked.update(|picked| picked.push(date))}
+                on_change={move |date| picked.update(|picked| picked.push(date))}
             />
         }
     });

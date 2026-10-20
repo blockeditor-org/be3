@@ -45,7 +45,7 @@ pub fn LevelOsd(
     #[prop(default = "level-osd".to_owned())] id: String,
 ) -> NodeId {
     let since = StoredCell::new(None::<Instant>);
-    let (opacity, set_opacity) = create_signal(0.0_f32);
+    let opacity = create_signal(0.0_f32);
     let step = move |at: Instant| {
         let Some(started) = since.get() else {
             return false;
@@ -57,14 +57,14 @@ pub fn LevelOsd(
             FADE.as_secs_f32(),
             Easing::Linear,
         );
-        set_opacity.set(1.0 - progress);
+        opacity.set(1.0 - progress);
         progress < 1.0
     };
     let fade = create_animation(
         move |frame| step(frame.now),
         move || {
             since.set(None);
-            set_opacity.set(0.0);
+            opacity.set(0.0);
         },
     );
     let ticking = create_timer(move || {
@@ -82,7 +82,7 @@ pub fn LevelOsd(
             }
             fade.stop();
             since.set(Some(now()));
-            set_opacity.set(1.0);
+            opacity.set(1.0);
             ticking.restart(duration);
         });
     });
@@ -102,7 +102,6 @@ pub fn LevelOsd(
                         screen.top() + screen.height() * SCREEN_HEIGHT_FRACTION,
                     ))
                 });
-                let (open, level, opacity) = (open, level, opacity);
                 let id = format!("{id}.{index}");
                 view! {
                     <Overlay
@@ -113,7 +112,7 @@ pub fn LevelOsd(
                         traps_focus=false
                         open={open}
                         content={move || view! {
-                            <OsdCard level opacity id />
+                            <OsdCard level opacity={opacity.read_only()} id />
                         }}
                     />
                 }
@@ -125,13 +124,10 @@ pub fn LevelOsd(
 #[component]
 fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) -> NodeId {
     let theme = use_theme();
-    let faded = move |color: Memo<Color32>| {
-        let opacity = opacity;
-        create_memo(move || color.get().scale_alpha(opacity.get()))
-    };
-    let shown = level;
+    let faded =
+        move |color: Memo<Color32>| create_memo(move || color.get().scale_alpha(opacity.get()));
     let muted =
-        create_memo(move || shown.with(|level| level.as_ref().is_some_and(|level| level.muted)));
+        create_memo(move || level.with(|level| level.as_ref().is_some_and(|level| level.muted)));
     let raised = theme.surface_raised;
     let border = theme.border;
     let track = theme.track;

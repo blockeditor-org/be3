@@ -12,41 +12,39 @@ fn height(index: usize) -> f32 {
 #[test]
 fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_one_walk() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(Vec::new());
+    let built = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            @node_ref=&list
-                            keys={indices(ROWS)}
-                            item_size=ESTIMATE
-                        >|index: ReadSignal<usize>| {
-                            create_binding(move || {
-                                index.get();
-                                let walk = with_document(|document| {
-                                    document.laying_out().map(|_| document.layout_pass())
-                                });
-                                set_built.update(|built| built.push(walk));
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        @node_ref=&list
+                        keys={indices(ROWS)}
+                        item_size=ESTIMATE
+                    >|index: ReadSignal<usize>| {
+                        create_binding(move || {
+                            index.get();
+                            let walk = with_document(|document| {
+                                document.laying_out().map(|_| document.layout_pass())
                             });
-                            view! {
-                                <Frame height={create_memo(move || height(index.get()))}>
-                                    <Spacer />
-                                </Frame>
-                            }
-                        }</VirtualList>
-                    </Offset>
-                </List>
-            }
+                            built.update(|built| built.push(walk));
+                        });
+                        view! {
+                            <Frame height={create_memo(move || height(index.get()))}>
+                                <Spacer />
+                            </Frame>
+                        }
+                    }</VirtualList>
+                </Offset>
+            </List>
         }
     });
     let (scroll, list) = (scroll.get(), list.get());
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
     harness.document.set_scroll_offset(scroll, 5000.0);
     harness.frame(Vec::new());
 

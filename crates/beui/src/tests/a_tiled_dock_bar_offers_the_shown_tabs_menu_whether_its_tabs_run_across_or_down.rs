@@ -24,7 +24,7 @@ fn choose(harness: &mut Harness, label: &str) {
 #[test]
 fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_down() {
     let _root = crate::reactive::RootScope::new();
-    let (ran, set_ran) = create_signal(0);
+    let ran = create_signal(0);
     let dock = NodeRef::new();
     let document = build(move || {
         let layout = DockingLayout::new();
@@ -39,7 +39,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
                         title="Tab 2"
                         content={move || {
                             let tidy = Action::new("tidy", "Tidy up", move || {
-                                set_ran.update(|ran| *ran += 1)
+                                ran.update(|ran| *ran += 1)
                             })
                             .detached();
                             dock_menu(create_memo(move || vec![tidy.clone()]));

@@ -65,9 +65,9 @@ pub(crate) fn PressingPage() -> NodeId {
 #[component]
 fn PressCounter() -> NodeId {
     let theme = use_theme();
-    let (presses, set_presses) = create_signal(0u32);
-    let (hovered, set_hovered) = create_signal(false);
-    let (active, set_active) = create_signal(false);
+    let presses = create_signal(0u32);
+    let hovered = create_signal(false);
+    let active = create_signal(false);
     let fill = create_memo(move || {
         let theme = theme.get();
         match (active.get(), hovered.get()) {
@@ -80,9 +80,9 @@ fn PressCounter() -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Pressable
-                on_click={move || set_presses.update(|count| *count += 1)}
-                on_hover_change={move |on| set_hovered.set(on)}
-                on_active_change={move |on| set_active.set(on)}
+                on_click={move || presses.update(|count| *count += 1)}
+                on_hover_change={move |on| hovered.set(on)}
+                on_active_change={move |on| active.set(on)}
             >
                 <Frame
                     fill={ColorRole::custom(fill)}
@@ -99,12 +99,12 @@ fn PressCounter() -> NodeId {
 #[sample]
 #[component]
 fn PillButton() -> NodeId {
-    let (launched, set_launched) = create_signal("Not launched".to_owned());
+    let launched = create_signal("Not launched".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=0.0>
                 <unstyled::Button
-                    on_click={move || set_launched.set("Launched".to_owned())}
+                    on_click={move || launched.set("Launched".to_owned())}
                 >|handle: ButtonHandle|
                     <PillFace handle label="Launch" />
                 </unstyled::Button>
@@ -241,13 +241,13 @@ pub(crate) fn ValuesPage() -> NodeId {
 #[sample]
 #[component]
 fn VolumeMeter() -> NodeId {
-    let (volume, set_volume) = create_signal(0.3f32);
+    let volume = create_signal(0.3f32);
     let volume_text = create_memo(move || format!("Volume {}%", (volume.get() * 100.0).round()));
     view! {
         <List spacing=SECTION_SPACING>
             <unstyled::Slider
                 value={volume}
-                on_change={move |value| set_volume.set(value)}
+                on_change={move |value| volume.set(value)}
             >|handle: SliderHandle|
                 <MeterFace handle />
             </unstyled::Slider>
@@ -288,7 +288,7 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
 #[component]
 fn UnderlinedInput() -> NodeId {
     let theme = use_theme();
-    let (submitted, set_submitted) = create_signal("Press Enter to submit".to_owned());
+    let submitted = create_signal("Press Enter to submit".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
             <unstyled::TextInput
@@ -302,7 +302,7 @@ fn UnderlinedInput() -> NodeId {
                     caret_color: theme.accent.into_prop(),
                     ..TextInputStyle::default()
                 }}
-                on_submit={move |value: String| set_submitted.set(format!("Searched for {value}"))}
+                on_submit={move |value: String| submitted.set(format!("Searched for {value}"))}
             >|handle: TextInputHandle|
                 <UnderlinedField handle />
             </unstyled::TextInput>
@@ -468,7 +468,7 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
 #[component]
 fn SizeRadios() -> NodeId {
     let sizes = ["Small", "Medium", "Large"];
-    let (chosen, set_chosen) = create_signal("Medium".to_owned());
+    let chosen = create_signal("Medium".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
             <unstyled::Choice
@@ -481,7 +481,7 @@ fn SizeRadios() -> NodeId {
                 kind=ChoiceKind::Radio
                 on_change={move |selected: Option<usize>| {
                     if let Some(index) = selected {
-                        set_chosen.set(sizes[index].to_owned());
+                        chosen.set(sizes[index].to_owned());
                     }
                 }}
             >|handle: ChoiceOptionHandle|
@@ -693,7 +693,7 @@ fn HintTooltip() -> NodeId {
 #[sample]
 #[component]
 fn ExportMenu() -> NodeId {
-    let (exported, set_exported) = create_signal("Nothing exported".to_owned());
+    let exported = create_signal("Nothing exported".to_owned());
     let formats = ["PDF", "PNG", "Markdown"];
     view! {
         <List spacing=SECTION_SPACING>
@@ -717,7 +717,7 @@ fn ExportMenu() -> NodeId {
                     )}
                     on_select={move |path: Vec<usize>| {
                         if let [index] = path.as_slice() {
-                            set_exported.set(format!("Exported as {}", formats[*index]));
+                            exported.set(format!("Exported as {}", formats[*index]));
                         }
                     }}
                 />
@@ -730,8 +730,7 @@ fn ExportMenu() -> NodeId {
 #[sample]
 #[component]
 fn RunSplit() -> NodeId {
-    let (ran, set_ran) = create_signal("Nothing run".to_owned());
-    let picked = set_ran;
+    let ran = create_signal("Nothing run".to_owned());
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=0.0>
@@ -756,9 +755,9 @@ fn RunSplit() -> NodeId {
                     arrow={move |handle: MenuButtonHandle| view! {
                         <PillFace handle={handle.button} label="More" />
                     }}
-                    on_click={move || set_ran.set("Ran".to_owned())}
+                    on_click={move || ran.set("Ran".to_owned())}
                     on_select={move |path: Vec<usize>| {
-                        picked.set(format!("Ran option {}", path.first().map_or(0, |index| index + 1)));
+                        ran.set(format!("Ran option {}", path.first().map_or(0, |index| index + 1)));
                     }}
                 />
             </List>
@@ -809,19 +808,18 @@ pub(crate) fn DraggingPage() -> NodeId {
 #[sample]
 #[component]
 fn FruitBins() -> NodeId {
-    let (bins, set_bins) = create_signal(vec![0usize, 0, 0, 1, 1, 1]);
-    let moves = set_bins;
+    let bins = create_signal(vec![0usize, 0, 0, 1, 1, 1]);
     view! {
         <List direction=Direction::Horizontal spacing=ROW_SPACING>
-            <FruitBin @sizing=ItemSize::Percent(50.0) bin=0 bins={bins} set_bins=moves />
-            <FruitBin @sizing=ItemSize::Percent(50.0) bin=1 bins set_bins />
+            <FruitBin @sizing=ItemSize::Percent(50.0) bin=0 bins />
+            <FruitBin @sizing=ItemSize::Percent(50.0) bin=1 bins />
         </List>
     }
 }
 
 #[sample]
 #[component]
-fn FruitBin(bin: usize, bins: ReadSignal<Vec<usize>>, set_bins: WriteSignal<Vec<usize>>) -> NodeId {
+fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
     let theme = use_theme();
     let fruits = create_memo(move || {
         (0..PRODUCE.len())
@@ -830,7 +828,7 @@ fn FruitBin(bin: usize, bins: ReadSignal<Vec<usize>>, set_bins: WriteSignal<Vec<
     });
     view! {
         <unstyled::DropTarget
-            on_drop={move |(fruit, _): (usize, DragPoint)| set_bins.update(|bins| bins[fruit] = bin)}
+            on_drop={move |(fruit, _): (usize, DragPoint)| bins.update(|bins| bins[fruit] = bin)}
         >|handle: DropHandle| {
             let DropHandle { over, .. } = handle;
             let edge = create_memo(move || match over.get() {
@@ -969,17 +967,15 @@ fn ThinThumb(bar: ScrollbarHandle, visibility: ReadSignal<f32>) -> NodeId {
 #[sample]
 #[component]
 fn OpenableFiles() -> NodeId {
-    let (chosen, set_chosen) = create_signal(0usize);
-    let (opened, set_opened) =
-        create_signal("Double-click a file, or press Enter on it".to_owned());
+    let chosen = create_signal(0usize);
+    let opened = create_signal("Double-click a file, or press Enter on it".to_owned());
     let row = move |index: usize, name: &'static str| {
         let selected = create_memo(move || chosen.get() == index);
-        let (choose, open) = (set_chosen, set_opened);
         view! {
             <unstyled::ListRow
                 selected={selected}
-                on_click={move || choose.set(index)}
-                on_activate={move || open.set(format!("Opened {name}"))}
+                on_click={move || chosen.set(index)}
+                on_activate={move || opened.set(format!("Opened {name}"))}
             >|handle: ButtonHandle|
                 <FileRowFace handle selected name />
             </unstyled::ListRow>
@@ -1029,7 +1025,7 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
 #[sample]
 #[component]
 fn ScrubbedNumber() -> NodeId {
-    let (gap, set_gap) = create_signal(12.0f64);
+    let gap = create_signal(12.0f64);
     let shown = create_memo(move || format!("Gap {} px", gap.get()));
     view! {
         <List spacing=SECTION_SPACING>
@@ -1045,7 +1041,7 @@ fn ScrubbedNumber() -> NodeId {
                     field={move |handle: NumberFieldHandle| view! {
                         <NumberField handle />
                     }}
-                    on_change={move |value: f64| set_gap.set(value)}
+                    on_change={move |value: f64| gap.set(value)}
                 />
             </Frame>
             <Text string={shown} color=TextColor::Muted />
@@ -1125,11 +1121,11 @@ fn underlined_style() -> TextInputStyle {
 #[sample]
 #[component]
 fn HueAndHex() -> NodeId {
-    let (color, set_color) = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
+    let color = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
     let picker: ColorPickerState = ColorPickerState::new(
         color.into_prop(),
         Prop::Static(false),
-        Callback::new(move |color: Color32| set_color.set(color)),
+        Callback::new(move |next: Color32| color.set(next)),
         Callback::default(),
     );
     let shown = picker.shown();
@@ -1223,8 +1219,8 @@ const OUTLINE: [(&str, usize, Option<usize>); 6] = [
 #[sample]
 #[component]
 fn FolderTree() -> NodeId {
-    let (expanded, set_expanded) = create_signal(vec![0usize]);
-    let (selected, set_selected) = create_signal(Some(4usize));
+    let expanded = create_signal(vec![0usize]);
+    let selected = create_signal(Some(4usize));
     let keys = create_memo(move || {
         let open = expanded.get();
         (0..OUTLINE.len())
@@ -1242,20 +1238,19 @@ fn FolderTree() -> NodeId {
     });
     let tree = NodeRef::new();
     let viewport = NodeRef::new();
-    let rows = tree;
     view! {
         <Frame width=PANEL_WIDTH height=TREE_HEIGHT>
             <List spacing=0.0>
                 <unstyled::Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
                     <unstyled::Tree
-                        @node_ref={&rows}
+                        @node_ref={&tree}
                         keys
                         item
                         selected={selected}
                         ancestors={|key: usize| OUTLINE[key].2.into_iter().collect::<Vec<usize>>()}
-                        on_select={move |key: usize| set_selected.set(Some(key))}
+                        on_select={move |key: usize| selected.set(Some(key))}
                         on_expand={move |(key, open): (usize, bool)| {
-                            set_expanded.update(|expanded| match open {
+                            expanded.update(|expanded| match open {
                                 true => expanded.push(key),
                                 false => expanded.retain(|held| *held != key),
                             });
@@ -1466,13 +1461,11 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
 #[sample]
 #[component]
 fn PullUpSheet() -> NodeId {
-    let (open, set_open) = create_signal(false);
-    let closing = set_open;
-    let done = set_open;
+    let open = create_signal(false);
     let ink = TextColor::Default;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
-            <unstyled::Button on_click={move || set_open.set(true)}>|handle: ButtonHandle|
+            <unstyled::Button on_click={move || open.set(true)}>|handle: ButtonHandle|
                 <PillFace handle label="Open the sheet" />
             </unstyled::Button>
             <unstyled::ModalSheet
@@ -1485,7 +1478,7 @@ fn PullUpSheet() -> NodeId {
                 panel={move |content: Child| view! {
                     <Frame fill=ColorRole::Surface radius=Radius::Lg>{content}</Frame>
                 }}
-                on_close={move || closing.set(false)}
+                on_close={move || open.set(false)}
             >
                 <Frame padding=PAGE_PADDING>
                     <List spacing=SECTION_SPACING>
@@ -1496,7 +1489,7 @@ fn PullUpSheet() -> NodeId {
                         />
                         <List direction=Direction::Horizontal spacing=0.0>
                             <unstyled::Button
-                                on_click={move || done.set(false)}
+                                on_click={move || open.set(false)}
                             >|handle: ButtonHandle|
                                 <PillFace handle label="Done" />
                             </unstyled::Button>
@@ -1518,14 +1511,12 @@ fn FolderPages() -> NodeId {
         }
     }
     let theme = use_theme();
-    let (depth, set_depth) = create_signal(0_u32);
+    let depth = create_signal(0_u32);
     let nested = create_memo(move || depth.get() > 0);
-    let rising = set_depth;
     let page = theme.background;
     let ink = TextColor::Default;
     let above = move || {
         let label = folder_label(depth.get_untracked().saturating_sub(1));
-        let (page, ink) = (page, ink);
         view! {
             <Frame fill={ColorRole::custom(page)}>
                 <Text string={label} color={ink} wrap=true />
@@ -1536,7 +1527,7 @@ fn FolderPages() -> NodeId {
     view! {
         <unstyled::BackSlide
             enabled={nested}
-            on_back={move || rising.set(depth.get_untracked().saturating_sub(1))}
+            on_back={move || depth.set(depth.get_untracked().saturating_sub(1))}
             behind={above}
         >
             <Frame fill={ColorRole::custom(page)}>
@@ -1544,7 +1535,7 @@ fn FolderPages() -> NodeId {
                     <Text string={label} color={ink} wrap=true />
                     <List direction=Direction::Horizontal spacing=0.0>
                         <unstyled::Button
-                            on_click={move || set_depth.set(depth.get_untracked() + 1)}
+                            on_click={move || depth.set(depth.get_untracked() + 1)}
                         >|handle: ButtonHandle|
                             <PillFace handle label="Open a folder" />
                         </unstyled::Button>
@@ -1568,7 +1559,7 @@ fn SheetGrip() -> NodeId {
 #[sample]
 #[component]
 fn DeadlinePicker() -> NodeId {
-    let (deadline, set_deadline) = create_signal(None::<DateTime>);
+    let deadline = create_signal(None::<DateTime>);
     let shown = create_memo(move || match deadline.get() {
         Some(deadline) => format!("Due {}", deadline.date.label()),
         None => "No deadline".to_owned(),
@@ -1598,7 +1589,7 @@ fn DeadlinePicker() -> NodeId {
                     panel={move |handle: DateTimePanelHandle| view! {
                         <DatePresets handle />
                     }}
-                    on_change={move |next: Option<DateTime>| set_deadline.set(next)}
+                    on_change={move |next: Option<DateTime>| deadline.set(next)}
                 />
             </List>
             <Text string={shown} color=TextColor::Muted />
@@ -1676,7 +1667,6 @@ fn DatePresets(handle: DateTimePanelHandle) -> NodeId {
     } = handle;
     let start = today.get_untracked().unwrap_or_else(Date::today);
     let preset = move |label: &'static str, date: Date| {
-        let pick = pick;
         view! {
             <unstyled::Button on_click={move || pick.call(date)}>|handle: ButtonHandle|
                 <PillFace handle label />

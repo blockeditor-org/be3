@@ -43,9 +43,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
         );
     });
 
-    let measured = shown;
     create_effect(move || {
-        let size = measured.get().size();
+        let size = shown.get().size();
         editor.set_intrinsic_size(Some(size));
     });
 

@@ -6,18 +6,16 @@ use crate::styled::*;
 fn arrow_keys_move_a_visible_highlight_through_an_open_context_menu() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let (document, [_menu]) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="Copy" />
-                <unstyled::MenuItem label="Paste" />
-            };
-            [view! {
-                <ContextMenu items>
-                    <MenuRegion @node_ref=&region />
-                </ContextMenu>
-            }]
-        }
+    let (document, [_menu]) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label="Copy" />
+            <unstyled::MenuItem label="Paste" />
+        };
+        [view! {
+            <ContextMenu items>
+                <MenuRegion @node_ref=&region />
+            </ContextMenu>
+        }]
     });
     let region = region.get();
     let mut harness = Harness::new(document);

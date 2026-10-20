@@ -4,7 +4,7 @@ use super::*;
 fn a_selector_only_reruns_the_keys_that_gained_or_lost_selection() {
     let _root = RootScope::new();
     let scope = Scope::new();
-    let (selected, set_selected) = create_signal(Some(0usize));
+    let selected = create_signal(Some(0usize));
     let runs = Rc::new(RefCell::new(Vec::new()));
     scope.run(|| {
         let selector = create_selector(move || selected.get());
@@ -21,12 +21,12 @@ fn a_selector_only_reruns_the_keys_that_gained_or_lost_selection() {
         [(0, true), (1, false), (2, false), (3, false)]
     );
     runs.borrow_mut().clear();
-    set_selected.set(Some(2));
+    selected.set(Some(2));
     assert_eq!(*runs.borrow(), [(0, false), (2, true)]);
     runs.borrow_mut().clear();
-    set_selected.set(None);
+    selected.set(None);
     assert_eq!(*runs.borrow(), [(2, false)]);
     runs.borrow_mut().clear();
-    set_selected.set(Some(3));
+    selected.set(Some(3));
     assert_eq!(*runs.borrow(), [(3, true)]);
 }

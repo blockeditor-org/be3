@@ -5,12 +5,12 @@ use crate::styled::*;
 #[test]
 fn a_driver_pastes_the_headless_clipboard_with_ctrl_v() {
     let document = build(|| {
-        let (text, set_text) = create_signal(String::new());
+        let text = create_signal(String::new());
         view! {
             <TextInput
                 @test_id={"field"}
                 value={text}
-                on_change={move |next: String| set_text.set(next)}
+                on_change={move |next: String| text.set(next)}
             />
         }
     });

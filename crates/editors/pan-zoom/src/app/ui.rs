@@ -92,52 +92,39 @@ pub const CARDS: &[Card] = &[
 
 #[component]
 pub fn PanZoom(editor: Editor) -> NodeId {
-    let (open, set_open) = create_signal(true);
-    let (selected, set_selected) = create_signal(None::<usize>);
+    let open = create_signal(true);
+    let selected = create_signal(None::<usize>);
     let stage = NodeRef::new();
     editor.content(&stage);
 
     let chrome = editor.chrome_shown();
     let panel_shown = create_memo(move || chrome.get() && open.get());
     let rail_shown = create_memo(move || chrome.get() && !open.get());
-    let panel = (editor, selected, set_selected, set_open);
-    let rail_open = set_open;
+    let panel = (editor, selected, open);
 
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Show condition={panel_shown}>|| {
-                let (editor, selected, set_selected, set_open) = panel;
+                let (editor, selected, open) = panel;
                 view! {
-                    <Sidebar
-                        @sizing=ItemSize::Fixed(SIDEBAR_WIDTH)
-                        editor
-                        selected
-                        set_selected
-                        set_open
-                    />
+                    <Sidebar @sizing=ItemSize::Fixed(SIDEBAR_WIDTH) editor selected open />
                 }
             }</Show>
             <Show condition={rail_shown}>
-                <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) set_open={rail_open} />
+                <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) open={open} />
             </Show>
             <Stage
                 @sizing=ItemSize::Percent(100.0)
                 @node_ref={&stage}
                 editor={editor}
                 selected={selected}
-                set_selected={set_selected}
             />
         </List>
     }
 }
 
 #[component]
-fn Sidebar(
-    editor: Editor,
-    selected: ReadSignal<Option<usize>>,
-    set_selected: WriteSignal<Option<usize>>,
-    set_open: WriteSignal<bool>,
-) -> NodeId {
+fn Sidebar(editor: Editor, selected: Signal<Option<usize>>, open: Signal<bool>) -> NodeId {
     let scale = editor.scale();
     let readout = create_memo(move || format!("Zoom {:.0}%", scale.get() * 100.0));
     let chosen = create_memo(move || match selected.get() {
@@ -147,7 +134,7 @@ fn Sidebar(
     let zoom_out = move || editor.zoom(1.0 / ZOOM_STEP);
     let zoom_in = move || editor.zoom(ZOOM_STEP);
     let fit = move || editor.fit();
-    let hide = move || set_open.set(false);
+    let hide = move || open.set(false);
     view! {
         <Frame fill=ColorRole::Surface padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING>
@@ -187,7 +174,7 @@ fn Sidebar(
                 />
                 <List spacing=4.0>
                     <ForEach keys={card_indices()}>|index: usize|
-                        <FocusRow index editor={editor} set_selected={set_selected} />
+                        <FocusRow index editor={editor} selected={selected} />
                     </ForEach>
                 </List>
                 <Separator />
@@ -203,10 +190,10 @@ fn Sidebar(
 }
 
 #[component]
-fn FocusRow(editor: Editor, index: usize, set_selected: WriteSignal<Option<usize>>) -> NodeId {
+fn FocusRow(editor: Editor, index: usize, selected: Signal<Option<usize>>) -> NodeId {
     let card: &'static Card = &CARDS[index];
     let focus = move || {
-        set_selected.set(Some(index));
+        selected.set(Some(index));
         editor.reveal(card.rect());
     };
     view! {
@@ -220,8 +207,8 @@ fn FocusRow(editor: Editor, index: usize, set_selected: WriteSignal<Option<usize
 }
 
 #[component]
-fn Rail(set_open: WriteSignal<bool>) -> NodeId {
-    let show = move || set_open.set(true);
+fn Rail(open: Signal<bool>) -> NodeId {
+    let show = move || open.set(true);
     view! {
         <Frame fill=ColorRole::Surface padding={Sides::symmetric(6.0, PANEL_PADDING)}>
             <List spacing=0.0>
@@ -238,28 +225,19 @@ fn Rail(set_open: WriteSignal<bool>) -> NodeId {
 }
 
 #[component]
-fn Stage(
-    editor: Editor,
-    selected: ReadSignal<Option<usize>>,
-    set_selected: WriteSignal<Option<usize>>,
-) -> NodeId {
+fn Stage(editor: Editor, selected: Signal<Option<usize>>) -> NodeId {
     let scale = editor.scale();
     view! {
         <Canvas view={editor.canvas()}>
             <ForEach keys={card_indices()}>|index: usize|
-                <CardView index scale={scale} selected={selected} set_selected={set_selected} />
+                <CardView index scale={scale} selected={selected} />
             </ForEach>
         </Canvas>
     }
 }
 
 #[component]
-fn CardView(
-    index: usize,
-    scale: ReadSignal<f32>,
-    selected: ReadSignal<Option<usize>>,
-    set_selected: WriteSignal<Option<usize>>,
-) -> CanvasItem {
+fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>>) -> CanvasItem {
     let card: &'static Card = &CARDS[index];
     let theme = use_theme();
     let chosen = create_memo(move || selected.get() == Some(index));
@@ -278,7 +256,7 @@ fn CardView(
     let radius = create_memo(move || Radius::custom((CARD_RADIUS * scale.get()).floor()));
     let outline_width = scaled(scale, CARD_OUTLINE);
     let position = format!("{:.0}, {:.0}", card.x, card.y);
-    let select = move || set_selected.set(Some(index));
+    let select = move || selected.set(Some(index));
 
     view! {
         <CanvasItem

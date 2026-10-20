@@ -7,20 +7,18 @@ use crate::unstyled::Scroll;
 #[test]
 fn a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_again() {
     let _root = crate::reactive::RootScope::new();
-    let (seen, set_seen) = create_signal(Rect::NOTHING);
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame height=200.0>
-                        <Scroll @test_id="scroll">
-                            <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
-                                <Row watched={row == 2} seen={set_seen} />
-                            </ForEach>
-                        </Scroll>
-                    </Frame>
-                </List>
-            }
+    let seen = create_signal(Rect::NOTHING);
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame height=200.0>
+                    <Scroll @test_id="scroll">
+                        <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
+                            <Row watched={row == 2} seen={seen} />
+                        </ForEach>
+                    </Scroll>
+                </Frame>
+            </List>
         }
     });
     let mut harness = Harness::new(document);
@@ -49,7 +47,7 @@ fn a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_a
 }
 
 #[component]
-fn Row(watched: bool, seen: WriteSignal<Rect>) -> NodeId {
+fn Row(watched: bool, seen: Signal<Rect>) -> NodeId {
     view! {
         <PlacementBuilder>|rect: ReadSignal<Rect>| {
             create_effect(move || {

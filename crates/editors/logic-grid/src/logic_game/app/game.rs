@@ -51,17 +51,20 @@ impl Game {
                 .map(|level| (level.challenge, level.solutions.clone(), level.completed))
                 .collect::<Vec<_>>()
         });
-        let (levels, set_levels) = create_signal(Vec::<Level>::new());
-        let (hotbar, set_hotbar) = create_signal(None::<Uuid>);
+        let levels = create_signal(Vec::<Level>::new());
+        let hotbar = create_signal(None::<Uuid>);
         let work = Rc::new(RefCell::new(Work::default()));
         let working = Rc::clone(&work);
         let blocks = editor.blocks();
         let host = editor.host();
         create_effect(move || {
             let mut work = working.borrow_mut();
-            let Work { grids, hotbar } = &mut *work;
-            hotbar.find(&editor, host.client_id());
-            set_hotbar.set(hotbar.block());
+            let Work {
+                grids,
+                hotbar: setting,
+            } = &mut *work;
+            setting.find(&editor, host.client_id());
+            hotbar.set(setting.block());
 
             let types = editor.block_types();
             let mut listed = Vec::new();
@@ -127,7 +130,7 @@ impl Game {
                     );
                 }
             }
-            set_levels.set(rows);
+            levels.set(rows);
         });
         Self {
             editor,

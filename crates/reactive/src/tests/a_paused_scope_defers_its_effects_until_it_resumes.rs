@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_paused_scope_defers_its_effects_until_it_resumes() {
     let _root = RootScope::new();
-    let (count, set_count) = create_signal(0);
+    let count = create_signal(0);
     let computed = Rc::new(Cell::new(0));
     let seen = Rc::new(RefCell::new(Vec::new()));
     let scope = Scope::detached().pausable();
@@ -21,9 +21,9 @@ fn a_paused_scope_defers_its_effects_until_it_resumes() {
     assert_eq!(*seen.borrow(), vec![0]);
 
     scope.pause();
-    set_count.set(1);
-    set_count.set(2);
-    set_count.set(3);
+    count.set(1);
+    count.set(2);
+    count.set(3);
     assert_eq!(*seen.borrow(), vec![0], "a paused scope's effects wait");
     assert_eq!(
         computed.get(),
@@ -39,6 +39,6 @@ fn a_paused_scope_defers_its_effects_until_it_resumes() {
     );
     assert_eq!(computed.get(), 2);
 
-    set_count.set(4);
+    count.set(4);
     assert_eq!(*seen.borrow(), vec![0, 6, 8]);
 }

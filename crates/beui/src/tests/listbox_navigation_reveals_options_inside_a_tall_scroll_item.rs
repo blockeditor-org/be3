@@ -7,24 +7,22 @@ use crate::unstyled::Scroll;
 fn listbox_navigation_reveals_options_inside_a_tall_scroll_item() {
     let _root = crate::reactive::RootScope::new();
     let (scroll, listbox) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <Scroll @node_ref=&scroll>
-                    <Listbox
-                        @node_ref=&listbox
-                        options={view! {
-                            <unstyled::ChoiceOption label="One" />
-                            <unstyled::ChoiceOption label="Two" />
-                            <unstyled::ChoiceOption label="Three" />
-                            <unstyled::ChoiceOption label="Four" />
-                            <unstyled::ChoiceOption label="Five" />
-                            <unstyled::ChoiceOption label="Six" />
-                        }}
-                        selected=Some(0)
-                    />
-                </Scroll>
-            }
+    let document = build(move || {
+        view! {
+            <Scroll @node_ref=&scroll>
+                <Listbox
+                    @node_ref=&listbox
+                    options={view! {
+                        <unstyled::ChoiceOption label="One" />
+                        <unstyled::ChoiceOption label="Two" />
+                        <unstyled::ChoiceOption label="Three" />
+                        <unstyled::ChoiceOption label="Four" />
+                        <unstyled::ChoiceOption label="Five" />
+                        <unstyled::ChoiceOption label="Six" />
+                    }}
+                    selected=Some(0)
+                />
+            </Scroll>
         }
     });
     let (scroll, listbox) = (scroll.get(), listbox.get());

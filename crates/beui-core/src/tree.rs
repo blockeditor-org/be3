@@ -3,8 +3,8 @@ use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
 use beui_tree::reactive::{
-    ChildSegment, ChildValue, Children, ComponentContext, IntoChild, IntoProp, IntoSegment,
-    IntoSlotHost, Memo, Prop, ReadSignal, ScopeContext, SlotChild, SlotHost, SlotId, WriteSignal,
+    ChildSegment, ChildValue, Children, ComponentContext, Get, IntoChild, IntoProp, IntoSegment,
+    IntoSlotHost, Memo, Prop, ReadSignal, ScopeContext, Set, Signal, SlotChild, SlotHost, SlotId,
     create_effect, create_signal, current_component,
 };
 
@@ -24,7 +24,7 @@ struct NodeBindings {
     target: Cell<Option<NodeId>>,
     states: RefCell<Vec<Box<dyn Any>>>,
     accessibility: RefCell<Option<accesskit::Node>>,
-    placed: RefCell<Option<(ReadSignal<bool>, WriteSignal<bool>)>>,
+    placed: RefCell<Option<Signal<bool>>>,
     node: RefCell<Option<crate::callback::NodeRef>>,
 }
 
@@ -50,12 +50,12 @@ pub fn component_placed() -> ReadSignal<bool> {
     if let Some(target) = bindings.target.get() {
         return with_document(|document| document.watch_placed(target));
     }
-    if let Some((read, _)) = bindings.placed.borrow().as_ref() {
-        return *read;
+    if let Some(placed) = bindings.placed.borrow().as_ref() {
+        return placed.read_only();
     }
-    let (read, write) = create_signal(false);
-    bindings.placed.replace(Some((read, write)));
-    read
+    let placed = create_signal(false);
+    bindings.placed.replace(Some(placed));
+    placed.read_only()
 }
 
 pub fn set_component_state<T: 'static>(state: T) {
@@ -96,9 +96,9 @@ impl ChildValue for NodeId {
         if let Some(node) = bindings.node.borrow().as_ref() {
             node.fill(root);
         }
-        if let Some((_, write)) = placed {
+        if let Some(placed) = placed {
             let watched = with_document(|document| document.watch_placed(root));
-            scope.run(|| create_effect(move || write.set(watched.get())));
+            scope.run(|| create_effect(move || placed.set(watched.get())));
         }
         with_document(|document| {
             document.name_component(root, component.record());
@@ -185,7 +185,7 @@ impl<P: ParentKind> Placed<P> {
 
     fn store_in(self, parent: NodeId) -> P::Stored {
         let Placed { node, data } = self;
-        let initial = data.peek();
+        let initial = data.get_untracked();
         if let Prop::Dynamic(read) = data {
             create_effect(move || {
                 let data = read.get();
@@ -216,7 +216,7 @@ impl<P: ParentKind> SlotChild for Placed<P> {
     type Stored = P::Stored;
 
     fn store(self) -> P::Stored {
-        P::item(self.node, self.data.peek())
+        P::item(self.node, self.data.get_untracked())
     }
 }
 
@@ -425,6 +425,12 @@ impl IntoProp<Sizing> for Prop<ItemSize> {
 }
 
 impl IntoProp<Sizing> for ReadSignal<ItemSize> {
+    fn into_prop(self) -> Prop<Sizing> {
+        Prop::dynamic(move || self.get().into())
+    }
+}
+
+impl IntoProp<Sizing> for Signal<ItemSize> {
     fn into_prop(self) -> Prop<Sizing> {
         Prop::dynamic(move || self.get().into())
     }

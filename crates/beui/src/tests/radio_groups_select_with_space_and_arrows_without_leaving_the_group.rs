@@ -5,7 +5,7 @@ use crate::styled::*;
 #[test]
 fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let (document, [group, after]) = toolbar_of(|| {
         [
             view! {
@@ -17,7 +17,7 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
                     }}
                     selected=None
                     on_change={move |value| {
-                        set_changes.update(|changes| changes.push(value))
+                        changes.update(|changes| changes.push(value))
                     }}
                 />
             },

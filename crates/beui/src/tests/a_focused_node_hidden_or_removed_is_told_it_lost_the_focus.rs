@@ -24,8 +24,8 @@ fn Control(name: &'static str, heard: Heard) -> NodeId {
 fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
     let _root = crate::reactive::RootScope::new();
     let heard: Heard = Rc::default();
-    let (shown, set_shown) = create_signal(None);
-    let (kept, set_kept) = create_signal(true);
+    let shown = create_signal(None);
+    let kept = create_signal(true);
     let mut controls = None;
     let listening = Rc::clone(&heard);
     let document = build(|| {
@@ -48,15 +48,15 @@ fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
     });
     let (first, second) = controls.expect("the controls were built");
     let mut harness = Harness::new(document);
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(Some(second)));
+    with_reactive_scope(harness.document_mut(), move || shown.set(Some(second)));
     harness.frame(Vec::new());
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(Some(first)));
+    with_reactive_scope(harness.document_mut(), move || shown.set(Some(first)));
     harness.frame(Vec::new());
     harness.click(harness.center(first));
     assert_eq!(harness.document().focused_node(), Some(first));
     heard.borrow_mut().clear();
 
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(Some(second)));
+    with_reactive_scope(harness.document_mut(), move || shown.set(Some(second)));
     harness.frame(Vec::new());
     assert_eq!(*heard.borrow(), [("first", false)]);
     assert_eq!(
@@ -69,7 +69,7 @@ fn a_focused_node_hidden_or_removed_is_told_it_lost_the_focus() {
     harness.click(harness.center(removable));
     assert_eq!(harness.document().focused_node(), Some(removable));
     heard.borrow_mut().clear();
-    with_reactive_scope(harness.document_mut(), move || set_kept.set(false));
+    with_reactive_scope(harness.document_mut(), move || kept.set(false));
     harness.frame(Vec::new());
     assert_eq!(
         *heard.borrow(),

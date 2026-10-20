@@ -3,7 +3,7 @@ use beui_core::app::SafeArea;
 use beui_core::renderer::{Loaded, Renderer};
 use beui_core::runner::{Launch, Platform, RunOptions, Runner};
 
-type Log = WriteSignal<Vec<&'static str>>;
+type Log = Signal<Vec<&'static str>>;
 
 struct Screen;
 
@@ -57,7 +57,7 @@ impl App for Failing {
 #[test]
 fn a_runner_whose_app_panics_lets_the_app_exit_and_reports_why() {
     let _root = crate::reactive::RootScope::new();
-    let (_, log) = create_signal(Vec::new());
+    let log = create_signal(Vec::new());
     let mut runner = Runner::new(Launch {
         options: RunOptions::new("runner"),
         context: context(),

@@ -93,7 +93,7 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
             .map_or(Vec2::ZERO, |layout| layout.size);
         Vec2::new(laid.x, laid.y.max(body))
     });
-    create_effect(move || cx.set_text_extent.set(text.get()));
+    create_effect(move || cx.text_extent.set(text.get()));
     let canvas_width = create_memo(move || text.get().x + cx.padding.get().x * 2.0 + CARET_WIDTH);
     let canvas_height = create_memo(move || text.get().y + cx.padding.get().y * 2.0);
     let x = create_memo(move || cx.padding.get().x - cx.shift.get());
@@ -108,11 +108,10 @@ pub(super) fn SingleLine(cx: Context) -> NodeId {
     });
     let text_width = create_memo(move || text.get().x + CARET_WIDTH);
     let text_height = create_memo(move || text.get().y);
-    let text_model = model;
     view! {
         <Canvas @node_ref=&canvas width={canvas_width} height={canvas_height}>
             <CanvasItem x={x} y={y} width={text_width} height={text_height}>
-                <AreaText cx={cx} model={text_model} />
+                <AreaText cx={cx} model={model} />
             </CanvasItem>
             <CanvasItem x y width={text_width} height={text_height} clip=false>
                 <RowText cx model text={GeometryCell::default()} wrap=false layer=Layer::Handles />
@@ -136,17 +135,15 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
     let renders = cx.block.is_some();
     let shown_block = create_memo(move || block.get().filter(|_| renders).map(|(index, _)| index));
     let block_ref = NodeRef::new();
-    let block_node = block_ref;
     let row = NodeRef::new();
     let text = GeometryCell::default();
     register_row(&cx, move || line.get(), &row, &text, &block_ref, model);
-    let gutter_model = model;
     view! {
         <Frame @node_ref=&row>
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
                 <Show condition={numbered}>
                     <Frame width=gutter>
-                        <Gutter cx={cx} model={gutter_model} />
+                        <Gutter cx={cx} model={model} />
                     </Frame>
                 </Show>
                 <Frame
@@ -160,9 +157,8 @@ fn AreaRow(cx: Context, line: ReadSignal<usize>) -> NodeId {
                                 match (index, cx.block) {
                                     (Some(index), Some(render)) => {
                                         let size = block.get_untracked().unwrap_or_default().1;
-                                        let node = block_node;
                                         view! {
-                                            <BlockSlot @node_ref=&node render index size />
+                                            <BlockSlot @node_ref=&block_ref render index size />
                                         }
                                     }
                                     _ => view! {
@@ -376,7 +372,7 @@ fn row_model(cx: Context, line: impl Fn() -> usize + 'static) -> Memo<Rc<Row>> {
                 placeholder,
             };
             let key = row_key(&inputs, start, end, newline);
-            let held = cx.held.get();
+            let held = cx.held.value();
             if let Some(key) = &key
                 && let Some(row) = held.row_cache.borrow_mut().find(&env, key)
             {
@@ -508,7 +504,6 @@ fn RowText(
         FontId::proportional(cx.font_size.get())
             .bold(cx.prose.get().is_some_and(|prose| prose.bold))
     });
-    let item_model = model;
     let anchor = cx.anchor;
     let anchor_position = create_memo(move || anchor_at.get());
     let anchor_node = create_memo(move || anchored.get().then_some(anchor));
@@ -525,7 +520,7 @@ fn RowText(
             carets={carets}
         >
             <ForEach keys={keys}>|(key, _): (PieceKey, usize)|
-                <RowPiece cx model={item_model} cursors layer key />
+                <RowPiece cx model={model} cursors layer key />
             </ForEach>
             <Show condition={anchored}>
                 <TextItem at={anchor_position}>
@@ -680,17 +675,16 @@ fn InlineView(cx: Context, model: Memo<Rc<Row>>, index: usize) -> NodeId {
     });
     let run = create_memo(move || matches!(item.get().map(|item| item.inline), Some(Inline::Run)));
     let widget = create_memo(move || !checkbox.get() && !run.get());
-    let (checkbox_item, widget_item, run_item) = (item, item, item);
     view! {
         <List spacing=0.0>
             <Show condition={checkbox}>
-                <InlineCheckbox cx={cx} item={checkbox_item} />
+                <InlineCheckbox cx={cx} item={item} />
             </Show>
             <Show condition={widget}>
-                <WidgetPill cx={cx} item={widget_item} />
+                <WidgetPill cx={cx} item={item} />
             </Show>
             <Show condition={run}>
-                <RunChip cx={cx} item={run_item} />
+                <RunChip cx={cx} item={item} />
             </Show>
         </List>
     }
@@ -836,8 +830,6 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             && !widget.block()
     });
     let pill = NodeRef::new();
-    let overlay_anchor = pill;
-    let popup_index = index;
     view! {
         <Frame
             @node_ref=&pill
@@ -847,29 +839,25 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             radius=INLINE_WIDGET_RADIUS
         >
             <List direction=beui_core::base::Direction::Horizontal spacing=0.0>
-                <Show condition={has_icon}>|| {
-                    let icon = icon;
-                    view! {
-                        <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
-                            <Text
-                                font={FontId::proportional(16.0)}
-                                color={Color32::WHITE}
-                                align=TextAlign::Center
-                            >
-                                <Icon glyph={icon} />
-                            </Text>
-                        </Frame>
-                    }
-                }</Show>
+                <Show condition={has_icon}>||
+                    <Frame width={INLINE_WIDGET_ICON_INSET * 2.0}>
+                        <Text
+                            font={FontId::proportional(16.0)}
+                            color={Color32::WHITE}
+                            align=TextAlign::Center
+                        >
+                            <Icon glyph={icon} />
+                        </Text>
+                    </Frame>
+                </Show>
                 <Text string={label} font={font} color={color} vertical_align=TextAlign::Center />
                 <Show condition={selected}>|| {
-                    let anchor = overlay_anchor;
                     let render = cx
                         .selected_widget
                         .expect("a widget only offers a popup when the area was given one");
-                    let index = popup_index.get_untracked().unwrap_or_default();
+                    let index = index.get_untracked().unwrap_or_default();
                     view! {
-                        <WidgetPopup anchor render index />
+                        <WidgetPopup anchor={pill} render index />
                     }
                 }</Show>
             </List>

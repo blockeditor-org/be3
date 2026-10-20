@@ -7,32 +7,30 @@ use crate::styled::*;
 #[test]
 fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     let _root = crate::reactive::RootScope::new();
-    let (open, set_open) = create_signal(false);
-    let (dismissed, set_dismissed) = create_signal(0);
+    let open = create_signal(false);
+    let dismissed = create_signal(0);
     let body = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Dialog
-                        open={open}
-                        width=300.0
-                        on_dismiss={move || {
-                            set_dismissed.update(|dismissed| *dismissed += 1);
-                            set_open.set(false);
-                        }}
-                    >
-                        <Text string="Body" color=Color32::WHITE @node_ref={&body} />
-                    </Dialog>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Dialog
+                    open={open}
+                    width=300.0
+                    on_dismiss={move || {
+                        dismissed.update(|dismissed| *dismissed += 1);
+                        open.set(false);
+                    }}
+                >
+                    <Text string="Body" color=Color32::WHITE @node_ref={&body} />
+                </Dialog>
+            </List>
         }
     });
 
     let mut harness = Harness::new(document);
     assert!(!harness.frame(Vec::new()).window.handles_back);
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     assert!(harness.frame(Vec::new()).window.handles_back);
     harness.frame(Vec::new());
     let resting = harness.rect(body.get());
@@ -86,7 +84,7 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     assert_eq!(dismissed.get_untracked(), 1);
     assert!(!harness.frame(Vec::new()).window.handles_back);
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     harness.frame(Vec::new());
     harness.frame(Vec::new());
     assert_eq!(

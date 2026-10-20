@@ -4,13 +4,13 @@ use crate::reactive::*;
 #[test]
 fn finding_a_node_by_its_test_id() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let (document, [_button]) = toolbar_of(|| {
         [view! {
             <LabelledButton
                 label="Click me"
                 @test_id={"toolbar.button"}
-                on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                on_click={move || clicks.update(|clicks| *clicks += 1)}
             />
         }]
     });

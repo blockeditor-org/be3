@@ -8,18 +8,16 @@ use crate::reactive::*;
 #[test]
 fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
     let _root = crate::reactive::RootScope::new();
-    let (painted, set_painted) = create_signal(0);
-    let drawn = {
-        move |color: Color32| -> Draw {
-            Rc::new(move |painter: &Painter, rect: Rect| {
-                if !painter.ctx().is_verifying_paint() {
-                    set_painted.update(|painted| *painted += 1);
-                }
-                painter.rect_filled(rect, 0.0, color);
-            })
-        }
+    let painted = create_signal(0);
+    let drawn = move |color: Color32| -> Draw {
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            if !painter.ctx().is_verifying_paint() {
+                painted.update(|painted| *painted += 1);
+            }
+            painter.rect_filled(rect, 0.0, color);
+        })
     };
-    let (draw, set_draw) = create_signal(drawn(Color32::WHITE));
+    let draw = create_signal(drawn(Color32::WHITE));
     let document = build(move || {
         view! {
             <Drawing draw={draw} />
@@ -44,7 +42,7 @@ fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
 
     let black = drawn(Color32::BLACK);
     with_installed(harness.document_mut(), |_| {
-        set_draw.set_unconditionally(black);
+        draw.set_unconditionally(black);
     });
     let output = harness.frame(Vec::new());
     assert_eq!(painted.get_untracked(), 2, "a new callback repaints");

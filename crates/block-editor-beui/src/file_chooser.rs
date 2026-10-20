@@ -23,10 +23,8 @@ struct Chooser<T: 'static> {
 
 pub struct FileChooser<T: 'static> {
     state: Stored<Chooser<T>>,
-    name: ReadSignal<Option<String>>,
-    set_name: WriteSignal<Option<String>>,
-    error: ReadSignal<Option<String>>,
-    set_error: WriteSignal<Option<String>>,
+    name: Signal<Option<String>>,
+    error: Signal<Option<String>>,
 }
 
 impl<T> Clone for FileChooser<T> {
@@ -42,8 +40,8 @@ impl<T: 'static> FileChooser<T> {
         filter: FileFilter,
         import: impl Fn(PickedFile) -> Result<T, String> + 'static,
     ) -> Self {
-        let (name, set_name) = create_signal(None::<String>);
-        let (error, set_error) = create_signal(None::<String>);
+        let name = create_signal(None::<String>);
+        let error = create_signal(None::<String>);
         let chooser = Self {
             state: store(Chooser {
                 filter,
@@ -53,9 +51,7 @@ impl<T: 'static> FileChooser<T> {
                 on_chosen: RefCell::new(None),
             }),
             name,
-            set_name,
             error,
-            set_error,
         };
         let picker = create_file_picker(move |picked| {
             if chooser.state.is_alive() {
@@ -77,15 +73,15 @@ impl<T: 'static> FileChooser<T> {
     }
 
     pub fn name(&self) -> ReadSignal<Option<String>> {
-        self.name
+        self.name.read_only()
     }
 
     pub fn error(&self) -> ReadSignal<Option<String>> {
-        self.error
+        self.error.read_only()
     }
 
     pub fn open(&self) {
-        self.set_error.set(None);
+        self.error.set(None);
         let filter = self.state.with(|state| state.filter.clone());
         self.picker().open(filter);
     }
@@ -96,18 +92,18 @@ impl<T: 'static> FileChooser<T> {
     }
 
     fn picked(&self, picked: Result<PickedFile, String>) {
-        let state = self.state.get();
+        let state = self.state.value();
         let name = picked.as_ref().ok().map(|file| file.name.clone());
         match picked.and_then(&state.import) {
             Ok(value) => {
-                self.set_name.set(name);
+                self.name.set(name);
                 *state.chosen.borrow_mut() = Some(value);
-                self.set_error.set(None);
+                self.error.set(None);
             }
             Err(error) => {
-                self.set_name.set(None);
+                self.name.set(None);
                 state.chosen.borrow_mut().take();
-                self.set_error.set(Some(error));
+                self.error.set(Some(error));
             }
         }
         if let Some(chosen) = state.on_chosen.borrow().as_ref() {

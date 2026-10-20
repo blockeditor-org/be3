@@ -570,7 +570,6 @@ impl Root for Canvas {
                 Some(Edit(changes))
             }
             ChildChange::Replace { old, new } => {
-                let (old, new) = (old, new);
                 let mut changes = Vec::new();
                 for held in self.child_entities(old) {
                     let kind = match held.kind.clone()? {

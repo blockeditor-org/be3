@@ -73,41 +73,33 @@ pub(crate) struct Work {
 pub(crate) struct Phone {
     tasks: Stored<Tasks>,
     builds: Cache<Slot, Found>,
-    own: ReadSignal<Option<Own>>,
-    set_own: WriteSignal<Option<Own>>,
-    installed: ReadSignal<Option<Installed>>,
-    set_installed: WriteSignal<Option<Installed>>,
-    work: ReadSignal<Option<Work>>,
-    set_work: WriteSignal<Option<Work>>,
-    problem: ReadSignal<Option<(Slot, String)>>,
-    set_problem: WriteSignal<Option<(Slot, String)>>,
+    own: Signal<Option<Own>>,
+    installed: Signal<Option<Installed>>,
+    work: Signal<Option<Work>>,
+    problem: Signal<Option<(Slot, String)>>,
     pending: Stored<RefCell<Option<Installed>>>,
 }
 
 impl Phone {
     pub(crate) fn new(tasks: Tasks) -> Self {
         android::remember(tasks.clone());
-        let (installed, set_installed) = create_signal(None);
-        let (own, set_own) = create_signal(None);
-        let (work, set_work) = create_signal(None);
-        let (problem, set_problem) = create_signal(None);
+        let installed = create_signal(None);
+        let own = create_signal(None);
+        let work = create_signal(None);
+        let problem = create_signal(None);
         Self {
             tasks: store(tasks),
             builds: store(RefCell::new(HashMap::new())),
             own,
-            set_own,
             installed,
-            set_installed,
             work,
-            set_work,
             problem,
-            set_problem,
             pending: store(RefCell::default()),
         }
     }
 
     pub(crate) fn start(&self) {
-        self.tasks.get().background(|tasks| {
+        self.tasks.value().background(|tasks| {
             let files = android::files(tasks);
             let installed =
                 builds::installed(&files.join(INSTALLED)).filter(|_| android::installed());
@@ -129,26 +121,23 @@ impl Phone {
     }
 
     pub(crate) fn build(&self, slot: Slot, commit: &str) -> ReadSignal<Loaded<Found>> {
-        if let Some((read, _)) = self.builds.get().borrow().get(&slot) {
-            return *read;
+        if let Some(loaded) = self.builds.value().borrow().get(&slot) {
+            return loaded.read_only();
         }
-        let (read, write) = create_signal(Loaded::Loading);
-        self.builds.get().borrow_mut().insert(slot, (read, write));
+        let loaded = create_signal(Loaded::Loading);
+        self.builds.value().borrow_mut().insert(slot, loaded);
         self.fetch(slot, Some(commit.to_owned()));
-        read
+        loaded.read_only()
     }
 
     pub(crate) fn main_build(&self) -> ReadSignal<Loaded<Found>> {
-        if let Some((read, _)) = self.builds.get().borrow().get(&Slot::Main) {
-            return *read;
+        if let Some(loaded) = self.builds.value().borrow().get(&Slot::Main) {
+            return loaded.read_only();
         }
-        let (read, write) = create_signal(Loaded::Loading);
-        self.builds
-            .get()
-            .borrow_mut()
-            .insert(Slot::Main, (read, write));
+        let loaded = create_signal(Loaded::Loading);
+        self.builds.value().borrow_mut().insert(Slot::Main, loaded);
         self.fetch(Slot::Main, None);
-        read
+        loaded.read_only()
     }
 
     pub(crate) fn refresh(&self, slot: Slot, commit: &str) {
@@ -160,20 +149,15 @@ impl Phone {
     }
 
     fn refetch(&self, slot: Slot, commit: Option<String>) {
-        let write = self
-            .builds
-            .get()
-            .borrow()
-            .get(&slot)
-            .map(|(_, write)| *write);
-        if let Some(write) = write {
-            write.set(Loaded::Loading);
+        let loaded = self.builds.value().borrow().get(&slot).copied();
+        if let Some(loaded) = loaded {
+            loaded.set(Loaded::Loading);
             self.fetch(slot, commit);
         }
     }
 
     fn fetch(&self, slot: Slot, commit: Option<String>) {
-        self.tasks.get().background(move |tasks| {
+        self.tasks.value().background(move |tasks| {
             let found = commit
                 .map_or_else(
                     || tasks.github().and_then(|github| github.branch_head("main")),
@@ -191,7 +175,7 @@ impl Phone {
         if !self.begin(slot, Package::App, fresh) {
             return;
         }
-        self.tasks.get().background(move |tasks| {
+        self.tasks.value().background(move |tasks| {
             let files = android::files(tasks);
             let result = fetch_build(slot).and_then(|build| {
                 let build = build.ok_or_else(|| "be3-ci has no Android build of it".to_owned())?;
@@ -221,7 +205,7 @@ impl Phone {
         if !self.begin(slot, Package::Launcher, false) {
             return;
         }
-        self.tasks.get().background(move |tasks| {
+        self.tasks.value().background(move |tasks| {
             let files = android::files(tasks);
             let result = fetch_build(slot).and_then(|build| {
                 let build = build.ok_or_else(|| "be3-ci has no Android build of it".to_owned())?;
@@ -249,9 +233,9 @@ impl Phone {
         if self.work.with(Option::is_some) {
             return false;
         }
-        self.pending.get().replace(None);
-        self.set_problem.set(None);
-        self.set_work.set(Some(Work {
+        self.pending.value().replace(None);
+        self.problem.set(None);
+        self.work.set(Some(Work {
             slot,
             package,
             stage: Stage::Downloading { done: 0, total: 0 },
@@ -261,7 +245,7 @@ impl Phone {
     }
 
     fn stage(&self, stage: Stage) {
-        self.set_work.update(|work| {
+        self.work.update(|work| {
             if let Some(work) = work {
                 work.stage = stage;
             }
@@ -269,25 +253,25 @@ impl Phone {
     }
 
     fn fail(&self, error: String) {
-        self.pending.get().replace(None);
+        self.pending.value().replace(None);
         let slot = self.work.get_untracked().map(|work| work.slot);
-        self.set_work.set(None);
+        self.work.set(None);
         if let Some(slot) = slot {
-            self.set_problem.set(Some((slot, error)));
+            self.problem.set(Some((slot, error)));
         }
     }
 
     fn open(&self) {
         let slot = self.work.get_untracked().map(|work| work.slot);
-        self.set_work.set(None);
+        self.work.set(None);
         if let (Err(error), Some(slot)) = (android::open(), slot) {
-            self.set_problem.set(Some((slot, error)));
+            self.problem.set(Some((slot, error)));
         }
     }
 
     fn install_apk(&self, name: &'static str) {
         self.stage(Stage::Installing);
-        self.tasks.get().background(move |tasks| {
+        self.tasks.value().background(move |tasks| {
             let apk = android::files(tasks).join(name);
             tasks::Event::Phone(Event::Committed(android::install(&apk)))
         });
@@ -296,37 +280,32 @@ impl Phone {
     fn remove_app(&self) {
         self.stage(Stage::Removing);
         self.tasks
-            .get()
+            .value()
             .background(|_| tasks::Event::Phone(Event::Committed(android::uninstall())));
     }
 
     fn forget(&self) -> Result<(), String> {
-        self.set_installed.set(None);
-        builds::remember(&android::files(&self.tasks.get()).join(INSTALLED), None)
+        self.installed.set(None);
+        builds::remember(&android::files(&self.tasks.value()).join(INSTALLED), None)
     }
 
     pub(crate) fn receive(&self, event: Event) {
         match event {
             Event::Found(installed, own) => {
-                self.set_installed.set(installed);
-                self.set_own.set(Some(own));
+                self.installed.set(installed);
+                self.own.set(Some(own));
             }
             Event::Fetched(slot, build) => {
-                let write = self
-                    .builds
-                    .get()
-                    .borrow()
-                    .get(&slot)
-                    .map(|(_, write)| *write);
-                if let Some(write) = write {
-                    write.set(match build {
+                let loaded = self.builds.value().borrow().get(&slot).copied();
+                if let Some(loaded) = loaded {
+                    loaded.set(match build {
                         Ok(build) => Loaded::Ready(build),
                         Err(error) => Loaded::Failed(error),
                     });
                 }
             }
             Event::Progress(slot, done, total) => {
-                self.set_work.update(|work| {
+                self.work.update(|work| {
                     if let Some(work) = work
                         && work.slot == slot
                         && matches!(work.stage, Stage::Downloading { .. })
@@ -339,7 +318,7 @@ impl Phone {
                 Err(error) => self.fail(error),
                 Ok(Downloaded::Current) => self.open(),
                 Ok(Downloaded::App { commit, app }) => {
-                    self.pending.get().replace(Some(Installed {
+                    self.pending.value().replace(Some(Installed {
                         slot,
                         commit,
                         hash: app.hash,
@@ -366,18 +345,18 @@ impl Phone {
                 match (work.package, work.stage) {
                     (Package::App, Stage::Removing) => self.install_apk(APP),
                     (Package::App, Stage::Installing) => {
-                        let installed = self.pending.get().borrow_mut().take();
+                        let installed = self.pending.value().borrow_mut().take();
                         if let Some(installed) = installed {
-                            let record = android::files(&self.tasks.get()).join(INSTALLED);
+                            let record = android::files(&self.tasks.value()).join(INSTALLED);
                             if let Err(error) = builds::remember(&record, Some(&installed)) {
                                 self.fail(error);
                                 return;
                             }
-                            self.set_installed.set(Some(installed));
+                            self.installed.set(Some(installed));
                         }
                         self.open();
                     }
-                    _ => self.set_work.set(None),
+                    _ => self.work.set(None),
                 }
             }
         }

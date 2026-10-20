@@ -6,7 +6,7 @@ use beui::styled::*;
 use crate::test_client::read;
 
 thread_local! {
-    static ORDER: RefCell<Option<WriteSignal<Vec<WindowId>>>> = const { RefCell::new(None) };
+    static ORDER: RefCell<Option<Signal<Vec<WindowId>>>> = const { RefCell::new(None) };
 }
 
 const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;
@@ -15,8 +15,8 @@ const BLUE: [u8; 4] = [255, 0, 0, 255];
 
 #[component]
 fn Stacked(windows: Windows) -> NodeId {
-    let (order, set_order) = create_signal(Vec::new());
-    ORDER.with(|held| *held.borrow_mut() = Some(set_order));
+    let order = create_signal(Vec::new());
+    ORDER.with(|held| *held.borrow_mut() = Some(order));
     view! {
         <Layers>
             <ForEach keys={order}>|id: WindowId|

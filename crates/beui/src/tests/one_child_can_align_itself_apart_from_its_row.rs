@@ -6,25 +6,23 @@ use crate::reactive::*;
 fn one_child_can_align_itself_apart_from_its_row() {
     let _root = crate::reactive::RootScope::new();
     let (tall, centred, ended) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List direction=Direction::Horizontal align=Align::Start spacing=0.0>
-                    <Frame @node_ref=&tall width=10.0 height=40.0 />
-                    <Frame
-                        @sizing={ItemSize::Intrinsic.align(Align::Center)}
-                        @node_ref=&centred
-                        width=10.0
-                        height=10.0
-                    />
-                    <Frame
-                        @sizing={ItemSize::Intrinsic.align(Align::End)}
-                        @node_ref=&ended
-                        width=10.0
-                        height=10.0
-                    />
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List direction=Direction::Horizontal align=Align::Start spacing=0.0>
+                <Frame @node_ref=&tall width=10.0 height=40.0 />
+                <Frame
+                    @sizing={ItemSize::Intrinsic.align(Align::Center)}
+                    @node_ref=&centred
+                    width=10.0
+                    height=10.0
+                />
+                <Frame
+                    @sizing={ItemSize::Intrinsic.align(Align::End)}
+                    @node_ref=&ended
+                    width=10.0
+                    height=10.0
+                />
+            </List>
         }
     });
     let mut harness = Harness::sized(document, vec2(200.0, 40.0));

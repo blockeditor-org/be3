@@ -20,7 +20,7 @@ pub(crate) struct RowTools {
     pub(crate) tree: FileTree,
     pub(crate) picker: Picker,
     pub(crate) exporter: Exporter,
-    pub(crate) inspect: WriteSignal<Option<Inspection>>,
+    pub(crate) inspect: Signal<Option<Inspection>>,
     pub(crate) zoom: Zoom,
 }
 

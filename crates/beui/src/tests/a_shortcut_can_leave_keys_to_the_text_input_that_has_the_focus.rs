@@ -4,7 +4,7 @@ use crate::reactive::*;
 use crate::styled::*;
 
 #[component]
-fn LetterShortcut(taken: WriteSignal<u32>) -> NodeId {
+fn LetterShortcut(taken: Signal<u32>) -> NodeId {
     on_shortcut(move |press: KeyPress| {
         if press.key != Key::A || !press.pressed || focus_takes_text() {
             return false;
@@ -20,10 +20,10 @@ fn LetterShortcut(taken: WriteSignal<u32>) -> NodeId {
 #[test]
 fn a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus() {
     let _root = crate::reactive::RootScope::new();
-    let (taken, set_taken) = create_signal(0);
+    let taken = create_signal(0);
     let (document, [input]) = toolbar_of(move || {
         [view! {
-            <LetterShortcut taken={set_taken} />
+            <LetterShortcut taken={taken} />
         }]
     });
     let mut harness = Harness::new(document);

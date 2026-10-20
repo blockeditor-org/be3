@@ -3,7 +3,7 @@ use std::marker::PhantomData;
 use std::rc::Rc;
 
 use reactive::{
-    ReadSignal, Scope, ScopeContext, Stored, WriteSignal, create_effect, create_signal, store,
+    Get, Scope, ScopeContext, Set, Signal, Stored, create_effect, create_signal, store,
 };
 
 use crate::child_list::{ChildList, SlotId};
@@ -153,22 +153,19 @@ impl<T: SlotChild> IntoSegment<T> for DynamicSegment<T> {
 
 struct RunState<S> {
     items: RefCell<ChildList<S>>,
-    filled: ReadSignal<u64>,
-    fill: WriteSignal<u64>,
+    filled: Signal<u64>,
 }
 
 impl<S> RunState<S> {
     fn new() -> Self {
-        let (filled, fill) = create_signal(0);
         Self {
             items: RefCell::new(ChildList::default()),
-            filled,
-            fill,
+            filled: create_signal(0),
         }
     }
 
     fn changed(&self) {
-        self.fill.update(|filled| *filled += 1);
+        self.filled.update(|filled| *filled += 1);
     }
 }
 
@@ -195,10 +192,10 @@ impl<C: SlotChild> Default for Run<C> {
 impl<C: SlotChild> Run<C> {
     pub fn items(&self) -> Vec<C::Stored> {
         self.state.filled.get();
-        self.peek()
+        self.get_untracked()
     }
 
-    pub fn peek(&self) -> Vec<C::Stored> {
+    pub fn get_untracked(&self) -> Vec<C::Stored> {
         self.state.items.borrow().iter().cloned().collect()
     }
 
@@ -225,8 +222,8 @@ impl<T: 'static, C: SlotChild<Stored = Rc<T>>> Run<C> {
         DynamicSegment::new(move |slot: ChildSlot<R>| {
             let held: HeldEach<T, R> = store(RefCell::new(Vec::new()));
             create_effect(move || {
-                let held = held.get();
-                let Some(states) = states.try_get() else {
+                let held = held.value();
+                let Some(states) = states.try_value() else {
                     return;
                 };
                 let items = run.items();
@@ -514,7 +511,7 @@ impl<T: SlotChild> From<Run<T>> for Children<T> {
         Self::from(ChildSegment::Dynamic(DynamicSegment::new(
             move |slot: ChildSlot<T>| {
                 let held = slot.clone();
-                held.fill(run.peek());
+                held.fill(run.get_untracked());
                 create_effect(move || slot.fill(run.items()));
             },
         )))

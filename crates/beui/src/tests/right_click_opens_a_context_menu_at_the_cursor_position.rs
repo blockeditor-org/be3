@@ -7,18 +7,16 @@ use crate::styled::*;
 fn right_click_opens_a_context_menu_at_the_cursor_position() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let (document, [menu]) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="Copy" />
-                <unstyled::MenuItem label="Paste" />
-            };
-            [view! {
-                <ContextMenu items>
-                    <MenuRegion @node_ref=&region />
-                </ContextMenu>
-            }]
-        }
+    let (document, [menu]) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label="Copy" />
+            <unstyled::MenuItem label="Paste" />
+        };
+        [view! {
+            <ContextMenu items>
+                <MenuRegion @node_ref=&region />
+            </ContextMenu>
+        }]
     });
     let region = region.get();
     let mut harness = Harness::new(document);

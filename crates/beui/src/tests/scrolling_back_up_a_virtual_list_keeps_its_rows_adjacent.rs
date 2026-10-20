@@ -12,23 +12,21 @@ const STEPS: usize = 12;
 fn scrolling_back_up_a_virtual_list_keeps_its_rows_adjacent() {
     let _root = crate::reactive::RootScope::new();
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            @node_ref=&list
-                            keys={indices(ROWS)}
-                            item_size=ESTIMATE
-                        >|_: ReadSignal<usize>|
-                            <Frame height=ACTUAL>
-                                <Spacer />
-                            </Frame>
-                        </VirtualList>
-                    </Offset>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        @node_ref=&list
+                        keys={indices(ROWS)}
+                        item_size=ESTIMATE
+                    >|_: ReadSignal<usize>|
+                        <Frame height=ACTUAL>
+                            <Spacer />
+                        </Frame>
+                    </VirtualList>
+                </Offset>
+            </List>
         }
     });
     let (scroll, list) = (scroll.get(), list.get());

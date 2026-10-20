@@ -6,23 +6,21 @@ use crate::styled::*;
 #[test]
 fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
     let _root = crate::reactive::RootScope::new();
-    let (open, set_open) = create_signal(false);
-    let (dismissed, set_dismissed) = create_signal(0);
+    let open = create_signal(false);
+    let dismissed = create_signal(0);
     let surface = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Dialog
-                        open={open}
-                        title="Event"
-                        width=300.0
-                        on_dismiss={move || set_dismissed.update(|dismissed| *dismissed += 1)}
-                    >
-                        <Text string="Body" color=Color32::WHITE @node_ref={&surface} />
-                    </Dialog>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Dialog
+                    open={open}
+                    title="Event"
+                    width=300.0
+                    on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
+                >
+                    <Text string="Body" color=Color32::WHITE @node_ref={&surface} />
+                </Dialog>
+            </List>
         }
     });
 
@@ -33,7 +31,7 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
         "a closed dialog builds nothing it holds"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     harness.frame(Vec::new());
     let body = harness.rect(surface.get());
     assert!(body.is_positive());

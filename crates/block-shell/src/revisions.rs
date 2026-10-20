@@ -22,20 +22,13 @@ struct Selected {
 #[derive(Clone, Copy)]
 pub(crate) struct RevisionHistory {
     editor: Editor,
-    target: ReadSignal<Option<TabItem>>,
-    set_target: WriteSignal<Option<TabItem>>,
-    entries: ReadSignal<Vec<Revision>>,
-    set_entries: WriteSignal<Vec<Revision>>,
-    selected: ReadSignal<Option<Selected>>,
-    set_selected: WriteSignal<Option<Selected>>,
-    error: ReadSignal<Option<String>>,
-    set_error: WriteSignal<Option<String>>,
-    loading: ReadSignal<bool>,
-    set_loading: WriteSignal<bool>,
-    busy: ReadSignal<bool>,
-    set_busy: WriteSignal<bool>,
-    confirm: ReadSignal<bool>,
-    set_confirm: WriteSignal<bool>,
+    target: Signal<Option<TabItem>>,
+    entries: Signal<Vec<Revision>>,
+    selected: Signal<Option<Selected>>,
+    error: Signal<Option<String>>,
+    loading: Signal<bool>,
+    busy: Signal<bool>,
+    confirm: Signal<bool>,
     state: Stored<Pending>,
 }
 
@@ -50,29 +43,22 @@ struct Pending {
 
 impl RevisionHistory {
     pub(crate) fn new(editor: Editor) -> Self {
-        let (target, set_target) = create_signal(None);
-        let (entries, set_entries) = create_signal(Vec::new());
-        let (selected, set_selected) = create_signal(None);
-        let (error, set_error) = create_signal(None);
-        let (loading, set_loading) = create_signal(false);
-        let (busy, set_busy) = create_signal(false);
-        let (confirm, set_confirm) = create_signal(false);
+        let target = create_signal(None);
+        let entries = create_signal(Vec::new());
+        let selected = create_signal(None);
+        let error = create_signal(None);
+        let loading = create_signal(false);
+        let busy = create_signal(false);
+        let confirm = create_signal(false);
         let history = Self {
             editor,
             target,
-            set_target,
             entries,
-            set_entries,
             selected,
-            set_selected,
             error,
-            set_error,
             loading,
-            set_loading,
             busy,
-            set_busy,
             confirm,
-            set_confirm,
             state: store(Pending::default()),
         };
         let changed = editor.pushed(Pushed::Histories);
@@ -110,23 +96,23 @@ impl RevisionHistory {
         }
         self.current();
         self.state
-            .get()
+            .value()
             .generation
-            .set(self.state.get().generation.get() + 1);
-        self.set_busy.set(false);
-        self.set_entries.set(Vec::new());
-        self.set_error.set(None);
-        self.set_target.set(target);
+            .set(self.state.value().generation.get() + 1);
+        self.busy.set(false);
+        self.entries.set(Vec::new());
+        self.error.set(None);
+        self.target.set(target);
     }
 
     fn load(self) {
         let Some(item) = self.target.get_untracked() else {
-            self.set_loading.set(false);
+            self.loading.set(false);
             return;
         };
-        self.set_loading.set(true);
-        self.set_error.set(None);
-        let state = self.state.get();
+        self.loading.set(true);
+        self.error.set(None);
+        let state = self.state.value();
         let request = self.editor.host().list_revisions(item.id);
         state.latest_list.set(request);
         state
@@ -140,10 +126,10 @@ impl RevisionHistory {
             return;
         };
         self.current();
-        let state = self.state.get();
+        let state = self.state.value();
         state.generation.set(state.generation.get() + 1);
-        self.set_busy.set(true);
-        self.set_error.set(None);
+        self.busy.set(true);
+        self.error.set(None);
         let request = self
             .editor
             .host()
@@ -155,46 +141,46 @@ impl RevisionHistory {
     }
 
     pub(crate) fn current(self) {
-        let state = self.state.get();
+        let state = self.state.value();
         state.generation.set(state.generation.get() + 1);
-        self.set_loading.set(false);
-        self.set_busy.set(false);
+        self.loading.set(false);
+        self.busy.set(false);
         if let Some(selected) = self.selected.get_untracked() {
-            self.set_selected.set(None);
+            self.selected.set(None);
             self.editor.host().release_revision(selected.preview);
         }
-        self.set_confirm.set(false);
+        self.confirm.set(false);
     }
 
     fn restore(self) {
         let Some(selected) = self.selected.get_untracked() else {
             return;
         };
-        self.set_busy.set(true);
-        self.set_confirm.set(false);
-        self.set_error.set(None);
+        self.busy.set(true);
+        self.confirm.set(false);
+        self.error.set(None);
         let request = self
             .editor
             .host()
             .restore_revision(selected.block, selected.commit);
         self.state
-            .get()
+            .value()
             .restores
             .borrow_mut()
-            .push((request, self.state.get().generation.get()));
+            .push((request, self.state.value().generation.get()));
     }
 
     fn replied(self) {
-        let state = self.state.get();
+        let state = self.state.value();
         state.lists.borrow_mut().retain(|(request, generation)| {
             let Some(result) = self.editor.host().take_revisions(*request) else {
                 return true;
             };
             if *generation == state.generation.get() && *request == state.latest_list.get() {
-                self.set_loading.set(false);
+                self.loading.set(false);
                 match result {
-                    Ok(entries) => self.set_entries.set(entries),
-                    Err(error) => self.set_error.set(Some(error)),
+                    Ok(entries) => self.entries.set(entries),
+                    Err(error) => self.error.set(Some(error)),
                 }
             }
             false
@@ -212,15 +198,15 @@ impl RevisionHistory {
                     }
                     return false;
                 }
-                self.set_busy.set(false);
+                self.busy.set(false);
                 match result {
-                    Ok(preview) => self.set_selected.set(Some(Selected {
+                    Ok(preview) => self.selected.set(Some(Selected {
                         block: *block,
                         commit: revision.commit,
                         preview,
                         time: revision.time,
                     })),
-                    Err(error) => self.set_error.set(Some(error)),
+                    Err(error) => self.error.set(Some(error)),
                 }
                 false
             });
@@ -230,13 +216,13 @@ impl RevisionHistory {
                 return true;
             };
             if *generation == state.generation.get() {
-                self.set_busy.set(false);
+                self.busy.set(false);
                 match result {
                     Ok(()) => {
                         self.current();
                         reload = true;
                     }
-                    Err(error) => self.set_error.set(Some(error)),
+                    Err(error) => self.error.set(Some(error)),
                 }
             }
             false
@@ -407,7 +393,7 @@ pub(crate) fn RevisionPreviewBar(
                                     label="Restore this revision"
                                     disabled={history.busy}
                                     @test_id={"workspace.revision.restore"}
-                                    on_click={move || history.set_confirm.set(true)}
+                                    on_click={move || history.confirm.set(true)}
                                 />
                             </Show>
                         </List>
@@ -432,7 +418,7 @@ pub(crate) fn RevisionPreviewBar(
                                         label="Cancel"
                                         variant=ButtonVariant::Secondary
                                         @test_id={"workspace.revision.cancel"}
-                                        on_click={move || history.set_confirm.set(false)}
+                                        on_click={move || history.confirm.set(false)}
                                     />
                                 </List>
                             </List>

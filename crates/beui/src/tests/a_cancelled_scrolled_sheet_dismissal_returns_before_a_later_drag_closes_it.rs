@@ -7,10 +7,10 @@ fn a_cancelled_scrolled_sheet_dismissal_returns_before_a_later_drag_closes_it() 
     for backdrop in [false, true] {
         let _root = RootScope::new();
         let sheet = NodeRef::new();
-        let (open, set_open) = create_signal(true);
+        let open = create_signal(true);
         let document = build(move || {
             view! {
-                <ModalSheet @node_ref=&sheet open on_close={move || set_open.set(false)}>
+                <ModalSheet @node_ref=&sheet open on_close={move || open.set(false)}>
                     <Frame height=2000.0 />
                 </ModalSheet>
             }

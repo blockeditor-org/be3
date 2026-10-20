@@ -6,7 +6,7 @@ use crate::unstyled::Scroll;
 #[test]
 fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let scroll = NodeRef::new();
     let document = build(move || {
         view! {
@@ -15,7 +15,7 @@ fn a_tap_during_a_fling_stops_it_without_clicking_a_row() {
                     <ForEach keys={indices(300)}>|index: usize|
                         <LabelledButton
                             label={format!("Row {index}")}
-                            on_click={move || set_clicks.update(|clicks| *clicks += 1)}
+                            on_click={move || clicks.update(|clicks| *clicks += 1)}
                         />
                     </ForEach>
                 </Scroll>

@@ -117,11 +117,11 @@ fn Shown(windows: Windows) -> NodeId {
         .at(KeyAt::Window)
         .register();
         crate::view::register_restore_shortcuts(windows);
-        let (text, set_text) = create_signal(String::new());
-        let (locked, set_locked) = create_signal(false);
-        LOCK.with(|lock| *lock.borrow_mut() = Some(set_locked));
-        let (asking, set_asking) = create_signal(false);
-        DIALOG.with(|dialog| *dialog.borrow_mut() = Some(set_asking));
+        let text = create_signal(String::new());
+        let locked = create_signal(false);
+        LOCK.with(|lock| *lock.borrow_mut() = Some(locked));
+        let asking = create_signal(false);
+        DIALOG.with(|dialog| *dialog.borrow_mut() = Some(asking));
         let ids = create_memo(clone_list(&windows));
         view! {
             <Interactive
@@ -137,7 +137,7 @@ fn Shown(windows: Windows) -> NodeId {
                     <TextInput
                         @test_id={"test.input"}
                         value={text}
-                        on_change={move |line: String| set_text.set(line)}
+                        on_change={move |line: String| text.set(line)}
                     />
                     <ForEach keys={ids}>|id: WindowId| {
                         let list = windows.list();
@@ -432,8 +432,8 @@ const KEY_ESC: u32 = 1;
 const KEY_LEFTMETA: u32 = 125;
 
 thread_local! {
-    static LOCK: std::cell::RefCell<Option<WriteSignal<bool>>> = const { std::cell::RefCell::new(None) };
-    static DIALOG: std::cell::RefCell<Option<WriteSignal<bool>>> = const { std::cell::RefCell::new(None) };
+    static LOCK: std::cell::RefCell<Option<Signal<bool>>> = const { std::cell::RefCell::new(None) };
+    static DIALOG: std::cell::RefCell<Option<Signal<bool>>> = const { std::cell::RefCell::new(None) };
     static GLOBAL_RAN: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
     static CLAIMED: std::cell::Cell<u32> = const { std::cell::Cell::new(0) };
 }

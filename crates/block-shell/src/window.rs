@@ -130,10 +130,10 @@ pub(crate) fn WindowPanel(
         });
     }
     let panel = NodeRef::new();
-    let (waited, set_waited) = create_signal(false);
+    let waited = create_signal(false);
     create_effect(move || {
         if responding.get() {
-            set_waited.set(false);
+            waited.set(false);
         }
     });
     let banner = create_memo(move || !responding.get() && !waited.get());
@@ -150,7 +150,7 @@ pub(crate) fn WindowPanel(
             <Floating anchor={panel} edge=Edge::Top open={banner}>
                 <NotResponding
                     name
-                    on_wait={move || set_waited.set(true)}
+                    on_wait={move || waited.set(true)}
                     on_force_close={move || host.act(WindowAction::Close(window))}
                 />
             </Floating>

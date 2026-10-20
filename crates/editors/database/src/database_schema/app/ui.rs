@@ -103,7 +103,6 @@ pub fn SchemaView(editor: Editor) -> NodeId {
         schema.operate(DatabaseSchema::add_field("Field", DatabaseFieldType::String).1);
     };
 
-    let add_disabled = read_only;
     view! {
         <Frame fill=ColorRole::Background padding=PADDING>
             <List spacing=SECTION_SPACING>
@@ -134,7 +133,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
                             <Button
                                 label="Add field"
                                 variant=ButtonVariant::Primary
-                                disabled={add_disabled}
+                                disabled={read_only}
                                 @test_id={"database-schema.add-field"}
                                 on_click={add}
                             />
@@ -208,13 +207,7 @@ fn FieldRow(
         let after = to.checked_sub(1).map(|before| moved[before]);
         schema.operate(DatabaseSchema::move_field(id, after));
     };
-    let (up, down) = (mover, mover);
-    let (up_off, down_off) = (read_only, read_only);
     let type_keys = create_memo(|| (0..FIELD_TYPES.len()).collect::<Vec<usize>>());
-    let (name_off, type_off, delete_off) = (read_only, read_only, read_only);
-    let (number_off, enum_off, block_off, relation_off) =
-        (read_only, read_only, read_only, read_only);
-    let (number_field, enum_field, block_field, relation_field) = (field, field, field, field);
     let (number_kind, enum_kind, block_kind, relation_kind) = (
         is(DatabaseFieldType::Number),
         is(DatabaseFieldType::Enum),
@@ -231,7 +224,7 @@ fn FieldRow(
                     <TextInput
                         value={name}
                         label="Field name"
-                        disabled={name_off}
+                        disabled={read_only}
                         @test_id={format!("database-schema.name.{id}")}
                         on_change={renamed}
                     />
@@ -244,7 +237,7 @@ fn FieldRow(
                     }}
                     selected={selected}
                     label="Field type"
-                    disabled={type_off}
+                    disabled={read_only}
                     @test_id={format!("database-schema.type.{id}")}
                     on_change={retyped}
                 />
@@ -253,44 +246,39 @@ fn FieldRow(
                     glyph={ICON_ARROW_UPWARD.to_owned()}
                     label="Move up"
                     variant=ButtonVariant::Ghost
-                    disabled={up_off}
+                    disabled={read_only}
                     @test_id={format!("database-schema.up.{id}")}
-                    on_click={move || up(-1)}
+                    on_click={move || mover(-1)}
                 />
                 <IconButton
                     glyph={ICON_ARROW_DOWNWARD.to_owned()}
                     label="Move down"
                     variant=ButtonVariant::Ghost
-                    disabled={down_off}
+                    disabled={read_only}
                     @test_id={format!("database-schema.down.{id}")}
-                    on_click={move || down(1)}
+                    on_click={move || mover(1)}
                 />
                 <IconButton
                     glyph={ICON_DELETE.to_owned()}
                     label="Delete field"
-                    disabled={delete_off}
+                    disabled={read_only}
                     @test_id={format!("database-schema.delete.{id}")}
                     on_click={remove}
                 />
             </List>
             <Show condition={number_kind}>
-                <NumberOptions
-                    schema={schema}
-                    id={id}
-                    field={number_field}
-                    read_only={number_off}
-                />
+                <NumberOptions schema={schema} id={id} field={field} read_only={read_only} />
             </Show>
             <Show condition={enum_kind}>
-                <EnumOptions schema={schema} id={id} field={enum_field} read_only={enum_off} />
+                <EnumOptions schema={schema} id={id} field={field} read_only={read_only} />
             </Show>
             <Show condition={block_kind}>
                 <BlockOptions
                     editor={editor}
                     schema={schema}
                     id={id}
-                    field={block_field}
-                    read_only={block_off}
+                    field={field}
+                    read_only={read_only}
                 />
             </Show>
             <Show condition={relation_kind}>
@@ -298,8 +286,8 @@ fn FieldRow(
                     editor={editor}
                     schema={schema}
                     id={id}
-                    field={relation_field}
-                    read_only={relation_off}
+                    field={field}
+                    read_only={read_only}
                 />
             </Show>
             <Separator />
@@ -336,9 +324,6 @@ fn NumberOptions(
         schema.operate(DatabaseSchema::set_number_options(id, next));
     };
     let scale_keys = create_memo(|| (0..NUMBER_SCALES.len()).collect::<Vec<usize>>());
-    let (minimum_off, maximum_off, step_off, scale_off) =
-        (read_only, read_only, read_only, read_only);
-    let (minimum_options, maximum_options, step_options) = (options, options, options);
     view! {
         <List spacing=ROW_SPACING>
             <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
@@ -346,23 +331,23 @@ fn NumberOptions(
                     <OptionalNumber
                         schema={schema}
                         id={id}
-                        options={minimum_options}
+                        options={options}
                         bound=Bound::Minimum
-                        read_only={minimum_off}
+                        read_only={read_only}
                     />
                     <OptionalNumber
                         schema={schema}
                         id={id}
-                        options={maximum_options}
+                        options={options}
                         bound=Bound::Maximum
-                        read_only={maximum_off}
+                        read_only={read_only}
                     />
                     <OptionalNumber
                         schema={schema}
                         id={id}
-                        options={step_options}
+                        options={options}
                         bound=Bound::Step
-                        read_only={step_off}
+                        read_only={read_only}
                     />
                     <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                         <Text string="Scale" />
@@ -374,7 +359,7 @@ fn NumberOptions(
                             }}
                             selected={scale}
                             label="Number scale"
-                            disabled={scale_off}
+                            disabled={read_only}
                             @test_id={format!("database-schema.number.{id}.scale")}
                             on_change={rescaled}
                         />
@@ -460,13 +445,12 @@ fn OptionalNumber(
         write(enabled.then_some(fallback));
     };
     let typed = move |value: f64| write(Some(value));
-    let toggle_off = read_only;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
             <Checkbox
                 label={bound.label()}
                 checked={set}
-                disabled={toggle_off}
+                disabled={read_only}
                 @test_id={format!("database-schema.number.{id}.{}.set", bound.test_id())}
                 on_change={toggled}
             />
@@ -499,7 +483,6 @@ fn EnumOptions(
                 .unwrap_or_default()
         })
     });
-    let add_off = read_only;
     let add = move || {
         let count = field
             .with_untracked(|field| field.as_ref().map_or(0, |field| field.enum_options.len()));
@@ -521,7 +504,7 @@ fn EnumOptions(
                     <IconButton
                         glyph={ICON_ADD.to_owned()}
                         label="Add option"
-                        disabled={add_off}
+                        disabled={read_only}
                         @test_id={format!("database-schema.enum.{id}.add")}
                         on_click={add}
                     />
@@ -596,18 +579,13 @@ fn EnumOptionRow(
         let after = to.checked_sub(1).map(|before| moved[before]);
         schema.operate(DatabaseSchema::move_enum_option(id, option_id, after));
     };
-    let (up, down) = (mover, mover);
     let icon_keys = create_memo(|| (0..ChoiceIcon::ALL.len()).collect::<Vec<usize>>());
     let color_keys = create_memo(|| (0..ChoiceColor::ALL.len()).collect::<Vec<usize>>());
-    let (name_off, delete_off, icon_off, color_off, closed_off, default_off, up_off, down_off) = (
-        read_only, read_only, read_only, read_only, read_only, read_only, read_only, read_only,
-    );
-    let color_option = option;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
             <unstyled::MenuButton
                 label="Icon"
-                disabled={icon_off}
+                disabled={read_only}
                 menu={menu_style()}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.icon")}
                 items={view! {
@@ -635,7 +613,7 @@ fn EnumOptionRow(
                 <TextInput
                     value={name}
                     label="Option name"
-                    disabled={name_off}
+                    disabled={read_only}
                     select_on_focus=true
                     @test_id={format!("database-schema.enum.{id}.{option_id}.name")}
                     on_change={renamed}
@@ -643,7 +621,7 @@ fn EnumOptionRow(
             </Frame>
             <unstyled::MenuButton
                 label="Colour"
-                disabled={color_off}
+                disabled={read_only}
                 menu={menu_style()}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.color")}
                 items={view! {
@@ -660,10 +638,10 @@ fn EnumOptionRow(
                 }}
                 trigger={move |handle: MenuButtonHandle| {
                     let label = create_memo(move || {
-                        color_option.with(|option| option.as_ref().map_or("", |option| choice_color_label(option.color)).to_owned())
+                        option.with(|option| option.as_ref().map_or("", |option| choice_color_label(option.color)).to_owned())
                     });
                     let dotted = create_memo(move || {
-                        color_option.with(|option| option.as_ref().map(|option| DatabaseEnumOption { icon: ChoiceIcon::None, ..option.clone() }))
+                        option.with(|option| option.as_ref().map(|option| DatabaseEnumOption { icon: ChoiceIcon::None, ..option.clone() }))
                     });
                     view! {
                         <ControlFace handle={handle.button}>
@@ -678,14 +656,14 @@ fn EnumOptionRow(
             <ToggleButton
                 label="Closed"
                 pressed={closed}
-                disabled={closed_off}
+                disabled={read_only}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.closed")}
                 on_change={close}
             />
             <ToggleButton
                 label="Default"
                 pressed={default}
-                disabled={default_off}
+                disabled={read_only}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.default")}
                 on_change={defaulted}
             />
@@ -693,23 +671,23 @@ fn EnumOptionRow(
                 glyph={ICON_ARROW_UPWARD.to_owned()}
                 label="Move up"
                 variant=ButtonVariant::Ghost
-                disabled={up_off}
+                disabled={read_only}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.up")}
-                on_click={move || up(-1)}
+                on_click={move || mover(-1)}
             />
             <IconButton
                 glyph={ICON_ARROW_DOWNWARD.to_owned()}
                 label="Move down"
                 variant=ButtonVariant::Ghost
-                disabled={down_off}
+                disabled={read_only}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.down")}
-                on_click={move || down(1)}
+                on_click={move || mover(1)}
             />
             <IconButton
                 glyph={ICON_DELETE.to_owned()}
                 label="Delete option"
                 variant=ButtonVariant::Ghost
-                disabled={delete_off}
+                disabled={read_only}
                 @test_id={format!("database-schema.enum.{id}.{option_id}.delete")}
                 on_click={remove}
             />
@@ -763,7 +741,6 @@ fn BlockOptions(
         let wanted = wanted.get();
         entries.with(|entries| entries.iter().position(|(value, _)| *value == wanted))
     });
-    let labels = entries;
     let picked = move |selected: Option<usize>| {
         let Some(index) = selected else {
             return;
@@ -786,7 +763,7 @@ fn BlockOptions(
                     options={view! {
                         <ForEach keys={keys}>|id: Option<Uuid>| {
                             let label = create_memo(move || {
-                                labels.with(|entries| {
+                                entries.with(|entries| {
                                     entries
                                         .iter()
                                         .find(|(value, _)| *value == id)
@@ -886,7 +863,6 @@ fn RelationOptions(
             },
         ));
     };
-    let (multiple_off, inverse_off) = (read_only, read_only);
     view! {
         <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
             <List spacing=ROW_SPACING>
@@ -902,7 +878,7 @@ fn RelationOptions(
                     <Checkbox
                         label="Several rows"
                         checked={multiple}
-                        disabled={multiple_off}
+                        disabled={read_only}
                         @test_id={format!("database-schema.relation.{id}.multiple")}
                         on_change={remultiplied}
                     />
@@ -914,7 +890,7 @@ fn RelationOptions(
                         <TextInput
                             value={inverse}
                             placeholder="No column"
-                            disabled={inverse_off}
+                            disabled={read_only}
                             @test_id={format!("database-schema.relation.{id}.inverse")}
                             on_change={renamed}
                         />

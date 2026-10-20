@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn a_canvas_without_a_view_places_its_items_from_its_own_corner() {
     let _root = crate::reactive::RootScope::new();
-    let (item, set_item) = create_signal(None);
+    let item = create_signal(None);
 
     let document = build(move || {
         let canvas = view! {
@@ -13,7 +13,7 @@ fn a_canvas_without_a_view_places_its_items_from_its_own_corner() {
                 <CanvasItem x=12.0 y=8.0 width=30.0 height=15.0 />
             </Canvas>
         };
-        set_item.set(
+        item.set(
             with_document(|document| document.children(canvas))
                 .first()
                 .copied(),

@@ -18,10 +18,8 @@ struct Navigation {
 #[derive(Clone, Copy)]
 pub(crate) struct Session {
     editor: Editor,
-    address: ReadSignal<String>,
-    set_address: WriteSignal<String>,
-    error: ReadSignal<Option<String>>,
-    set_error: WriteSignal<Option<String>>,
+    address: Signal<String>,
+    error: Signal<Option<String>>,
     inner: Stored<Inner>,
 }
 
@@ -32,14 +30,12 @@ struct Inner {
 
 impl Session {
     pub(crate) fn new(editor: Editor) -> Self {
-        let (address, set_address) = create_signal("about:blank".to_owned());
-        let (error, set_error) = create_signal(None::<String>);
+        let address = create_signal("about:blank".to_owned());
+        let error = create_signal(None::<String>);
         let session = Self {
             editor,
             address,
-            set_address,
             error,
-            set_error,
             inner: store(Inner {
                 tab: editor.block_content::<BrowserTabContent>(),
                 navigation: RefCell::default(),
@@ -56,25 +52,25 @@ impl Session {
     }
 
     pub(crate) fn address(&self) -> ReadSignal<String> {
-        self.address
+        self.address.read_only()
     }
 
     pub(crate) fn set_address(&self, address: String) {
-        self.set_address.set(address);
+        self.address.set(address);
     }
 
     pub(crate) fn error(&self) -> ReadSignal<Option<String>> {
-        self.error
+        self.error.read_only()
     }
 
     pub(crate) fn back(&self) -> Memo<Option<usize>> {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let index = inner.tab.project(|tab| tab.root().index());
         create_memo(move || index.get().checked_sub(1))
     }
 
     pub(crate) fn forward(&self) -> Memo<Option<usize>> {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let step = inner.tab.project(|tab| {
             let tab = tab.root();
             (tab.index(), tab.can_go_forward())
@@ -99,12 +95,12 @@ impl Session {
 
     pub(crate) fn navigate(&self, address: &str) {
         let url = browser_url(address);
-        self.set_address.set(url.clone());
+        self.address.set(url.clone());
         self.push(url);
     }
 
     fn open(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         if inner.navigation.borrow().opened {
             return;
         }
@@ -120,12 +116,12 @@ impl Session {
         navigation.programmatic = Some(url.clone());
         navigation.synchronized = Some((index, url.clone()));
         drop(navigation);
-        self.set_address.set(url.clone());
+        self.address.set(url.clone());
         self.editor.host().open_web_view(PAGE, url);
     }
 
     fn process_events(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         for event in self.editor.host().take_web_view_events(PAGE) {
             match event {
                 WebViewEvent::Navigate(url) => self.navigation_started(url),
@@ -136,13 +132,13 @@ impl Session {
                 WebViewEvent::History(delta) => self.traverse_history(delta as isize),
                 WebViewEvent::NewWindow(url) => self.push(url),
                 WebViewEvent::Address(url) => inner.navigation.borrow_mut().current = Some(url),
-                WebViewEvent::Failed(error) => self.set_error.set(Some(error)),
+                WebViewEvent::Failed(error) => self.error.set(Some(error)),
             }
         }
     }
 
     fn edit(&self, make: impl FnOnce(&BrowserTab) -> Edit) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let edit = inner.tab.read(|tab| make(&tab.root()));
         if let Some(edit) = edit.filter(|edit| !edit.0.is_empty()) {
             inner.tab.operate(edit);
@@ -165,7 +161,7 @@ impl Session {
     }
 
     fn navigation_started(&self, url: String) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let mut navigation = inner.navigation.borrow_mut();
         if let Some(expected) = &navigation.programmatic {
             if expected == &url {
@@ -191,12 +187,12 @@ impl Session {
     }
 
     fn navigation_finished(&self, url: String) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let mut navigation = inner.navigation.borrow_mut();
         navigation.programmatic = None;
         navigation.natural = None;
         drop(navigation);
-        self.set_address.set(url.clone());
+        self.address.set(url.clone());
         let current = inner.tab.read(|tab| tab.root().current().url);
         if current.as_deref().is_some_and(|current| current != url) {
             self.replace(url);
@@ -204,7 +200,7 @@ impl Session {
     }
 
     fn title_changed(&self, title: String) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let Some(shown) = inner.tab.read(|tab| tab.root().current().url) else {
             return;
         };
@@ -214,7 +210,7 @@ impl Session {
     }
 
     fn item_with_url(&self, url: String) -> HistoryItem {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let title = inner
             .tab
             .read(|tab| tab.root().current().title)
@@ -223,7 +219,7 @@ impl Session {
     }
 
     fn traverse_history(&self, delta: isize) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let Some((index, length)) = inner.tab.read(|tab| {
             let tab = tab.root();
             (tab.index(), tab.history.len())
@@ -239,7 +235,7 @@ impl Session {
     }
 
     fn synchronize(&self) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let Some(selected) = inner.tab.read(|tab| {
             let tab = tab.root();
             (tab.index(), tab.current().url)
@@ -250,7 +246,7 @@ impl Session {
     }
 
     fn follow(&self, selected: (usize, String)) {
-        let inner = self.inner.get();
+        let inner = self.inner.value();
         let mut navigation = inner.navigation.borrow_mut();
         if navigation.synchronized.as_ref() == Some(&selected) {
             return;
@@ -263,7 +259,7 @@ impl Session {
         }
         navigation.synchronized = Some(selected);
         drop(navigation);
-        self.set_address.set(url.clone());
+        self.address.set(url.clone());
         if load {
             self.editor.host().load_web_view(PAGE, url);
         }

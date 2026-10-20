@@ -7,18 +7,16 @@ use crate::unstyled::Button;
 fn a_reactive_test_id_follows_its_signal() {
     let _root = crate::reactive::RootScope::new();
     let rename = NodeRef::new();
-    let document = build({
-        move || {
-            let (row, set_row) = create_signal(0usize);
-            let test_id = create_memo(move || format!("cell.{}", row.get()));
-            view! {
-                <List spacing=0.0>
-                    <Button @node_ref=&rename on_click={move || set_row.set(1)}>
-                        <Text string="rename" />
-                    </Button>
-                    <Text @crate::reactive::test_id={test_id} string="value" />
-                </List>
-            }
+    let document = build(move || {
+        let row = create_signal(0usize);
+        let test_id = create_memo(move || format!("cell.{}", row.get()));
+        view! {
+            <List spacing=0.0>
+                <Button @node_ref=&rename on_click={move || row.set(1)}>
+                    <Text string="rename" />
+                </Button>
+                <Text @crate::reactive::test_id={test_id} string="value" />
+            </List>
         }
     });
 

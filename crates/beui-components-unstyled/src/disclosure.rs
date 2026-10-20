@@ -27,16 +27,16 @@ pub fn Disclosure(
     open: Prop<bool>,
     on_toggle: Callback<bool>,
 ) -> NodeId {
-    let (open_read, set_open) = create_signal(open.peek());
-    create_effect(move || set_open.set(open.get()));
+    let current = create_signal(open.get_untracked());
+    create_effect(move || current.set(open.get()));
 
-    set_component_state(State { open: open_read });
+    set_component_state(State {
+        open: current.read_only(),
+    });
 
-    let open_for_header = open_read;
-    let open_for_click = open_read;
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::DisclosureTriangle);
-        node.set_expanded(open_read.get());
+        node.set_expanded(current.get());
         node
     });
 
@@ -45,8 +45,8 @@ pub fn Disclosure(
             <unstyled::Button
                 accessibility
                 on_click={move || {
-                    let next = !untrack(|| open_for_click.get());
-                    set_open.set(next);
+                    let next = !current.get_untracked();
+                    current.set(next);
                     on_toggle.call(next);
                 }}
             >|handle: ButtonHandle| {
@@ -54,10 +54,10 @@ pub fn Disclosure(
                     hovered: handle.hovered,
                     active: handle.active,
                     focused: handle.focused,
-                    open: open_for_header,
+                    open: current.read_only(),
                 })
             }</unstyled::Button>
-            <Frame visible={open_read}>
+            <Frame visible={current}>
                 <List spacing>
                     <Frame />
                     {children}

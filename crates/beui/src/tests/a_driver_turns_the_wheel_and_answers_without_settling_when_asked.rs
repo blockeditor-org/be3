@@ -1,8 +1,8 @@
 use super::*;
 
 struct Busy {
-    frames: WriteSignal<u32>,
-    scrolled: WriteSignal<Vec<Vec2>>,
+    frames: Signal<u32>,
+    scrolled: Signal<Vec<Vec2>>,
 }
 
 impl App for Busy {
@@ -27,15 +27,9 @@ impl App for Busy {
 #[test]
 fn a_driver_turns_the_wheel_and_answers_without_settling_when_asked() {
     let _root = crate::reactive::RootScope::new();
-    let (frames, set_frames) = create_signal(0);
-    let (scrolled, set_scrolled) = create_signal(Vec::new());
-    let mut driven = Driven::with_app(
-        Busy {
-            frames: set_frames,
-            scrolled: set_scrolled,
-        },
-        false,
-    );
+    let frames = create_signal(0);
+    let scrolled = create_signal(Vec::new());
+    let mut driven = Driven::with_app(Busy { frames, scrolled }, false);
 
     driven
         .ask(&["--no-settle", "move", "10,10"])

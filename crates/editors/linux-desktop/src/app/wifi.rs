@@ -121,7 +121,7 @@ fn WifiPanel(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
     });
     let none = create_memo(move || enabled.get() && ssids.with(Vec::is_empty));
     let listing = create_memo(move || !ssids.with(Vec::is_empty));
-    let (asking, set_asking) = create_signal(None::<String>);
+    let asking = create_signal(None::<String>);
     view! {
         <List spacing=SPACING @test_id={"desktop.wifi.panel"}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -142,13 +142,7 @@ fn WifiPanel(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
             <Show condition={listing}>
                 <Scroll max_length=LIST_HEIGHT bleed={Bleed::POPOVER.top(false)}>
                     <ForEach keys={ssids}>|ssid: String|
-                        <NetworkRow
-                            editor={editor}
-                            status={status}
-                            ssid
-                            asking={asking}
-                            set_asking={set_asking}
-                        />
+                        <NetworkRow editor={editor} status={status} ssid asking={asking} />
                     </ForEach>
                 </Scroll>
             </Show>
@@ -161,8 +155,7 @@ fn NetworkRow(
     editor: Editor,
     status: Memo<WifiStatus>,
     ssid: String,
-    asking: ReadSignal<Option<String>>,
-    set_asking: WriteSignal<Option<String>>,
+    asking: Signal<Option<String>>,
 ) -> NodeId {
     let named = ssid.clone();
     let network = create_memo(move || {
@@ -207,13 +200,13 @@ fn NetworkRow(
         }
         match (network.saved, network.security) {
             (true, _) | (false, WifiSecurity::Open) => {
-                set_asking.set(None);
+                asking.set(None);
                 editor.act(WifiRequest::Connect {
                     ssid: chosen.clone(),
                     password: None,
                 });
             }
-            (false, WifiSecurity::Password) => set_asking.set(Some(chosen.clone())),
+            (false, WifiSecurity::Password) => asking.set(Some(chosen.clone())),
             (false, WifiSecurity::Unsupported) => {}
         }
     };
@@ -251,15 +244,15 @@ fn NetworkRow(
                 </Show>
             </List>
             <Show condition={asked}>
-                <PasswordEntry editor={editor} ssid={entered.clone()} set_asking={set_asking} />
+                <PasswordEntry editor={editor} ssid={entered.clone()} asking={asking} />
             </Show>
         </List>
     }
 }
 
 #[component]
-fn PasswordEntry(editor: Editor, ssid: String, set_asking: WriteSignal<Option<String>>) -> NodeId {
-    let (password, set_password) = create_signal(String::new());
+fn PasswordEntry(editor: Editor, ssid: String, asking: Signal<Option<String>>) -> NodeId {
+    let password = create_signal(String::new());
     let short = create_memo(move || password.with(|password| password.len() < MIN_PASSWORD));
     let id = format!("desktop.wifi.network.{ssid}");
     let label = format!("Password for {ssid}");
@@ -268,8 +261,8 @@ fn PasswordEntry(editor: Editor, ssid: String, set_asking: WriteSignal<Option<St
         if typed.len() < MIN_PASSWORD {
             return;
         }
-        set_password.set(String::new());
-        set_asking.set(None);
+        password.set(String::new());
+        asking.set(None);
         editor.act(WifiRequest::Connect {
             ssid: ssid.clone(),
             password: Some(typed),
@@ -286,7 +279,7 @@ fn PasswordEntry(editor: Editor, ssid: String, set_asking: WriteSignal<Option<St
                 placeholder="Password"
                 label
                 @test_id={format!("{id}.password")}
-                on_change={move |typed: String| set_password.set(typed)}
+                on_change={move |typed: String| password.set(typed)}
                 on_submit={move |_: String| submitted()}
             />
             <Button

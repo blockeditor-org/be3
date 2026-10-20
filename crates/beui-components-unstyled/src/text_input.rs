@@ -111,10 +111,10 @@ pub fn TextInput(
         prose,
         menu,
     } = style;
-    let initial = value.peek();
+    let initial = value.get_untracked();
     let state = plain_text(&initial);
-    let (hovered, set_hovered) = create_signal(false);
-    let (is_focused, set_focused) = create_signal(false);
+    let hovered = create_signal(false);
+    let is_focused = create_signal(false);
     let disabled = create_memo(move || disabled.get());
     let masked = create_memo(move || password.get());
     let (area, menu_node) = (NodeRef::new(), NodeRef::new());
@@ -122,7 +122,7 @@ pub fn TextInput(
         state,
         area,
         menu: menu_node,
-        focused: is_focused,
+        focused: is_focused.read_only(),
     });
 
     create_effect(move || {
@@ -171,10 +171,6 @@ pub fn TextInput(
             open.call(at);
         }
     };
-    let masked_menu = masked;
-    let menu_disabled = disabled;
-    let field_disabled = disabled;
-    let handle_focused = is_focused;
     let surround = move |field: Child, padded: bool| {
         let field = match padded {
             true => view! {
@@ -191,8 +187,8 @@ pub fn TextInput(
                 @node_ref=&menu_node
                 state={state}
                 menu
-                masked={masked_menu}
-                disabled={menu_disabled}
+                masked={masked}
+                disabled={disabled}
                 child_size={match padded {
                     true => ItemSize::Intrinsic,
                     false => ItemSize::Percent(100.0),
@@ -202,9 +198,9 @@ pub fn TextInput(
                 match content {
                     Some(build) => build.call(TextInputHandle {
                         field,
-                        hovered,
-                        focused: handle_focused,
-                        disabled: field_disabled,
+                        hovered: hovered.read_only(),
+                        focused: is_focused.read_only(),
+                        disabled,
                         empty,
                         clear,
                     }),
@@ -243,14 +239,14 @@ pub fn TextInput(
             on_toolbar={open_menu}
             on_submit={move || on_submit.call(text_of(state))}
             on_focus_change={move |focused: bool| {
-                if focused && select_on_focus.peek() {
+                if focused && select_on_focus.get_untracked() {
                     state.execute(EditorCommand::SelectAll);
                 }
-                set_focused.set(focused);
+                is_focused.set(focused);
                 on_focus_change.call(focused);
             }}
             on_hover_change={move |is_hovered: bool| {
-                set_hovered.set(is_hovered);
+                hovered.set(is_hovered);
                 on_hover_change.call(is_hovered);
             }}
             frame={move |field: Child| surround(field, true)}

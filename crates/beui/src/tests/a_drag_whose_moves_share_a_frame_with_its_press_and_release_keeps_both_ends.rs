@@ -6,19 +6,17 @@ use crate::reactive::*;
 #[test]
 fn a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends() {
     let _root = crate::reactive::RootScope::new();
-    let (presses, set_presses) = create_signal::<Vec<Pos2>>(Vec::new());
-    let (drags, set_drags) = create_signal::<Vec<Pos2>>(Vec::new());
-    let document = build({
-        move || {
-            view! {
-                <Interactive
-                    touch_drags=true
-                    on_press={move |press: PointerPress| set_presses.update(|presses| presses.push(press.pos))}
-                    on_drag={move |press: PointerPress| set_drags.update(|drags| drags.push(press.pos))}
-                >
-                    <Frame width=300.0 height=300.0 />
-                </Interactive>
-            }
+    let presses = create_signal::<Vec<Pos2>>(Vec::new());
+    let drags = create_signal::<Vec<Pos2>>(Vec::new());
+    let document = build(move || {
+        view! {
+            <Interactive
+                touch_drags=true
+                on_press={move |press: PointerPress| presses.update(|presses| presses.push(press.pos))}
+                on_drag={move |press: PointerPress| drags.update(|drags| drags.push(press.pos))}
+            >
+                <Frame width=300.0 height=300.0 />
+            </Interactive>
         }
     });
     let mut harness = Harness::new(document);

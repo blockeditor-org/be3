@@ -17,20 +17,18 @@ pub struct Slides {
     editor: Editor,
     block: ContentProjection<PresentationContent>,
     store: KeyedStore<Uuid, Slide>,
-    selected: ReadSignal<Option<Uuid>>,
-    set_selected: WriteSignal<Option<Uuid>>,
+    selected: Signal<Option<Uuid>>,
 }
 
 impl Slides {
     pub fn new(editor: Editor) -> Self {
         let block = editor.block_content::<PresentationContent>();
-        let (selected, set_selected) = create_signal(None::<Uuid>);
+        let selected = create_signal(None::<Uuid>);
         let slides = Self {
             editor,
             block,
             store: KeyedStore::new(),
             selected,
-            set_selected,
         };
         let dependencies = editor
             .blocks()
@@ -44,11 +42,11 @@ impl Slides {
     }
 
     pub fn selected(&self) -> ReadSignal<Option<Uuid>> {
-        self.selected
+        self.selected.read_only()
     }
 
     pub fn select(&self, id: Option<Uuid>) {
-        self.set_selected.set(id);
+        self.selected.set(id);
     }
 
     pub fn slide(&self, id: Uuid) -> Option<Slide> {
@@ -88,13 +86,13 @@ impl Slides {
         let next = current
             .saturating_add_signed(offset)
             .min(keys.len().saturating_sub(1));
-        self.set_selected.set(Some(keys[next]));
+        self.selected.set(Some(keys[next]));
     }
 
     pub fn go_to(&self, index: usize) {
         let keys = self.store.keys().get_untracked();
         if let Some(id) = keys.get(index.min(keys.len().saturating_sub(1))) {
-            self.set_selected.set(Some(*id));
+            self.selected.set(Some(*id));
         }
     }
 
@@ -108,7 +106,7 @@ impl Slides {
                 keys.get(index + 1)
                     .or_else(|| keys.get(index.wrapping_sub(1)))
             });
-            self.set_selected.set(next.copied());
+            self.selected.set(next.copied());
         }
     }
 
@@ -123,7 +121,7 @@ impl Slides {
 
     pub fn add(&self, index: usize) {
         let block = self.block;
-        let set_selected = self.set_selected;
+        let selected = self.selected;
         self.editor.pick_block(
             block_editor_beui::BlockFilter {
                 name: "Slide".into(),
@@ -144,7 +142,7 @@ impl Slides {
                 }) {
                     block.operate(edit);
                 }
-                set_selected.set(Some(slide));
+                selected.set(Some(slide));
             },
         );
     }
@@ -195,7 +193,7 @@ impl Slides {
         let keys = self.store.keys().get_untracked();
         let selected = self.selected.get_untracked();
         if selected.is_none_or(|selected| !keys.contains(&selected)) {
-            self.set_selected.set(keys.first().copied());
+            self.selected.set(keys.first().copied());
         }
     }
 }

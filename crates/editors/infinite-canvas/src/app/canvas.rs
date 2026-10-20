@@ -42,12 +42,6 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                     .map(|entity| entity.id)
                     .collect::<Vec<Uuid>>()
             });
-            let embeds = ids;
-            let shape_camera = camera;
-            let overlay_camera = camera;
-            let overlay_stage = shown;
-            let backdrop_camera = camera;
-            let backdrop_stage = shown;
             let inset = create_memo(move || {
                 let (placed, shown) = (placed.get(), shown.get());
                 Sides::new(
@@ -57,36 +51,27 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                     (placed.bottom() - shown.bottom()).max(0.0),
                 )
             });
-            let placement = camera;
             let previewing = state.previewing();
             view! {
                 <CanvasMenu disabled={previewing}>
                     <Frame padding={inset}>
                         <CanvasSurface state={state}>
                             <Canvas
-                                view={create_memo(move || Some(placement.get()))}
+                                view={create_memo(move || Some(camera.get()))}
                                 @test_id={"infinite-canvas.canvas"}
                             >
-                                <CanvasBackdrop
-                                    state={state}
-                                    camera={backdrop_camera}
-                                    stage={backdrop_stage}
-                                />
+                                <CanvasBackdrop state={state} camera={camera} stage={shown} />
                                 <ForEach keys={ids}>|id: Uuid| {
-                                    let camera = shape_camera;
+                                    let camera = camera;
                                     view! {
                                         <EntityShape state id camera />
                                     }
                                 }</ForEach>
-                                <ForEach keys={embeds}>|id: Uuid|
+                                <ForEach keys={ids}>|id: Uuid|
                                     <EntityEmbed state id />
                                 </ForEach>
                                 <Show condition={!previewing}>
-                                    <CanvasOverlay
-                                        state={state}
-                                        camera={overlay_camera}
-                                        stage={overlay_stage}
-                                    />
+                                    <CanvasOverlay state={state} camera={camera} stage={shown} />
                                 </Show>
                             </Canvas>
                         </CanvasSurface>
@@ -139,7 +124,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
 fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
-    let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
+    let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<Overlay>);
     create_effect(move || {
         let overlay = Overlay {
@@ -167,7 +152,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>
             return;
         }
         *shown.borrow_mut() = Some(overlay.clone());
-        set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
             overlay.draw(&painter.in_document())
         }));
     });
@@ -186,7 +171,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>
 fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
     let theme = use_theme();
-    let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
+    let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<Backdrop>);
     create_effect(move || {
         let artboards = state
@@ -216,7 +201,7 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
             return;
         }
         *shown.borrow_mut() = Some(backdrop.clone());
-        set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
             backdrop.draw(&painter.in_document())
         }));
     });
@@ -248,7 +233,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
     let thumbhash = create_memo(move || state.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
-    let (draw, set_draw) = create_signal::<Draw>(Rc::new(|_, _| {}));
+    let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<EntityPaint>);
     create_effect(move || {
         let Some(entity) = entity.get() else {
@@ -280,7 +265,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             return;
         }
         *shown.borrow_mut() = Some(paint.clone());
-        set_draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
             paint.draw(&painter.in_document())
         }));
     });

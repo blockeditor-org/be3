@@ -40,7 +40,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
         false => "Play".to_owned(),
     });
     let received = create_memo(move || status.with(|_| now()));
-    let (clock, set_clock) = create_signal(now());
+    let clock = create_signal(now());
     let position = create_memo(move || {
         status.with(|status| {
             played_to(
@@ -51,7 +51,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
     });
     let ticking = create_timer(move || {
         let at = now();
-        set_clock.set(at);
+        clock.set(at);
         status.with_untracked(|status| {
             let played = played_to(
                 status,

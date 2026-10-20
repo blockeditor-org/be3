@@ -146,7 +146,7 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                 let room = size.get() - Vec2::new(0.0, HINT_HEIGHT);
                 natural.x > room.x || natural.y > room.y
             });
-            let (actual, set_actual) = create_signal(false);
+            let actual = create_signal(false);
             let zoomed = create_memo(move || actual.get() && shrunk.get());
             let fitted = create_memo(move || !zoomed.get());
             let cursor = create_memo(move || match shrunk.get() {
@@ -165,10 +165,10 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
             let height = create_memo(move || Some(natural.get().y));
             let zoom_in = move || {
                 if shrunk.get_untracked() {
-                    set_actual.set(true);
+                    actual.set(true);
                 }
             };
-            let zoom_out = move || set_actual.set(false);
+            let zoom_out = move || actual.set(false);
             view! {
                 <List spacing=8.0>
                     <Show condition={fitted}>

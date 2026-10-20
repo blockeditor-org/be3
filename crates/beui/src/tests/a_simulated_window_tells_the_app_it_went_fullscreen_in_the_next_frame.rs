@@ -32,7 +32,7 @@ impl Renderer for Screen {
 
 struct Asking {
     asked: bool,
-    seen: WriteSignal<bool>,
+    seen: Signal<bool>,
 }
 
 impl App for Asking {
@@ -47,14 +47,11 @@ impl App for Asking {
 #[test]
 fn a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame() {
     let _root = crate::reactive::RootScope::new();
-    let (seen, set_seen) = create_signal(false);
+    let seen = create_signal(false);
     let mut runner = Runner::new(Launch {
         options: RunOptions::new("runner"),
         context: context(),
-        app: Box::new(Asking {
-            asked: false,
-            seen: set_seen,
-        }),
+        app: Box::new(Asking { asked: false, seen }),
     });
     let mut window = Simulation::new(
         WindowSize {

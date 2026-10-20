@@ -2,7 +2,7 @@ use super::*;
 use crate::reactive::*;
 
 #[component]
-fn Scoped(name: String, hits: WriteSignal<Vec<String>>) -> NodeId {
+fn Scoped(name: String, hits: Signal<Vec<String>>) -> NodeId {
     let node = NodeRef::new();
     action_scope(&node);
     let ran = name.clone();
@@ -24,12 +24,12 @@ fn Scoped(name: String, hits: WriteSignal<Vec<String>>) -> NodeId {
 #[test]
 fn an_action_shortcut_runs_in_the_scope_that_holds_the_focus() {
     let _root = crate::reactive::RootScope::new();
-    let (hits, set_hits) = create_signal(Vec::new());
+    let hits = create_signal(Vec::new());
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Scoped name="first" hits={set_hits} />
-                <Scoped name="second" hits={set_hits} />
+                <Scoped name="first" hits={hits} />
+                <Scoped name="second" hits={hits} />
             </List>
         }
     });

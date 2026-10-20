@@ -34,24 +34,23 @@ pub fn MenuButton(
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button)));
-    let (open, set_open) = create_signal(false);
+    let open = create_signal(false);
     let accessibility = create_memo(move || {
         let mut node = accessibility.get();
         node.set_has_popup(HasPopup::Menu);
         node.set_expanded(open.get());
         node
     });
-    let (touched, set_touched) = create_signal(false);
+    let touched = create_signal(false);
     let button = NodeRef::new();
     let shown = create_memo(move || open.get());
-    let touched = create_memo(move || touched.get());
     if !on_open_change.is_empty() {
         let mut was_open = false;
         create_effect(move || {
             let open = shown.get();
             if open != was_open {
                 was_open = open;
-                untrack(|| on_open_change.call(open));
+                on_open_change.call(open);
             }
         });
     }
@@ -63,34 +62,33 @@ pub fn MenuButton(
             glyph
             disabled={disabled}
             accessibility={accessibility}
-            on_press={move |press: PointerPress| set_touched.set(press.touch)}
+            on_press={move |press: PointerPress| touched.set(press.touch)}
             on_click={move || {
-                match untrack(|| click_opens.get()) {
-                    true => set_open.update(|open| *open = !*open),
+                match click_opens.get_untracked() {
+                    true => open.update(|open| *open = !*open),
                     false => on_click.call(),
                 }
             }}
             content={Render::new(move |handle: unstyled::ButtonHandle| {
                 trigger.call(MenuButtonHandle {
-                    open,
+                    open: open.read_only(),
                     button: handle,
                 })
             })}
         />
     };
     if on_secondary_click.is_some() || !matches!(secondary_opens, Prop::Static(false)) {
-        let (disabled, set_open) = (disabled, set_open);
         let on_secondary_click = on_secondary_click.unwrap_or_default();
         trigger_node = view! {
             <Interactive
                 on_secondary_press={move |press: PointerPress| {
-                    if untrack(|| disabled.get()) {
+                    if disabled.get_untracked() {
                         return;
                     }
-                    match untrack(|| secondary_opens.get()) {
+                    match secondary_opens.get_untracked() {
                         true => {
-                            set_touched.set(press.touch);
-                            set_open.set(true);
+                            touched.set(press.touch);
+                            open.set(true);
                         }
                         false => on_secondary_click.call(),
                     }
@@ -104,7 +102,7 @@ pub fn MenuButton(
         trigger_node = view! {
             <Interactive
                 on_middle_click={move || {
-                    if !untrack(|| disabled.get()) {
+                    if !disabled.get_untracked() {
                         on_middle_click.call();
                     }
                 }}
@@ -117,7 +115,7 @@ pub fn MenuButton(
         trigger_node = view! {
             <Interactive
                 on_scroll={move |gesture: ScrollGesture| {
-                    if !untrack(|| disabled.get()) {
+                    if !disabled.get_untracked() {
                         on_scroll.call(gesture);
                     }
                 }}
@@ -134,8 +132,8 @@ pub fn MenuButton(
                 menu
                 anchor={button}
                 open={shown}
-                touched
-                on_dismiss={move || set_open.set(false)}
+                touched={create_memo(move || touched.get())}
+                on_dismiss={move || open.set(false)}
                 on_select={on_select}
             />
         </List>

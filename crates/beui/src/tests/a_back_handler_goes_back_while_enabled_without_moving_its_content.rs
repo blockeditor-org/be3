@@ -6,19 +6,14 @@ use crate::reactive::*;
 #[test]
 fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
     let _root = crate::reactive::RootScope::new();
-    let (enabled, set_enabled) = create_signal(false);
-    let (backs, set_backs) = create_signal(0);
+    let enabled = create_signal(false);
+    let backs = create_signal(0);
     let page = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <BackHandler
-                    enabled={enabled}
-                    on_back={move || set_backs.update(|backs| *backs += 1)}
-                >
-                    <Text string="Page" color=Color32::WHITE @node_ref={&page} />
-                </BackHandler>
-            }
+    let document = build(move || {
+        view! {
+            <BackHandler enabled={enabled} on_back={move || backs.update(|backs| *backs += 1)}>
+                <Text string="Page" color=Color32::WHITE @node_ref={&page} />
+            </BackHandler>
         }
     });
 
@@ -27,7 +22,7 @@ fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get_untracked(), 0);
 
-    with_reactive_scope(harness.document_mut(), move || set_enabled.set(true));
+    with_reactive_scope(harness.document_mut(), move || enabled.set(true));
     assert!(harness.frame(Vec::new()).window.handles_back);
     let resting = harness.rect(page.get());
 

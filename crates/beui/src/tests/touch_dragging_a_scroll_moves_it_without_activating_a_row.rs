@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 #[test]
 fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
+    let clicks = create_signal(0);
     let scroll = NodeRef::new();
     let document = build(move || {
         view! {
@@ -17,7 +17,7 @@ fn touch_dragging_a_scroll_moves_it_without_activating_a_row() {
                         <LabelledButton
                             label={format!("Row {index}")}
                             on_click={move || {
-                                set_clicks.update(|clicks| *clicks += 1);
+                                clicks.update(|clicks| *clicks += 1);
                             }}
                         />
                     </ForEach>

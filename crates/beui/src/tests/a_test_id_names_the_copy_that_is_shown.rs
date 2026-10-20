@@ -5,7 +5,7 @@ use crate::reactive::*;
 #[test]
 fn a_test_id_names_the_copy_that_is_shown() {
     let _root = crate::reactive::RootScope::new();
-    let (wide, set_wide) = create_signal(true);
+    let wide = create_signal(true);
     let document = build(move || {
         let narrow = crate::reactive::create_memo(move || !wide.get());
         view! {
@@ -30,7 +30,7 @@ fn a_test_id_names_the_copy_that_is_shown() {
     };
     assert_eq!(width(&harness), Some(10.0));
 
-    with_reactive_scope(harness.document_mut(), move || set_wide.set(false));
+    with_reactive_scope(harness.document_mut(), move || wide.set(false));
     harness.frame(Vec::new());
     assert_eq!(
         width(&harness),
@@ -38,7 +38,7 @@ fn a_test_id_names_the_copy_that_is_shown() {
         "the id names the copy on screen"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_wide.set(true));
+    with_reactive_scope(harness.document_mut(), move || wide.set(true));
     harness.frame(Vec::new());
     assert_eq!(
         width(&harness),

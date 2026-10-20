@@ -5,7 +5,7 @@ use crate::styled::*;
 #[test]
 fn dragging_a_number_input_sideways_changes_its_value() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let (document, [input]) = toolbar_of(|| {
         [view! {
             <NumberInput
@@ -13,7 +13,7 @@ fn dragging_a_number_input_sideways_changes_its_value() {
                 min=0.0
                 max=100.0
                 drag={NumberDrag::Linear { speed: 0.5 }}
-                on_change={move |value| set_changes.update(|changes| changes.push(value))}
+                on_change={move |value| changes.update(|changes| changes.push(value))}
             />
         }]
     });
@@ -32,7 +32,7 @@ fn dragging_a_number_input_sideways_changes_its_value() {
         .expect("a drag must not open the field for editing");
     assert_eq!(text_of(harness.document(), shown), "14");
 
-    set_changes.update(|changes| changes.clear());
+    changes.update(|changes| changes.clear());
     harness.click(middle);
     harness.frame(Vec::new());
 

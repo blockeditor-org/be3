@@ -55,7 +55,7 @@ impl Edits {
 #[component]
 pub(super) fn EditorTab(shared: Shared) -> NodeId {
     let stored = shared.stored;
-    let (draft, set_draft) = create_signal(stored.get_untracked());
+    let draft = create_signal(stored.get_untracked());
     let followed = store(std::cell::RefCell::new(stored.get_untracked()));
     create_effect(move || {
         let text = stored.get();
@@ -63,7 +63,7 @@ pub(super) fn EditorTab(shared: Shared) -> NodeId {
             let current = draft.get();
             let following = followed.with(|followed| *followed.borrow() == current);
             if following && current != text {
-                set_draft.set(text.clone());
+                draft.set(text.clone());
             }
             followed.with(|followed| *followed.borrow_mut() = text);
         });
@@ -71,7 +71,7 @@ pub(super) fn EditorTab(shared: Shared) -> NodeId {
     let parsed = create_memo(move || Editing::parse(&draft.get()).map(|editing| editing.outline()));
     let outline = create_memo(move || parsed.get().unwrap_or_default());
     let unreadable = create_memo(move || parsed.get().err());
-    let (problem, set_problem) = create_signal(None::<String>);
+    let problem = create_signal(None::<String>);
     let change = Callback::new(move |change: Change| {
         let Ok(mut editing) = Editing::parse(&draft.get_untracked()) else {
             return;
@@ -88,14 +88,14 @@ pub(super) fn EditorTab(shared: Shared) -> NodeId {
             Change::Rule(group, rule, edit) => editing.edit_rule(group, rule, edit),
         }
         let text = editing.text();
-        set_draft.set(text.clone());
+        draft.set(text.clone());
         match text::parse(&text) {
             Ok(_) => {
-                set_problem.set(None);
+                problem.set(None);
                 followed.with(|followed| *followed.borrow_mut() = text.clone());
                 shared.store(&text);
             }
-            Err(error) => set_problem.set(Some(error)),
+            Err(error) => problem.set(Some(error)),
         }
     });
     let edits = Edits {
@@ -519,7 +519,6 @@ fn TextRow(
     #[prop(default = true)] separated: bool,
     on_change: Callback<String>,
 ) -> NodeId {
-    let echoed = value;
     view! {
         <SettingsRow label={label} description={description} separated={separated}>
             <TextInput
@@ -530,7 +529,7 @@ fn TextRow(
                 disabled={read_only}
                 @test_id={id}
                 on_change={move |text: String| {
-                    if text != echoed.get_untracked() {
+                    if text != value.get_untracked() {
                         on_change.call(text);
                     }
                 }}

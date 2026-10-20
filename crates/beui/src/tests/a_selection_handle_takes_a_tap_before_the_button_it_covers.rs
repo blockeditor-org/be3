@@ -5,21 +5,19 @@ use crate::styled::*;
 #[test]
 fn a_selection_handle_takes_a_tap_before_the_button_it_covers() {
     let _root = crate::reactive::RootScope::new();
-    let (clicks, set_clicks) = create_signal(0);
-    let (document, [input, _button]) = toolbar_of({
-        move || {
-            [
-                view! {
-                    <TextInput value="Hello world" />
-                },
-                view! {
-                    <LabelledButton
-                        label={"Below".to_owned()}
-                        on_click={move || set_clicks.update(|clicks| *clicks += 1)}
-                    />
-                },
-            ]
-        }
+    let clicks = create_signal(0);
+    let (document, [input, _button]) = toolbar_of(move || {
+        [
+            view! {
+                <TextInput value="Hello world" />
+            },
+            view! {
+                <LabelledButton
+                    label={"Below".to_owned()}
+                    on_click={move || clicks.update(|clicks| *clicks += 1)}
+                />
+            },
+        ]
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());

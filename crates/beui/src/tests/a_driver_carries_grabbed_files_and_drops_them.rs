@@ -1,6 +1,6 @@
 use super::*;
 
-struct Recording(WriteSignal<Vec<String>>);
+struct Recording(Signal<Vec<String>>);
 
 impl App for Recording {
     fn update(&mut self, context: &Context, _rect: Rect) {
@@ -22,8 +22,8 @@ impl App for Recording {
 #[test]
 fn a_driver_carries_grabbed_files_and_drops_them() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal(Vec::new());
-    let mut driven = Driven::with_app(Recording(set_heard), true);
+    let heard = create_signal(Vec::new());
+    let mut driven = Driven::with_app(Recording(heard), true);
 
     driven.ask(&["move", "10,10"]).expect("the pointer moves");
     driven

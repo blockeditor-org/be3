@@ -25,10 +25,9 @@ const HOVER_LABEL_HEIGHT: f32 = 24.0;
 pub(crate) fn ArtworkCanvas(
     tools: Tools,
     pane: Pane,
-    shown: Memo<Shown>,
+    shown: ReadSignal<Shown>,
     size: Memo<(u16, u16)>,
-    hovered: ReadSignal<Option<(u16, u16)>>,
-    set_hovered: WriteSignal<Option<(u16, u16)>>,
+    hovered: Signal<Option<(u16, u16)>>,
 ) -> NodeId {
     let editor = tools.editor();
     let view = editor.canvas();
@@ -52,23 +51,20 @@ pub(crate) fn ArtworkCanvas(
             let held = held_modifiers();
             create_effect(move || {
                 let shift = held.get().shift;
-                untrack(|| tools.set_constrained.set(shift));
+                untrack(|| tools.constrained.set(shift));
             });
 
-            let press_size = size;
-            let press_view = view;
-            let press_artwork = artwork;
             let on_press = move |press: PointerPress| {
-                let (width, height) = press_size.get_untracked();
+                let (width, height) = size.get_untracked();
                 if width == 0 || tools.busy() || !tools.editable() {
                     return;
                 }
-                tools.set_constrained.set(press.modifiers.shift);
+                tools.constrained.set(press.modifiers.shift);
                 let Some(pixel) = pixel_of(
                     press.pos,
-                    press_view.get_untracked(),
+                    view.get_untracked(),
                     editor.content_rect(),
-                    press_artwork.get_untracked(),
+                    artwork.get_untracked(),
                     width,
                     height,
                 ) else {
@@ -77,20 +73,17 @@ pub(crate) fn ArtworkCanvas(
                 begin(tools, pixel);
             };
 
-            let drag_size = size;
-            let drag_view = view;
-            let drag_artwork = artwork;
             let on_drag = move |press: PointerPress| {
-                let (width, height) = drag_size.get_untracked();
+                let (width, height) = size.get_untracked();
                 if width == 0 || tools.busy() || !tools.editable() {
                     return;
                 }
-                tools.set_constrained.set(press.modifiers.shift);
+                tools.constrained.set(press.modifiers.shift);
                 let Some(pixel) = pixel_of(
                     press.pos,
-                    drag_view.get_untracked(),
+                    view.get_untracked(),
                     editor.content_rect(),
-                    drag_artwork.get_untracked(),
+                    artwork.get_untracked(),
                     width,
                     height,
                 ) else {
@@ -103,20 +96,17 @@ pub(crate) fn ArtworkCanvas(
                 });
             };
 
-            let release_size = size;
-            let release_view = view;
-            let release_artwork = artwork;
             let on_click_at = move |press: PointerPress| {
-                let (width, height) = release_size.get_untracked();
+                let (width, height) = size.get_untracked();
                 if width == 0 || tools.busy() || !tools.editable() {
                     return;
                 }
-                tools.set_constrained.set(press.modifiers.shift);
+                tools.constrained.set(press.modifiers.shift);
                 if let Some(pixel) = pixel_of(
                     press.pos,
-                    release_view.get_untracked(),
+                    view.get_untracked(),
                     editor.content_rect(),
-                    release_artwork.get_untracked(),
+                    artwork.get_untracked(),
                     width,
                     height,
                 ) {
@@ -124,19 +114,16 @@ pub(crate) fn ArtworkCanvas(
                 }
             };
 
-            let sample_size = size;
-            let sample_view = view;
-            let sample_artwork = artwork;
             let on_secondary = move |press: PointerPress| {
-                let (width, height) = sample_size.get_untracked();
+                let (width, height) = size.get_untracked();
                 if width == 0 {
                     return;
                 }
                 if let Some(pixel) = pixel_of(
                     press.pos,
-                    sample_view.get_untracked(),
+                    view.get_untracked(),
                     editor.content_rect(),
-                    sample_artwork.get_untracked(),
+                    artwork.get_untracked(),
                     width,
                     height,
                 ) {
@@ -144,42 +131,35 @@ pub(crate) fn ArtworkCanvas(
                 }
             };
 
-            let hover_size = size;
-            let hover_view = view;
-            let hover_artwork = artwork;
-            let set_hover = set_hovered;
             let on_hover_move = move |press: PointerPress| {
-                let (width, height) = hover_size.get_untracked();
+                let (width, height) = size.get_untracked();
                 if width == 0 {
                     return;
                 }
-                tools.set_constrained.set(press.modifiers.shift);
-                set_hover.set(pixel_of(
+                tools.constrained.set(press.modifiers.shift);
+                hovered.set(pixel_of(
                     press.pos,
-                    hover_view.get_untracked(),
+                    view.get_untracked(),
                     editor.content_rect(),
-                    hover_artwork.get_untracked(),
+                    artwork.get_untracked(),
                     width,
                     height,
                 ));
             };
-            let left = set_hovered;
-            let on_hover_change = move |hovered: bool| {
-                if !hovered {
-                    left.set(None);
+            let on_hover_change = move |inside: bool| {
+                if !inside {
+                    hovered.set(None);
                 }
             };
 
-            let hover = hovered;
-            let frame_size = size;
             let theme = use_theme();
             let background = theme.background;
             create_effect(move || {
-                let (width, height) = frame_size.get();
+                let (width, height) = size.get();
                 if width == 0 {
                     return;
                 }
-                let (pixels, color) = pending(tools, hover.get(), width, height);
+                let (pixels, color) = pending(tools, hovered.get(), width, height);
                 let dark = is_dark(background.get());
                 pane.refresh(&tools.block(), dark, &pixels, color);
             });
@@ -208,8 +188,8 @@ pub(crate) fn ArtworkCanvas(
                                 view={view}
                                 scale={scale}
                                 artwork={artwork}
-                                show_grid={tools.show_grid}
-                                hovered={hovered}
+                                show_grid={tools.show_grid.read_only()}
+                                hovered={hovered.read_only()}
                             />
                         </List>
                     </Interactive>
@@ -228,11 +208,11 @@ fn shortcut(tools: Tools, editor: block_editor_beui::Editor, press: KeyPress) ->
         Shortcut::Cancel => return tools.draw(|drawing| drawing.take()).is_some(),
         Shortcut::Larger => {
             let size = tools.brush_size.get_untracked();
-            tools.set_brush_size.set((size + 1).min(MAX_BRUSH_SIZE));
+            tools.brush_size.set((size + 1).min(MAX_BRUSH_SIZE));
         }
         Shortcut::Smaller => {
             let size = tools.brush_size.get_untracked();
-            tools.set_brush_size.set(size.saturating_sub(1).max(1));
+            tools.brush_size.set(size.saturating_sub(1).max(1));
         }
         Shortcut::Fill => {
             if matches!(
@@ -240,16 +220,16 @@ fn shortcut(tools: Tools, editor: block_editor_beui::Editor, press: KeyPress) ->
                 PixelTool::Rectangle | PixelTool::Ellipse
             ) {
                 let filled = tools.shapes_filled.get_untracked();
-                tools.set_shapes_filled.set(!filled);
+                tools.shapes_filled.set(!filled);
             }
         }
         Shortcut::MirrorHorizontal => {
             let on = tools.mirror_horizontal.get_untracked();
-            tools.set_mirror_horizontal.set(!on);
+            tools.mirror_horizontal.set(!on);
         }
         Shortcut::MirrorVertical => {
             let on = tools.mirror_vertical.get_untracked();
-            tools.set_mirror_vertical.set(!on);
+            tools.mirror_vertical.set(!on);
         }
         Shortcut::ZoomIn => editor.zoom(ZOOM_STEP),
         Shortcut::ZoomOut => editor.zoom(1.0 / ZOOM_STEP),
@@ -298,7 +278,7 @@ fn shortcut_kind(key: Key) -> Shortcut {
 
 #[component]
 fn Artwork(
-    shown: Memo<Shown>,
+    shown: ReadSignal<Shown>,
     view: ReadSignal<Option<CanvasView>>,
     scale: ReadSignal<f32>,
     artwork: Memo<Rect>,
@@ -347,7 +327,6 @@ fn Artwork(
             * cell.get()
     });
     let thin = create_memo(move || 1.0 / scale.get().max(f32::EPSILON));
-    let border = thin;
     let lines = create_memo(move || {
         let shown = shown.get();
         if !show_grid.get() || cell.get() * scale.get() < GRID_MIN_CELL {
@@ -382,7 +361,7 @@ fn Artwork(
             </CanvasItem>
             <CanvasItem x={left} y={top} width={width} height={height}>
                 <Frame
-                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(border.get())))}
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(thin.get())))}
                 />
             </CanvasItem>
             <CanvasItem x={preview_x} y={preview_y} width={preview_width} height={preview_height}>
@@ -391,10 +370,6 @@ fn Artwork(
                 </Frame>
             </CanvasItem>
             <ForEach keys={lines}>|line: Line| {
-                let thin = thin;
-                let cell = cell;
-                let (left, top) = (left, top);
-                let (width, height) = (width, height);
                 let (x, y, line_width, line_height) = match line {
                     Line::Vertical(at) => (
                         create_memo(move || {

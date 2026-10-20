@@ -5,31 +5,29 @@ use crate::reactive::*;
 #[test]
 fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(0usize);
+    let built = create_signal(0usize);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            @node_ref=&list
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
-                            item_size=VIRTUAL_ITEM_HEIGHT
-                        >|key: ReadSignal<usize>| {
-                            set_built.update(|built| *built += 1);
-                            let label = create_memo(move || format!("Row {}", key.get()));
-                            view! {
-                                <Interactive focusable=true>
-                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                        <Text string={label} />
-                                    </Frame>
-                                </Interactive>
-                            }
-                        }</VirtualList>
-                    </Offset>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        @node_ref=&list
+                        keys={indices(VIRTUAL_ITEM_COUNT)}
+                        item_size=VIRTUAL_ITEM_HEIGHT
+                    >|key: ReadSignal<usize>| {
+                        built.update(|built| *built += 1);
+                        let label = create_memo(move || format!("Row {}", key.get()));
+                        view! {
+                            <Interactive focusable=true>
+                                <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                    <Text string={label} />
+                                </Frame>
+                            </Interactive>
+                        }
+                    }</VirtualList>
+                </Offset>
+            </List>
         }
     });
     let (scroll, list) = (scroll.get(), list.get());

@@ -5,7 +5,7 @@ use crate::unstyled::{DragHandle, DragPoint, Draggable, DropHandle, DropTarget};
 #[test]
 fn the_innermost_drop_target_that_accepts_the_payload_takes_the_drop() {
     let _root = crate::reactive::RootScope::new();
-    let (landed, set_landed) = create_signal(Vec::<(&str, u32)>::new());
+    let landed = create_signal(Vec::<(&str, u32)>::new());
     let (document, [first, second, target]) = toolbar_of(move || {
         [
             view! {
@@ -20,16 +20,16 @@ fn the_innermost_drop_target_that_accepts_the_payload_takes_the_drop() {
             },
             view! {
                 <DropTarget
-                    on_drop={move |(payload, _): (u32, DragPoint)| set_landed.update(|landed| landed.push(("outer", payload)))}
+                    on_drop={move |(payload, _): (u32, DragPoint)| landed.update(|landed| landed.push(("outer", payload)))}
                 >|_: DropHandle|
                     <Frame padding=20.0>
                         <DropTarget
                             accepts={Func::new(|payload: u32| payload == 1)}
-                            on_drop={move |(payload, _): (u32, DragPoint)| set_landed.update(|landed| landed.push(("inner", payload)))}
+                            on_drop={move |(payload, _): (u32, DragPoint)| landed.update(|landed| landed.push(("inner", payload)))}
                         >|_: DropHandle|
                             <DropTarget
                                 accepts={Func::new(|_: String| true)}
-                                on_drop={move |(_, _): (String, DragPoint)| set_landed.update(|landed| landed.push(("text", 0)))}
+                                on_drop={move |(_, _): (String, DragPoint)| landed.update(|landed| landed.push(("text", 0)))}
                             >|_: DropHandle|
                                 <Frame width=60.0 height=60.0 />
                             </DropTarget>

@@ -3,13 +3,13 @@ use super::*;
 #[test]
 fn resizing_a_virtual_scroll_reuses_visible_items() {
     let _root = crate::reactive::RootScope::new();
-    let (built, set_built) = create_signal(Vec::new());
-    let scroll = virtual_list(set_built);
+    let built = create_signal(Vec::new());
+    let scroll = virtual_list(built);
     let mut harness = Harness::new(scroll.document);
     harness.frame(Vec::new());
     let original = harness.document.children(scroll.list);
 
-    set_built.update(|built| built.clear());
+    built.update(|built| built.clear());
     harness.viewport.y = VIRTUAL_ITEM_HEIGHT * 2.0;
     harness.frame(Vec::new());
     assert!(built.with_untracked(|built| built.is_empty()));

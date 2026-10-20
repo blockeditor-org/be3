@@ -8,7 +8,7 @@ use text_editor_core::{EditorCommand, TextBuffer};
 #[test]
 fn typing_on_a_line_rebuilds_only_that_line() {
     let _root = crate::reactive::RootScope::new();
-    let (held, set_held) = create_signal::<Option<TextAreaState>>(None);
+    let held = create_signal::<Option<TextAreaState>>(None);
     let document = build(move || {
         let text = (0..20)
             .map(|line| format!("line {line} of the text"))
@@ -17,7 +17,7 @@ fn typing_on_a_line_rebuilds_only_that_line() {
         let document =
             Arc::new(TextBuffer::new(text.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
-        set_held.update(|held| *held = Some(state));
+        held.update(|held| *held = Some(state));
         view! {
             <Frame width=500.0 height=600.0>
                 <TextArea state={state} />

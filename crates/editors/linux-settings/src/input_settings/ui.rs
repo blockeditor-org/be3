@@ -48,11 +48,9 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
         create_memo(move || rate.get().unwrap_or(effective.get().repeat_rate() as f32));
     let rate_shown = create_memo(move || format!("{} / s", rate_value.get()));
     let rate_unset = create_memo(move || rate.get().is_none());
-    let pointers_off = read_only;
     let paste = settings.project(|content| content.root().middle_click_paste);
     let paste_on = create_memo(move || effective.get().middle_click_paste());
     let paste_unset = create_memo(move || paste.get().is_none());
-    let paste_off = read_only;
     view! {
         <SettingsPage>
             <SettingsSection title="Keyboard">
@@ -124,7 +122,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                 root={root}
                 effective={effective}
                 devices={devices}
-                read_only={pointers_off}
+                read_only={read_only}
             />
             <SettingsSection title="Programs">
                 <SwitchSetting
@@ -133,7 +131,7 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
                     on={paste_on}
                     mixed={create_memo(|| false)}
                     unset={paste_unset}
-                    read_only={paste_off}
+                    read_only={read_only}
                     id={"middle-click-paste".to_owned()}
                     separated=false
                     on_change={move |on: Option<bool>| {
@@ -229,7 +227,7 @@ fn Pointers(
         devices.with(|devices| devices.iter().map(device_key).collect::<Vec<DeviceKey>>())
     });
     let none = create_memo(move || devices.with(Vec::is_empty));
-    let (chosen, choose) = create_signal(None::<DeviceKey>);
+    let chosen = create_signal(None::<DeviceKey>);
     let scope = create_memo(move || {
         chosen
             .get()
@@ -241,7 +239,6 @@ fn Pointers(
             .and_then(|key| keys.with(|keys| keys.iter().position(|known| *known == key)));
         Some(index.map_or(0, |index| index + 1))
     });
-    let picked = keys;
     let apply = Apply::new(move |setting: PointerSetting| {
         let root = root.get_untracked();
         let edit = match scope.get_untracked() {
@@ -295,7 +292,6 @@ fn Pointers(
     let has_speed = create_memo(move || speed.get().supported);
     let (tap_on, tap_mixed, tap_unset, has_tap) = switch_state(tap);
     let (natural_on, natural_mixed, natural_unset, has_natural) = switch_state(natural);
-    let (speed_off, tap_off, natural_off) = (read_only, read_only, read_only);
     let description = create_memo(move || match none.get() {
         true => "No pointer is connected to this session.".to_owned(),
         false => String::new(),
@@ -318,8 +314,8 @@ fn Pointers(
                     on_change={move |index: Option<usize>| {
                         let key = index
                             .and_then(|index| index.checked_sub(1))
-                            .and_then(|index| picked.with_untracked(|keys| keys.get(index).cloned()));
-                        choose.set(key);
+                            .and_then(|index| keys.with_untracked(|keys| keys.get(index).cloned()));
+                        chosen.set(key);
                     }}
                 />
             </SettingsRow>
@@ -332,7 +328,7 @@ fn Pointers(
                     unset={speed_unset}
                     min=MIN_POINTER_SPEED
                     max=MAX_POINTER_SPEED
-                    read_only={speed_off}
+                    read_only={read_only}
                     id={"pointer.speed".to_owned()}
                     on_change={move |speed: Option<f32>| {
                         apply.call(PointerSetting::Speed(speed.map(PointerSpeed::new)))
@@ -346,7 +342,7 @@ fn Pointers(
                     on={tap_on}
                     mixed={tap_mixed}
                     unset={tap_unset}
-                    read_only={tap_off}
+                    read_only={read_only}
                     id={"pointer.tap-to-click".to_owned()}
                     on_change={move |tap: Option<bool>| {
                         apply.call(PointerSetting::TapToClick(tap))
@@ -360,7 +356,7 @@ fn Pointers(
                     on={natural_on}
                     mixed={natural_mixed}
                     unset={natural_unset}
-                    read_only={natural_off}
+                    read_only={read_only}
                     id={"pointer.natural-scroll".to_owned()}
                     on_change={move |natural: Option<bool>| {
                         apply.call(PointerSetting::NaturalScroll(natural))
@@ -393,8 +389,6 @@ fn TextSetting(
 ) -> NodeId {
     let shown = create_memo(move || value.get().unwrap_or_default());
     let set = create_memo(move || value.get().is_some());
-    let typed = on_change;
-    let echoed = shown;
     view! {
         <SettingsRow
             label={label}
@@ -415,8 +409,8 @@ fn TextSetting(
                 disabled={read_only}
                 @test_id={format!("input-settings.{id}")}
                 on_change={move |text: String| {
-                    if text != echoed.get_untracked() {
-                        typed.call(Some(text));
+                    if text != shown.get_untracked() {
+                        on_change.call(Some(text));
                     }
                 }}
             />
@@ -438,7 +432,6 @@ fn SliderSetting(
     #[prop(default = true)] separated: bool,
     on_change: Callback<Option<f32>>,
 ) -> NodeId {
-    let moved = on_change;
     let set = create_memo(move || !unset.get());
     view! {
         <SettingsRow
@@ -458,7 +451,7 @@ fn SliderSetting(
                 label={label}
                 disabled={read_only}
                 @test_id={format!("input-settings.{id}")}
-                on_change={move |value: f32| moved.call(Some(value))}
+                on_change={move |value: f32| on_change.call(Some(value))}
             />
             <Text
                 @sizing=ItemSize::Fixed(VALUE_WIDTH)
@@ -482,7 +475,6 @@ fn SwitchSetting(
     #[prop(default = true)] separated: bool,
     on_change: Callback<Option<bool>>,
 ) -> NodeId {
-    let switched = on_change;
     let set = create_memo(move || !unset.get());
     view! {
         <SettingsRow
@@ -501,7 +493,7 @@ fn SwitchSetting(
                 label={label}
                 disabled={read_only}
                 @test_id={format!("input-settings.{id}")}
-                on_change={move |on: bool| switched.call(Some(on))}
+                on_change={move |on: bool| on_change.call(Some(on))}
             />
         </SettingsRow>
     }

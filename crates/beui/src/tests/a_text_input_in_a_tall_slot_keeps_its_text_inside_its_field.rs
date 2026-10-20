@@ -7,14 +7,12 @@ use crate::styled::*;
 fn a_text_input_in_a_tall_slot_keeps_its_text_inside_its_field() {
     let _root = crate::reactive::RootScope::new();
     let input = NodeRef::new();
-    let (document, [_slot]) = toolbar_of({
-        move || {
-            [view! {
-                <Frame width=200.0 height=300.0>
-                    <TextInput @node_ref=&input value="hello" focused=true />
-                </Frame>
-            }]
-        }
+    let (document, [_slot]) = toolbar_of(move || {
+        [view! {
+            <Frame width=200.0 height=300.0>
+                <TextInput @node_ref=&input value="hello" focused=true />
+            </Frame>
+        }]
     });
     let input = input.get();
     let mut harness = Harness::new(document);

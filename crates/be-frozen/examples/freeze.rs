@@ -703,7 +703,6 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         }
     })
     .await?;
-    let friend_phrase = fresh;
 
     Ok(Written {
         organization,
@@ -712,7 +711,7 @@ async fn write_scene(url: &str, data: &Path) -> Result<Written, String> {
         owner_phrase,
         editor_phrase,
         friend_token,
-        friend_phrase,
+        friend_phrase: fresh,
         agent_token,
         agent_phrase,
         link_code,

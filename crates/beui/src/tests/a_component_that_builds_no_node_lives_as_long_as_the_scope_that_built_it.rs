@@ -10,7 +10,7 @@ struct Note {
 crate::value_child_type!(Note);
 
 #[component]
-fn Noted(label: Prop<String>, disposals: WriteSignal<usize>) -> Note {
+fn Noted(label: Prop<String>, disposals: Signal<usize>) -> Note {
     on_cleanup(move || disposals.update(|disposals| *disposals += 1));
     Note { label: label.get() }
 }
@@ -35,29 +35,27 @@ fn Legend(children: Children<Note>) -> NodeId {
 fn a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it() {
     let _root = crate::reactive::RootScope::new();
     let legend = NodeRef::new();
-    let (disposals, set_disposals) = create_signal::<usize>(0);
-    let (shown, set_shown) = create_signal(true);
-    let document = build({
-        move || {
-            let loose = view! {
-                <Noted label="loose" disposals={set_disposals} />
-            };
-            assert_eq!(loose.label, "loose");
-            drop(loose);
-            assert_eq!(
-                disposals.get_untracked(),
-                0,
-                "the value does not own its component's scope; the scope that built it does"
-            );
+    let disposals = create_signal::<usize>(0);
+    let shown = create_signal(true);
+    let document = build(move || {
+        let loose = view! {
+            <Noted label="loose" disposals={disposals} />
+        };
+        assert_eq!(loose.label, "loose");
+        drop(loose);
+        assert_eq!(
+            disposals.get_untracked(),
+            0,
+            "the value does not own its component's scope; the scope that built it does"
+        );
 
-            view! {
-                <Legend @node_ref=&legend>
-                    <Noted label="first" disposals={set_disposals} />
-                    <Show condition={shown}>
-                        <Noted label="second" disposals={set_disposals} />
-                    </Show>
-                </Legend>
-            }
+        view! {
+            <Legend @node_ref=&legend>
+                <Noted label="first" disposals={disposals} />
+                <Show condition={shown}>
+                    <Noted label="second" disposals={disposals} />
+                </Show>
+            </Legend>
         }
     });
 
@@ -69,7 +67,7 @@ fn a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it() {
         "a slot typed for a node-less child receives the values its children built"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_shown.set(false));
+    with_reactive_scope(harness.document_mut(), move || shown.set(false));
     harness.frame(Vec::new());
     assert_eq!(text_of(harness.document(), legend.get()), "first");
     assert_eq!(

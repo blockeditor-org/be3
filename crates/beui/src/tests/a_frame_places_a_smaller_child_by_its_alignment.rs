@@ -21,13 +21,11 @@ fn a_frame_places_a_smaller_child_by_its_alignment() {
 
 fn child_rect(horizontal: Align, vertical: Align) -> Rect {
     let child = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <Frame width=100.0 height=60.0 align={Align2::new(horizontal, vertical)}>
-                    <Frame @node_ref=&child width=20.0 height=10.0 />
-                </Frame>
-            }
+    let document = build(move || {
+        view! {
+            <Frame width=100.0 height=60.0 align={Align2::new(horizontal, vertical)}>
+                <Frame @node_ref=&child width=20.0 height=10.0 />
+            </Frame>
         }
     });
     let mut harness = Harness::sized(document, vec2(300.0, 300.0));

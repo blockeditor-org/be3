@@ -106,8 +106,6 @@ pub(crate) fn ReferenceMenu(
         true => empty.clone(),
         false => "Loading…".to_owned(),
     });
-    let items_refs = refs;
-    let chosen_refs = refs;
     view! {
         <MenuButton
             @test_id={named}
@@ -118,7 +116,7 @@ pub(crate) fn ReferenceMenu(
                 </Show>
                 <ForEach keys={indices}>|index: usize| {
                     let reference = create_memo(move || {
-                        items_refs.with(|refs| refs.list.get(index).cloned())
+                        refs.with(|refs| refs.list.get(index).cloned())
                     });
                     view! {
                         <ReferenceMenuItem
@@ -133,7 +131,7 @@ pub(crate) fn ReferenceMenu(
                 let Some((index, rest)) = path.split_first() else {
                     return;
                 };
-                let Some(reference) = chosen_refs.with(|refs| refs.list.get(*index).cloned())
+                let Some(reference) = refs.with(|refs| refs.list.get(*index).cloned())
                 else {
                     return;
                 };

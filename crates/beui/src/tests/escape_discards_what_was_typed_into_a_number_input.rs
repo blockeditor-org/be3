@@ -5,14 +5,14 @@ use crate::styled::*;
 #[test]
 fn escape_discards_what_was_typed_into_a_number_input() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
-    let (previews, set_previews) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
+    let previews = create_signal(Vec::new());
     let (document, [input]) = toolbar_of(move || {
         [view! {
             <NumberInput
                 value=7.0
-                on_change={move |value| set_changes.update(|changes| changes.push(value))}
-                on_preview={move |value| set_previews.update(|previews| previews.push(value))}
+                on_change={move |value| changes.update(|changes| changes.push(value))}
+                on_preview={move |value| previews.update(|previews| previews.push(value))}
             />
         }]
     });

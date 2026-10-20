@@ -41,14 +41,13 @@ pub(crate) fn hand_hit(bar: Rect, hand: &[HandCard], point: Pos2) -> Option<Spot
 #[component]
 pub(crate) fn HandBar(
     hand: Memo<Vec<HandCard>>,
-    set_bar: WriteSignal<Rect>,
+    bar: Signal<Rect>,
     play: Play,
     hidden: Memo<Vec<ItemId>>,
 ) -> NodeId {
     view! {
         <PlacementBuilder>|rect: ReadSignal<Rect>| {
-            let bar = rect;
-            create_effect(move || set_bar.set(bar.get()));
+            create_effect(move || bar.set(rect.get()));
             let shown = create_memo(move || !hand.with(Vec::is_empty));
             let height =
                 create_memo(move || Some(if shown.get() { BAR_HEIGHT } else { 0.0 }));

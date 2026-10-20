@@ -19,8 +19,7 @@ pub(crate) struct Focus {
 #[derive(Clone, Copy)]
 pub(crate) struct Zoom {
     tree: FileTree,
-    zoomed: ReadSignal<Option<RowKey>>,
-    set_zoomed: WriteSignal<Option<RowKey>>,
+    zoomed: Signal<Option<RowKey>>,
     focus: Memo<Option<Focus>>,
 }
 
@@ -36,7 +35,7 @@ pub(crate) fn zooms(row: &Row) -> bool {
 
 impl Zoom {
     pub(crate) fn new(tree: FileTree) -> Self {
-        let (zoomed, set_zoomed) = create_signal(None::<RowKey>);
+        let zoomed = create_signal(None::<RowKey>);
         let rows = tree.rows();
         let focus = create_memo(move || {
             let key = zoomed.get()?;
@@ -66,13 +65,12 @@ impl Zoom {
         create_effect(move || {
             if zoomed.get().is_some() && focus.get().is_none() && rows.with(|rows| !rows.is_empty())
             {
-                set_zoomed.set(None);
+                zoomed.set(None);
             }
         });
         Self {
             tree,
             zoomed,
-            set_zoomed,
             focus,
         }
     }
@@ -82,7 +80,7 @@ impl Zoom {
     }
 
     pub(crate) fn zoomed(&self) -> ReadSignal<Option<RowKey>> {
-        self.zoomed
+        self.zoomed.read_only()
     }
 
     pub(crate) fn keys(&self) -> Memo<Vec<RowKey>> {
@@ -122,7 +120,7 @@ impl Zoom {
         if row.expandable && !row.expanded {
             self.tree.toggle(&row.key, row.id, false);
         }
-        self.set_zoomed.set(Some(key));
+        self.zoomed.set(Some(key));
     }
 
     pub(crate) fn up(&self) {
@@ -137,7 +135,7 @@ impl Zoom {
                 .find(|row| row.depth < focus.depth)
                 .map(|row| row.key.clone())
         });
-        self.set_zoomed.set(parent);
+        self.zoomed.set(parent);
     }
 
     pub(crate) fn leave_for(&self, key: &RowKey) {
@@ -147,7 +145,7 @@ impl Zoom {
             (Some(_), _) => false,
         };
         if !inside {
-            self.set_zoomed.set(None);
+            self.zoomed.set(None);
         }
     }
 }

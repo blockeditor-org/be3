@@ -6,26 +6,24 @@ use crate::styled::*;
 fn tab_is_trapped_inside_an_open_context_menu() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let (document, [before, menu, after]) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="Copy" />
-                <unstyled::MenuItem label="Paste" />
-            };
-            [
-                view! {
-                    <LabelledButton label="Before" />
-                },
-                view! {
-                    <ContextMenu items>
-                        <MenuRegion @node_ref=&region />
-                    </ContextMenu>
-                },
-                view! {
-                    <LabelledButton label="After" />
-                },
-            ]
-        }
+    let (document, [before, menu, after]) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label="Copy" />
+            <unstyled::MenuItem label="Paste" />
+        };
+        [
+            view! {
+                <LabelledButton label="Before" />
+            },
+            view! {
+                <ContextMenu items>
+                    <MenuRegion @node_ref=&region />
+                </ContextMenu>
+            },
+            view! {
+                <LabelledButton label="After" />
+            },
+        ]
     });
     let region = region.get();
     let mut harness = Harness::new(document);

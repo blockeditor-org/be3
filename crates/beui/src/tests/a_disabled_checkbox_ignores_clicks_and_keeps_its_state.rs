@@ -5,14 +5,14 @@ use crate::styled::*;
 #[test]
 fn a_disabled_checkbox_ignores_clicks_and_keeps_its_state() {
     let _root = crate::reactive::RootScope::new();
-    let (changes, set_changes) = create_signal(Vec::new());
+    let changes = create_signal(Vec::new());
     let (document, [checkbox]) = toolbar_of(|| {
         [view! {
             <Checkbox
                 label="Minimum"
                 checked=false
                 disabled=true
-                on_change={move |checked| set_changes.update(|changes| changes.push(checked))}
+                on_change={move |checked| changes.update(|changes| changes.push(checked))}
             />
         }]
     });

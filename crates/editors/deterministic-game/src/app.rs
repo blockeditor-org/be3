@@ -36,10 +36,8 @@ struct BlockGame {
     editor: Editor,
     block: ContentProjection<DeterministicGameContent>,
     account: Uuid,
-    player: ReadSignal<Uuid>,
-    set_player: WriteSignal<Uuid>,
-    shown: ReadSignal<Option<usize>>,
-    set_shown: WriteSignal<Option<usize>>,
+    player: Signal<Uuid>,
+    shown: Signal<Option<usize>>,
     seats: RefCell<Vec<Uuid>>,
     module: RefCell<Option<(Uuid, ContentProjection<GameModuleContent>)>>,
     loaded: RefCell<Option<Loaded>>,
@@ -49,16 +47,14 @@ impl BlockGame {
     fn new(editor: Editor) -> Self {
         let account = editor.blocks().account_id();
         let block = editor.block_content::<DeterministicGameContent>();
-        let (player, set_player) = create_signal(account);
-        let (shown, set_shown) = create_signal(None);
+        let player = create_signal(account);
+        let shown = create_signal(None);
         Self {
             editor,
             block,
             account,
             player,
-            set_player,
             shown,
-            set_shown,
             seats: RefCell::new(Vec::new()),
             module: RefCell::new(None),
             loaded: RefCell::new(None),
@@ -228,12 +224,12 @@ impl GameModel for BlockGame {
     fn play_as(&self, seat: usize) {
         let player = self.seats.borrow().get(seat).copied();
         if let Some(player) = player {
-            self.set_player.set(player);
+            self.player.set(player);
         }
     }
 
     fn show_turns(&self, turns: Option<usize>) {
-        self.set_shown.set(turns);
+        self.shown.set(turns);
     }
 }
 
@@ -266,18 +262,16 @@ struct GameCreation {
     chosen: Cell<Option<Chosen>>,
     module: RefCell<Option<BlockList>>,
     error: RefCell<Option<String>>,
-    changed: ReadSignal<u64>,
-    set_changed: WriteSignal<u64>,
+    changed: Signal<u64>,
 }
 
 impl GameCreation {
     fn new(creation: Creation) -> Self {
         creation.set_ready(false);
-        let (changed, set_changed) = create_signal(0);
+        let changed = create_signal(0);
         let listing = creation.host().list_data();
         Self {
             changed,
-            set_changed,
             picker: RefCell::new(BlockPicker::default()),
             listing: Cell::new(Some(listing)),
             staged: RefCell::new(Vec::new()),
@@ -438,14 +432,14 @@ fn file_name(path: &str) -> &str {
 impl GameCreationModel for GameCreation {
     fn choose_staged(&self, index: usize) {
         self.choose(Chosen::Staged(index));
-        self.set_changed.update(|changed| *changed += 1);
+        self.changed.update(|changed| *changed += 1);
     }
 
     fn choose_module(&self) {
         self.picker
             .borrow_mut()
             .open(self.creation.host(), module_filter());
-        self.set_changed.update(|changed| *changed += 1);
+        self.changed.update(|changed| *changed += 1);
     }
 }
 
@@ -454,25 +448,25 @@ pub struct DeterministicGameApp;
 impl block_editor_beui::BeuiApp for DeterministicGameApp {
     fn view(editor: Editor) -> NodeId {
         let game = store(BlockGame::new(editor));
-        let (snapshot, set_snapshot) = create_signal(GameSnapshot::Loading);
-        create_effect(move || set_snapshot.set(game.get().snapshot()));
-        let model: Rc<dyn GameModel> = game.get();
+        let snapshot = create_signal(GameSnapshot::Loading);
+        create_effect(move || snapshot.set(game.value().snapshot()));
+        let model: Rc<dyn GameModel> = game.value();
         let model = store(model);
         view! {
-            <GameView editor game={model} snapshot={snapshot} />
+            <GameView editor game={model} snapshot={snapshot.read_only()} />
         }
     }
 
     fn creation_view(creation: Creation) -> NodeId {
         let dialog = store(GameCreation::new(creation.clone()));
-        let (snapshot, set_snapshot) = create_signal(CreationSnapshot::default());
-        create_effect(move || set_snapshot.set(dialog.get().snapshot()));
-        let maker = dialog.get();
+        let snapshot = create_signal(CreationSnapshot::default());
+        create_effect(move || snapshot.set(dialog.value().snapshot()));
+        let maker = dialog.value();
         creation.on_create(move || maker.create_block());
-        let model: Rc<dyn GameCreationModel> = dialog.get();
+        let model: Rc<dyn GameCreationModel> = dialog.value();
         let model = store(model);
         view! {
-            <GameCreationView creation={model} snapshot={snapshot} />
+            <GameCreationView creation={model} snapshot={snapshot.read_only()} />
         }
     }
 

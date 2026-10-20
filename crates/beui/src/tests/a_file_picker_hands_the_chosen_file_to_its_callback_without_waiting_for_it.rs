@@ -7,10 +7,9 @@ use crate::unstyled::Button;
 fn a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it() {
     let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
-    let (chosen, set_chosen) = create_signal(Vec::new());
+    let chosen = create_signal(Vec::new());
     let document = build(move || {
-        let picker =
-            create_file_picker(move |picked| set_chosen.update(|chosen| chosen.push(picked)));
+        let picker = create_file_picker(move |picked| chosen.update(|chosen| chosen.push(picked)));
         let picking = picker.picking();
         let open = move || picker.open(FileFilter::new("Images", &["png"], &["image/png"]));
         view! {

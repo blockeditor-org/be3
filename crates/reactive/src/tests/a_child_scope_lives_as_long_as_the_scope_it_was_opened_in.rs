@@ -12,7 +12,7 @@ fn a_child_scope_lives_as_long_as_the_scope_it_was_opened_in() {
         child.is_alive(),
         "nothing but its parent owns a child scope"
     );
-    let value = child.run(|| create_signal(7).0);
+    let value = child.run(|| create_signal(7));
     assert_eq!(
         value.get_untracked(),
         7,

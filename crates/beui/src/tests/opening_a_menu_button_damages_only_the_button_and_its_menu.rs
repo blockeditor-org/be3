@@ -7,24 +7,22 @@ use crate::styled::*;
 fn opening_a_menu_button_damages_only_the_button_and_its_menu() {
     let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
-    let document = build({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="Copy" />
-                <unstyled::MenuItem label="Paste" />
-            };
-            view! {
-                <Frame fill={Color32::from_gray(20)} radius=0.0 padding=16.0>
-                    <List spacing=0.0>
-                        <MenuButton
-                            @node_ref=&button
-                            label="Actions"
-                            items
-                            on_select={|_: Vec<usize>| {}}
-                        />
-                    </List>
-                </Frame>
-            }
+    let document = build(move || {
+        let items = view! {
+            <unstyled::MenuItem label="Copy" />
+            <unstyled::MenuItem label="Paste" />
+        };
+        view! {
+            <Frame fill={Color32::from_gray(20)} radius=0.0 padding=16.0>
+                <List spacing=0.0>
+                    <MenuButton
+                        @node_ref=&button
+                        label="Actions"
+                        items
+                        on_select={|_: Vec<usize>| {}}
+                    />
+                </List>
+            </Frame>
         }
     });
     let button = button.get();

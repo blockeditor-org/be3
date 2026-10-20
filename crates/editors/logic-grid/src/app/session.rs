@@ -9,33 +9,25 @@ use super::*;
 pub(super) struct Session {
     editor: Editor,
     model: Stored<RefCell<LogicGridEditor>>,
-    version: ReadSignal<u64>,
-    set_version: WriteSignal<u64>,
-    pub(super) pointer: ReadSignal<Option<[f32; 2]>>,
-    pub(super) set_pointer: WriteSignal<Option<[f32; 2]>>,
-    pub(super) debug_hover: ReadSignal<Option<DebugEntity>>,
-    pub(super) set_debug_hover: WriteSignal<Option<DebugEntity>>,
-    pub(super) graph_hover: ReadSignal<GraphHover>,
-    pub(super) set_graph_hover: WriteSignal<GraphHover>,
+    version: Signal<u64>,
+    pub(super) pointer: Signal<Option<[f32; 2]>>,
+    pub(super) debug_hover: Signal<Option<DebugEntity>>,
+    pub(super) graph_hover: Signal<GraphHover>,
 }
 
 impl Session {
     pub(super) fn new(editor: Editor) -> Self {
-        let (version, set_version) = create_signal(0_u64);
-        let (pointer, set_pointer) = create_signal(None);
-        let (debug_hover, set_debug_hover) = create_signal(None);
-        let (graph_hover, set_graph_hover) = create_signal(GraphHover::default());
+        let version = create_signal(0_u64);
+        let pointer = create_signal(None);
+        let debug_hover = create_signal(None);
+        let graph_hover = create_signal(GraphHover::default());
         let session = Self {
             editor,
             model: store(RefCell::new(LogicGridEditor::live(editor))),
             version,
-            set_version,
             pointer,
-            set_pointer,
             debug_hover,
-            set_debug_hover,
             graph_hover,
-            set_graph_hover,
         };
         create_effect(move || {
             session.version.get();
@@ -61,7 +53,7 @@ impl Session {
         self.model.with(|model| read(&model.borrow()))
     }
 
-    pub(super) fn peek<T>(&self, read: impl FnOnce(&LogicGridEditor) -> T) -> T {
+    pub(super) fn read_untracked<T>(&self, read: impl FnOnce(&LogicGridEditor) -> T) -> T {
         self.model.with(|model| read(&model.borrow()))
     }
 
@@ -72,7 +64,7 @@ impl Session {
             model.settle();
             result
         });
-        self.set_version.update(|version| *version += 1);
+        self.version.update(|version| *version += 1);
         result
     }
 
@@ -95,7 +87,7 @@ impl Session {
             changed || passed
         });
         if changed {
-            self.set_version.update(|version| *version += 1);
+            self.version.update(|version| *version += 1);
         }
     }
 }

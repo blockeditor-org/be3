@@ -4,7 +4,7 @@ use super::*;
 fn cleanup_precedes_next_execution() {
     let _root = RootScope::new();
     let scope = Scope::new();
-    let (value, set_value) = create_signal(0);
+    let value = create_signal(0);
     let events = Rc::new(RefCell::new(Vec::new()));
     scope.run(|| {
         let events = events.clone();
@@ -15,7 +15,7 @@ fn cleanup_precedes_next_execution() {
             on_cleanup(move || events.borrow_mut().push(("cleanup", value)));
         });
     });
-    set_value.set(1);
+    value.set(1);
     drop(scope);
     assert_eq!(
         *events.borrow(),

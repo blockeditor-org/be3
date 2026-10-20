@@ -6,28 +6,26 @@ use crate::styled::*;
 fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let (pasteable, set_pasteable) = create_signal(false);
-    let (selected, set_selected) = create_signal(Vec::new());
-    let (document, [menu]) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="Copy" />
-                <Show condition={pasteable}>
-                    <unstyled::MenuItem label="Paste" />
-                </Show>
-                <unstyled::MenuItem label="Delete" />
-            };
-            [view! {
-                <ContextMenu
-                    items
-                    on_select={move |path| {
-                        set_selected.update(|selected| selected.push(path));
-                    }}
-                >
-                    <MenuRegion @node_ref=&region />
-                </ContextMenu>
-            }]
-        }
+    let pasteable = create_signal(false);
+    let selected = create_signal(Vec::new());
+    let (document, [menu]) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label="Copy" />
+            <Show condition={pasteable}>
+                <unstyled::MenuItem label="Paste" />
+            </Show>
+            <unstyled::MenuItem label="Delete" />
+        };
+        [view! {
+            <ContextMenu
+                items
+                on_select={move |path| {
+                    selected.update(|selected| selected.push(path));
+                }}
+            >
+                <MenuRegion @node_ref=&region />
+            </ContextMenu>
+        }]
     });
     let region = region.get();
     let mut harness = Harness::new(document);
@@ -50,7 +48,7 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
         "a hidden show puts no item between the items written around it"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_pasteable.set(true));
+    with_reactive_scope(harness.document_mut(), move || pasteable.set(true));
     harness.frame(Vec::new());
 
     assert_eq!(

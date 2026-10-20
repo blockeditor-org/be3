@@ -6,24 +6,22 @@ use crate::styled::*;
 #[test]
 fn a_shortcut_outside_an_open_dialog_does_not_hear_keys_typed_in_it() {
     let _root = crate::reactive::RootScope::new();
-    let (heard, set_heard) = create_signal(0);
-    let (open, set_open) = create_signal(false);
+    let heard = create_signal(0);
+    let open = create_signal(false);
     let inside = NodeRef::new();
-    let document = build({
-        move || {
-            on_shortcut(move |press: KeyPress| {
-                if press.pressed && press.key == Key::K && press.modifiers.ctrl {
-                    set_heard.update(|heard| *heard += 1);
-                }
-                false
-            });
-            view! {
-                <List spacing=0.0>
-                    <Dialog open={open} on_dismiss={|| {}}>
-                        <Button @node_ref=&inside variant=ButtonVariant::Primary label="Inside" />
-                    </Dialog>
-                </List>
+    let document = build(move || {
+        on_shortcut(move |press: KeyPress| {
+            if press.pressed && press.key == Key::K && press.modifiers.ctrl {
+                heard.update(|heard| *heard += 1);
             }
+            false
+        });
+        view! {
+            <List spacing=0.0>
+                <Dialog open={open} on_dismiss={|| {}}>
+                    <Button @node_ref=&inside variant=ButtonVariant::Primary label="Inside" />
+                </Dialog>
+            </List>
         }
     });
     let mut harness = Harness::new(document);
@@ -36,7 +34,7 @@ fn a_shortcut_outside_an_open_dialog_does_not_hear_keys_typed_in_it() {
         "with nothing open the shortcut hears the key"
     );
 
-    with_reactive_scope(harness.document_mut(), move || set_open.set(true));
+    with_reactive_scope(harness.document_mut(), move || open.set(true));
     harness.frame(Vec::new());
     harness.click(harness.center(inside.get()));
     harness.key(Key::K, Modifiers::CTRL);

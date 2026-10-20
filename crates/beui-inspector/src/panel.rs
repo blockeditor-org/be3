@@ -150,58 +150,52 @@ impl From<PerformanceSnapshot> for PerformanceSummary {
     }
 }
 
-type Entries = ReadSignal<HashMap<Key, Entry>>;
+type Entries = Signal<HashMap<Key, Entry>>;
 pub type RendererRows = Vec<(&'static str, String)>;
 
 pub struct Panel {
     pub document: Document,
     pub scope: Scope,
-    pub set_keys: WriteSignal<Vec<Key>>,
-    pub set_entries: WriteSignal<HashMap<Key, Entry>>,
-    pub set_summary: WriteSignal<Summary>,
-    pub set_performance: WriteSignal<PerformanceSummary>,
-    pub set_renderer: WriteSignal<RendererRows>,
-    pub set_renderers: WriteSignal<RendererChoices>,
-    pub set_selection: WriteSignal<Vec<Key>>,
-    pub set_compact: WriteSignal<bool>,
+    pub keys: Signal<Vec<Key>>,
+    pub entries: Signal<HashMap<Key, Entry>>,
+    pub summary: Signal<Summary>,
+    pub performance: Signal<PerformanceSummary>,
+    pub renderer: Signal<RendererRows>,
+    pub renderers: Signal<RendererChoices>,
+    pub selection: Signal<Vec<Key>>,
+    pub compact: Signal<bool>,
     pub tree: NodeRef,
 }
 
 pub fn build(state: Stored<State>) -> Panel {
     let owner = RootScope::new();
-    let (keys, set_keys) = create_signal(Vec::<Key>::new());
-    let (entries, set_entries) = create_signal(HashMap::<Key, Entry>::new());
-    let (summary, set_summary) = create_signal(Summary::default());
-    let (performance, set_performance) = create_signal(PerformanceSummary::default());
-    let (renderer, set_renderer) = create_signal(RendererRows::new());
-    let (renderers, set_renderers) = create_signal(RendererChoices::default());
-    let (tab, set_tab) = create_signal(InspectorTab::default());
-    let (selection, set_selection) = create_signal(Vec::<Key>::new());
-    let (compact, set_compact) = create_signal(false);
+    let keys = create_signal(Vec::<Key>::new());
+    let entries = create_signal(HashMap::<Key, Entry>::new());
+    let summary = create_signal(Summary::default());
+    let performance = create_signal(PerformanceSummary::default());
+    let renderer = create_signal(RendererRows::new());
+    let renderers = create_signal(RendererChoices::default());
+    let tab = create_signal(InspectorTab::default());
+    let selection = create_signal(Vec::<Key>::new());
+    let compact = create_signal(false);
     let tree = NodeRef::new();
-    let tree_ref = tree;
 
     let document = beui_view::reactive::build(|| {
-        let count_text = create_memo({
-            let (summary, performance, tab) = (summary, performance, tab);
-            move || match tab.get() {
-                InspectorTab::Performance => {
-                    performance.with(|performance| performance.samples.clone())
-                }
-                InspectorTab::Simulation => String::new(),
-                InspectorTab::Components => {
-                    total_label(summary.with(|summary| summary.total), "component")
-                }
-                _ => total_label(summary.with(|summary| summary.total), "node"),
+        let count_text = create_memo(move || match tab.get() {
+            InspectorTab::Performance => {
+                performance.with(|performance| performance.samples.clone())
             }
+            InspectorTab::Simulation => String::new(),
+            InspectorTab::Components => {
+                total_label(summary.with(|summary| summary.total), "component")
+            }
+            _ => total_label(summary.with(|summary| summary.total), "node"),
         });
-        let tree_visible = create_memo({
-            move || {
-                matches!(
-                    tab.get(),
-                    InspectorTab::Beui | InspectorTab::Components | InspectorTab::AccessKit
-                )
-            }
+        let tree_visible = create_memo(move || {
+            matches!(
+                tab.get(),
+                InspectorTab::Beui | InspectorTab::Components | InspectorTab::AccessKit
+            )
         });
         let performance_visible = create_memo(move || tab.get() == InspectorTab::Performance);
         let simulation_visible = create_memo(move || tab.get() == InspectorTab::Simulation);
@@ -220,16 +214,6 @@ pub fn build(state: Stored<State>) -> Panel {
             false => ItemSize::Fixed(0.0),
         });
         let selected = create_memo(move || selection.with(|path| path.last().copied()));
-        let lineage = selection;
-        let row_entries = entries;
-        let item_entries = entries;
-        let header_tree_visible = tree_visible;
-        let body_tree_visible = tree_visible;
-        let footer_tree_visible = tree_visible;
-        let body_performance_visible = performance_visible;
-        let footer_performance_visible = performance_visible;
-        let body_simulation_visible = simulation_visible;
-        let footer_simulation_visible = simulation_visible;
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Separator direction=Direction::Vertical />
@@ -249,7 +233,7 @@ pub fn build(state: Stored<State>) -> Panel {
                                         string={count_text}
                                         align=TextAlign::End
                                     />
-                                    <ShowKeepAlive condition={header_tree_visible}>
+                                    <ShowKeepAlive condition={tree_visible}>
                                         <PickToggle state={state} picking />
                                     </ShowKeepAlive>
                                     <Show condition={create_memo(move || !compact.get())}>
@@ -267,8 +251,8 @@ pub fn build(state: Stored<State>) -> Panel {
                                     }}
                                     selected=0
                                     on_change={move |index| {
-                                        state.get().set_tab(index);
-                                        set_tab.set(InspectorTab::from_index(index));
+                                        state.value().set_tab(index);
+                                        tab.set(InspectorTab::from_index(index));
                                     }}
                                 />
                             </List>
@@ -276,30 +260,30 @@ pub fn build(state: Stored<State>) -> Panel {
                         <Separator />
                         <Frame @sizing=ItemSize::Percent(100.0)>
                             <List spacing=0.0>
-                                <ShowKeepAlive condition={body_tree_visible}>
+                                <ShowKeepAlive condition={tree_visible}>
                                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                                         <Tree
                                             @sizing=ItemSize::Percent(100.0 - PROPERTIES_SHARE)
-                                            @node_ref=&tree_ref
+                                            @node_ref=&tree
                                             keys
-                                            item={move |key: Key| item(&item_entries, key)}
+                                            item={move |key: Key| item(&entries, key)}
                                             selected={selected}
-                                            ancestors={move |key: Key| ancestors(lineage, key)}
+                                            ancestors={move |key: Key| ancestors(selection.read_only(), key)}
                                             padding=BODY_PADDING
                                             row_test_id={move |key: Key| key.test_id()}
                                             reveal_test_id={"inspector.reveal".to_owned()}
-                                            on_select={move |key: Key| state.get().select_row(key)}
+                                            on_select={move |key: Key| state.value().select_row(key)}
                                             on_expand={move |(key, expanded): (Key, bool)| {
-                                                state.get().set_expanded(key, expanded);
+                                                state.value().set_expanded(key, expanded);
                                             }}
                                             on_reveal={move |key: Key| {
-                                                state.get().expand_ancestors(&ancestors(selection, key));
+                                                state.value().expand_ancestors(&ancestors(selection.read_only(), key));
                                             }}
                                             on_hover_change={move |(key, hovered): (Key, bool)| {
-                                                state.get().hover(key.node(), hovered);
+                                                state.value().hover(key.node(), hovered);
                                             }}
                                         >|row: TreeRowFace<Key>|
-                                            <TreeCells row_key={row.key} entries={row_entries} />
+                                            <TreeCells row_key={row.key} entries={entries} />
                                         </Tree>
                                         <Frame
                                             @sizing={properties_size}
@@ -310,17 +294,17 @@ pub fn build(state: Stored<State>) -> Panel {
                                         </Frame>
                                     </List>
                                 </ShowKeepAlive>
-                                <ShowKeepAlive condition={body_performance_visible}>
+                                <ShowKeepAlive condition={performance_visible}>
                                     <PerformancePanel
                                         @sizing=ItemSize::Percent(100.0)
                                         @test_id={"inspector.performance"}
-                                        performance={performance}
-                                        renderer={renderer}
-                                        renderers={renderers}
+                                        performance={performance.read_only()}
+                                        renderer={renderer.read_only()}
+                                        renderers={renderers.read_only()}
                                         state={state}
                                     />
                                 </ShowKeepAlive>
-                                <ShowKeepAlive condition={body_simulation_visible}>
+                                <ShowKeepAlive condition={simulation_visible}>
                                     <SimulationPanel
                                         @sizing=ItemSize::Percent(100.0)
                                         state={state}
@@ -333,7 +317,7 @@ pub fn build(state: Stored<State>) -> Panel {
                         <Separator />
                         <Frame padding=FOOTER_PADDING>
                             <List spacing=0.0>
-                                <ShowKeepAlive condition={footer_tree_visible}>
+                                <ShowKeepAlive condition={tree_visible}>
                                     <List spacing=FOOTER_SPACING>
                                         <Text style=TextStyle::CODE string={selection_text} />
                                         <Text
@@ -343,14 +327,14 @@ pub fn build(state: Stored<State>) -> Panel {
                                         />
                                     </List>
                                 </ShowKeepAlive>
-                                <ShowKeepAlive condition={footer_performance_visible}>
+                                <ShowKeepAlive condition={performance_visible}>
                                     <Button
                                         label="Reset samples"
                                         variant=ButtonVariant::Secondary
-                                        on_click={move || state.get().reset_performance()}
+                                        on_click={move || state.value().reset_performance()}
                                     />
                                 </ShowKeepAlive>
-                                <ShowKeepAlive condition={footer_simulation_visible}>
+                                <ShowKeepAlive condition={simulation_visible}>
                                     <Text
                                         style=TextStyle::CODE
                                         string={native_pixel_ratio_text}
@@ -368,14 +352,14 @@ pub fn build(state: Stored<State>) -> Panel {
     Panel {
         document,
         scope: owner.into_scope(),
-        set_keys,
-        set_entries,
-        set_summary,
-        set_performance,
-        set_renderer,
-        set_renderers,
-        set_selection,
-        set_compact,
+        keys,
+        entries,
+        summary,
+        performance,
+        renderer,
+        renderers,
+        selection,
+        compact,
         tree,
     }
 }
@@ -383,12 +367,12 @@ pub fn build(state: Stored<State>) -> Panel {
 pub struct Bar {
     pub document: Document,
     _scope: Scope,
-    pub set_selected: WriteSignal<usize>,
+    pub selected: Signal<usize>,
 }
 
 pub fn build_bar(state: Stored<State>) -> Bar {
     let owner = RootScope::new();
-    let (selected, set_selected) = create_signal(1);
+    let selected = create_signal(1);
     let document = beui_view::reactive::build(|| {
         view! {
             <Frame fill=ColorRole::Surface>
@@ -410,7 +394,7 @@ pub fn build_bar(state: Stored<State>) -> Bar {
                                     <ChoiceOption label="Inspector" />
                                 }}
                                 selected
-                                on_change={move |index| state.get().show_app(index == 0)}
+                                on_change={move |index| state.value().show_app(index == 0)}
                             />
                             <CloseButton @test_id={"inspector.bar.close"} state={state} />
                         </List>
@@ -423,7 +407,7 @@ pub fn build_bar(state: Stored<State>) -> Bar {
     Bar {
         document,
         _scope: owner.into_scope(),
-        set_selected,
+        selected,
     }
 }
 
@@ -433,12 +417,12 @@ fn SimulationPanel(
     responsive: Memo<bool>,
     handles_back: Memo<bool>,
 ) -> NodeId {
-    let simulated = state.get().simulated_pixels_per_point.get();
+    let simulated = state.value().simulated_pixels_per_point.get();
     let selected = PIXEL_RATIOS
         .iter()
         .position(|(_, ratio)| *ratio == simulated)
         .unwrap_or(0);
-    let theme = state.get().theme.get();
+    let theme = state.value().theme.get();
     let selected_theme = Theme::BUILT_IN
         .iter()
         .position(|(_, candidate)| *candidate == theme)
@@ -450,28 +434,28 @@ fn SimulationPanel(
                     <Checkbox
                         @test_id={"inspector.simulation.touch_emulation"}
                         label="Emulate touch with mouse"
-                        checked={state.get().touch_emulation.get()}
-                        on_change={move |enabled| state.get().touch_emulation.set(enabled)}
+                        checked={state.value().touch_emulation.get()}
+                        on_change={move |enabled| state.value().touch_emulation.set(enabled)}
                     />
                     <Checkbox
                         @test_id={"inspector.simulation.mouse_simulation"}
                         label="Simulate mouse with touch"
-                        checked={state.get().mouse_simulation.get()}
-                        on_change={move |enabled| state.get().mouse_simulation.set(enabled)}
+                        checked={state.value().mouse_simulation.get()}
+                        on_change={move |enabled| state.value().mouse_simulation.set(enabled)}
                     />
                     <Button
                         @test_id={"inspector.simulation.keyboard"}
                         label="Show or hide the on-screen keyboard"
                         variant=ButtonVariant::Secondary
-                        on_click={move || state.get().toggle_keyboard()}
+                        on_click={move || state.value().toggle_keyboard()}
                     />
                     <Checkbox
                         @test_id={"inspector.simulation.disable_animations"}
                         label="Disable animations"
-                        checked={state.get().disable_animations.get()}
+                        checked={state.value().disable_animations.get()}
                         on_change={move |enabled| {
-                            state.get().disable_animations.set(enabled);
-                            state.get().requested_motion.set(Some(if enabled { beui_core::animation::Motion::Instant } else { beui_core::animation::Motion::Animated }));
+                            state.value().disable_animations.set(enabled);
+                            state.value().requested_motion.set(Some(if enabled { beui_core::animation::Motion::Instant } else { beui_core::animation::Motion::Animated }));
                         }}
                     />
                     <Separator />
@@ -487,7 +471,7 @@ fn SimulationPanel(
                             selected={Some(selected)}
                             on_change={move |index: Option<usize>| {
                                 let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
-                                state.get().simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
+                                state.value().simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
                             }}
                         />
                     </List>
@@ -496,7 +480,7 @@ fn SimulationPanel(
                         @test_id={"inspector.simulation.responsive"}
                         label="Responsive design mode"
                         checked={responsive}
-                        on_change={move |_| state.get().toggle_responsive()}
+                        on_change={move |_| state.value().toggle_responsive()}
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
@@ -511,7 +495,7 @@ fn SimulationPanel(
                             selected={Some(selected_theme)}
                             on_change={move |index: Option<usize>| {
                                 if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
-                                    state.get().choose_theme(*theme);
+                                    state.value().choose_theme(*theme);
                                 }
                             }}
                         />
@@ -537,22 +521,22 @@ enum Swipe {
 
 #[component]
 fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
-    let (progress, set_progress) = create_signal(0.0_f32);
+    let progress = create_signal(0.0_f32);
     let swipe = StoredCell::new(Swipe::Idle);
     let dragging = StoredCell::new(false);
-    let (from_right, set_from_right) = create_signal(false);
+    let from_right = create_signal(false);
     let caption = create_memo(move || match handles_back.get() {
         true => "Drag to the end to go back, or let go early to cancel.".to_owned(),
         false => "Nothing in the app takes back: the system would leave it.".to_owned(),
     });
     let moved = move |value: f32| {
-        set_progress.set(value);
+        progress.set(value);
         match swipe.get() {
             Swipe::Done => return,
             Swipe::Idle if value <= 0.0 => return,
             Swipe::Idle => {
                 swipe.set(Swipe::Swiping);
-                state.get().simulate_back(BackGesture::Started {
+                state.value().simulate_back(BackGesture::Started {
                     edge: match from_right.get_untracked() {
                         true => BackEdge::Right,
                         false => BackEdge::Left,
@@ -561,16 +545,16 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
             }
             Swipe::Swiping => {}
         }
-        state.get().simulate_back(BackGesture::Progressed(value));
+        state.value().simulate_back(BackGesture::Progressed(value));
         if value >= 1.0 {
-            state.get().simulate_back(BackGesture::Invoked);
-            set_progress.set(0.0);
+            state.value().simulate_back(BackGesture::Invoked);
+            progress.set(0.0);
             swipe.set(match dragging.get() {
                 true => Swipe::Done,
                 false => Swipe::Idle,
             });
         } else if value <= 0.0 && !dragging.get() {
-            state.get().simulate_back(BackGesture::Cancelled);
+            state.value().simulate_back(BackGesture::Cancelled);
             swipe.set(Swipe::Idle);
         }
     };
@@ -580,9 +564,9 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
             return;
         }
         if swipe.replace(Swipe::Idle) == Swipe::Swiping {
-            state.get().simulate_back(BackGesture::Cancelled);
+            state.value().simulate_back(BackGesture::Cancelled);
         }
-        set_progress.set(0.0);
+        progress.set(0.0);
     };
     view! {
         <List spacing=TIMING_SPACING>
@@ -599,7 +583,7 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
                 @test_id={"inspector.simulation.back_from_right"}
                 label="Swipe from the right edge"
                 checked={from_right}
-                on_change={move |right| set_from_right.set(right)}
+                on_change={move |right| from_right.set(right)}
             />
         </List>
     }
@@ -607,10 +591,9 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
 
 #[component]
 fn FilterSection(state: Stored<State>) -> NodeId {
-    let (blur_text, set_blur_text) = create_signal(blur_label(state.get().blur.get()));
-    let (contrast_text, set_contrast_text) =
-        create_signal(contrast_label(state.get().contrast_reduction.get()));
-    let vision = state.get().color_vision.get();
+    let blur_text = create_signal(blur_label(state.value().blur.get()));
+    let contrast_text = create_signal(contrast_label(state.value().contrast_reduction.get()));
+    let vision = state.value().color_vision.get();
     let selected_vision = ColorVision::ALL
         .iter()
         .position(|(_, candidate)| *candidate == vision)
@@ -623,23 +606,23 @@ fn FilterSection(state: Stored<State>) -> NodeId {
             <Slider
                 @test_id={"inspector.simulation.blur"}
                 label="Blur"
-                value={state.get().blur.get()}
+                value={state.value().blur.get()}
                 min=0.0
                 max=MAX_BLUR
                 scale={SliderScale::Midpoint(BLUR_MIDPOINT)}
                 on_change={move |value| {
-                    state.get().set_blur(value);
-                    set_blur_text.set(blur_label(value));
+                    state.value().set_blur(value);
+                    blur_text.set(blur_label(value));
                 }}
             />
             <Text style=TextStyle::CAPTION string={contrast_text} />
             <Slider
                 @test_id={"inspector.simulation.contrast"}
                 label="Reduce contrast"
-                value={state.get().contrast_reduction.get()}
+                value={state.value().contrast_reduction.get()}
                 on_change={move |value| {
-                    state.get().set_contrast_reduction(value);
-                    set_contrast_text.set(contrast_label(value));
+                    state.value().set_contrast_reduction(value);
+                    contrast_text.set(contrast_label(value));
                 }}
             />
             <Text style=TextStyle::CAPTION string="Colour vision" />
@@ -653,7 +636,7 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                 selected={Some(selected_vision)}
                 on_change={move |index: Option<usize>| {
                     if let Some((_, vision)) = index.and_then(|index| ColorVision::ALL.get(index)) {
-                        state.get().choose_color_vision(*vision);
+                        state.value().choose_color_vision(*vision);
                     }
                 }}
             />
@@ -681,14 +664,14 @@ fn ScreenReaderSection(state: Stored<State>) -> NodeId {
             <Checkbox
                 @test_id={"inspector.accessibility.enabled"}
                 label="Expose the accessibility tree"
-                checked={state.get().accessibility.get()}
-                on_change={move |enabled| state.get().enable_accessibility(enabled)}
+                checked={state.value().accessibility.get()}
+                on_change={move |enabled| state.value().enable_accessibility(enabled)}
             />
             <Checkbox
                 @test_id={"inspector.screen_reader.enabled"}
                 label="Simulate a screen reader"
-                checked={state.get().screen_reader.get()}
-                on_change={move |enabled| state.get().enable_screen_reader(enabled)}
+                checked={state.value().screen_reader.get()}
+                on_change={move |enabled| state.value().enable_screen_reader(enabled)}
             />
             <CommandRow row=0 state />
             <CommandRow row=1 state={state} />
@@ -725,14 +708,14 @@ fn CommandRow(row: usize, state: Stored<State>) -> NodeId {
                 @test_id={format!("inspector.screen_reader.{left_id}")}
                 label={left_label.to_owned()}
                 variant=ButtonVariant::Secondary
-                on_click={move || state.get().command(left)}
+                on_click={move || state.value().command(left)}
             />
             <Button
                 @sizing=ItemSize::Percent(100.0)
                 @test_id={format!("inspector.screen_reader.{right_id}")}
                 label={right_label.to_owned()}
                 variant=ButtonVariant::Secondary
-                on_click={move || state.get().command(right)}
+                on_click={move || state.value().command(right)}
             />
         </List>
     }
@@ -800,14 +783,14 @@ fn PerformancePanel(
                         <Checkbox
                             @test_id={"inspector.performance.flash_changes"}
                             label="Flash changed elements"
-                            checked={state.get().flash_changes.get()}
-                            on_change={move |enabled| state.get().flash_changes.set(enabled)}
+                            checked={state.value().flash_changes.get()}
+                            on_change={move |enabled| state.value().flash_changes.set(enabled)}
                         />
                         <Checkbox
                             @test_id={"inspector.performance.flash_damage"}
                             label="Flash repainted regions"
-                            checked={state.get().flash_damage.get()}
-                            on_change={move |enabled| state.get().flash_damage.set(enabled)}
+                            checked={state.value().flash_damage.get()}
+                            on_change={move |enabled| state.value().flash_damage.set(enabled)}
                         />
                     </List>
                     <Separator />
@@ -847,7 +830,7 @@ fn RendererSection(
                     selected={active}
                     on_change={move |index: Option<usize>| {
                         if let Some(index) = index {
-                            state.get().choose_renderer(index);
+                            state.value().choose_renderer(index);
                         }
                     }}
                 />
@@ -994,7 +977,7 @@ fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
             glyph={ICON_ARROW_SELECTOR_TOOL.to_owned()}
             icon_only=true
             pressed={picking}
-            on_change={move |_| state.get().toggle_picking()}
+            on_change={move |_| state.value().toggle_picking()}
         />
     }
 }
@@ -1007,7 +990,7 @@ fn CloseButton(state: Stored<State>) -> NodeId {
             label="Close inspector"
             variant=ButtonVariant::Ghost
             size=IconButtonSize::Compact
-            on_click={move || state.get().close()}
+            on_click={move || state.value().close()}
         />
     }
 }
@@ -1023,14 +1006,13 @@ fn entry_field<T: Clone + Default + PartialEq + 'static>(
 
 #[component]
 fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
-    let key = row_key;
-    let kind = entry_field(&entries, key, |entry| entry.kind.to_owned());
-    let detail = entry_field(&entries, key, |entry| entry.detail.clone());
-    let size = entry_field(&entries, key, |entry| entry.size.clone());
+    let kind = entry_field(&entries, row_key, |entry| entry.kind.to_owned());
+    let detail = entry_field(&entries, row_key, |entry| entry.detail.clone());
+    let size = entry_field(&entries, row_key, |entry| entry.size.clone());
 
     view! {
         <List
-            @test_id={key.test_id()}
+            @test_id={row_key.test_id()}
             direction=Direction::Horizontal
             align=Align::Center
             spacing=ROW_SPACING

@@ -117,12 +117,12 @@ fn Stage(
     report_size: bool,
 ) -> NodeId {
     let target = create_memo(move || slides.target(selected.get()));
-    let (ratio, set_ratio) = create_signal(DEFAULT_RATIO);
+    let ratio = create_signal(DEFAULT_RATIO);
     let report = move |state: ChildState| {
-        let ratio = state.aspect_ratio.unwrap_or(DEFAULT_RATIO);
-        set_ratio.set(ratio);
+        let aspect = state.aspect_ratio.unwrap_or(DEFAULT_RATIO);
+        ratio.set(aspect);
         if report_size {
-            editor.set_intrinsic_size(Some(Vec2::new(SLIDE_HEIGHT * ratio, SLIDE_HEIGHT)));
+            editor.set_intrinsic_size(Some(Vec2::new(SLIDE_HEIGHT * aspect, SLIDE_HEIGHT)));
         }
     };
     let fitted = create_memo(move || match fit.get() {
@@ -209,7 +209,7 @@ fn Toolbar(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
 
 #[component]
 fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
-    let (over, set_over) = create_signal(false);
+    let over = create_signal(false);
     let position = create_memo(move || {
         let count = slides.count();
         let current = slides
@@ -232,7 +232,7 @@ fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     view! {
         <Frame visible={shown} height=PLAYBACK_HEIGHT>
             <Interactive
-                on_hover_change={move |hovered| set_over.set(hovered)}
+                on_hover_change={move |hovered| over.set(hovered)}
                 @test_id={"presentation.playback"}
             >
                 <Frame
@@ -313,7 +313,7 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
     let theme = use_theme();
     let editable = editor.editable();
     let read_only = editor.read_only();
-    let (ratio, set_ratio) = create_signal(DEFAULT_RATIO);
+    let ratio = create_signal(DEFAULT_RATIO);
     let target = create_memo(move || slides.target(Some(id)));
     let name = create_memo(move || {
         slides
@@ -397,7 +397,7 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                                     block={target}
                                     mode=ChildMode::Preview
                                     on_state={move |state: ChildState| {
-                                        set_ratio.set(state.aspect_ratio.unwrap_or(DEFAULT_RATIO));
+                                        ratio.set(state.aspect_ratio.unwrap_or(DEFAULT_RATIO));
                                     }}
                                 >|handle: ChildBlockHandle|
                                     <SlideStatus state={handle.state} />
