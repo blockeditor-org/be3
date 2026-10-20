@@ -186,8 +186,15 @@ view! {
 ```
 
 A callback prop (`Callback<V, R>` or `ClickCallback`) takes either a closure or
-a callback the component already has, so a wrapper passes its own `on_change`
-straight on rather than wrapping it in a closure that calls it.
+a callback the component already has, so a wrapper passes its own callback
+straight on rather than wrapping it in a closure that calls it. A `Callback<T>`
+also takes a `Signal<T>`, which it sets: `on_hover_change={hovered}`.
+
+State a control both shows and changes (`checked`, `value`, `open`,
+`selected`) is one `Binding<T>` prop rather than a value and an `on_change`:
+pass a signal (`<Slider value={volume} />`), leave it out for the control to
+own, or pass `Binding::new(read, write)` for derived state
+(guides/reactive.md, "Bindings").
 
 Do not wrap a prop in a `create_memo` just to read it twice. A memo adds a
 node to the graph, and a `T` that is not `PartialEq` cannot go in one at all.
@@ -2833,9 +2840,9 @@ without undoing visual decisions.
 State that belongs to the component's own handlers should be captured directly.
 Use `set_component_state` only when tests or host integration need to read the
 state from the component's `NodeId`, and expose a focused helper such as
-`toggle_checked(&Document, NodeId)`. Controlled state must listen to its prop
-and report user changes through its callback; see `unstyled::Toggle` and
-`unstyled::TextInput` for the established pattern.
+`toggle_checked(&Document, NodeId)`. State the user changes is a `Binding<T>`
+prop that the component reads and writes, with no copy of it kept in sync; see
+`unstyled::Toggle` for the pattern.
 
 ## Develop a styled component
 
@@ -2847,9 +2854,9 @@ visual primitives:
 
 ```rust
 #[component]
-pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bool>) -> NodeId {
+pub fn Checkbox(label: Prop<String>, checked: Binding<bool>) -> NodeId {
     view! {
-        <Toggle checked label on_change>|handle: ToggleHandle|
+        <Toggle checked label>|handle: ToggleHandle|
             <CheckboxFace handle />
         </Toggle>
     }
