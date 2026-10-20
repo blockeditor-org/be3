@@ -28,11 +28,20 @@ impl<T> Copy for Binding<T> {}
 
 impl<T: Clone + 'static> Binding<T> {
     pub fn new(read: impl IntoProp<T>, write: impl IntoCallback<T, ()>) -> Self {
-        let read = match read.into_prop() {
-            Prop::Static(value) => Getter::new(move || value.clone()),
-            Prop::Dynamic(read) => read,
-        };
-        Self(Source::Derived(read, write.into_callback()))
+        let write = write.into_callback();
+        match read.into_prop() {
+            Prop::Static(value) => {
+                let signal = create_signal(value);
+                Self(Source::Derived(
+                    Getter::of_signal(signal.read_only()),
+                    Callback::new(move |value: T| {
+                        signal.set_unconditionally(value.clone());
+                        write.call(value);
+                    }),
+                ))
+            }
+            Prop::Dynamic(read) => Self(Source::Derived(read, write)),
+        }
     }
 
     pub fn map<U: Clone + PartialEq + 'static>(

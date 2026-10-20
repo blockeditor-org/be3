@@ -651,7 +651,9 @@ component's side:
   elsewhere: `read` is anything `IntoProp<T>` (a memo, a `Prop`), and `write`
   anything `IntoCallback<T>`, called with the value the component wants. The
   component shows what `read` says, so a write the callback ignores changes
-  nothing on screen, and `set` skips a write equal to the value read.
+  nothing on screen, and `set` skips a write equal to the value read. A
+  plain value as `read` seeds a signal the binding owns, which each write
+  updates before calling `write`: an uncontrolled control that also reports.
 
 ```rust
 let selected = create_memo(move || state.tool.get() == tool);

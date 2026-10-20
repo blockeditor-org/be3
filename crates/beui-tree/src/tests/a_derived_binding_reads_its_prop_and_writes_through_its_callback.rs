@@ -25,4 +25,10 @@ fn a_derived_binding_reads_its_prop_and_writes_through_its_callback() {
     assert_eq!(writes.get(), 2);
     fahrenheit.update(|value| *value += 18.0);
     assert_eq!(celsius.get_untracked(), 10.0);
+
+    let heard = create_signal(None);
+    let seeded = Binding::new(true, move |value: bool| heard.set(Some(value)));
+    seeded.set(false);
+    assert!(!seeded.get_untracked());
+    assert_eq!(heard.get_untracked(), Some(false));
 }
