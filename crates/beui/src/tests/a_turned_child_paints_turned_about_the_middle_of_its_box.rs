@@ -32,12 +32,13 @@ fn a_turned_child_paints_turned_about_the_middle_of_its_box() {
                     color,
                     rotation,
                     ..
-                } if *color == MARK => Some(rotation.bounds(*rect)),
+                } if *color == MARK => Some((rotation.bounds(*rect), rotation.angle)),
                 _ => None,
             })
             .expect("the child paints")
     };
-    let bounds = painted(&output);
+    let (bounds, angle) = painted(&output);
+    assert!((angle - std::f32::consts::FRAC_PI_2).abs() < 1e-6, "turned clockwise: {angle}");
     assert!(
         (bounds.min - turned.min).length() < 0.01 && (bounds.max - turned.max).length() < 0.01,
         "the turned child covers the box it was turned into: {bounds:?} in {turned:?}"
@@ -46,7 +47,8 @@ fn a_turned_child_paints_turned_about_the_middle_of_its_box() {
     with_reactive_scope(harness.document_mut(), move || quarters.set(2));
     let output = harness.frame(Vec::new());
     assert_eq!(harness.rect(turn.get()).size(), vec2(40.0, 20.0));
-    let bounds = painted(&output);
+    let (bounds, angle) = painted(&output);
+    assert!((angle - std::f32::consts::PI).abs() < 1e-6, "turned half way: {angle}");
     let upright = harness.rect(turn.get());
     assert!(
         (bounds.min - upright.min).length() < 0.01 && (bounds.max - upright.max).length() < 0.01,

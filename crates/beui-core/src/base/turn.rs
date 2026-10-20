@@ -12,6 +12,10 @@ pub struct TurnNode {
 }
 
 impl TurnNode {
+    pub fn quarter_turns(&self) -> u8 {
+        self.quarters
+    }
+
     fn sideways(&self) -> bool {
         self.quarters % 2 == 1
     }
@@ -31,6 +35,10 @@ pub fn turn_angle(quarters: u8) -> f32 {
 impl Element for TurnNode {
     fn paints_from_layout(&self) -> bool {
         false
+    }
+
+    fn turns_children(&self) -> bool {
+        true
     }
 
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {

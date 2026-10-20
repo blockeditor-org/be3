@@ -8,6 +8,7 @@ use block_editor_beui::{HostDisplay, HostDisplayMode};
 use super::modes::{
     Size, effective, mode_label, rate_label, rates, saved, size_label, size_of, sizes,
 };
+use super::rotation::RotationPicker;
 use super::ui::Settings;
 
 #[component]
@@ -85,6 +86,19 @@ pub(super) fn ScreenSection(
     });
     let resolution_id = format!("display.{connector}.resolution");
     let refresh_id = format!("display.{connector}.refresh");
+    let turned = create_memo({
+        let id = id.clone();
+        move || root.get().screen(&id).rotation.is_some()
+    });
+    let unturn = {
+        let id = id.clone();
+        move || {
+            let edit = root.with_untracked(|root| root.set_rotation(&id, None));
+            settings.operate(edit);
+        }
+    };
+    let picker_id = id.clone();
+    let picker_connector = connector.clone();
     let set = Callback::new(move |mode: Option<HostDisplayMode>| {
         let edit = root.with_untracked(|root| root.set_mode(&id, mode.map(saved)));
         settings.operate(edit);
@@ -151,6 +165,25 @@ pub(super) fn ScreenSection(
                             set.call(mode);
                         }
                     }}
+                />
+            </SettingsRow>
+            <SettingsRow
+                label="Rotation"
+                description="Pick the screen that looks upright as you hold it."
+                separated=true
+                modified={turned}
+                locked={read_only}
+                reset_test_id={format!("display.{connector}.rotation.reset")}
+                on_reset={unturn}
+            >
+                <RotationPicker
+                    id={picker_id}
+                    connector={picker_connector}
+                    settings={settings}
+                    root={root}
+                    merged={merged}
+                    display={display}
+                    read_only={read_only}
                 />
             </SettingsRow>
         </SettingsSection>

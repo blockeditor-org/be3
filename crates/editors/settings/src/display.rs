@@ -7,6 +7,7 @@ use block_editor_beui::beui::reactive::*;
 mod appearance;
 mod modes;
 mod power;
+mod rotation;
 mod screens;
 mod ui;
 

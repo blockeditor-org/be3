@@ -1,9 +1,9 @@
-use block_editor_beui::be_block::display_settings::{DisplayMode, ScreenOff};
+use block_editor_beui::be_block::display_settings::{DisplayMode, Rotation, ScreenOff};
 use block_editor_beui::be_block::{
     DisplaySettings, DisplaySettingsContent, Root, Settings, SettingsContent, SettingsProfile,
     SettingsProfileContent, Theme,
 };
-use block_editor_beui::beui::{Document, Key, NodeId};
+use block_editor_beui::beui::{Document, Key, NodeId, TurnNode, Vec2};
 use block_editor_beui::{
     BlockInfo, BlockParent, Displays, EditorHost, HostDisplay, HostDisplayMode, HostRotation, OwnedEditor, Power,
     PowerAvailability,
@@ -15,20 +15,25 @@ use crate::display::DisplaySettingsApp;
 
 mod a_profile_shows_the_theme_it_inherits;
 mod choosing_a_refresh_rate_stores_the_mode;
+mod choosing_a_rotation_stores_it_and_the_turned_screen_marks_it_now;
+mod each_tile_is_drawn_turned_from_the_rotation_shown_now;
 mod choosing_a_resolution_uses_its_fastest_refresh_rate;
 mod choosing_a_scale_stores_it;
 mod choosing_a_theme_stores_it;
 mod choosing_never_keeps_the_screens_on;
 mod outside_a_session_only_the_appearance_is_shown;
 mod resetting_a_display_returns_it_to_its_default;
+mod the_rotations_are_named_from_how_the_panel_is_built;
 mod the_lock_follows_the_screens_until_given_a_time_of_its_own;
 
+const SESSION_HEIGHT: f32 = 1000.0;
 const MONITOR: &str = "DEL|DELL AW2524H|7XQ2B34";
 const THEME: &str = "display.theme";
 const SCALE: &str = "display.scale";
 const RESOLUTION: &str = "display.DP-1.resolution";
 const REFRESH: &str = "display.DP-1.refresh";
 const RESET: &str = "display.DP-1.reset";
+const ROTATION_RESET: &str = "display.DP-1.rotation.reset";
 const SCREEN_OFF: &str = "display.screen-off";
 const LOCK_AFTER: &str = "display.lock-after";
 
@@ -47,7 +52,9 @@ impl Harness {
         let host = EditorHost::default();
         host.set_host_value::<Displays>(&displays);
         host.set_host_value::<Power>(&PowerAvailability::default());
-        Self::with_host(host)
+        let mut harness = Self::with_host(host);
+        harness.editor.set_size(Vec2::new(800.0, SESSION_HEIGHT));
+        harness
     }
 
     fn with_host(host: EditorHost) -> Self {
@@ -118,6 +125,29 @@ impl Harness {
             .root()
             .is_some_and(|root| text_within(document, root, words))
     }
+}
+
+fn turned(rotation: HostRotation) -> HostDisplay {
+    HostDisplay {
+        rotation,
+        ..gaming_monitor()
+    }
+}
+
+fn tile(rotation: Rotation) -> String {
+    format!("display.DP-1.rotation.{}", rotation.degrees())
+}
+
+fn turns_within(document: &Document, id: NodeId) -> Option<u8> {
+    if document.arena.contains(id)
+        && let Some(turn) = document.arena.get(id).as_any().downcast_ref::<TurnNode>()
+    {
+        return Some(turn.quarter_turns());
+    }
+    document
+        .children(id)
+        .into_iter()
+        .find_map(|child| turns_within(document, child))
 }
 
 fn text_within(document: &Document, id: NodeId, words: &str) -> bool {
