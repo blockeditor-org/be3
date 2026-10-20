@@ -29,12 +29,11 @@ const ARROW_SPACING: f32 = 4.0;
 #[component]
 pub fn Select(
     options: Children<ChoiceOption>,
-    selected: Prop<Option<usize>>,
+    #[prop(default = None)] selected: Binding<Option<usize>>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] placeholder: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = Extent::at_most(TRIGGER_MAX_WIDTH))] width: Prop<Extent>,
-    on_change: Callback<Option<usize>>,
 ) -> NodeId {
     let options = options.into_run();
     let placeholder = create_memo(move || placeholder.get());
@@ -44,7 +43,6 @@ pub fn Select(
             selected
             disabled
             label
-            on_change={on_change}
             search_placeholder="Search"
             search_content={|handle| view! {
                 <SearchField handle />

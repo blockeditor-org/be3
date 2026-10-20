@@ -392,11 +392,10 @@ fn EnumValue(
                     }
                 }</ForEach>
             }}
-            selected={selected}
+            selected={Binding::new(selected, picked)}
             label="Value"
             disabled={disabled}
             @test_id={id}
-            on_change={picked}
         />
     }
 }
@@ -486,7 +485,7 @@ fn DatetimeValue(
         });
     };
     view! {
-        <DateTimeField value={moment} label disabled @test_id={id} on_change={edited} />
+        <DateTimeField value={Binding::new(moment, edited)} label disabled @test_id={id} />
     }
 }
 
@@ -608,11 +607,10 @@ fn RelationValue(
                         }
                     }</ForEach>
                 }}
-                selected={selected}
+                selected={Binding::new(selected, picked)}
                 label="Row"
                 disabled={disabled}
                 @test_id={id}
-                on_change={picked}
             />
         </List>
     }
@@ -720,11 +718,10 @@ fn LinksValue(
                         }
                     }</ForEach>
                 }}
-                selected={None}
+                selected={Binding::new(None, added)}
                 label="Add a link"
                 disabled={disabled}
                 @test_id={add_id}
-                on_change={added}
             />
         </List>
     }

@@ -606,8 +606,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                 />
                 <Text style=TextStyle::CAPTION string="Role" />
                 <Tabs
-                    selected={role_index}
-                    on_change={move |index: usize| administrator.set(index == 1)}
+                    selected={Binding::new(role_index, move |index: usize| administrator.set(index == 1))}
                     options={view! {
                         <ChoiceOption label={OrganizationRole::Editor.label()} />
                         <ChoiceOption label={OrganizationRole::Administrator.label()} />

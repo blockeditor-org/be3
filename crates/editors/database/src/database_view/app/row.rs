@@ -417,12 +417,11 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                                 }
                             }</ForEach>
                         }}
-                        selected={None}
+                        selected={Binding::new(None, added)}
                         label="Link a row"
                         placeholder="Link a row"
                         disabled={add_off}
                         @test_id={format!("database-view.detail.links.{field}.add")}
-                        on_change={added}
                     />
                 </Frame>
             </List>

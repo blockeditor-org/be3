@@ -176,6 +176,7 @@ pub fn build(state: Stored<State>) -> Panel {
     let renderer = create_signal(RendererRows::new());
     let renderers = create_signal(RendererChoices::default());
     let tab = create_signal(InspectorTab::default());
+    let tab_index = create_signal(0usize);
     let selection = create_signal(Vec::<Key>::new());
     let compact = create_signal(false);
     let tree = NodeRef::new();
@@ -249,11 +250,11 @@ pub fn build(state: Stored<State>) -> Panel {
                                         <ChoiceOption label="Perf" />
                                         <ChoiceOption label="Sim" />
                                     }}
-                                    selected=0
-                                    on_change={move |index| {
+                                    selected={Binding::new(tab_index, move |index| {
+                                        tab_index.set(index);
                                         state.value().set_tab(index);
                                         tab.set(InspectorTab::from_index(index));
-                                    }}
+                                    })}
                                 />
                             </List>
                         </Frame>
@@ -393,8 +394,10 @@ pub fn build_bar(state: Stored<State>) -> Bar {
                                     <ChoiceOption label="App" />
                                     <ChoiceOption label="Inspector" />
                                 }}
-                                selected
-                                on_change={move |index| state.value().show_app(index == 0)}
+                                selected={Binding::new(selected, move |index| {
+                                    selected.set(index);
+                                    state.value().show_app(index == 0);
+                                })}
                             />
                             <CloseButton @test_id={"inspector.bar.close"} state={state} />
                         </List>
@@ -422,11 +425,13 @@ fn SimulationPanel(
         .iter()
         .position(|(_, ratio)| *ratio == simulated)
         .unwrap_or(0);
+    let ratio = create_signal(Some(selected));
     let theme = state.value().theme.get();
     let selected_theme = Theme::BUILT_IN
         .iter()
         .position(|(_, candidate)| *candidate == theme)
         .unwrap_or(0);
+    let theme = create_signal(Some(selected_theme));
     view! {
         <Scroll>
             <Frame padding=BODY_PADDING>
@@ -465,11 +470,11 @@ fn SimulationPanel(
                                     <ChoiceOption label />
                                 </ForEach>
                             }}
-                            selected={Some(selected)}
-                            on_change={move |index: Option<usize>| {
+                            selected={Binding::new(ratio, move |index: Option<usize>| {
+                                ratio.set(index);
                                 let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
                                 state.value().simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
-                            }}
+                            })}
                         />
                     </List>
                     <Separator />
@@ -488,12 +493,12 @@ fn SimulationPanel(
                                     <ChoiceOption label />
                                 </ForEach>
                             }}
-                            selected={Some(selected_theme)}
-                            on_change={move |index: Option<usize>| {
+                            selected={Binding::new(theme, move |index: Option<usize>| {
+                                theme.set(index);
                                 if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
                                     state.value().choose_theme(*theme);
                                 }
-                            }}
+                            })}
                         />
                     </List>
                     <Separator />
@@ -594,6 +599,7 @@ fn FilterSection(state: Stored<State>) -> NodeId {
         .iter()
         .position(|(_, candidate)| *candidate == vision)
         .unwrap_or(0);
+    let vision = create_signal(Some(selected_vision));
     let vision_labels = labels(&ColorVision::ALL);
     view! {
         <List spacing=TIMING_SPACING>
@@ -627,12 +633,12 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                         <ChoiceOption label />
                     </ForEach>
                 }}
-                selected={Some(selected_vision)}
-                on_change={move |index: Option<usize>| {
+                selected={Binding::new(vision, move |index: Option<usize>| {
+                    vision.set(index);
                     if let Some((_, vision)) = index.and_then(|index| ColorVision::ALL.get(index)) {
                         state.value().choose_color_vision(*vision);
                     }
-                }}
+                })}
             />
         </List>
     }
@@ -817,12 +823,11 @@ fn RendererSection(
                             <ChoiceOption label />
                         </ForEach>
                     }}
-                    selected={active}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(active, move |index: Option<usize>| {
                         if let Some(index) = index {
                             state.value().choose_renderer(index);
                         }
-                    }}
+                    })}
                 />
             </Show>
             <Show condition={missing}>

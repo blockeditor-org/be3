@@ -15,10 +15,9 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
                         <unstyled::ChoiceOption label="Two" />
                         <unstyled::ChoiceOption label="Three" />
                     }}
-                    selected=None
-                    on_change={move |value| {
+                    selected={reporting(None, move |value| {
                         changes.update(|changes| changes.push(value))
-                    }}
+                    })}
                 />
             },
             view! {

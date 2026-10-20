@@ -397,13 +397,12 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         </List>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Select
-                                selected={pending_access}
-                                label="Access to grant"
-                                on_change={move |index: Option<usize>| {
+                                selected={Binding::new(pending_access, move |index: Option<usize>| {
                                     if let Some(access) = index.and_then(|index| GRANTABLE.get(index)) {
                                         act.call(ShareAction::PendingAccess(*access));
                                     }
-                                }}
+                                })}
+                                label="Access to grant"
                                 options={view! {
                                     <ChoiceOption label={AccessLevel::Edit.label()} />
                                     <ChoiceOption label={AccessLevel::View.label()} />
@@ -559,9 +558,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                     </Show>
                     <Show condition={editable}>
                         <Select
-                            selected={selected}
-                            label="Access"
-                            on_change={move |index: Option<usize>| {
+                            selected={Binding::new(selected, move |index: Option<usize>| {
                                 let Some(member) = member.get_untracked() else {
                                     return;
                                 };
@@ -571,7 +568,8 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                 if access != member.access {
                                     act.call(ShareAction::SetAccess(member.id, access));
                                 }
-                            }}
+                            })}
+                            label="Access"
                             options={view! {
                                 <ChoiceOption label={AccessLevel::Edit.label()} />
                                 <ChoiceOption label={AccessLevel::View.label()} />

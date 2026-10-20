@@ -226,15 +226,14 @@ fn Pointers(
                     }}
                     @sizing=ItemSize::Percent(100.0)
                     width={Extent::fraction(1.0)}
-                    selected={selected}
-                    label="Pointer"
-                    @test_id={"input.pointer"}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(selected, move |index: Option<usize>| {
                         let key = index
                             .and_then(|index| index.checked_sub(1))
                             .and_then(|index| keys.with_untracked(|keys| keys.get(index).cloned()));
                         chosen.set(key);
-                    }}
+                    })}
+                    label="Pointer"
+                    @test_id={"input.pointer"}
                 />
             </SettingsRow>
             <ForEach keys={scopes}>|scope: Option<DeviceKey>|

@@ -232,16 +232,15 @@ pub(super) fn DeviceSection(setup: DeviceSetup, blocked: Memo<bool>) -> NodeId {
                             <ChoiceOption label={class.name().to_owned()} />
                         </ForEach>
                     }}
-                    selected={selected}
+                    selected={Binding::new(selected, move |index: Option<usize>| {
+                        if let Some(class) = index.and_then(|index| DeviceClass::ALL.get(index)) {
+                            setup.choose(*class);
+                        }
+                    })}
                     label="Kind of device"
                     placeholder="Choose"
                     disabled={locked}
                     @test_id={"setup.kind"}
-                    on_change={move |index: Option<usize>| {
-                        if let Some(class) = index.and_then(|index| DeviceClass::ALL.get(index)) {
-                            setup.choose(*class);
-                        }
-                    }}
                 />
             </SettingsRow>
         </SettingsSection>

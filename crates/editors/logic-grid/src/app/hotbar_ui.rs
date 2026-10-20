@@ -535,8 +535,7 @@ fn ScalePicker(session: Session, output: bool) -> NodeId {
                     <ChoiceOption label={format!("{value}x")} />
                 </ForEach>
             }}
-            selected={selected}
-            on_change={chose}
+            selected={Binding::new(selected, chose)}
         />
     }
 }

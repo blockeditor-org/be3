@@ -144,16 +144,15 @@ fn DefaultEditor(
                         }
                     }</ForEach>
                 }}
-                selected={selected}
-                label={name}
-                disabled={read_only}
-                @test_id={format!("default-editors.{block_type}")}
-                on_change={move |index: Option<usize>| {
+                selected={Binding::new(selected, move |index: Option<usize>| {
                     let chosen = index.and_then(|index| index.checked_sub(1)).and_then(|index| {
                         choices.with_untracked(|choices| choices.editors.get(index).map(|(id, _)| *id))
                     });
                     set.call(chosen);
-                }}
+                })}
+                label={name}
+                disabled={read_only}
+                @test_id={format!("default-editors.{block_type}")}
             />
         </LayeredSettingsRow>
     }

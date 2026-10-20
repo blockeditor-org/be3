@@ -9,23 +9,18 @@ use beui_view::reactive::*;
 #[component]
 pub fn Tabs(
     options: Children<ChoiceOption>,
-    selected: Prop<usize>,
-    on_change: Callback<usize>,
+    #[prop(default = 0)] selected: Binding<usize>,
 ) -> NodeId {
     let options = options.into_run();
     let count = options.clone();
-    let selected = Prop::dynamic(move || Some(selected.get().min(count.len().saturating_sub(1))));
+    let shown = Prop::dynamic(move || Some(selected.get().min(count.len().saturating_sub(1))));
+    let chosen = Binding::new(shown, move |chosen: Option<usize>| {
+        if let Some(chosen) = chosen {
+            selected.set(chosen);
+        }
+    });
     view! {
-        <Choice
-            options
-            selected
-            kind=Kind::Tabs
-            on_change={move |selected: Option<usize>| {
-                if let Some(selected) = selected {
-                    on_change.call(selected);
-                }
-            }}
-        >|handle|
+        <Choice options selected={chosen} kind=Kind::Tabs>|handle|
             <OptionFace kind=Kind::Tabs handle />
         </Choice>
     }
