@@ -963,10 +963,11 @@ one block for everything about what the device shows: the theme and the scale,
 which `sync_ui_settings` takes from the display settings last applied (the scale
 is beui's zoom factor, multiplied into the screen's own pixels per point); a
 `ScreenSettings` per screen (a mode and a rotation, keyed by the monitor's EDID
-make, model and serial, or by its connector when it has no EDID), whose modes go
-to the seat's outputs through `beui_adapter_drm::DisplayControl`, which switches
-mode live (the rotation is stored but not applied yet); whether the bar shows a
-rotate button; and when the screens turn off and lock. Every setting is an `Option`, and an unset one means the default:
+make, model and serial, or by its connector when it has no EDID), whose modes and
+rotations go to the seat's outputs through `beui_adapter_drm::DisplayControl`,
+which switches both live (guides/linux_desktop.md says how a screen is turned),
+and which reports each monitor's applied rotation with its modes; whether the
+bar shows a rotate button; and when the screens turn off and lock. Every setting is an `Option`, and an unset one means the default:
 libinput's own for a pointer setting, which the seat reports per device and an
 editor reads as the `InputDevices` host value, and for a monitor its preferred
 resolution at the fastest refresh rate it offers there, which the seat reports
@@ -977,8 +978,8 @@ applies that at startup, the theme and scale with it, even before anyone signs
 in; the block stays the source of truth. A kind of setting
 the app applies itself implements `local_settings::LocalSettings` and is kept by
 a `SettingsSync`; its `apply` answers whether the settings may be saved now.
-Display settings may not until someone keeps them: a change that moves what a
-connected monitor shows, or a monitor started at a fastest rate other than its
+Display settings may not until someone keeps them: a change of mode that moves what a
+connected monitor shows (a rotation applies and saves at once), or a monitor started at a fastest rate other than its
 preferred mode that it was never kept at, opens the host's "Keep these display
 settings?" prompt (`styled::KeepChanges`, a card on every screen) in
 `display::guard`. It is the host's because it must work before any shell plugin
@@ -986,7 +987,11 @@ runs. Each change is a round (`Guard::prompt`): another change while asking
 starts a new round and a full countdown, and an answer counts only for the
 round it was given in. Keep saves, storing a kept default as the monitor's mode;
 Revert, Escape or 15 seconds of the frame clock, which the guard counts itself,
-put back the earlier modes, or the preferred mode for an untried default, and `SettingsSync::commit` writes
+put back the earlier modes, or the preferred mode for an untried default. The guard
+answers with modes per screen, which `display::keep` and `display::revert` write as
+edits on the top layer's own content (`SettingsSync::top`), so a screen's register in
+that block never picks up a rotation it only inherits, and `SettingsSync::commit` applies
+them to that layer and layers the result again. It writes
 those edits into the block too, holding them until its content is loaded and reading
 the block with them on top until a revision holds them.
 `be::hold` opens a
@@ -1065,7 +1070,11 @@ and `on_reset` as a row does, and with `reset_confirm` its Reset asks in a dialo
 first, for a reset that deletes the block it opens.
 A page shows a section only where the host can back it: the settings plugin's
 Display page (`editors/settings`, `display`) always has Appearance, but a
-section per screen only once the host offers `Displays`, and Power and lock only
+section per screen only once the host offers `Displays` (its mode and its
+rotation: four tiles, each a little screen drawn turned by that rotation less the
+one the host reports now, so the tile that looks upright to the person holding the
+device is the one to pick, named Landscape, Portrait and their flipped turns from
+whether the panel is wider than tall), and Power and lock only
 once it offers `Power`, which only a `--session` publishes. Its Input page
 (`input`) shows its sections only once the host offers `InputDevices`, which
 likewise only a `--session` publishes, and says so otherwise.
