@@ -7,7 +7,7 @@ it to be asked again); anything else builds on Namespace.
 
 | `BE3_BUILD_SERVER` | Server | Key | Claude Code Cloud Session |
 |---|---|---|---|
-| `namespace` (the default, and CI's) | Namespace's remote execution | `authorization: Bearer KEY` to its waker | Needs `BE3_NAMESPACE_KEY` |
+| `namespace` (the default, and CI's) | Namespace's remote execution | the API gateway's header, to its waker | Should work with 0 configuration |
 | `api.be3.pfg.pw` | our own NativeLink server | `authorization: Bearer KEY` | Should work with 0 configuration |
 | `buildbuddy` | BuildBuddy's `remote.buildbuddy.io` | `x-buildbuddy-api-key: KEY` | Currently not working |
 | `local` | a NativeLink server of your own, at `host:port` | none, and no TLS | Not powerful enough to host |
@@ -21,10 +21,13 @@ The servers share nothing: each has its own cache and its own key.
 name as `be3.build_server`; `worker_properties` (`buck/tools/defs.bzl`) reads
 that to pick the workers' image, since Namespace runs only its own copy of it.
 
-A server other than `local` takes its key from:
+Namespace's waker is behind the API gateway, so `namespace` takes the
+gateway's `Be3-Gateway-Authorization` header from `BE3_AUTHORIZATION`, as
+`./scripts/be` does (guides/tracker.md); CI sets it, and in an agent's cloud
+session the proxy adds the header itself. A server other than `namespace` and
+`local` takes its key from:
 
-1. `BE3_BUILD_SERVER_KEY` in the environment, or `BE3_NAMESPACE_KEY` for
-   `namespace`, so that an environment can hold both
+1. `BE3_BUILD_SERVER_KEY` in the environment
 2. `.build-server-key.SERVER` at the root of the checkout
 3. `~/.config/be3/build-server-key.SERVER`
 
@@ -35,29 +38,7 @@ In an agent's cloud session the proxy adds the key to requests for
 `api.be3.pfg.pw`, and `BE3_BUILD_SERVER_KEY` is a
 placeholder; there is no key for BuildBuddy there.
 
-## When a build hangs or keeps failing
-
-The servers fail in different ways:
-
-- **Namespace** is the fastest, but now and then never finishes a build: an
-  action sits at `[re_execute]` or queued for hours while nothing else moves.
-  It does not recover on its own, so stop the command rather than wait.
-- **`api.be3.pfg.pw`** always finishes, but runs slower.
-
-To move off a server that hangs or keeps failing, run the command again with
-another one, for that command or, exported, for the rest of the session:
-
-```
-BE3_BUILD_SERVER=api.be3.pfg.pw ./scripts/verify
-```
-
-You may also need to kill buck's daemon (`./scripts/buck kill`)
-
-`./scripts/buck` rewrites `.buckconfig.local` and restarts the buck2 daemon on
-every change of server. The servers share no cache, so the first build on a
-server rebuilds everything it has not built before, which is most of the
-workspace for a server that has not built this branch; switching pays off for
-a build that is stuck, not for one that is merely slow.
+## When a build keeps failing
 
 Behind an HTTPS proxy, as in an agent's cloud session, buck2 reaches the
 server through `scripts/internal/re-relay`, whose errors are in
@@ -67,11 +48,10 @@ server through `scripts/internal/re-relay`, whose errors are in
   on the way. buck2 fails the command with an infrastructure error (exit status
   2), and `./scripts/buck` tries such a command three times in all
   (`BE3_BUCK_ATTEMPTS`), each time finding what finished cached. A command that
-  fails every time is a server that is down or overloaded: switch.
+  fails every time is a server that is down or overloaded.
 - **`the proxy answered 401 Unauthorized`**: the proxy has no key for the host
   (`credentials missing`) or refused the one it has (`invalid token`): the
-  session has no key for that server. Switch to a server the
-  session has a key for.
+  session has no key for that server.
 
 Each checkout has relays of its own, on ports picked from its path
 (guides/buck2.md), so two checkouts on one machine can build on different
@@ -89,12 +69,12 @@ that holds the action cache and the CAS (`storageh-…`).
 Namespace shuts the cluster down when it has been idle for a while, and its
 hosts then answer 404. So no host is checked in: `./scripts/buck` asks
 `https://api.be3.pfg.pw/build/namespace` (`namespace_url` in
-`scripts/internal/common.sh`) with `authorization: Bearer KEY`, and gets back
+`scripts/internal/common.sh`) through the API gateway, and gets back
 the buck2 configuration that names the executor, the storage and the
 `x-nsc-ingress-auth` header that authenticates to them. It keeps that answer in
 `target/namespace/`, writes it into `.buckconfig.local`, and asks again when
 the executor stops answering, when the answer is three and a half hours old
-(an answer lasts about four), or when the key changes. The answer's age counts
+(an answer lasts about four), or when the gateway's header changes. The answer's age counts
 from its setup, which the waker sends as an `age` header. Builds never run
 `nsc`.
 
@@ -112,22 +92,10 @@ count against the workspace's 32 vCPU limit.
 
 ### Hosting the waker
 
-The waker checks no credentials, so it listens on localhost and the host's
-Caddy checks the key, ahead of the API gateway's own rules:
-
-```
-api.be3.pfg.pw {
-	@namespace path /build/namespace
-	handle @namespace {
-		@unauthorized not header Authorization "Bearer {$BE3_NAMESPACE_KEY}"
-		respond @unauthorized 401
-		reverse_proxy 127.0.0.1:9091
-	}
-	# the rest of the site
-}
-```
-
-with the key in Caddy's environment, and the waker run as a service:
+The waker checks no credentials, so it listens on localhost behind the API
+host's Caddy, which routes `/build/namespace` to it after the gateway's check
+of `Be3-Gateway-Authorization`, like every other API path (guides/hosting.md).
+It runs as a service:
 
 ```
 namespace-waker --token ns-token.json --nsc ./nsc --addr 127.0.0.1:9091
@@ -146,13 +114,9 @@ https://cloud.namespace.so/user/sessions:
 nsc reapi create-token --no_expiry --token ns-token.json
 ```
 
-### The key
-
-- **CI:** `BE3_NAMESPACE_KEY` is the repository secret of that name.
-- **An agent's cloud session:** `BE3_NAMESPACE_KEY` is set in the
-  environment's variables. When `HTTPS_PROXY` is set, `./scripts/buck` reaches
-  the waker through it, and buck2 reaches the cluster through
-  `scripts/internal/re-relay` (guides/buck2.md).
+When `HTTPS_PROXY` is set, `./scripts/buck` reaches the waker through it, and
+buck2 reaches the cluster through `scripts/internal/re-relay`
+(guides/buck2.md).
 
 ### The workers' image
 

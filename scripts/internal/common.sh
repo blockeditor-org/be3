@@ -378,18 +378,19 @@ write_if_changed() {
 # (buck/tools/defs.bzl).
 #
 # Namespace's cluster shuts down when it has had nothing to do for a while, so
-# its hosts are asked rather than kept anywhere, of `be-server namespace` at
-# namespace_url, which runs `nsc reapi setup buck2` for every machine that
-# builds: it starts the cluster if it is down and names its executor, its
+# its hosts are asked rather than kept anywhere, of namespace-waker at
+# namespace_url, behind the API host's gateway, which runs
+# `nsc reapi setup buck2` for every machine that builds: it starts the cluster if it is down and names its executor, its
 # storage and the header that authenticates to them. That answer is kept in
 # target/namespace/ and asked again when the executor stops answering, when it
-# is three and a half hours old (an answer lasts about four), or when the key
-# changes. The age is counted from when nsc wrote it, which the waker sends as
-# an age header.
+# is three and a half hours old (an answer lasts about four), or when the
+# gateway's header changes. The age is counted from when nsc wrote it, which the waker sends as
+# an age header. The gateway's Be3-Gateway-Authorization header is
+# BE3_AUTHORIZATION, as for ./scripts/be; in an agent's session the proxy adds
+# it instead.
 #
-# Each server's key is BE3_BUILD_SERVER_KEY, or BE3_NAMESPACE_KEY for namespace,
-# which is what CI and agents' sessions set, or else .build-server-key.SERVER at
-# the root of the checkout or
+# The other servers' keys are BE3_BUILD_SERVER_KEY, or else
+# .build-server-key.SERVER at the root of the checkout or
 # ~/.config/be3/build-server-key.SERVER. With none of them, a person at a
 # terminal is asked for it, and it is saved under ~/.config/be3 for every
 # checkout; anything else - a pipe, CI, an agent's shell - is told what to set
@@ -555,17 +556,30 @@ ask_for_build_server_key() {
     printf '%s\n' "$key"
 }
 
+# The key for one of the servers other than Namespace.
+build_server_key() {
+    local server="$1" what="$2" saved="$3" key
+    [[ -t 0 && -t 2 ]] || return 0
+    echo "buck2 builds on $server, and needs its $what." >&2
+    echo 'guides/build_server.md says where to get one.' >&2
+    read -r -s -p "$server $what: " key
+    echo '' >&2
+    key="$(printf '%s' "$key" | tr -d '[:space:]')"
+    [[ -n "$key" ]] || return 0
+    mkdir -p "$(dirname "$saved")"
+    (umask 077 && printf '%s\n' "$key" > "$saved")
+    echo "Saved it to $saved." >&2
+    printf '%s\n' "$key"
+}
+
 # The key for one of the servers: Namespace's is the one for its waker at
 # namespace_url, and has a variable of its own, so that an environment can hold
 # it beside another server's.
 build_server_key() {
-    local server="$1" name="build-server-key.$1" file key variable='BE3_BUILD_SERVER_KEY'
+    local server="$1" name="build-server-key.$1" file key
     local saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/$name"
-    if [[ "$server" == 'namespace' ]]; then
-        variable='BE3_NAMESPACE_KEY'
-    fi
-    if [[ -n "${!variable:-}" ]]; then
-        printf '%s\n' "${!variable}"
+    if [[ -n "${BE3_BUILD_SERVER_KEY:-}" ]]; then
+        printf '%s\n' "$BE3_BUILD_SERVER_KEY"
         return 0
     fi
     for file in "$repository/.$name" "$saved"; do
@@ -581,7 +595,7 @@ build_server_key() {
         return 0
     fi
     echo "buck2 builds on $server, and there is no key for it. Set" >&2
-    echo "$variable, or write the key to .$name at the root of the" >&2
+    echo "BE3_BUILD_SERVER_KEY, or write the key to .$name at the root of the" >&2
     echo "checkout or to ~/.config/be3/$name. Run ./scripts/buck from a terminal" >&2
     echo 'to be asked for it. guides/build_server.md has more.' >&2
     return 1
@@ -633,11 +647,13 @@ namespace_answers() {
 # Asks for the cluster's hosts when what target/namespace/ holds will not do,
 # writing them to target/namespace/buck2.buckconfig.
 refresh_namespace_cluster() {
-    local key stamp="$namespace_directory/asked" now age=999999 key_hash status answer_age
+    local stamp="$namespace_directory/asked" now age=999999 key_hash status answer_age
     local header="$namespace_directory/request-header" answer="$namespace_directory/buck2.buckconfig.partial"
-    key="$(build_server_key namespace)" || exit 1
     mkdir -p "$namespace_directory"
-    (umask 077 && printf 'authorization: Bearer %s\n' "$key" > "$header")
+    : > "$header"
+    if [[ -n "${BE3_AUTHORIZATION:-}" ]]; then
+        (umask 077 && printf 'Be3-Gateway-Authorization: %s\n' "$BE3_AUTHORIZATION" > "$header")
+    fi
     key_hash="$(sha256_of "$header")"
     now="$(date +%s)"
     if [[ -f "$stamp" && -f "$namespace_directory/buck2.buckconfig" ]] &&
@@ -662,8 +678,8 @@ refresh_namespace_cluster() {
         cat "$answer" >&2 2> /dev/null || true
         echo '' >&2
         if [[ "$status" == 401 || "$status" == 403 ]]; then
-            echo "$namespace_url refused the key for namespace. Set BE3_NAMESPACE_KEY," >&2
-            echo 'or fix .build-server-key.namespace or ~/.config/be3/build-server-key.namespace.' >&2
+            echo "The gateway in front of $namespace_url refused this request. Set" >&2
+            echo 'BE3_AUTHORIZATION to its Be3-Gateway-Authorization header (guides/build_server.md).' >&2
         else
             echo "$namespace_url answered $status rather than the cluster's hosts (guides/build_server.md)." >&2
         fi
