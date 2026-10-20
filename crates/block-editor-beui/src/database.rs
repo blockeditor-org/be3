@@ -13,8 +13,8 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::ChoiceOption;
 use beui::{Color32, NodeId};
-pub use block_ui::database::ValueLabels;
 use block_plugin_api::ChildRect;
+pub use block_ui::database::ValueLabels;
 use block_ui::database::{DatabaseValueChange, block_reference_text, field_type_label};
 use uuid::Uuid;
 

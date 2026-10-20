@@ -6,7 +6,9 @@ use super::*;
 fn a_failed_creation_is_shown_and_dismissing_it_cancels_the_pick() {
     let (mut fixture, _) = editor();
     fixture.test.catalog(catalog());
-    fixture.test.request_pick(5, filter(), BlockLocation::Root, None);
+    fixture
+        .test
+        .request_pick(5, filter(), BlockLocation::Root, None);
     fixture.settle();
     fixture
         .test

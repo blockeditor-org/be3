@@ -198,11 +198,8 @@ impl EditorSession {
     ) {
         let origin = self.rect(EditorRegion::Frame).min.to_vec2();
         let anchor = filter.anchor.map(|anchor| {
-            Rect::from_min_size(
-                pos2(anchor.x, anchor.y),
-                vec2(anchor.width, anchor.height),
-            )
-            .translate(origin)
+            Rect::from_min_size(pos2(anchor.x, anchor.y), vec2(anchor.width, anchor.height))
+                .translate(origin)
         });
         self.host.request_pick(crate::host::PickRequest {
             pick,

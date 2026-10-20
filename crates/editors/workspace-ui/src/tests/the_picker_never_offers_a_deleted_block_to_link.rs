@@ -18,7 +18,9 @@ fn the_picker_never_offers_a_deleted_block_to_link() {
     draft.set_name("Draft");
     store.add_block(draft);
 
-    fixture.test.request_pick(7, filter(), BlockLocation::Root, None);
+    fixture
+        .test
+        .request_pick(7, filter(), BlockLocation::Root, None);
     fixture.settle();
     fixture.click_text("Link existing");
 

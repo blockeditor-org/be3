@@ -1,10 +1,10 @@
-use block_editor_beui::{Toolbar, node_anchor};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CROP_FREE, ICON_REFRESH, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
+use block_editor_beui::{Toolbar, node_anchor};
 
 use super::state::{MapState, ZOOM_STEP};
 

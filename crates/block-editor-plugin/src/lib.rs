@@ -27,9 +27,9 @@ pub use block_plugin_api::accesskit;
 pub use block_plugin_api::{
     ANY_BLOCK_TYPE, AccessGrant, AccessLevel, AccessListing, Administrator, ArtifactAction,
     AudioOutput, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockImport, BlockLocation,
-    BlockPick, BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode, ChildRect,
-    ChildOperations, ChildPlacement, ChildStatus, ConflictSide, ContactLinkResult, Contacts,
-    CreationProgress, CursorIcon, DataListing, DescribedAction, Description, Displays,
+    BlockPick, BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
+    ChildOperations, ChildPlacement, ChildRect, ChildStatus, ConflictSide, ContactLinkResult,
+    Contacts, CreationProgress, CursorIcon, DataListing, DescribedAction, Description, Displays,
     EditorCapabilities, EditorDescriptor, EditorInstanceId, EditorRegion, Epaper, EpaperRequest,
     FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostContact, HostDisplay,
     HostDisplayMode, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,

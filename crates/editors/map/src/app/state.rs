@@ -9,9 +9,7 @@ use block_editor_beui::be_block::{Edit, Map, MapContent};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Image, Pos2, Rect, Vec2};
 use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
-use block_editor_beui::{
-    BlockFilter, ChildRect, ContentProjection, Drag, Editor, FileDrop, Waker,
-};
+use block_editor_beui::{BlockFilter, ChildRect, ContentProjection, Drag, Editor, FileDrop, Waker};
 use block_editor_beui::{BlockInfo, BlockParent, BlockQuery};
 use uuid::Uuid;
 
@@ -195,12 +193,11 @@ impl MapState {
             anchor,
             ..BlockFilter::default()
         };
-        self.editor
-            .pick_block(filter, move |picked| {
-                if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
-                    self.place_picked(picked.id, at);
-                }
-            });
+        self.editor.pick_block(filter, move |picked| {
+            if let (true, Ok(picked)) = (self.inner.is_alive(), picked) {
+                self.place_picked(picked.id, at);
+            }
+        });
     }
 
     fn place_picked(&self, block_id: Uuid, at: Option<MapCoordinate>) {

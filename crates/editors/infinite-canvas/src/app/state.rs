@@ -1284,14 +1284,13 @@ impl CanvasState {
             anchor: Some(child_rect(Rect::from_min_size(on_screen, Vec2::ZERO))),
             ..BlockFilter::default()
         };
-        self.editor
-            .pick_block(filter, move |picked| {
-                if let Ok(picked) = picked
-                    && state.is_alive()
-                {
-                    state.place_picked_block(picked.id, center);
-                }
-            });
+        self.editor.pick_block(filter, move |picked| {
+            if let Ok(picked) = picked
+                && state.is_alive()
+            {
+                state.place_picked_block(picked.id, center);
+            }
+        });
     }
 
     fn place_picked_block(&self, block_id: Uuid, center: Option<CanvasPoint>) {
