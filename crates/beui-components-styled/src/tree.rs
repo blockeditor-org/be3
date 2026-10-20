@@ -7,11 +7,13 @@ use crate::button::{Button, ButtonVariant};
 use crate::context_menu::ContextMenu;
 use crate::scroll::Scroll;
 use crate::text::{Icon, Text, TextColor, TextSize};
+use crate::text_input::text_input_style;
 use crate::theme::{Density, ThemeStore, use_density, use_theme};
 use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
-    ButtonHandle, Edge, MenuItem, TreeItem, TreeRevealHandle, TreeRowHandle, TreeToggleHandle,
+    ButtonHandle, Edge, MenuItem, TextInputHandle, TreeItem, TreeRevealHandle, TreeRowEdit,
+    TreeRowHandle, TreeToggleHandle,
 };
 use beui_core::color::Color32;
 use beui_core::document::Document;
@@ -44,6 +46,7 @@ const SPACING: f32 = 6.0;
 const PADDING_HORIZONTAL: f32 = 4.0;
 const OUTLINE_WIDTH: f32 = 1.0;
 const REVEAL_PADDING: f32 = 8.0;
+const EDIT_PADDING: f32 = 3.0;
 
 struct Parts {
     rows: NodeRef,
@@ -92,11 +95,15 @@ pub fn Tree<K>(
     #[prop(default = String::new())] reveal_test_id: String,
     #[prop(default = None)] outline: Option<Func<K, Option<Color32>>>,
     #[prop(default = None)] menu: Option<Func<K, Option<TreeMenu>>>,
+    #[prop(default = None)] editing: Prop<Option<K>>,
     on_select: Callback<K>,
     on_expand: Callback<(K, bool)>,
     on_reveal: Callback<K>,
     on_hover_change: Callback<(K, bool)>,
     on_drag_start: Callback<K>,
+    on_edit: Callback<K>,
+    on_rename: Callback<(K, String)>,
+    on_cancel_edit: Callback<K>,
     #[prop(children)] content: Option<RenderFn<TreeRowFace<K>>>,
 ) -> NodeId
 where
@@ -121,10 +128,14 @@ where
                         selected
                         ancestors
                         spacing
+                        editing
                         on_select={on_select}
                         on_expand={on_expand}
                         on_hover_change={on_hover_change}
                         on_drag_start={on_drag_start}
+                        on_edit={on_edit}
+                        on_rename={on_rename}
+                        on_cancel_edit={on_cancel_edit}
                     >|handle: TreeRowHandle<K>| {
                         let named = row_test_id.call(handle.key.clone());
                         view! {
@@ -208,6 +219,8 @@ where
         active,
         toggle,
         target,
+        editing,
+        edit,
         ..
     } = handle;
     let theme = use_theme();
@@ -230,11 +243,26 @@ where
         focused,
         hovered,
     };
-    let area = view! {
-        <unstyled::TreeRowArea target>{content.call(face)}</unstyled::TreeRowArea>
-    };
+    let shown = create_memo(move || !editing.get());
+    let renaming = edit_id(&named);
     let body = match menu {
-        None => area,
+        None => view! {
+            <List align=Align::Stretch spacing=0.0>
+                <ShowKeepAlive condition={shown}>
+                    <unstyled::TreeRowArea @sizing=ItemSize::Percent(100.0) target>
+                        {content.call(face)}
+                    </unstyled::TreeRowArea>
+                </ShowKeepAlive>
+                <Show condition={editing}>
+                    <RowEditField
+                        @sizing=ItemSize::Percent(100.0)
+                        @test_id={renaming.clone()}
+                        edit
+                        sized={sized}
+                    />
+                </Show>
+            </List>
+        },
         Some(TreeMenu { items, on_select }) => {
             let menu_at = create_signal(None::<Pos2>);
             let more = more_id(&named);
@@ -247,7 +275,19 @@ where
                     on_select
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        {area} @sizing=ItemSize::Percent(100.0)
+                        <ShowKeepAlive condition={shown}>
+                            <unstyled::TreeRowArea @sizing=ItemSize::Percent(100.0) target>
+                                {content.call(face)}
+                            </unstyled::TreeRowArea>
+                        </ShowKeepAlive>
+                        <Show condition={editing}>
+                            <RowEditField
+                                @sizing=ItemSize::Percent(100.0)
+                                @test_id={renaming.clone()}
+                                edit
+                                sized={sized}
+                            />
+                        </Show>
                         <RowMenuButton
                             named={more}
                             sized={sized}
@@ -281,6 +321,33 @@ where
                 </Frame>
             </List>
         </Frame>
+    }
+}
+
+#[component]
+fn RowEditField(edit: TreeRowEdit, sized: Memo<Metrics>) -> NodeId {
+    let height = create_memo(move || Extent::px(sized.get().row - 2.0 * OUTLINE_WIDTH));
+    let style = unstyled::TextInputStyle {
+        padding_horizontal: Prop::Static(EDIT_PADDING),
+        ..text_input_style()
+    };
+    view! {
+        <unstyled::TreeRowEditor
+            edit
+            style
+            content={move |handle: TextInputHandle| view! {
+                <Frame
+                    height={height}
+                    fill=ColorRole::SurfaceRaised
+                    border={Border::new(ColorRole::Accent).width(OUTLINE_WIDTH)}
+                    radius=Radius::Sm
+                >
+                    <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                        {handle.field} @sizing=ItemSize::Percent(100.0)
+                    </List>
+                </Frame>
+            }}
+        />
     }
 }
 
@@ -445,6 +512,13 @@ fn more_id(named: &str) -> String {
     match named.is_empty() {
         true => String::new(),
         false => format!("{named}.more"),
+    }
+}
+
+fn edit_id(named: &str) -> String {
+    match named.is_empty() {
+        true => String::new(),
+        false => format!("{named}.rename"),
     }
 }
 

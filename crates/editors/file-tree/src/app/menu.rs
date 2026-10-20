@@ -10,6 +10,7 @@ use block_editor_beui::beui::unstyled::MenuItem;
 use uuid::Uuid;
 
 use super::export::Exporter;
+use super::rename::Renaming;
 use super::rows::{Inspection, Row, RowKey, Tree as FileTree, is_workspace};
 use super::ui::{ExportAs, OpenWith, Picker, add_to_section, leavable};
 use super::zoom::{Zoom, zooms};
@@ -22,6 +23,7 @@ pub(crate) struct RowTools {
     pub(crate) exporter: Exporter,
     pub(crate) inspect: Signal<Option<Inspection>>,
     pub(crate) zoom: Zoom,
+    pub(crate) renaming: Renaming,
 }
 
 #[component]
@@ -76,7 +78,12 @@ fn SectionMenu<F: Fn() + 'static>(
     unzoomable: Memo<bool>,
     zoom_in: F,
 ) -> TreeMenu {
-    let RowTools { editor, picker, .. } = tools;
+    let RowTools {
+        editor,
+        picker,
+        renaming,
+        ..
+    } = tools;
     let unaddable = create_memo(move || !row.get().is_some_and(|row| row.can_add));
     let edit = create_memo(move || !row.get().is_some_and(|row| row.can_edit));
     let deletable = create_memo(move || !row.get().is_some_and(|row| row.can_delete));
@@ -96,7 +103,7 @@ fn SectionMenu<F: Fn() + 'static>(
         match path.as_slice() {
             [0] => zoom_in(),
             [1] => add_to_section(editor, picker, id),
-            [2] => editor.host().rename_block(id),
+            [2] => renaming.start(shown.key),
             [3] => editor.host().share_block(id),
             [4] => editor
                 .host()
@@ -159,6 +166,7 @@ fn BlockMenu<F: Fn() + 'static>(
         picker,
         exporter,
         inspect,
+        renaming,
         ..
     } = tools;
     let leavable = leavable(editor, row);
@@ -218,7 +226,7 @@ fn BlockMenu<F: Fn() + 'static>(
         match path.as_slice() {
             [0] => zoom_in(),
             [2] => picker.open(editor, Some(id), [id].into_iter().collect()),
-            [4] => editor.host().rename_block(id),
+            [4] => renaming.start(shown.key),
             [5] => editor.host().share_block(id),
             [6] => {
                 if let Some(container) = shown.container {

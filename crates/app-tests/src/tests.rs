@@ -1,5 +1,6 @@
 use crate::AppTest;
 
+mod a_block_added_from_the_files_is_named_in_its_row;
 mod a_canvas_in_a_canvas_keeps_to_its_card_and_closes_when_pressed_outside;
 mod a_canvas_pans_with_the_wheel_and_drags_and_zooms_with_ctrl;
 mod a_checklist_on_a_canvas_works_in_place_and_zooms_with_it;

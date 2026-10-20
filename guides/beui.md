@@ -1405,6 +1405,18 @@ row for tests, as `<id>.row`, `<id>.chevron` and `<id>.more`, and `outline` give
 row an outline of its own, which is how a drop target says whether it will
 take what is over it.
 
+A row's name is edited in place through the controlled `editing` prop, the
+key being renamed or `None`. While it names a row, the row's face gives way
+to a field of the row's height holding `TreeItem::label`, focused with all of
+it selected and scrolled into view, named `<id>.rename` for tests. Enter and
+losing the focus, to a press elsewhere or to the window losing the keyboard,
+report `on_rename` with the trimmed name; Escape, or a name left empty or
+unchanged, reports `on_cancel_edit`; both hand the keyboard back to the row
+after Enter or Escape, and the caller clears `editing` in either. F2 on a row
+asks for an edit with `on_edit`, when one is given. Keys typed in the field
+never reach the tree's own navigation. `unstyled::TreeRowEditor` is the field
+a face places for a row whose handle reads `editing`, and owns all of that.
+
 Choosing a row never expands, collapses or scrolls anything: only the chevron
 and the arrow keys do. The styled tree owns its `Scroll` (`padding` goes inside
 it), and follows the `selected` key wherever it is instead. Given `ancestors`,

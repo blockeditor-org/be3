@@ -2831,6 +2831,9 @@ fn ProjectTree() -> NodeId {
     let selected = create_signal(None::<usize>);
     let chosen = create_signal(None::<String>);
     let comfortable = create_signal(false);
+    let names = create_signal(TREE_NODES.map(|(name, _)| name.to_owned()).to_vec());
+    let editing = create_signal(None::<usize>);
+    let name = move |row: usize| names.with(|names| names[row].clone());
     provide_density(create_memo(move || match comfortable.get() {
         true => Density::Comfortable,
         false => Density::Compact,
@@ -2838,14 +2841,14 @@ fn ProjectTree() -> NodeId {
     let keys = create_memo(move || visible_tree_rows(&collapsed.get()));
     let status_text = create_memo(move || match (chosen.get(), selected.get()) {
         (Some(chosen), _) => chosen,
-        (None, Some(row)) => format!("{} selected", TREE_NODES[row].0),
+        (None, Some(row)) => format!("{} selected", name(row)),
         (None, None) => "Nothing selected".to_owned(),
     });
     view! {
         <List spacing=SECTION_SPACING>
             <Text
                 style=TextStyle::CAPTION
-                string="Arrow keys walk the tree and Enter selects; the left of a row, or an arrow key, opens and closes a folder; a row's menu opens from its button, a right click or a long press"
+                string="Arrow keys walk the tree and Enter selects; the left of a row, or an arrow key, opens and closes a folder; a row's menu opens from its button, a right click or a long press; F2 or Rename edits a name in place, Enter or clicking away keeps it and Escape puts it back"
                 wrap=true
             />
             <LabelledSwitch
@@ -2857,27 +2860,39 @@ fn ProjectTree() -> NodeId {
             <Tree
                 @sizing=ItemSize::Fixed(TREE_HEIGHT)
                 keys
-                item={move |row: usize| tree_item(row, &collapsed.get())}
+                item={move |row: usize| tree_item(row, &name(row), &collapsed.get())}
                 selected
+                editing
                 ancestors={tree_ancestors}
                 row_test_id={|row: usize| format!("demo.tree.{row}")}
                 menu={move |row: usize| Some(TreeMenu {
                     items: view! {
-                        <unstyled::MenuItem label="Rename" glyph={ICON_EDIT.to_owned()} />
+                        <unstyled::MenuItem
+                            label="Rename"
+                            glyph={ICON_EDIT.to_owned()}
+                            row_test_id={"demo.tree.rename".to_owned()}
+                        />
                         <unstyled::MenuItem
                             label="Delete"
                             glyph={ICON_DELETE.to_owned()}
                             danger=true
                         />
                     },
-                    on_select: Callback::new(move |path: Vec<usize>| {
-                        let action = match path.as_slice() {
-                            [0] => "Rename",
-                            _ => "Delete",
-                        };
-                        chosen.set(Some(format!("{action} {}", TREE_NODES[row].0)));
+                    on_select: Callback::new(move |path: Vec<usize>| match path.as_slice() {
+                        [0] => editing.set(Some(row)),
+                        _ => chosen.set(Some(format!("Delete {}", name(row)))),
                     }),
                 })}
+                on_edit={move |row: usize| editing.set(Some(row))}
+                on_rename={move |(row, renamed): (usize, String)| {
+                    chosen.set(Some(format!("Renamed {} to {renamed}", name(row))));
+                    names.update(|names| names[row] = renamed);
+                    editing.set(None);
+                }}
+                on_cancel_edit={move |row: usize| {
+                    chosen.set(Some(format!("Kept {}", name(row))));
+                    editing.set(None);
+                }}
                 on_reveal={move |row: usize| {
                     collapsed.update(|collapsed| {
                         collapsed.retain(|candidate| !tree_ancestors(row).contains(candidate));
@@ -2896,7 +2911,7 @@ fn ProjectTree() -> NodeId {
                     });
                 }}
             >|row: TreeRowFace<usize>|
-                <Text string={TREE_NODES[row.key].0} />
+                <Text string={create_memo(move || name(row.key))} />
             </Tree>
             <Text style=TextStyle::CAPTION string={status_text} />
         </List>
@@ -2904,11 +2919,10 @@ fn ProjectTree() -> NodeId {
 }
 
 #[sample]
-fn tree_item(row: usize, collapsed: &[usize]) -> TreeItem {
-    let (label, depth) = TREE_NODES[row];
+fn tree_item(row: usize, name: &str, collapsed: &[usize]) -> TreeItem {
     TreeItem {
-        label: label.to_owned(),
-        depth,
+        label: name.to_owned(),
+        depth: TREE_NODES[row].1,
         expandable: has_children(row),
         expanded: !collapsed.contains(&row),
     }

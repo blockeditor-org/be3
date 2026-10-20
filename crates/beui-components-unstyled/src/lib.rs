@@ -153,6 +153,6 @@ pub use time_list::{TimeList, TimeOptionHandle, grid_columns, time_list_selected
 pub use toggle::{Toggle, ToggleHandle, toggle_checked};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{
-    Tree, TreeItem, TreeReveal, TreeRevealHandle, TreeRowArea, TreeRowHandle, TreeRowTarget,
-    TreeToggle, TreeToggleHandle, tree_focused, tree_row_node,
+    Tree, TreeItem, TreeReveal, TreeRevealHandle, TreeRowArea, TreeRowEdit, TreeRowEditor,
+    TreeRowHandle, TreeRowTarget, TreeToggle, TreeToggleHandle, tree_focused, tree_row_node,
 };

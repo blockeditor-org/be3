@@ -1,16 +1,19 @@
 use std::cell::{Cell, RefCell};
 use std::collections::HashMap;
 use std::hash::Hash;
+use std::rc::Rc;
 
 use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate::button::{Button, ButtonHandle};
 use crate::floating::{Edge, Floating};
+use crate::text_input::{TextInput, TextInputHandle, TextInputStyle};
 use crate::typeahead::Typeahead;
 use beui_core::document::Document;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::input::{CursorIcon, Key, KeyPress, PointerPress};
+use beui_core::keys::{KeyAt, KeyPhase};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -36,6 +39,20 @@ pub struct TreeRowHandle<K> {
     pub select: ClickCallback,
     pub toggle: ClickCallback,
     pub target: TreeRowTarget,
+    pub editing: Memo<bool>,
+    pub edit: TreeRowEdit,
+}
+
+#[derive(Clone, Copy)]
+pub struct TreeRowEdit {
+    item: Memo<TreeItem>,
+    finish: Callback<Finish>,
+}
+
+enum Finish {
+    Commit(String),
+    Leave(String),
+    Cancel,
 }
 
 #[derive(Clone, Copy)]
@@ -63,6 +80,9 @@ struct State<K> {
     focus: Signal<Option<K>>,
     on_select: Callback<K>,
     on_expand: Callback<(K, bool)>,
+    on_edit: Callback<K>,
+    on_rename: Callback<(K, String)>,
+    on_cancel_edit: Callback<K>,
     typeahead: Stored<RefCell<Typeahead>>,
 }
 
@@ -83,10 +103,14 @@ pub fn Tree<K>(
     selected: Prop<Option<K>>,
     #[prop(default = None)] ancestors: Option<Func<K, Vec<K>>>,
     #[prop(default = 0.0)] spacing: f32,
+    #[prop(default = None)] editing: Prop<Option<K>>,
     on_select: Callback<K>,
     on_expand: Callback<(K, bool)>,
     on_hover_change: Callback<(K, bool)>,
     on_drag_start: Callback<K>,
+    on_edit: Callback<K>,
+    on_rename: Callback<(K, String)>,
+    on_cancel_edit: Callback<K>,
     #[prop(children)] row: Option<RenderFn<TreeRowHandle<K>>>,
 ) -> NodeId
 where
@@ -122,6 +146,7 @@ where
             .or_else(|| keys.first().cloned())
     });
     let tab_stops = create_selector(move || tab_stop.get());
+    let edited = create_selector(move || editing.get());
 
     component_accessibility(Node::new(Role::Tree));
 
@@ -136,6 +161,9 @@ where
         focus,
         on_select,
         on_expand,
+        on_edit,
+        on_rename,
+        on_cancel_edit,
         typeahead: store(RefCell::default()),
     };
     set_component_state(state);
@@ -152,12 +180,14 @@ where
                 let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
                 let selected = selection.memo(Some(key.clone()));
                 let marked = burial.memo(Some(key.clone()));
+                let editing = edited.memo(Some(key.clone()));
                 view! {
                     <TreeRow
                         row_key={key}
                         item
                         selected
                         marked
+                        editing
                         tab_stop={tab_stops}
                         focused={focused}
                         state={state}
@@ -178,6 +208,7 @@ fn TreeRow<K>(
     item: Memo<TreeItem>,
     selected: Memo<bool>,
     marked: Memo<bool>,
+    editing: Memo<bool>,
     tab_stop: Selector<Option<K>>,
     focused: Selector<Option<K>>,
     state: State<K>,
@@ -226,6 +257,13 @@ where
         hovered,
         active,
     };
+    let edit = TreeRowEdit {
+        item,
+        finish: Callback::new({
+            let key = row_key.clone();
+            move |finish: Finish| finish_edit(state, &key, item, finish)
+        }),
+    };
     let has_focus = create_signal(false);
     let built = NodeRef::new();
     nodes.value().borrow_mut().insert(nodes_key, built);
@@ -257,6 +295,8 @@ where
                 select: chosen,
                 toggle: expand,
                 target,
+                editing,
+                edit,
             })}
         </Interactive>
     }
@@ -355,6 +395,70 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
         >
             {children}
         </Interactive>
+    }
+}
+
+#[component]
+pub fn TreeRowEditor(
+    edit: TreeRowEdit,
+    #[prop(default = String::from("Name"))] label: Prop<String>,
+    #[prop(default = TextInputStyle::default())] style: TextInputStyle,
+    #[prop(children)] content: Render<TextInputHandle>,
+) -> NodeId {
+    let TreeRowEdit { item, finish } = edit;
+    let initial = item.get_untracked().label;
+    let typed = Rc::new(RefCell::new(initial.clone()));
+    let done = Rc::new(Cell::new(false));
+    let once = move |ending: Finish| {
+        if !done.replace(true) {
+            finish.call(ending);
+        }
+    };
+    let field = NodeRef::new();
+    let escape = once.clone();
+    on_key(KeyAt::Node(field), KeyPhase::Capture, move |event| {
+        let escaped = event
+            .press()
+            .is_some_and(|press| press.pressed && press.key == Key::Escape);
+        if escaped {
+            escape(Finish::Cancel);
+        }
+        escaped
+    });
+    let placed = create_memo(move || field.try_get().is_some_and(|node| node_placed(node).get()));
+    create_effect(move || {
+        if placed.get() {
+            with_document(|document| document.reveal_node(field.get()));
+        }
+    });
+    let keyboard = use_keyboard();
+    let held = Cell::new(keyboard.get_untracked());
+    let (away, left) = (once.clone(), typed.clone());
+    create_effect(move || {
+        let now = keyboard.get();
+        if held.replace(now) && !now {
+            away(Finish::Leave(left.borrow().clone()));
+        }
+    });
+    let (submit, leave, changed) = (once.clone(), once, typed.clone());
+    view! {
+        <TextInput
+            @node_ref=&field
+            value={initial}
+            placeholder={String::new()}
+            label
+            focused=true
+            select_on_focus=true
+            style
+            content
+            on_change={move |text: String| *changed.borrow_mut() = text}
+            on_submit={move |text: String| submit(Finish::Commit(text))}
+            on_focus_change={move |focused: bool| {
+                if !focused {
+                    leave(Finish::Leave(typed.borrow().clone()));
+                }
+            }}
+        />
     }
 }
 
@@ -480,6 +584,28 @@ where
     }
 }
 
+fn finish_edit<K>(state: State<K>, key: &K, item: Memo<TreeItem>, finish: Finish)
+where
+    K: Clone + Eq + Hash + 'static,
+{
+    let (typed, refocus) = match finish {
+        Finish::Commit(typed) => (Some(typed), true),
+        Finish::Leave(typed) => (Some(typed), false),
+        Finish::Cancel => (None, true),
+    };
+    let label = untrack(|| item.get().label);
+    let renamed = typed
+        .map(|typed| typed.trim().to_owned())
+        .filter(|name| !name.is_empty() && *name != label);
+    match renamed {
+        Some(name) => state.on_rename.call((key.clone(), name)),
+        None => state.on_cancel_edit.call(key.clone()),
+    }
+    if refocus {
+        state.focus.set(Some(key.clone()));
+    }
+}
+
 fn toggle<K>(state: State<K>, key: &K)
 where
     K: Clone + Eq + Hash + 'static,
@@ -526,6 +652,12 @@ where
             Some(parent) => parent,
             None => return true,
         },
+        Key::F2 if !state.on_edit.is_empty() => {
+            if press.pressed {
+                state.on_edit.call(key.clone());
+            }
+            return true;
+        }
         _ => return false,
     };
     if press.pressed {

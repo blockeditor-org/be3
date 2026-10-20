@@ -19,6 +19,7 @@ use uuid::Uuid;
 
 use super::export::{Export, ExportFormat, Exporter, formats};
 use super::menu::{RowMenu, RowTools};
+use super::rename::Renaming;
 use super::rows::{
     Inspection, Row, RowKey, Tree as FileTree, access_hint, access_marker, is_workspace,
 };
@@ -34,12 +35,14 @@ const FIELD_SPACING: f32 = 2.0;
 #[component]
 pub fn FileTreeEditor(editor: Editor) -> NodeId {
     let tree = FileTree::watch(editor);
-    let picker = picker(editor, tree);
+    let zoom = Zoom::new(editor, tree);
+    let keys = zoom.keys();
+    let renaming = Renaming::new(editor, tree, keys);
+    let picker = picker(editor, tree, renaming);
     let exporter = Exporter::new(editor);
     let exported = exporter.error();
     let held: Held = store(std::cell::Cell::new(None));
     let inspecting = create_signal(None::<Inspection>);
-    let zoom = Zoom::new(editor, tree);
     let tools = RowTools {
         editor,
         tree,
@@ -47,8 +50,8 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         exporter,
         inspect: inspecting,
         zoom,
+        renaming,
     };
-    let keys = zoom.keys();
     let rows = tree.rows();
     let focused_block = editor.focused_block();
     let focused = create_memo(move || focused_block.with(focused_key));
@@ -109,7 +112,7 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.expand(focused.via.iter().rev().copied());
     };
     let app_menu = move || editor.host().show_app_menu(editor.block_id());
-    let new_workspace = move || new_workspace(editor);
+    let new_workspace = move || new_workspace(editor, renaming);
     let picked = picker.error();
     let failure = create_memo(move || picked.get().or_else(|| exported.get()));
     let failed = create_memo(move || failure.get().is_some());
@@ -230,10 +233,14 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                     menu={move |key: RowKey| view! {
                                         <RowMenu tools key />
                                     }}
+                                    editing={renaming.editing()}
                                     on_select={open}
                                     on_expand={expand}
                                     on_reveal={reveal}
                                     on_drag_start={start}
+                                    on_edit={move |key: RowKey| renaming.start(key)}
+                                    on_rename={move |(key, name): (RowKey, String)| renaming.rename(&key, &name)}
+                                    on_cancel_edit={move |key: RowKey| renaming.finish(&key)}
                                 >|face: TreeRowFace<RowKey>| {
                                     let row = tree.row(face.key.clone());
                                     let workspace = row.get_untracked().is_some_and(|row| {
@@ -351,13 +358,13 @@ fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
     }
 }
 
-pub(crate) fn new_workspace(editor: Editor) {
+fn new_workspace(editor: Editor, renaming: Renaming) {
     let id = editor.blocks().create_named(
         &WorkspaceContent::default(),
         BlockParent::Root,
         "New workspace",
     );
-    editor.host().rename_block(id);
+    renaming.rename_when_shown(id, None);
 }
 
 fn focused_key(focused: &block_editor_beui::FocusedBlock) -> Option<RowKey> {
@@ -865,7 +872,7 @@ impl Picker {
     }
 }
 
-fn picker(editor: Editor, tree: FileTree) -> Picker {
+fn picker(editor: Editor, tree: FileTree, renaming: Renaming) -> Picker {
     let error = create_signal(None::<String>);
     let picker = Picker {
         inner: store(PickerInner {
@@ -891,6 +898,9 @@ fn picker(editor: Editor, tree: FileTree) -> Picker {
             }
         };
         tree.remember(picked.id, picked.block_type);
+        if !picked.linked {
+            renaming.rename_when_shown(picked.id, target);
+        }
         if picked.placed {
             match target {
                 Some(parent) => host.open_block_via(picked.id, picked.block_type, parent),
