@@ -7,7 +7,7 @@ it to be asked again); anything else builds on Namespace.
 
 | `BE3_BUILD_SERVER` | Server | Key | Claude Code Cloud Session |
 |---|---|---|---|
-| `namespace` (the default, and CI's) | Namespace's remote execution | Namespace's token | Should work with 0 configuration |
+| `namespace` (the default, and CI's) | Namespace's remote execution | `authorization: Bearer KEY` to its waker | Needs `BE3_NAMESPACE_KEY` |
 | `blocks.pfg.pw` | our own NativeLink server | `authorization: Bearer KEY` | Should work with 0 configuration |
 | `buildbuddy` | BuildBuddy's `remote.buildbuddy.io` | `x-buildbuddy-api-key: KEY` | Currently not working |
 | `local` | a NativeLink server of your own, at `host:port` | none, and no TLS | Not powerful enough to host |
@@ -20,17 +20,16 @@ The servers share nothing: each has its own cache and its own key.
 `./scripts/buck` writes the one it picked into `.buckconfig.local`, with its
 name as `be3.build_server`; `worker_properties` (`buck/tools/defs.bzl`) reads
 that to pick the workers' image, since Namespace runs only its own copy of it.
-`nsc` is only downloaded for Namespace.
 
-A server other than Namespace and `local` takes its key from:
+A server other than `local` takes its key from:
 
-1. `BE3_BUILD_SERVER_KEY` in the environment
+1. `BE3_BUILD_SERVER_KEY` in the environment, or `BE3_NAMESPACE_KEY` for
+   `namespace`, so that an environment can hold both
 2. `.build-server-key.SERVER` at the root of the checkout
 3. `~/.config/be3/build-server-key.SERVER`
 
 where `SERVER` is the value of `BE3_BUILD_SERVER`. Without one, at a terminal,
-`./scripts/buck` asks for it and saves it to the last; Namespace's token is
-asked for and saved the same way, to `~/.config/be3/namespace-token.json`.
+`./scripts/buck` asks for it and saves it to the last.
 
 In an agent's cloud session the proxy adds the key to requests for
 `blocks.pfg.pw`, and `BE3_BUILD_SERVER_KEY` is a
@@ -70,9 +69,8 @@ server through `scripts/internal/re-relay`, whose errors are in
   (`BE3_BUCK_ATTEMPTS`), each time finding what finished cached. A command that
   fails every time is a server that is down or overloaded: switch.
 - **`the proxy answered 401 Unauthorized`**: the proxy has no key for the host
-  (`credentials missing`) or refused the one it has (`invalid token`). For
-  Namespace, `BE3_NAMESPACE_TOKEN` or the token file is wrong or revoked; for
-  the others, the session has no key for that server. Switch to a server the
+  (`credentials missing`) or refused the one it has (`invalid token`): the
+  session has no key for that server. Switch to a server the
   session has a key for.
 
 Each checkout has relays of its own, on ports picked from its path
@@ -89,42 +87,68 @@ that holds the action cache and the CAS (`storageh-…`).
 ### Waking it
 
 Namespace shuts the cluster down when it has been idle for a while, and its
-hosts then answer 404. So no host is checked in: `./scripts/buck` runs the
-pinned `nsc` (`scripts/internal/install-nsc.sh`), whose
-`nsc reapi setup buck2 --token FILE --key buildserver` starts the cluster if it
-is down and names its hosts and the `x-nsc-ingress-auth` header that
-authenticates to them. `./scripts/buck` keeps that answer in
+hosts then answer 404. So no host is checked in: `./scripts/buck` asks
+`https://api.be3.pfg.pw/build/namespace` (`namespace_url` in
+`scripts/internal/common.sh`) with `authorization: Bearer KEY`, and gets back
+the buck2 configuration that names the executor, the storage and the
+`x-nsc-ingress-auth` header that authenticates to them. It keeps that answer in
 `target/namespace/`, writes it into `.buckconfig.local`, and asks again when
 the executor stops answering, when the answer is three hours old, or when the
-token changes.
+key changes. Builds never run `nsc`.
 
-Setup must always be run with those arguments and that `--key`: without a
-key, or with other flags (such as `--static`), Namespace starts a new cluster
-beside the old one. The dashboard shows both, and the stale one should be
-destroyed, since its workers count against the workspace's 32 vCPU limit.
+Behind that URL, `namespace-waker` (`crates/namespace-waker`) runs
+`nsc reapi setup buck2 --token FILE --key buildserver`, which starts the
+cluster if it is down, and answers with the configuration it writes. Callers
+that ask within a minute of a setup share its answer, so a crowd that finds the
+cluster asleep wakes it once. Every setup comes from that one host, with one
+pinned `nsc` and the same arguments and `--key`: Namespace starts a new cluster
+beside the old one when any of them differ, or when two setups race. The
+dashboard shows both, and the stale one should be destroyed, since its workers
+count against the workspace's 32 vCPU limit.
 
-### The token
+### Hosting the waker
 
-`nsc` authenticates with a token from:
+The waker checks no credentials, so it listens on localhost and the host's
+Caddy checks the key, ahead of the API gateway's own rules:
 
-1. `BE3_NAMESPACE_TOKEN` in the environment
-2. `.namespace-token.json` at the root of the checkout
-3. `~/.config/be3/namespace-token.json`
+```
+api.be3.pfg.pw {
+	@namespace path /build/namespace
+	handle @namespace {
+		@unauthorized not header Authorization "Bearer {$BE3_NAMESPACE_KEY}"
+		respond @unauthorized 401
+		reverse_proxy 127.0.0.1:9091
+	}
+	# the rest of the site
+}
+```
 
-Each holds what this writes, or the bare token in it, made with a Namespace
-login:
+with the key in Caddy's environment, and the waker run as a service:
+
+```
+namespace-waker --token ns-token.json --nsc ./nsc --addr 127.0.0.1:9091
+```
+
+`./scripts/buck build //crates/namespace-waker:bin` builds it, and
+`scripts/internal/install-nsc.sh linux_amd64` downloads the pinned `nsc` and
+prints its path. The waker runs `nsc` with `NS_DO_NOT_UPDATE=1`, so `nsc`
+changes only when that pin does. Changing the pin can change what a setup asks
+for, which starts a new cluster: destroy the old one afterwards.
+
+The token is made with a Namespace login, and revoked at
+https://cloud.namespace.so/user/sessions:
 
 ```
 nsc reapi create-token --no_expiry --token ns-token.json
 ```
 
-A token is revoked at https://cloud.namespace.so/user/sessions.
+### The key
 
-- **CI:** `BE3_NAMESPACE_TOKEN` is the repository secret of that name.
-- **An agent's cloud session:** `BE3_NAMESPACE_TOKEN` is set in the
-  environment's variables. When `HTTPS_PROXY` is set, `nsc` reaches
-  `private-api.global.namespaceapis.com` through it, and buck2 reaches the
-  cluster through `scripts/internal/re-relay` (guides/buck2.md).
+- **CI:** `BE3_NAMESPACE_KEY` is the repository secret of that name.
+- **An agent's cloud session:** `BE3_NAMESPACE_KEY` is set in the
+  environment's variables. When `HTTPS_PROXY` is set, `./scripts/buck` reaches
+  the waker through it, and buck2 reaches the cluster through
+  `scripts/internal/re-relay` (guides/buck2.md).
 
 ### The workers' image
 

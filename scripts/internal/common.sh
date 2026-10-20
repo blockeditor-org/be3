@@ -361,44 +361,6 @@ be_path() {
     echo "$repository/target/tools/be-$be_release/be"
 }
 
-# The nsc release ./scripts/buck runs: Namespace's command-line tool, which
-# wakes the remote execution cluster and names its hosts
-# (guides/build_server.md). Its archives are checked against these hashes, by
-# the platform upstream names them after.
-nsc_version='0.0.587'
-nsc_sha256_linux_amd64='f47a9eff06f41d0f342277ba097e04a215bd88019f184271042f8eb5ec94018f'
-nsc_sha256_linux_arm64='fc121a4fda8083f9e2815a2ecb4e75d06649b98316d4c793434d03fc443a1516'
-nsc_sha256_darwin_amd64='c8864ca1dd7e99a91b4e28d481be6eeafa74f5bbed89e66e731d47dd63e9565f'
-nsc_sha256_darwin_arm64='b06697f6c2848e4f9e95d6dd0a790894c36fef672b9a31a5f45fb674c425b3f5'
-nsc_sha256_windows_amd64='41ba7e3d49ff281de85474d6d309ade24ba14a3c36a4480706e02199a2b391b9'
-nsc_sha256_windows_arm64='e89059e3173b6c1c108a9f9828f3cbbba4af9537d6108c9f378e81f368c7691e'
-
-nsc_platform() {
-    local os architecture
-    case "$(uname -s)" in
-        Linux) os='linux' ;;
-        Darwin) os='darwin' ;;
-        MINGW* | MSYS* | CYGWIN*) os='windows' ;;
-        *)
-            echo "No nsc release is pinned here for $(uname -s)." >&2
-            return 1
-            ;;
-    esac
-    case "$(uname -m)" in
-        x86_64 | amd64) architecture='amd64' ;;
-        aarch64 | arm64) architecture='arm64' ;;
-        *)
-            echo "No nsc release is pinned here for $(uname -m)." >&2
-            return 1
-            ;;
-    esac
-    echo "${os}_$architecture"
-}
-
-nsc_path() {
-    echo "$repository/target/tools/nsc-$nsc_version/nsc$(buck2_binary_suffix)"
-}
-
 write_if_changed() {
     if ! cmp -s "$1" "$2"; then
         cp "$1" "$2.partial"
@@ -417,25 +379,20 @@ write_if_changed() {
 # (buck/tools/defs.bzl).
 #
 # Namespace's cluster shuts down when it has had nothing to do for a while, so
-# its hosts are asked of nsc rather than kept anywhere:
-# `nsc reapi setup buck2` starts the cluster if it is down and names its
-# executor, its storage and the header that authenticates to them. It is
-# always asked with the same arguments and the same --key: Namespace starts a
-# new cluster beside the old one when either differs. That answer is kept in
+# its hosts are asked rather than kept anywhere, of `be-server namespace` at
+# namespace_url, which runs `nsc reapi setup buck2` for every machine that
+# builds: it starts the cluster if it is down and names its executor, its
+# storage and the header that authenticates to them. That answer is kept in
 # target/namespace/ and asked again when the executor stops answering, when it
-# is more than three hours old, or when the token changes. nsc is only
-# downloaded for a build on Namespace.
+# is more than three hours old, or when the key changes.
 #
-# nsc authenticates with Namespace's token: BE3_NAMESPACE_TOKEN from the
-# environment, which is what CI and agents' sessions set, or else
-# .namespace-token.json at the root of the checkout, which git ignores, or
-# ~/.config/be3/namespace-token.json. Either holds what
-# `nsc reapi create-token` writes, or the bare token. The other servers' keys
-# are BE3_BUILD_SERVER_KEY, or else .build-server-key.SERVER at the root of the
-# checkout or ~/.config/be3/build-server-key.SERVER. With none of them, a
-# person at a terminal is asked for it, and it is saved under ~/.config/be3 for
-# every checkout; anything else - a pipe, CI, an agent's shell - is told what
-# to set instead.
+# Each server's key is BE3_BUILD_SERVER_KEY, or BE3_NAMESPACE_KEY for namespace,
+# which is what CI and agents' sessions set, or else .build-server-key.SERVER at
+# the root of the checkout or
+# ~/.config/be3/build-server-key.SERVER. With none of them, a person at a
+# terminal is asked for it, and it is saved under ~/.config/be3 for every
+# checkout; anything else - a pipe, CI, an agent's shell - is told what to set
+# instead.
 #
 # buck2's remote execution client never reads HTTPS_PROXY. Where the machine's
 # way out is an HTTPS proxy, buck2 is pointed at scripts/internal/re-relay
@@ -458,37 +415,11 @@ re_relay_port="$((20000 + $(printf '%s' "$repository" | cksum | cut -d ' ' -f 1)
 re_relay_engine_address="127.0.0.1:$re_relay_port"
 re_relay_storage_address="127.0.0.1:$((re_relay_port + 1))"
 namespace_directory="$repository/target/namespace"
-namespace_cluster_key='buildserver'
+namespace_url='https://api.be3.pfg.pw/build/namespace'
 
-# Whether to look at the executor even when nsc was asked moments ago: after a
+# Whether to look at the executor even when its hosts were asked for moments ago: after a
 # command failed with an infrastructure error, the cluster may have gone.
 namespace_recheck=false
-
-# The token file nsc is given, or nothing when there is none.
-namespace_token_file() {
-    local key saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/namespace-token.json"
-    if [[ -n "${BE3_NAMESPACE_TOKEN:-}" ]]; then
-        local file="$namespace_directory/token.json" token
-        token="$(printf '%s' "$BE3_NAMESPACE_TOKEN" | tr -d '\r\n')"
-        mkdir -p "$namespace_directory"
-        if [[ "$token" != '{'* ]]; then
-            token="{\"bearer_token\":\"$token\"}"
-        fi
-        (umask 077 && printf '%s\n' "$token" > "$file.new")
-        write_if_changed "$file.new" "$file"
-        rm -f "$file.new"
-        echo "$file"
-    elif [[ -f "$repository/.namespace-token.json" ]]; then
-        echo "$repository/.namespace-token.json"
-    elif [[ -f "$saved" ]]; then
-        echo "$saved"
-    elif key="$(ask_for_build_server_key 'Namespace' 'token' "$saved")" && [[ -n "$key" ]]; then
-        if [[ "$key" != '{'* ]]; then
-            (umask 077 && printf '{"bearer_token":"%s"}\n' "$key" > "$saved")
-        fi
-        echo "$saved"
-    fi
-}
 
 # The servers BE3_BUILD_SERVER can name, in the order a person is offered them.
 build_servers=(namespace blocks.pfg.pw buildserver.pfg.pw buildbuddy local)
@@ -624,12 +555,17 @@ ask_for_build_server_key() {
     printf '%s\n' "$key"
 }
 
-# The key for one of the servers other than Namespace.
+# The key for one of the servers: Namespace's is the one for its waker at
+# namespace_url, and has a variable of its own, so that an environment can hold
+# it beside another server's.
 build_server_key() {
-    local server="$1" name="build-server-key.$1" file key
+    local server="$1" name="build-server-key.$1" file key variable='BE3_BUILD_SERVER_KEY'
     local saved="${XDG_CONFIG_HOME:-$HOME/.config}/be3/$name"
-    if [[ -n "${BE3_BUILD_SERVER_KEY:-}" ]]; then
-        printf '%s\n' "$BE3_BUILD_SERVER_KEY"
+    if [[ "$server" == 'namespace' ]]; then
+        variable='BE3_NAMESPACE_KEY'
+    fi
+    if [[ -n "${!variable:-}" ]]; then
+        printf '%s\n' "${!variable}"
         return 0
     fi
     for file in "$repository/.$name" "$saved"; do
@@ -645,7 +581,7 @@ build_server_key() {
         return 0
     fi
     echo "buck2 builds on $server, and there is no key for it. Set" >&2
-    echo "BE3_BUILD_SERVER_KEY, or write the key to .$name at the root of the" >&2
+    echo "$variable, or write the key to .$name at the root of the" >&2
     echo "checkout or to ~/.config/be3/$name. Run ./scripts/buck from a terminal" >&2
     echo 'to be asked for it. guides/build_server.md has more.' >&2
     return 1
@@ -694,28 +630,18 @@ namespace_answers() {
         grep -qi '^content-type: *application/grpc'
 }
 
-# Asks nsc for the cluster's hosts when what target/namespace/ holds will not
-# do, and says whether they changed.
+# Asks for the cluster's hosts when what target/namespace/ holds will not do,
+# writing them to target/namespace/buck2.buckconfig.
 refresh_namespace_cluster() {
-    local nsc token stamp="$namespace_directory/asked" now age=999999 token_hash=''
-    nsc="$(nsc_path)"
-    if [[ ! -x "$nsc" ]]; then
-        "$internal/install-nsc.sh" >&2
-    fi
+    local key stamp="$namespace_directory/asked" now age=999999 key_hash status
+    local header="$namespace_directory/request-header" answer="$namespace_directory/buck2.buckconfig.partial"
+    key="$(build_server_key namespace)" || exit 1
     mkdir -p "$namespace_directory"
-    token="$(namespace_token_file)"
-    if [[ -z "$token" ]]; then
-        echo 'buck2 builds on Namespace, and there is no token for it. Set' >&2
-        echo 'BE3_NAMESPACE_TOKEN, or write the token to .namespace-token.json at the root' >&2
-        echo 'of the checkout or to ~/.config/be3/namespace-token.json, or run ./scripts/buck' >&2
-        echo 'from a terminal to be asked for it. BE3_BUILD_SERVER picks another server.' >&2
-        echo 'guides/build_server.md says how to make one.' >&2
-        exit 1
-    fi
-    token_hash="$(sha256_of "$token")"
+    (umask 077 && printf 'authorization: Bearer %s\n' "$key" > "$header")
+    key_hash="$(sha256_of "$header")"
     now="$(date +%s)"
     if [[ -f "$stamp" && -f "$namespace_directory/buck2.buckconfig" ]] &&
-        [[ "$(sed -n 2p "$stamp")" == "$token_hash" ]]; then
+        [[ "$(sed -n 2p "$stamp")" == "$key_hash" ]]; then
         age=$((now - $(sed -n 1p "$stamp")))
     fi
     if [[ $age -lt 600 ]] && ! $namespace_recheck; then
@@ -725,21 +651,28 @@ refresh_namespace_cluster() {
         return 0
     fi
 
-    echo 'Waking the remote execution cluster with nsc...' >&2
-    if ! (umask 077 && NS_DO_NOT_UPDATE=1 "$nsc" reapi setup buck2 \
-        --token "$(native_path "$token")" --key "$namespace_cluster_key" \
-        --config "$(native_path "$namespace_directory/buck2.buckconfig.partial")" \
-        > "$namespace_directory/nsc.log" 2>&1); then
-        cat "$namespace_directory/nsc.log" >&2
-        echo '' >&2
-        echo 'nsc could not set up the remote execution cluster (guides/build_server.md).' >&2
+    echo "Waking the remote execution cluster through $namespace_url..." >&2
+    if ! status="$(curl --silent --show-error --max-time 600 --header "@$header" \
+        --output "$answer" --write-out '%{http_code}' "$namespace_url")"; then
+        echo "Could not reach $namespace_url (guides/build_server.md)." >&2
         exit 1
     fi
-    mv -f "$namespace_directory/buck2.buckconfig.partial" "$namespace_directory/buck2.buckconfig"
-    printf '%s\n%s\n' "$now" "$token_hash" > "$stamp"
+    if [[ "$status" != 200 ]]; then
+        cat "$answer" >&2 2> /dev/null || true
+        echo '' >&2
+        if [[ "$status" == 401 || "$status" == 403 ]]; then
+            echo "$namespace_url refused the key for namespace. Set BE3_NAMESPACE_KEY," >&2
+            echo 'or fix .build-server-key.namespace or ~/.config/be3/build-server-key.namespace.' >&2
+        else
+            echo "$namespace_url answered $status rather than the cluster's hosts (guides/build_server.md)." >&2
+        fi
+        exit 1
+    fi
+    mv -f "$answer" "$namespace_directory/buck2.buckconfig"
+    printf '%s\n%s\n' "$now" "$key_hash" > "$stamp"
     if [[ -z "$(namespace_host engine_address)" || -z "$(namespace_host cas_address)" || -z "$(namespace_header)" ]]; then
-        echo "nsc's configuration, $namespace_directory/buck2.buckconfig, does not name the" >&2
-        echo 'executor, the storage and the header buck2 needs.' >&2
+        echo "$namespace_url answered with a configuration that does not name the executor," >&2
+        echo "the storage and the header buck2 needs: $namespace_directory/buck2.buckconfig." >&2
         exit 1
     fi
 }
