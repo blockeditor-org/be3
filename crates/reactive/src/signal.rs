@@ -5,7 +5,7 @@ use std::rc::{Rc, Weak};
 use crate::arena::{self, Key};
 
 use crate::computation::{Computation, State, no_computation};
-use crate::runtime::{RUNTIME, batch, untrack};
+use crate::runtime::{RUNTIME, batch, check_tracked_read, untrack};
 
 pub(crate) struct Source {
     pub(crate) version: Cell<u64>,
@@ -136,12 +136,14 @@ pub(crate) struct Value<T> {
 }
 
 pub trait Get<T> {
+    #[track_caller]
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R;
 
     fn with_untracked<R>(&self, f: impl FnOnce(&T) -> R) -> R {
         untrack(|| self.with(f))
     }
 
+    #[track_caller]
     fn get(&self) -> T
     where
         T: Clone,
@@ -254,6 +256,7 @@ impl<T> Copy for ReadSignal<T> {}
 
 impl<T: 'static> Get<T> for Signal<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        check_tracked_read::<Self>();
         with(self.key, f)
     }
 
@@ -264,6 +267,7 @@ impl<T: 'static> Get<T> for Signal<T> {
 
 impl<T: 'static> Get<T> for ReadSignal<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        check_tracked_read::<Self>();
         with(self.key, f)
     }
 

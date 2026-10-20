@@ -5,7 +5,9 @@ use std::rc::{Rc, Weak};
 
 use crate::arena::{self, Key};
 use crate::computation::{Computation, no_computation};
-use crate::runtime::{Context, RUNTIME, batch, flush, flush_within, next_sequence};
+use crate::runtime::{
+    Context, RUNTIME, batch, flush, flush_within, leave_component_body, next_sequence,
+};
 
 pub(crate) struct Gate {
     parent: Option<Rc<Gate>>,
@@ -120,6 +122,7 @@ impl Owner {
         }
         let cleanups = self.cleanups.take();
         let _context = Context::enter(no_computation(), Weak::new());
+        let _body = leave_component_body();
         let mut failure = None;
         for cleanup in cleanups.into_iter().rev() {
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| cleanup.run()));

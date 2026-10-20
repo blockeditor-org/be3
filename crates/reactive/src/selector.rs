@@ -6,7 +6,7 @@ use std::rc::Rc;
 use crate::arena::{self, Key};
 use crate::computation::create_effect;
 use crate::memo::{Memo, create_memo};
-use crate::runtime::tracking;
+use crate::runtime::{check_tracked_read, tracking};
 use crate::scope::on_cleanup;
 use crate::signal::{Get, Source, track};
 
@@ -63,7 +63,9 @@ impl<K> Clone for Selector<K> {
 impl<K> Copy for Selector<K> {}
 
 impl<K: Clone + Eq + Hash + 'static> Selector<K> {
+    #[track_caller]
     pub fn is_selected(&self, key: &K) -> bool {
+        check_tracked_read::<Self>();
         let selected = self.value.with_untracked(|current| current == key);
         self.watch(key);
         selected

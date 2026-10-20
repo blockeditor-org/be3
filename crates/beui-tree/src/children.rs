@@ -190,6 +190,7 @@ impl<C: SlotChild> Default for Run<C> {
 }
 
 impl<C: SlotChild> Run<C> {
+    #[track_caller]
     pub fn items(&self) -> Vec<C::Stored> {
         self.state.filled.get();
         self.get_untracked()
@@ -199,11 +200,13 @@ impl<C: SlotChild> Run<C> {
         self.state.items.borrow().iter().cloned().collect()
     }
 
+    #[track_caller]
     pub fn len(&self) -> usize {
         self.state.filled.get();
         self.state.items.borrow().len()
     }
 
+    #[track_caller]
     pub fn is_empty(&self) -> bool {
         self.len() == 0
     }

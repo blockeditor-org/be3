@@ -2,7 +2,9 @@ use std::cell::{Cell, RefCell};
 use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
-use crate::runtime::{Context, RUNTIME, Read, Reset, batch, current_zone, enqueue, flush, probe};
+use crate::runtime::{
+    Context, RUNTIME, Read, Reset, batch, current_zone, enqueue, flush, leave_component_body, probe,
+};
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
 use crate::signal::Tracked;
 
@@ -196,6 +198,7 @@ impl Computation {
             zone => zone,
         };
         let _zone = Reset::set(|runtime| &runtime.zone, zone);
+        let _body = leave_component_body();
         let memo_depth = RUNTIME.with(|runtime| runtime.memo_depth.get());
         let _memo_guard = Reset::set(
             |runtime| &runtime.memo_depth,

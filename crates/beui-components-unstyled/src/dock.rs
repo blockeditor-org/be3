@@ -219,10 +219,10 @@ impl DockTabControl {
         let Some(dock) = self.dock() else {
             return;
         };
-        if dock.is_dialog(self.tab) {
+        let tab = self.tab;
+        if untrack(|| dock.is_dialog(tab)) {
             return;
         }
-        let tab = self.tab;
         let key = NEXT_MENU.with(|next| next.replace(next.get() + 1));
         let offers = dock.offers;
         offers.update(|offers| {
@@ -1499,7 +1499,7 @@ fn BackPreview(dock: State, switching: Signal<bool>) -> NodeId {
             <Frame />
         };
     };
-    let closing = dock.closes_going_back(visit);
+    let closing = untrack(|| dock.closes_going_back(visit));
     let mut after = dock.state.get_untracked();
     match closing {
         true => {
