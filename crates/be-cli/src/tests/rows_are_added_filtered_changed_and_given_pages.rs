@@ -43,7 +43,7 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
         )
     );
     assert_eq!(
-        run(&tracker, &format!("Issues {} show", made.id))
+        run(&tracker, &format!("Issues row {} show", made.id))
             .await
             .unwrap(),
         {
@@ -114,13 +114,13 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
         Some("Fix the login")
     );
     assert_eq!(
-        run(&tracker, &format!("Issues {} page", made.id))
+        run(&tracker, &format!("Issues row {} page", made.id))
             .await
             .unwrap(),
         "It fails on a slow network.\nFixed by retrying."
     );
 
-    let deleted = run(&tracker, &format!("Issues {} delete", made.id))
+    let deleted = run(&tracker, &format!("Issues row {} delete", made.id))
         .await
         .unwrap();
     assert!(deleted.starts_with("deleted"), "{deleted}");

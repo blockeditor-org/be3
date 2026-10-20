@@ -24,7 +24,7 @@ async fn two_databases_may_share_a_prefix_and_each_resolves_its_own_rows() {
     }
 
     for (name, id) in &made {
-        let shown = run(&tracker, &format!("{name} {id}")).await.unwrap();
+        let shown = run(&tracker, &format!("{name} row {id}")).await.unwrap();
         assert!(shown.contains(&format!("{name} row")), "{shown}");
     }
     let bare = run(&tracker, &made[0].1).await.unwrap_err();

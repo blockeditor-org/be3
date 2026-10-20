@@ -49,11 +49,11 @@ be ls                                   the workspaces and what is shared with t
 be workspaces                           the workspaces, and which it may write in
 be a1f3 ls                              a block's children
 be Issues rows Status!=Done Project=Launch
-be Issues BE-7K3Q2M                     a row, named within its database: its fields and its page
+be Issues row BE-7K3Q2M                 a row, named within its database: its fields and its page
 be Issues new "Fix the login" Status="To do" "Blocked by=BE-4HV8ND" --body "Steps..."
-be Issues BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND" --append "Fixed in #412."
-be Issues BE-7K3Q2M page edit           its page in $EDITOR, merged with any change since
-be Issues BE-7K3Q2M delete
+be Issues row BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND" --append "Fixed in #412."
+be Issues row BE-7K3Q2M page edit       its page in $EDITOR, merged with any change since
+be Issues row BE-7K3Q2M delete
 be 3fa9 delete                          a block and everything in it, to Recently Deleted
 be 3fa9 cat                             a text block, reached directly
 be Issues schema                        columns; each choice with its colour, icon, closed, default
@@ -75,7 +75,7 @@ the account may write in, or, with none, the one shared folder it may; with
 several they ask for `--in`. A target is a block, by the start of its id as `be ls` prints it, its full id
 or (unless it is deleted) its name (a database view and the database inside it share a name, and the
 name means the database). A row is named within its database, `be DATABASE
-ROW-ID`, never on its own. A row's id is its database's prefix and six
+row ROW-ID`, never on its own. A row's id is its database's prefix and six
 characters made from the row's own id, so it never changes and needs no
 coordination. The prefix is only a label: two databases may share one, and a
 copy keeps it, since nothing resolves a row id without its database. Field values are matched by name, case

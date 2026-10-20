@@ -42,7 +42,7 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
     );
     run(
         &tracker,
-        &format!("{view} {id} page write Steps_to_reproduce."),
+        &format!("{view} row {id} page write Steps_to_reproduce."),
     )
     .await
     .unwrap();
@@ -60,7 +60,9 @@ async fn blocks_are_listed_and_found_by_short_id_or_name() {
         .await
         .unwrap();
     assert_eq!(
-        run(&tracker, &format!("Issues {id} page")).await.unwrap(),
+        run(&tracker, &format!("Issues row {id} page"))
+            .await
+            .unwrap(),
         "Steps to reproduce.\nMore."
     );
     let wrong = run(&tracker, &format!("{page} rows")).await.unwrap_err();

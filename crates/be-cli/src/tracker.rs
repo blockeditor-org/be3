@@ -389,7 +389,7 @@ impl<S: ObjectStore> Tracker<S> {
         let index = self.index().await?;
         match index.find(text, |_| true) {
             Err(_) if looks_like_row(text) => Err(format!(
-                "a row is named within its database: be DATABASE {text}"
+                "a row is named within its database: be DATABASE row {text}"
             )),
             found => found.cloned(),
         }
@@ -1687,7 +1687,7 @@ fn yes(setting: &str, value: &str) -> Result<bool, String> {
     }
 }
 
-pub fn looks_like_row(text: &str) -> bool {
+fn looks_like_row(text: &str) -> bool {
     let Some((prefix, code)) = text.trim().rsplit_once('-') else {
         return false;
     };

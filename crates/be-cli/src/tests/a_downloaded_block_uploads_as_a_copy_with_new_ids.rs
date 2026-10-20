@@ -11,7 +11,7 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
     let id = row.split_whitespace().next().unwrap().to_owned();
     run(
         &tracker,
-        &format!("Issues {id} page write Steps_to_reproduce."),
+        &format!("Issues row {id} page write Steps_to_reproduce."),
     )
     .await
     .unwrap();
@@ -44,13 +44,13 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
     assert_ne!(copied.page, shown.page);
     run(
         &tracker,
-        &format!("{} {} page write Changed.", copy.short, rows[0].id),
+        &format!("{} row {} page write Changed.", copy.short, rows[0].id),
     )
     .await
     .unwrap();
     let original = index.get(original).unwrap().short.clone();
     assert_eq!(
-        run(&tracker, &format!("{original} {id} page"))
+        run(&tracker, &format!("{original} row {id} page"))
             .await
             .unwrap(),
         "Steps to reproduce."
@@ -89,7 +89,7 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
     );
     let moved = shown.split_whitespace().next().unwrap().to_owned();
     assert_eq!(
-        run(&elsewhere, &format!("Issues {moved} page"))
+        run(&elsewhere, &format!("Issues row {moved} page"))
             .await
             .unwrap(),
         "Steps to reproduce."

@@ -7,13 +7,13 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::blocks::Entry;
-use crate::tracker::{Assignment, Body, Filter, NewColumn, RowView, Tracker, looks_like_row};
+use crate::tracker::{Assignment, Body, Filter, NewColumn, RowView, Tracker};
 
 pub const USAGE: &str = "\
 Usage: be TARGET [VERB] [ARGUMENTS]   or   be COMMAND
 
 TARGET is a block, by the start of its id (`be ls` prints it), its full id or
-its name. A row is named within its database: `be Issues BE-7K3Q2M`.
+its name. A row is named within its database: `be Issues row BE-7K3Q2M`.
 
 Commands:
   be ls [TARGET]                      List the workspaces and what is shared with this
@@ -52,7 +52,7 @@ A database (or a view of one):
   pull-request EVENT-FILE             Move the rows of this database a GitHub pull
                                       request names
 
-A row (be DATABASE ROW-ID [VERB]):
+A row (be DATABASE row ROW-ID [VERB]):
   show                                Its fields and its page (what a bare row id does)
   set [FIELD=VALUE]... [--body TEXT] [--append TEXT]
                                       FIELD+=VALUE adds a link to a relation of several
@@ -102,26 +102,6 @@ pub enum Outcome {
         base: String,
     },
 }
-
-const VERBS: [&str; 17] = [
-    "ls",
-    "info",
-    "help",
-    "delete",
-    "download",
-    "cat",
-    "write",
-    "append",
-    "edit",
-    "rows",
-    "new",
-    "schema",
-    "option",
-    "add-option",
-    "add-column",
-    "import",
-    "pull-request",
-];
 
 const COMMANDS: [&str; 6] = [
     "ls",
@@ -178,17 +158,15 @@ pub fn parse(
         false => (Some(first), positional.next().unwrap_or_default()),
     };
     let mut arguments: Vec<String> = positional.collect();
-    if let ("write" | "append", Some(last)) = (verb.as_str(), arguments.last_mut())
+    let action = match arguments.len() {
+        0 | 1 => Some(&verb),
+        length => arguments.get(length - 2),
+    };
+    if action.is_some_and(|action| matches!(action.as_str(), "write" | "append"))
+        && let Some(last) = arguments.last_mut()
         && last == "-"
     {
         *last = text(std::mem::take(last))?;
-    }
-    if verb == "page"
-        && let [action, value] = arguments.as_mut_slice()
-        && matches!(action.as_str(), "write" | "append")
-        && value == "-"
-    {
-        *value = text(std::mem::take(value))?;
     }
     Ok(Invocation {
         target,
@@ -207,7 +185,7 @@ pub async fn run<S: ObjectStore>(
         return command(tracker, invocation).await.map(Outcome::Print);
     };
     let entry = tracker.resolve(target).await?;
-    if !VERBS.contains(&invocation.verb.as_str()) && looks_like_row(&invocation.verb) {
+    if invocation.verb == "row" {
         let database = tracker.database_of(&entry).await?;
         return row_verb(tracker, database, invocation).await;
     }
@@ -593,7 +571,7 @@ async fn block_verb<S: ObjectStore>(
             match (is_text, database) {
                 (true, _) => "cat, write, append, edit, ls, info, download and delete",
                 (false, Some(_)) =>
-                    "rows, a row id, new, schema, option, add-option, add-column, import, pull-request, ls, info, download and delete",
+                    "rows, row, new, schema, option, add-option, add-column, import, pull-request, ls, info, download and delete",
                 (false, None) => "ls, info, download and delete",
             }
         ) + &format!(", not {verb}")),
@@ -606,10 +584,10 @@ async fn row_verb<S: ObjectStore>(
     invocation: &Invocation,
 ) -> Result<Outcome, String> {
     let json = invocation.json;
-    let code = invocation.verb.as_str();
-    let (verb, arguments) = match invocation.arguments.split_first() {
-        Some((verb, arguments)) => (verb.as_str(), arguments),
-        None => ("", &[][..]),
+    let (code, verb, arguments) = match invocation.arguments.as_slice() {
+        [] => return Err("usage: be DATABASE row ROW-ID [VERB]".to_owned()),
+        [code] => (code.as_str(), "", &[][..]),
+        [code, verb, arguments @ ..] => (code.as_str(), verb.as_str(), arguments),
     };
     let print = |text: String| Ok(Outcome::Print(text));
     match verb {
@@ -630,10 +608,9 @@ async fn row_verb<S: ObjectStore>(
                 ("cat", None) => print(String::new()),
                 ("cat", Some(page)) => print(tracker.text(page).await?),
                 ("write" | "append", Some(page)) => {
-                    let text = arguments
-                        .get(1)
-                        .cloned()
-                        .ok_or_else(|| format!("usage: be DATABASE {code} page {action} TEXT"))?;
+                    let text = arguments.get(1).cloned().ok_or_else(|| {
+                        format!("usage: be DATABASE row {code} page {action} TEXT")
+                    })?;
                     let body = match action {
                         "write" => Body::Replace(text),
                         _ => Body::Append(text),

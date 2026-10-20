@@ -80,7 +80,7 @@ async fn a_row_blocked_by_another_shows_as_blocking_there() {
     let login = tracker.show(database, &login.id).await.unwrap();
     assert_eq!(login.field("Blocked by").unwrap().links[0].0, retry.id);
 
-    run(&tracker, &format!("Issues {} delete", retry.id))
+    run(&tracker, &format!("Issues row {} delete", retry.id))
         .await
         .unwrap();
     assert!(
