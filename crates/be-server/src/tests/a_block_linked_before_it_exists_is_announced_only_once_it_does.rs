@@ -10,11 +10,13 @@ async fn a_block_linked_before_it_exists_is_announced_only_once_it_does() {
         .second_connection(&author.token.clone(), organization)
         .await;
     let writer = Author::new(account);
+    other.list(BlockParent::Root).await;
 
     let folder = author.create_block(BlockParent::Root).await;
     let ServerMessage::BlockChanged { block: created } = other.graph_change().await else {
         panic!("the folder was not announced");
     };
+    other.list(BlockParent::Block(folder)).await;
     let note = Uuid::new_v4();
     let (commit, chunks) = writer.compose(b"lists the note", 1_000, None);
     author

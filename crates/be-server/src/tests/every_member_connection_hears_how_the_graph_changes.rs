@@ -9,6 +9,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     let mut other = harness
         .second_connection(&author.token.clone(), organization)
         .await;
+    other.list(BlockParent::Root).await;
 
     let folder = author.create_block(BlockParent::Root).await;
     let created = other.graph_change().await;
@@ -35,6 +36,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
         "{renamed:?}"
     );
 
+    other.list(BlockParent::Block(folder)).await;
     let child = author.create_block(BlockParent::Block(folder)).await;
     other.graph_change().await;
     let response = author
@@ -51,15 +53,7 @@ async fn every_member_connection_hears_how_the_graph_changes() {
         "{detached:?}"
     );
 
-    let listed = other
-        .send(|request| ClientMessage::ListChildren {
-            request,
-            parent: BlockParent::Detached,
-        })
-        .await;
-    let ServerMessage::Blocks { blocks, .. } = listed else {
-        panic!("listing failed: {listed:?}");
-    };
+    let blocks = other.list(BlockParent::Detached).await;
     assert_eq!(
         blocks.iter().map(|block| block.id).collect::<Vec<_>>(),
         [child]

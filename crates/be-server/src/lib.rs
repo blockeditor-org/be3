@@ -12,8 +12,8 @@ use std::{
 };
 
 use be_protocol::{
-    ByteBuf, ClientMessage, ErrorCode, MAX_FRAME_BYTES, ServerMessage, decode, encode, hello,
-    read_hello,
+    BlockSummary, ByteBuf, ClientMessage, ErrorCode, Listing, MAX_FRAME_BYTES, ServerMessage,
+    decode, encode, hello, read_hello,
 };
 use be_session::Claim;
 use futures_util::{
@@ -872,7 +872,11 @@ impl Connection {
             }
             ClientMessage::ReadBlock { request, block } => Ok(ServerMessage::Block {
                 request,
-                block: self.store.read_block(self.identity()?, block).await?,
+                block: self
+                    .list(Listing::Block(block))
+                    .await?
+                    .pop()
+                    .ok_or(ServerError::Corrupt)?,
             }),
             ClientMessage::ReadContents {
                 request,
@@ -914,16 +918,21 @@ impl Connection {
             }
             ClientMessage::ListShared { request } => Ok(ServerMessage::Blocks {
                 request,
-                blocks: self.store.list_shared(self.identity()?).await?,
+                blocks: self.list(Listing::Shared).await?,
             }),
             ClientMessage::ListChildren { request, parent } => Ok(ServerMessage::Blocks {
                 request,
-                blocks: self.store.list_children(self.identity()?, parent).await?,
+                blocks: self.list(Listing::Children(parent)).await?,
             }),
             ClientMessage::ListBackrefs { request, block } => Ok(ServerMessage::Blocks {
                 request,
-                blocks: self.store.list_backrefs(self.identity()?, block).await?,
+                blocks: self.list(Listing::Backrefs(block)).await?,
             }),
+            ClientMessage::Unlist { request, listing } => {
+                self.identity()?;
+                self.hub.unlist(self.client, listing).await;
+                Ok(ServerMessage::Ok { request })
+            }
             ClientMessage::ListHistory { request, block } => Ok(ServerMessage::History {
                 request,
                 entries: self.store.list_history(self.identity()?, block).await?,
@@ -957,13 +966,7 @@ impl Connection {
                 let collected = self.store.collect_detached(identity).await?;
                 for block in &collected.blocks {
                     self.hub
-                        .announce(
-                            identity.organization,
-                            ServerMessage::BlockRemoved {
-                                block: *block,
-                                revision: collected.revision,
-                            },
-                        )
+                        .removed(identity.organization, *block, collected.revision)
                         .await;
                 }
                 Ok(ServerMessage::Collected {
@@ -1364,10 +1367,23 @@ impl Connection {
             return;
         };
         for ((client, _), messages) in members.into_iter().zip(views) {
-            for message in messages {
-                self.hub.send_to(client, message).await;
+            for (message, entry) in messages {
+                self.hub.tell(client, message, entry).await;
             }
         }
+    }
+
+    async fn list(&self, listing: Listing) -> Result<Vec<BlockSummary>, ServerError> {
+        let identity = self.identity()?;
+        self.hub.list(self.client, listing).await;
+        let blocks = match listing {
+            Listing::Shared => self.store.list_shared(identity).await?,
+            Listing::Children(parent) => self.store.list_children(identity, parent).await?,
+            Listing::Backrefs(block) => self.store.list_backrefs(identity, block).await?,
+            Listing::Block(block) => vec![self.store.read_block(identity, block).await?],
+        };
+        self.hub.listed(self.client, listing, &blocks).await;
+        Ok(blocks)
     }
 
     async fn announce(&self, block: Uuid, state: &be_protocol::SessionState) {

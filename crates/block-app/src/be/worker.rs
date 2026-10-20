@@ -1955,24 +1955,27 @@ fn relist(shared: &Arc<Mutex<Shared>>) {
 pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) -> bool {
     let mut fetched = false;
     loop {
-        let wanted = shared
-            .lock()
-            .unwrap_or_else(PoisonError::into_inner)
-            .graph
-            .take_wanted();
+        let (unlisted, wanted) = {
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            (held.graph.take_unlisted(), held.graph.take_wanted())
+        };
+        let unlists = futures_util::future::join_all(
+            unlisted.into_iter().map(|listing| peer.unlist(listing)),
+        );
         if wanted.is_empty() {
+            unlists.await;
             return fetched;
         }
         fetched = true;
-        let answers = futures_util::future::join_all(wanted.iter().map(|listing| async move {
+        let lists = futures_util::future::join_all(wanted.iter().map(|listing| async move {
             match *listing {
                 Listing::Children(parent) => peer.children(parent).await,
                 Listing::Shared => peer.shared().await,
                 Listing::Backrefs(block) => peer.backrefs(block).await,
                 Listing::Block(block) => peer.summary(block).await.map(|summary| vec![summary]),
             }
-        }))
-        .await;
+        }));
+        let (_, answers) = futures_util::future::join(unlists, lists).await;
         for (listing, answer) in wanted.into_iter().zip(answers) {
             let summaries = match answer {
                 Ok(summaries) => summaries,

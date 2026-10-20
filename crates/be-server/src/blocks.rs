@@ -5,7 +5,7 @@ use be_protocol::{
 };
 use be_store::{Hash, ObjectStore};
 use rusqlite::{Connection, OptionalExtension, params};
-use std::collections::{BTreeMap, BTreeSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 use uuid::Uuid;
 
 use crate::{
@@ -207,7 +207,7 @@ impl ServerStore {
         members: Vec<Identity>,
         blocks: Vec<Uuid>,
         subtree: bool,
-    ) -> Result<Vec<Vec<be_protocol::ServerMessage>>, ServerError> {
+    ) -> Result<Vec<Vec<(be_protocol::ServerMessage, bool)>>, ServerError> {
         self.with_graph(organization, move |graph, _| {
             let mut touched = Vec::new();
             for block in blocks {
@@ -229,16 +229,27 @@ impl ServerStore {
                 .into_iter()
                 .map(|identity| {
                     let seen = visibility(identity);
+                    let shared: HashSet<Uuid> = match seen.administrator {
+                        true => HashSet::new(),
+                        false => graph.shared(identity.account).into_iter().collect(),
+                    };
                     touched
                         .iter()
                         .map(|block| match summary_with(graph, &seen, *block) {
                             Some(found) if found.access.can_know_exists() => {
-                                be_protocol::ServerMessage::BlockChanged { block: found }
+                                let entry = found.access.can_view() && shared.contains(block);
+                                (
+                                    be_protocol::ServerMessage::BlockChanged { block: found },
+                                    entry,
+                                )
                             }
-                            _ => be_protocol::ServerMessage::BlockRemoved {
-                                block: *block,
-                                revision,
-                            },
+                            _ => (
+                                be_protocol::ServerMessage::BlockRemoved {
+                                    block: *block,
+                                    revision,
+                                },
+                                false,
+                            ),
                         })
                         .collect()
                 })

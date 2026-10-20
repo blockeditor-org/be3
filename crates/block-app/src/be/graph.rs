@@ -6,6 +6,7 @@ use be_block::{
 };
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
+pub(crate) use be_protocol::Listing;
 use block_plugin_api::BlockIdRole;
 use uuid::Uuid;
 
@@ -41,14 +42,6 @@ pub(crate) enum Query {
     Subtree(Uuid),
 }
 
-#[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
-pub(crate) enum Listing {
-    Children(BlockParent),
-    Shared,
-    Backrefs(Uuid),
-    Block(Uuid),
-}
-
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub(crate) enum Owner {
     Host,
@@ -77,6 +70,7 @@ pub(crate) struct Graph {
     nodes: HashMap<Uuid, Node>,
     wants: HashMap<Owner, Vec<Query>>,
     listings: HashMap<Listing, Listed>,
+    unlisted: Vec<Listing>,
     heard: HashMap<Uuid, u64>,
     floor: u64,
     pending: HashMap<Uuid, u32>,
@@ -106,23 +100,32 @@ impl Graph {
             }
         }
         let before = self.listings.len();
-        self.listings.retain(|listing, _| desired.contains(listing));
+        let unlisted = &mut self.unlisted;
+        self.listings.retain(|listing, listed| {
+            let kept = desired.contains(listing);
+            if !kept && listed.fetch != Fetch::Wanted {
+                unlisted.push(*listing);
+            }
+            kept
+        });
         let mut changed = self.listings.len() != before;
         for listing in desired {
             if self.listings.contains_key(&listing) {
                 continue;
             }
-            let fetch = match listing {
-                Listing::Block(block) if self.nodes.contains_key(&block) => Fetch::Loaded,
-                _ => Fetch::Wanted,
-            };
             let members = self
                 .nodes
                 .values()
                 .filter(|node| member(listing, node) == Some(true))
                 .map(|node| node.id)
                 .collect();
-            self.listings.insert(listing, Listed { members, fetch });
+            self.listings.insert(
+                listing,
+                Listed {
+                    members,
+                    fetch: Fetch::Wanted,
+                },
+            );
             changed = true;
         }
         if changed {
@@ -194,6 +197,10 @@ impl Graph {
         found
     }
 
+    pub(crate) fn take_unlisted(&mut self) -> Vec<Listing> {
+        std::mem::take(&mut self.unlisted)
+    }
+
     pub(crate) fn listed(&mut self, listing: Listing, nodes: Vec<Node>, revision: u64) {
         let Some(listed) = self.listings.get_mut(&listing) else {
             return;
@@ -201,9 +208,15 @@ impl Graph {
         listed.fetch = Fetch::Loaded;
         listed.members = nodes.iter().map(|node| node.id).collect();
         listed.members.extend(
-            self.pending
-                .keys()
-                .filter_map(|block| self.nodes.get(block))
+            self.nodes
+                .values()
+                .filter(|node| {
+                    self.pending.contains_key(&node.id)
+                        || self
+                            .heard
+                            .get(&node.id)
+                            .is_some_and(|heard| *heard > revision)
+                })
                 .filter(|node| member(listing, node) == Some(true))
                 .map(|node| node.id),
         );
@@ -248,9 +261,13 @@ impl Graph {
         let mut needed = HashSet::new();
         self.listings_for(query, &mut needed);
         needed.iter().all(|listing| {
-            self.listings
-                .get(listing)
-                .is_some_and(|listed| listed.fetch == Fetch::Loaded)
+            let present =
+                matches!(listing, Listing::Block(block) if self.nodes.contains_key(block));
+            present
+                || self
+                    .listings
+                    .get(listing)
+                    .is_some_and(|listed| listed.fetch == Fetch::Loaded)
         })
     }
 

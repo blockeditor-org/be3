@@ -116,6 +116,14 @@ pub struct OwnSealed {
     pub sealed: Vec<u8>,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum Listing {
+    Children(BlockParent),
+    Shared,
+    Backrefs(Uuid),
+    Block(Uuid),
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct BlockSummary {
     pub id: Uuid,
@@ -495,6 +503,10 @@ pub enum ClientMessage {
         request: u64,
         block: Uuid,
     },
+    Unlist {
+        request: u64,
+        listing: Listing,
+    },
     ListHistory {
         request: u64,
         block: Uuid,
@@ -687,6 +699,7 @@ impl ClientMessage {
             | Self::ListShared { request }
             | Self::ListChildren { request, .. }
             | Self::ListBackrefs { request, .. }
+            | Self::Unlist { request, .. }
             | Self::ListHistory { request, .. }
             | Self::PruneHistory { request, .. }
             | Self::DeleteBlock { request, .. }

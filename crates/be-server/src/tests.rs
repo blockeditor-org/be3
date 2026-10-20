@@ -24,6 +24,7 @@ mod a_bunny_storage_zone_holds_a_backup;
 mod a_client_speaks_the_protocol_over_http_posts;
 mod a_closed_server_also_refuses_browser_registration_and_login;
 mod a_closed_server_refuses_new_accounts_and_sign_ins_but_not_tokens;
+mod a_connection_hears_only_of_the_blocks_it_listed;
 mod a_contact_card_the_server_swaps_does_not_open;
 mod a_detached_subtree_is_collected_and_its_objects_freed;
 mod a_grant_or_a_key_for_someone_not_a_contact_is_refused;
@@ -381,6 +382,16 @@ impl TestClient {
             panic!("read failed: {response:?}");
         };
         block
+    }
+
+    async fn list(&mut self, parent: BlockParent) -> Vec<BlockSummary> {
+        let response = self
+            .send(|request| ClientMessage::ListChildren { request, parent })
+            .await;
+        let ServerMessage::Blocks { blocks, .. } = response else {
+            panic!("listing failed: {response:?}");
+        };
+        blocks
     }
 
     async fn publish(

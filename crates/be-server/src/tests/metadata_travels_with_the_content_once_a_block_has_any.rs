@@ -10,6 +10,7 @@ async fn metadata_travels_with_the_content_once_a_block_has_any() {
     let mut other = harness
         .second_connection(&author_connection.token.clone(), organization)
         .await;
+    other.list(BlockParent::Root).await;
 
     let response = author_connection
         .send(|request| ClientMessage::SetMetadata {

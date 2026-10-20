@@ -25,11 +25,22 @@ fn a_folders_blocks_leave_once_nothing_lists_it() {
 
     graph.want(Owner::Open, vec![Query::Block(open)]);
     assert!(
-        graph.take_wanted().is_empty(),
-        "a block another listing holds needs no request of its own"
+        graph.ready(Query::Block(open)),
+        "a block another listing holds is ready at once"
     );
+    assert_eq!(
+        graph.take_wanted(),
+        [Listing::Block(open)],
+        "but is still asked for, so the server tells of it on its own"
+    );
+    graph.listed(Listing::Block(open), vec![under(open)], 1);
     graph.want(Owner::Editor(1), Vec::new());
     assert!(graph.get(inside).is_none(), "nothing lists it any more");
+    assert_eq!(
+        graph.take_unlisted(),
+        [Listing::Children(BlockParent::Block(folder))],
+        "and the server is told to stop telling of it"
+    );
     assert!(graph.get(open).is_some(), "it is still held on its own");
 
     let later = Uuid::from_u128(4);

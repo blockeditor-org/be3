@@ -79,11 +79,20 @@ async fn a_graph_change_reaches_only_the_members_who_may_see_it() {
         2,
     )
     .await;
+    viewer.list(BlockParent::Root).await;
+    outsider.list(BlockParent::Root).await;
 
     grant(&mut owner, folder, account, Access::View).await;
-    let mut expected = vec![(folder, true), (inside, true)];
-    expected.sort();
-    assert_eq!(changes(&mut viewer, 2).await, expected);
+    assert_eq!(
+        changes(&mut viewer, 1).await,
+        [(folder, true)],
+        "a block inside a folder is heard of only once the folder is listed"
+    );
+    let listed = viewer.list(BlockParent::Block(folder)).await;
+    assert_eq!(
+        listed.iter().map(|block| block.id).collect::<Vec<_>>(),
+        [inside]
+    );
 
     let response = owner
         .send(|request| ClientMessage::SetMetadata {

@@ -230,6 +230,16 @@ time, so notifications wait for the next post.
   since who may know they exist changed too; an id no block has (one linked
   before it is made) is never announced. `WatchHub` indexes clients
   by organization and account, so this never scans every connection.
+- A connection hears only of what it listed. `ListChildren`, `ListShared`,
+  `ListBackrefs` and `ReadBlock` each register a `Listing` with `WatchHub`
+  before reading (so nothing changed during the read is missed), and the hub
+  remembers each block a connection has been told of. A change is sent when a
+  listing matches the block as it now is (its parent, its own id, an entry point
+  under `Shared`, a reference to a backrefs target) or when the connection was
+  told of it before, so a block moving out of a listed folder is still
+  announced, and then forgotten. `Unlist` drops a listing and the blocks only it
+  matched; a refused listing stays until then, so a block read before it is
+  made is announced once it is.
 - Every `BlockSummary` and `BlockRemoved` carries the `revision` it was read
   at: `ServerStore::with_graph` advances one counter on each call, under the
   lock every graph read and change takes, so a larger revision is always a
@@ -753,7 +763,10 @@ block (`ReadBlock`) - expanding `References`, `Parents` and `Subtree` as the
 blocks they name arrive, and the worker fetches the new ones together
 (`fetch_listings`). A listing nobody wants any more is dropped, and with it
 every block no other listing holds, so closing a folder in the files pane
-empties it from the mirror. A query is answered only once its listings have
+empties it from the mirror; the worker sends `Unlist` for it, ahead of that
+round's new listings, so the server stops announcing it. A block already held
+is asked for on its own all the same, so the server keeps announcing it once
+the listing that brought it is gone, but its query is ready at once. A query is answered only once its listings have
 loaded (`be::ready`), so an editor never sees a folder as empty while it
 loads. The server's `BlockChanged` and `BlockRemoved` events keep what is
 listed current: a block is kept only while a listing holds it (a new child of a
