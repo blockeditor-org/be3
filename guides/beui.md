@@ -450,7 +450,7 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `Grid`, `Text`,
   `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
-  `Portal`, `BackHandler`, `Shift`, `Fade` — and it stays small because most things are
+  `Portal`, `BackHandler`, `Shift`, `Turn`, `Fade` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
@@ -614,7 +614,11 @@ so a box sized by what it holds can still scroll once it is squeezed. Rows far
 outside its viewport are culled like any other node out of sight. `Fade` paints
 its one child faded out toward each edge over the widths its `edges` name. `Shift`
 lays its child out moved `by` a vector without moving the space it takes, and
-paints nothing while the child is off the screen, which is how a sheet slides in. `VirtualList` is an ordinary box that stands for
+paints nothing while the child is off the screen, which is how a sheet slides in. `Turn`
+paints its child turned clockwise by `quarter_turns` about the middle of its box, which
+takes the child's size with width and height swapped for an odd number of turns; pointer
+input and the accessibility tree still see the child unturned, so it is for pictures, such
+as a preview of a turned screen, not for controls. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
 the viewport reaches (see [Long lists](#long-lists)).
 `Scroll` takes a `direction`, so the same tag is a

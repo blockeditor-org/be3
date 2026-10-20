@@ -529,6 +529,9 @@ pub(crate) fn LayeringPage() -> NodeId {
             <Sample title="Shift" code={vec![NudgedTile::SOURCE]}>
                 <NudgedTile />
             </Sample>
+            <Sample title="Turn" code={vec![TurnedLabel::SOURCE]}>
+                <TurnedLabel />
+            </Sample>
             <Sample title="Fade" code={vec![FadedStrip::SOURCE]}>
                 <FadedStrip />
             </Sample>
@@ -593,6 +596,29 @@ fn NudgedTile() -> NodeId {
             <Shift by={by}>
                 <Frame width=SWATCH height=SWATCH fill={theme.accent} radius=12.0 />
             </Shift>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn TurnedLabel() -> NodeId {
+    let theme = use_theme();
+    let quarters = create_signal(1u8);
+    let face = theme.surface_raised;
+    let ink = theme.text;
+    view! {
+        <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
+            <Interactive on_click={move || quarters.update(|quarters| *quarters = (*quarters + 1) % 4)}>
+                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
+                    <Text string="Turn" color={ink} />
+                </Frame>
+            </Interactive>
+            <Turn quarter_turns={quarters}>
+                <Frame fill={theme.accent} radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
+                    <Text string="Upright at no turns" color={theme.on_accent} />
+                </Frame>
+            </Turn>
         </List>
     }
 }
