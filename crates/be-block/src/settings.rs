@@ -1,6 +1,7 @@
 use be_model::{Change, Document, Edit, Map, Model, ObjectId};
 use uuid::Uuid;
 
+use crate::device_class::DeviceClass;
 use crate::{ChildChange, Root};
 
 pub trait Layered: Root + Clone + Default {
@@ -50,11 +51,11 @@ impl Settings {
         Self::KINDS.put(ObjectId::ROOT, &kind, Some(&block)).into()
     }
 
-    pub fn layers(&self, kind: Uuid, profile: Option<&SettingsProfile>) -> Vec<Uuid> {
-        self.kind(kind)
-            .into_iter()
-            .chain(profile.and_then(|profile| profile.kind(kind)))
-            .collect()
+    pub fn layers(&self, kind: Uuid, profile: Option<&SettingsProfile>) -> crate::Layers {
+        crate::Layers {
+            every_device: self.kind(kind),
+            this_device: profile.and_then(|profile| profile.kind(kind)),
+        }
     }
 
     pub fn profile(&self, client: Uuid) -> Option<Uuid> {
@@ -184,9 +185,14 @@ pub type SettingsContent = Document<Settings>;
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct SettingsProfile {
     pub kinds: Map<Uuid, Uuid>,
+    pub class: Option<DeviceClass>,
 }
 
 impl SettingsProfile {
+    pub fn set_class(class: Option<DeviceClass>) -> Edit {
+        Self::CLASS.set(ObjectId::ROOT, &class).into()
+    }
+
     pub fn kind(&self, kind: Uuid) -> Option<Uuid> {
         self.kinds.get(&kind).copied()
     }

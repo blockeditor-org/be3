@@ -19,6 +19,7 @@ async fn an_edited_page_keeps_what_someone_else_changed_meanwhile() {
 
     tracker
         .update(
+            board.database,
             &made.id,
             &[],
             Body::Replace("one\ntwo\nthree\nfour\n".into()),
@@ -32,7 +33,12 @@ async fn an_edited_page_keeps_what_someone_else_changed_meanwhile() {
 
     assert!(clean);
     assert_eq!(
-        tracker.show(&made.id).await.unwrap().body.as_deref(),
+        tracker
+            .show(board.database, &made.id)
+            .await
+            .unwrap()
+            .body
+            .as_deref(),
         Some("ONE\ntwo\nthree\nfour\n")
     );
     harness.stop().await;

@@ -60,12 +60,13 @@ pub(crate) fn ActionRowFace(
     disabled: Prop<bool>,
     danger: Prop<bool>,
     #[prop(default = false)] submenu: Prop<bool>,
-    #[prop(default = false)] checked: Prop<bool>,
+    #[prop(default = None)] checked: Prop<Option<bool>>,
     #[prop(default = None)] depth: Prop<Option<usize>>,
     #[prop(default = None)] expanded: Prop<Option<bool>>,
     toggle: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
+    let ticked = create_memo(move || checked.get() == Some(true));
     let off = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
     let fill = create_memo(move || match (off.get(), active.get(), hovered.get()) {
@@ -88,7 +89,6 @@ pub(crate) fn ActionRowFace(
     let detail = create_memo(move || detail.get());
     let chevron_color = TextColor::Muted;
     let has_detail = create_memo(move || !detail.get().is_empty());
-    let checked = create_memo(move || checked.get());
     view! {
         <Frame
             height=ROW_HEIGHT
@@ -121,7 +121,7 @@ pub(crate) fn ActionRowFace(
                         />
                     </Show>
                 </List>
-                <Show condition={checked}>
+                <Show condition={ticked}>
                     <Text color=TextColor::Accent align=TextAlign::Center>
                         <Icon glyph={ICON_CHECK.to_owned()} />
                     </Text>

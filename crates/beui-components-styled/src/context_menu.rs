@@ -165,11 +165,11 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         label,
         glyph,
         detail,
+        checked,
         disabled,
         danger,
         separated,
         has_submenu,
-        checked,
         depth,
         expanded,
         toggle,
@@ -240,10 +240,10 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
 }
 
 #[component]
-fn MenuCheck(checked: Prop<bool>) -> DynamicSegment<ListChild> {
-    let checked = create_memo(move || checked.get());
+fn MenuCheck(checked: Prop<Option<bool>>) -> DynamicSegment<ListChild> {
+    let ticked = create_memo(move || checked.get() == Some(true));
     view! {
-        <Show condition={checked}>
+        <Show condition={ticked}>
             <Text size=TextSize::Sm color=TextColor::Accent align=TextAlign::Center>
                 <Icon glyph=ICON_CHECK />
             </Text>
@@ -380,11 +380,11 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         label,
         glyph,
         detail,
+        checked,
         disabled,
         danger,
         separated,
         has_submenu,
-        checked,
         depth,
         expanded,
         toggle,

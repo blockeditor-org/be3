@@ -310,7 +310,7 @@ its devices, the profile's replacing the shared one. The input settings' Remaps 
 editor of the `InputRemapper` type as the Remapper, and its Remaps link opens the chosen block with its
 editor in a tab, making it first (with the chosen remapper, else the first there is) when there is none.
 
-The remapper that ships is the Linux settings plugin's Input Remaps editor (`editors/linux-settings`, `input_remaps`): its block's config is TOML text, stored exactly as
+The remapper that ships is the settings plugin's Input Remaps editor (`editors/settings`, `input_remaps`): its block's config is TOML text, stored exactly as
 written, comments and layout included, and its module is `crates/remap/module`, staged as its data
 (`remapper.wasm`). The module is `be-remap`'s engine and text reader (`be_remap::text`, whose errors
 name the group and rule): rules apply in every window or only while a window whose executable, app id
@@ -429,7 +429,31 @@ are `BTN_STYLUS` and `BTN_STYLUS2`. A program that never asked for a tablet seat
 (`zwp_tablet_manager_v2.get_tablet_seat`) gets the pen as its pointer instead, the tip a left
 click, decided when the pen comes over it and kept while the tip is down. Under `--session` the
 DRM adapter reads libinput's tablet tools over the area of every display, as it does an absolute
-pointer, and moves the cursor with them.
+pointer, and moves the cursor with them; with one display both turn with its rotation (below).
+
+A screen's rotation (`ScreenSettings::rotation`, through `DisplayConfig::rotations`) turns its
+picture clockwise on the panel: `Clockwise90` puts the picture's top along the panel's right
+edge, so the device is held with that edge up. The adapter's `Screen` lays out and draws the
+picture upright at its turned size (`Rotation::turned`), so the layout, beui and the nested
+Wayland clients only ever see an upright screen of that size with `Transform::Normal`, and
+turns it onto the scanout buffer on the GPU (`gpu.rs`'s sprite pass with turned corners, where
+an unturned screen copies), the software pointer and the damage clips with it
+(`rotation.rs`). It never asks the plane to rotate, which most display devices, the e-paper
+panel's included, cannot do. Absolute input arrives in the panel's own orientation
+(libinput's calibration matrix lines a touchscreen up with the panel unturned) and is turned
+back (`layout::absolute`): touch onto the first screen, an absolute pointer or a pen onto the
+one screen when there is one and across all of them unturned otherwise, and a pen's tilt
+with it. A relative pointer is already in the picture's terms. A rotation applies live, rebuilding
+the output's `Screen` as a mode change does, and never asks to be kept.
+
+The rotation is picked with `block_editor_beui::RotationPicker`, which both the Display page
+and the bar use. When the display settings' `rotate_in_bar` is on and the host reports a
+screen, linux-desktop's bar shows a rotate button (`desktop.rotate`, `app/rotate.rs`) whose
+popover holds the picker for the first screen in `Displays`. It reads and writes the setting
+through `block_editor_beui::LayeredSettings::this_device`, as the Display page does, so the
+rotation of a monitor known by its EDID serial goes to every device and that of a panel known
+only by its connector stays in this device's profile, and block-app's `SettingsSync` applies it
+as it does an edit from the Display page.
 
 A window's tab shows the icon its program set with `xdg-toplevel-icon-v1`: be-wayland
 reads the pixels it was handed (the smallest at least 64 pixels, shrunk to 64) or looks the

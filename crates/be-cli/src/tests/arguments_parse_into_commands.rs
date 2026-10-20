@@ -46,8 +46,9 @@ fn arguments_parse_into_commands() {
 
     let listing = parse(&["ls"]).unwrap();
     assert_eq!((listing.target, listing.verb.as_str()), (None, "ls"));
-    let page = parse(&["BE-7K3Q2M", "page", "write", "-"]).unwrap();
-    assert_eq!(page.arguments, ["write", "from stdin"]);
+    let page = parse(&["Issues", "row", "BE-7K3Q2M", "page", "write", "-"]).unwrap();
+    assert_eq!(page.verb, "row");
+    assert_eq!(page.arguments, ["BE-7K3Q2M", "page", "write", "from stdin"]);
     let made = parse(&["new-database", "Issues", "--prefix", "BE", "--in", "a1f3"]).unwrap();
     assert_eq!(made.options.prefix.as_deref(), Some("BE"));
     assert_eq!(made.options.within.as_deref(), Some("a1f3"));

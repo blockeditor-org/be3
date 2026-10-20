@@ -39,11 +39,11 @@ pub struct MenuRowHandle {
     pub label: Prop<String>,
     pub glyph: Prop<String>,
     pub detail: Prop<String>,
+    pub checked: Prop<Option<bool>>,
     pub disabled: Prop<bool>,
     pub danger: Prop<bool>,
     pub separated: Prop<bool>,
     pub has_submenu: Prop<bool>,
-    pub checked: Prop<bool>,
     pub depth: Prop<Option<usize>>,
     pub expanded: Prop<Option<bool>>,
     pub toggle: ClickCallback,
@@ -64,10 +64,10 @@ pub struct MenuItem {
     pub(crate) label: Memo<String>,
     pub(crate) glyph: Memo<String>,
     detail: Memo<String>,
+    checked: Memo<Option<bool>>,
     pub(crate) disabled: Memo<bool>,
     danger: Memo<bool>,
     separated: Memo<bool>,
-    checked: Memo<bool>,
     depth: Memo<Option<usize>>,
     expanded: Memo<Option<bool>>,
     on_expand: Callback<bool>,
@@ -102,10 +102,10 @@ pub fn MenuItem(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = String::new())] detail: Prop<String>,
+    #[prop(default = None)] checked: Prop<Option<bool>>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] danger: Prop<bool>,
     #[prop(default = false)] separated: Prop<bool>,
-    #[prop(default = false)] checked: Prop<bool>,
     #[prop(default = None)] depth: Prop<Option<usize>>,
     #[prop(default = None)] expanded: Prop<Option<bool>>,
     #[prop(default = false)] page: bool,
@@ -124,10 +124,10 @@ pub fn MenuItem(
         label: create_memo(move || label.get()),
         glyph: create_memo(move || glyph.get()),
         detail: create_memo(move || detail.get()),
+        checked: create_memo(move || checked.get()),
         disabled: create_memo(move || disabled.get()),
         danger: create_memo(move || danger.get()),
         separated: create_memo(move || separated.get()),
-        checked: create_memo(move || checked.get()),
         depth: create_memo(move || depth.get()),
         expanded: create_memo(move || expanded.get()),
         on_expand,
@@ -173,10 +173,10 @@ fn plain(label: Prop<String>, children: Run<MenuItem>) -> MenuItem {
         label: create_memo(move || label.get()),
         glyph: create_memo(String::new),
         detail: create_memo(String::new),
+        checked: create_memo(|| None),
         disabled: create_memo(|| false),
         danger: create_memo(|| false),
         separated: create_memo(|| false),
-        checked: create_memo(|| false),
         depth: create_memo(|| None),
         expanded: create_memo(|| None),
         on_expand: Callback::default(),
@@ -444,11 +444,11 @@ fn quiet_handle(kind: MenuRowKind, label: Prop<String>) -> MenuRowHandle {
         label,
         glyph: Prop::Static(String::new()),
         detail: Prop::Static(String::new()),
+        checked: Prop::Static(None),
         disabled: Prop::Static(false),
         danger: Prop::Static(false),
         separated: Prop::Static(false),
         has_submenu: Prop::Static(false),
-        checked: Prop::Static(false),
         depth: Prop::Static(None),
         expanded: Prop::Static(None),
         toggle: ClickCallback::default(),
@@ -465,11 +465,11 @@ fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) ->
         label: item.label.into_prop(),
         glyph: item.glyph.into_prop(),
         detail: item.detail.into_prop(),
+        checked: item.checked.into_prop(),
         disabled: item.disabled.into_prop(),
         danger: item.danger.into_prop(),
         separated: item.separated.into_prop(),
         has_submenu: Prop::Static(false),
-        checked: item.checked.into_prop(),
         depth: item.depth.into_prop(),
         expanded: item.expanded.into_prop(),
         toggle: ClickCallback::new(move || toggled.toggle()),
@@ -482,10 +482,14 @@ fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) ->
 fn row_accessibility(item: &Rc<MenuItem>) -> Memo<Node> {
     let (checked, depth, expanded) = (item.checked, item.depth, item.expanded);
     create_memo(move || {
-        let mut node = Node::new(Role::MenuItem);
-        if checked.get() {
-            node.set_toggled(Toggled::True);
-        }
+        let mut node = match checked.get() {
+            Some(on) => {
+                let mut node = Node::new(Role::MenuItemCheckBox);
+                node.set_toggled(Toggled::from(on));
+                node
+            }
+            None => Node::new(Role::MenuItem),
+        };
         if let Some(depth) = depth.get() {
             node.set_level(depth + 1);
         }
@@ -638,7 +642,6 @@ fn MenuRow(
             <unstyled::Button
                 @node_ref=&button
                 label={spoken}
-                role=Role::MenuItem
                 accessibility
                 disabled={unavailable}
                 tab_stop={focused.memo(at)}
@@ -979,7 +982,7 @@ fn first_focus(state: State, focus_first: bool) -> Focus {
     let items = state.items.with(|items| items.get_untracked());
     let checked = items
         .iter()
-        .position(|item| item.is_row() && item.checked.get_untracked());
+        .position(|item| item.is_row() && item.checked.get_untracked() == Some(true));
     if let Some(index) = checked {
         return Focus::Row(index);
     }

@@ -71,7 +71,6 @@ members = [
     "crates/editors/image-block",
     "crates/editors/infinite-canvas",
     "crates/editors/linux-desktop",
-    "crates/editors/linux-settings",
     "crates/editors/logic-grid",
     "crates/editors/map",
     "crates/editors/paint-review",

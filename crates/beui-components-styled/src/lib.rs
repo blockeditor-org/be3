@@ -46,6 +46,7 @@ pub mod split_button;
 pub mod stack;
 pub mod stale_notice;
 pub mod switch;
+pub mod table;
 pub mod tabs;
 pub mod text;
 pub mod text_area;
@@ -63,7 +64,7 @@ pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
     BackHandler, Canvas, CanvasItem, Drawing, Embed, Fade, Gap, Grid, GridCell, Interactive, Layer,
     Layers, LayoutBuilder, List, Offset, Overlay, PlacementBuilder, Portal, Shift, Spacer,
-    TextItem, VirtualList,
+    TextItem, Turn, VirtualList,
 };
 pub use border::{Bordered, Separator};
 pub use button::{Button, ButtonVariant};
@@ -110,6 +111,7 @@ pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use stale_notice::StaleNotice;
 pub use switch::{Switch, switch_on};
+pub use table::{Table, TableCell, TableColumn, TableRow};
 pub use tabs::{Tabs, tabs_selected};
 pub use text::{
     Family, ICON_SCALE, ICON_SPACING_EM, Icon, Span, Text, TextColor, TextSize, TextStyle,

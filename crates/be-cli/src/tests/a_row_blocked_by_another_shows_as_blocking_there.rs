@@ -44,7 +44,7 @@ async fn a_row_blocked_by_another_shows_as_blocking_there() {
     assert_eq!(blockers.len(), 2);
     assert!(blockers.contains(&login.id) && blockers.contains(&retry.id));
 
-    let shown = tracker.show(&login.id).await.unwrap();
+    let shown = tracker.show(database, &login.id).await.unwrap();
     let blocking = shown.field("Blocking").unwrap();
     assert_eq!(
         blocking.links,
@@ -58,32 +58,34 @@ async fn a_row_blocked_by_another_shows_as_blocking_there() {
 
     tracker
         .update(
+            database,
             &login.id,
             &[Assignment::parse(&format!("Blocking-={}", banner.id)).unwrap()],
             Body::Keep,
         )
         .await
         .unwrap();
-    let banner = tracker.show(&banner.id).await.unwrap();
+    let banner = tracker.show(database, &banner.id).await.unwrap();
     assert_eq!(banner.field("Blocked by").unwrap().links.len(), 1);
     assert_eq!(banner.field("Blocked by").unwrap().links[0].0, retry.id);
     tracker
         .update(
+            database,
             &retry.id,
             &[Assignment::parse(&format!("Blocking+={}", login.id)).unwrap()],
             Body::Keep,
         )
         .await
         .unwrap();
-    let login = tracker.show(&login.id).await.unwrap();
+    let login = tracker.show(database, &login.id).await.unwrap();
     assert_eq!(login.field("Blocked by").unwrap().links[0].0, retry.id);
 
-    run(&tracker, &format!("{} delete", retry.id))
+    run(&tracker, &format!("Issues row {} delete", retry.id))
         .await
         .unwrap();
     assert!(
         tracker
-            .show(&login.id)
+            .show(database, &login.id)
             .await
             .unwrap()
             .field("Blocked by")
@@ -91,7 +93,7 @@ async fn a_row_blocked_by_another_shows_as_blocking_there() {
     );
     assert!(
         tracker
-            .show(&banner.id)
+            .show(database, &banner.id)
             .await
             .unwrap()
             .field("Blocked by")

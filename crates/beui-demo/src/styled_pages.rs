@@ -1649,7 +1649,7 @@ fn FolderRow(
     let (name, depth, _) = FOLDERS[folder];
     let branch = FOLDERS.iter().any(|(_, _, parent)| *parent == Some(folder));
     let open = create_memo(move || branch.then(|| expanded.get().contains(&folder)));
-    let checked = create_memo(move || location.get() == folder);
+    let checked = create_memo(move || Some(location.get() == folder));
     view! {
         <unstyled::MenuItem
             label=name
@@ -2846,6 +2846,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Settings sections" code={vec![SettingsSections::SOURCE]}>
                 <SettingsSections />
             </Sample>
+            <Sample title="Table" code={vec![PlanetTable::SOURCE]}>
+                <PlanetTable />
+            </Sample>
             <Sample title="Separators and borders" code={vec![Separators::SOURCE]}>
                 <Separators />
             </Sample>
@@ -2977,6 +2980,48 @@ fn Accordions() -> NodeId {
 
 #[sample]
 #[component]
+fn PlanetTable() -> NodeId {
+    const PLANETS: [(&str, &str, &str, &str); 3] = [
+        ("Mercury", "88 days", "None", ""),
+        ("Earth", "365 days", "1", "The Moon"),
+        ("Jupiter", "12 years", "95", "Four large ones"),
+    ];
+    view! {
+        <SettingsSection
+            title="Planets"
+            description="A table heads its rows down the side and its columns along the top. A cell can carry a caption under its value."
+        >
+            <Table
+                label="Planets"
+                heading="Planet"
+                columns={vec![TableColumn::new("Year"), TableColumn::new("Moons").caption("Known")]}
+            >
+                <ForEach
+                    keys={PLANETS.to_vec()}
+                >|(name, year, moons, caption): (&'static str, &'static str, &'static str, &'static str)|
+                    <TableRow
+                        label={name.to_owned()}
+                        @test_id={format!("table.{}", name.to_lowercase())}
+                    >
+                        <TableCell
+                            text={year.to_owned()}
+                            color=TextColor::Muted
+                            @test_id={format!("table.{}.year", name.to_lowercase())}
+                        />
+                        <TableCell
+                            text={moons.to_owned()}
+                            caption={caption.to_owned()}
+                            @test_id={format!("table.{}.moons", name.to_lowercase())}
+                        />
+                    </TableRow>
+                </ForEach>
+            </Table>
+        </SettingsSection>
+    }
+}
+
+#[sample]
+#[component]
 fn SettingsSections() -> NodeId {
     let sounds = create_signal(true);
     let volume = create_signal(DEFAULT_VOLUME);
@@ -2984,11 +3029,19 @@ fn SettingsSections() -> NodeId {
     let effects = create_signal(true);
     let volume_changed = create_memo(move || volume.get() != DEFAULT_VOLUME);
     let size_changed = create_memo(move || size.get() != Some(1));
+    let haptics = create_signal(false);
+    let haptics_pinned = create_signal(true);
+    let haptics_changed = create_memo(move || haptics.get());
+    let pinned = create_memo(move || Some(haptics_pinned.get()));
+    let note = create_memo(move || match haptics_pinned.get() {
+        true => "Kept on this device".to_owned(),
+        false => String::new(),
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <SettingsSection
                 title="Sound"
-                description="A row lays its label beside its control, and stacks them once narrow. A changed setting is marked, and its reset brings back the default."
+                description="A row lays its label beside its control, and stacks them once narrow. A changed setting is marked, and its menu brings back the default and can hold more, with a note under its label."
             >
                 <SettingsRow
                     label="Sounds"
@@ -3001,7 +3054,13 @@ fn SettingsSections() -> NodeId {
                     label="Volume"
                     separated=true
                     modified={volume_changed}
-                    on_reset={move || volume.set(DEFAULT_VOLUME)}
+                    menu={view! {
+                        <unstyled::MenuItem
+                            label="Reset to default"
+                            glyph={beui::icons::ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                            on_click={move || volume.set(DEFAULT_VOLUME)}
+                        />
+                    }}
                 >
                     <Slider
                         @sizing=ItemSize::Percent(100.0)
@@ -3016,7 +3075,13 @@ fn SettingsSections() -> NodeId {
                     label="Text size"
                     separated=true
                     modified={size_changed}
-                    on_reset={move || size.set(Some(1))}
+                    menu={view! {
+                        <unstyled::MenuItem
+                            label="Reset to default"
+                            glyph={beui::icons::ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                            on_click={move || size.set(Some(1))}
+                        />
+                    }}
                 >
                     <Select
                         @sizing=ItemSize::Percent(100.0)
@@ -3031,13 +3096,33 @@ fn SettingsSections() -> NodeId {
                         on_change={move |index| size.set(index)}
                     />
                 </SettingsRow>
+                <SettingsRow
+                    label="Vibrate"
+                    separated=true
+                    compact=true
+                    modified={haptics_changed}
+                    note={note}
+                    menu={view! {
+                        <unstyled::MenuItem
+                            label="Keep on this device"
+                            glyph={beui::icons::ICON_KEEP.to_owned()}
+                            checked={pinned}
+                            on_click={move || haptics_pinned.update(|on| *on = !*on)}
+                        />
+                        <unstyled::MenuItem
+                            label="Reset to default"
+                            glyph={beui::icons::ICON_SETTINGS_BACKUP_RESTORE.to_owned()}
+                            on_click={move || haptics.set(false)}
+                        />
+                    }}
+                >
+                    <Switch label="Vibrate" on={haptics} on_change={move |on| haptics.set(on)} />
+                </SettingsRow>
                 <SettingsLink
                     label="Sound effects"
-                    description="A link row opens a page of its own; its reset can ask first."
+                    description="A link row opens a page of its own."
                     separated=true
                     modified={effects}
-                    reset_confirm="Resetting deletes the sound effects page."
-                    on_reset={move || effects.set(false)}
                     on_click={|| {}}
                 />
             </SettingsSection>

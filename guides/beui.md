@@ -63,6 +63,7 @@ or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
+`checked` state (`Some` makes it a check box item, ticked when true), a
 disabled and a danger flag, a separator above it, an `on_click` and its
 own submenu or page items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
@@ -450,7 +451,7 @@ need:
 - **Tempted to add a base component?** Almost always, add an unstyled one
   instead. The base layer is small on purpose — `Frame`, `List`, `Layers`, `Grid`, `Text`,
   `Offset`, `VirtualList`, `Canvas`, `Drawing`, `Overlay`, `Interactive`, `Embed`,
-  `Portal`, `BackHandler`, `Shift`, `Fade` — and it stays small because most things are
+  `Portal`, `BackHandler`, `Shift`, `Turn`, `Fade` — and it stays small because most things are
   compositions of those. `unstyled::Picture` is one: a `Drawing` with a size.
   Add a base component only when the retained tree genuinely lacks a primitive:
   a new way to lay out, paint, or receive input that cannot be expressed by
@@ -594,6 +595,10 @@ or `Fraction`, a weight in what is left), with `column_spacing` and
 several columns is written `<GridCell span=2>`. It is for forms and property
 panels whose labels should share one width, not for a list of rows, which is
 a `List` or a `VirtualList`.
+A table of values to compare is `styled::Table`: column headings along the
+top (each a `TableColumn`, which can carry a caption), a `TableRow` per row with its heading down the side, and a `TableCell`
+per column, each with an optional caption under its value; every row shares the
+column weights, so its cells line up, and it reads as a table to assistive tech.
 `Text` carries its own decoration too: `underline` is painted from the galley's
 baseline, so switching it on never moves anything. `Portal` shows a subtree that belongs to
 someone else: it takes a `NodeId`, lays it out and paints it where the portal
@@ -614,7 +619,11 @@ so a box sized by what it holds can still scroll once it is squeezed. Rows far
 outside its viewport are culled like any other node out of sight. `Fade` paints
 its one child faded out toward each edge over the widths its `edges` name. `Shift`
 lays its child out moved `by` a vector without moving the space it takes, and
-paints nothing while the child is off the screen, which is how a sheet slides in. `VirtualList` is an ordinary box that stands for
+paints nothing while the child is off the screen, which is how a sheet slides in. `Turn`
+paints its child turned clockwise by `quarter_turns` about the middle of its box, which
+takes the child's size with width and height swapped for an odd number of turns; pointer
+input and the accessibility tree still see the child unturned, so it is for pictures, such
+as a preview of a turned screen, not for controls. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
 the viewport reaches (see [Long lists](#long-lists)).
 `Scroll` takes a `direction`, so the same tag is a
@@ -677,8 +686,8 @@ tiles in `columns`, which the arrow keys walk in two dimensions and leave for
 the rows above and below. A page of rows with a `depth` is a tree: `expanded`
 (`None` for a leaf) draws the chevron, Right and Left and the chevron report
 `on_expand`, and the caller shows the rows of open branches (a `ForEach` over
-them), as with `Tree`. A `checked` row shows a check, and a page opens with the
-keyboard on its checked row. The dropdown is never taller than a fixed height
+them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check, and
+a page opens with the keyboard on that row. The dropdown is never taller than a fixed height
 and scrolls the row the keyboard is on into view. `MenuButton` is the button that
 opens a menu under itself, which is what a toolbar reaches for where `Select`
 would imply the choice sticks (`IconMenuButton` is the same with an icon

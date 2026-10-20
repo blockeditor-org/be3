@@ -6,6 +6,8 @@ use be_dmabuf::{SyncFiles, Vulkan};
 use beui::Vec2;
 use bytemuck::{Pod, Zeroable};
 
+use crate::rotation::Rotation;
+
 pub struct CursorImage {
     pub texture: wgpu::Texture,
     pub size: Vec2,
@@ -223,19 +225,21 @@ impl Gpu {
         target_size: (u32, u32),
         rect: [f32; 4],
         sprite: &Sprite,
+        rotation: Rotation,
     ) {
         let (width, height) = (target_size.0 as f32, target_size.1 as f32);
-        let corner = |x: f32, y: f32, u: f32, v: f32| Vertex {
+        let corner = |x: f32, y: f32, uv: [f32; 2]| Vertex {
             position: [x / width * 2.0 - 1.0, 1.0 - y / height * 2.0],
-            uv: [u, v],
+            uv,
             opaque: f32::from(u8::from(sprite.opaque)),
         };
         let [left, top, right, bottom] = rect;
+        let [top_left, top_right, bottom_right, bottom_left] = rotation.corners();
         let (a, b, c, d) = (
-            corner(left, top, 0.0, 0.0),
-            corner(right, top, 1.0, 0.0),
-            corner(right, bottom, 1.0, 1.0),
-            corner(left, bottom, 0.0, 1.0),
+            corner(left, top, top_left),
+            corner(right, top, top_right),
+            corner(right, bottom, bottom_right),
+            corner(left, bottom, bottom_left),
         );
         let vertices = [a, b, c, a, c, d];
         let buffer = self.device.create_buffer(&wgpu::BufferDescriptor {

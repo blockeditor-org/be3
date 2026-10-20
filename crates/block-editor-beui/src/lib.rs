@@ -14,8 +14,10 @@ mod file_chooser;
 pub mod fonts;
 pub mod headless;
 mod instance;
+mod layered_settings;
 mod loading;
 mod related_content;
+mod rotation;
 pub mod version_control;
 
 use be_block::presence::PresenceColor;
@@ -33,8 +35,12 @@ pub use editor::{
 };
 pub use file_chooser::{ContentFileCreation, FileChooser};
 pub use instance::BeuiPlugin;
+pub use layered_settings::{
+    ChangesToast, LayeredSettings, LayeredSettingsRow, SettingHandle, SettingsChanges,
+};
 pub use loading::{Loaded, Loading};
 pub use related_content::{RelatedContent, content_settled};
+pub use rotation::RotationPicker;
 pub use version_control::{VersionHistory, short_id};
 
 pub trait BeuiApp: 'static {

@@ -281,7 +281,6 @@ const KINDS: &[Kind] = &[
     kind_with_history::<be_block::PresentationContent>(),
     kind_with_history::<be_block::TextContent>(),
     kind_with_history::<be_block::VideoContent>(),
-    kind::<be_block::UiSettingsContent>(),
     kind::<be_block::EditorSettingsContent>(),
     kind::<be_block::InputSettingsContent>(),
     kind::<be_block::InputRemapperContent>(),
@@ -1149,30 +1148,10 @@ fn exported(graph: &Graph, block: Uuid) -> Option<(String, Vec<be_client::transf
 
 pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uuid, Uuid), String> {
     let blocks = be_client::transfer::renumber(be_client::transfer::decode(bytes)?);
-    let taken: std::collections::HashSet<String> = with_shared(|shared| {
-        shared
-            .graph
-            .nodes()
-            .filter_map(|node| node.metadata.get(&be_block::ROW_PREFIX))
-            .filter(|prefix| !prefix.trim().is_empty())
-            .collect()
-    })
-    .unwrap_or_default();
     let author = account().ok_or("Sign in to import blocks.")?;
     let top = (blocks[0].id, blocks[0].block_type);
     let mut imported = Vec::with_capacity(blocks.len());
-    for mut block in blocks.iter().cloned() {
-        if let Some(prefix) = block.metadata.get(&be_block::ROW_PREFIX)
-            && taken.contains(&prefix)
-            && let Some(bytes) = &block.content
-            && let Ok(mut database) =
-                <be_block::DatabaseContent as be_block::BlockContent>::decode(bytes)
-        {
-            database.apply(&be_block::database::Database::set_prefix(String::new()));
-            let encoded = be_block::BlockContent::encode(&database);
-            block.metadata.derived = derived_for(block.block_type, &encoded).unwrap_or_default();
-            block.content = Some(encoded);
-        }
+    for block in blocks.iter().cloned() {
         let placed = match block.parent {
             Some(position) => be_graph::BlockParent::Block(blocks[position].id),
             None => parent,

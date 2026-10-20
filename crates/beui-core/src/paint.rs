@@ -1002,7 +1002,10 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
         size: rect.size(),
         own: own.state(),
     };
-    let visit = doc.paint_cache.borrow_mut().visit(id, placement, at);
+    let visit = match doc.paint_cache.borrow_mut().visit(id, placement, at) {
+        Visit::Descend(_) if doc.arena.get(id).turns_children() => Visit::Record,
+        visit => visit,
+    };
     match visit {
         Visit::Reuse => doc.note_painted(true),
         Visit::Descend(children) => {

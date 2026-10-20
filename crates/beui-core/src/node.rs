@@ -143,6 +143,10 @@ pub trait Element: Any {
         false
     }
 
+    fn turns_children(&self) -> bool {
+        false
+    }
+
     fn children(&self) -> Vec<NodeId>;
 
     fn for_each_child(&self, visit: &mut dyn FnMut(NodeId)) {

@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn edits_written_to_the_block_cover_its_content_until_it_holds_them() {
-    let edit = DisplaySettings::set_mode(MONITOR, Some(SLOW));
+    let edit = DisplaySettings::default().set_mode(MONITOR, Some(SLOW));
     let mut outbox = Outbox::default();
     outbox.queue(vec![edit.clone()]);
     assert_eq!(outbox.send(4), vec![edit.clone()]);

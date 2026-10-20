@@ -6,6 +6,8 @@ use block_editor_beui::{BlockInfo, BlockParent};
 #[test]
 fn this_device_can_pick_a_new_settings_profile() {
     let mut settings = editor();
+    settings.click("settings.devices");
+    settings.run();
     settings.click("settings.new-profile");
     settings.run();
     let [profile] = settings.content::<SettingsContent>(None).root().profiles()[..] else {

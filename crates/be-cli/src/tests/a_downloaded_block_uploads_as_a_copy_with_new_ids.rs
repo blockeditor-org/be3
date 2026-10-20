@@ -9,9 +9,12 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
         .unwrap();
     let row = run(&tracker, "Issues new Fix_the_login").await.unwrap();
     let id = row.split_whitespace().next().unwrap().to_owned();
-    run(&tracker, &format!("{id} page write Steps_to_reproduce."))
-        .await
-        .unwrap();
+    run(
+        &tracker,
+        &format!("Issues row {id} page write Steps_to_reproduce."),
+    )
+    .await
+    .unwrap();
 
     let file = harness.directory.join("issues.block");
     std::fs::create_dir_all(&harness.directory).unwrap();
@@ -21,34 +24,35 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
         .unwrap();
     assert!(wrote.contains("blocks inside it"), "{wrote}");
 
-    let refused = run(&tracker, &format!("upload {file}")).await.unwrap_err();
-    assert!(refused.contains("--prefix"), "{refused}");
-    let uploaded = run(&tracker, &format!("upload {file} --prefix CP"))
-        .await
-        .unwrap();
-    assert!(uploaded.contains("CP-"), "{uploaded}");
+    let original = tracker.find_database("Issues").await.unwrap();
+    let uploaded = run(&tracker, &format!("upload {file}")).await.unwrap();
+    assert!(uploaded.contains("uploaded Issues"), "{uploaded}");
 
     let databases = tracker.databases().await.unwrap();
     assert_eq!(databases.len(), 2);
-    let copy = databases
-        .iter()
-        .find(|entry| entry.prefix.as_deref() == Some("CP"))
-        .unwrap();
+    let copy = databases.iter().find(|entry| entry.id != original).unwrap();
+    assert_eq!(copy.prefix.as_deref(), Some("BE"));
     let index = tracker.index().await.unwrap();
     let view = index.get(copy.parent.block().unwrap()).unwrap().clone();
     assert_eq!(tracker.database_of(&view).await.unwrap(), copy.id);
     let rows = tracker.list(copy.id, &[]).await.unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].title, "Fix the login");
-    let copied = tracker.show(&rows[0].id).await.unwrap();
+    let copied = tracker.show(copy.id, &rows[0].id).await.unwrap();
     assert_eq!(copied.body.as_deref(), Some("Steps to reproduce."));
-    let original = tracker.show(&id).await.unwrap();
-    assert_ne!(copied.page, original.page);
-    run(&tracker, &format!("{} page write Changed.", rows[0].id))
-        .await
-        .unwrap();
+    let shown = tracker.show(original, &id).await.unwrap();
+    assert_ne!(copied.page, shown.page);
+    run(
+        &tracker,
+        &format!("{} row {} page write Changed.", copy.short, rows[0].id),
+    )
+    .await
+    .unwrap();
+    let original = index.get(original).unwrap().short.clone();
     assert_eq!(
-        run(&tracker, &format!("{id} page")).await.unwrap(),
+        run(&tracker, &format!("{original} row {id} page"))
+            .await
+            .unwrap(),
         "Steps to reproduce."
     );
 
@@ -85,7 +89,9 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
     );
     let moved = shown.split_whitespace().next().unwrap().to_owned();
     assert_eq!(
-        run(&elsewhere, &format!("{moved} page")).await.unwrap(),
+        run(&elsewhere, &format!("Issues row {moved} page"))
+            .await
+            .unwrap(),
         "Steps to reproduce."
     );
 

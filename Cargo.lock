@@ -4427,18 +4427,6 @@ dependencies = [
 ]
 
 [[package]]
-name = "linux_settings"
-version = "0.1.0"
-dependencies = [
- "be-remap",
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "text-editor-core",
- "uuid",
-]
-
-[[package]]
 name = "litemap"
 version = "0.8.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6462,9 +6450,11 @@ dependencies = [
 name = "settings"
 version = "0.1.0"
 dependencies = [
+ "be-remap",
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "text-editor-core",
  "uuid",
 ]
 

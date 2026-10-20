@@ -19,7 +19,10 @@ with GBM on that render node and imports them into the display device by PRIME
 smithay's `GbmBufferedSurface` on the display device. simpledrm and evdi displays take the same
 path. Each frame carries `FB_DAMAGE_CLIPS` (both paths): the renderer's scissors for a partial
 repaint plus where the pointer was and is (`Screen::draw`), so the driver reads only what
-changed; a full repaint sends none, which means the whole plane.
+changed; a full repaint sends none, which means the whole plane. A turned screen (the display
+settings' rotation, guides/linux_desktop.md) is turned on the GPU before the buffer reaches the
+panel, clips included, so the driver always reads a framebuffer in the panel's own 1872×1404
+orientation.
 
 ## The e-paper panel
 
@@ -51,8 +54,10 @@ beside the keyboard button while the value is true.
 ## Input
 
 The touchscreen (`cyttsp5`) is an ordinary libinput touch device; pinenote-dist's udev rule
-gives it the calibration matrix that matches the panel. The stylus is a libinput tablet tool,
-which the adapter turns into beui pen events (`Event::Pen`). No input device has letter keys, so the on-screen keyboard
+gives it the calibration matrix that matches the panel unturned. The stylus is a libinput tablet
+tool, which the adapter turns into beui pen events (`Event::Pen`). Keep both matrices lined up with
+the panel's own orientation: the adapter turns touch, the pen and its tilt by the screen's rotation
+itself, so a matrix that also turned them would turn them twice. No input device has letter keys, so the on-screen keyboard
 opens by itself when a field is tapped. With no keyboard for Ctrl+Alt+Backspace, holding four
 fingers on the screen for three seconds ends the session (`escape.rs`), which works as long as
 the adapter's event loop runs. The power button is logind's, which powers off by default.
@@ -67,7 +72,9 @@ it there as a session:
 
 `--install-session` also lists the session in `/etc/greetd/environments`, which gtkgreet offers
 on its session menu. The app links GTK 3 and WebKitGTK (`webkit2gtk-4.1`), which pinenote-dist
-does not install. `BEUI_SCALE=2` suits the panel's 227 dpi.
+does not install. The first time the app signs in on the PineNote it finds the e-paper panel, so
+the device's new settings profile is an E-paper tablet: it keeps the E-ink theme, a 150% scale and
+the bar's rotate button on this device, and opens to be set up (guides/the_new_block_stack.md).
 
 `devices/pinenote/vulkan-panfrost-26.3` is an optional PKGBUILD that builds panvk alone from
 Mesa 26.3 and replaces the `vulkan-panfrost` package. It exposes Vulkan 1.3 on the G52;

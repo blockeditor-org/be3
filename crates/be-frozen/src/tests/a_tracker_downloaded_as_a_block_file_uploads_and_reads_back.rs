@@ -8,10 +8,7 @@ async fn a_tracker_downloaded_as_a_block_file_uploads_and_reads_back() {
     let server = Server::start().await;
     let tracker = server.owner().await;
     let blocks = be_client::transfer::decode(TRACKER).unwrap();
-    let uploaded = tracker
-        .upload(blocks, BlockParent::Root, None)
-        .await
-        .unwrap();
+    let uploaded = tracker.upload(blocks, BlockParent::Root).await.unwrap();
     assert_eq!(uploaded.blocks, 6);
 
     let index = tracker.index().await.unwrap();
@@ -42,7 +39,7 @@ async fn a_tracker_downloaded_as_a_block_file_uploads_and_reads_back() {
         rows[1].field("Blocked by").unwrap().links,
         [(rows[0].id.clone(), scene::FIRST_ROW.to_owned())]
     );
-    let first = tracker.show(&rows[0].id).await.unwrap();
+    let first = tracker.show(database, &rows[0].id).await.unwrap();
     assert_eq!(first.body.as_deref(), Some(scene::FIRST_PAGE));
     assert_eq!(
         first.field("Blocking").unwrap().links,
