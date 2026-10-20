@@ -2,16 +2,21 @@ use super::*;
 use be_graph::Access;
 
 async fn listed(client: &mut TestClient) -> Vec<(Uuid, Access)> {
-    let response = client
-        .send(|request| ClientMessage::ListBlocks { request })
-        .await;
-    let ServerMessage::Blocks { blocks, .. } = response else {
-        panic!("listing failed: {response:?}");
-    };
-    blocks
-        .into_iter()
-        .map(|block| (block.id, block.access))
-        .collect()
+    let mut found = Vec::new();
+    let mut parents = vec![BlockParent::Root];
+    while let Some(parent) = parents.pop() {
+        let response = client
+            .send(|request| ClientMessage::ListChildren { request, parent })
+            .await;
+        let ServerMessage::Blocks { blocks, .. } = response else {
+            panic!("listing failed: {response:?}");
+        };
+        for block in blocks {
+            parents.push(BlockParent::Block(block.id));
+            found.push((block.id, block.access));
+        }
+    }
+    found
 }
 
 #[tokio::test]

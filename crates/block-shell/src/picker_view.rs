@@ -14,8 +14,8 @@ use block_editor_beui::{
 };
 
 use super::picker::{
-    Creating, Pick, PickAction, Stage, TreeKey, TreeRow, TypeGroup, common, groups, link_rows,
-    place_rows, slides, tile_key,
+    Creating, Pick, PickAction, PickTree, Stage, TreeKey, TreeRow, TypeGroup, common, groups,
+    link_rows, place_rows, slides, tile_key,
 };
 use super::workspace::Workspace;
 
@@ -361,10 +361,11 @@ fn LocationItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> uns
     });
     let rows = create_memo(move || {
         let types = workspace.types();
-        let graph = workspace.graph();
         held.with(|held| {
             held.as_ref()
-                .map(|held| place_rows(&types, held, &graph))
+                .map(|held| {
+                    workspace.tree(PickTree::Place, |graph| place_rows(&types, held, graph))
+                })
                 .unwrap_or_default()
         })
     });
@@ -738,10 +739,9 @@ fn LinkBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
     });
     let rows = create_memo(move || {
         let types = workspace.types();
-        let graph = workspace.graph();
         held.with(|held| {
             held.as_ref()
-                .map(|held| link_rows(&types, held, &graph))
+                .map(|held| workspace.tree(PickTree::Link, |graph| link_rows(&types, held, graph)))
                 .unwrap_or_default()
         })
     });

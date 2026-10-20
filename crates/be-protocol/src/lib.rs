@@ -116,6 +116,14 @@ pub struct OwnSealed {
     pub sealed: Vec<u8>,
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
+pub enum Listing {
+    Children(BlockParent),
+    Shared,
+    Backrefs(Uuid),
+    Block(Uuid),
+}
+
 #[derive(Clone, Debug, Deserialize, Eq, PartialEq, Serialize)]
 pub struct BlockSummary {
     pub id: Uuid,
@@ -444,9 +452,6 @@ pub enum ClientMessage {
         key: Uuid,
         keys: KeySet,
     },
-    ListBlocks {
-        request: u64,
-    },
     SetMetadata {
         request: u64,
         block: Uuid,
@@ -487,6 +492,9 @@ pub enum ClientMessage {
         parent: BlockParent,
         keys: KeySet,
     },
+    ListShared {
+        request: u64,
+    },
     ListChildren {
         request: u64,
         parent: BlockParent,
@@ -494,6 +502,10 @@ pub enum ClientMessage {
     ListBackrefs {
         request: u64,
         block: Uuid,
+    },
+    Unlist {
+        request: u64,
+        listing: Listing,
     },
     ListHistory {
         request: u64,
@@ -678,15 +690,16 @@ impl ClientMessage {
             | Self::GetObject { request, .. }
             | Self::MissingObjects { request, .. }
             | Self::CreateBlock { request, .. }
-            | Self::ListBlocks { request }
             | Self::SetMetadata { request, .. }
             | Self::Publish { request, .. }
             | Self::HoldObjects { request, .. }
             | Self::ReadBlock { request, .. }
             | Self::ReadContents { request, .. }
             | Self::SetParent { request, .. }
+            | Self::ListShared { request }
             | Self::ListChildren { request, .. }
             | Self::ListBackrefs { request, .. }
+            | Self::Unlist { request, .. }
             | Self::ListHistory { request, .. }
             | Self::PruneHistory { request, .. }
             | Self::DeleteBlock { request, .. }

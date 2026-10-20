@@ -45,7 +45,6 @@ impl BlockParent {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
 pub enum BlockQuery {
-    All,
     Roots,
     Detached,
     Shared,
@@ -60,7 +59,6 @@ impl BlockQuery {
     pub fn encode(self) -> block_plugin_api::BlockQuery {
         use block_plugin_api::BlockQuery as Wire;
         match self {
-            Self::All => Wire::All,
             Self::Roots => Wire::Roots,
             Self::Detached => Wire::Detached,
             Self::Shared => Wire::Shared,
@@ -75,7 +73,6 @@ impl BlockQuery {
     pub fn decode(query: block_plugin_api::BlockQuery) -> Self {
         use block_plugin_api::BlockQuery as Wire;
         match query {
-            Wire::All => Self::All,
             Wire::Roots => Self::Roots,
             Wire::Detached => Self::Detached,
             Wire::Shared => Self::Shared,

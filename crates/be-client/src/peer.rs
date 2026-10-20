@@ -11,7 +11,7 @@ use be_graph::{Access, BlockParent};
 use be_keys::RecoverySecret;
 use be_protocol::{
     AccessEntry, BlockSummary, ByteBuf, ClientId, ClientMessage, ErrorCode, HistoryEntry, KeyKind,
-    KeySet, OrganizationRole, ServerMessage, SessionState, WrappedBy,
+    KeySet, Listing, OrganizationRole, ServerMessage, SessionState, WrappedBy,
 };
 use be_store::{ChunkerConfig, Hash, Keyring, Manifest, ObjectStore, StoreError, Vault};
 use uuid::Uuid;
@@ -449,17 +449,6 @@ impl<S: ObjectStore> Peer<S> {
                 self.note(&block);
                 Ok(block)
             }
-            _ => Err(ClientError::Unexpected),
-        }
-    }
-
-    pub async fn list_blocks(&self) -> Result<Vec<BlockSummary>, ClientError> {
-        let response = self
-            .connection
-            .request(|request| ClientMessage::ListBlocks { request })
-            .await?;
-        match response {
-            ServerMessage::Blocks { blocks, .. } => Ok(blocks),
             _ => Err(ClientError::Unexpected),
         }
     }
@@ -1347,6 +1336,17 @@ impl<S: ObjectStore> Peer<S> {
         Ok(keys)
     }
 
+    pub async fn shared(&self) -> Result<Vec<BlockSummary>, ClientError> {
+        let response = self
+            .connection
+            .request(|request| ClientMessage::ListShared { request })
+            .await?;
+        match response {
+            ServerMessage::Blocks { blocks, .. } => Ok(blocks),
+            _ => Err(ClientError::Unexpected),
+        }
+    }
+
     pub async fn children(&self, parent: BlockParent) -> Result<Vec<BlockSummary>, ClientError> {
         let response = self
             .connection
@@ -1356,6 +1356,13 @@ impl<S: ObjectStore> Peer<S> {
             ServerMessage::Blocks { blocks, .. } => Ok(blocks),
             _ => Err(ClientError::Unexpected),
         }
+    }
+
+    pub async fn unlist(&self, listing: Listing) -> Result<(), ClientError> {
+        self.connection
+            .request(|request| ClientMessage::Unlist { request, listing })
+            .await?;
+        Ok(())
     }
 
     pub async fn backrefs(&self, block: Uuid) -> Result<Vec<BlockSummary>, ClientError> {

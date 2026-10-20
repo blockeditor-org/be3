@@ -744,6 +744,7 @@ dependencies = [
  "be-store",
  "block-ui",
  "build-id",
+ "futures-util",
  "serde_json",
  "tokio",
  "uuid",

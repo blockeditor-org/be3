@@ -28,7 +28,7 @@ async fn a_file_added_to_a_shared_folder_opens_and_saves_for_who_it_was_shared_w
         .await
         .unwrap();
 
-    let listed = guest.list_blocks().await.unwrap();
+    let listed = guest.children(BlockParent::Block(folder)).await.unwrap();
     let seen = listed
         .iter()
         .find(|block| block.id == added)

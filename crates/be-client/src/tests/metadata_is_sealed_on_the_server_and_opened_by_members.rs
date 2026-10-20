@@ -26,11 +26,10 @@ async fn metadata_is_sealed_on_the_server_and_opened_by_members() {
         "the server never sees the name"
     );
 
-    let listed = laptop.list_blocks().await.unwrap();
-    let summary = listed.iter().find(|summary| summary.id == block).unwrap();
+    let summary = laptop.summary(block).await.unwrap();
     assert_eq!(
         laptop
-            .metadata_of_summary(summary)
+            .metadata_of_summary(&summary)
             .await
             .unwrap()
             .name()

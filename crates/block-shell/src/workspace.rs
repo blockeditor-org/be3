@@ -27,7 +27,7 @@ use super::dialogs::OpenDialog;
 use super::host_panel::{HostPanelView, panel_icon, panel_tab, panel_window, tab_panel};
 use super::kept::{self, Kept, KeptWindow};
 use super::panel::BlockPanel;
-use super::picker::{Graph, Pick, PickAction, PickAnchor, PickOutcome};
+use super::picker::{Graph, Pick, PickAction, PickAnchor, PickOutcome, PickTree, Tree, TreeRow};
 use super::saved::{self, LAYOUT};
 use super::share::{Share, ShareAction};
 use super::tab::TabItem;
@@ -60,8 +60,8 @@ struct State {
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
     next_tab: Cell<u64>,
     active: Cell<Option<Uuid>>,
-    every_block: RefCell<Option<BlockList>>,
     roots: RefCell<Option<(BlockList, BlockList)>>,
+    trees: RefCell<HashMap<PickTree, HashMap<BlockQuery, BlockList>>>,
     own_pick_tab: Cell<Option<TabId>>,
     tab_nodes: RefCell<HashMap<TabId, NodeRef>>,
 }
@@ -125,8 +125,8 @@ impl Workspace {
                 opened_via: RefCell::new(HashMap::new()),
                 next_tab: Cell::new(FIRST_BLOCK_TAB),
                 active: Cell::new(None),
-                every_block: RefCell::new(None),
                 roots: RefCell::new(None),
+                trees: RefCell::new(HashMap::new()),
                 own_pick_tab: Cell::new(None),
                 tab_nodes: RefCell::new(HashMap::new()),
             }),
@@ -518,7 +518,8 @@ impl Workspace {
 
     pub(crate) fn my_files(&self) -> Option<Uuid> {
         let account = self.host().account_id();
-        self.every_block()
+        self.top()
+            .0
             .into_iter()
             .filter(|block| {
                 block.block_type == WorkspaceContent::CONTENT_TYPE
@@ -530,35 +531,79 @@ impl Workspace {
             .min()
     }
 
-    pub(crate) fn every_block(&self) -> Vec<BlockInfo> {
+    fn top(&self) -> (Vec<BlockInfo>, Vec<BlockInfo>) {
         let inner = self.state.value();
-        let mut held = inner.every_block.borrow_mut();
-        held.get_or_insert_with(|| self.blocks().watch(BlockQuery::All))
-            .read()
+        let mut held = inner.roots.borrow_mut();
+        let (roots, shared) = held.get_or_insert_with(|| {
+            (
+                self.blocks().watch(BlockQuery::Roots),
+                self.blocks().watch(BlockQuery::Shared),
+            )
+        });
+        (roots.read(), shared.read())
     }
 
-    pub(crate) fn graph(&self) -> Graph {
+    fn graph(&self, tree: PickTree) -> Graph {
+        let (roots, shared) = self.top();
         let inner = self.state.value();
-        let (roots, shared) = {
-            let mut held = inner.roots.borrow_mut();
-            let (roots, shared) = held.get_or_insert_with(|| {
-                (
-                    self.blocks().watch(BlockQuery::Roots),
-                    self.blocks().watch(BlockQuery::Shared),
-                )
-            });
-            (roots.read(), shared.read())
-        };
+        let trees = inner.trees.borrow();
+        let lists = trees.get(&tree);
+        let mut blocks: HashMap<Uuid, BlockInfo> = HashMap::new();
+        for block in lists
+            .into_iter()
+            .flat_map(HashMap::values)
+            .flat_map(BlockList::read)
+            .chain(roots.iter().cloned())
+            .chain(shared.iter().cloned())
+        {
+            blocks.insert(block.id, block);
+        }
+        let listed = lists
+            .into_iter()
+            .flat_map(HashMap::iter)
+            .filter_map(|(query, list)| match query {
+                BlockQuery::Children(id) if list.is_loaded() => Some(*id),
+                _ => None,
+            })
+            .collect();
         Graph {
             account: self.host().account_id(),
             roots,
             shared,
-            blocks: self
-                .every_block()
-                .into_iter()
-                .map(|block| (block.id, block))
-                .collect(),
+            blocks,
+            listed,
         }
+    }
+
+    fn hold(&self, tree: PickTree, wants: &[BlockQuery]) -> bool {
+        let inner = self.state.value();
+        let mut trees = inner.trees.borrow_mut();
+        let lists = trees.entry(tree).or_default();
+        let before = lists.len();
+        lists.retain(|query, _| wants.contains(query));
+        let mut changed = lists.len() != before;
+        for query in wants {
+            if !lists.contains_key(query) {
+                lists.insert(*query, self.blocks().watch(*query));
+                changed = true;
+            }
+        }
+        changed
+    }
+
+    pub(crate) fn tree(&self, tree: PickTree, rows: impl Fn(&Graph) -> Tree) -> Vec<TreeRow> {
+        let mut built = rows(&self.graph(tree));
+        for _ in 0..8 {
+            if !self.hold(tree, &built.wants) {
+                break;
+            }
+            built = rows(&self.graph(tree));
+        }
+        built.rows
+    }
+
+    fn forget_trees(&self) {
+        self.state.value().trees.borrow_mut().clear();
     }
 
     pub(crate) fn register_tab_node(&self, tab: TabId, node: NodeRef) {
@@ -685,6 +730,9 @@ impl Workspace {
             PickOutcome::Answered(pick, answer, into) => {
                 self.picks
                     .update(|picks| picks.retain(|held| held.pick != pick));
+                if self.picks.with_untracked(Vec::is_empty) {
+                    self.forget_trees();
+                }
                 if let (BlockPick::Chosen { .. }, Some((block, block_type, container))) =
                     (&answer, into)
                 {

@@ -3,7 +3,8 @@ use std::{
     sync::atomic::{AtomicU64, Ordering},
 };
 
-use be_protocol::{OrganizationRole, ServerMessage};
+use be_graph::BlockParent;
+use be_protocol::{BlockSummary, Listing, OrganizationRole, ServerMessage};
 use tokio::sync::{
     Mutex,
     mpsc::{Sender, error::TrySendError},
@@ -22,6 +23,51 @@ struct Joined {
     administrators: HashMap<Uuid, HashSet<u64>>,
     watchers: HashMap<Uuid, HashSet<u64>>,
     watching: HashMap<u64, HashSet<Uuid>>,
+    interests: HashMap<u64, Interest>,
+}
+
+struct Facts {
+    parent: Option<BlockParent>,
+    entry: bool,
+    references: Vec<Uuid>,
+}
+
+impl Facts {
+    fn of(summary: &BlockSummary, entry: bool) -> Self {
+        Self {
+            parent: summary.parent,
+            entry,
+            references: summary.references.clone(),
+        }
+    }
+}
+
+#[derive(Default)]
+struct Interest {
+    listings: HashSet<Listing>,
+    known: HashMap<Uuid, Facts>,
+}
+
+impl Interest {
+    fn matches(&self, block: Uuid, facts: &Facts) -> bool {
+        self.listings.contains(&Listing::Block(block))
+            || facts
+                .parent
+                .is_some_and(|parent| self.listings.contains(&Listing::Children(parent)))
+            || (facts.entry && self.listings.contains(&Listing::Shared))
+            || facts
+                .references
+                .iter()
+                .any(|target| self.listings.contains(&Listing::Backrefs(*target)))
+    }
+
+    fn told(&mut self, block: Uuid, facts: Facts) -> bool {
+        if self.matches(block, &facts) {
+            self.known.insert(block, facts);
+            return true;
+        }
+        self.known.remove(&block).is_some()
+    }
 }
 
 fn unindex<K: Eq + std::hash::Hash>(index: &mut HashMap<K, HashSet<u64>>, key: K, client: u64) {
@@ -42,6 +88,7 @@ impl Joined {
     }
 
     fn leave_organization(&mut self, client: u64) {
+        self.interests.remove(&client);
         if let Some(identity) = self.organizations.remove(&client) {
             unindex(&mut self.by_organization, identity.organization, client);
             unindex(
@@ -86,6 +133,80 @@ impl WatchHub {
             if blocks.is_empty() {
                 joined.watching.remove(&client);
             }
+        }
+    }
+
+    pub async fn list(&self, client: u64, listing: Listing) {
+        let mut joined = self.joined.lock().await;
+        let interest = joined.interests.entry(client).or_default();
+        interest.listings.insert(listing);
+    }
+
+    pub async fn listed(&self, client: u64, listing: Listing, blocks: &[BlockSummary]) {
+        let mut joined = self.joined.lock().await;
+        let interest = joined.interests.entry(client).or_default();
+        for summary in blocks {
+            interest.told(summary.id, Facts::of(summary, listing == Listing::Shared));
+        }
+    }
+
+    pub async fn unlist(&self, client: u64, listing: Listing) {
+        let mut joined = self.joined.lock().await;
+        let Some(interest) = joined.interests.get_mut(&client) else {
+            return;
+        };
+        interest.listings.remove(&listing);
+        let known = std::mem::take(&mut interest.known);
+        interest.known = known
+            .into_iter()
+            .filter(|(block, facts)| interest.matches(*block, facts))
+            .collect();
+    }
+
+    pub async fn tell(&self, client: u64, message: ServerMessage, entry: bool) {
+        let told = {
+            let mut joined = self.joined.lock().await;
+            let interest = joined.interests.entry(client).or_default();
+            match &message {
+                ServerMessage::BlockChanged { block } => {
+                    interest.told(block.id, Facts::of(block, entry))
+                }
+                ServerMessage::BlockRemoved { block, .. } => interest.known.remove(block).is_some(),
+                _ => true,
+            }
+        };
+        if told {
+            self.send_to(client, message).await;
+        }
+    }
+
+    pub async fn removed(&self, organization: Uuid, block: Uuid, revision: u64) {
+        let targets: Vec<u64> = {
+            let mut joined = self.joined.lock().await;
+            let clients: Vec<u64> = joined
+                .by_organization
+                .get(&organization)
+                .into_iter()
+                .flatten()
+                .copied()
+                .collect();
+            clients
+                .into_iter()
+                .filter(|client| {
+                    joined
+                        .interests
+                        .get_mut(client)
+                        .is_some_and(|interest| interest.known.remove(&block).is_some())
+                })
+                .collect()
+        };
+        let mut clients = self.clients.lock().await;
+        for target in targets {
+            deliver(
+                &mut clients,
+                target,
+                ServerMessage::BlockRemoved { block, revision },
+            );
         }
     }
 
@@ -248,6 +369,7 @@ impl WatchHub {
         {
             let mut joined = self.joined.lock().await;
             joined.leave_account(client);
+            joined.interests.remove(&client);
             for block in joined.watching.remove(&client).unwrap_or_default() {
                 unindex(&mut joined.watchers, block, client);
             }

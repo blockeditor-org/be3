@@ -11,8 +11,7 @@ async fn a_tracker_downloaded_as_a_block_file_uploads_and_reads_back() {
     let uploaded = tracker.upload(blocks, BlockParent::Root).await.unwrap();
     assert_eq!(uploaded.blocks, 6);
 
-    let index = tracker.index().await.unwrap();
-    let notes = index.get(uploaded.top).unwrap().clone();
+    let notes = tracker.entry(uploaded.top).await.unwrap();
     assert_eq!(notes.name.as_deref(), Some(scene::NOTES));
     let folder = tracker
         .read::<FolderContent>(notes.id)
@@ -21,11 +20,16 @@ async fn a_tracker_downloaded_as_a_block_file_uploads_and_reads_back() {
         .unwrap();
     let children = folder.root().blocks();
     assert_eq!(children.len(), 2);
-    let shopping = children
-        .iter()
-        .copied()
-        .find(|child| index.get(*child).unwrap().block_type == TextContent::CONTENT_TYPE)
-        .unwrap();
+    let mut texts = Vec::new();
+    for child in &children {
+        if tracker.entry(*child).await.unwrap().block_type == TextContent::CONTENT_TYPE {
+            texts.push(*child);
+        }
+    }
+    let [shopping] = texts.as_slice() else {
+        panic!("one text block in the folder: {texts:?}");
+    };
+    let shopping = *shopping;
     assert_eq!(tracker.text(shopping).await.unwrap(), scene::SHOPPING[2]);
 
     let database = tracker.find_database(scene::DATABASE).await.unwrap();

@@ -397,7 +397,13 @@ async fn check(snapshot: &Snapshot) {
         [(rows[0].id.clone(), scene::FIRST_ROW.to_owned())]
     );
     assert_eq!(text(agent.peer(), snapshot.plan).await, scene::PLAN[1]);
-    assert!(agent.peer().summary(id(snapshot.shopping)).await.is_err());
+    assert!(
+        !agent
+            .peer()
+            .summary(id(snapshot.shopping))
+            .await
+            .is_ok_and(|summary| summary.access.can_view())
+    );
 
     let (_, editor_token) = sign_in(&server, scene::EDITOR_EMAIL, scene::EDITOR_PASSWORD).await;
     let editor = peer(&server, snapshot.editor_phrase, &editor_token, organization).await;

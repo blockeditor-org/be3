@@ -230,6 +230,16 @@ time, so notifications wait for the next post.
   since who may know they exist changed too; an id no block has (one linked
   before it is made) is never announced. `WatchHub` indexes clients
   by organization and account, so this never scans every connection.
+- A connection hears only of what it listed. `ListChildren`, `ListShared`,
+  `ListBackrefs` and `ReadBlock` each register a `Listing` with `WatchHub`
+  before reading (so nothing changed during the read is missed), and the hub
+  remembers each block a connection has been told of. A change is sent when a
+  listing matches the block as it now is (its parent, its own id, an entry point
+  under `Shared`, a reference to a backrefs target) or when the connection was
+  told of it before, so a block moving out of a listed folder is still
+  announced, and then forgotten. `Unlist` drops a listing and the blocks only it
+  matched; a refused listing stays until then, so a block read before it is
+  made is announced once it is.
 - Every `BlockSummary` and `BlockRemoved` carries the `revision` it was read
   at: `ServerStore::with_graph` advances one counter on each call, under the
   lock every graph read and change takes, so a larger revision is always a
@@ -656,8 +666,9 @@ store of its own: history is be-store objects and be-commit commits.
   `theirs` copies of a conflicted block left under the checkout), resolving,
   forking, pulling and pushing. It pushes a `VersionStatus` for every
   repository and checkout an editor is showing, recomputed when the mirror
-  changes; it watches the checkout's blocks, and the mirror keeps each block's
-  head from `HeadChanged`, from sessions and from its own writes.
+  changes; it watches the checkout's blocks and holds each followed checkout's
+  tree in the mirror (`Query::Subtree` under `Owner::Version`), re-listing it
+  before each operation so every head is current.
 - A live session's owner catches up when someone publishes past it
   (`HeadChanged` → `Live::catch_up`), which is what lets a checkout replace the
   content of a block that someone has open.
@@ -730,20 +741,42 @@ what it needs.
 
 ### The graph mirror
 
-The app keeps a mirror of the server's graph, as the account sees it, in
-`be/graph.rs`: a `Node` per block with its content type, author, parent, access,
-references, unsealed `BlockMetadata` and whether no key it holds opens it
-(`locked`). A block the account may only know exists has no author or parent, so `Roots`, `Detached`, `Shared` and `Children` never list it; it is
-reached only through what references it, and is never `locked`. The worker loads it with
-`Peer::list_blocks` whenever it connects and keeps it current from the server's
-`BlockChanged` and `BlockRemoved` events, reloading it whole when it has fallen
-behind the event broadcast. It remembers the newest revision it has heard of
-each block (and, for the rest, that of its last load) and drops anything
-older, so an announcement the worker reads late never undoes a newer reply. `Query` (`Roots`, `Detached`, `Shared`,
-`Children`, `References`, `Backrefs`, `Parents`, `Block`) is how everything in
-the app asks it a question, and `be::graph_revision` says when to ask again.
-`Shared` is the account's entry points: blocks it can view whose parent it
-cannot.
+The app keeps a mirror of the part of the server's graph something in the app
+is looking at, in `be/graph.rs`: a `Node` per block with its content type,
+author, parent, access, references, unsealed `BlockMetadata` and whether no key
+it holds opens it (`locked`). A block the account may only know exists has no
+author or parent, so `Roots`, `Detached`, `Shared` and `Children` never list
+it; it is reached only through what references it (`ReadBlock` answers it with
+that much), and is never `locked`. The app never lists the whole organization.
+`Query` (`Roots`, `Detached`, `Shared`, `Children`, `References`, `Backrefs`,
+`Parents`, `Block`, and the host's own `Subtree`) is how everything in the app
+asks the mirror a question, and `be::graph_revision` says when to ask again.
+Whoever asks first says what it wants with `be::want(owner, queries)`: each
+plugin instance its `WatchBlocks` queries, its own block's `Parents` and the
+blocks whose content it watches (`Owner::Editor`); the worker the parents of
+every open block and of every revision preview's source (`Owner::Open`) and the
+roots (`Owner::Host`, for Settings and My files); version control its
+checkouts' subtrees (`Owner::Version`). After every change the graph turns
+what is wanted into `Listing`s - a parent's children (`ListChildren`), the
+blocks shared into view (`ListShared`), a block's backrefs (`ListBackrefs`), one
+block (`ReadBlock`) - expanding `References`, `Parents` and `Subtree` as the
+blocks they name arrive, and the worker fetches the new ones together
+(`fetch_listings`). A listing nobody wants any more is dropped, and with it
+every block no other listing holds, so closing a folder in the files pane
+empties it from the mirror; the worker sends `Unlist` for it, ahead of that
+round's new listings, so the server stops announcing it. A block already held
+is asked for on its own all the same, so the server keeps announcing it once
+the listing that brought it is gone, but its query is ready at once. A query is answered only once its listings have
+loaded (`be::ready`), so an editor never sees a folder as empty while it
+loads. The server's `BlockChanged` and `BlockRemoved` events keep what is
+listed current: a block is kept only while a listing holds it (a new child of a
+listed folder joins that listing, one that moves out leaves it), and news of a
+block shared into view re-lists `Shared`. Reconnecting, or falling behind the
+event broadcast, re-lists everything wanted. The mirror remembers the newest
+revision it has heard of each block (and, for the rest, that of the newest
+listing) and drops anything older, so an announcement the worker reads late
+never undoes a newer reply. `Shared` is the account's entry points: blocks it
+can view whose parent it cannot.
 
 A change made here - `be::create`, `be::set_parent`, `be::define` - is
 applied to the mirror straight away, so the file tree and every editor see it in
@@ -923,10 +956,11 @@ file type from the file the user picks.
 
 A block file (`be_client::transfer`, the file `be download` writes) carries a
 block and everything under it. A plugin asks the host for one with
-`HostRequest::ExportBlock`, answered like `SaveFile`: `be::export` reads the
-tree from the graph mirror (starting from the view when asked for a database
-inside one) and the worker fills in each block's bytes, from its open session or
-else its head, so it works for content types the app does not know.
+`HostRequest::ExportBlock`, answered like `SaveFile`: the worker lists the tree
+a level at a time (starting from the view when asked for a database inside
+one), all of a level's `ListChildren` together, and fills in each block's
+bytes, from its open session or else its head, so it works for content types
+the app does not know.
 `Peer::read_contents` reads the heads, which `be download` uses too: one
 `ReadContents` request per 256 blocks answers each block's summary with its head
 commit and chunks (those that fit in half a frame, and none for a head the

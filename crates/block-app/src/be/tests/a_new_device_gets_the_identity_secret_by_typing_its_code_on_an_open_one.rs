@@ -31,7 +31,9 @@ fn pair_in_background(
 fn a_new_device_gets_the_identity_secret_by_typing_its_code_on_an_open_one() {
     let harness = Harness::start();
     harness.connect();
-    wait_until("loaded the graph", |shared| shared.graph.loaded);
+    wait_until("loaded the graph", |shared| {
+        shared.graph.ready(crate::be::Query::Roots)
+    });
 
     let mistyped = pair_in_background(&harness, be_keys::pairing_code());
     wait_until("heard the new device", |shared| !shared.pairing.is_empty());

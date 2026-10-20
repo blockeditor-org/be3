@@ -1,4 +1,4 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use be_block::{
     BlockMetadata, Entries,
@@ -6,6 +6,7 @@ use be_block::{
 };
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
+pub(crate) use be_protocol::Listing;
 use block_plugin_api::BlockIdRole;
 use uuid::Uuid;
 
@@ -30,7 +31,6 @@ pub(crate) struct Scope {
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub(crate) enum Query {
-    All,
     Roots,
     Detached,
     Shared,
@@ -39,13 +39,38 @@ pub(crate) enum Query {
     Backrefs(Uuid),
     Parents(Uuid),
     Block(Uuid),
+    Subtree(Uuid),
+}
+
+#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
+pub(crate) enum Owner {
+    Host,
+    Open,
+    Version,
+    Editor(u64),
+}
+
+#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+enum Fetch {
+    #[default]
+    Wanted,
+    Fetching,
+    Loaded,
+}
+
+#[derive(Clone, Debug, Default)]
+struct Listed {
+    members: HashSet<Uuid>,
+    fetch: Fetch,
 }
 
 #[derive(Clone, Debug, Default)]
 pub(crate) struct Graph {
-    pub(crate) loaded: bool,
     pub(crate) revision: u64,
     nodes: HashMap<Uuid, Node>,
+    wants: HashMap<Owner, Vec<Query>>,
+    listings: HashMap<Listing, Listed>,
+    unlisted: Vec<Listing>,
     heard: HashMap<Uuid, u64>,
     floor: u64,
     pending: HashMap<Uuid, u32>,
@@ -55,30 +80,222 @@ pub(crate) struct Graph {
 }
 
 impl Graph {
-    pub(crate) fn load(&mut self, nodes: Vec<Node>, revision: u64) {
-        self.heard.clear();
-        self.floor = revision;
-        let mut loaded: HashMap<Uuid, Node> =
-            nodes.into_iter().map(|node| (node.id, node)).collect();
-        for block in self.pending.keys() {
-            match self.nodes.remove(block) {
-                Some(node) => loaded.insert(*block, node),
-                None => loaded.remove(block),
-            };
-        }
-        for (block, derived) in &self.derived {
-            if let Some(node) = loaded.get_mut(block) {
-                node.metadata.derived.clone_from(derived);
+    pub(crate) fn want(&mut self, owner: Owner, queries: Vec<Query>) {
+        match queries.is_empty() {
+            true => self.wants.remove(&owner),
+            false => self.wants.insert(owner, queries),
+        };
+        self.refresh_listings();
+    }
+
+    pub(crate) fn wanted(&self, owner: Owner) -> &[Query] {
+        self.wants.get(&owner).map_or(&[], Vec::as_slice)
+    }
+
+    pub(crate) fn refresh_listings(&mut self) {
+        let mut desired = HashSet::new();
+        for queries in self.wants.values() {
+            for query in queries {
+                self.listings_for(*query, &mut desired);
             }
         }
-        for (block, references) in &self.referenced {
-            if let Some(node) = loaded.get_mut(block) {
-                node.references.clone_from(references);
+        let before = self.listings.len();
+        let unlisted = &mut self.unlisted;
+        self.listings.retain(|listing, listed| {
+            let kept = desired.contains(listing);
+            if !kept && listed.fetch != Fetch::Wanted {
+                unlisted.push(*listing);
+            }
+            kept
+        });
+        let mut changed = self.listings.len() != before;
+        for listing in desired {
+            if self.listings.contains_key(&listing) {
+                continue;
+            }
+            let members = self
+                .nodes
+                .values()
+                .filter(|node| member(listing, node) == Some(true))
+                .map(|node| node.id)
+                .collect();
+            self.listings.insert(
+                listing,
+                Listed {
+                    members,
+                    fetch: Fetch::Wanted,
+                },
+            );
+            changed = true;
+        }
+        if changed {
+            self.prune();
+            self.revision += 1;
+        }
+    }
+
+    fn listings_for(&self, query: Query, into: &mut HashSet<Listing>) {
+        match query {
+            Query::Roots => {
+                into.insert(Listing::Children(BlockParent::Root));
+            }
+            Query::Detached => {
+                into.insert(Listing::Children(BlockParent::Detached));
+            }
+            Query::Shared => {
+                into.insert(Listing::Shared);
+            }
+            Query::Children(parent) => {
+                into.insert(Listing::Children(BlockParent::Block(parent)));
+            }
+            Query::Backrefs(block) => {
+                into.insert(Listing::Backrefs(block));
+            }
+            Query::Block(block) => {
+                into.insert(Listing::Block(block));
+            }
+            Query::References(block) => {
+                into.insert(Listing::Block(block));
+                if let Some(node) = self.nodes.get(&block) {
+                    into.extend(node.references.iter().map(|id| Listing::Block(*id)));
+                }
+            }
+            Query::Parents(block) => {
+                into.insert(Listing::Block(block));
+                let mut current = block;
+                for _ in 0..=self.nodes.len() {
+                    let Some(BlockParent::Block(parent)) =
+                        self.nodes.get(&current).and_then(|node| node.parent)
+                    else {
+                        break;
+                    };
+                    if !into.insert(Listing::Block(parent)) {
+                        break;
+                    }
+                    current = parent;
+                }
+            }
+            Query::Subtree(root) => {
+                into.insert(Listing::Block(root));
+                into.extend(
+                    self.subtree(root)
+                        .into_iter()
+                        .map(|block| Listing::Children(BlockParent::Block(block))),
+                );
             }
         }
-        self.nodes = loaded;
-        self.loaded = true;
+    }
+
+    pub(crate) fn take_wanted(&mut self) -> Vec<Listing> {
+        let mut found = Vec::new();
+        for (listing, listed) in &mut self.listings {
+            if listed.fetch == Fetch::Wanted {
+                listed.fetch = Fetch::Fetching;
+                found.push(*listing);
+            }
+        }
+        found
+    }
+
+    pub(crate) fn take_unlisted(&mut self) -> Vec<Listing> {
+        std::mem::take(&mut self.unlisted)
+    }
+
+    pub(crate) fn listed(&mut self, listing: Listing, nodes: Vec<Node>, revision: u64) {
+        let Some(listed) = self.listings.get_mut(&listing) else {
+            return;
+        };
+        listed.fetch = Fetch::Loaded;
+        listed.members = nodes.iter().map(|node| node.id).collect();
+        listed.members.extend(
+            self.nodes
+                .values()
+                .filter(|node| {
+                    self.pending.contains_key(&node.id)
+                        || self
+                            .heard
+                            .get(&node.id)
+                            .is_some_and(|heard| *heard > revision)
+                })
+                .filter(|node| member(listing, node) == Some(true))
+                .map(|node| node.id),
+        );
+        self.floor = self.floor.max(revision);
+        for node in nodes {
+            if self.hear(node.id, revision) && !self.pending.contains_key(&node.id) {
+                self.insert(node);
+            }
+        }
+        self.prune();
         self.revision += 1;
+        self.refresh_listings();
+    }
+
+    pub(crate) fn relist(&mut self, listing: Listing) {
+        if let Some(listed) = self.listings.get_mut(&listing)
+            && listed.fetch == Fetch::Loaded
+        {
+            listed.fetch = Fetch::Wanted;
+        }
+    }
+
+    pub(crate) fn relist_owner(&mut self, owner: Owner) {
+        let mut held = HashSet::new();
+        for query in self.wanted(owner) {
+            self.listings_for(*query, &mut held);
+        }
+        for listing in held {
+            self.relist(listing);
+        }
+    }
+
+    pub(crate) fn relist_all(&mut self) {
+        self.heard.clear();
+        self.floor = 0;
+        for listed in self.listings.values_mut() {
+            listed.fetch = Fetch::Wanted;
+        }
+    }
+
+    pub(crate) fn ready(&self, query: Query) -> bool {
+        let mut needed = HashSet::new();
+        self.listings_for(query, &mut needed);
+        needed.iter().all(|listing| {
+            let present =
+                matches!(listing, Listing::Block(block) if self.nodes.contains_key(block));
+            present
+                || self
+                    .listings
+                    .get(listing)
+                    .is_some_and(|listed| listed.fetch == Fetch::Loaded)
+        })
+    }
+
+    pub(crate) fn fetching(&self) -> bool {
+        self.listings
+            .values()
+            .any(|listed| listed.fetch != Fetch::Loaded)
+    }
+
+    pub(crate) fn covers(&self, block: Uuid) -> bool {
+        self.pending.contains_key(&block)
+            || self
+                .listings
+                .values()
+                .any(|listed| listed.members.contains(&block))
+    }
+
+    fn prune(&mut self) {
+        let kept: Vec<Uuid> = self
+            .nodes
+            .keys()
+            .copied()
+            .filter(|block| !self.covers(*block))
+            .collect();
+        for block in kept {
+            self.nodes.remove(&block);
+            self.revision += 1;
+        }
     }
 
     pub(crate) fn put(&mut self, node: Node, revision: u64) {
@@ -122,6 +339,9 @@ impl Graph {
         *count -= 1;
         if *count == 0 {
             self.pending.remove(&block);
+            if !self.covers(block) && self.nodes.remove(&block).is_some() {
+                self.revision += 1;
+            }
             return true;
         }
         false
@@ -162,6 +382,19 @@ impl Graph {
         if let Some(references) = self.referenced.get(&node.id) {
             node.references.clone_from(references);
         }
+        for (listing, listed) in &mut self.listings {
+            match member(*listing, &node) {
+                Some(true) => listed.members.insert(node.id),
+                Some(false) => listed.members.remove(&node.id),
+                None => continue,
+            };
+        }
+        if !self.covers(node.id) {
+            if self.nodes.remove(&node.id).is_some() {
+                self.revision += 1;
+            }
+            return;
+        }
         if self.nodes.get(&node.id) != Some(&node) {
             self.nodes.insert(node.id, node);
             self.revision += 1;
@@ -179,6 +412,9 @@ impl Graph {
     }
 
     pub(crate) fn forget(&mut self, block: Uuid) {
+        for listed in self.listings.values_mut() {
+            listed.members.remove(&block);
+        }
         if self.nodes.remove(&block).is_some() {
             self.revision += 1;
         }
@@ -190,13 +426,15 @@ impl Graph {
 
     pub(crate) fn query(&self, query: Query) -> Vec<Node> {
         let mut found: Vec<Node> = match query {
-            Query::All => self.nodes.values().cloned().collect(),
             Query::Roots => self.with_parent(BlockParent::Root),
             Query::Detached => self.with_parent(BlockParent::Detached),
             Query::Shared => self
-                .nodes
-                .values()
-                .filter(|node| node.access.can_view() && self.entered_from_outside(node))
+                .listings
+                .get(&Listing::Shared)
+                .into_iter()
+                .flat_map(|listed| listed.members.iter())
+                .filter_map(|block| self.nodes.get(block))
+                .filter(|node| node.access.can_view())
                 .cloned()
                 .collect(),
             Query::Children(parent) => self.with_parent(BlockParent::Block(parent)),
@@ -216,6 +454,11 @@ impl Graph {
                 .collect(),
             Query::Parents(block) => return self.ancestors(block),
             Query::Block(block) => return self.nodes.get(&block).cloned().into_iter().collect(),
+            Query::Subtree(root) => self
+                .subtree(root)
+                .into_iter()
+                .filter_map(|block| self.nodes.get(&block).cloned())
+                .collect(),
         };
         found.sort_by_key(|node| node.id);
         found
@@ -306,17 +549,6 @@ impl Graph {
         None
     }
 
-    fn entered_from_outside(&self, node: &Node) -> bool {
-        node.parent
-            .and_then(BlockParent::block)
-            .is_some_and(|parent| {
-                !self
-                    .nodes
-                    .get(&parent)
-                    .is_some_and(|above| above.access.can_view())
-            })
-    }
-
     fn with_parent(&self, parent: BlockParent) -> Vec<Node> {
         self.nodes
             .values()
@@ -343,6 +575,15 @@ impl Graph {
         }
         chain.reverse();
         chain
+    }
+}
+
+fn member(listing: Listing, node: &Node) -> Option<bool> {
+    match listing {
+        Listing::Children(parent) => Some(node.parent == Some(parent)),
+        Listing::Block(block) => Some(block == node.id),
+        Listing::Backrefs(block) => Some(node.references.contains(&block)),
+        Listing::Shared => None,
     }
 }
 

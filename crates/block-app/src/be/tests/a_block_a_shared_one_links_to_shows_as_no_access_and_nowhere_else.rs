@@ -59,6 +59,11 @@ fn a_block_a_shared_one_links_to_shows_as_no_access_and_nowhere_else() {
         (shared, linked)
     });
 
+    ask_for(vec![
+        Query::Shared,
+        Query::Detached,
+        Query::References(shared),
+    ]);
     wait_until("heard of the linked block and what links to it", |held| {
         held.graph
             .get(linked)
