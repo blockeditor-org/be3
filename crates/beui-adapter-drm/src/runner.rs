@@ -49,7 +49,7 @@ use be_dmabuf::{Vulkan, adapter_for, open_device};
 
 use crate::display::{DisplayConfig, DisplayControl};
 use crate::displays::{DisplayRenderer, Displays};
-use crate::epaper::{Epaper, Panel};
+use crate::epaper::{Change, Epaper, Panel};
 use crate::escape::{Escape, FINGERS as ESCAPE_FINGERS, HOLD as ESCAPE_HOLD};
 use crate::flips::{Flip, Flips};
 use crate::gpu::{Gpu, SoftwareCursor};
@@ -182,7 +182,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     setup.provide(display_control.clone());
     let problems = Problems::default();
     setup.provide(problems.clone());
-    let epaper = panel.map(|panel| {
+    let epaper = panel.map(|mut panel| {
         panel.take_over();
         let control = Epaper::new(waker.clone());
         setup.provide(control.clone());
@@ -431,8 +431,10 @@ impl Session {
         if self.runner.has_events() {
             self.pacer.ask();
         }
+        self.pace_epaper();
         if self.pacer.wait(self.now(), &self.lanes()) == Wait::Now {
             self.update();
+            self.pace_epaper();
         }
         if let Some(blanked) = self.display_control.take_blanked() {
             self.set_blanked(blanked);
@@ -448,6 +450,26 @@ impl Session {
 
     fn now(&self) -> Duration {
         self.clock.now().into()
+    }
+
+    fn pace_epaper(&mut self) {
+        let now = self.now();
+        let Some((panel, _)) = &mut self.epaper else {
+            return;
+        };
+        let Some(change) = panel.pace.step(now) else {
+            return;
+        };
+        panel.change(change);
+        for output in &mut self.displays.borrow_mut().outputs {
+            match change {
+                Change::Hurry => output.screen.hurry(),
+                Change::Settle => output.screen.settle(),
+            }
+        }
+        if change == Change::Settle {
+            self.pacer.ask();
+        }
     }
 
     fn lanes(&self) -> Vec<Lane> {
@@ -602,6 +624,12 @@ impl Session {
             }
             return;
         };
+        if let Some((panel, _)) = &mut self.epaper {
+            panel.pace.animating(frame.animating);
+            if frame.pending {
+                panel.pace.drew(now);
+            }
+        }
         let wait = |after: Duration| (after != Duration::MAX).then(|| after.min(LONGEST_WAIT));
         match self.blanked {
             false => self.pacer.ran(
@@ -619,11 +647,17 @@ impl Session {
 
     fn schedule(&mut self) {
         let now = self.now();
-        let at = match self.pacer.wait(now, &self.lanes()) {
+        let paced = match self.pacer.wait(now, &self.lanes()) {
             Wait::Idle => None,
             Wait::Now => Some(now),
             Wait::Until(at) => Some(at),
         };
+        let settles = self
+            .epaper
+            .as_ref()
+            .and_then(|(panel, _)| panel.pace.settles_at())
+            .map(|at| at.max(now));
+        let at = paced.into_iter().chain(settles).min();
         if self.wakeup.as_ref().map(|(held, _)| *held) == at && at != Some(now) {
             return;
         }
@@ -886,6 +920,12 @@ impl Session {
     fn input(&mut self, event: InputEvent<LibinputInputBackend>) {
         if !self.gated(&event) {
             return;
+        }
+        let now = self.now();
+        if let Some((panel, _)) = &mut self.epaper
+            && let Some((input, _)) = gate_input(&event)
+        {
+            panel.pace.input(input, now);
         }
         match event {
             InputEvent::DeviceAdded { mut device } => {
@@ -1210,7 +1250,7 @@ impl Card for Session {
                 "The display device could not be taken back: {error}"
             ));
         }
-        if let Some((panel, _)) = &self.epaper {
+        if let Some((panel, _)) = &mut self.epaper {
             panel.take_over();
         }
         if let Some(keyboard) = Keyboard::new(&self.input) {

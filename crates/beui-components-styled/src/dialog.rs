@@ -3,8 +3,10 @@ use accesskit::{Node, Role};
 use beui_core::layer::Dismiss;
 use beui_macros::{component, view};
 
+use crate::scroll::{Bleed, Scroll};
 use crate::text::{Text, TextStyle};
 use beui_components_unstyled::BackSlide;
+use beui_core::base::ItemSize;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
@@ -13,8 +15,8 @@ use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
-const PADDING_HORIZONTAL: f32 = 20.0;
-const PADDING_VERTICAL: f32 = 18.0;
+pub(crate) const PADDING_HORIZONTAL: f32 = 20.0;
+pub(crate) const PADDING_VERTICAL: f32 = 18.0;
 const SPACING: f32 = 12.0;
 const MARGIN: f32 = 12.0;
 const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 150);
@@ -70,11 +72,20 @@ fn DialogSurface(width: Prop<f32>, title: Prop<String>, children: Child) -> Node
                 radius=Radius::Lg
                 padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
-                <List spacing=SPACING>
-                    <Show condition={titled}>
-                        <Text style=TextStyle::TITLE string={label} />
-                    </Show>
-                    {children}
+                <List spacing=0.0>
+                    <Scroll
+                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
+                        fit=true
+                        tab_stop=false
+                        bleed=Bleed::DIALOG
+                    >
+                        <List spacing=SPACING>
+                            <Show condition={titled}>
+                                <Text style=TextStyle::TITLE string={label} />
+                            </Show>
+                            {children}
+                        </List>
+                    </Scroll>
                 </List>
             </Frame>
         </Frame>

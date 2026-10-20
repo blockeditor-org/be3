@@ -1,6 +1,7 @@
 mod fling;
 pub use fling::Fling;
 use std::cell::Cell;
+use std::rc::Rc;
 use std::time::{Duration, Instant};
 
 use crate::current::with_document;
@@ -33,6 +34,7 @@ pub struct AnimationFrame {
 
 struct State {
     active: Cell<bool>,
+    running: Rc<Cell<usize>>,
     generation: Cell<u64>,
     started: Cell<Instant>,
     stepped: Cell<Instant>,
@@ -52,6 +54,7 @@ impl Animation {
         if state.active.replace(true) {
             return;
         }
+        state.running.set(state.running.get() + 1);
         state.generation.set(state.generation.get().wrapping_add(1));
         state.started.set(now());
         state.stepped.set(now());
@@ -64,7 +67,9 @@ impl Animation {
 
     pub fn stop(self) {
         self.0.try_with(|state| {
-            state.active.set(false);
+            if state.active.replace(false) {
+                state.running.set(state.running.get() - 1);
+            }
             state.generation.set(state.generation.get().wrapping_add(1));
             if let Some(timer) = state.timer.get() {
                 timer.stop();
@@ -94,6 +99,7 @@ pub fn create_animation(
 ) -> Animation {
     let state = store(State {
         active: Cell::new(false),
+        running: with_document(|document| document.animations()),
         generation: Cell::new(0),
         started: Cell::new(now()),
         stepped: Cell::new(now()),

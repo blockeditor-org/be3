@@ -297,6 +297,7 @@ fn frame_for(
     Frame {
         changed: frame.pending,
         repaint_after: frame.wait(),
+        animating: frame.animating,
         content: None,
         painted: Vec::new(),
         floating: Vec::new(),

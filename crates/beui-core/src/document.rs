@@ -156,6 +156,7 @@ pub struct Document {
     painters: NodeMap<Placing>,
     motion: ::reactive::OwnedSignal<crate::animation::Motion>,
     out_of_bounds: Option<Vec<String>>,
+    animations: Rc<Cell<usize>>,
 }
 
 #[derive(Clone, Copy)]
@@ -365,6 +366,7 @@ impl Document {
             painters: NodeMap::default(),
             motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
             out_of_bounds: None,
+            animations: Rc::default(),
         }
     }
 
@@ -769,6 +771,10 @@ impl Document {
 
     pub fn motion(&self) -> crate::animation::Motion {
         self.motion.get_untracked()
+    }
+
+    pub(crate) fn animations(&self) -> Rc<Cell<usize>> {
+        Rc::clone(&self.animations)
     }
 
     pub fn watch_motion(&self) -> ::reactive::ReadSignal<crate::animation::Motion> {
@@ -1305,6 +1311,9 @@ impl Document {
         }
         if let Some(deadline) = self.next_timer() {
             ctx.request_repaint_after(deadline.saturating_duration_since(self.now));
+        }
+        if self.animations.get() > 0 {
+            ctx.note_animating();
         }
         ctx.show_painting(&self.painting, rect);
         if ctx.automated() {

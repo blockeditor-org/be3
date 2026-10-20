@@ -163,6 +163,7 @@ pub(super) struct Placed {
 struct Pacing {
     needed: bool,
     unseen: bool,
+    animating: bool,
     paint_at: Option<Duration>,
     requested_at: Option<Duration>,
     animated: u64,
@@ -172,6 +173,7 @@ impl Pacing {
     fn reset(&mut self) {
         self.needed = false;
         self.unseen = false;
+        self.animating = false;
         self.paint_at = None;
         self.requested_at = None;
     }
@@ -496,6 +498,9 @@ impl Runtime {
         if let Some(delay) = self.pacing.wake_after(self.now(), drawing) {
             host::request_repaint_after(delay);
         }
+        if drawing && self.pacing.animating {
+            host::note_animating();
+        }
     }
 
     fn now(&self) -> Duration {
@@ -632,6 +637,7 @@ impl Runtime {
                     true
                 }
                 Message::FrameReady(frame) => {
+                    self.pacing.animating = frame.animating;
                     self.await_next_frame(frame.repaint_after_micros);
                     if let Some(presented) = frame.presented {
                         self.presents.report(presented);

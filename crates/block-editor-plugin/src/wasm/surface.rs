@@ -100,6 +100,7 @@ impl Surfaces {
             .panes
             .run(&self.layout, screens, &self.fresh, crate::screens::seen());
         let repaint = ran.repaint;
+        let animating = ran.animating;
         let mut presented = None;
         if !ran.painting.is_empty() {
             let painted: Vec<u32> = ran
@@ -126,6 +127,7 @@ impl Surfaces {
         Ok(vec![Message::FrameReady(FrameReady {
             generation: self.layout.generation,
             repaint_after_micros: repaint.map(|delay| delay.as_micros() as u64),
+            animating,
             presented,
         })])
     }

@@ -104,6 +104,7 @@ impl Region {
 pub struct Frame {
     pub changed: bool,
     pub repaint_after: Option<Duration>,
+    pub animating: bool,
     pub content: Option<Rect>,
     pub painted: Vec<Rect>,
     pub floating: Vec<Rect>,

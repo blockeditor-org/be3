@@ -15,6 +15,7 @@ pub(crate) struct Panes {
 
 pub(crate) struct Ran {
     pub(crate) repaint: Option<Duration>,
+    pub(crate) animating: bool,
     pub(crate) painting: Vec<ScreenPlacement>,
 }
 
@@ -27,6 +28,7 @@ impl Panes {
         seen: bool,
     ) -> Ran {
         let mut repaint = Duration::MAX;
+        let mut animating = false;
         let moved = self.generation != Some(layout.generation);
         self.generation = Some(layout.generation);
         let dirty = match moved {
@@ -56,6 +58,7 @@ impl Panes {
                 let frame = session.run(placement.region, layout.generation, age);
                 screens.ran(placement.instance);
                 changed |= frame.changed;
+                animating |= frame.animating;
                 if let Some(after) = frame.repaint_after {
                     repaint = repaint.min(after);
                     self.repainting.insert(placement.instance);
@@ -71,6 +74,7 @@ impl Panes {
         }
         Ran {
             repaint: (repaint < Duration::MAX).then_some(repaint),
+            animating,
             painting,
         }
     }
