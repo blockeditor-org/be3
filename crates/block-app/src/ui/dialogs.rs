@@ -1,6 +1,6 @@
 use be_protocol::OrganizationRole;
 use beui::NodeId;
-use beui::icons::{ICON_CONTENT_COPY, ICON_DELETE, ICON_PERSON_REMOVE};
+use beui::icons::{ICON_DELETE, ICON_PERSON_REMOVE};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::ChoiceOption;
@@ -51,8 +51,21 @@ fn AgentsDialog(view: AppViewStore) -> NodeId {
             None => "Agents".to_owned(),
         },
     );
+    let done = create_memo(
+        move || match agents.get().and_then(|agents| agents.created) {
+            Some(_) => "Done".to_owned(),
+            None => String::new(),
+        },
+    );
     view! {
-        <Dialog open={open} title={title} width=460.0 on_dismiss={|| send(UiCommand::CloseAgents)}>
+        <Dialog
+            open={open}
+            title={title}
+            width=460.0
+            id="app.agents"
+            cancel={done}
+            on_dismiss={|| send(UiCommand::CloseAgents)}
+        >
             <AgentsPanel view />
         </Dialog>
     }
@@ -311,20 +324,12 @@ fn ContactsPanel(view: AppViewStore) -> NodeId {
                             string="Send this link yourself, through an app you trust, to the one person you want to connect with. It works once, and it is shown only once."
                             wrap=true
                         />
-                        <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <TextInput
-                                @sizing=ItemSize::Percent(100.0)
-                                value={link}
-                                label="Contact link"
-                                @test_id={"app.contacts.link"}
-                            />
-                            <IconButton
-                                glyph={ICON_CONTENT_COPY.to_owned()}
-                                label="Copy link"
-                                @test_id={"app.contacts.copy"}
-                                on_click={move || copy_text(link.get_untracked())}
-                            />
-                        </List>
+                        <TextInput
+                            value={link}
+                            label="Contact link"
+                            copyable=true
+                            @test_id={"app.contacts.link"}
+                        />
                     </List>
                 </Show>
                 <Text style=TextStyle::CAPTION string="Open a contact link someone sent you" />
@@ -527,31 +532,16 @@ fn AgentCredentials(created: Memo<Option<super::CreatedAgent>>) -> NodeId {
                     <TextInput
                         value={header}
                         label="Proxy Authorization header"
+                        copyable=true
                         @test_id={"app.agents.header"}
-                    />
-                    <Button
-                        label="Copy authorization header"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || copy_text(header.get_untracked())}
                     />
                 </List>
             </Show>
             <TextInput
                 value={credentials}
                 label="Agent credentials"
+                copyable=true
                 @test_id={"app.agents.credentials"}
-            />
-            <Button
-                label="Copy credentials"
-                variant=ButtonVariant::Secondary
-                @test_id={"app.agents.copy"}
-                on_click={move || copy_text(credentials.get_untracked())}
-            />
-            <Button
-                label="Done"
-                variant=ButtonVariant::Primary
-                @test_id={"app.agents.done"}
-                on_click={|| send(UiCommand::CloseAgents)}
             />
         </List>
     }
@@ -679,27 +669,21 @@ fn LeaveDialog(view: AppViewStore) -> NodeId {
     let leaving = view.leaving;
     let open = create_memo(move || leaving.get());
     view! {
-        <Dialog open={open} title="Leave?" on_dismiss={|| send(UiCommand::CancelLeave)}>
-            <List spacing=12.0>
-                <Text
-                    style=TextStyle::PARAGRAPH
-                    string="You will no longer see this or anything inside it, unless someone shares it with you again. Whoever can edit it gives it new keys."
-                    wrap=true
-                />
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Button
-                        label="Leave"
-                        variant=ButtonVariant::Primary
-                        @test_id={"app.leave.confirm"}
-                        on_click={|| send(UiCommand::ConfirmLeave)}
-                    />
-                    <Button
-                        label="Stay"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::CancelLeave)}
-                    />
-                </List>
-            </List>
+        <Dialog
+            open={open}
+            title="Leave?"
+            id="app.leave"
+            confirm="Leave"
+            cancel="Stay"
+            destructive=true
+            on_confirm={|| send(UiCommand::ConfirmLeave)}
+            on_dismiss={|| send(UiCommand::CancelLeave)}
+        >
+            <Text
+                style=TextStyle::PARAGRAPH
+                string="You will no longer see this or anything inside it, unless someone shares it with you again. Whoever can edit it gives it new keys."
+                wrap=true
+            />
         </Dialog>
     }
 }
@@ -727,22 +711,16 @@ fn DiscardDialog(view: AppViewStore) -> NodeId {
             .unwrap_or_default()
     });
     view! {
-        <Dialog open={open} title={title} on_dismiss={|| send(UiCommand::CancelDiscard)}>
-            <List spacing=12.0>
-                <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Button
-                        label={button}
-                        variant=ButtonVariant::Primary
-                        on_click={|| send(UiCommand::Discard)}
-                    />
-                    <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::CancelDiscard)}
-                    />
-                </List>
-            </List>
+        <Dialog
+            open={open}
+            title={title}
+            confirm={button}
+            cancel="Cancel"
+            destructive=true
+            on_confirm={|| send(UiCommand::Discard)}
+            on_dismiss={|| send(UiCommand::CancelDiscard)}
+        >
+            <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
         </Dialog>
     }
 }

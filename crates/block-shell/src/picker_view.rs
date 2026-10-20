@@ -78,20 +78,11 @@ fn ChooseDialog(
                 open={wide}
                 title="Add block"
                 width=PICKER_WIDTH
+                id="picker"
+                cancel="Close"
                 on_dismiss={move || act.call(PickAction::Close)}
             >
-                <List spacing=10.0>
-                    <ChooseBody workspace held act phone=false />
-                    <Separator />
-                    <List direction=Direction::Horizontal justify=Justify::End spacing=8.0>
-                        <Button
-                            label="Close"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"picker.close"}
-                            on_click={move || act.call(PickAction::Close)}
-                        />
-                    </List>
-                </List>
+                <ChooseBody workspace held act phone=false />
             </Dialog>
             <ModalSheet
                 open={narrow}
@@ -736,16 +727,10 @@ fn PickerError(error: Memo<Option<String>>, act: Act) -> NodeId {
             open={open}
             title="Block picker error"
             width=320.0
+            cancel="Dismiss"
             on_dismiss={move || act.call(PickAction::DismissError)}
         >
-            <List spacing=10.0>
-                <Text style=TextStyle::CAPTION string={text} color=TextColor::Danger />
-                <Button
-                    label="Dismiss"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || act.call(PickAction::DismissError)}
-                />
-            </List>
+            <Text style=TextStyle::CAPTION string={text} color=TextColor::Danger />
         </Dialog>
     }
 }

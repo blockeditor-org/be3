@@ -8,7 +8,6 @@ use block_editor_beui::beui::unstyled::MenuItem;
 use block_editor_beui::{Editor, Power, PowerAction, PowerAvailability};
 
 const DIALOG_SPACING: f32 = 16.0;
-const BUTTON_SPACING: f32 = 8.0;
 
 fn label(action: PowerAction) -> &'static str {
     match action {
@@ -94,7 +93,6 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let explained = create_memo(move || consequence(confirming.get()).to_owned());
     let verb = create_memo(move || label(confirming.get()).to_owned());
     let dismiss = move || open.set(false);
-    let cancel = move || open.set(false);
     let confirm = move || {
         open.set(false);
         editor.act(confirming.get_untracked());
@@ -116,28 +114,17 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
                 }}
                 on_select={chose}
             />
-            <Dialog open title on_dismiss={dismiss}>
+            <Dialog
+                open
+                title
+                id="desktop.power"
+                confirm={verb}
+                cancel="Cancel"
+                on_confirm={confirm}
+                on_dismiss={dismiss}
+            >
                 <List spacing=DIALOG_SPACING @test_id={"desktop.power.dialog"}>
                     <Text style=TextStyle::PARAGRAPH string={explained} wrap=true />
-                    <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        justify=Justify::End
-                        spacing=BUTTON_SPACING
-                    >
-                        <Button
-                            label="Cancel"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"desktop.power.cancel"}
-                            on_click={cancel}
-                        />
-                        <Button
-                            label={verb}
-                            variant=ButtonVariant::Primary
-                            @test_id={"desktop.power.confirm"}
-                            on_click={confirm}
-                        />
-                    </List>
                 </List>
             </Dialog>
         </List>

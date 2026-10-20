@@ -220,6 +220,10 @@ pub fn TextInput(
         true => Vec2::new(padding_horizontal.get(), padding_vertical.get()),
         false => Vec2::ZERO,
     });
+    let submit = match on_submit.is_empty() {
+        true => ClickCallback::empty(),
+        false => ClickCallback::new(move || on_submit.call(text_of(state))),
+    };
     let area_node = view! {
         <TextArea
             @node_ref=&area
@@ -237,7 +241,7 @@ pub fn TextInput(
             prose
             accessibility
             on_toolbar={open_menu}
-            on_submit={move || on_submit.call(text_of(state))}
+            on_submit={submit}
             on_focus_change={move |focused: bool| {
                 if focused && select_on_focus.get_untracked() {
                     state.execute(EditorCommand::SelectAll);

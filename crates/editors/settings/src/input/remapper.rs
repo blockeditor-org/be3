@@ -6,7 +6,6 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{BlockParent, Editor, LayeredSettingsRow};
 
-const CONFIRM_SPACING: f32 = 8.0;
 use uuid::Uuid;
 
 use super::ui::Settings;
@@ -167,28 +166,18 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
             <Dialog
                 open={asking}
                 title="Reset the remapper?"
+                id="input.remapper.reset"
+                confirm="Reset"
+                cancel="Cancel"
+                destructive=true
+                on_confirm={confirmed}
                 on_dismiss={move || asking.set(false)}
             >
-                <List spacing=CONFIRM_SPACING>
-                    <Text
-                        style=TextStyle::PARAGRAPH
-                        string="Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
-                        wrap=true
-                    />
-                    <List direction=Direction::Horizontal spacing=CONFIRM_SPACING>
-                        <Button
-                            label="Reset"
-                            variant=ButtonVariant::Primary
-                            @test_id={"input.remapper.reset.confirm"}
-                            on_click={confirmed}
-                        />
-                        <Button
-                            label="Cancel"
-                            variant=ButtonVariant::Secondary
-                            on_click={move || asking.set(false)}
-                        />
-                    </List>
-                </List>
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    string="Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
+                    wrap=true
+                />
             </Dialog>
         </SettingsSection>
     }

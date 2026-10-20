@@ -431,27 +431,22 @@ fn ResetDialog(session: Session) -> NodeId {
             model.reset_hotbar();
         });
     };
-    let cancel = move || {
-        session.update(|model| model.confirm_hotbar_reset = false);
-    };
     let dismiss = move || {
         session.update(|model| model.confirm_hotbar_reset = false);
     };
     view! {
-        <Dialog open={open} title="Reset hotbar?" width=DIALOG_WIDTH on_dismiss={dismiss}>
-            <List spacing=SPACING>
-                <Text string="This will restore the default hotbar layout." />
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Button
-                        label="Reset"
-                        variant=ButtonVariant::Primary
-                        @test_id={"logic-grid.hotbar-reset"}
-                        on_click={reset}
-                    />
-                    <Button label="Cancel" variant=ButtonVariant::Secondary on_click={cancel} />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
-            </List>
+        <Dialog
+            open={open}
+            title="Reset hotbar?"
+            width=DIALOG_WIDTH
+            id="logic-grid.hotbar-reset"
+            confirm="Reset"
+            cancel="Cancel"
+            destructive=true
+            on_confirm={reset}
+            on_dismiss={dismiss}
+        >
+            <Text string="This will restore the default hotbar layout." />
         </Dialog>
     }
 }

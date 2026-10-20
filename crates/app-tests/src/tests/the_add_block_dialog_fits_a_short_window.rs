@@ -12,13 +12,12 @@ fn the_add_block_dialog_fits_a_short_window() {
         "the dialog sits inside the window, at {y} + {height}"
     );
     app.snapshot("the_add_block_dialog_fits_a_short_window");
-    app.run(&["scroll", "Label value=\"Add block\"", "600"]);
-    let (_, y, _, height) = app.place("#picker.close");
+    let (_, y, _, height) = app.place("#picker.cancel");
     assert!(
         y + height <= 480.0,
-        "scrolling the dialog brings its close button into the window, at {y} + {height}"
+        "the close button stays in the window while the body scrolls, at {y} + {height}"
     );
-    app.click("#picker.close");
+    app.click("#picker.cancel");
     app.gone("Dialog \"Add block\"");
     app.close();
 }

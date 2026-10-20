@@ -110,6 +110,7 @@ pub enum TextColor {
     Faint,
     Accent,
     OnAccent,
+    OnDanger,
     Danger,
     Warning,
     Success,
@@ -117,12 +118,13 @@ pub enum TextColor {
 }
 
 impl TextColor {
-    pub const ROLES: [TextColor; 8] = [
+    pub const ROLES: [TextColor; 9] = [
         TextColor::Default,
         TextColor::Muted,
         TextColor::Faint,
         TextColor::Accent,
         TextColor::OnAccent,
+        TextColor::OnDanger,
         TextColor::Danger,
         TextColor::Warning,
         TextColor::Success,
@@ -135,6 +137,7 @@ impl TextColor {
             TextColor::Faint => theme.border.get(),
             TextColor::Accent => theme.accent.get(),
             TextColor::OnAccent => theme.on_accent.get(),
+            TextColor::OnDanger => theme.on_danger.get(),
             TextColor::Danger => theme.danger.get(),
             TextColor::Warning => theme.warning.get(),
             TextColor::Success => theme.success.get(),
@@ -149,6 +152,7 @@ impl TextColor {
             TextColor::Faint => "faint",
             TextColor::Accent => "accent",
             TextColor::OnAccent => "on accent",
+            TextColor::OnDanger => "on danger",
             TextColor::Danger => "danger",
             TextColor::Warning => "warning",
             TextColor::Success => "success",
