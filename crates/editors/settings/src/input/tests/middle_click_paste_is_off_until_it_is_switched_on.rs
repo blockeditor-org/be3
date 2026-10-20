@@ -1,7 +1,7 @@
 use super::*;
 
-const PASTE: &str = "input-settings.middle-click-paste";
-const PASTE_RESET: &str = "input-settings.middle-click-paste.reset";
+const PASTE: &str = "input.middle-click-paste";
+const PASTE_RESET: &str = "input.middle-click-paste.reset";
 
 #[test]
 fn middle_click_paste_is_off_until_it_is_switched_on() {

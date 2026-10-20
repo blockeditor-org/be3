@@ -136,7 +136,7 @@ pub(super) fn RemapperSetting(
                     selected={selected}
                     label="Remapper"
                     disabled={read_only}
-                    @test_id={"input-settings.remapper"}
+                    @test_id={"input.remapper"}
                     on_change={choose}
                 />
             </SettingsRow>
@@ -147,9 +147,9 @@ pub(super) fn RemapperSetting(
                 disabled={link_off}
                 modified={set_here}
                 locked={read_only}
-                reset_test_id={"input-settings.remaps.reset".to_owned()}
+                reset_test_id={"input.remaps.reset".to_owned()}
                 reset_confirm="Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
-                @test_id={"input-settings.remaps"}
+                @test_id={"input.remaps"}
                 on_reset={reset}
                 on_click={open}
             />

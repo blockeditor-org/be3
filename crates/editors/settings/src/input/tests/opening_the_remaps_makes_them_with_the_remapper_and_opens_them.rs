@@ -19,7 +19,7 @@ fn opening_the_remaps_makes_them_with_the_remapper_and_opens_them() {
         }],
     });
 
-    editor.click("input-settings.remaps");
+    editor.click("input.remaps");
     editor.run();
 
     let choice = content(&editor)
@@ -40,7 +40,7 @@ fn opening_the_remaps_makes_them_with_the_remapper_and_opens_them() {
     assert_eq!(opens[0].editor, Some(remapper));
     editor.snapshot("opening_the_remaps_makes_them_with_the_remapper_and_opens_them");
 
-    editor.click("input-settings.remaps");
+    editor.click("input.remaps");
     editor.run();
     let opens = editor.take_opens();
     assert_eq!(opens.len(), 1);
@@ -50,14 +50,14 @@ fn opening_the_remaps_makes_them_with_the_remapper_and_opens_them() {
     );
     assert_eq!(editor.seeded().len(), 1);
 
-    editor.click("input-settings.remaps.reset");
+    editor.click("input.remaps.reset");
     editor.run();
     assert!(
         content(&editor).root().remapper.is_some(),
         "resetting asks first"
     );
     editor.snapshot("resetting_the_remaps_asks_before_deleting_them");
-    editor.click("input-settings.remaps.reset.confirm");
+    editor.click("input.remaps.reset.confirm");
     editor.run();
     assert_eq!(content(&editor).root().remapper, None);
     let deleted = editor.take_block_commands();

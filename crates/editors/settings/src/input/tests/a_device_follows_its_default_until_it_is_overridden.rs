@@ -1,7 +1,7 @@
 use super::*;
 
-const TAP: &str = "input-settings.pointer.tap-to-click";
-const TAP_RESET: &str = "input-settings.pointer.tap-to-click.reset";
+const TAP: &str = "input.pointer.tap-to-click";
+const TAP_RESET: &str = "input.pointer.tap-to-click.reset";
 
 #[test]
 fn a_device_follows_its_default_until_it_is_overridden() {

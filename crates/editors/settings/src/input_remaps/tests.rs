@@ -20,7 +20,7 @@ fn editor(state: RemapState, config: Option<&str>) -> BeuiTest<InputRemapsApp> {
     let mut content = InputRemapperContent::default();
     if let Some(config) = config {
         content.apply(&InputRemapper::set(
-            "be3.linux-settings",
+            "be3.settings",
             "remapper.wasm",
             Some(config.as_bytes().to_vec()),
         ));

@@ -51,101 +51,112 @@ pub fn InputSettingsView(editor: Editor) -> NodeId {
     let paste = settings.project(|content| content.root().middle_click_paste);
     let paste_on = create_memo(move || effective.get().middle_click_paste());
     let paste_unset = create_memo(move || paste.get().is_none());
+    let offered = editor.host_offers::<InputDevices>();
+    let elsewhere = create_memo(move || !offered.get());
     view! {
         <SettingsPage>
-            <SettingsSection title="Keyboard">
-                <TextSetting
-                    label="Layout"
-                    description="XKB names, like us, de or us,de."
-                    value={create_memo(move || layout.get())}
-                    inherited={create_memo(move || inherited.get().keyboard_layout)}
+            <Show condition={elsewhere}>
+                <SettingsSection title="Input">
+                    <SettingsRow
+                        label="These settings apply in a Linux session, and this device is not one."
+                    />
+                </SettingsSection>
+            </Show>
+            <Show condition={offered}>
+                <SettingsSection title="Keyboard">
+                    <TextSetting
+                        label="Layout"
+                        description="XKB names, like us, de or us,de."
+                        value={create_memo(move || layout.get())}
+                        inherited={create_memo(move || inherited.get().keyboard_layout)}
+                        read_only={read_only}
+                        id="layout"
+                        separated=false
+                        on_change={move |layout: Option<String>| {
+                            settings.operate(InputSettings::set_keyboard_layout(layout.as_deref()))
+                        }}
+                    />
+                    <TextSetting
+                        label="Variant"
+                        description="One for each layout, like dvorak."
+                        value={create_memo(move || variant.get())}
+                        inherited={create_memo(move || inherited.get().keyboard_variant)}
+                        read_only={read_only}
+                        id="variant"
+                        on_change={move |variant: Option<String>| {
+                            settings.operate(InputSettings::set_keyboard_variant(variant.as_deref()))
+                        }}
+                    />
+                    <TextSetting
+                        label="Options"
+                        description="XKB options, like caps:escape."
+                        value={create_memo(move || options.get())}
+                        inherited={create_memo(move || inherited.get().keyboard_options)}
+                        read_only={read_only}
+                        id="options"
+                        on_change={move |options: Option<String>| {
+                            settings.operate(InputSettings::set_keyboard_options(options.as_deref()))
+                        }}
+                    />
+                    <SliderSetting
+                        label="Repeat delay"
+                        description="How long a key is held before it repeats."
+                        value={delay_value}
+                        shown={delay_shown}
+                        unset={delay_unset}
+                        min={MIN_REPEAT_DELAY as f32}
+                        max={MAX_REPEAT_DELAY as f32}
+                        read_only={read_only}
+                        id={"repeat-delay".to_owned()}
+                        on_change={move |delay: Option<f32>| {
+                            settings.operate(InputSettings::set_repeat_delay(delay.map(|delay| delay.round() as u32)))
+                        }}
+                    />
+                    <SliderSetting
+                        label="Repeat rate"
+                        description="How many times a second a held key repeats."
+                        value={rate_value}
+                        shown={rate_shown}
+                        unset={rate_unset}
+                        min={MIN_REPEAT_RATE as f32}
+                        max={MAX_REPEAT_RATE as f32}
+                        read_only={read_only}
+                        id={"repeat-rate".to_owned()}
+                        on_change={move |rate: Option<f32>| {
+                            settings.operate(InputSettings::set_repeat_rate(rate.map(|rate| rate.round() as u32)))
+                        }}
+                    />
+                </SettingsSection>
+                <Pointers
+                    settings={settings}
+                    root={root}
+                    effective={effective}
+                    devices={devices}
                     read_only={read_only}
-                    id="layout"
-                    separated=false
-                    on_change={move |layout: Option<String>| {
-                        settings.operate(InputSettings::set_keyboard_layout(layout.as_deref()))
-                    }}
                 />
-                <TextSetting
-                    label="Variant"
-                    description="One for each layout, like dvorak."
-                    value={create_memo(move || variant.get())}
-                    inherited={create_memo(move || inherited.get().keyboard_variant)}
+                <SettingsSection title="Programs">
+                    <SwitchSetting
+                        label="Middle-click paste"
+                        description="Lets programs paste the text last selected in them with the middle button."
+                        on={paste_on}
+                        mixed={create_memo(|| false)}
+                        unset={paste_unset}
+                        read_only={read_only}
+                        id={"middle-click-paste".to_owned()}
+                        separated=false
+                        on_change={move |on: Option<bool>| {
+                            settings.operate(InputSettings::set_middle_click_paste(on))
+                        }}
+                    />
+                </SettingsSection>
+                <RemapperSetting
+                    editor={editor}
+                    settings={settings}
+                    root={root}
+                    effective={effective}
                     read_only={read_only}
-                    id="variant"
-                    on_change={move |variant: Option<String>| {
-                        settings.operate(InputSettings::set_keyboard_variant(variant.as_deref()))
-                    }}
                 />
-                <TextSetting
-                    label="Options"
-                    description="XKB options, like caps:escape."
-                    value={create_memo(move || options.get())}
-                    inherited={create_memo(move || inherited.get().keyboard_options)}
-                    read_only={read_only}
-                    id="options"
-                    on_change={move |options: Option<String>| {
-                        settings.operate(InputSettings::set_keyboard_options(options.as_deref()))
-                    }}
-                />
-                <SliderSetting
-                    label="Repeat delay"
-                    description="How long a key is held before it repeats."
-                    value={delay_value}
-                    shown={delay_shown}
-                    unset={delay_unset}
-                    min={MIN_REPEAT_DELAY as f32}
-                    max={MAX_REPEAT_DELAY as f32}
-                    read_only={read_only}
-                    id={"repeat-delay".to_owned()}
-                    on_change={move |delay: Option<f32>| {
-                        settings.operate(InputSettings::set_repeat_delay(delay.map(|delay| delay.round() as u32)))
-                    }}
-                />
-                <SliderSetting
-                    label="Repeat rate"
-                    description="How many times a second a held key repeats."
-                    value={rate_value}
-                    shown={rate_shown}
-                    unset={rate_unset}
-                    min={MIN_REPEAT_RATE as f32}
-                    max={MAX_REPEAT_RATE as f32}
-                    read_only={read_only}
-                    id={"repeat-rate".to_owned()}
-                    on_change={move |rate: Option<f32>| {
-                        settings.operate(InputSettings::set_repeat_rate(rate.map(|rate| rate.round() as u32)))
-                    }}
-                />
-            </SettingsSection>
-            <Pointers
-                settings={settings}
-                root={root}
-                effective={effective}
-                devices={devices}
-                read_only={read_only}
-            />
-            <SettingsSection title="Programs">
-                <SwitchSetting
-                    label="Middle-click paste"
-                    description="Lets programs paste the text last selected in them with the middle button."
-                    on={paste_on}
-                    mixed={create_memo(|| false)}
-                    unset={paste_unset}
-                    read_only={read_only}
-                    id={"middle-click-paste".to_owned()}
-                    separated=false
-                    on_change={move |on: Option<bool>| {
-                        settings.operate(InputSettings::set_middle_click_paste(on))
-                    }}
-                />
-            </SettingsSection>
-            <RemapperSetting
-                editor={editor}
-                settings={settings}
-                root={root}
-                effective={effective}
-                read_only={read_only}
-            />
+            </Show>
         </SettingsPage>
     }
 }
@@ -310,7 +321,7 @@ fn Pointers(
                     width={Extent::fraction(1.0)}
                     selected={selected}
                     label="Pointer"
-                    @test_id={"input-settings.pointer"}
+                    @test_id={"input.pointer"}
                     on_change={move |index: Option<usize>| {
                         let key = index
                             .and_then(|index| index.checked_sub(1))
@@ -396,7 +407,7 @@ fn TextSetting(
             separated={separated}
             modified={set}
             locked={read_only}
-            reset_test_id={format!("input-settings.{id}.reset")}
+            reset_test_id={format!("input.{id}.reset")}
             on_reset={move || on_change.call(None)}
         >
             <TextInput
@@ -407,7 +418,7 @@ fn TextSetting(
                     inherited.get().unwrap_or_else(|| "Default".to_owned())
                 })}
                 disabled={read_only}
-                @test_id={format!("input-settings.{id}")}
+                @test_id={format!("input.{id}")}
                 on_change={move |text: String| {
                     if text != shown.get_untracked() {
                         on_change.call(Some(text));
@@ -440,7 +451,7 @@ fn SliderSetting(
             separated={separated}
             modified={set}
             locked={read_only}
-            reset_test_id={format!("input-settings.{id}.reset")}
+            reset_test_id={format!("input.{id}.reset")}
             on_reset={move || on_change.call(None)}
         >
             <Slider
@@ -450,7 +461,7 @@ fn SliderSetting(
                 max={max}
                 label={label}
                 disabled={read_only}
-                @test_id={format!("input-settings.{id}")}
+                @test_id={format!("input.{id}")}
                 on_change={move |value: f32| on_change.call(Some(value))}
             />
             <Text
@@ -484,7 +495,7 @@ fn SwitchSetting(
             compact=true
             modified={set}
             locked={read_only}
-            reset_test_id={format!("input-settings.{id}.reset")}
+            reset_test_id={format!("input.{id}.reset")}
             on_reset={move || on_change.call(None)}
         >
             <Switch
@@ -492,7 +503,7 @@ fn SwitchSetting(
                 indeterminate={mixed}
                 label={label}
                 disabled={read_only}
-                @test_id={format!("input-settings.{id}")}
+                @test_id={format!("input.{id}")}
                 on_change={move |on: bool| on_change.call(Some(on))}
             />
         </SettingsRow>

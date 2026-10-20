@@ -318,7 +318,7 @@ fn Kinds<C: Layer>(
                 glyph={ICON_KEYBOARD.to_owned()}
                 selected={showing(input)}
                 disabled={blocked}
-                @test_id={"settings.input-settings"}
+                @test_id={"settings.input"}
                 on_click={open_input}
             />
             <SettingRow

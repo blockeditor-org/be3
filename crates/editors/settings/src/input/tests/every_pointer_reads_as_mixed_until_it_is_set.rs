@@ -1,7 +1,7 @@
 use super::*;
 
-const NATURAL: &str = "input-settings.pointer.natural-scroll";
-const NATURAL_RESET: &str = "input-settings.pointer.natural-scroll.reset";
+const NATURAL: &str = "input.pointer.natural-scroll";
+const NATURAL_RESET: &str = "input.pointer.natural-scroll.reset";
 
 #[test]
 fn every_pointer_reads_as_mixed_until_it_is_set() {

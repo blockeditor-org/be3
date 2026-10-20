@@ -13,7 +13,7 @@ use ui::InputRemapsView;
 const INTRINSIC_WIDTH: f32 = 520.0;
 const INTRINSIC_HEIGHT: f32 = 520.0;
 
-pub const PLUGIN: &str = "be3.linux-settings";
+pub const PLUGIN: &str = "be3.settings";
 pub const MODULE: &str = "remapper.wasm";
 
 pub struct InputRemapsApp;

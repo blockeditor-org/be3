@@ -310,7 +310,7 @@ its devices, the profile's replacing the shared one. The input settings' Remaps 
 editor of the `InputRemapper` type as the Remapper, and its Remaps link opens the chosen block with its
 editor in a tab, making it first (with the chosen remapper, else the first there is) when there is none.
 
-The remapper that ships is the Linux settings plugin's Input Remaps editor (`editors/linux-settings`, `input_remaps`): its block's config is TOML text, stored exactly as
+The remapper that ships is the settings plugin's Input Remaps editor (`editors/settings`, `input_remaps`): its block's config is TOML text, stored exactly as
 written, comments and layout included, and its module is `crates/remap/module`, staged as its data
 (`remapper.wasm`). The module is `be-remap`'s engine and text reader (`be_remap::text`, whose errors
 name the group and rule): rules apply in every window or only while a window whose executable, app id

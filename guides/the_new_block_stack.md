@@ -1066,7 +1066,9 @@ first, for a reset that deletes the block it opens.
 A page shows a section only where the host can back it: the settings plugin's
 Display page (`editors/settings`, `display`) always has Appearance, but a
 section per screen only once the host offers `Displays`, and Power and lock only
-once it offers `Power`, which only a `--session` publishes.
+once it offers `Power`, which only a `--session` publishes. Its Input page
+(`input`) shows its sections only once the host offers `InputDevices`, which
+likewise only a `--session` publishes, and says so otherwise.
 
 Each kind of setting (`InputSettings`, `DisplaySettings`,
 `EditorSettings`, the logic hotbar) is a block of its own, and is read through layers:

@@ -36,22 +36,18 @@ fn a_profile_picks_its_own_remapper_and_a_remapper_runs_once_it_names_a_module()
     let remapper = edited(
         &remapper,
         [InputRemapper::set(
-            "be3.linux-settings",
+            "be3.settings",
             "remapper.wasm",
             Some(b"[[group]]".to_vec()),
         )],
     );
     assert_eq!(
         remapper.root().runs(),
-        Some(("be3.linux-settings", "remapper.wasm", &b"[[group]]"[..]))
+        Some(("be3.settings", "remapper.wasm", &b"[[group]]"[..]))
     );
     let cleared = edited(
         &remapper,
-        [InputRemapper::set(
-            "be3.linux-settings",
-            "remapper.wasm",
-            None,
-        )],
+        [InputRemapper::set("be3.settings", "remapper.wasm", None)],
     );
     assert_eq!(
         cleared.root().runs(),
