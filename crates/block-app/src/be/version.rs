@@ -21,7 +21,7 @@ use block_plugin_api::{
 };
 use uuid::Uuid;
 
-use super::graph::{Graph, Scope};
+use super::graph::{Graph, Owner, Query, Scope};
 use super::worker::{Session, Shared, Store, node_of};
 
 const LOG_LENGTH: usize = 100;
@@ -39,6 +39,7 @@ pub(super) struct Versions {
     trees: HashMap<CommitId, Tree>,
     commits: HashMap<CommitId, Commit>,
     watching: HashSet<Uuid>,
+    roots: HashSet<Uuid>,
     computed: HashMap<Uuid, (u64, u64, u64)>,
 }
 
@@ -847,6 +848,20 @@ impl Versions {
         }
         let mut blocks = vec![checkout, repository];
         if let Some(root) = state.root {
+            if self.roots.insert(root) {
+                let roots = self
+                    .roots
+                    .iter()
+                    .map(|root| Query::Subtree(*root))
+                    .collect();
+                context
+                    .shared
+                    .lock()
+                    .unwrap_or_else(PoisonError::into_inner)
+                    .graph
+                    .want(Owner::Version, roots);
+                super::worker::fetch_listings(context.peer, context.shared).await;
+            }
             blocks.extend(with_graph(context.shared, |graph| graph.subtree(root)));
         }
         for block in blocks {
@@ -1002,14 +1017,13 @@ fn clean_heads(working: &Working, tree: &Tree) -> BTreeMap<Uuid, CommitId> {
 }
 
 async fn refresh_heads(context: &mut Context<'_>) -> Result<(), String> {
-    let blocks = context.peer.list_blocks().await.map_err(failed)?;
-    let mut held = context
+    context
         .shared
         .lock()
-        .unwrap_or_else(PoisonError::into_inner);
-    for block in blocks {
-        held.graph.set_head(block.id, block.head);
-    }
+        .unwrap_or_else(PoisonError::into_inner)
+        .graph
+        .relist_owner(Owner::Version);
+    super::worker::fetch_listings(context.peer, context.shared).await;
     Ok(())
 }
 

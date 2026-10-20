@@ -384,12 +384,15 @@ fn own_content_type(block: EditorBlock) -> Option<Uuid> {
 impl Instance {
     fn blocks_messages(&mut self, instance: EditorInstanceId) -> Vec<Message> {
         let revision = crate::be::graph_revision();
-        if self.blocks_seen == Some(revision) || !crate::be::graph_loaded() {
+        if self.blocks_seen == Some(revision) {
             return Vec::new();
         }
         self.blocks_seen = Some(revision);
         let mut messages = Vec::new();
         for query in &self.block_queries {
+            if !crate::be::ready(super::graph::query_of(*query)) {
+                continue;
+            }
             let blocks = super::graph::answer(*query);
             if self.sent_blocks.get(query) == Some(&blocks) {
                 continue;
@@ -402,6 +405,23 @@ impl Instance {
             }));
         }
         messages
+    }
+
+    fn wants(&self) -> Vec<crate::be::Query> {
+        let mut wants: Vec<crate::be::Query> = self
+            .block_queries
+            .iter()
+            .map(|query| super::graph::query_of(*query))
+            .collect();
+        if let Some(block) = self.role.block() {
+            wants.push(crate::be::Query::Parents(block.id));
+        }
+        wants.extend(
+            self.watched
+                .keys()
+                .map(|block| crate::be::Query::Block(*block)),
+        );
+        wants
     }
 
     fn watch_blocks(&mut self, queries: Vec<block_plugin_api::BlockQuery>) {
@@ -686,6 +706,7 @@ impl Instances {
         let Some(entry) = self.entries.remove(&instance) else {
             return false;
         };
+        crate::be::want(crate::be::Owner::Editor(instance.0), Vec::new());
         for preview in &entry.revision_previews {
             crate::be::revisions::release(*preview);
         }
@@ -731,7 +752,7 @@ impl Instances {
                 )
             })
             .filter(|(block, content_type)| {
-                crate::be::is_known(*content_type) && self.can_view(*block)
+                crate::be::is_known(*content_type) && crate::be::may_load(*block)
             })
             .collect();
         let Some(entry) = self.entries.get_mut(&instance) else {
@@ -1336,6 +1357,7 @@ impl Instances {
             let Some(entry) = self.entries.get_mut(&instance) else {
                 continue;
             };
+            crate::be::want(crate::be::Owner::Editor(instance.0), entry.wants());
             let mut regions: Vec<_> = entry
                 .screens
                 .values()

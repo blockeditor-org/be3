@@ -36,6 +36,7 @@ pub(crate) struct Pick {
     pub(crate) creating: Option<Creating>,
     pub(crate) importing: Option<u64>,
     pub(crate) error: Option<String>,
+    pub(crate) browsing: Vec<Uuid>,
 }
 
 #[derive(Clone, Debug)]
@@ -46,6 +47,8 @@ pub(crate) enum PickAction {
     Place(BlockParent),
     Make(TemplateEntry),
     Link(Uuid, Uuid),
+    Browse(Uuid),
+    Up,
     Import,
     Create,
     CancelCreation,
@@ -82,7 +85,12 @@ impl Pick {
             creating: None,
             importing: None,
             error: None,
+            browsing: Vec::new(),
         }
+    }
+
+    pub(crate) fn folder(&self) -> Option<Uuid> {
+        self.browsing.last().copied()
     }
 
     pub(crate) fn choosing(&self) -> bool {
@@ -121,6 +129,14 @@ impl Pick {
         match action {
             PickAction::Tab(tab) => self.tab = tab,
             PickAction::Search(search) => self.search = search,
+            PickAction::Browse(folder) => {
+                self.browsing.push(folder);
+                self.search.clear();
+            }
+            PickAction::Up => {
+                self.browsing.pop();
+                self.search.clear();
+            }
             PickAction::Name(name) => self.name = name,
             PickAction::Place(place) => {
                 if self.place.is_some() && self.importing.is_none() {
@@ -317,6 +333,12 @@ pub(crate) struct LinkRow {
     pub(crate) block_type: Uuid,
     pub(crate) name: String,
     pub(crate) icon: String,
+    pub(crate) links: bool,
+    pub(crate) opens: bool,
+}
+
+fn opens(block_type: Uuid) -> bool {
+    block_type == FolderContent::CONTENT_TYPE || block_type == WorkspaceContent::CONTENT_TYPE
 }
 
 pub(crate) fn links(catalog: &BlockCatalog, pick: &Pick, blocks: &[BlockInfo]) -> Vec<LinkRow> {
@@ -331,19 +353,28 @@ pub(crate) fn links(catalog: &BlockCatalog, pick: &Pick, blocks: &[BlockInfo]) -
                     .parent
                     .is_some_and(|parent| parent != BlockParent::Detached)
         })
-        .filter(|block| !excluded.contains(&block.id))
-        .filter(|block| pick.allowed(block.block_type))
-        .map(|block| (block.label(catalog), block.id, block.block_type))
-        .filter(|(label, id, _)| {
+        .filter(|block| Some(block.id) != pick.folder())
+        .filter(|block| match pick.folder() {
+            Some(folder) => block.parent == Some(BlockParent::Block(folder)),
+            None => true,
+        })
+        .map(|block| {
+            let links = !excluded.contains(&block.id) && pick.allowed(block.block_type);
+            (block.label(catalog), block.id, block.block_type, links)
+        })
+        .filter(|(_, _, block_type, links)| *links || opens(*block_type))
+        .filter(|(label, id, _, _)| {
             query.is_empty()
                 || label.name.to_lowercase().contains(&query)
                 || id.to_string().contains(&query)
         })
-        .map(|(label, id, block_type)| LinkRow {
+        .map(|(label, id, block_type, links)| LinkRow {
             id,
             block_type,
             icon: label_glyph(&label).unwrap_or_default().to_owned(),
             name: label.name,
+            links,
+            opens: opens(block_type),
         })
         .collect()
 }

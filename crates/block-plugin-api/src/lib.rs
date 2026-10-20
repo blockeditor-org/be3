@@ -1370,7 +1370,6 @@ pub enum BlockLocation {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockQuery {
-    All,
     Roots,
     Detached,
     Shared,

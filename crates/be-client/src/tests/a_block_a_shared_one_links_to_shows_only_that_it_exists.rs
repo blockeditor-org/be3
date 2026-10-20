@@ -51,18 +51,24 @@ async fn a_block_a_shared_one_links_to_shows_only_that_it_exists() {
         .await
         .unwrap();
 
-    let listed = guest.list_blocks().await.unwrap();
+    let listed = guest.shared().await.unwrap();
     guest.learn(&listed).await.unwrap();
-    let seen = |block: Uuid| listed.iter().find(|summary| summary.id == block);
     assert_eq!(
-        seen(shared).map(|summary| summary.access),
-        Some(Access::View)
+        listed
+            .iter()
+            .map(|summary| (summary.id, summary.access))
+            .collect::<Vec<_>>(),
+        [(shared, Access::View)]
     );
     assert_eq!(
-        seen(linked).map(|summary| BlockSummary {
-            revision: 0,
-            ..summary.clone()
-        }),
+        guest
+            .summary(linked)
+            .await
+            .ok()
+            .map(|summary| BlockSummary {
+                revision: 0,
+                ..summary
+            }),
         Some(BlockSummary::no_access(
             linked,
             TextContent::CONTENT_TYPE,
@@ -71,12 +77,11 @@ async fn a_block_a_shared_one_links_to_shows_only_that_it_exists() {
         "a linked block the guest cannot view tells it its id, type and access and nothing else"
     );
     assert!(
-        seen(further).is_none(),
+        guest.summary(further).await.is_err(),
         "knowing a block exists does not reveal what that block links to"
     );
-    assert!(seen(mine).is_none());
+    assert!(guest.summary(mine).await.is_err());
 
-    assert!(guest.summary(linked).await.is_err());
     guest.refresh_keys(Some(vec![linked])).await.unwrap();
     assert!(guest.keys().keys_of(linked, KeyKind::Data).is_empty());
     assert!(guest.keys().keys_of(linked, KeyKind::Scope).is_empty());

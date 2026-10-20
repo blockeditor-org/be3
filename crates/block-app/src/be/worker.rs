@@ -13,7 +13,7 @@ use futures_util::future::{Either, LocalBoxFuture, select};
 use tokio::sync::mpsc::UnboundedReceiver;
 use uuid::Uuid;
 
-use super::graph::{Graph, Node};
+use super::graph::{Graph, Listing, Node, Owner, Query};
 use super::version::{Context, Versions};
 use super::{Config, Content, platform};
 
@@ -28,7 +28,7 @@ const HISTORY_STEPS: usize = 200;
 
 type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
 
-type ExportReply = Box<dyn FnOnce(Result<Vec<u8>, String>) + Send>;
+type ExportReply = Box<dyn FnOnce(Result<(String, Vec<u8>), String>) + Send>;
 
 pub(super) enum Command {
     PreviewChild {
@@ -99,7 +99,7 @@ pub(super) enum Command {
         reply: AccessReply,
     },
     Export {
-        blocks: Vec<be_client::transfer::Saved>,
+        block: Uuid,
         reply: ExportReply,
     },
     Import(Vec<(be_client::transfer::Saved, BlockParent)>),
@@ -116,6 +116,7 @@ pub(super) enum Command {
     Contact(ContactCommand),
     Leave(Uuid),
     Members(MembersCommand),
+    Sync,
 }
 
 impl Command {
@@ -128,7 +129,7 @@ impl Command {
                     .collect()
             }
             Command::Duplicate { from, to, .. } => vec![*from, *to],
-            Command::Export { blocks, .. } => blocks.iter().map(|block| block.id).collect(),
+            Command::Export { block, .. } => vec![*block],
             command => command.subject().into_iter().collect(),
         }
     }
@@ -163,7 +164,8 @@ impl Command {
             | Command::ApprovePairing { .. }
             | Command::DismissPairing(_)
             | Command::Contact(_)
-            | Command::Members(_) => None,
+            | Command::Members(_)
+            | Command::Sync => None,
         }
     }
 
@@ -938,7 +940,13 @@ async fn connected<S: Fn() -> Result<Store, String>>(
     crate::host::wake();
     let mut events = peer.connection().subscribe();
     let mut gone = peer.connection().closed();
-    load_graph(&peer, shared).await;
+    {
+        let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+        held.graph.want(Owner::Host, vec![Query::Roots]);
+    }
+    want_open(shared, open);
+    relist(shared);
+    fetch_listings(&peer, shared).await;
     sync_contacts(&peer, shared).await;
     let mut sessions: HashMap<Uuid, Box<dyn Session>> = HashMap::new();
     for (block, content_type) in open.clone() {
@@ -1057,6 +1065,8 @@ async fn connected<S: Fn() -> Result<Store, String>>(
             })
             .await;
         moved |= version_revisions(shared) != before;
+        want_open(shared, open);
+        moved |= fetch_listings(&peer, shared).await;
         if events.is_empty() && uploads.is_empty() && !flushes.is_empty() {
             seal_all(&mut sessions, shared).await;
             publish(&mut sessions, shared);
@@ -1268,7 +1278,8 @@ async fn sync_contacts(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
                 changed
             };
             if changed {
-                load_graph(peer, shared).await;
+                relist(shared);
+                fetch_listings(peer, shared).await;
             }
         }
         Err(error) => record(shared, error),
@@ -1501,7 +1512,7 @@ async fn apply(
     command: Command,
 ) -> bool {
     match command {
-        Command::Contact(_) | Command::Members(_) => false,
+        Command::Contact(_) | Command::Members(_) | Command::Sync => false,
         Command::Leave(block) => {
             if let Err(error) = peer.leave(block).await {
                 record(shared, error);
@@ -1579,6 +1590,7 @@ async fn apply(
                     .insert(block);
             }
             open.insert(block, content_type);
+            want_open(shared, open);
             if sessions.contains_key(&block) {
                 return false;
             }
@@ -1587,6 +1599,7 @@ async fn apply(
         }
         Command::Close(block) => {
             open.remove(&block);
+            want_open(shared, open);
             let Some(mut session) = sessions.remove(&block) else {
                 return false;
             };
@@ -1782,33 +1795,9 @@ async fn apply(
             crate::host::wake();
             false
         }
-        Command::Export { mut blocks, reply } => {
-            let mut wanted = Vec::new();
-            for block in &mut blocks {
-                match sessions.get(&block.id) {
-                    Some(session) => block.content = Some(session.bytes()),
-                    None => wanted.push(block.id),
-                }
-            }
-            let wanted: Vec<_> = {
-                let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-                wanted
-                    .into_iter()
-                    .map(|id| (id, held.graph.get(id).and_then(|node| node.head)))
-                    .collect()
-            };
-            let read = peer.read_contents(&wanted).await;
-            reply(read.map_err(|error| error.to_string()).map(|read| {
-                let mut read = read.into_iter();
-                for block in &mut blocks {
-                    if !sessions.contains_key(&block.id)
-                        && let Some((_, content)) = read.next()
-                    {
-                        block.content = content;
-                    }
-                }
-                be_client::transfer::encode(&blocks)
-            }));
+        Command::Export { block, reply } => {
+            let exported = export(peer, sessions, shared, block).await;
+            reply(exported.map_err(|error| error.to_string()));
             crate::host::wake();
             false
         }
@@ -1841,11 +1830,14 @@ async fn heard(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, event: Opti
                 record(shared, error);
             }
             let node = node_of(peer, &block);
-            shared
-                .lock()
-                .unwrap_or_else(PoisonError::into_inner)
-                .graph
-                .put(node, block.revision);
+            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+            let shared_into_view = node.access.can_view()
+                && matches!(node.parent, Some(BlockParent::Block(_)))
+                && !held.graph.covers(node.id);
+            held.graph.put(node, block.revision);
+            if shared_into_view && !held.graph.covers(block.id) {
+                held.graph.relist(Listing::Shared);
+            }
         }
         Some(ServerMessage::BlockRemoved { block, revision }) => {
             shared
@@ -1867,23 +1859,167 @@ async fn heard(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>, event: Opti
         Some(ServerMessage::ContactsChanged) => sync_contacts(peer, shared).await,
         Some(ServerMessage::KeyWorkChanged) => tend(peer, shared).await,
         Some(_) => {}
-        None => load_graph(peer, shared).await,
+        None => {
+            relist(shared);
+            fetch_listings(peer, shared).await;
+        }
     }
 }
 
-async fn load_graph(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) {
-    match peer.list_blocks().await {
-        Ok(blocks) => {
-            if let Err(error) = peer.learn(&blocks).await {
+async fn export(
+    peer: &Arc<Peer<Store>>,
+    sessions: &HashMap<Uuid, Box<dyn Session>>,
+    shared: &Arc<Mutex<Shared>>,
+    block: Uuid,
+) -> Result<(String, Vec<u8>), ClientError> {
+    let picked = peer.summary(block).await?;
+    let mut top = picked.clone();
+    if picked.content_type == be_block::DatabaseContent::CONTENT_TYPE
+        && let Some(BlockParent::Block(parent)) = picked.parent
+        && let Ok(view) = peer.summary(parent).await
+        && view.content_type == be_block::DatabaseViewContent::CONTENT_TYPE
+    {
+        top = view;
+    }
+    let mut found = vec![(top.clone(), None)];
+    let mut level = vec![(top.id, 0)];
+    while !level.is_empty() {
+        let below = futures_util::future::try_join_all(
+            level
+                .iter()
+                .map(|(parent, _)| peer.children(BlockParent::Block(*parent))),
+        )
+        .await?;
+        let mut next = Vec::new();
+        for ((_, position), children) in level.into_iter().zip(below) {
+            for child in children {
+                if child.access.can_view() && found.iter().all(|(held, _)| held.id != child.id) {
+                    next.push((child.id, found.len()));
+                    found.push((child, Some(position)));
+                }
+            }
+        }
+        level = next;
+    }
+    let summaries: Vec<BlockSummary> = found.iter().map(|(summary, _)| summary.clone()).collect();
+    peer.learn(&summaries).await?;
+    let mut blocks: Vec<be_client::transfer::Saved> = found
+        .into_iter()
+        .map(|(summary, parent)| be_client::transfer::Saved {
+            id: summary.id,
+            block_type: summary.content_type,
+            parent,
+            metadata: node_of(peer, &summary).metadata,
+            references: summary.references,
+            content: None,
+        })
+        .collect();
+    let heads: HashMap<Uuid, Option<be_commit::CommitId>> = summaries
+        .iter()
+        .map(|summary| (summary.id, summary.head))
+        .collect();
+    let wanted: Vec<_> = blocks
+        .iter()
+        .filter(|block| !sessions.contains_key(&block.id))
+        .map(|block| (block.id, heads[&block.id]))
+        .collect();
+    let mut read = peer.read_contents(&wanted).await?.into_iter();
+    for block in &mut blocks {
+        block.content = match sessions.get(&block.id) {
+            Some(session) => Some(session.bytes()),
+            None => read.next().and_then(|(_, content)| content),
+        };
+        if let Some(derived) = shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .graph
+            .get(block.id)
+            .map(|node| node.metadata.derived.clone())
+        {
+            block.metadata.derived = derived;
+        }
+    }
+    let name = blocks[0].metadata.name().unwrap_or_default();
+    Ok((
+        be_client::transfer::file_name(&name),
+        be_client::transfer::encode(&blocks),
+    ))
+}
+
+fn relist(shared: &Arc<Mutex<Shared>>) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    held.graph.relist_all();
+    held.stale_revision += 1;
+}
+
+pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<Shared>>) -> bool {
+    let mut fetched = false;
+    loop {
+        let wanted = shared
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner)
+            .graph
+            .take_wanted();
+        if wanted.is_empty() {
+            return fetched;
+        }
+        fetched = true;
+        let answers = futures_util::future::join_all(wanted.iter().map(|listing| async move {
+            match *listing {
+                Listing::Children(parent) => peer.children(parent).await,
+                Listing::Shared => peer.shared().await,
+                Listing::Backrefs(block) => peer.backrefs(block).await,
+                Listing::Block(block) => peer.summary(block).await.map(|summary| vec![summary]),
+            }
+        }))
+        .await;
+        for (listing, answer) in wanted.into_iter().zip(answers) {
+            let summaries = match answer {
+                Ok(summaries) => summaries,
+                Err(ClientError::Refused(..)) => Vec::new(),
+                Err(error) => {
+                    record(shared, error);
+                    Vec::new()
+                }
+            };
+            if let Err(error) = peer.learn(&summaries).await {
                 record(shared, error);
             }
-            let revision = blocks.iter().map(|block| block.revision).max();
-            let nodes = blocks.iter().map(|block| node_of(peer, block)).collect();
-            let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
-            held.graph.load(nodes, revision.unwrap_or_default());
-            held.stale_revision += 1;
+            let revision = summaries
+                .iter()
+                .map(|summary| summary.revision)
+                .max()
+                .unwrap_or_default();
+            let nodes = summaries
+                .iter()
+                .filter(|summary| summary.access.can_know_exists())
+                .map(|summary| node_of(peer, summary))
+                .collect();
+            shared
+                .lock()
+                .unwrap_or_else(PoisonError::into_inner)
+                .graph
+                .listed(listing, nodes, revision);
         }
-        Err(error) => record(shared, error),
+    }
+}
+
+fn want_open(shared: &Arc<Mutex<Shared>>, open: &HashMap<Uuid, Uuid>) {
+    let mut held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+    let mut queries: Vec<Query> = open.keys().map(|block| Query::Parents(*block)).collect();
+    queries.extend(
+        held.revision_previews
+            .values()
+            .filter(|preview| !preview.released)
+            .map(|preview| Query::Parents(preview.source)),
+    );
+    queries.sort_by_key(|query| match query {
+        Query::Parents(block) => *block,
+        _ => Uuid::nil(),
+    });
+    queries.dedup();
+    if held.graph.wanted(Owner::Open) != queries.as_slice() {
+        held.graph.want(Owner::Open, queries);
     }
 }
 

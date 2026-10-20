@@ -60,7 +60,9 @@ struct State {
     opened_via: RefCell<HashMap<Uuid, Uuid>>,
     next_tab: Cell<u64>,
     active: Cell<Option<Uuid>>,
-    every_block: RefCell<Option<BlockList>>,
+    roots: RefCell<Option<BlockList>>,
+    top: RefCell<Option<[BlockList; 2]>>,
+    browsing: RefCell<Option<(Option<Uuid>, Vec<BlockList>)>>,
 }
 
 #[derive(Clone, Copy)]
@@ -122,7 +124,9 @@ impl Workspace {
                 opened_via: RefCell::new(HashMap::new()),
                 next_tab: Cell::new(FIRST_BLOCK_TAB),
                 active: Cell::new(None),
-                every_block: RefCell::new(None),
+                roots: RefCell::new(None),
+                top: RefCell::new(None),
+                browsing: RefCell::new(None),
             }),
             editor,
             with_files,
@@ -504,7 +508,11 @@ impl Workspace {
 
     pub(crate) fn my_files(&self) -> Option<Uuid> {
         let account = self.host().account_id();
-        self.every_block()
+        let inner = self.state.value();
+        let mut roots = inner.roots.borrow_mut();
+        roots
+            .get_or_insert_with(|| self.blocks().watch(BlockQuery::Roots))
+            .read()
             .into_iter()
             .filter(|block| {
                 block.block_type == WorkspaceContent::CONTENT_TYPE
@@ -516,11 +524,46 @@ impl Workspace {
             .min()
     }
 
-    pub(crate) fn every_block(&self) -> Vec<BlockInfo> {
+    pub(crate) fn browsed(&self, folder: Option<Uuid>) -> Vec<BlockInfo> {
         let inner = self.state.value();
-        let mut held = inner.every_block.borrow_mut();
-        held.get_or_insert_with(|| self.blocks().watch(BlockQuery::All))
-            .read()
+        let mut browsing = inner.browsing.borrow_mut();
+        if browsing.as_ref().is_none_or(|(held, _)| *held != folder) {
+            let queries = match folder {
+                Some(folder) => vec![BlockQuery::Children(folder), BlockQuery::Block(folder)],
+                None => vec![BlockQuery::Roots, BlockQuery::Shared],
+            };
+            let lists = queries
+                .into_iter()
+                .map(|query| self.blocks().watch(query))
+                .collect();
+            *browsing = Some((folder, lists));
+        }
+        let (_, lists) = browsing.as_ref().expect("a folder is being browsed");
+        let mut blocks: Vec<BlockInfo> = Vec::new();
+        for list in lists {
+            for block in list.read() {
+                if !blocks.iter().any(|held| held.id == block.id) {
+                    blocks.push(block);
+                }
+            }
+        }
+        blocks
+    }
+
+    pub(crate) fn top(&self) -> Vec<BlockInfo> {
+        let inner = self.state.value();
+        let mut top = inner.top.borrow_mut();
+        let lists = top.get_or_insert_with(|| {
+            [
+                self.blocks().watch(BlockQuery::Roots),
+                self.blocks().watch(BlockQuery::Shared),
+            ]
+        });
+        lists.iter().flat_map(BlockList::read).collect()
+    }
+
+    fn stop_browsing(&self) {
+        self.state.value().browsing.borrow_mut().take();
     }
 
     pub(crate) fn pick(&self, pick: u64) -> Option<Pick> {
@@ -607,6 +650,9 @@ impl Workspace {
             PickOutcome::Answered(pick, answer, into) => {
                 self.picks
                     .update(|picks| picks.retain(|held| held.pick != pick));
+                if self.picks.with_untracked(Vec::is_empty) {
+                    self.stop_browsing();
+                }
                 if let (BlockPick::Chosen { .. }, Some((block, block_type, container))) =
                     (&answer, into)
                 {

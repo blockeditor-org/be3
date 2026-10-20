@@ -803,10 +803,6 @@ impl Connection {
                     .await;
                 Ok(ServerMessage::Block { request, block })
             }
-            ClientMessage::ListBlocks { request } => Ok(ServerMessage::Blocks {
-                request,
-                blocks: self.store.list_blocks(self.identity()?).await?,
-            }),
             ClientMessage::SetMetadata {
                 request,
                 block,

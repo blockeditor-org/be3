@@ -23,7 +23,7 @@ use web as platform;
 
 pub(crate) use platform::sleep;
 
-pub(crate) use graph::{Graph, Node, Query, Scope};
+pub(crate) use graph::{Graph, Node, Owner, Query, Scope};
 pub(crate) use worker::{History, PairingRequest, Presence, Shared};
 
 use worker::Command;
@@ -796,7 +796,7 @@ fn send(command: Command) {
 
 pub(crate) fn busy() -> bool {
     with_shared(|shared| {
-        shared.pending > 0 || shared.uploading > 0 || shared.owing > 0 || !shared.graph.loaded
+        shared.pending > 0 || shared.uploading > 0 || shared.owing > 0 || shared.graph.fetching()
     })
     .unwrap_or_default()
 }
@@ -870,8 +870,36 @@ pub(crate) fn take_touched() -> std::collections::HashSet<Uuid> {
     with_shared_mut(|shared| std::mem::take(&mut shared.touched)).unwrap_or_default()
 }
 
-pub(crate) fn graph_loaded() -> bool {
-    with_shared(|shared| shared.graph.loaded).unwrap_or_default()
+pub(crate) fn ready(query: Query) -> bool {
+    let query = sourced(query);
+    with_shared(|shared| shared.graph.ready(query)).unwrap_or_default()
+}
+
+pub(crate) fn want(owner: Owner, queries: Vec<Query>) {
+    let queries: Vec<Query> = queries.into_iter().map(sourced).collect();
+    let fetch = with_shared_mut(|shared| {
+        if shared.graph.wanted(owner) == queries.as_slice() {
+            return false;
+        }
+        shared.graph.want(owner, queries);
+        shared.graph.fetching()
+    })
+    .unwrap_or_default();
+    if fetch {
+        send(Command::Sync);
+    }
+}
+
+fn sourced(query: Query) -> Query {
+    match query {
+        Query::Children(id) => Query::Children(revisions::source(id).unwrap_or(id)),
+        Query::References(id) => Query::References(revisions::source(id).unwrap_or(id)),
+        Query::Backrefs(id) => Query::Backrefs(revisions::source(id).unwrap_or(id)),
+        Query::Parents(id) => Query::Parents(revisions::source(id).unwrap_or(id)),
+        Query::Subtree(id) => Query::Subtree(revisions::source(id).unwrap_or(id)),
+        Query::Block(id) => Query::Block(revisions::source(id).unwrap_or(id)),
+        other => other,
+    }
 }
 
 pub(crate) fn with_graph<T>(read: impl FnOnce(&Graph) -> T) -> Option<T> {
@@ -884,13 +912,7 @@ pub(crate) fn query(query: Query) -> Vec<Node> {
     {
         return node(id).into_iter().collect();
     }
-    let query = match query {
-        Query::Children(id) => Query::Children(revisions::source(id).unwrap_or(id)),
-        Query::References(id) => Query::References(revisions::source(id).unwrap_or(id)),
-        Query::Backrefs(id) => Query::Backrefs(revisions::source(id).unwrap_or(id)),
-        Query::Parents(id) => Query::Parents(revisions::source(id).unwrap_or(id)),
-        other => other,
-    };
+    let query = sourced(query);
     with_shared(|shared| shared.graph.query(query)).unwrap_or_default()
 }
 
@@ -1096,54 +1118,10 @@ pub(crate) fn list_access(
 type Exported = Result<(String, Vec<u8>), String>;
 
 pub(crate) fn export(block: Uuid, reply: impl FnOnce(Exported) + Send + 'static) {
-    let Some((name, blocks)) = with_shared(|shared| exported(&shared.graph, block)).flatten()
-    else {
-        reply(Err("This block is not loaded yet.".to_owned()));
-        return;
-    };
     send(Command::Export {
-        blocks,
-        reply: Box::new(move |encoded| reply(encoded.map(|bytes| (name, bytes)))),
+        block,
+        reply: Box::new(reply),
     });
-}
-
-fn exported(graph: &Graph, block: Uuid) -> Option<(String, Vec<be_client::transfer::Saved>)> {
-    use be_block::BlockContent;
-    let picked = graph.get(block)?;
-    let top = match picked
-        .parent
-        .and_then(be_graph::BlockParent::block)
-        .and_then(|parent| graph.get(parent))
-    {
-        Some(view)
-            if picked.content_type == be_block::DatabaseContent::CONTENT_TYPE
-                && view.content_type == be_block::DatabaseViewContent::CONTENT_TYPE =>
-        {
-            view
-        }
-        _ => picked,
-    };
-    let saved = |node: &Node, parent| be_client::transfer::Saved {
-        id: node.id,
-        block_type: node.content_type,
-        parent,
-        metadata: node.metadata.clone(),
-        references: node.references.clone(),
-        content: None,
-    };
-    let mut blocks = vec![saved(top, None)];
-    let mut next = 0;
-    while next < blocks.len() {
-        let parent = blocks[next].id;
-        for child in graph.query(Query::Children(parent)) {
-            if child.access.can_view() && blocks.iter().all(|held| held.id != child.id) {
-                blocks.push(saved(&child, Some(next)));
-            }
-        }
-        next += 1;
-    }
-    let name = top.metadata.name().unwrap_or_default();
-    Some((be_client::transfer::file_name(&name), blocks))
 }
 
 pub(crate) fn import(bytes: &[u8], parent: be_graph::BlockParent) -> Result<(Uuid, Uuid), String> {

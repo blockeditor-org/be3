@@ -52,12 +52,18 @@ async fn every_member_connection_hears_how_the_graph_changes() {
     );
 
     let listed = other
-        .send(|request| ClientMessage::ListBlocks { request })
+        .send(|request| ClientMessage::ListChildren {
+            request,
+            parent: BlockParent::Detached,
+        })
         .await;
     let ServerMessage::Blocks { blocks, .. } = listed else {
         panic!("listing failed: {listed:?}");
     };
-    assert_eq!(blocks.len(), 2);
+    assert_eq!(
+        blocks.iter().map(|block| block.id).collect::<Vec<_>>(),
+        [child]
+    );
 
     let response = author
         .send(|request| ClientMessage::CollectDetached { request })

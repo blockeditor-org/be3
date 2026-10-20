@@ -84,6 +84,7 @@ fn revision_history_editors_cannot_mutate_any_block() {
             .revision_previews
             .get(&descendant)
             .and_then(|preview| preview.content.as_ref())
+            .filter(|_| shared.graph.get(child).is_some())
             .map(|_| ())
     })
     .expect("the child loads as a read-only preview");

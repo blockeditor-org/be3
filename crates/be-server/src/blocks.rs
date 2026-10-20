@@ -201,22 +201,6 @@ impl ServerStore {
         .await
     }
 
-    pub async fn list_blocks(&self, identity: Identity) -> Result<Vec<BlockSummary>, ServerError> {
-        self.with_graph(identity.organization, move |graph, _| {
-            let seen = visibility(identity);
-            let blocks = match seen.administrator {
-                true => graph.ids(),
-                false => graph.visible(identity.account).into_keys().collect(),
-            };
-            Ok(blocks
-                .into_iter()
-                .filter_map(|block| summary_with(graph, &seen, block))
-                .filter(|block| block.access.can_know_exists())
-                .collect())
-        })
-        .await
-    }
-
     pub async fn graph_views(
         &self,
         organization: Uuid,
@@ -291,10 +275,18 @@ impl ServerStore {
             }
             let seen = visibility(identity);
             if !seen.can_view(graph, block) {
-                return Err(ServerError::Refused(
-                    ErrorCode::PermissionDenied,
-                    format!("block {block} is not readable by this account"),
-                ));
+                let access = graph.effective_access(block, identity.account);
+                let node = graph.get(block).ok_or(ServerError::Corrupt)?;
+                return match access.can_know_exists() {
+                    true => Ok(BlockSummary {
+                        revision: graph.revision(),
+                        ..BlockSummary::no_access(block, node.content_type, access)
+                    }),
+                    false => Err(ServerError::Refused(
+                        ErrorCode::PermissionDenied,
+                        format!("block {block} is not readable by this account"),
+                    )),
+                };
             }
             summary_with(graph, &seen, block).ok_or(ServerError::Corrupt)
         })

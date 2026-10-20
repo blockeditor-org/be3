@@ -1,4 +1,4 @@
-use block_editor_beui::beui::icons::ICON_UPLOAD_FILE;
+use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_CHEVRON_RIGHT, ICON_UPLOAD_FILE};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ButtonHandle, ChoiceOption};
@@ -145,7 +145,8 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
             return Vec::new();
         }
         let types = workspace.types();
-        let blocks = workspace.every_block();
+        let folder = held.with(|held| held.as_ref().and_then(Pick::folder));
+        let blocks = workspace.browsed(folder);
         held.with(|held| {
             held.as_ref()
                 .map(|held| links(&types, held, &blocks))
@@ -160,12 +161,15 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
             .collect::<Vec<_>>()
     });
     let no_links = create_memo(move || link_keys.get().is_empty());
+    let inside = create_memo(move || {
+        linking.get() && held.with(|held| held.as_ref().is_some_and(|held| held.folder().is_some()))
+    });
     let empty = create_memo(move || {
         match held.with(|held| {
             held.as_ref()
                 .is_none_or(|held| held.search.trim().is_empty())
         }) {
-            true => "No blocks are available to link.".to_owned(),
+            true => "No blocks here to link.".to_owned(),
             false => "No matching blocks.".to_owned(),
         }
     });
@@ -223,7 +227,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                     <Show condition={linking}>
                         <TextInput
                             value={search}
-                            placeholder="Search by name or UUID"
+                            placeholder="Search this folder by name or UUID"
                             label="Search"
                             @test_id={"picker.search"}
                             on_change={move |value: String| act.call(PickAction::Search(value))}
@@ -235,6 +239,15 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                     <Show condition={linking}>
                         <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
                             <List spacing=0.0>
+                                <Show condition={inside}>
+                                    <Button
+                                        label="Back"
+                                        glyph={ICON_ARROW_BACK.to_owned()}
+                                        variant=ButtonVariant::Ghost
+                                        @test_id={"picker.up"}
+                                        on_click={move || act.call(PickAction::Up)}
+                                    />
+                                </Show>
                                 <Show condition={no_links}>
                                     <Text style=TextStyle::CAPTION string={empty} />
                                 </Show>
@@ -322,7 +335,14 @@ fn PlacingFields(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> No
     });
     let places = create_memo(move || {
         let types = workspace.types();
-        let blocks = workspace.every_block();
+        let mut blocks = workspace.top();
+        let place = held.with(|held| held.as_ref().and_then(|held| held.place));
+        if let Some(BlockParent::Block(place)) = place
+            && !blocks.iter().any(|block| block.id == place)
+            && let Some(info) = workspace.info(place)
+        {
+            blocks.push(info);
+        }
         held.with(|held| {
             held.as_ref()
                 .map(|held| places(&types, held, &blocks))
@@ -514,18 +534,42 @@ fn LinkButton(act: Act, link: Memo<Option<LinkRow>>) -> NodeId {
         .get_untracked()
         .map(|link| format!("picker.link.{}", link.id))
         .unwrap_or_default();
+    let opens = create_memo(move || link.get().is_some_and(|link| link.opens));
+    let open_test_id = link
+        .get_untracked()
+        .map(|link| format!("picker.open.{}", link.id))
+        .unwrap_or_default();
+    let open = move || {
+        if let Some(link) = link.get_untracked() {
+            act.call(PickAction::Browse(link.id));
+        }
+    };
     view! {
-        <Button
-            label={label}
-            glyph={glyph}
-            variant=ButtonVariant::Ghost
-            @test_id={link_test_id}
-            on_click={move || {
-                if let Some(link) = link.get_untracked() {
-                    act.call(PickAction::Link(link.id, link.block_type));
-                }
-            }}
-        />
+        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+            <Button
+                @sizing=ItemSize::Percent(100.0)
+                label={label}
+                glyph={glyph}
+                variant=ButtonVariant::Ghost
+                @test_id={link_test_id}
+                on_click={move || {
+                    if let Some(link) = link.get_untracked() {
+                        match link.links {
+                            true => act.call(PickAction::Link(link.id, link.block_type)),
+                            false => act.call(PickAction::Browse(link.id)),
+                        }
+                    }
+                }}
+            />
+            <Show condition={opens}>
+                <IconButton
+                    @test_id={open_test_id.clone()}
+                    glyph={ICON_CHEVRON_RIGHT.to_owned()}
+                    label="Open"
+                    on_click={open}
+                />
+            </Show>
+        </List>
     }
 }
 

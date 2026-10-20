@@ -199,6 +199,13 @@ fn wait_for_count(block: Uuid, expected: i64) {
     );
 }
 
+fn ask_for(queries: Vec<Query>) {
+    let owner = Owner::Editor(u64::MAX);
+    let mut wanted = with_graph(|graph| graph.wanted(owner).to_vec()).unwrap_or_default();
+    wanted.extend(queries);
+    want(owner, wanted);
+}
+
 fn wait_until(what: &str, ready: impl Fn(&Shared) -> bool) {
     let reached = wait_for(PATIENCE, |shared| ready(shared).then_some(()));
     assert!(
@@ -250,7 +257,7 @@ fn type_text(block: Uuid, at: usize, text: &str) {
 fn checkouts(shared: &Shared) -> Vec<Uuid> {
     shared
         .graph
-        .query(super::graph::Query::All)
+        .query(super::graph::Query::Roots)
         .into_iter()
         .filter(|node| node.content_type == be_block::CheckoutContent::CONTENT_TYPE)
         .map(|node| node.id)
@@ -265,8 +272,15 @@ struct Versioned {
 }
 
 fn start_versioning(text: &str) -> Versioned {
-    wait_until("loaded the graph", |shared| shared.graph.loaded);
+    wait_until("loaded the graph", |shared| {
+        shared.graph.ready(super::graph::Query::Roots)
+    });
     let (folder, note, repository) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    ask_for(vec![
+        Query::Roots,
+        Query::Parents(folder),
+        Query::Subtree(folder),
+    ]);
     let mut listing = be_block::FolderContent::default();
     listing.apply(&be_block::Folder::default().add(note));
     create(
@@ -327,6 +341,11 @@ fn second_checkout(versioned: &Versioned) -> Uuid {
         .into_iter()
         .find(|checkout| *checkout != versioned.checkout)
         .expect("a second checkout exists");
+    ask_for(vec![Query::Subtree(second)]);
+    let copied = copy_of(versioned.note, second);
+    wait_until("listed the second checkout", |shared| {
+        shared.graph.get(copied).is_some()
+    });
     assert_eq!(
         with_shared(|shared| version_status(shared, versioned.repository)
             .and_then(|status| status.error.clone())),
@@ -430,7 +449,9 @@ impl Harness {
             organization: personal,
             ..self.config(self.directory.join("personal"))
         });
-        wait_until("loaded the graph", |shared| shared.graph.loaded);
+        wait_until("loaded the graph", |shared| {
+            shared.graph.ready(super::graph::Query::Roots)
+        });
         personal
     }
 }

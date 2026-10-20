@@ -444,9 +444,6 @@ pub enum ClientMessage {
         key: Uuid,
         keys: KeySet,
     },
-    ListBlocks {
-        request: u64,
-    },
     SetMetadata {
         request: u64,
         block: Uuid,
@@ -681,7 +678,6 @@ impl ClientMessage {
             | Self::GetObject { request, .. }
             | Self::MissingObjects { request, .. }
             | Self::CreateBlock { request, .. }
-            | Self::ListBlocks { request }
             | Self::SetMetadata { request, .. }
             | Self::Publish { request, .. }
             | Self::HoldObjects { request, .. }
