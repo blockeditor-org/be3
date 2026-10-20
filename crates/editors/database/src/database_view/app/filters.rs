@@ -257,18 +257,20 @@ fn AddFilter(data: Data) -> NodeId {
     let choosing = create_memo(move || adding.get().is_none());
     let editing = create_memo(move || adding.get());
     let has_editing = create_memo(move || adding.get().is_some());
-    let reset = move |open: bool| {
-        if !open {
+    let open = create_signal(false);
+    let open = Binding::new(open, move |next: bool| {
+        open.set(next);
+        if !next {
             adding.set(None);
         }
-    };
+    });
     let read_only = data.read_only;
     view! {
         <unstyled::Popover
             label="Filter"
             disabled={read_only}
             @test_id={"database-view.filters.add"}
-            on_open_change={reset}
+            open
             trigger={move |handle: PopoverTriggerHandle| view! {
                 <ControlFace handle={handle.button}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>

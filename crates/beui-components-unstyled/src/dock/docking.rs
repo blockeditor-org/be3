@@ -814,14 +814,10 @@ where
         let title = found.with(|found| found.group_title(&key))?;
         Some(title.get())
     });
-    let state = layout.state();
     view! {
         <Dock
             config={DockConfig {
-                state: state.into_prop(),
-                on_change: Callback::new(move |next: DockState| {
-                    layout.state.set(next);
-                }),
+                state: Binding::from(layout.state),
                 on_close: Callback::new(on_close),
                 title,
                 group_title,

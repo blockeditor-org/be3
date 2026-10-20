@@ -39,7 +39,7 @@ fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones
                 <unstyled::Button @test_id={"button"}>
                     <ButtonFace label="Canvas" />
                 </unstyled::Button>
-                <CommandPalette @node_ref=&palette open on_close={move || open.set(false)} />
+                <CommandPalette @node_ref=&palette open />
             </List>
         }
     });

@@ -21,15 +21,13 @@ const PADDING_VERTICAL: f32 = 6.0;
 #[component]
 pub fn Accordion(
     title: Prop<String>,
-    open: Prop<bool>,
-    on_toggle: Callback<bool>,
+    open: Binding<bool>,
     children: Child,
 ) -> NodeId {
     let title_text = create_memo(move || title.get());
     view! {
         <unstyled::Disclosure
             spacing=SPACING
-            on_toggle={on_toggle}
             header={move |handle| view! {
                 <AccordionHeader handle title={title_text} />
             }}

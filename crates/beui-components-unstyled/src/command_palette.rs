@@ -38,13 +38,12 @@ struct State {
     highlighted: Signal<Option<u64>>,
     searching: Signal<bool>,
     rows: Stored<RefCell<Vec<(u64, NodeRef)>>>,
-    on_close: ClickCallback,
+    open: Binding<bool>,
 }
 
 #[component]
 pub fn CommandPalette(
-    open: Prop<bool>,
-    on_close: ClickCallback,
+    open: Binding<bool>,
     list_height: Prop<f32>,
     #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
     search_placeholder: Prop<String>,
@@ -75,7 +74,7 @@ pub fn CommandPalette(
         highlighted,
         searching,
         rows: store(RefCell::new(Vec::new())),
-        on_close,
+        open,
     };
     set_component_state(state);
 
@@ -214,7 +213,7 @@ fn start(state: State) {
 
 fn close(state: State) {
     state.searching.set(false);
-    state.on_close.call();
+    state.open.set(false);
     let overlay = state.overlay.try_get();
     with_document(|document| {
         if let Some(overlay) = overlay.and_then(|id| document.arena.kind_of::<OverlayNode>(id)) {

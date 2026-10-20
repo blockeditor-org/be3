@@ -39,7 +39,7 @@ pub(crate) fn NotificationsButton(notifications: DesktopNotifications) -> NodeId
             icon_only=true
             width=NOTIFICATIONS_WIDTH
             @test_id={"desktop.notifications"}
-            on_open_change={move |open: bool| notifications.browse(open)}
+            open={notifications.browsing()}
         >|handle: PopoverHandle|
             <NotificationList notifications={notifications} listed={listed} popover={handle} />
         </BarPopup>

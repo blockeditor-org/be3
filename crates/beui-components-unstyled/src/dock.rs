@@ -183,7 +183,7 @@ pub struct DockSwitcherCardHandle {
 #[derive(Clone, Copy)]
 pub struct DockTabControl {
     tab: TabId,
-    state: ReadSignal<DockState>,
+    state: Binding<DockState>,
     dock: State,
 }
 
@@ -376,8 +376,7 @@ struct Drag {
 
 #[derive(Clone, Copy)]
 struct State {
-    state: Signal<DockState>,
-    on_change: Callback<DockState>,
+    state: Binding<DockState>,
     on_close: Callback<TabId>,
     drag: Signal<Option<Drag>>,
     title: Func<TabId, String>,
@@ -435,8 +434,7 @@ impl State {
         if next == current {
             return;
         }
-        self.state.set(next.clone());
-        self.on_change.call(next);
+        self.state.set(next);
     }
 
     fn title(&self, tab: TabId) -> String {
@@ -514,7 +512,7 @@ impl State {
         let menus = self.menus;
         let control = DockTabControl {
             tab,
-            state: self.state.read_only(),
+            state: self.state,
             dock: *self,
         };
         let panel = scope.context().run(|| {
@@ -1168,8 +1166,7 @@ fn vacant_leaf(state: &DockState) -> LeafId {
 }
 
 pub(crate) struct DockConfig {
-    pub(crate) state: Prop<DockState>,
-    pub(crate) on_change: Callback<DockState>,
+    pub(crate) state: Binding<DockState>,
     pub(crate) on_close: Callback<TabId>,
     pub(crate) title: Func<TabId, String>,
     pub(crate) group_title: Func<GroupId, Option<String>>,
@@ -1207,7 +1204,6 @@ pub(crate) struct DockConfig {
 pub(crate) fn Dock(config: DockConfig) -> NodeId {
     let DockConfig {
         state,
-        on_change,
         on_close,
         title,
         group_title,
@@ -1246,19 +1242,16 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
             let dialog_focus = create_signal(None);
             let attention = create_signal((0, None));
             let given = create_signal((0, None));
-            let current = create_signal(state.get_untracked());
             let actions = create_signal(HashMap::new());
             let menus = create_signal(DockMenus::new());
             let offers = create_signal(HashMap::new());
-            create_effect(move || current.set(state.get()));
             let drag = create_signal(None);
             let dock = State {
-                state: current,
+                state,
                 windows: store(RefCell::default()),
                 fullscreen_layer: NodeRef::new(),
                 panels: store(RefCell::default()),
                 owner: store(owner_scope()),
-                on_change,
                 on_close,
                 drag,
                 title,
@@ -1355,7 +1348,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 dock.cycle(press.modifiers.shift)
             });
             create_effect(move || {
-                let tabs = current.with(DockState::all_tabs);
+                let tabs = state.with(DockState::all_tabs);
                 dock.keep_panels(&tabs);
             });
             on_cleanup(move || dock.keep_panels(&[]));

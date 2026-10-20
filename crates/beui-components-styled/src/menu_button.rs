@@ -30,6 +30,7 @@ pub fn MenuButton(
     #[prop(default = false)] icon_only: Prop<bool>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = true)] arrow: Prop<bool>,
+    #[prop(default = false)] open: Binding<bool>,
     items: Children<MenuItem>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
@@ -41,6 +42,7 @@ pub fn MenuButton(
     view! {
         <unstyled::MenuButton
             items
+            open
             label
             glyph
             disabled
@@ -71,12 +73,14 @@ pub fn IconMenuButton(
     #[prop(default = ButtonVariant::Ghost)] variant: ButtonVariant,
     #[prop(default = IconButtonSize::Regular)] size: IconButtonSize,
     #[prop(default = false)] disabled: Prop<bool>,
+    #[prop(default = false)] open: Binding<bool>,
     items: Children<MenuItem>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     view! {
         <unstyled::MenuButton
             items
+            open
             label
             glyph
             disabled
@@ -107,7 +111,7 @@ pub fn PictureMenuButton(
     on_secondary_click: ClickCallback,
     on_middle_click: ClickCallback,
     on_scroll: Callback<ScrollGesture>,
-    on_open_change: Callback<bool>,
+    #[prop(default = false)] open: Binding<bool>,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
     let image = create_memo(move || image.get());
@@ -158,6 +162,7 @@ pub fn PictureMenuButton(
     view! {
         <unstyled::MenuButton
             items
+            open
             label
             glyph
             disabled
@@ -169,7 +174,6 @@ pub fn PictureMenuButton(
             on_secondary_click={on_secondary_click}
             on_middle_click={on_middle_click}
             on_scroll={on_scroll}
-            on_open_change={on_open_change}
             on_select={on_select}
         />
     }

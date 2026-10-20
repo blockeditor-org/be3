@@ -1481,7 +1481,7 @@ fn GlobalActions() -> NodeId {
                 <Button action={palette} variant=ButtonVariant::Secondary />
             </List>
             <Text style=TextStyle::CAPTION string={locked} />
-            <CommandPalette open on_close={move || open.set(false)} />
+            <CommandPalette open />
         </List>
     }
 }
@@ -1574,6 +1574,13 @@ fn badge(color: Color32) -> Image {
 #[component]
 fn TrayIcons() -> NodeId {
     let outcome = create_signal("Nothing done yet".to_owned());
+    let sync_open = create_signal(false);
+    let sync_open = Binding::new(sync_open, move |open: bool| {
+        sync_open.set(open);
+        if open {
+            outcome.set("Opened the Sync menu".to_owned());
+        }
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1598,15 +1605,11 @@ fn TrayIcons() -> NodeId {
                 />
                 <PictureMenuButton
                     label="Sync"
+                    open={sync_open}
                     image={None}
                     glyph=ICON_WIDGETS
                     items={view! {
                         <unstyled::MenuItem label="Pause syncing" />
-                    }}
-                    on_open_change={move |open: bool| {
-                        if open {
-                            outcome.set("Opened the Sync menu".to_owned());
-                        }
                     }}
                 />
             </List>
@@ -1729,7 +1732,15 @@ fn FolderRow(
 ) -> unstyled::MenuItem {
     let (name, depth, _) = FOLDERS[folder];
     let branch = FOLDERS.iter().any(|(_, _, parent)| *parent == Some(folder));
-    let open = create_memo(move || branch.then(|| expanded.get().contains(&folder)));
+    let open = Binding::new(
+        Prop::dynamic(move || branch.then(|| expanded.get().contains(&folder))),
+        move |open: Option<bool>| {
+            expanded.update(|expanded| match open {
+                Some(true) => expanded.push(folder),
+                _ => expanded.retain(|other| *other != folder),
+            })
+        },
+    );
     let checked = create_memo(move || Some(location.get() == folder));
     view! {
         <unstyled::MenuItem
@@ -1741,12 +1752,6 @@ fn FolderRow(
             then=MenuThen::Back
             row_test_id={format!("demo.new.folder.{folder}")}
             on_click={move || location.set(folder)}
-            on_expand={move |open: bool| {
-                expanded.update(|expanded| match open {
-                    true => expanded.push(folder),
-                    false => expanded.retain(|other| *other != folder),
-                })
-            }}
         />
     }
 }
