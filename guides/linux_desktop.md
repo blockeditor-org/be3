@@ -449,10 +449,11 @@ the output's `Screen` as a mode change does, and never asks to be kept.
 The rotation is picked with `block_editor_beui::RotationPicker`, which both the Display page
 and the bar use. When the display settings' `rotate_in_bar` is on and the host reports a
 screen, linux-desktop's bar shows a rotate button (`desktop.rotate`, `app/rotate.rs`) whose
-popover holds the picker for the first screen in `Displays`. It reads the setting through
-`Editor::effective_settings` and writes the rotation into the top layer's own display block
-(`RootSetting::find`, creating the every-device block with `ensure` when there is none), so
-block-app's `SettingsSync` applies it as it does an edit from the Display page.
+popover holds the picker for the first screen in `Displays`. It reads and writes the setting
+through `block_editor_beui::LayeredSettings::this_device`, as the Display page does, so the
+rotation of a monitor known by its EDID serial goes to every device and that of a panel known
+only by its connector stays in this device's profile, and block-app's `SettingsSync` applies it
+as it does an edit from the Display page.
 
 A window's tab shows the icon its program set with `xdg-toplevel-icon-v1`: be-wayland
 reads the pixels it was handed (the smallest at least 64 pixels, shrunk to 64) or looks the
