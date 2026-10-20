@@ -1093,9 +1093,11 @@ Each kind of setting (`InputSettings`, `DisplaySettings`,
 - The `Settings` block's `kinds` map a kind's content type to the block that
   holds it for every device.
 - A settings profile is a `SettingsProfile` block, a child of the `Settings`
-  block listed in its `profiles`, with `kinds` of its own. Each device
+  block listed in its `profiles`, with `kinds` of its own and a `class`, the kind
+  of device (`DeviceClass`: Desktop, Phone, Tablet, E-paper tablet). Each device
   (`device_profiles`, keyed by the client id) uses one, and block-app makes one
-  named after the device the first time a device opens the organization.
+  the first time a device opens the organization, named after its class ("Browser"
+  on the web).
 
 `Settings::layers(kind, profile)` names a kind's two blocks (`Layers`: every
 device, this device), and `be_block::layered` folds their contents with the kind's
@@ -1127,6 +1129,23 @@ only" note; on a profile's own page the row keeps its Reset link. `ChangesToast`
 one toast per visit to a page naming what now applies on every device ("Theme, scale
 and 1 more now apply on your devices") with Keep on this device only, which moves those
 values into the profile and puts the every-device ones back, and Undo.
+
+A device's class is known before its profile is made: block-app's
+`root_settings::device_class` says E-paper tablet when the session found an e-paper
+panel, Phone on Android, and Desktop otherwise; Tablet is only ever picked by hand.
+A class may have defaults, kept on the device: each settings type lists them in one
+place (`DeviceClass::display_defaults`, today only the E-paper tablet's E-ink theme,
+150% scale and rotate button; never when the screens go off, nor a rotation).
+`ensure_profile` writes a new profile's class and its defaults into the profile's own
+blocks, and when there are any the host asks the shell to open the profile. Its page
+(the settings plugin's `SettingsProfileView`, `app/setup.rs`) leads with the name and
+"Kind of device", and lists in "Where this device differs" each default it still keeps
+that differs from every device's value, with "Use my usual settings", which deletes
+those from the profile. Nothing is stored to say a profile was set up: while the
+profile is this device's and that list is not empty, the page opens as "Set up this
+device", with Done (which only closes the setup for this visit) in place of the rest of
+the page. Picking another kind writes that kind's defaults and deletes the old kind's
+that are still at their default values (`DeviceClass::display_edits`).
 
 The workspace's Settings tab opens the account's `Settings` block on this device's
 settings: Display, Input and Default editors open the every-device blocks (making any
