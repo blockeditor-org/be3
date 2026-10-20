@@ -34,8 +34,6 @@ pub fn Disclosure(
         open: current.read_only(),
     });
 
-    let open_for_header = current;
-    let open_for_click = current;
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::DisclosureTriangle);
         node.set_expanded(current.get());
@@ -47,7 +45,7 @@ pub fn Disclosure(
             <unstyled::Button
                 accessibility
                 on_click={move || {
-                    let next = !open_for_click.get_untracked();
+                    let next = !current.get_untracked();
                     current.set(next);
                     on_toggle.call(next);
                 }}
@@ -56,7 +54,7 @@ pub fn Disclosure(
                     hovered: handle.hovered,
                     active: handle.active,
                     focused: handle.focused,
-                    open: open_for_header.read_only(),
+                    open: current.read_only(),
                 })
             }</unstyled::Button>
             <Frame visible={current}>

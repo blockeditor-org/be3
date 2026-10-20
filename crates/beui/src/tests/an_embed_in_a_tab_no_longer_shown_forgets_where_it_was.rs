@@ -10,7 +10,6 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
     let second = EmbedSlot::new();
     let slots = (first, second);
     let layout = DockingLayout::new();
-    let inside = layout;
     let document = build(move || {
         let (first, second) = slots;
         view! {
@@ -62,7 +61,7 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
     assert!(second.placement().is_none());
 
     with_reactive_scope(harness.document_mut(), move || {
-        inside.show(&2);
+        layout.show(&2);
     });
     harness.frame(Vec::new());
     harness.frame(Vec::new());

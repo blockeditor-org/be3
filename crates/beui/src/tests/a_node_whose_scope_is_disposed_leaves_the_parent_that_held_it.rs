@@ -7,27 +7,25 @@ fn a_node_whose_scope_is_disposed_leaves_the_parent_that_held_it() {
     let held = create_signal(None);
     let list = NodeRef::new();
     let frame = NodeRef::new();
-    let document = build({
-        move || {
-            let scope = Scope::new();
-            let (listed, framed) = scope.run(|| {
-                (
-                    view! {
-                        <Frame width=10.0 height=10.0 />
-                    },
-                    view! {
-                        <Frame width=10.0 height=10.0 />
-                    },
-                )
-            });
-            held.update(|held| *held = Some((scope, listed, framed)));
-            view! {
-                <List @node_ref=&list spacing=0.0>
-                    {listed}
-                    <Frame width=20.0 height=20.0 />
-                    <Frame @node_ref=&frame>{framed}</Frame>
-                </List>
-            }
+    let document = build(move || {
+        let scope = Scope::new();
+        let (listed, framed) = scope.run(|| {
+            (
+                view! {
+                    <Frame width=10.0 height=10.0 />
+                },
+                view! {
+                    <Frame width=10.0 height=10.0 />
+                },
+            )
+        });
+        held.update(|held| *held = Some((scope, listed, framed)));
+        view! {
+            <List @node_ref=&list spacing=0.0>
+                {listed}
+                <Frame width=20.0 height=20.0 />
+                <Frame @node_ref=&frame>{framed}</Frame>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

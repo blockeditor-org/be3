@@ -12,29 +12,27 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
             heard.update(|heard| heard.push((index, input.focused, flattened(input))))
         }
     };
-    let document = build({
-        move || {
-            let first = catcher(0, heard);
-            let last = catcher(1, heard);
-            view! {
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive focusable=true on_forward={first}>
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                    <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive focusable=true>
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                    <CanvasItem x=400.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive focusable=true on_forward={last}>
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
-            }
+    let document = build(move || {
+        let first = catcher(0, heard);
+        let last = catcher(1, heard);
+        view! {
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive focusable=true on_forward={first}>
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+                <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive focusable=true>
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+                <CanvasItem x=400.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive focusable=true on_forward={last}>
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);

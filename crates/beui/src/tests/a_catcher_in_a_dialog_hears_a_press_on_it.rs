@@ -10,22 +10,20 @@ fn a_catcher_in_a_dialog_hears_a_press_on_it() {
     let open = create_signal(true);
     let heard = create_signal(Vec::<Event>::new());
     let catcher = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Dialog open={open} title="Dialog" width=400.0 on_dismiss={|| {}}>
-                        <Interactive
-                            @node_ref={&catcher}
-                            on_forward={move |input: ForwardedInput| {
-                                heard.update(|heard| heard.extend(flattened(input)))
-                            }}
-                        >
-                            <Frame height=200.0 />
-                        </Interactive>
-                    </Dialog>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Dialog open={open} title="Dialog" width=400.0 on_dismiss={|| {}}>
+                    <Interactive
+                        @node_ref={&catcher}
+                        on_forward={move |input: ForwardedInput| {
+                            heard.update(|heard| heard.extend(flattened(input)))
+                        }}
+                    >
+                        <Frame height=200.0 />
+                    </Interactive>
+                </Dialog>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

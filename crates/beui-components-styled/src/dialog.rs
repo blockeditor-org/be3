@@ -27,7 +27,6 @@ pub fn Dialog(
     on_dismiss: ClickCallback,
     #[prop(children)] content: Render,
 ) -> NodeId {
-    let closing = on_dismiss;
     let presence = create_signal(1.0_f32);
     let scrim = create_memo(move || SCRIM.scale_alpha(presence.get()));
     view! {
@@ -40,7 +39,7 @@ pub fn Dialog(
             content={move || view! {
                 <BackSlide
                     enters=false
-                    on_back={closing}
+                    on_back={on_dismiss}
                     on_presence={move |next: f32| presence.set(next)}
                 >
                     <DialogSurface width={width} title={title}>{content.call(())}</DialogSurface>

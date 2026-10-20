@@ -8,21 +8,19 @@ fn a_press_is_reported_in_the_coordinates_of_the_interactive_it_lands_on() {
     let _root = crate::reactive::RootScope::new();
     let heard = create_signal(Vec::<PointerPress>::new());
     let target = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame height=70.0 />
-                    <Frame padding={Sides::horizontal(30.0)}>
-                        <Interactive
-                            @node_ref={&target}
-                            on_click_at={move |press: PointerPress| heard.update(|heard| heard.push(press))}
-                        >
-                            <Frame height=40.0 />
-                        </Interactive>
-                    </Frame>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame height=70.0 />
+                <Frame padding={Sides::horizontal(30.0)}>
+                    <Interactive
+                        @node_ref={&target}
+                        on_click_at={move |press: PointerPress| heard.update(|heard| heard.push(press))}
+                    >
+                        <Frame height=40.0 />
+                    </Interactive>
+                </Frame>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

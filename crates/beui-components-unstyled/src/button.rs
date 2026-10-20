@@ -84,25 +84,21 @@ pub fn Button(
         })
     });
 
-    let click = {
-        move || {
-            if disabled.get_untracked() {
-                return;
-            }
-            if let Some(action) = &action {
-                action.run();
-            }
-            on_click.call();
+    let click = move || {
+        if disabled.get_untracked() {
+            return;
         }
+        if let Some(action) = &action {
+            action.run();
+        }
+        on_click.call();
     };
     let key_click = click.clone();
-    let click_at = {
-        move |press: PointerPress| {
-            if disabled.get_untracked() {
-                return;
-            }
-            on_click_at.call(press);
+    let click_at = move |press: PointerPress| {
+        if disabled.get_untracked() {
+            return;
         }
+        on_click_at.call(press);
     };
     let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !disabled.get());
 

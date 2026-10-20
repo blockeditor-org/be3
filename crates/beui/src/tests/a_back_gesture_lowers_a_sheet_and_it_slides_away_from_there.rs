@@ -9,21 +9,19 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let open = create_signal(false);
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @sizing=ItemSize::Percent(100.0) />
-                    <ModalSheet
-                        @node_ref=&sheet
-                        open={open}
-                        fit=true
-                        on_close={move || open.set(false)}
-                    >
-                        <Frame height=200.0 />
-                    </ModalSheet>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ModalSheet
+                    @node_ref=&sheet
+                    open={open}
+                    fit=true
+                    on_close={move || open.set(false)}
+                >
+                    <Frame height=200.0 />
+                </ModalSheet>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));

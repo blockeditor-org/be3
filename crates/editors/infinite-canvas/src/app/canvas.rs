@@ -42,12 +42,6 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                     .map(|entity| entity.id)
                     .collect::<Vec<Uuid>>()
             });
-            let embeds = ids;
-            let shape_camera = camera;
-            let overlay_camera = camera;
-            let overlay_stage = shown;
-            let backdrop_camera = camera;
-            let backdrop_stage = shown;
             let inset = create_memo(move || {
                 let (placed, shown) = (placed.get(), shown.get());
                 Sides::new(
@@ -57,36 +51,27 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                     (placed.bottom() - shown.bottom()).max(0.0),
                 )
             });
-            let placement = camera;
             let previewing = state.previewing();
             view! {
                 <CanvasMenu disabled={previewing}>
                     <Frame padding={inset}>
                         <CanvasSurface state={state}>
                             <Canvas
-                                view={create_memo(move || Some(placement.get()))}
+                                view={create_memo(move || Some(camera.get()))}
                                 @test_id={"infinite-canvas.canvas"}
                             >
-                                <CanvasBackdrop
-                                    state={state}
-                                    camera={backdrop_camera}
-                                    stage={backdrop_stage}
-                                />
+                                <CanvasBackdrop state={state} camera={camera} stage={shown} />
                                 <ForEach keys={ids}>|id: Uuid| {
-                                    let camera = shape_camera;
+                                    let camera = camera;
                                     view! {
                                         <EntityShape state id camera />
                                     }
                                 }</ForEach>
-                                <ForEach keys={embeds}>|id: Uuid|
+                                <ForEach keys={ids}>|id: Uuid|
                                     <EntityEmbed state id />
                                 </ForEach>
                                 <Show condition={!previewing}>
-                                    <CanvasOverlay
-                                        state={state}
-                                        camera={overlay_camera}
-                                        stage={overlay_stage}
-                                    />
+                                    <CanvasOverlay state={state} camera={camera} stage={shown} />
                                 </Show>
                             </Canvas>
                         </CanvasSurface>

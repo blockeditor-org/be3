@@ -79,12 +79,13 @@ where
         let Some(payload) = payload.get_untracked() else {
             return;
         };
-        let follow = pointer;
         carried.set(Some(payload.clone()));
         on_drag_change.call(true);
-        board
-            .value()
-            .begin(Rc::new(payload), point, Rc::new(move |pos| follow.set(pos)));
+        board.value().begin(
+            Rc::new(payload),
+            point,
+            Rc::new(move |pos| pointer.set(pos)),
+        );
     };
     let moved: Pending = Rc::new(moved);
     let pending = Rc::clone(&moved);
@@ -190,7 +191,6 @@ where
     let accepts = accepts.unwrap_or_else(|| Func::new(|_| true));
     let carrying = create_signal(false);
     let pointer = create_signal(None::<DragPoint>);
-    let reported = on_over;
     let board = board();
     let id = board.register(Target {
         id: 0,
@@ -209,7 +209,7 @@ where
                     .map(|payload| (payload.clone(), point))
             });
             pointer.set(over.as_ref().map(|(_, point)| *point));
-            reported.call(over);
+            on_over.call(over);
         }),
         dropped: Rc::new(move |payload: &dyn Any, point| {
             if let Some(payload) = payload.downcast_ref::<P>() {

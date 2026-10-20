@@ -9,20 +9,18 @@ fn a_modal_sheet_fits_its_content_and_a_tap_above_it_closes_it() {
     let content = NodeRef::new();
     let closed = create_signal(0);
     let open = create_signal(false);
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @sizing=ItemSize::Percent(100.0) />
-                    <ModalSheet
-                        open={open}
-                        fit=true
-                        on_close={move || closed.update(|closed| *closed += 1)}
-                    >
-                        <Frame @node_ref=&content height=120.0 />
-                    </ModalSheet>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ModalSheet
+                    open={open}
+                    fit=true
+                    on_close={move || closed.update(|closed| *closed += 1)}
+                >
+                    <Frame @node_ref=&content height=120.0 />
+                </ModalSheet>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));

@@ -17,28 +17,26 @@ fn a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_cl
     let _root = crate::reactive::RootScope::new();
     let (menu, target) = (NodeRef::new(), NodeRef::new());
     let setter = create_signal(None);
-    let document = crate::reactive::build({
-        move || {
-            let open = create_signal(false);
-            setter.update(|setter| *setter = Some(open));
-            view! {
-                <List spacing=0.0>
-                    <Interactive @node_ref=&target on_click={move || open.set(true)}>
-                        <Frame width=200.0 height=100.0 />
-                    </Interactive>
-                    <ContextMenu
-                        @node_ref=&menu
-                        disabled=true
-                        open_at_pointer={open}
-                        on_close={move || open.set(false)}
-                        items={view! {
-                            <MenuItem label="Settings" />
-                        }}
-                    >
-                        <Frame />
-                    </ContextMenu>
-                </List>
-            }
+    let document = crate::reactive::build(move || {
+        let open = create_signal(false);
+        setter.update(|setter| *setter = Some(open));
+        view! {
+            <List spacing=0.0>
+                <Interactive @node_ref=&target on_click={move || open.set(true)}>
+                    <Frame width=200.0 height=100.0 />
+                </Interactive>
+                <ContextMenu
+                    @node_ref=&menu
+                    disabled=true
+                    open_at_pointer={open}
+                    on_close={move || open.set(false)}
+                    items={view! {
+                        <MenuItem label="Settings" />
+                    }}
+                >
+                    <Frame />
+                </ContextMenu>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, TALL_VIEWPORT);

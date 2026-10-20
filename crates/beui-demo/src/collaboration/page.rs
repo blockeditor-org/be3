@@ -183,9 +183,6 @@ fn ConcurrentEditing() -> NodeId {
         true => ICON_PLAY_ARROW.to_owned(),
         false => ICON_PAUSE.to_owned(),
     });
-    let send = pump;
-    let switched = paused;
-    let runs_pressed = runs;
     let narrow = narrower_than(COLUMNS_BREAKPOINT);
 
     view! {
@@ -205,13 +202,13 @@ fn ConcurrentEditing() -> NodeId {
                     @test_id="demo.collaboration.pause"
                     label="Network"
                     glyph={network}
-                    pressed={switched}
+                    pressed={paused}
                     on_change={move |on: bool| paused.set(on)}
                 />
                 <ToggleButton
                     @test_id="demo.collaboration.runs"
                     label="Runs"
-                    pressed={runs_pressed}
+                    pressed={runs}
                     on_change={move |on: bool| runs.set(on)}
                 />
                 <Text style=TextStyle::CAPTION string={latency_label} />
@@ -232,7 +229,7 @@ fn ConcurrentEditing() -> NodeId {
                     runs={runs.read_only()}
                 />
                 <SendButtons
-                    send={send}
+                    send={pump}
                     flight={flight.read_only()}
                     paused={paused.read_only()}
                     narrow

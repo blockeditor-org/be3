@@ -51,7 +51,6 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
     });
 
     let read_only = editor.read_only();
-    let grid_read_only = read_only;
     let title = create_memo(move || format!("Problem {} of {count}", page.get() + 1));
     let first = create_memo(move || page.get() == 0);
     let last = create_memo(move || page.get() + 1 >= count);
@@ -90,7 +89,7 @@ pub(crate) fn BinaryAddition(editor: Editor, block: crate::logic_game::app::Game
                         page={page.read_only()}
                         answers={answers}
                         checked={checked.read_only()}
-                        read_only={grid_read_only}
+                        read_only={read_only}
                     />
                 </Frame>
             </Bordered>

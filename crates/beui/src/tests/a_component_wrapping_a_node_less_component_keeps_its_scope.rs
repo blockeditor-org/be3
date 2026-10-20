@@ -12,11 +12,9 @@ fn a_component_wrapping_a_node_less_component_keeps_its_scope() {
     let menu = NodeRef::new();
     let region = NodeRef::new();
     let count = create_signal(0usize);
-    let document = crate::reactive::build({
-        move || {
-            view! {
-                <Rows @node_ref=&menu region={region} count={count.read_only()} />
-            }
+    let document = crate::reactive::build(move || {
+        view! {
+            <Rows @node_ref=&menu region={region} count={count.read_only()} />
         }
     });
     let mut harness = Harness::new(document);

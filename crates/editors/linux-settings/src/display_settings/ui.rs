@@ -135,9 +135,6 @@ fn DisplaySection(
     let set = Callback::new(move |mode: Option<HostDisplayMode>| {
         settings.operate(DisplaySettings::set_mode(&id, mode.map(saved)));
     });
-    let (size_off, rate_off) = (read_only, read_only);
-    let picked_size = size_list;
-    let picked_rate = rate_list;
     let modified = create_memo(move || !unset.get());
     let fastest = create_memo(move || rate_list.with(|rates| rates.first().copied()));
     let slower = create_memo(move || chosen.get().is_some() && chosen.get() != fastest.get());
@@ -161,10 +158,10 @@ fn DisplaySection(
                     }}
                     selected={size_selected}
                     label="Resolution"
-                    disabled={size_off}
+                    disabled={read_only}
                     @test_id={resolution_id}
                     on_change={move |index: Option<usize>| {
-                        let Some(size) = index.and_then(|index| picked_size.with_untracked(|sizes| sizes.get(index).copied())) else {
+                        let Some(size) = index.and_then(|index| size_list.with_untracked(|sizes| sizes.get(index).copied())) else {
                             return;
                         };
                         let fastest = offered.with_untracked(|modes| rates(modes, size).first().copied());
@@ -192,10 +189,10 @@ fn DisplaySection(
                     }}
                     selected={rate_selected}
                     label="Refresh rate"
-                    disabled={rate_off}
+                    disabled={read_only}
                     @test_id={refresh_id}
                     on_change={move |index: Option<usize>| {
-                        let mode = index.and_then(|index| picked_rate.with_untracked(|rates| rates.get(index).copied()));
+                        let mode = index.and_then(|index| rate_list.with_untracked(|rates| rates.get(index).copied()));
                         if mode.is_some() {
                             set.call(mode);
                         }
@@ -221,7 +218,6 @@ fn ScreenOffSection(
         let chosen = merged.get().lock_after();
         LOCK_AFTER.iter().position(|offered| *offered == chosen)
     });
-    let lock_off = read_only;
     let screen_off_set = create_memo(move || root.get().screen_off.is_some());
     let lock_set = create_memo(move || root.get().lock_after.is_some());
     view! {
@@ -271,7 +267,7 @@ fn ScreenOffSection(
                     }}
                     selected={locks}
                     label="Lock the screen after"
-                    disabled={lock_off}
+                    disabled={read_only}
                     @test_id={"display-settings.lock-after"}
                     on_change={move |index: Option<usize>| {
                         if let Some(lock_after) = index.and_then(|index| LOCK_AFTER.get(index)) {

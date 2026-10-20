@@ -74,14 +74,13 @@ fn Column(data: Data, key: GroupKey) -> NodeId {
         closed != data.toggled.with(|toggled| toggled.contains(&key))
     });
     let open = create_memo(move || !folded.get());
-    let (open_group, folded_group) = (group, group);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Show condition={open}>
-                <OpenColumn data={data} group={open_group} key={key} />
+                <OpenColumn data={data} group={group} key={key} />
             </Show>
             <Show condition={folded}>
-                <FoldedColumn data={data} group={folded_group} key={key} />
+                <FoldedColumn data={data} group={group} key={key} />
             </Show>
         </List>
     }

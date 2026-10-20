@@ -14,45 +14,43 @@ fn flipping_a_switch_can_replace_the_items_of_a_scroll() {
 fn check_compact_rows(inset: f32) {
     let built = create_signal(Vec::new());
     let (switch, scroll, list) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            let compact = create_signal(false);
-            let item_height = create_memo(move || {
-                if compact.get() {
-                    VIRTUAL_ITEM_HEIGHT / 2.0
-                } else {
-                    VIRTUAL_ITEM_HEIGHT
-                }
-            });
-            let padding = create_memo(move || item_height.get() / 2.0);
-            view! {
-                <List spacing=0.0>
-                    <Switch
-                        @node_ref=&switch
-                        on=false
-                        on_change={move |on: bool| compact.set(on)}
-                    />
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            @node_ref=&list
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
-                            item_size={item_height}
-                        >|index: ReadSignal<usize>| {
-                            create_binding(move || {
-                                let index = index.get();
-                                built.update(|built| built.push(index));
-                            });
-                            view! {
-                                <Frame
-                                    padding={create_memo(move || Sides::symmetric(0.0, padding.get()))}
-                                >
-                                    <Spacer />
-                                </Frame>
-                            }
-                        }</VirtualList>
-                    </Offset>
-                </List>
+    let document = build(move || {
+        let compact = create_signal(false);
+        let item_height = create_memo(move || {
+            if compact.get() {
+                VIRTUAL_ITEM_HEIGHT / 2.0
+            } else {
+                VIRTUAL_ITEM_HEIGHT
             }
+        });
+        let padding = create_memo(move || item_height.get() / 2.0);
+        view! {
+            <List spacing=0.0>
+                <Switch
+                    @node_ref=&switch
+                    on=false
+                    on_change={move |on: bool| compact.set(on)}
+                />
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        @node_ref=&list
+                        keys={indices(VIRTUAL_ITEM_COUNT)}
+                        item_size={item_height}
+                    >|index: ReadSignal<usize>| {
+                        create_binding(move || {
+                            let index = index.get();
+                            built.update(|built| built.push(index));
+                        });
+                        view! {
+                            <Frame
+                                padding={create_memo(move || Sides::symmetric(0.0, padding.get()))}
+                            >
+                                <Spacer />
+                            </Frame>
+                        }
+                    }</VirtualList>
+                </Offset>
+            </List>
         }
     });
     let (switch, scroll, list) = (switch.get(), scroll.get(), list.get());

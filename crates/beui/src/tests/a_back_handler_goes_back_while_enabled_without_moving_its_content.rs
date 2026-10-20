@@ -9,13 +9,11 @@ fn a_back_handler_goes_back_while_enabled_without_moving_its_content() {
     let enabled = create_signal(false);
     let backs = create_signal(0);
     let page = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <BackHandler enabled={enabled} on_back={move || backs.update(|backs| *backs += 1)}>
-                    <Text string="Page" color=Color32::WHITE @node_ref={&page} />
-                </BackHandler>
-            }
+    let document = build(move || {
+        view! {
+            <BackHandler enabled={enabled} on_back={move || backs.update(|backs| *backs += 1)}>
+                <Text string="Page" color=Color32::WHITE @node_ref={&page} />
+            </BackHandler>
         }
     });
 

@@ -225,11 +225,10 @@ impl Tree {
         let build = Rc::clone(&watched);
         let host = editor.host();
         let building = client.clone();
-        let open = expanded;
         create_effect(move || {
             remembered.get();
             let mut watched = build.borrow_mut();
-            let open = open.get();
+            let open = expanded.get();
             let collapsed = collapsed.get();
             let Folded {
                 orphans_open: showing,
@@ -323,7 +322,7 @@ impl Tree {
             }
         });
         create_effect(move || {
-            let mut expanded: Vec<Uuid> = open.get().into_iter().collect();
+            let mut expanded: Vec<Uuid> = expanded.get().into_iter().collect();
             let mut collapsed: Vec<Uuid> = collapsed.get().into_iter().collect();
             let Folded {
                 orphans_open,

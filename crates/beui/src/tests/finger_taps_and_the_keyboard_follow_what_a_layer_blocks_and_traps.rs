@@ -10,25 +10,23 @@ fn finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps() {
     let taps = create_signal(0);
     let policy = create_signal(LayerPolicy::Pass);
     let traps = create_signal(false);
-    let document = build({
-        move || {
-            on_finger_tap(move |_: usize| {
-                taps.update(|taps| *taps += 1);
-                true
-            });
-            view! {
-                <Frame width=400.0 height=300.0>
-                    <Overlay
-                        anchor=OverlayAnchor::Point(pos2(300.0, 200.0))
-                        placement=Placement::At
-                        policy={policy}
-                        traps_focus={traps}
-                        open=true
-                    >
-                        <Frame width=40.0 height=30.0 />
-                    </Overlay>
-                </Frame>
-            }
+    let document = build(move || {
+        on_finger_tap(move |_: usize| {
+            taps.update(|taps| *taps += 1);
+            true
+        });
+        view! {
+            <Frame width=400.0 height=300.0>
+                <Overlay
+                    anchor=OverlayAnchor::Point(pos2(300.0, 200.0))
+                    placement=Placement::At
+                    policy={policy}
+                    traps_focus={traps}
+                    open=true
+                >
+                    <Frame width=40.0 height=30.0 />
+                </Overlay>
+            </Frame>
         }
     });
     let mut harness = Harness::new(document);

@@ -6,22 +6,20 @@ use crate::reactive::*;
 fn a_touch_beside_a_control_reaches_the_nearest_one() {
     let _root = crate::reactive::RootScope::new();
     let clicks = create_signal::<Vec<&'static str>>(Vec::new());
-    let document = build({
-        move || {
-            view! {
-                <Frame padding=40.0>
-                    <List direction=Direction::Horizontal spacing=10.0>
-                        <Interactive on_click={move || clicks.update(|clicks| clicks.push("left"))}>
-                            <Frame width=30.0 height=30.0 />
-                        </Interactive>
-                        <Interactive
-                            on_click={move || clicks.update(|clicks| clicks.push("right"))}
-                        >
-                            <Frame width=30.0 height=30.0 />
-                        </Interactive>
-                    </List>
-                </Frame>
-            }
+    let document = build(move || {
+        view! {
+            <Frame padding=40.0>
+                <List direction=Direction::Horizontal spacing=10.0>
+                    <Interactive on_click={move || clicks.update(|clicks| clicks.push("left"))}>
+                        <Frame width=30.0 height=30.0 />
+                    </Interactive>
+                    <Interactive
+                        on_click={move || clicks.update(|clicks| clicks.push("right"))}
+                    >
+                        <Frame width=30.0 height=30.0 />
+                    </Interactive>
+                </List>
+            </Frame>
         }
     });
     let mut harness = Harness::new(document);

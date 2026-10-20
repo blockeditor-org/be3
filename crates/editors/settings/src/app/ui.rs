@@ -60,7 +60,6 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let profiles = settings.project(|settings| settings.root().profiles());
     let client = editor.host().client_id();
     let used = settings.project(move |settings| settings.root().profile(client));
-    let adding = settings;
     let loaded =
         editor.loaded::<SettingsContent>(&[BlockQuery::Roots, BlockQuery::Children(block)]);
     let children = editor.watch_blocks(BlockQuery::Children(block));
@@ -127,7 +126,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                         disabled={blocked}
                                         @test_id={"settings.new-profile"}
                                         on_click={move || {
-                                            let count = adding
+                                            let count = settings
                                                 .read(|settings| settings.root().profiles().len())
                                                 .unwrap_or(0);
                                             let profile = editor.blocks().create_named(
@@ -135,7 +134,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                                                 BlockParent::Block(editor.block_id()),
                                                 format!("Profile {}", count + 1),
                                             );
-                                            adding.operate(Settings::list_profile(profile));
+                                            settings.operate(Settings::list_profile(profile));
                                         }}
                                     />
                                 </List>

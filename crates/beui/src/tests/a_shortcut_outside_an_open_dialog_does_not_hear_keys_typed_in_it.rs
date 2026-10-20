@@ -9,21 +9,19 @@ fn a_shortcut_outside_an_open_dialog_does_not_hear_keys_typed_in_it() {
     let heard = create_signal(0);
     let open = create_signal(false);
     let inside = NodeRef::new();
-    let document = build({
-        move || {
-            on_shortcut(move |press: KeyPress| {
-                if press.pressed && press.key == Key::K && press.modifiers.ctrl {
-                    heard.update(|heard| *heard += 1);
-                }
-                false
-            });
-            view! {
-                <List spacing=0.0>
-                    <Dialog open={open} on_dismiss={|| {}}>
-                        <Button @node_ref=&inside variant=ButtonVariant::Primary label="Inside" />
-                    </Dialog>
-                </List>
+    let document = build(move || {
+        on_shortcut(move |press: KeyPress| {
+            if press.pressed && press.key == Key::K && press.modifiers.ctrl {
+                heard.update(|heard| *heard += 1);
             }
+            false
+        });
+        view! {
+            <List spacing=0.0>
+                <Dialog open={open} on_dismiss={|| {}}>
+                    <Button @node_ref=&inside variant=ButtonVariant::Primary label="Inside" />
+                </Dialog>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

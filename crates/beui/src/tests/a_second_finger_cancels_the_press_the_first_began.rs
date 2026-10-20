@@ -7,16 +7,14 @@ fn a_second_finger_cancels_the_press_the_first_began() {
     let _root = crate::reactive::RootScope::new();
     let cancelled = create_signal(0);
     let clicked = create_signal(false);
-    let document = build({
-        move || {
-            view! {
-                <Interactive
-                    on_cancel={move || cancelled.update(|cancelled| *cancelled += 1)}
-                    on_click={move || clicked.set(true)}
-                >
-                    <Frame width=300.0 height=300.0 />
-                </Interactive>
-            }
+    let document = build(move || {
+        view! {
+            <Interactive
+                on_cancel={move || cancelled.update(|cancelled| *cancelled += 1)}
+                on_click={move || clicked.set(true)}
+            >
+                <Frame width=300.0 height=300.0 />
+            </Interactive>
         }
     });
     let mut harness = Harness::new(document);

@@ -397,9 +397,6 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let keep_display = view.keep_display;
     let asking = create_memo(move || keep_display.get().is_some());
     let round = create_memo(move || keep_display.get().unwrap_or_default());
-    let keeping = round;
-    let reverting = round;
-    let locking = view;
     let area = NodeRef::new();
     view! {
         <Frame @node_ref=&area fill=ColorRole::Background>
@@ -454,12 +451,12 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
                     timeout=crate::display::ANSWER_WITHIN
                     round={round}
                     id="display.keep"
-                    on_keep={move || send(UiCommand::KeepDisplay(keeping.get_untracked()))}
-                    on_revert={move || send(UiCommand::RevertDisplay(reverting.get_untracked()))}
+                    on_keep={move || send(UiCommand::KeepDisplay(round.get_untracked()))}
+                    on_revert={move || send(UiCommand::RevertDisplay(round.get_untracked()))}
                 />
                 <onboarding::ReauthDialog view />
                 <onboarding::AddAccountDialog view />
-                <lock::SessionLock view={locking} />
+                <lock::SessionLock view={view} />
                 <WindowActions />
             </List>
         </Frame>

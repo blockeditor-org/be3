@@ -9,26 +9,24 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
     let label = create_signal("one".to_owned());
     let shown = create_signal(true);
     let text = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Show condition={shown}>|| {
-                        component(&ComponentInfo { name: "Outer", module: module_path!() }, move || {
-                            on_cleanup(move || cleaned.update(|cleaned| cleaned.push("outer")));
-                            let inner = component(&ComponentInfo { name: "Inner", module: module_path!() }, move || {
-                                on_cleanup(move || cleaned.update(|cleaned| cleaned.push("inner")));
-                                view! {
-                                    <Text @node_ref=&text string={label} />
-                                }
-                            });
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Show condition={shown}>|| {
+                    component(&ComponentInfo { name: "Outer", module: module_path!() }, move || {
+                        on_cleanup(move || cleaned.update(|cleaned| cleaned.push("outer")));
+                        let inner = component(&ComponentInfo { name: "Inner", module: module_path!() }, move || {
+                            on_cleanup(move || cleaned.update(|cleaned| cleaned.push("inner")));
                             view! {
-                                <Frame>{inner}</Frame>
+                                <Text @node_ref=&text string={label} />
                             }
-                        })
-                    }</Show>
-                </List>
-            }
+                        });
+                        view! {
+                            <Frame>{inner}</Frame>
+                        }
+                    })
+                }</Show>
+            </List>
         }
     });
 

@@ -8,18 +8,16 @@ use crate::styled::*;
 fn a_context_menu_reads_its_rows_as_named_menu_items() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let (document, [_menu]) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="Copy" />
-                <unstyled::MenuItem label="Paste" disabled=true />
-            };
-            [view! {
-                <ContextMenu items>
-                    <MenuRegion @node_ref=&region />
-                </ContextMenu>
-            }]
-        }
+    let (document, [_menu]) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label="Copy" />
+            <unstyled::MenuItem label="Paste" disabled=true />
+        };
+        [view! {
+            <ContextMenu items>
+                <MenuRegion @node_ref=&region />
+            </ContextMenu>
+        }]
     });
     let region = region.get();
     let mut harness = Harness::new(document);

@@ -19,27 +19,25 @@ fn a_capturing_catcher_over_a_forwarding_one_keeps_the_press_from_it() {
     let _root = crate::reactive::RootScope::new();
     let forwarded = create_signal(Vec::<ForwardedInput>::new());
     let pressed = create_signal(0);
-    let document = build({
-        move || {
-            view! {
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>
-                        <Interactive
-                            on_forward={move |input| forwarded.update(|forwarded| forwarded.push(input))}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                    <CanvasItem x=50.0 y=0.0 width=10.0 height=200.0>
-                        <Interactive
-                            capture_presses=true
-                            on_press={move |_: PointerPress| pressed.update(|pressed| *pressed += 1)}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
-            }
+    let document = build(move || {
+        view! {
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>
+                    <Interactive
+                        on_forward={move |input| forwarded.update(|forwarded| forwarded.push(input))}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+                <CanvasItem x=50.0 y=0.0 width=10.0 height=200.0>
+                    <Interactive
+                        capture_presses=true
+                        on_press={move |_: PointerPress| pressed.update(|pressed| *pressed += 1)}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);

@@ -749,44 +749,35 @@ where
             layout.reconcile(&spec, &dialogs);
         });
     });
-    let listed = found;
-    let dialogs = create_memo(move || listed.with(|found| found.dialogs.clone()));
-    let described = found;
-    let dialog = Func::new(move |tab: TabId| {
-        described.with_untracked(|found| found.parts.get(&tab).cloned())
-    });
-    let titles = found;
+    let dialogs = create_memo(move || found.with(|found| found.dialogs.clone()));
+    let dialog =
+        Func::new(move |tab: TabId| found.with_untracked(|found| found.parts.get(&tab).cloned()));
     let title = Func::new(move |tab: TabId| {
-        titles
+        found
             .with(|found| found.tab(tab, |title, _, _, _| title.get()))
             .unwrap_or_default()
     });
-    let icons = found;
     let icon = Func::new(move |tab: TabId| {
-        icons
+        found
             .with(|found| found.tab(tab, |_, icon, _, _| icon.get()))
             .unwrap_or_default()
     });
-    let pictures = found;
-    let picture = Func::new(move |tab: TabId| pictures.with(|found| found.picture(tab)));
-    let closers = found;
+    let picture = Func::new(move |tab: TabId| found.with(|found| found.picture(tab)));
     let closable = Func::new(move |tab: TabId| {
-        closers
+        found
             .with(|found| found.tab(tab, |_, _, on_close, _| on_close.is_some()))
             .unwrap_or(false)
     });
-    let closing = found;
     let on_close = move |tab: TabId| {
-        let close = closing
+        let close = found
             .with_untracked(|found| found.tab(tab, |_, _, on_close, _| *on_close))
             .flatten();
         if let Some(close) = close {
             close.call();
         }
     };
-    let bodies = found;
     let content = RenderFn::new(move |tab: TabId| {
-        let content = bodies.with_untracked(|found| found.tab(tab, |_, _, _, content| *content));
+        let content = found.with_untracked(|found| found.tab(tab, |_, _, _, content| *content));
         let Some(content) = content else {
             return view! {
                 <Frame />
@@ -798,12 +789,11 @@ where
             None => body,
         }
     });
-    let empties = found;
     let empty = RenderFn::new(move |leaf: LeafId| {
         let key = layout
             .state
             .with_untracked(|state| state.pane_key(leaf).map(str::to_owned));
-        let empty = key.and_then(|key| empties.with_untracked(|found| found.empty(&key)));
+        let empty = key.and_then(|key| found.with_untracked(|found| found.empty(&key)));
         match empty {
             Some(empty) => empty.call(()),
             None => view! {
@@ -811,12 +801,11 @@ where
             },
         }
     });
-    let grouped = found;
     let group_title = Func::new(move |group: GroupId| {
         let key = layout
             .state
             .with(|state| state.group_key(group).map(str::to_owned))?;
-        let title = grouped.with(|found| found.group_title(&key))?;
+        let title = found.with(|found| found.group_title(&key))?;
         Some(title.get())
     });
     let state = layout.state();

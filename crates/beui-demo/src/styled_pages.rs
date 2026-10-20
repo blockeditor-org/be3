@@ -284,13 +284,12 @@ fn EditCounter() -> NodeId {
     let count = create_signal(0u32);
     let counted = create_memo(move || format!("{} edits", count.get()));
     let moved = create_memo(move || count.get() > 0);
-    let editing = count;
     dock_actions(move || {
         view! {
             <IconButton
                 glyph=ICON_EDIT
                 label="Edit"
-                on_click={move || editing.update(|count| *count += 1)}
+                on_click={move || count.update(|count| *count += 1)}
             />
         }
     });
@@ -327,11 +326,9 @@ fn FullscreenTab() -> NodeId {
         true => "Leave fullscreen".to_owned(),
         false => "Show this tab fullscreen".to_owned(),
     });
-    let leaving = control;
-    let escaping = shown;
     on_shortcut(move |press: beui::KeyPress| {
-        let leave = press.pressed && press.key == beui::Key::Escape && escaping.get_untracked();
-        if let Some(control) = leaving.as_ref().filter(|_| leave) {
+        let leave = press.pressed && press.key == beui::Key::Escape && shown.get_untracked();
+        if let Some(control) = control.as_ref().filter(|_| leave) {
             control.leave_fullscreen();
         }
         leave
@@ -542,7 +539,6 @@ fn Shortcuts() -> NodeId {
 #[component]
 fn Links() -> NodeId {
     let followed = create_signal("Nothing followed yet".to_owned());
-    let guide = followed;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=16.0 wrap=true>
@@ -553,7 +549,7 @@ fn Links() -> NodeId {
                 />
                 <Link
                     label="Read the guide"
-                    on_click={move || guide.set("Followed: Read the guide".to_owned())}
+                    on_click={move || followed.set("Followed: Read the guide".to_owned())}
                 />
                 <Link label="Unavailable" disabled=true />
             </List>
@@ -631,26 +627,23 @@ fn FocusedTile() -> NodeId {
 #[component]
 fn ButtonVariants() -> NodeId {
     let clicked = create_signal("Nothing clicked yet".to_owned());
-    let primary = clicked;
-    let secondary = clicked;
-    let ghost = clicked;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
                 <Button
                     label="Primary"
                     variant=ButtonVariant::Primary
-                    on_click={move || primary.set("Clicked Primary".to_owned())}
+                    on_click={move || clicked.set("Clicked Primary".to_owned())}
                 />
                 <Button
                     label="Secondary"
                     variant=ButtonVariant::Secondary
-                    on_click={move || secondary.set("Clicked Secondary".to_owned())}
+                    on_click={move || clicked.set("Clicked Secondary".to_owned())}
                 />
                 <Button
                     label="Ghost"
                     variant=ButtonVariant::Ghost
-                    on_click={move || ghost.set("Clicked Ghost".to_owned())}
+                    on_click={move || clicked.set("Clicked Ghost".to_owned())}
                 />
                 <Button
                     label="With an icon"
@@ -669,8 +662,6 @@ fn ButtonVariants() -> NodeId {
 #[component]
 fn IconButtons() -> NodeId {
     let clicked = create_signal("Nothing clicked yet".to_owned());
-    let copy = clicked;
-    let share = clicked;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
@@ -678,12 +669,12 @@ fn IconButtons() -> NodeId {
                     glyph=ICON_CONTENT_COPY
                     label="Copy"
                     variant=ButtonVariant::Primary
-                    on_click={move || copy.set("Clicked Copy".to_owned())}
+                    on_click={move || clicked.set("Clicked Copy".to_owned())}
                 />
                 <IconButton
                     glyph=ICON_SHARE
                     label="Share"
-                    on_click={move || share.set("Clicked Share".to_owned())}
+                    on_click={move || clicked.set("Clicked Share".to_owned())}
                 />
                 <IconButton
                     glyph=ICON_DELETE
@@ -1368,8 +1359,7 @@ fn GlobalActions() -> NodeId {
     .at(KeyAt::Window)
     .capture()
     .register();
-    let opening = open;
-    let palette = Action::new("demo.palette", "Command palette", move || opening.set(true))
+    let palette = Action::new("demo.palette", "Command palette", move || open.set(true))
         .shortcut(Chord::logo(Key::P))
         .at(KeyAt::Window)
         .register();
@@ -1492,7 +1482,6 @@ fn badge(color: Color32) -> Image {
 #[component]
 fn TrayIcons() -> NodeId {
     let outcome = create_signal("Nothing done yet".to_owned());
-    let (opened, clicked, middled, scrolled, chose) = (outcome, outcome, outcome, outcome, outcome);
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1504,15 +1493,15 @@ fn TrayIcons() -> NodeId {
                         <unstyled::MenuItem label="Open" />
                         <unstyled::MenuItem label="Quit" separated=true />
                     }}
-                    on_click={move || clicked.set("Clicked Chat".to_owned())}
-                    on_middle_click={move || middled.set("Middle-clicked Chat".to_owned())}
-                    on_scroll={move |_: ScrollGesture| scrolled.set("Scrolled over Chat".to_owned())}
+                    on_click={move || outcome.set("Clicked Chat".to_owned())}
+                    on_middle_click={move || outcome.set("Middle-clicked Chat".to_owned())}
+                    on_scroll={move |_: ScrollGesture| outcome.set("Scrolled over Chat".to_owned())}
                     on_select={move |path: Vec<usize>| {
                         let label = match path.as_slice() {
                             [0] => "Open",
                             _ => "Quit",
                         };
-                        chose.set(format!("Chose {label}"));
+                        outcome.set(format!("Chose {label}"));
                     }}
                 />
                 <PictureMenuButton
@@ -1524,7 +1513,7 @@ fn TrayIcons() -> NodeId {
                     }}
                     on_open_change={move |open: bool| {
                         if open {
-                            opened.set("Opened the Sync menu".to_owned());
+                            outcome.set("Opened the Sync menu".to_owned());
                         }
                     }}
                 />
@@ -1544,7 +1533,6 @@ fn TrayIcons() -> NodeId {
 #[component]
 fn SortMenus() -> NodeId {
     let sort_text = create_signal("Sorted by name".to_owned());
-    let more = sort_text;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
@@ -1573,7 +1561,7 @@ fn SortMenus() -> NodeId {
                     items={view! {
                         <unstyled::MenuItem label="Reverse the order" />
                     }}
-                    on_select={move |_: Vec<usize>| more.set("Sorted in reverse".to_owned())}
+                    on_select={move |_: Vec<usize>| sort_text.set("Sorted in reverse".to_owned())}
                 />
             </List>
             <Text style=TextStyle::CAPTION string={sort_text} />
@@ -1693,14 +1681,12 @@ fn CrashedEditor() -> NodeId {
 #[component]
 fn StaleBlock() -> NodeId {
     let outcome = create_signal("Saved by another build".to_owned());
-    let reset = outcome;
-    let delete = outcome;
     view! {
         <StaleNotice
             title={outcome}
             detail="This build cannot read what another build saved here."
-            on_reset={move || reset.set("Reset to empty".to_owned())}
-            on_delete={move || delete.set("Deleted".to_owned())}
+            on_reset={move || outcome.set("Reset to empty".to_owned())}
+            on_delete={move || outcome.set("Deleted".to_owned())}
             on_try={move || outcome.set("Opened anyway".to_owned())}
         />
     }
@@ -1743,16 +1729,13 @@ fn FilterPopover(handle: PopoverHandle) -> NodeId {
 fn DiscardDialog() -> NodeId {
     let dialog = create_signal(false);
     let outcome = create_signal("Nothing discarded".to_owned());
-    let open_dialog = dialog;
-    let dismiss_dialog = dialog;
-    let keep = dialog;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Button
                     label="Discard changes…"
                     variant=ButtonVariant::Secondary
-                    on_click={move || open_dialog.set(true)}
+                    on_click={move || dialog.set(true)}
                 />
             </List>
             <Text style=TextStyle::CAPTION string={outcome} />
@@ -1760,7 +1743,7 @@ fn DiscardDialog() -> NodeId {
                 open={dialog}
                 title="Discard changes?"
                 width=DIALOG_WIDTH
-                on_dismiss={move || dismiss_dialog.set(false)}
+                on_dismiss={move || dialog.set(false)}
             >
                 <List spacing=ROW_SPACING>
                     <Text
@@ -1777,7 +1760,7 @@ fn DiscardDialog() -> NodeId {
                         <Button
                             label="Keep"
                             variant=ButtonVariant::Secondary
-                            on_click={move || keep.set(false)}
+                            on_click={move || dialog.set(false)}
                         />
                         <Button
                             label="Discard"
@@ -1799,8 +1782,6 @@ fn DiscardDialog() -> NodeId {
 fn KeepModeChange() -> NodeId {
     let asking = create_signal(false);
     let outcome = create_signal("Showing 1920 × 1080 at 60 Hz".to_owned());
-    let (kept, reverted) = (asking, asking);
-    let (keeping, reverting) = (outcome, outcome);
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1820,12 +1801,12 @@ fn KeepModeChange() -> NodeId {
                 open={asking}
                 title="Keep these display settings?"
                 on_keep={move || {
-                    keeping.set("Kept 1920 × 1080 at 144 Hz".to_owned());
-                    kept.set(false);
+                    outcome.set("Kept 1920 × 1080 at 144 Hz".to_owned());
+                    asking.set(false);
                 }}
                 on_revert={move || {
-                    reverting.set("Went back to 1920 × 1080 at 60 Hz".to_owned());
-                    reverted.set(false);
+                    outcome.set("Went back to 1920 × 1080 at 60 Hz".to_owned());
+                    asking.set(false);
                 }}
             />
         </List>
@@ -1837,7 +1818,6 @@ fn KeepModeChange() -> NodeId {
 fn ScreenLock() -> NodeId {
     let locked = create_signal(false);
     let error = create_signal(None::<String>);
-    let (unlocking, failing) = (locked, error);
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1865,8 +1845,8 @@ fn ScreenLock() -> NodeId {
                 }]}
                 id="demo.lock"
                 on_submit={move |typed: String| match typed == "beui" {
-                    true => unlocking.set(false),
-                    false => failing.set(Some("That password is not right.".to_owned())),
+                    true => locked.set(false),
+                    false => error.set(Some("That password is not right.".to_owned())),
                 }}
             />
         </List>
@@ -1946,9 +1926,6 @@ fn ProgramLauncher() -> NodeId {
             Some(Color32::from_rgb(90, 180, 110)),
         ),
     ]);
-    let (showing, closing, launching) = (launcher, launcher, launcher);
-    let ran = outcome;
-    let shut = closing;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1956,7 +1933,7 @@ fn ProgramLauncher() -> NodeId {
                     @test_id={"demo.launcher.open"}
                     label="Open the launcher"
                     variant=ButtonVariant::Secondary
-                    on_click={move || showing.set(true)}
+                    on_click={move || launcher.set(true)}
                 />
             </List>
             <Text style=TextStyle::CAPTION string={outcome} />
@@ -1966,13 +1943,13 @@ fn ProgramLauncher() -> NodeId {
                 placeholder="Search programs"
                 on_launch={move |key: String| {
                     outcome.set(format!("Launched {key}"));
-                    launching.set(false);
+                    launcher.set(false);
                 }}
                 on_run={move |line: String| {
-                    ran.set(format!("Ran {line}"));
-                    shut.set(false);
+                    outcome.set(format!("Ran {line}"));
+                    launcher.set(false);
                 }}
-                on_close={move || closing.set(false)}
+                on_close={move || launcher.set(false)}
             />
         </List>
     }
@@ -1983,15 +1960,13 @@ fn ProgramLauncher() -> NodeId {
 fn LongSheet() -> NodeId {
     let sheet = create_signal(false);
     let picked = create_signal("Nothing picked".to_owned());
-    let open_sheet = sheet;
-    let dismiss_sheet = sheet;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Button
                     label="Pick a row"
                     variant=ButtonVariant::Secondary
-                    on_click={move || open_sheet.set(true)}
+                    on_click={move || sheet.set(true)}
                 />
             </List>
             <Text
@@ -2000,21 +1975,18 @@ fn LongSheet() -> NodeId {
                 wrap=true
             />
             <Text style=TextStyle::CAPTION string={picked} />
-            <ModalSheet open={sheet} rest=0.5 on_close={move || dismiss_sheet.set(false)}>
+            <ModalSheet open={sheet} rest=0.5 on_close={move || sheet.set(false)}>
                 <List spacing=0.0>
-                    <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize| {
-                        let closing = sheet;
-                        view! {
-                            <ActionRow
-                                label={format!("Row {row}")}
-                                glyph=ICON_EDIT
-                                on_click={move || {
-                                    picked.set(format!("Picked row {row}"));
-                                    closing.set(false);
-                                }}
-                            />
-                        }
-                    }</ForEach>
+                    <ForEach keys={(1..=60).collect::<Vec<usize>>()}>|row: usize|
+                        <ActionRow
+                            label={format!("Row {row}")}
+                            glyph=ICON_EDIT
+                            on_click={move || {
+                                picked.set(format!("Picked row {row}"));
+                                sheet.set(false);
+                            }}
+                        />
+                    </ForEach>
                 </List>
             </ModalSheet>
         </List>
@@ -2084,12 +2056,6 @@ fn ToastArea() -> NodeId {
     ]);
     let next = create_signal(4);
     let chosen = create_signal(String::new());
-    let add = toasts;
-    let notify = toasts;
-    let dismiss = toasts;
-    let act = toasts;
-    let open = toasts;
-    let opened = chosen;
     view! {
         <Frame
             @node_ref=&area
@@ -2106,7 +2072,7 @@ fn ToastArea() -> NodeId {
                         on_click={move || {
                             let id = next.get_untracked();
                             next.set(id + 1);
-                            add.update(|toasts| toasts.push(Toast {
+                            toasts.update(|toasts| toasts.push(Toast {
                                 id,
                                 message: format!("Toast {id}, gone in a few seconds."),
                                 danger: false,
@@ -2120,7 +2086,7 @@ fn ToastArea() -> NodeId {
                         on_click={move || {
                             let id = next.get_untracked();
                             next.set(id + 1);
-                            notify.update(|toasts| toasts.push(message_toast(id)));
+                            toasts.update(|toasts| toasts.push(message_toast(id)));
                         }}
                     />
                     <Text string={chosen} color=TextColor::Muted />
@@ -2128,14 +2094,14 @@ fn ToastArea() -> NodeId {
                 <Toasts
                     anchor={area}
                     toasts={toasts}
-                    on_dismiss={move |id: u64| dismiss.update(|toasts| toasts.retain(|toast| toast.id != id))}
+                    on_dismiss={move |id: u64| toasts.update(|toasts| toasts.retain(|toast| toast.id != id))}
                     on_action={move |(id, key): (u64, String)| {
                         chosen.set(format!("Chose {key} on message {id}"));
-                        act.update(|toasts| toasts.retain(|toast| toast.id != id));
+                        toasts.update(|toasts| toasts.retain(|toast| toast.id != id));
                     }}
                     on_activate={move |id: u64| {
-                        opened.set(format!("Opened message {id}"));
-                        open.update(|toasts| toasts.retain(|toast| toast.id != id));
+                        chosen.set(format!("Opened message {id}"));
+                        toasts.update(|toasts| toasts.retain(|toast| toast.id != id));
                     }}
                 />
             </List>
@@ -2184,12 +2150,10 @@ fn VolumeDisplay() -> NodeId {
             muted,
         })
     });
-    let show = shown;
     let step = move |by: f32| {
         volume.update(|volume| *volume = (*volume + by).clamp(0.0, 1.0));
         shown.update(|shown| *shown += 1);
     };
-    let (down, up) = (step, step);
     view! {
         <List spacing=0.0>
             <List direction=Direction::Horizontal align=Align::Start spacing=8.0>
@@ -2197,13 +2161,13 @@ fn VolumeDisplay() -> NodeId {
                     @test_id={"demo.osd.down"}
                     label="Volume down"
                     variant=ButtonVariant::Secondary
-                    on_click={move || down(-0.05)}
+                    on_click={move || step(-0.05)}
                 />
                 <Button
                     @test_id={"demo.osd.up"}
                     label="Volume up"
                     variant=ButtonVariant::Secondary
-                    on_click={move || up(0.05)}
+                    on_click={move || step(0.05)}
                 />
                 <Button
                     @test_id={"demo.osd.mute"}
@@ -2211,7 +2175,7 @@ fn VolumeDisplay() -> NodeId {
                     variant=ButtonVariant::Secondary
                     on_click={move || {
                         muted.update(|muted| *muted = !*muted);
-                        show.update(|shown| *shown += 1);
+                        shown.update(|shown| *shown += 1);
                     }}
                 />
             </List>
@@ -2224,18 +2188,16 @@ fn VolumeDisplay() -> NodeId {
 #[component]
 fn FullscreenButton() -> NodeId {
     let fullscreen = create_signal(false);
-    let open_fullscreen = fullscreen;
-    let dismiss_fullscreen = fullscreen;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Button
                     label="Go fullscreen"
                     variant=ButtonVariant::Secondary
-                    on_click={move || open_fullscreen.set(true)}
+                    on_click={move || fullscreen.set(true)}
                 />
             </List>
-            <Fullscreen open={fullscreen} on_dismiss={move || dismiss_fullscreen.set(false)}>
+            <Fullscreen open={fullscreen} on_dismiss={move || fullscreen.set(false)}>
                 <FullscreenBody on_close={move || fullscreen.set(false)} />
             </Fullscreen>
         </List>
@@ -2315,7 +2277,6 @@ fn CardStrip() -> NodeId {
 fn FittedScroll() -> NodeId {
     let count = create_signal(FITTED_SCROLL_ROWS);
     let rows = create_memo(move || (0..count.get()).collect::<Vec<usize>>());
-    let adding = count;
     view! {
         <List spacing=SECTION_SPACING>
             <Text
@@ -2328,7 +2289,7 @@ fn FittedScroll() -> NodeId {
                 <Button
                     label="Add a row"
                     variant=ButtonVariant::Secondary
-                    on_click={move || adding.update(|count| *count += 1)}
+                    on_click={move || count.update(|count| *count += 1)}
                 />
                 <Button
                     label="Remove a row"
@@ -2531,8 +2492,6 @@ fn ProjectTree() -> NodeId {
         (None, Some(row)) => format!("{} selected", TREE_NODES[row].0),
         (None, None) => "Nothing selected".to_owned(),
     });
-    let expansion = collapsed;
-    let reveal = collapsed;
     view! {
         <List spacing=SECTION_SPACING>
             <Text
@@ -2549,7 +2508,7 @@ fn ProjectTree() -> NodeId {
             <Tree
                 @sizing=ItemSize::Fixed(TREE_HEIGHT)
                 keys
-                item={move |row: usize| tree_item(row, &expansion.get())}
+                item={move |row: usize| tree_item(row, &collapsed.get())}
                 selected
                 ancestors={tree_ancestors}
                 row_test_id={|row: usize| format!("demo.tree.{row}")}
@@ -2571,7 +2530,7 @@ fn ProjectTree() -> NodeId {
                     }),
                 })}
                 on_reveal={move |row: usize| {
-                    reveal.update(|collapsed| {
+                    collapsed.update(|collapsed| {
                         collapsed.retain(|candidate| !tree_ancestors(row).contains(candidate));
                     });
                 }}
@@ -2984,9 +2943,6 @@ pub(crate) fn CanvasPage() -> NodeId {
 #[component]
 fn ZoomableStage() -> NodeId {
     let stage_view = create_signal(STAGE_VIEW);
-    let zoom_out = stage_view;
-    let zoom_in = stage_view;
-    let stage = stage_view;
     let zoom_label = create_memo(move || format!("{:.0}%", stage_view.get().scale * 100.0));
     view! {
         <List spacing=ROW_SPACING>
@@ -3000,13 +2956,13 @@ fn ZoomableStage() -> NodeId {
                     @sizing=ItemSize::Fixed(ICON_BUTTON_WIDTH)
                     label="-"
                     variant=ButtonVariant::Secondary
-                    on_click={move || zoom_out.update(scale_out)}
+                    on_click={move || stage_view.update(scale_out)}
                 />
                 <Button
                     @sizing=ItemSize::Fixed(ICON_BUTTON_WIDTH)
                     label="+"
                     variant=ButtonVariant::Secondary
-                    on_click={move || zoom_in.update(scale_in)}
+                    on_click={move || stage_view.update(scale_in)}
                 />
                 <Button
                     label="Reset"
@@ -3017,7 +2973,7 @@ fn ZoomableStage() -> NodeId {
             <CanvasStage
                 @sizing=ItemSize::Fixed(STAGE_HEIGHT)
                 view={stage_view.read_only()}
-                on_change={move |view| stage.set(view)}
+                on_change={move |view| stage_view.set(view)}
             />
             <Text
                 style=TextStyle::CAPTION

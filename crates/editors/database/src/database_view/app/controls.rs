@@ -72,22 +72,19 @@ pub fn ChoicePicker(
                 .unwrap_or_default()
         })
     });
-    let options = field;
-    let clear = on_pick;
     let clear_id = format!("{picker_id}.clear");
     let option_id = picker_id.clone();
-    let trigger_label = label;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::MenuButton
-                label={trigger_label}
+                label={label}
                 disabled={disabled}
                 menu={menu_style()}
                 @test_id={picker_id.clone()}
                 items={view! {
                     <ForEach keys={keys}>|id: Uuid| {
                         let shown = create_memo(move || {
-                            options.with(|field| field.as_ref()?.option(id).cloned())
+                            field.with(|field| field.as_ref()?.option(id).cloned())
                         });
                         let name = create_memo(move || {
                             shown.with(|shown| shown.as_ref().map(|shown| shown.name.clone()).unwrap_or_default())
@@ -95,13 +92,12 @@ pub fn ChoicePicker(
                         let glyph = create_memo(move || {
                             shown.with(|shown| shown.as_ref().map(|shown| choice_glyph(shown.icon)).unwrap_or_default()).to_owned()
                         });
-                        let pick = on_pick;
                         view! {
                             <MenuItem
                                 label={name}
                                 glyph={glyph}
                                 row_test_id={format!("{option_id}.option.{id}")}
-                                on_click={move || pick.call(Some(id))}
+                                on_click={move || on_pick.call(Some(id))}
                             />
                         }
                     }</ForEach>
@@ -109,7 +105,7 @@ pub fn ChoicePicker(
                         label="Clear"
                         separated=true
                         row_test_id={clear_id.clone()}
-                        on_click={move || clear.call(None)}
+                        on_click={move || on_pick.call(None)}
                     />
                 }}
                 trigger={move |handle: MenuButtonHandle| {

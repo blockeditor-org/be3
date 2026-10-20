@@ -61,9 +61,8 @@ impl BeuiFrame {
                 false => Density::Compact,
             }));
             let palette = create_signal(false);
-            let opening = palette;
             let opener = Action::new("editor.palette", "Command palette", move || {
-                opening.set(true)
+                palette.set(true)
             })
             .glyph(ICON_TERMINAL)
             .shortcut(PALETTE)
@@ -331,13 +330,11 @@ pub(crate) fn FrameMenu(
         closable,
         on_exit,
     );
-    let visible = answering;
-    let tapping = answering;
     on_finger_tap(move |fingers: usize| {
-        tapping.get_untracked() && watched.with(|watched| watched.finger_tap(fingers))
+        answering.get_untracked() && watched.with(|watched| watched.finger_tap(fingers))
     });
     create_effect(move || {
-        if visible.get() {
+        if answering.get() {
             state.set(watched.with(Watched::read));
         }
     });

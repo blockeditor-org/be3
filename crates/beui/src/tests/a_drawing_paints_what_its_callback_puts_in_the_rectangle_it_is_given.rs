@@ -9,15 +9,13 @@ use crate::reactive::*;
 fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
     let _root = crate::reactive::RootScope::new();
     let painted = create_signal(0);
-    let drawn = {
-        move |color: Color32| -> Draw {
-            Rc::new(move |painter: &Painter, rect: Rect| {
-                if !painter.ctx().is_verifying_paint() {
-                    painted.update(|painted| *painted += 1);
-                }
-                painter.rect_filled(rect, 0.0, color);
-            })
-        }
+    let drawn = move |color: Color32| -> Draw {
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            if !painter.ctx().is_verifying_paint() {
+                painted.update(|painted| *painted += 1);
+            }
+            painter.rect_filled(rect, 0.0, color);
+        })
     };
     let draw = create_signal(drawn(Color32::WHITE));
     let document = build(move || {

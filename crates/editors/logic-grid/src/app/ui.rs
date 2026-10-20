@@ -21,8 +21,6 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     let waiting = create_memo(move || !loaded.get());
     on_shortcut(move |press: KeyPress| shortcut(session, press));
     let chrome = editor.chrome_shown();
-    let left_chrome = chrome;
-    let right_chrome = chrome;
     view! {
         <List spacing=0.0>
             <Show condition={waiting}>
@@ -36,13 +34,13 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
                         direction=Direction::Horizontal
                         spacing=0.0
                     >
-                        <Sidebar side=Side::Left shown={left_chrome} width=HOTBAR_WIDTH>
+                        <Sidebar side=Side::Left shown={chrome} width=HOTBAR_WIDTH>
                             <Hotbar session={session} />
                             <Separator />
                             <ToolSettings session={session} />
                         </Sidebar>
                         <GridCanvas @sizing=ItemSize::Percent(100.0) session={session} />
-                        <Sidebar shown={right_chrome}>
+                        <Sidebar shown={chrome}>
                             <Panels session={session} />
                         </Sidebar>
                     </List>

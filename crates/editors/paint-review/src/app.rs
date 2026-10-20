@@ -62,10 +62,9 @@ pub fn PaintReviewEditor(editor: Editor, source: Source) -> NodeId {
     });
 
     let chrome = editor.chrome_shown();
-    let bar_chrome = chrome;
     view! {
         <List spacing=0.0>
-            <ReviewToolbar review={review} shown={bar_chrome} />
+            <ReviewToolbar review={review} shown={chrome} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <Sidebar side=Side::Left shown={chrome} width=SIDEBAR_WIDTH>
                     <PaintingList review={review} />

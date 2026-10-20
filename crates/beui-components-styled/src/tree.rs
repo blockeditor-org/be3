@@ -108,7 +108,6 @@ where
     let rows = NodeRef::new();
     let viewport = NodeRef::new();
     set_component_state(Parts { rows });
-    let tracked = rows;
     let ancestors = ancestors.unwrap_or_else(|| Func::new(|_| Vec::new()));
     let menu = Func::new(move |key: K| menu.and_then(|menu| menu.call(key)));
     view! {
@@ -116,7 +115,7 @@ where
             <Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
                 <Frame padding=padding>
                     <unstyled::Tree
-                        @node_ref={&tracked}
+                        @node_ref={&rows}
                         keys
                         item
                         selected

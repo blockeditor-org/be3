@@ -161,8 +161,6 @@ pub fn MenuList(
     };
     set_component_state(state);
 
-    let blur_focus = focus;
-    let rows_focused = focused;
     let lines = items.build_each(
         state.rows,
         |_, item| Row {
@@ -175,7 +173,7 @@ pub fn MenuList(
                 <MenuRow
                     state={state}
                     index
-                    focused={rows_focused}
+                    focused={focused}
                     row={row}
                     panel={panel}
                     parent={parent}
@@ -191,7 +189,7 @@ pub fn MenuList(
                 tab_stop={root_tab_stop}
                 focused={focused.memo(Focus::Root)}
                 on_focus_change={move |has_focus: bool| {
-                    if !has_focus && blur_focus.get_untracked() == Focus::Root {
+                    if !has_focus && focus.get_untracked() == Focus::Root {
                         focus.set(Focus::Away);
                     }
                 }}
@@ -225,7 +223,6 @@ fn MenuRow(
     let disabled = item.disabled;
     let (spoken, unavailable) = (item.label, item.disabled);
     let test_id = item.test_id.clone();
-    let tagged = button;
     let action = item.action.clone();
     let clicked = item.on_click;
     let children = item.children.clone();
@@ -233,33 +230,30 @@ fn MenuRow(
         let children = children.clone();
         move || !children.is_empty()
     });
-    let row_has_children = has_children;
-    let content = {
-        move |handle: ButtonHandle| {
-            let hovered = handle.hovered;
-            let mut was_hovered = false;
-            create_effect(move || {
-                let hovering = hovered.get();
-                match (was_hovered, hovering) {
-                    (_, true) => hover_row(state, index),
-                    (true, false) => leave_row(state, index),
-                    (false, false) => {}
-                }
-                was_hovered = hovering;
-            });
-            row.call(MenuRowHandle {
-                label: item.label.into_prop(),
-                glyph: item.glyph.into_prop(),
-                detail: item.detail.into_prop(),
-                disabled: item.disabled.into_prop(),
-                danger: item.danger.into_prop(),
-                separated: item.separated.into_prop(),
-                has_submenu: row_has_children.into_prop(),
-                hovered: handle.hovered,
-                active: handle.active,
-                focused: handle.focused,
-            })
-        }
+    let content = move |handle: ButtonHandle| {
+        let hovered = handle.hovered;
+        let mut was_hovered = false;
+        create_effect(move || {
+            let hovering = hovered.get();
+            match (was_hovered, hovering) {
+                (_, true) => hover_row(state, index),
+                (true, false) => leave_row(state, index),
+                (false, false) => {}
+            }
+            was_hovered = hovering;
+        });
+        row.call(MenuRowHandle {
+            label: item.label.into_prop(),
+            glyph: item.glyph.into_prop(),
+            detail: item.detail.into_prop(),
+            disabled: item.disabled.into_prop(),
+            danger: item.danger.into_prop(),
+            separated: item.separated.into_prop(),
+            has_submenu: has_children.into_prop(),
+            hovered: handle.hovered,
+            active: handle.active,
+            focused: handle.focused,
+        })
     };
 
     let built = view! {
@@ -324,7 +318,7 @@ fn MenuRow(
         </List>
     };
     if let Some(test_id) = test_id {
-        with_document(|document| document.set_test_id(tagged.get(), test_id));
+        with_document(|document| document.set_test_id(button.get(), test_id));
     }
     built
 }

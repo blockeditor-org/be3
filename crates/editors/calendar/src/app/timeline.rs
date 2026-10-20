@@ -110,17 +110,15 @@ fn Grid(
             let theme = use_theme();
             let hour_border = theme.border;
             let rule_border = theme.border;
-            let rule_width = column_width;
             view! {
                 <Frame height=CONTENT_HEIGHT>
                     <Interactive on_click_at={move |press: PointerPress| slot(press.local)}>
                         <Canvas>
                             <ForEach keys={hours}>|hour: u8| {
                                 let top = f32::from(hour) * HOUR_HEIGHT;
-                                let color = hour_border;
                                 view! {
                                     <CanvasItem x=0.0 y={top} width=10000.0 height=RULE>
-                                        <Frame fill={ColorRole::custom(color)} />
+                                        <Frame fill={ColorRole::custom(hour_border)} />
                                     </CanvasItem>
                                 }
                             }</ForEach>
@@ -137,12 +135,10 @@ fn Grid(
                                 }
                             }</ForEach>
                             <ForEach keys={rules}>|index: usize| {
-                                let width = rule_width;
-                                let x = create_memo(move || GUTTER + index as f32 * width.get());
-                                let color = rule_border;
+                                let x = create_memo(move || GUTTER + index as f32 * column_width.get());
                                 view! {
                                     <CanvasItem x={x} y=0.0 width=RULE height=CONTENT_HEIGHT>
-                                        <Frame fill={ColorRole::custom(color)} />
+                                        <Frame fill={ColorRole::custom(rule_border)} />
                                     </CanvasItem>
                                 }
                             }</ForEach>

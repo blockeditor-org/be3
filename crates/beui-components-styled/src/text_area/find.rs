@@ -48,8 +48,6 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
     let case_sensitive = state.find().case_sensitive;
     let focus_query = state.find().focus_query;
     let show_replace = state.find().show_replace;
-    let previous_disabled = no_matches;
-    let replace_no_matches = no_matches;
     view! {
         <Frame fill=ColorRole::Surface>
             <List spacing=0.0>
@@ -81,7 +79,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                         <IconButton
                             glyph=ICON_KEYBOARD_ARROW_UP
                             label="Previous match"
-                            disabled={previous_disabled}
+                            disabled={no_matches}
                             @test_id={"text.find.previous"}
                             on_click={move || state.find_step(FindDirection::Previous)}
                         />
@@ -101,11 +99,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                     </List>
                 </Frame>
                 <Show condition={show_replace}>
-                    <ReplaceRow
-                        state={state}
-                        no_current={no_current}
-                        no_matches={replace_no_matches}
-                    />
+                    <ReplaceRow state={state} no_current={no_current} no_matches={no_matches} />
                 </Show>
             </List>
         </Frame>

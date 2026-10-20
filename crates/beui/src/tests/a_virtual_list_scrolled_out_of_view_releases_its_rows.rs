@@ -8,34 +8,32 @@ fn a_virtual_list_scrolled_out_of_view_releases_its_rows() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <List spacing=0.0>
-                            <VirtualList
-                                @node_ref=&list
-                                keys={indices(ROWS)}
-                                item_size=VIRTUAL_ITEM_HEIGHT
-                            >|key: ReadSignal<usize>| {
-                                create_binding(move || {
-                                    let key = key.get();
-                                    built.update(|built| built.push(key));
-                                });
-                                view! {
-                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                        <Spacer />
-                                    </Frame>
-                                }
-                            }</VirtualList>
-                            <Frame height=BELOW>
-                                <Spacer />
-                            </Frame>
-                        </List>
-                    </Offset>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <List spacing=0.0>
+                        <VirtualList
+                            @node_ref=&list
+                            keys={indices(ROWS)}
+                            item_size=VIRTUAL_ITEM_HEIGHT
+                        >|key: ReadSignal<usize>| {
+                            create_binding(move || {
+                                let key = key.get();
+                                built.update(|built| built.push(key));
+                            });
+                            view! {
+                                <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                    <Spacer />
+                                </Frame>
+                            }
+                        }</VirtualList>
+                        <Frame height=BELOW>
+                            <Spacer />
+                        </Frame>
+                    </List>
+                </Offset>
+            </List>
         }
     });
     let (scroll, list) = (scroll.get(), list.get());

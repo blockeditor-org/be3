@@ -181,8 +181,6 @@ pub fn DateTimePicker(
                 }
             });
             let anchor = NodeRef::new();
-            let popover_anchor = anchor;
-            let trigger_label = picker_label;
             view! {
                 <Frame @node_ref=&anchor>
                     <FieldBox
@@ -193,13 +191,13 @@ pub fn DateTimePicker(
                                 label={picker_label}
                                 disabled={disabled}
                                 open={open}
-                                anchor=popover_anchor
+                                anchor=anchor
                                 placement
                                 refocus_trigger
                                 on_open_change={opened}
                                 trigger={move |handle: PopoverTriggerHandle| trigger.call(DateTimeTriggerHandle {
                                     popover: handle,
-                                    label: trigger_label,
+                                    label: picker_label,
                                 })}
                             >|popover: PopoverHandle|
                                 <PickerPanel
@@ -256,7 +254,6 @@ fn FieldBox(
     } = field;
     let within = create_signal(false);
     let hovered = create_signal(false);
-    let field_disabled = disabled;
     view! {
         <Interactive on_hover_change={move |inside: bool| hovered.set(inside)}>
             {frame.call(DateTimeBoxHandle {
@@ -271,7 +268,7 @@ fn FieldBox(
                                 parts
                                 hour_cycle
                                 label
-                                disabled={field_disabled}
+                                disabled={disabled}
                                 focus_segment={focus}
                                 on_change={report}
                                 on_focus_change={move |inside: bool| within.set(inside)}

@@ -1449,7 +1449,6 @@ fn DockStack(dock: State) -> NodeId {
     let vacant = create_memo(move || shown.get().is_none());
     let occupied = create_memo(move || shown.get().is_some());
     let backward = create_memo(move || state.with(|state| state.back().is_some()));
-    let going = dock;
     let switching = create_signal(false);
     let tabs = create_memo(move || state.with(DockState::recent_tabs));
     let bar = dock
@@ -1463,17 +1462,16 @@ fn DockStack(dock: State) -> NodeId {
     let left = create_memo(move || gone.get().is_some());
     let here = create_memo(move || occupied.get() && gone.get().is_none());
     let empty = dock.empty;
-    let returning = dock;
     view! {
         <BackSlide
             enabled={backward}
             behind={move || {
-                let dock = returning;
+                let dock = dock;
                 view! {
                     <BackPreview dock switching />
                 }
             }}
-            on_back={move || going.go_back()}
+            on_back={move || dock.go_back()}
         >
             <List spacing=0.0>
                 <Show condition={barred}>
@@ -1536,15 +1534,8 @@ fn stack_handle(
     tabs: Memo<Vec<TabId>>,
     switching: Signal<bool>,
 ) -> DockStackHandle {
-    let titled = dock;
-    let title = create_memo(move || shown.get().map(|tab| titled.title(tab)).unwrap_or_default());
-    let pictured = dock;
-    let icon = create_memo(move || {
-        shown
-            .get()
-            .map(|tab| pictured.icon(tab))
-            .unwrap_or_default()
-    });
+    let title = create_memo(move || shown.get().map(|tab| dock.title(tab)).unwrap_or_default());
+    let icon = create_memo(move || shown.get().map(|tab| dock.icon(tab)).unwrap_or_default());
     let actions = dock.actions;
     let slot = create_memo(move || {
         let shown = shown.get()?;
@@ -1608,26 +1599,22 @@ fn switcher_handle(
                 .collect::<Vec<_>>()
         })
     });
-    let carded = dock;
     DockSwitcherHandle {
         open: switching.read_only(),
         close: ClickCallback::new(move || switching.set(false)),
         tabs: open,
         fixed,
-        card: Func::new(move |tab: TabId| {
-            let (titled, pictured, picked, closed) = (carded, carded, carded, carded);
-            DockSwitcherCardHandle {
-                tab,
-                title: create_memo(move || titled.title(tab)),
-                icon: create_memo(move || pictured.icon(tab)),
-                current: create_memo(move || shown.get() == Some(tab)),
-                closable: carded.closable.call(tab),
-                pick: ClickCallback::new(move || {
-                    switching.set(false);
-                    picked.show(tab);
-                }),
-                close: ClickCallback::new(move || closed.close_tab(tab)),
-            }
+        card: Func::new(move |tab: TabId| DockSwitcherCardHandle {
+            tab,
+            title: create_memo(move || dock.title(tab)),
+            icon: create_memo(move || dock.icon(tab)),
+            current: create_memo(move || shown.get() == Some(tab)),
+            closable: dock.closable.call(tab),
+            pick: ClickCallback::new(move || {
+                switching.set(false);
+                dock.show(tab);
+            }),
+            close: ClickCallback::new(move || dock.close_tab(tab)),
         }),
     }
 }
@@ -1637,18 +1624,14 @@ fn DockTiles(dock: State) -> NodeId {
     let current = dock.state;
     let main = create_memo(move || current.with(DockState::main));
     let windows = create_memo(move || current.with(DockState::windows));
-    let panes = dock;
-    let floating = dock;
-    let over = dock;
-    let dropped = dock;
     view! {
         <DropTarget
-            on_over={move |point: Option<(DockDragged, DragPoint)>| over.drag_over(point.map(|(_, point)| point))}
-            on_drop={move |(dragged, point): (DockDragged, DragPoint)| dropped.drop_at(dragged, point)}
+            on_over={move |point: Option<(DockDragged, DragPoint)>| dock.drag_over(point.map(|(_, point)| point))}
+            on_drop={move |(dragged, point): (DockDragged, DragPoint)| dock.drop_at(dragged, point)}
         >|_: DropHandle|
             <List spacing=0.0>
                 <Dynamic value={main}>|surface: SurfaceId| {
-                    let dock = panes;
+                    let dock = dock;
                     view! {
                         <DockTreeView
                             dock
@@ -1658,7 +1641,7 @@ fn DockTiles(dock: State) -> NodeId {
                     }
                 }</Dynamic>
                 <ForEach keys={windows}>|surface: SurfaceId| {
-                    let dock = floating;
+                    let dock = dock;
                     view! {
                         <DockWindowView dock surface />
                     }
@@ -1779,11 +1762,6 @@ fn DockTreeView(
                     layout.with(|layout| layout.splitters.iter().map(|splitter| splitter.id).collect::<Vec<_>>())
                 });
                 let hoisted = hoisted.get_untracked();
-                let panels = dock;
-                let panel_layout = layout;
-                let splitters = dock;
-                let splitter_layout = layout;
-                let marked = dock;
                 let marked_surface = match tree {
                     Tree::Surface(surface) => state
                         .with_untracked(|state| state.window_rect(surface).is_none())
@@ -1794,8 +1772,8 @@ fn DockTreeView(
                 view! {
                     <Canvas @node_ref=&canvas>
                         <ForEach keys={leaves}>|leaf: LeafId| {
-                            let dock = panels;
-                            let layout = panel_layout;
+                            let dock = dock;
+                            let layout = layout;
                             let rect = create_memo(move || {
                                 layout.with(|layout| layout.leaf_rect(leaf)).unwrap_or(Rect::ZERO)
                             });
@@ -1811,8 +1789,8 @@ fn DockTreeView(
                             }
                         }</ForEach>
                         <ForEach keys={splits}>|split: SplitId| {
-                            let dock = splitters;
-                            let layout = splitter_layout;
+                            let dock = dock;
+                            let layout = layout;
                             let rect = create_memo(move || {
                                 layout.with(|layout| layout.splitter(split)).map_or(Rect::ZERO, |splitter| {
                                     splitter.handle
@@ -1830,7 +1808,7 @@ fn DockTreeView(
                         }</ForEach>
                         <Show condition={marked_surface.is_some()}>
                             <DockDropMarker
-                                dock={marked}
+                                dock={dock}
                                 surface={marked_surface.unwrap_or_else(|| unreachable!())}
                                 origin={pane_origin}
                             />
@@ -1891,11 +1869,8 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
     });
     let vacant = create_memo(move || contents.with(Vec::is_empty));
     let sidebar_width = create_memo(move || state.with(|state| state.sidebar_width(leaf)));
-    let closed = dock;
-    let close = ClickCallback::new(move || closed.close_leaf(leaf));
+    let close = ClickCallback::new(move || dock.close_leaf(leaf));
     let menu = dock.leaf_menu(Some(leaf));
-    let built = dock;
-    let pressed = dock;
     let claimed = dock.drag_modifier;
     let resized = modifier_resize(dock, Resized::Docked);
     view! {
@@ -1904,23 +1879,23 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
             claim_modifiers={claimed}
             on_secondary_drag={resized}
             on_press={move |press: PointerPress| {
-                if pressed.modifier_held(press.modifiers) {
+                if dock.modifier_held(press.modifiers) {
                     return;
                 }
-                let hosted = pressed.state.with_untracked(|state| state.active_entry(leaf));
+                let hosted = dock.state.with_untracked(|state| state.active_entry(leaf));
                 let inside = hosted
                     .and_then(Entry::group)
-                    .and_then(|group| pressed.pane_rect(Tree::Group(group)))
+                    .and_then(|group| dock.pane_rect(Tree::Group(group)))
                     .is_some_and(|inner| inner.contains(press.pos));
                 if !inside {
-                    pressed.edit(|state| state.focus(leaf));
-                    pressed.release_dialog_focus();
+                    dock.edit(|state| state.focus(leaf));
+                    dock.release_dialog_focus();
                 }
             }}
         >
             <List spacing=0.0>
                 <Dynamic value={vertical}>|vertical: bool| {
-                    let dock = built;
+                    let dock = dock;
                     let bar = (!hoisted).then(|| DockBarHandle {
                         floating,
                         vertical,
@@ -1962,19 +1937,15 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
 
 #[component]
 fn DockPaneGrip(dock: State, leaf: LeafId, vertical: bool, focused: Memo<bool>) -> NodeId {
-    let toggled = dock;
     let face = dock.grip.call(DockGripHandle {
         floating: false,
         vertical,
         focused,
     });
     let menu = dock.menu;
-    let named = dock;
-    let title = create_memo(move || named.dragged_title(DockDragged::Pane(leaf)));
-    let pictured = dock;
-    let icon = create_memo(move || pictured.dragged_icon(DockDragged::Pane(leaf)));
+    let title = create_memo(move || dock.dragged_title(DockDragged::Pane(leaf)));
+    let icon = create_memo(move || dock.dragged_icon(DockDragged::Pane(leaf)));
     let preview = dock.preview;
-    let carried = dock;
     view! {
         <Draggable
             payload={DockDragged::Pane(leaf)}
@@ -1986,11 +1957,11 @@ fn DockPaneGrip(dock: State, leaf: LeafId, vertical: bool, focused: Memo<bool>) 
                 icon,
             })}
             on_drag_change={move |dragging: bool| match dragging {
-                true => carried.begin_drag(DockDragged::Pane(leaf)),
-                false => carried.end_drag(),
+                true => dock.begin_drag(DockDragged::Pane(leaf)),
+                false => dock.end_drag(),
             }}
         >|_: DragHandle|
-            <GripMenu menu vertical toggle={move || toggled.toggle_vertical(leaf)}>{face}</GripMenu>
+            <GripMenu menu vertical toggle={move || dock.toggle_vertical(leaf)}>{face}</GripMenu>
         </Draggable>
     }
 }
@@ -2078,16 +2049,13 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
     let state = dock.state;
     let entries = create_memo(move || state.with(|state| state.entries(leaf)));
     let selected = create_memo(move || Some(state.with(|state| state.active_index(leaf))));
-    let labels = dock;
-    let changed = dock;
-    let faces = dock;
     view! {
         <Scroll direction @node_ref=&strip>
             <Choice
                 @node_ref=&tab_list
                 options={view! {
                     <ForEach keys={entries}>|entry: Entry| {
-                        let dock = labels;
+                        let dock = dock;
                         let label = create_memo(move || dock.entry_title(entry));
                         view! {
                             <ChoiceOption label={label} />
@@ -2101,21 +2069,21 @@ fn DockTabBar(dock: State, leaf: LeafId, vertical: bool) -> NodeId {
                     let Some(index) = index else {
                         return;
                     };
-                    changed.edit(|state| {
+                    dock.edit(|state| {
                         state.set_active_index(leaf, index);
                         state.focus(leaf);
                     });
-                    changed.release_dialog_focus();
+                    dock.release_dialog_focus();
                     let picked = tab_list
                         .try_get()
                         .is_some_and(|tabs| with_document(|document| document.focus_is_within(tabs)));
-                    let shown = changed.state.with_untracked(|state| state.active_tab(leaf));
+                    let shown = dock.state.with_untracked(|state| state.active_tab(leaf));
                     if let Some(tab) = shown.filter(|_| !picked) {
-                        changed.give_keyboard(tab);
+                        dock.give_keyboard(tab);
                     }
                 }}
             >|handle: ChoiceOptionHandle| {
-                let dock = faces;
+                let dock = dock;
                 let entry = dock.state.get_untracked().entries(leaf).get(handle.index).copied();
                 match entry {
                     Some(entry) => view! {
@@ -2249,7 +2217,6 @@ fn DockTabView(
             dock.toggle_fullscreen(tab);
         }
     });
-    let carried = dock;
     let preview = dock.preview;
     let across = match vertical {
         true => Direction::Horizontal,
@@ -2265,8 +2232,8 @@ fn DockTabView(
                 icon,
             })}
             on_drag_change={move |dragging: bool| match dragging {
-                true => carried.begin_drag(DockDragged::Entry(entry)),
-                false => carried.end_drag(),
+                true => dock.begin_drag(DockDragged::Entry(entry)),
+                false => dock.end_drag(),
             }}
         >|_: DragHandle|
             <TabMenu
@@ -2332,7 +2299,6 @@ fn TabMenu(
             "Close group",
         ),
     };
-    let closing = close;
     view! {
         <ContextMenu
             menu
@@ -2355,7 +2321,7 @@ fn TabMenu(
                 Some(0) => float.call(),
                 Some(1) => group.call(),
                 Some(2) => split.call(),
-                Some(3) => closing.call(),
+                Some(3) => close.call(),
                 Some(4) if grouped => ungroup.call(),
                 Some(4) => toggle_held.call(),
                 Some(5) => toggle_fullscreen.call(),
@@ -2424,8 +2390,6 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
             .map_or_else(|| fraction.get_untracked(), |splitter| splitter.fraction)
     });
     let start = shown.clone();
-    let dragged = dock;
-    let stepped = dock;
     view! {
         <Interactive
             capture_presses=true
@@ -2443,7 +2407,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                     _ => return false,
                 };
                 let next = shown() + step;
-                stepped.edit(|state| state.set_split_fraction(split, next));
+                dock.edit(|state| state.set_split_fraction(split, next));
                 true
             }}
             cursor={match direction {
@@ -2464,17 +2428,17 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                 if moved == 0.0 {
                     return;
                 }
-                let Some(splitter) = dragged.splitter_of(tree, split) else {
+                let Some(splitter) = dock.splitter_of(tree, split) else {
                     return;
                 };
                 let fraction = fraction_moved(
                     splitter.area,
                     splitter.direction,
-                    dragged.thickness,
+                    dock.thickness,
                     start,
                     moved,
                 );
-                dragged.edit(|state| state.set_split_fraction(split, fraction));
+                dock.edit(|state| state.set_split_fraction(split, fraction));
             }}
         >
             <Frame>{face}</Frame>
@@ -2517,9 +2481,6 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
     });
     let held: Rc<Cell<Option<(f32, Pos2)>>> = Rc::new(Cell::new(None));
     let grabbed = held.clone();
-    let start = width;
-    let dragged = dock;
-    let stepped = dock;
     view! {
         <Interactive
             focusable=true
@@ -2534,7 +2495,7 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
                     _ => return false,
                 };
                 let next = width.get_untracked() + step;
-                stepped.edit(|state| state.set_sidebar_width(leaf, next));
+                dock.edit(|state| state.set_sidebar_width(leaf, next));
                 true
             }}
             cursor=CursorIcon::ResizeHorizontal
@@ -2542,14 +2503,14 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
             on_hover_change={move |over: bool| hovered.set(over)}
             on_active_change={move |held: bool| active.set(held)}
             on_press={move |press: PointerPress| {
-                grabbed.set(Some((start.get_untracked(), press.pos)));
+                grabbed.set(Some((width.get_untracked(), press.pos)));
             }}
             on_drag={move |press: PointerPress| {
                 let Some((start, from)) = held.get() else {
                     return;
                 };
                 let next = start + (press.pos.x - from.x);
-                dragged.edit(|state| state.set_sidebar_width(leaf, next));
+                dock.edit(|state| state.set_sidebar_width(leaf, next));
             }}
             children={face}
         />
@@ -2662,26 +2623,15 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
         hoisted.is_some_and(|leaf| state.with(|state| state.is_vertical(leaf)))
     });
     let menu = dock.leaf_menu(hoisted);
-    let built = dock;
-    let grips = dock;
-    let marker = dock;
-    let grip_rect = placed;
     let overlay = NodeRef::new();
-    let raising = dock;
     let shows = dock.state;
     create_effect(move || {
         shows.with(DockState::shows);
         if focused.get() {
-            untrack(|| raising.raise_window(overlay));
+            untrack(|| dock.raise_window(overlay));
         }
     });
-    let lifted = overlay;
     let grabbed = StoredCell::new(None::<(Rect, Pos2)>);
-    let bar_rect = placed;
-    let pressed = dock;
-    let captor = dock;
-    let moved = dock;
-    let stretch = overshoot;
     let claimed = dock.drag_modifier;
     let resized = modifier_resize(dock, Resized::Window(surface));
     let view = view! {
@@ -2701,26 +2651,26 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                 <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                                     <Interactive
                                         capture_at={move |pos: Pos2| {
-                                            captor.surface_rect(surface).is_some_and(|window| window.contains(pos))
-                                                && captor.over_window_bar(surface, pos)
+                                            dock.surface_rect(surface).is_some_and(|window| window.contains(pos))
+                                                && dock.over_window_bar(surface, pos)
                                         }}
                                         claim_modifiers={claimed}
                                         on_secondary_drag={resized}
                                         on_press={move |press: PointerPress| {
-                                            let carried = pressed.modifier_held(press.modifiers);
-                                            let bar = carried || pressed.over_window_bar(surface, press.pos);
+                                            let carried = dock.modifier_held(press.modifiers);
+                                            let bar = carried || dock.over_window_bar(surface, press.pos);
                                             if bar { bounce.stop(); }
                                             grabbed.set(bar.then(|| {
-                                                let window = bar_rect.get_untracked();
-                                                let dimensions = pressed.rect.get_untracked().size();
+                                                let window = placed.get_untracked();
+                                                let dimensions = dock.rect.get_untracked().size();
                                                 let stretched = band.value().borrow_mut().grab(dimensions);
                                                 (window.translate(stretched), press.pos)
                                             }));
                                             let titled = carried
-                                                || pressed
+                                                || dock
                                                     .pane_rect(Tree::Surface(surface))
                                                     .is_some_and(|pane| !pane.contains(press.pos));
-                                            pressed.edit(|state| {
+                                            dock.edit(|state| {
                                                 let inside = state
                                                     .focused_leaf()
                                                     .and_then(|leaf| state.surface_of(leaf))
@@ -2732,8 +2682,8 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     state.focus(leaf);
                                                 }
                                             });
-                                            pressed.raise_window(lifted);
-                                            pressed.release_dialog_focus();
+                                            dock.raise_window(overlay);
+                                            dock.release_dialog_focus();
                                         }}
                                         on_drag={move |press: PointerPress| {
                                             let Some((start, from)) = grabbed.get() else {
@@ -2741,14 +2691,14 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                             };
                                             let placed =
                                                 Rect::from_min_size(start.min + (press.pos - from), start.size());
-                                            let bounds = moved.rect.get_untracked().size();
+                                            let bounds = dock.rect.get_untracked().size();
                                             let origin = reachable_origin(placed, bounds, reach());
                                             let banding = with_document(|document| document.motion().animates());
                                             let band = band.value();
                                             let mut band = band.borrow_mut();
                                             band.stretch(origin, placed.min - origin, bounds, banding, beui_core::timer::now());
-                                            stretch.set(band.offset);
-                                            moved.edit(|state| {
+                                            overshoot.set(band.offset);
+                                            dock.edit(|state| {
                                                 state.set_window_rect(
                                                     surface,
                                                     Rect::from_min_size(origin, start.size()),
@@ -2765,8 +2715,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                     >
                                         <List spacing=0.0>
                                             <Dynamic value={vertical}>|vertical: bool| {
-                                                let dock = built;
-                                                let toggled = dock;
+                                                let dock = dock;
                                                 let grip_face = dock.grip.call(DockGripHandle {
                                                     floating: true,
                                                     vertical,
@@ -2778,7 +2727,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                         vertical
                                                         toggle={move || {
                                                             if let Some(leaf) = hoisted {
-                                                                toggled.toggle_vertical(leaf);
+                                                                dock.toggle_vertical(leaf);
                                                             }
                                                         }}
                                                     >
@@ -2838,13 +2787,12 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                         </List>
                                     </Interactive>
                                 </CanvasItem>
-                                <DockDropMarker dock={marker} surface origin={origin} />
+                                <DockDropMarker dock={dock} surface origin={origin} />
                             </Canvas>
                         </Frame>
                     </CanvasItem>
                     <ForEach keys={GRIPS.to_vec()}>|(grip, upright): (Grip, bool)| {
-                        let dock = grips;
-                        let rect = grip_rect;
+                        let dock = dock;
                         let handle = create_memo(move || grip.rect(upright, size.get()));
                         let x = create_memo(move || handle.get().min.x);
                         let y = create_memo(move || handle.get().min.y);
@@ -2858,7 +2806,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                     cursor={grip.cursor()}
                                     capture_presses=true
                                     on_press={move |press: PointerPress| {
-                                        pressed.set((rect.get_untracked(), press.pos));
+                                        pressed.set((placed.get_untracked(), press.pos));
                                         let leaf = dock.state.with_untracked(|state| {
                                             state
                                                 .focused_leaf()
@@ -2868,7 +2816,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                         if let Some(leaf) = leaf {
                                             dock.edit(|state| state.focus(leaf));
                                         }
-                                        dock.raise_window(lifted);
+                                        dock.raise_window(overlay);
                                         dock.release_dialog_focus();
                                         if let Some(leaf) = leaf {
                                             dock.chrome_pressed(leaf, None);
@@ -2887,8 +2835,7 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             </Frame>
         </Overlay>
     };
-    let opened = dock;
-    create_effect(move || untrack(|| opened.raise_window(overlay)));
+    create_effect(move || untrack(|| dock.raise_window(overlay)));
     view
 }
 

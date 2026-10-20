@@ -12,38 +12,36 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
     let button = NodeRef::new();
     let rows = create_signal(0u32);
     let hovered = create_signal(0usize);
-    let document = build({
-        move || {
-            let over = create_signal(0usize);
-            create_effect(move || hovered.set(over.get()));
-            view! {
-                <List spacing=0.0>
-                    <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
-                        <ForEach keys={(0..20).collect::<Vec<i64>>()}>|row: i64|
-                            <Interactive
-                                on_hover_change={move |next: bool| {
-                                    over.update(|count| match next {
-                                        true => *count += 1,
-                                        false => *count -= 1,
-                                    });
-                                }}
-                            >
-                                <Button on_click={move || rows.update(|rows| *rows += 1)}>
-                                    <Text string={format!("row {row}")} />
-                                </Button>
-                            </Interactive>
-                        </ForEach>
-                    </Scroll>
-                    <Floating anchor={scroll} edge=Edge::Bottom>
-                        <Button
-                            @node_ref=&button
-                            on_click={move || pressed.update(|pressed| *pressed += 1)}
+    let document = build(move || {
+        let over = create_signal(0usize);
+        create_effect(move || hovered.set(over.get()));
+        view! {
+            <List spacing=0.0>
+                <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
+                    <ForEach keys={(0..20).collect::<Vec<i64>>()}>|row: i64|
+                        <Interactive
+                            on_hover_change={move |next: bool| {
+                                over.update(|count| match next {
+                                    true => *count += 1,
+                                    false => *count -= 1,
+                                });
+                            }}
                         >
-                            <Text string="reveal" />
-                        </Button>
-                    </Floating>
-                </List>
-            }
+                            <Button on_click={move || rows.update(|rows| *rows += 1)}>
+                                <Text string={format!("row {row}")} />
+                            </Button>
+                        </Interactive>
+                    </ForEach>
+                </Scroll>
+                <Floating anchor={scroll} edge=Edge::Bottom>
+                    <Button
+                        @node_ref=&button
+                        on_click={move || pressed.update(|pressed| *pressed += 1)}
+                    >
+                        <Text string="reveal" />
+                    </Button>
+                </Floating>
+            </List>
         }
     });
 

@@ -14,7 +14,6 @@ pub(crate) fn ScrollPage(children: Children<ListChild>) -> NodeId {
 #[component]
 pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Child) -> NodeId {
     let open = create_signal(false);
-    let pressed = open;
     let source = code.join("\n\n");
     view! {
         <List spacing=SECTION_SPACING>
@@ -29,7 +28,7 @@ pub(crate) fn Sample(title: &'static str, code: Vec<&'static str>, children: Chi
                     @test_id={format!("demo.code.{title}")}
                     label="Code"
                     glyph=ICON_CODE
-                    pressed={pressed}
+                    pressed={open}
                     on_change={move |shown| open.set(shown)}
                 />
             </List>

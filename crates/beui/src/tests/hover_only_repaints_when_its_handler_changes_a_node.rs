@@ -7,16 +7,14 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
     let _root = crate::reactive::RootScope::new();
     let hover_paints = create_signal(false);
     let fill = NodeRef::new();
-    let mut document = build({
-        move || {
-            view! {
-                <Interactive
-                    cursor=crate::CursorIcon::PointingHand
-                    on_hover_change={move |hovered| hover_paints.set(hovered)}
-                >
-                    <Frame @node_ref=&fill fill=Color32::WHITE radius=0.0 />
-                </Interactive>
-            }
+    let mut document = build(move || {
+        view! {
+            <Interactive
+                cursor=crate::CursorIcon::PointingHand
+                on_hover_change={move |hovered| hover_paints.set(hovered)}
+            >
+                <Frame @node_ref=&fill fill=Color32::WHITE radius=0.0 />
+            </Interactive>
         }
     });
     let fill = kind_of::<FrameNode>(&document, fill.get());

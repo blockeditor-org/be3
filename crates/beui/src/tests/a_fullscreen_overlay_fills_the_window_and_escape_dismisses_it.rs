@@ -9,18 +9,16 @@ fn a_fullscreen_overlay_fills_the_window_and_escape_dismisses_it() {
     let open = create_signal(false);
     let dismissed = create_signal(0);
     let content = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Fullscreen
-                        open={open}
-                        on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
-                    >
-                        <Frame fill=Color32::WHITE @node_ref={&content} />
-                    </Fullscreen>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Fullscreen
+                    open={open}
+                    on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
+                >
+                    <Frame fill=Color32::WHITE @node_ref={&content} />
+                </Fullscreen>
+            </List>
         }
     });
 

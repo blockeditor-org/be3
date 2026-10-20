@@ -381,9 +381,6 @@ fn SimulationPanel(session: Session) -> NodeId {
     let storage = create_memo(move || shown.get().storage);
     let tick = move || session.update(LogicGridEditor::run_simulation_tick);
     let step = move || session.update(LogicGridEditor::run_simulation_instruction);
-    let frame_shown = shown;
-    let instruction_shown = shown;
-    let input_shown = shown;
     view! {
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -419,7 +416,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                     <List spacing=2.0>
                         <ForEach keys={frames}>|index: usize| {
                             let row = create_memo(move || {
-                                frame_shown.get().frames.get(index).cloned()
+                                shown.get().frames.get(index).cloned()
                             });
                             let label = create_memo(move || {
                                 row.get().map(|row| row.0).unwrap_or_default()
@@ -447,7 +444,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                     <List spacing=2.0>
                         <ForEach keys={instructions}>|index: usize| {
                             let row = create_memo(move || {
-                                instruction_shown.get().instructions.get(index).cloned()
+                                shown.get().instructions.get(index).cloned()
                             });
                             view! {
                                 <InstructionRow session={session} row={row} index={index} />
@@ -462,7 +459,7 @@ fn SimulationPanel(session: Session) -> NodeId {
                     <List spacing=4.0>
                         <ForEach keys={inputs}>|index: usize| {
                             let row = create_memo(move || {
-                                input_shown.get().inputs.get(index).cloned()
+                                shown.get().inputs.get(index).cloned()
                             });
                             view! {
                                 <InputRow session={session} row={row} index={index} />
@@ -636,7 +633,6 @@ fn ChallengePanel(session: Session) -> NodeId {
     let step = move || session.update(LogicGridEditor::challenge_test_step);
     let run = move || session.update(LogicGridEditor::challenge_test_run_all);
     let reset = move || session.update(LogicGridEditor::challenge_test_reset);
-    let rows_shown = shown;
     view! {
         <List spacing=SPACING>
             <Text string={goal} />
@@ -670,7 +666,7 @@ fn ChallengePanel(session: Session) -> NodeId {
                             <TableRow cells={header} />
                             <ForEach keys={ticks}>|tick: usize| {
                                 let row = create_memo(move || {
-                                    rows_shown
+                                    shown
                                         .get()
                                         .and_then(|shown| shown.rows.get(tick).cloned())
                                 });
@@ -982,9 +978,8 @@ fn GraphPanel(session: Session) -> NodeId {
     let drawn = create_memo(move || !empty.get());
     let width = create_memo(move || Some(shape.get().size.x));
     let height = create_memo(move || Some(shape.get().size.y));
-    let painted = shape;
     let draw: Prop<Draw> = Prop::dynamic(move || {
-        let shape = painted.get();
+        let shape = shape.get();
         Rc::new(move |painter: &Painter, rect: Rect| paint_graph(painter, rect, &shape)) as Draw
     });
     view! {

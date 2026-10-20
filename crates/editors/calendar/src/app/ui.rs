@@ -90,7 +90,6 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
     };
     let pick_event = move |event: Shown| form.set(Some(EventForm::edit(&event)));
 
-    let form_read_only = read_only;
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
     editor.content(&content);
@@ -178,7 +177,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                         }</Dynamic>
                     </List>
                 </Frame>
-                <EventDialog form={form} read_only={form_read_only} on_operate={operate} />
+                <EventDialog form={form} read_only={read_only} on_operate={operate} />
             </List>
         </Frame>
     }

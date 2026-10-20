@@ -122,11 +122,9 @@ pub fn Select(
         })
     });
     let accessibility = crate::labelled_node(Role::ComboBox, accessibility, label);
-    let trigger_disabled = disabled;
     let labelled = options.clone();
-    let chosen = selected;
     let label = create_memo(move || {
-        let index = chosen.get()?;
+        let index = selected.get()?;
         labelled
             .items()
             .get(index)
@@ -147,7 +145,7 @@ pub fn Select(
             hovered: handle.hovered,
             active: handle.active,
             focused: handle.focused,
-            disabled: trigger_disabled,
+            disabled,
         })
     };
 
@@ -252,10 +250,9 @@ fn SelectRow(
         (row.button, row.label)
     };
     let visible = create_memo(move || shows(&state.search_text.get().to_lowercase(), &label.get()));
-    let accessibility_label = label;
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::ListBoxOption);
-        node.set_label(accessibility_label.get());
+        node.set_label(label.get());
         node.set_selected(state.selected.get() == Some(index));
         node
     });

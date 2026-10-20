@@ -228,9 +228,8 @@ pub fn BackSlide(
         move || slide.value().finish(),
     );
     slide.with(|slide| slide.animation.set(Some(animation)));
-    let watched = enabled;
     create_effect(move || {
-        if !watched.get() {
+        if !enabled.get() {
             untrack(|| {
                 let slide = slide.value();
                 let phase = slide.state.borrow().phase;

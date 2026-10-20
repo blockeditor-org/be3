@@ -10,26 +10,24 @@ fn a_catcher_under_an_open_dialog_hears_no_press() {
     let _root = crate::reactive::RootScope::new();
     let open = create_signal(true);
     let heard = create_signal(Vec::<Event>::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Canvas>
-                        <CanvasItem x=0.0 y=0.0 width={VIEWPORT.x} height={VIEWPORT.y}>
-                            <Interactive
-                                on_forward={move |input: ForwardedInput| {
-                                    heard.update(|heard| heard.extend(flattened(input)))
-                                }}
-                            >
-                                <Frame />
-                            </Interactive>
-                        </CanvasItem>
-                    </Canvas>
-                    <Dialog open={open} title="Event" width=300.0 on_dismiss={|| {}}>
-                        <Text string="Body" color=Color32::WHITE />
-                    </Dialog>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Canvas>
+                    <CanvasItem x=0.0 y=0.0 width={VIEWPORT.x} height={VIEWPORT.y}>
+                        <Interactive
+                            on_forward={move |input: ForwardedInput| {
+                                heard.update(|heard| heard.extend(flattened(input)))
+                            }}
+                        >
+                            <Frame />
+                        </Interactive>
+                    </CanvasItem>
+                </Canvas>
+                <Dialog open={open} title="Event" width=300.0 on_dismiss={|| {}}>
+                    <Text string="Body" color=Color32::WHITE />
+                </Dialog>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

@@ -22,23 +22,21 @@ fn holding_a_finger_down_opens_a_context_menu() {
     let menu = NodeRef::new();
     let clicked = create_signal(0);
     let cancelled = create_signal(0);
-    let document = crate::reactive::build({
-        move || {
-            view! {
-                <ContextMenu
-                    @node_ref=&menu
-                    items={view! {
-                        <MenuItem label="Copy" />
-                    }}
+    let document = crate::reactive::build(move || {
+        view! {
+            <ContextMenu
+                @node_ref=&menu
+                items={view! {
+                    <MenuItem label="Copy" />
+                }}
+            >
+                <Interactive
+                    on_click={move || clicked.update(|clicked| *clicked += 1)}
+                    on_cancel={move || cancelled.update(|cancelled| *cancelled += 1)}
                 >
-                    <Interactive
-                        on_click={move || clicked.update(|clicked| *clicked += 1)}
-                        on_cancel={move || cancelled.update(|cancelled| *cancelled += 1)}
-                    >
-                        <Frame width=300.0 height=300.0 />
-                    </Interactive>
-                </ContextMenu>
-            }
+                    <Frame width=300.0 height=300.0 />
+                </Interactive>
+            </ContextMenu>
         }
     });
     let mut harness = Harness::new(document);

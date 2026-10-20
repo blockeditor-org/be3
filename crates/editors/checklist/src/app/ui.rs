@@ -67,11 +67,6 @@ pub fn Checklist(editor: Editor) -> NodeId {
     let empty = create_memo(move || visible.get().is_empty());
     let clear_disabled = create_memo(move || done_count.get() == 0);
 
-    let submit_draft = draft;
-    let add_draft = draft;
-    let add_set_draft = draft;
-    let open_filter = filter;
-    let done_filter = filter;
     let rows = move |id: ObjectId| {
         view! {
             <ChecklistRow checklist={checklist} id />
@@ -97,7 +92,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 @test_id={"checklist.draft"}
                                 on_change={move |value| draft.set(value)}
                                 on_submit={move |value| {
-                                    add_item(&checklist, submit_draft, value);
+                                    add_item(&checklist, draft, value);
                                 }}
                             />
                             <Button
@@ -105,7 +100,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                 variant=ButtonVariant::Primary
                                 @test_id={"checklist.add"}
                                 on_click={move || {
-                                    add_item(&checklist, add_set_draft, add_draft.get());
+                                    add_item(&checklist, draft, draft.get());
                                 }}
                             />
                         </List>
@@ -126,13 +121,13 @@ pub fn Checklist(editor: Editor) -> NodeId {
                                     label="Open"
                                     pressed={selected_filter.memo(Filter::Open)}
                                     @test_id={"checklist.filter.open"}
-                                    on_change={move |_| open_filter.set(Filter::Open)}
+                                    on_change={move |_| filter.set(Filter::Open)}
                                 />
                                 <ToggleButton
                                     label="Done"
                                     pressed={selected_filter.memo(Filter::Done)}
                                     @test_id={"checklist.filter.done"}
-                                    on_change={move |_| done_filter.set(Filter::Done)}
+                                    on_change={move |_| filter.set(Filter::Done)}
                                 />
                             </List>
                             <Button

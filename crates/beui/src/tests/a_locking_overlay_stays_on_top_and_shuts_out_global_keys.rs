@@ -15,43 +15,41 @@ fn a_locking_overlay_stays_on_top_and_shuts_out_global_keys() {
     let dismissed = create_signal(0);
     let typed = create_signal(String::new());
     let (lock, popup) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            on_global_key(move |event: KeyEvent| {
-                globals.update(|globals| *globals += 1);
-                event.press().is_some_and(|press| press.modifiers.ctrl)
-            });
-            view! {
-                <List spacing=0.0>
-                    <TextInput @test_id={"outside"} value="" />
-                    <Overlay
-                        @node_ref=&popup
-                        anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
-                        placement=Placement::At
-                        open={menu}
-                    >
-                        <Frame width=40.0 height=30.0 @test_id={"menu"} />
-                    </Overlay>
-                    <Overlay
-                        @node_ref=&lock
-                        anchor=OverlayAnchor::Point(Pos2::ZERO)
-                        placement=Placement::Fill
-                        scrim=Color32::BLACK
-                        level=LayerLevel::Lock
-                        open={locked}
-                        on_dismiss={move |_: Dismiss| dismissed.update(|dismissed| *dismissed += 1)}
-                    >
-                        <Frame width=200.0 height=40.0>
-                            <TextInput
-                                @test_id={"password"}
-                                value=""
-                                password=true
-                                on_change={move |value: String| typed.set(value)}
-                            />
-                        </Frame>
-                    </Overlay>
-                </List>
-            }
+    let document = build(move || {
+        on_global_key(move |event: KeyEvent| {
+            globals.update(|globals| *globals += 1);
+            event.press().is_some_and(|press| press.modifiers.ctrl)
+        });
+        view! {
+            <List spacing=0.0>
+                <TextInput @test_id={"outside"} value="" />
+                <Overlay
+                    @node_ref=&popup
+                    anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
+                    placement=Placement::At
+                    open={menu}
+                >
+                    <Frame width=40.0 height=30.0 @test_id={"menu"} />
+                </Overlay>
+                <Overlay
+                    @node_ref=&lock
+                    anchor=OverlayAnchor::Point(Pos2::ZERO)
+                    placement=Placement::Fill
+                    scrim=Color32::BLACK
+                    level=LayerLevel::Lock
+                    open={locked}
+                    on_dismiss={move |_: Dismiss| dismissed.update(|dismissed| *dismissed += 1)}
+                >
+                    <Frame width=200.0 height=40.0>
+                        <TextInput
+                            @test_id={"password"}
+                            value=""
+                            password=true
+                            on_change={move |value: String| typed.set(value)}
+                        />
+                    </Frame>
+                </Overlay>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

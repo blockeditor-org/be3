@@ -9,22 +9,20 @@ const BREAKPOINT: f32 = 500.0;
 fn tabs_collapse_into_a_select_when_their_container_is_narrow() {
     let _root = crate::reactive::RootScope::new();
     let tabs = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <Container>|_|
-                    <ResponsiveTabs
-                        @node_ref=&tabs
-                        options={view! {
-                            <unstyled::ChoiceOption label="List" />
-                            <unstyled::ChoiceOption label="Load" />
-                            <unstyled::ChoiceOption label="Name" />
-                        }}
-                        selected=1
-                        breakpoint=BREAKPOINT
-                    />
-                </Container>
-            }
+    let document = build(move || {
+        view! {
+            <Container>|_|
+                <ResponsiveTabs
+                    @node_ref=&tabs
+                    options={view! {
+                        <unstyled::ChoiceOption label="List" />
+                        <unstyled::ChoiceOption label="Load" />
+                        <unstyled::ChoiceOption label="Name" />
+                    }}
+                    selected=1
+                    breakpoint=BREAKPOINT
+                />
+            </Container>
         }
     });
     let tabs = tabs.get();

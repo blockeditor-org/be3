@@ -255,7 +255,6 @@ fn PickerPanel(
         };
         least.max(field_width.get())
     });
-    let width = panel_width;
     view! {
         <Frame width=panel_width>
             <List spacing=PANEL_SPACING>
@@ -269,7 +268,7 @@ fn PickerPanel(
                         times
                         page
                         show_page={show_page}
-                        width={width}
+                        width={panel_width}
                         first_weekday
                         step_minutes
                     />
@@ -307,7 +306,6 @@ fn PanelBody(
     let alone = create_memo(move || width.get().min(CALENDAR_MAX_WIDTH));
     let dates = create_memo(move || page.get() == 0);
     let times_shown = create_memo(move || page.get() == 1);
-    let alone_date = alone;
     view! {
         <List spacing=PANEL_SPACING>
             <Show condition={shape == DateTimePanelLayout::Beside}>
@@ -324,7 +322,7 @@ fn PanelBody(
             </Show>
             <Show condition={shape == DateTimePanelLayout::Date}>
                 <Centred>
-                    <CalendarPane handle={calendar} width={alone_date} first_weekday />
+                    <CalendarPane handle={calendar} width={alone} first_weekday />
                 </Centred>
             </Show>
             <Show condition={shape == DateTimePanelLayout::Time}>

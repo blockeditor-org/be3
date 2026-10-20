@@ -7,23 +7,21 @@ fn focus_loss_and_hidden_content_cancel_keyboard_activation() {
     let _root = crate::reactive::RootScope::new();
     let clicks = create_signal(0);
     let button = NodeRef::new();
-    let (document, [hidden, _after]) = toolbar_of({
-        move || {
-            [
-                view! {
-                    <Frame visible=true>
-                        <LabelledButton
-                            @node_ref=&button
-                            label="Click"
-                            on_click={move || clicks.update(|clicks| *clicks += 1)}
-                        />
-                    </Frame>
-                },
-                view! {
-                    <LabelledButton label="After" />
-                },
-            ]
-        }
+    let (document, [hidden, _after]) = toolbar_of(move || {
+        [
+            view! {
+                <Frame visible=true>
+                    <LabelledButton
+                        @node_ref=&button
+                        label="Click"
+                        on_click={move || clicks.update(|clicks| *clicks += 1)}
+                    />
+                </Frame>
+            },
+            view! {
+                <LabelledButton label="After" />
+            },
+        ]
     });
     let button = button.get();
     let hidden = kind_of::<FrameNode>(&document, hidden);

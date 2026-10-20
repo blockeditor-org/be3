@@ -126,9 +126,8 @@ fn ToastCard(
         activates,
         sticky: _,
     } = toast;
-    let expire = on_dismiss;
     let expiry = create_timer(move || {
-        expire.call(id);
+        on_dismiss.call(id);
         None
     });
     if let Some(duration) = duration {
@@ -213,8 +212,7 @@ fn ToastCard(
                         id
                         actions={actions.clone()}
                         on_action={{
-                            let acting = on_action;
-                            move |chosen: (u64, String)| acting.call(chosen)
+                            move |chosen: (u64, String)| on_action.call(chosen)
                         }}
                     />
                 </Show>

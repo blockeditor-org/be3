@@ -70,20 +70,17 @@ pub fn ColorArea(
         node
     }));
 
-    let set = {
-        move |saturation: f32, value: f32| {
-            if disabled.get_untracked() {
-                return;
-            }
-            let current = color.get_untracked();
-            let next = Hsva::new(current.hue, saturation, value, current.alpha);
-            if next != current {
-                color.set(next);
-                on_change.call(next);
-            }
+    let set = move |saturation: f32, value: f32| {
+        if disabled.get_untracked() {
+            return;
+        }
+        let current = color.get_untracked();
+        let next = Hsva::new(current.hue, saturation, value, current.alpha);
+        if next != current {
+            color.set(next);
+            on_change.call(next);
         }
     };
-    let (drag_set, key_set, step_set) = (set, set, set);
     let grab = Rc::new(Cell::new(Vec2::ZERO));
     let (press_grab, press_color) = (grab.clone(), color);
     let grabbed = move |press: PointerPress| {
@@ -118,7 +115,6 @@ pub fn ColorArea(
             false => CursorIcon::Crosshair,
         }
     });
-    let (key_color, step_color) = (color, color);
     let content_node = content.call(ColorAreaHandle {
         color: color.read_only(),
         x,
@@ -136,14 +132,14 @@ pub fn ColorArea(
             focused
             on_focus_change={move |focused: bool| has_focus.set(focused)}
             on_step={move |delta: f32| {
-                let color = step_color.get_untracked();
-                step_set(color.saturation + delta * STEP, color.value);
+                let color = color.get_untracked();
+                set(color.saturation + delta * STEP, color.value);
             }}
             on_key={move |press: KeyPress| {
                 if press.modifiers.ctrl || press.modifiers.alt {
                     return false;
                 }
-                let color = key_color.get_untracked();
+                let color = color.get_untracked();
                 let step = if press.modifiers.shift { PAGE } else { STEP };
                 let (saturation, value) = (color.saturation, color.value);
                 let next = match press.key {
@@ -158,7 +154,7 @@ pub fn ColorArea(
                     _ => return false,
                 };
                 if press.pressed {
-                    key_set(next.0, next.1);
+                    set(next.0, next.1);
                 }
                 true
             }}
@@ -169,7 +165,7 @@ pub fn ColorArea(
             on_press={grabbed}
             on_drag={move |press: PointerPress| {
                 let (x, y) = dragged_to(press);
-                drag_set(x, 1.0 - y)
+                set(x, 1.0 - y)
             }}
             on_active_change={move |active: bool| {
                 dragging.set(active);

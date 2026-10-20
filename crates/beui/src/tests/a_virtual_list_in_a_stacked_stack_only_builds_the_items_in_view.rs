@@ -12,45 +12,43 @@ fn a_virtual_list_in_a_stacked_stack_only_builds_the_items_in_view() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let scroll = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <Container>|_| {
-                    let narrow = narrower_than(BREAKPOINT);
-                    let size = create_memo(move || if narrow.get() {
-                        ItemSize::Fixed(STACKED_LIST_HEIGHT)
-                    } else {
-                        ItemSize::Percent(100.0)
-                    });
-                    view! {
-                        <Stack spacing=0.0 breakpoint=BREAKPOINT>
-                            <Spacer @sizing=ItemSize::Percent(50.0) />
-                            <List @sizing=ItemSize::Percent(50.0) spacing=0.0>
-                                <List @sizing={size} spacing=0.0>
-                                    <VirtualList
-                                        @sizing=ItemSize::Percent(100.0)
-                                        @node_ref=&scroll
-                                        keys={indices(VIRTUAL_ITEM_COUNT)}
-                                        item_size=VIRTUAL_ITEM_HEIGHT
-                                    >|index: ReadSignal<usize>| {
-                                        create_binding(move || {
-                                            let index = index.get();
-                                            built.update(|built| built.push(index));
-                                        });
-                                        view! {
-                                            <Frame
-                                                padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
-                                            >
-                                                <Spacer />
-                                            </Frame>
-                                        }
-                                    }</VirtualList>
-                                </List>
+    let document = build(move || {
+        view! {
+            <Container>|_| {
+                let narrow = narrower_than(BREAKPOINT);
+                let size = create_memo(move || if narrow.get() {
+                    ItemSize::Fixed(STACKED_LIST_HEIGHT)
+                } else {
+                    ItemSize::Percent(100.0)
+                });
+                view! {
+                    <Stack spacing=0.0 breakpoint=BREAKPOINT>
+                        <Spacer @sizing=ItemSize::Percent(50.0) />
+                        <List @sizing=ItemSize::Percent(50.0) spacing=0.0>
+                            <List @sizing={size} spacing=0.0>
+                                <VirtualList
+                                    @sizing=ItemSize::Percent(100.0)
+                                    @node_ref=&scroll
+                                    keys={indices(VIRTUAL_ITEM_COUNT)}
+                                    item_size=VIRTUAL_ITEM_HEIGHT
+                                >|index: ReadSignal<usize>| {
+                                    create_binding(move || {
+                                        let index = index.get();
+                                        built.update(|built| built.push(index));
+                                    });
+                                    view! {
+                                        <Frame
+                                            padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}
+                                        >
+                                            <Spacer />
+                                        </Frame>
+                                    }
+                                }</VirtualList>
                             </List>
-                        </Stack>
-                    }
-                }</Container>
-            }
+                        </List>
+                    </Stack>
+                }
+            }</Container>
         }
     });
 

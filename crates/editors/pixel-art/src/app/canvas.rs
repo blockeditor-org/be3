@@ -54,20 +54,17 @@ pub(crate) fn ArtworkCanvas(
                 untrack(|| tools.constrained.set(shift));
             });
 
-            let press_size = size;
-            let press_view = view;
-            let press_artwork = artwork;
             let on_press = move |press: PointerPress| {
-                let (width, height) = press_size.get_untracked();
+                let (width, height) = size.get_untracked();
                 if width == 0 || tools.busy() || !tools.editable() {
                     return;
                 }
                 tools.constrained.set(press.modifiers.shift);
                 let Some(pixel) = pixel_of(
                     press.pos,
-                    press_view.get_untracked(),
+                    view.get_untracked(),
                     editor.content_rect(),
-                    press_artwork.get_untracked(),
+                    artwork.get_untracked(),
                     width,
                     height,
                 ) else {
@@ -76,20 +73,17 @@ pub(crate) fn ArtworkCanvas(
                 begin(tools, pixel);
             };
 
-            let drag_size = size;
-            let drag_view = view;
-            let drag_artwork = artwork;
             let on_drag = move |press: PointerPress| {
-                let (width, height) = drag_size.get_untracked();
+                let (width, height) = size.get_untracked();
                 if width == 0 || tools.busy() || !tools.editable() {
                     return;
                 }
                 tools.constrained.set(press.modifiers.shift);
                 let Some(pixel) = pixel_of(
                     press.pos,
-                    drag_view.get_untracked(),
+                    view.get_untracked(),
                     editor.content_rect(),
-                    drag_artwork.get_untracked(),
+                    artwork.get_untracked(),
                     width,
                     height,
                 ) else {
@@ -102,20 +96,17 @@ pub(crate) fn ArtworkCanvas(
                 });
             };
 
-            let release_size = size;
-            let release_view = view;
-            let release_artwork = artwork;
             let on_click_at = move |press: PointerPress| {
-                let (width, height) = release_size.get_untracked();
+                let (width, height) = size.get_untracked();
                 if width == 0 || tools.busy() || !tools.editable() {
                     return;
                 }
                 tools.constrained.set(press.modifiers.shift);
                 if let Some(pixel) = pixel_of(
                     press.pos,
-                    release_view.get_untracked(),
+                    view.get_untracked(),
                     editor.content_rect(),
-                    release_artwork.get_untracked(),
+                    artwork.get_untracked(),
                     width,
                     height,
                 ) {
@@ -123,19 +114,16 @@ pub(crate) fn ArtworkCanvas(
                 }
             };
 
-            let sample_size = size;
-            let sample_view = view;
-            let sample_artwork = artwork;
             let on_secondary = move |press: PointerPress| {
-                let (width, height) = sample_size.get_untracked();
+                let (width, height) = size.get_untracked();
                 if width == 0 {
                     return;
                 }
                 if let Some(pixel) = pixel_of(
                     press.pos,
-                    sample_view.get_untracked(),
+                    view.get_untracked(),
                     editor.content_rect(),
-                    sample_artwork.get_untracked(),
+                    artwork.get_untracked(),
                     width,
                     height,
                 ) {
@@ -143,41 +131,35 @@ pub(crate) fn ArtworkCanvas(
                 }
             };
 
-            let hover_size = size;
-            let hover_view = view;
-            let hover_artwork = artwork;
             let on_hover_move = move |press: PointerPress| {
-                let (width, height) = hover_size.get_untracked();
+                let (width, height) = size.get_untracked();
                 if width == 0 {
                     return;
                 }
                 tools.constrained.set(press.modifiers.shift);
                 hovered.set(pixel_of(
                     press.pos,
-                    hover_view.get_untracked(),
+                    view.get_untracked(),
                     editor.content_rect(),
-                    hover_artwork.get_untracked(),
+                    artwork.get_untracked(),
                     width,
                     height,
                 ));
             };
-            let left = hovered;
-            let on_hover_change = move |hovered: bool| {
-                if !hovered {
-                    left.set(None);
+            let on_hover_change = move |inside: bool| {
+                if !inside {
+                    hovered.set(None);
                 }
             };
 
-            let hover = hovered;
-            let frame_size = size;
             let theme = use_theme();
             let background = theme.background;
             create_effect(move || {
-                let (width, height) = frame_size.get();
+                let (width, height) = size.get();
                 if width == 0 {
                     return;
                 }
-                let (pixels, color) = pending(tools, hover.get(), width, height);
+                let (pixels, color) = pending(tools, hovered.get(), width, height);
                 let dark = is_dark(background.get());
                 pane.refresh(&tools.block(), dark, &pixels, color);
             });
@@ -345,7 +327,6 @@ fn Artwork(
             * cell.get()
     });
     let thin = create_memo(move || 1.0 / scale.get().max(f32::EPSILON));
-    let border = thin;
     let lines = create_memo(move || {
         let shown = shown.get();
         if !show_grid.get() || cell.get() * scale.get() < GRID_MIN_CELL {
@@ -380,7 +361,7 @@ fn Artwork(
             </CanvasItem>
             <CanvasItem x={left} y={top} width={width} height={height}>
                 <Frame
-                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(border.get())))}
+                    border={create_memo(move || Some(Border::new(ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, BORDER_ALPHA))).width(thin.get())))}
                 />
             </CanvasItem>
             <CanvasItem x={preview_x} y={preview_y} width={preview_width} height={preview_height}>

@@ -183,7 +183,6 @@ pub fn Sidebar(
 
 #[component]
 fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child) -> NodeId {
-    let body = children;
     let layout = use_context::<ChromeLayout>();
     let narrow = narrow_chrome();
     let shown = create_memo(move || shown.get());
@@ -192,9 +191,9 @@ fn SidebarFrame(side: Side, shown: Prop<bool>, width: Prop<f32>, children: Child
     let leading = create_memo(move || docked.get() && side == Side::Right);
     let trailing = create_memo(move || docked.get() && side == Side::Left);
     if let Some(layout) = layout {
-        fold_into_sheet(layout, body, folded);
+        fold_into_sheet(layout, children, folded);
     }
-    let held = create_memo(move || docked.get().then_some(body));
+    let held = create_memo(move || docked.get().then_some(children));
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame visible={leading} width=BORDER_WIDTH fill=ColorRole::Border />
@@ -246,7 +245,6 @@ pub fn Toolbar(
 
 #[component]
 fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
-    let row = children;
     let shown = create_memo(move || shown.get());
     let fit = create_memo(move || fit.get());
     let squeezed = narrow_chrome();
@@ -261,8 +259,8 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
         None => create_memo(|| false),
     };
     let fitted_toggle = create_memo(move || offers.get() && squeezed.get() && fit.get());
-    let spread = create_memo(move || roomy.get().then_some(row));
-    let scrolled = create_memo(move || narrow.get().then_some(row));
+    let spread = create_memo(move || roomy.get().then_some(children));
+    let scrolled = create_memo(move || narrow.get().then_some(children));
     view! {
         <Frame visible={shown} fill=ColorRole::Surface>
             <List spacing=0.0>

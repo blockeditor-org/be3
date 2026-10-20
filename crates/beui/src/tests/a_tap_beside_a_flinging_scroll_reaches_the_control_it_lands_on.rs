@@ -8,24 +8,22 @@ fn a_tap_beside_a_flinging_scroll_reaches_the_control_it_lands_on() {
     let _root = crate::reactive::RootScope::new();
     let clicks = create_signal(0);
     let (scroll, beside) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List direction=Direction::Horizontal spacing=0.0>
-                    <Scroll @sizing=ItemSize::Percent(50.0) @node_ref=&scroll>
-                        <ForEach keys={indices(300)}>|index: usize|
-                            <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
-                        </ForEach>
-                    </Scroll>
-                    <Interactive
-                        @node_ref=&beside
-                        @sizing=ItemSize::Percent(50.0)
-                        on_click={move || clicks.update(|clicks| *clicks += 1)}
-                    >
-                        <Frame />
-                    </Interactive>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List direction=Direction::Horizontal spacing=0.0>
+                <Scroll @sizing=ItemSize::Percent(50.0) @node_ref=&scroll>
+                    <ForEach keys={indices(300)}>|index: usize|
+                        <LabelledButton label={format!("Row {index}")} on_click={|| {}} />
+                    </ForEach>
+                </Scroll>
+                <Interactive
+                    @node_ref=&beside
+                    @sizing=ItemSize::Percent(50.0)
+                    on_click={move || clicks.update(|clicks| *clicks += 1)}
+                >
+                    <Frame />
+                </Interactive>
+            </List>
         }
     });
     let (scroll, beside) = (scroll.get(), beside.get());

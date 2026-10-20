@@ -143,19 +143,15 @@ pub fn Scrollbar(
         engaged,
     });
 
-    let paged = on_scroll_to;
-    let (pressed_axis, dragged_axis, hovered_axis) = (direction, direction, direction);
-    let (pressed_at, dragged_at, hovered_at, hit_position) =
-        (position, position, position, position);
     let (pressed_grab, dragged_grab, active_grab) = (grab.clone(), grab.clone(), grab);
     view! {
         <Interactive
             on_press={move |press: PointerPress| {
-                let position = pressed_at.get_untracked();
+                let position = position.get_untracked();
                 if position.max_offset() <= 0.0 {
                     return;
                 }
-                let at = along(&pressed_axis, press);
+                let at = along(&direction, press);
                 if over_thumb(position, at) {
                     pressed_grab.set(Some(at - thumb_start(position)));
                     return;
@@ -165,21 +161,21 @@ pub fn Scrollbar(
                     true => -position.viewport,
                     false => position.viewport,
                 };
-                paged.call((position.offset + page).clamp(0.0, position.max_offset()));
+                on_scroll_to.call((position.offset + page).clamp(0.0, position.max_offset()));
             }}
             on_drag={move |press: PointerPress| {
                 let Some(grab) = dragged_grab.get() else {
                     return;
                 };
-                let position = dragged_at.get_untracked();
+                let position = position.get_untracked();
                 if position.max_offset() <= 0.0 {
                     return;
                 }
-                on_scroll_to.call(offset_at(position, along(&dragged_axis, press) - grab));
+                on_scroll_to.call(offset_at(position, along(&direction, press) - grab));
             }}
             on_hover_move={move |press: PointerPress| {
-                let position = hovered_at.get_untracked();
-                let at = along(&hovered_axis, press);
+                let position = position.get_untracked();
+                let at = along(&direction, press);
                 hovered.set(position.max_offset() > 0.0 && over_thumb(position, at));
             }}
             on_hover_change={move |inside: bool| {
@@ -189,7 +185,7 @@ pub fn Scrollbar(
                 }
             }}
             hit_at={move |_: Pos2| {
-                shown.get_untracked() && hit_position.get_untracked().max_offset() > 0.0
+                shown.get_untracked() && position.get_untracked().max_offset() > 0.0
             }}
             on_active_change={move |active: bool| {
                 held.set(active);

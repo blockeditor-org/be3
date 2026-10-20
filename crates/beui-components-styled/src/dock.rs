@@ -229,10 +229,8 @@ fn DockTabChrome(
         true => TextColor::Default,
         false => TextColor::Muted,
     });
-    let glyph = label;
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
     let pictured = create_memo(move || !grouped && !shows_picture.get() && !icon.get().is_empty());
-    let icon_color = label;
     let title_size = match vertical {
         true => ItemSize::Percent(100.0),
         false => ItemSize::Intrinsic,
@@ -247,12 +245,12 @@ fn DockTabChrome(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
-                    <Text size=TextSize::Sm color={glyph} align=TextAlign::Center>
+                    <Text size=TextSize::Sm color={label} align=TextAlign::Center>
                         <Icon glyph=ICON_TAB_GROUP />
                     </Text>
                 </Show>
                 <Show condition={pictured}>
-                    <Text size=TextSize::Sm color={icon_color} align=TextAlign::Center>
+                    <Text size=TextSize::Sm color={label} align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>
                 </Show>

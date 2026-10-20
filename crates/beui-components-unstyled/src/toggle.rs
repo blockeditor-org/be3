@@ -97,8 +97,7 @@ pub fn Toggle(
         on_change.call(next);
     };
     let key_toggle = toggle_checked.clone();
-    let tab_disabled = disabled;
-    let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !tab_disabled.get());
+    let tab_stop = tab_stop.map(move |tab_stop| tab_stop && !disabled.get());
     let cursor = create_memo(move || match disabled.get() {
         true => CursorIcon::Default,
         false => CursorIcon::PointingHand,

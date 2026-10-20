@@ -126,9 +126,8 @@ fn OsdCard(level: Memo<Option<OsdLevel>>, opacity: ReadSignal<f32>, id: String) 
     let theme = use_theme();
     let faded =
         move |color: Memo<Color32>| create_memo(move || color.get().scale_alpha(opacity.get()));
-    let shown = level;
     let muted =
-        create_memo(move || shown.with(|level| level.as_ref().is_some_and(|level| level.muted)));
+        create_memo(move || level.with(|level| level.as_ref().is_some_and(|level| level.muted)));
     let raised = theme.surface_raised;
     let border = theme.border;
     let track = theme.track;

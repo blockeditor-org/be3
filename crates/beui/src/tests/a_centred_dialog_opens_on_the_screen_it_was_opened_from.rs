@@ -12,30 +12,27 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
     let right = Rect::from_min_size(pos2(700.0, 0.0), vec2(500.0, 400.0));
     let open = create_signal(false);
     let body = NodeRef::new();
-    let document = build({
-        let (opening, reopening) = (open, open);
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <List direction=Direction::Horizontal justify=Justify::SpaceBetween spacing=0.0>
-                        <Button
-                            label="Left"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"left"}
-                            on_click={move || opening.set(true)}
-                        />
-                        <Button
-                            label="Right"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"right"}
-                            on_click={move || reopening.set(true)}
-                        />
-                    </List>
-                    <Dialog open={open} title="About" width=300.0 on_dismiss={|| {}}>
-                        <Text string="Body" color=Color32::WHITE @node_ref={&body} />
-                    </Dialog>
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <List direction=Direction::Horizontal justify=Justify::SpaceBetween spacing=0.0>
+                    <Button
+                        label="Left"
+                        variant=ButtonVariant::Secondary
+                        @test_id={"left"}
+                        on_click={move || open.set(true)}
+                    />
+                    <Button
+                        label="Right"
+                        variant=ButtonVariant::Secondary
+                        @test_id={"right"}
+                        on_click={move || open.set(true)}
+                    />
                 </List>
-            }
+                <Dialog open={open} title="About" width=300.0 on_dismiss={|| {}}>
+                    <Text string="Body" color=Color32::WHITE @node_ref={&body} />
+                </Dialog>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, vec2(1200.0, 500.0));

@@ -8,15 +8,13 @@ use crate::styled::*;
 fn a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it() {
     let _root = crate::reactive::RootScope::new();
     let (text, region) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <SelectableText @node_ref=&region>
-                    <List spacing=4.0>
-                        <Text @node_ref=&text string="hello world" />
-                    </List>
-                </SelectableText>
-            }
+    let document = build(move || {
+        view! {
+            <SelectableText @node_ref=&region>
+                <List spacing=4.0>
+                    <Text @node_ref=&text string="hello world" />
+                </List>
+            </SelectableText>
         }
     });
     let mut harness = Harness::new(document);

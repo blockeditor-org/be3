@@ -510,7 +510,6 @@ pub fn Selectable(
             with_document(|document| state.paint(document));
         });
     });
-    let focused = focusable;
     on_key(KeyAt::Node(focusable), KeyPhase::Bubble, move |event| {
         event.press().is_some_and(|press| key(state, press))
     });
@@ -523,7 +522,7 @@ pub fn Selectable(
             claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
                 with_document(|document| state.handle_at(document, pos).is_some())
             }}
-            on_press={move |event: PointerPress| press(state, &focused, on_toolbar, event)}
+            on_press={move |event: PointerPress| press(state, &focusable, on_toolbar, event)}
             on_drag={move |event: PointerPress| drag(state, event)}
             on_click_at={move |event: PointerPress| tap(state, on_toolbar, event)}
             on_secondary_press={move |event: PointerPress| long_press(state, on_toolbar, event)}

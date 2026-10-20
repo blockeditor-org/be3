@@ -7,7 +7,6 @@ use crate::reactive::*;
 fn an_embed_punches_a_hole_in_the_surface_it_sits_on() {
     let _root = crate::reactive::RootScope::new();
     let slot = EmbedSlot::new();
-    let embed = slot;
     let solid = EmbedSlot::new();
 
     let document = build(move || {
@@ -15,7 +14,7 @@ fn an_embed_punches_a_hole_in_the_surface_it_sits_on() {
             <Frame fill=Color32::WHITE>
                 <List spacing=0.0>
                     <Frame width=120.0 height=80.0>
-                        <Embed slot={embed} />
+                        <Embed slot={slot} />
                     </Frame>
                     <Frame width=120.0 height=80.0>
                         <Embed slot={solid} punch=false />

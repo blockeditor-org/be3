@@ -9,18 +9,16 @@ fn the_edge_two_rows_share_hovers_only_the_lower_one() {
     let _root = crate::reactive::RootScope::new();
     let upper = create_signal(false);
     let lower = create_signal(false);
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Interactive on_hover_change={move |hovered| upper.set(hovered)}>
-                        <Frame height=ROW />
-                    </Interactive>
-                    <Interactive on_hover_change={move |hovered| lower.set(hovered)}>
-                        <Frame height=ROW />
-                    </Interactive>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Interactive on_hover_change={move |hovered| upper.set(hovered)}>
+                    <Frame height=ROW />
+                </Interactive>
+                <Interactive on_hover_change={move |hovered| lower.set(hovered)}>
+                    <Frame height=ROW />
+                </Interactive>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

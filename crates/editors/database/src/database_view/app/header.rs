@@ -92,7 +92,6 @@ fn NarrowHeader(data: Data) -> NodeId {
     let count = row_count(data);
     let open = move || sheet.set(true);
     let close = move || sheet.set(false);
-    let done = close;
     view! {
         <Frame padding={Sides::horizontal(GUTTER).top(8.0).bottom(8.0)}>
             <List spacing=SPACING>
@@ -135,7 +134,7 @@ fn NarrowHeader(data: Data) -> NodeId {
                                     label="Done"
                                     variant=ButtonVariant::Ghost
                                     @test_id={"database-view.sheet.done"}
-                                    on_click={done}
+                                    on_click={close}
                                 />
                             </List>
                             <Text style=TextStyle::CAPTION string="Filters" />

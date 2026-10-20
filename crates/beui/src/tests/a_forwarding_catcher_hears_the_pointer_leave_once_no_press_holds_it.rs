@@ -16,21 +16,19 @@ fn lefts(heard: ReadSignal<Vec<Forwarded>>) -> usize {
 fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     let _root = crate::reactive::RootScope::new();
     let heard = create_signal(Vec::<Forwarded>::new());
-    let document = build({
-        move || {
-            view! {
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive
-                            on_forward={move |input: ForwardedInput| {
-                                heard.update(|heard| heard.extend(input.events))
-                            }}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
-            }
+    let document = build(move || {
+        view! {
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive
+                        on_forward={move |input: ForwardedInput| {
+                            heard.update(|heard| heard.extend(input.events))
+                        }}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);

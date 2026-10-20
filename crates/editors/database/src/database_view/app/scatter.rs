@@ -172,7 +172,6 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
     });
     let x = create_memo(move || point.get().map_or(0.0, |point| point.x - side.get() * 0.5));
     let y = create_memo(move || point.get().map_or(0.0, |point| point.y - side.get() * 0.5));
-    let width = side;
     let theme = use_theme();
     let color = create_memo(move || match selected.get() {
         true => theme.accent.get(),
@@ -180,7 +179,7 @@ fn Dot(placed: Memo<Vec<Point>>, data: Data, row: usize) -> CanvasItem {
     });
     let radius = create_memo(move || Radius::custom((side.get() * 0.5).floor()));
     view! {
-        <CanvasItem x={x} y={y} width={width} height={side}>
+        <CanvasItem x={x} y={y} width={side} height={side}>
             <Frame
                 @test_id={format!("database-view.point.{row}")}
                 fill={ColorRole::custom(color)}

@@ -152,8 +152,6 @@ where
                 let item = create_memo({ let key = key.clone(); move || item.call(key.clone()) });
                 let selected = selection.memo(Some(key.clone()));
                 let marked = burial.memo(Some(key.clone()));
-                let hover = on_hover_change;
-                let dragging = on_drag_start;
                 view! {
                     <TreeRow
                         row_key={key}
@@ -165,8 +163,8 @@ where
                         state={state}
                         nodes={nodes}
                         row={row}
-                        on_hover_change={hover}
-                        on_drag_start={dragging}
+                        on_hover_change={on_hover_change}
+                        on_drag_start={on_drag_start}
                     />
                 }
             }</ForEach>
@@ -191,7 +189,6 @@ fn TreeRow<K>(
 where
     K: Clone + Eq + Hash + 'static,
 {
-    let key = row_key;
     let accessibility = create_memo(move || {
         let item = item.get();
         let mut node = Node::new(Role::TreeItem);
@@ -204,17 +201,21 @@ where
         node
     });
     component_accessibility(accessibility);
-    let (blur_key, press_key, typed_key, content_key) =
-        (key.clone(), key.clone(), key.clone(), key.clone());
-    let (nodes_key, cleanup_key) = (key.clone(), key.clone());
-    let (select_key, toggle_key) = (key.clone(), key.clone());
+    let (blur_key, press_key, typed_key, content_key) = (
+        row_key.clone(),
+        row_key.clone(),
+        row_key.clone(),
+        row_key.clone(),
+    );
+    let (nodes_key, cleanup_key) = (row_key.clone(), row_key.clone());
+    let (select_key, toggle_key) = (row_key.clone(), row_key.clone());
     let chosen = ClickCallback::new(move || select(state, &select_key));
     let expand = ClickCallback::new(move || toggle(state, &toggle_key));
-    let hover_key = key.clone();
+    let hover_key = row_key.clone();
     let hover = Callback::new(move |over: bool| {
         on_hover_change.call((hover_key.clone(), over));
     });
-    let drag_key = key.clone();
+    let drag_key = row_key.clone();
     let drag_start = ClickCallback::new(move || on_drag_start.call(drag_key.clone()));
     let hovered = create_signal(false);
     let active = create_signal(false);
@@ -235,8 +236,8 @@ where
         <Interactive
             @node_ref=&built
             focusable=true
-            tab_stop={tab_stop.memo(Some(key.clone()))}
-            focused={focused.memo(Some(key))}
+            tab_stop={tab_stop.memo(Some(row_key.clone()))}
+            focused={focused.memo(Some(row_key))}
             on_focus_change={move |focused: bool| {
                 has_focus.set(focused);
                 track_focus(state, &blur_key, focused);

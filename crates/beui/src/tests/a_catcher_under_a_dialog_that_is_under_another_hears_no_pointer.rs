@@ -12,25 +12,23 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
     let above = create_signal(false);
     let heard = create_signal(Vec::<Event>::new());
     let catcher = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Dialog open={open} title="Below" width=600.0 on_dismiss={|| {}}>
-                        <Interactive
-                            @node_ref={&catcher}
-                            on_forward={move |input: ForwardedInput| {
-                                heard.update(|heard| heard.extend(flattened(input)))
-                            }}
-                        >
-                            <Frame height=300.0 />
-                        </Interactive>
-                    </Dialog>
-                    <Dialog open={above} title="Above" width=200.0 on_dismiss={|| {}}>
-                        <Text string="Body" color=Color32::WHITE />
-                    </Dialog>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Dialog open={open} title="Below" width=600.0 on_dismiss={|| {}}>
+                    <Interactive
+                        @node_ref={&catcher}
+                        on_forward={move |input: ForwardedInput| {
+                            heard.update(|heard| heard.extend(flattened(input)))
+                        }}
+                    >
+                        <Frame height=300.0 />
+                    </Interactive>
+                </Dialog>
+                <Dialog open={above} title="Above" width=200.0 on_dismiss={|| {}}>
+                    <Text string="Body" color=Color32::WHITE />
+                </Dialog>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

@@ -9,22 +9,20 @@ fn a_context_menu_item_follows_the_signals_its_tag_was_written_with() {
     let label = create_signal("Paste".to_owned());
     let blocked = create_signal(true);
     let selected = create_signal(Vec::new());
-    let (document, [menu]) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label disabled={blocked} />
-            };
-            [view! {
-                <ContextMenu
-                    items
-                    on_select={move |path| {
-                        selected.update(|selected| selected.push(path));
-                    }}
-                >
-                    <MenuRegion @node_ref=&region />
-                </ContextMenu>
-            }]
-        }
+    let (document, [menu]) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label disabled={blocked} />
+        };
+        [view! {
+            <ContextMenu
+                items
+                on_select={move |path| {
+                    selected.update(|selected| selected.push(path));
+                }}
+            >
+                <MenuRegion @node_ref=&region />
+            </ContextMenu>
+        }]
     });
     let region = region.get();
     let mut harness = Harness::new(document);

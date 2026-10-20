@@ -8,22 +8,20 @@ fn a_finger_press_that_moves_the_focus_keeps_it_when_the_finger_lifts() {
     let wanted = create_signal(false);
     let pressed = NodeRef::new();
     let field = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Interactive
-                        @node_ref={&pressed}
-                        focusable=true
-                        on_press={move |_: PointerPress| wanted.set(true)}
-                    >
-                        <Frame height=100.0 />
-                    </Interactive>
-                    <Interactive @node_ref={&field} focusable=true focused={wanted}>
-                        <Frame height=100.0 />
-                    </Interactive>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Interactive
+                    @node_ref={&pressed}
+                    focusable=true
+                    on_press={move |_: PointerPress| wanted.set(true)}
+                >
+                    <Frame height=100.0 />
+                </Interactive>
+                <Interactive @node_ref={&field} focusable=true focused={wanted}>
+                    <Frame height=100.0 />
+                </Interactive>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

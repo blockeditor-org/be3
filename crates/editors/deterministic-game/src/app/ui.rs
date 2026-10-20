@@ -212,14 +212,13 @@ fn GameShape(
     let loading = shape == Shape::Loading;
     let failed = shape == Shape::Error;
     let playing = shape == Shape::Screen;
-    let failure = snapshot;
     view! {
         <List spacing=0.0>
             <Show condition=loading>
                 <Loading @sizing=ItemSize::Percent(100.0) label="Loading the game" />
             </Show>
             <Show condition=failed>
-                <GameError snapshot={failure} />
+                <GameError snapshot={snapshot} />
             </Show>
             <Show condition=playing>
                 <GamePlay
@@ -319,7 +318,6 @@ fn GamePlay(
     let stage = NodeRef::new();
     editor.content(&stage);
     let chrome = editor.chrome_shown();
-    let banner_anchor = stage;
     view! {
         <List spacing=0.0>
             <Keyed value={chrome} key={|shown: bool| shown}>|chrome: ReadSignal<bool>| {
@@ -357,7 +355,7 @@ fn GamePlay(
                     },
                 }
             }</Keyed>
-            <Banner anchor={banner_anchor} table />
+            <Banner anchor={stage} table />
         </List>
     }
 }
@@ -452,17 +450,15 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
     let question = format!("{label}?");
     let confirm = format!("Confirm: {label}");
     let effect = action.effect;
-    let (ask, cancel) = (confirming, confirming);
-    let asking_disabled = disabled;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <Show condition={asking}>
                 <IconButton
                     glyph={glyph.to_owned()}
                     label={label.clone()}
-                    disabled={asking_disabled}
+                    disabled={disabled}
                     @test_id={format!("game.control.{index}")}
-                    on_click={move || ask.set(true)}
+                    on_click={move || confirming.set(true)}
                 />
             </Show>
             <Show condition={confirming}>|| {
@@ -480,7 +476,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
                             glyph={ICON_CLOSE.to_owned()}
                             label="Cancel"
                             @test_id={format!("game.control.{index}.cancel")}
-                            on_click={move || cancel.set(false)}
+                            on_click={move || confirming.set(false)}
                         />
                     </List>
                 }

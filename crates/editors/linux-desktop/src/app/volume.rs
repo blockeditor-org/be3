@@ -41,7 +41,6 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
     let shown = create_memo(move || output.get().map(percent).unwrap_or_default());
     let muted = create_memo(move || output.get().is_some_and(|output| output.muted));
     let listed = create_memo(move || !levels.with(|levels| levels.outputs.is_empty()));
-    let (setting, muting) = (editor, editor);
     view! {
         <List spacing=SPACING @test_id={"desktop.volume.panel"}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -50,7 +49,7 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                     value={volume}
                     label="Volume"
                     @test_id={"desktop.volume.level"}
-                    on_change={move |level: f32| setting.act(MediaRequest::SetVolume(level))}
+                    on_change={move |level: f32| editor.act(MediaRequest::SetVolume(level))}
                 />
                 <Text @sizing=ItemSize::Fixed(PERCENT_WIDTH) string={shown} />
             </List>
@@ -60,7 +59,7 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                     on={muted}
                     label="Mute"
                     @test_id={"desktop.volume.mute"}
-                    on_change={move |mute: bool| muting.act(MediaRequest::SetMute(mute))}
+                    on_change={move |mute: bool| editor.act(MediaRequest::SetMute(mute))}
                 />
             </List>
             <Show condition={listed}>
@@ -85,7 +84,6 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
         let chosen = levels.with(|levels| levels.default_output.clone())?;
         outputs.with(|outputs| outputs.iter().position(|output| output.id == chosen))
     });
-    let named = outputs;
     let choose = move |index: Option<usize>| {
         let chosen = index.and_then(|index| {
             outputs.with_untracked(|outputs| outputs.get(index).map(|output| output.id.clone()))
@@ -101,7 +99,7 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                 options={view! {
                     <ForEach keys={keys}>|id: String| {
                         let label = create_memo(move || {
-                            named.with(|outputs| {
+                            outputs.with(|outputs| {
                                 outputs
                                     .iter()
                                     .find(|output| output.id == id)

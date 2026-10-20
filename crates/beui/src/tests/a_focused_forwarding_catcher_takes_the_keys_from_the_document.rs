@@ -7,29 +7,27 @@ use crate::reactive::*;
 fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
     let _root = crate::reactive::RootScope::new();
     let keys = create_signal(Vec::<Event>::new());
-    let document = build({
-        move || {
-            view! {
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive
-                            focusable=true
-                            on_forward={move |input: ForwardedInput| {
-                                if input.focused {
-                                    keys.update(|keys| keys.extend(flattened(input)));
-                                }
-                            }}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                    <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive focusable=true>
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
-            }
+    let document = build(move || {
+        view! {
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive
+                        focusable=true
+                        on_forward={move |input: ForwardedInput| {
+                            if input.focused {
+                                keys.update(|keys| keys.extend(flattened(input)));
+                            }
+                        }}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+                <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive focusable=true>
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);

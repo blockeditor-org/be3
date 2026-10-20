@@ -10,22 +10,20 @@ fn a_back_gesture_slides_a_dialog_away_before_it_closes() {
     let open = create_signal(false);
     let dismissed = create_signal(0);
     let body = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Dialog
-                        open={open}
-                        width=300.0
-                        on_dismiss={move || {
-                            dismissed.update(|dismissed| *dismissed += 1);
-                            open.set(false);
-                        }}
-                    >
-                        <Text string="Body" color=Color32::WHITE @node_ref={&body} />
-                    </Dialog>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Dialog
+                    open={open}
+                    width=300.0
+                    on_dismiss={move || {
+                        dismissed.update(|dismissed| *dismissed += 1);
+                        open.set(false);
+                    }}
+                >
+                    <Text string="Body" color=Color32::WHITE @node_ref={&body} />
+                </Dialog>
+            </List>
         }
     });
 

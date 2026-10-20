@@ -11,39 +11,37 @@ fn a_scroll_mixes_plain_children_with_a_nested_virtual_list() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <List spacing=0.0>
+                        <Frame height=HEADER>
+                            <Spacer />
+                        </Frame>
                         <List spacing=0.0>
-                            <Frame height=HEADER>
-                                <Spacer />
-                            </Frame>
-                            <List spacing=0.0>
-                                <VirtualList
-                                    @node_ref=&list
-                                    keys={indices(ROWS)}
-                                    item_size=VIRTUAL_ITEM_HEIGHT
-                                >|index: ReadSignal<usize>| {
-                                    create_binding(move || {
-                                        let index = index.get();
-                                        built.update(|built| built.push(index));
-                                    });
-                                    view! {
-                                        <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                            <Spacer />
-                                        </Frame>
-                                    }
-                                }</VirtualList>
-                            </List>
-                            <Frame height=FOOTER>
-                                <Spacer />
-                            </Frame>
+                            <VirtualList
+                                @node_ref=&list
+                                keys={indices(ROWS)}
+                                item_size=VIRTUAL_ITEM_HEIGHT
+                            >|index: ReadSignal<usize>| {
+                                create_binding(move || {
+                                    let index = index.get();
+                                    built.update(|built| built.push(index));
+                                });
+                                view! {
+                                    <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                        <Spacer />
+                                    </Frame>
+                                }
+                            }</VirtualList>
                         </List>
-                    </Offset>
-                </List>
-            }
+                        <Frame height=FOOTER>
+                            <Spacer />
+                        </Frame>
+                    </List>
+                </Offset>
+            </List>
         }
     });
     let (scroll, list) = (scroll.get(), list.get());

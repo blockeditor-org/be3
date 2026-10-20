@@ -15,52 +15,50 @@ fn an_inert_layer_opening_rises_alone_and_leaves_its_window_where_it_was() {
         NodeRef::new(),
         NodeRef::new(),
     );
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Overlay
-                        @node_ref=&below
-                        anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
-                        placement=Placement::At
-                        policy=LayerPolicy::Pass
-                        traps_focus=false
-                        open=true
-                    >
-                        <List spacing=0.0>
-                            <Frame width=40.0 height=30.0 />
-                            <Overlay
-                                @node_ref=&inert
-                                anchor=OverlayAnchor::Point(pos2(20.0, 40.0))
-                                placement=Placement::At
-                                policy=LayerPolicy::Inert
-                                traps_focus=false
-                                open={tip}
-                            >
-                                <Frame width=20.0 height=10.0 />
-                            </Overlay>
-                            <Overlay
-                                @node_ref=&blocking
-                                anchor=OverlayAnchor::Point(pos2(20.0, 40.0))
-                                placement=Placement::At
-                                open={menu}
-                            >
-                                <Frame width=20.0 height=10.0 />
-                            </Overlay>
-                        </List>
-                    </Overlay>
-                    <Overlay
-                        @node_ref=&above
-                        anchor=OverlayAnchor::Point(pos2(30.0, 10.0))
-                        placement=Placement::At
-                        policy=LayerPolicy::Pass
-                        traps_focus=false
-                        open=true
-                    >
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Overlay
+                    @node_ref=&below
+                    anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
+                    placement=Placement::At
+                    policy=LayerPolicy::Pass
+                    traps_focus=false
+                    open=true
+                >
+                    <List spacing=0.0>
                         <Frame width=40.0 height=30.0 />
-                    </Overlay>
-                </List>
-            }
+                        <Overlay
+                            @node_ref=&inert
+                            anchor=OverlayAnchor::Point(pos2(20.0, 40.0))
+                            placement=Placement::At
+                            policy=LayerPolicy::Inert
+                            traps_focus=false
+                            open={tip}
+                        >
+                            <Frame width=20.0 height=10.0 />
+                        </Overlay>
+                        <Overlay
+                            @node_ref=&blocking
+                            anchor=OverlayAnchor::Point(pos2(20.0, 40.0))
+                            placement=Placement::At
+                            open={menu}
+                        >
+                            <Frame width=20.0 height=10.0 />
+                        </Overlay>
+                    </List>
+                </Overlay>
+                <Overlay
+                    @node_ref=&above
+                    anchor=OverlayAnchor::Point(pos2(30.0, 10.0))
+                    placement=Placement::At
+                    policy=LayerPolicy::Pass
+                    traps_focus=false
+                    open=true
+                >
+                    <Frame width=40.0 height=30.0 />
+                </Overlay>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

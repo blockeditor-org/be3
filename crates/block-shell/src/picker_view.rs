@@ -189,7 +189,6 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
         true => None,
         false => Some(PICKER_HEIGHT),
     };
-    let (tab_act, search_act, tile_act, link_act, import_act) = (act, act, act, act, act);
     view! {
         <List spacing=10.0>
             <PlacingFields workspace held act />
@@ -202,7 +201,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                         2 => PickerTab::LinkExisting,
                         _ => PickerTab::Import,
                     };
-                    tab_act.call(PickAction::Tab(tab));
+                    act.call(PickAction::Tab(tab));
                 }}
                 options={view! {
                     <ChoiceOption label="Add" />
@@ -224,7 +223,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                                         sections.get().into_iter().find(|section| section.key == key)
                                     });
                                     view! {
-                                        <TileSectionView act={tile_act} section />
+                                        <TileSectionView act={act} section />
                                     }
                                 }</ForEach>
                             </List>
@@ -236,11 +235,11 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                             placeholder="Search by name or UUID"
                             label="Search"
                             @test_id={"picker.search"}
-                            on_change={move |value: String| search_act.call(PickAction::Search(value))}
+                            on_change={move |value: String| act.call(PickAction::Search(value))}
                         />
                     </Show>
                     <Show condition={importing}>
-                        <ImportArea held act={import_act} />
+                        <ImportArea held act={act} />
                     </Show>
                     <Show condition={linking}>
                         <PickerArea @sizing=ItemSize::Percent(100.0) scrolls={!phone}>
@@ -253,7 +252,7 @@ fn ChooseBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act, phone: b
                                         links.get().into_iter().find(|link| link.id == block)
                                     });
                                     view! {
-                                        <LinkButton act={link_act} link />
+                                        <LinkButton act={act} link />
                                     }
                                 }</ForEach>
                             </List>

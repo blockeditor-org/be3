@@ -124,14 +124,11 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
     });
 
     let chrome = editor.chrome_shown();
-    let canvas_size = size;
-    let top_chrome = chrome;
-    let left_chrome = chrome;
     view! {
         <List spacing=0.0>
-            <TopBar tools={tools} size={size} shown={top_chrome} />
+            <TopBar tools={tools} size={size} shown={chrome} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
-                <Sidebar side=Side::Left shown={left_chrome} width=TOOLS_WIDTH>
+                <Sidebar side=Side::Left shown={chrome} width=TOOLS_WIDTH>
                     <ToolsPanel tools={tools} />
                 </Sidebar>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
@@ -140,7 +137,7 @@ fn PixelArtEditor(editor: Editor) -> NodeId {
                         tools={tools}
                         pane={pane}
                         shown={shown}
-                        size={canvas_size}
+                        size={size}
                         hovered={hovered}
                     />
                     <HoverLabel tools={tools} hovered={hovered.read_only()} />

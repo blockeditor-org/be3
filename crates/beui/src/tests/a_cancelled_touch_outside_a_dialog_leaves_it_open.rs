@@ -8,20 +8,18 @@ fn a_cancelled_touch_outside_a_dialog_leaves_it_open() {
     let _root = crate::reactive::RootScope::new();
     let open = create_signal(false);
     let dismissed = create_signal(0);
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Dialog
-                        open={open}
-                        title="Event"
-                        width=300.0
-                        on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
-                    >
-                        <Text string="Body" color=Color32::WHITE />
-                    </Dialog>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Dialog
+                    open={open}
+                    title="Event"
+                    width=300.0
+                    on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
+                >
+                    <Text string="Body" color=Color32::WHITE />
+                </Dialog>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

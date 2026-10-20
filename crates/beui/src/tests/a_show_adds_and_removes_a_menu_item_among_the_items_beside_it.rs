@@ -8,26 +8,24 @@ fn a_show_adds_and_removes_a_menu_item_among_the_items_beside_it() {
     let region = NodeRef::new();
     let pasteable = create_signal(false);
     let selected = create_signal(Vec::new());
-    let (document, [menu]) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="Copy" />
-                <Show condition={pasteable}>
-                    <unstyled::MenuItem label="Paste" />
-                </Show>
-                <unstyled::MenuItem label="Delete" />
-            };
-            [view! {
-                <ContextMenu
-                    items
-                    on_select={move |path| {
-                        selected.update(|selected| selected.push(path));
-                    }}
-                >
-                    <MenuRegion @node_ref=&region />
-                </ContextMenu>
-            }]
-        }
+    let (document, [menu]) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label="Copy" />
+            <Show condition={pasteable}>
+                <unstyled::MenuItem label="Paste" />
+            </Show>
+            <unstyled::MenuItem label="Delete" />
+        };
+        [view! {
+            <ContextMenu
+                items
+                on_select={move |path| {
+                    selected.update(|selected| selected.push(path));
+                }}
+            >
+                <MenuRegion @node_ref=&region />
+            </ContextMenu>
+        }]
     });
     let region = region.get();
     let mut harness = Harness::new(document);

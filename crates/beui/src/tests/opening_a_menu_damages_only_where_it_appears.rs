@@ -6,18 +6,16 @@ use crate::styled::*;
 fn opening_a_menu_damages_only_where_it_appears() {
     let _root = crate::reactive::RootScope::new();
     let region = NodeRef::new();
-    let (document, [_menu]) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="Copy" />
-                <unstyled::MenuItem label="Paste" />
-            };
-            [view! {
-                <ContextMenu items>
-                    <MenuRegion @node_ref=&region />
-                </ContextMenu>
-            }]
-        }
+    let (document, [_menu]) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label="Copy" />
+            <unstyled::MenuItem label="Paste" />
+        };
+        [view! {
+            <ContextMenu items>
+                <MenuRegion @node_ref=&region />
+            </ContextMenu>
+        }]
     });
     let region = region.get();
     let mut harness = Harness::new(document);

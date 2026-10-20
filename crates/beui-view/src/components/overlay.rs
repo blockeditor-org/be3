@@ -26,10 +26,9 @@ pub fn Overlay(
     content: Option<Render<()>>,
 ) -> NodeId {
     let lazy = RefCell::new(content.map(|content| (content, child_scope(|| ()).1)));
-    let content = children;
     let overlay = with_document(|document| {
         let overlay = document.create_overlay(anchor.get_untracked(), Placement::BelowStart);
-        if let Some(content) = content {
+        if let Some(content) = children {
             document.set_overlay_content(overlay, content);
         }
         document.set_overlay_trigger(overlay, trigger);

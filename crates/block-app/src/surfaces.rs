@@ -139,38 +139,30 @@ pub(crate) fn HostedSurface(id: SurfaceId) -> NodeId {
 #[component]
 pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
     let kind = content.get_untracked();
-    let text = create_memo({
-        move || match content.get() {
-            HostItem::Notice { text, .. } => text,
-            HostItem::Fallback { name, .. } => name,
-            HostItem::Unsupported { block, .. } => format!("Block: {block}"),
-        }
+    let text = create_memo(move || match content.get() {
+        HostItem::Notice { text, .. } => text,
+        HostItem::Fallback { name, .. } => name,
+        HostItem::Unsupported { block, .. } => format!("Block: {block}"),
     });
-    let detail = create_memo({
-        move || match content.get() {
-            HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
-            _ => String::new(),
-        }
+    let detail = create_memo(move || match content.get() {
+        HostItem::Unsupported { block_type, .. } => format!("Type: {block_type}"),
+        _ => String::new(),
     });
-    let italic = create_memo({
-        move || {
-            matches!(
-                content.get(),
-                HostItem::Fallback {
-                    automatic: true,
-                    ..
-                }
-            )
-        }
+    let italic = create_memo(move || {
+        matches!(
+            content.get(),
+            HostItem::Fallback {
+                automatic: true,
+                ..
+            }
+        )
     });
     let spinning =
-        create_memo({ move || matches!(content.get(), HostItem::Notice { spinner: true, .. }) });
-    let glyph = create_memo({
-        move || match content.get() {
-            HostItem::Fallback { icon, .. } => icon.unwrap_or_default(),
-            HostItem::Notice { icon, .. } => icon.unwrap_or_default().to_owned(),
-            HostItem::Unsupported { .. } => String::new(),
-        }
+        create_memo(move || matches!(content.get(), HostItem::Notice { spinner: true, .. }));
+    let glyph = create_memo(move || match content.get() {
+        HostItem::Fallback { icon, .. } => icon.unwrap_or_default(),
+        HostItem::Notice { icon, .. } => icon.unwrap_or_default().to_owned(),
+        HostItem::Unsupported { .. } => String::new(),
     });
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     let (surface, outline, color) = match kind {

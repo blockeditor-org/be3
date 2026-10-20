@@ -396,7 +396,6 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
             .collect::<Vec<Uuid>>()
     });
     let none = create_memo(move || keys.with(Vec::is_empty));
-    let names = shown;
     let name = create_signal(String::new());
     create_effect(move || {
         if made.get() {
@@ -420,7 +419,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                         </Show>
                         <ForEach keys={keys}>|account: Uuid| {
                             let label = create_memo(move || {
-                                names
+                                shown
                                     .get()
                                     .agents
                                     .iter()

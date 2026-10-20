@@ -20,7 +20,6 @@ pub fn ListRow(
     on_click: ClickCallback,
     on_activate: ClickCallback,
 ) -> NodeId {
-    let face = selected;
     let activates = !on_activate.is_empty();
     view! {
         <unstyled::ListRow
@@ -30,7 +29,7 @@ pub fn ListRow(
             on_click={on_click}
             on_activate={on_activate}
         >|handle: ButtonHandle|
-            <ListRowFace handle selected={face}>{children}</ListRowFace>
+            <ListRowFace handle selected={selected}>{children}</ListRowFace>
         </unstyled::ListRow>
     }
 }

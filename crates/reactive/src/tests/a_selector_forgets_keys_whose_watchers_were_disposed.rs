@@ -8,17 +8,15 @@ fn a_selector_forgets_keys_whose_watchers_were_disposed() {
     let selector = scope.run(|| create_selector(move || selected.get()));
     let watch_left = create_signal(true);
     let rows = scope.run(Scope::new);
-    rows.run({
-        move || {
-            for index in 0..3 {
-                create_effect(move || {
-                    selector.is_selected(&index);
-                });
-            }
+    rows.run(move || {
+        for index in 0..3 {
             create_effect(move || {
-                selector.is_selected(&if watch_left.get() { 0 } else { 9 });
+                selector.is_selected(&index);
             });
         }
+        create_effect(move || {
+            selector.is_selected(&if watch_left.get() { 0 } else { 9 });
+        });
     });
     assert_eq!(selector.watched_keys(), 3);
     watch_left.set(false);

@@ -10,37 +10,35 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
     let _root = crate::reactive::RootScope::new();
     let chosen = create_signal::<Vec<usize>>(Vec::new());
     let tree = NodeRef::new();
-    let document = build({
-        move || {
-            let item = |key: usize| TreeItem {
-                label: format!("row {key}"),
-                depth: 0,
-                expandable: false,
-                expanded: false,
-            };
-            view! {
-                <unstyled::Tree
-                    @node_ref=&tree
-                    keys={vec![0usize, 1]}
-                    item
-                    selected=None
-                    on_select={move |key: usize| chosen.update(|chosen| chosen.push(key))}
-                    on_expand={move |_: (usize, bool)| {}}
-                >|handle: TreeRowHandle<usize>| {
-                    let TreeRowHandle { key, select, .. } = handle;
-                    view! {
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Spacer @sizing=ItemSize::Fixed(MARGIN) />
-                            <Interactive @sizing=ItemSize::Percent(100.0) on_click={select}>
-                                <Text
-                                    @test_id={format!("name.{key}")}
-                                    string={format!("row {key}")}
-                                />
-                            </Interactive>
-                        </List>
-                    }
-                }</unstyled::Tree>
-            }
+    let document = build(move || {
+        let item = |key: usize| TreeItem {
+            label: format!("row {key}"),
+            depth: 0,
+            expandable: false,
+            expanded: false,
+        };
+        view! {
+            <unstyled::Tree
+                @node_ref=&tree
+                keys={vec![0usize, 1]}
+                item
+                selected=None
+                on_select={move |key: usize| chosen.update(|chosen| chosen.push(key))}
+                on_expand={move |_: (usize, bool)| {}}
+            >|handle: TreeRowHandle<usize>| {
+                let TreeRowHandle { key, select, .. } = handle;
+                view! {
+                    <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                        <Spacer @sizing=ItemSize::Fixed(MARGIN) />
+                        <Interactive @sizing=ItemSize::Percent(100.0) on_click={select}>
+                            <Text
+                                @test_id={format!("name.{key}")}
+                                string={format!("row {key}")}
+                            />
+                        </Interactive>
+                    </List>
+                }
+            }</unstyled::Tree>
         }
     });
 

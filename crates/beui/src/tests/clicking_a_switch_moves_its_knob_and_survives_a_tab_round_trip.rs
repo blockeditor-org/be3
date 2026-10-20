@@ -8,17 +8,15 @@ fn clicking_a_switch_moves_its_knob_and_survives_a_tab_round_trip() {
     let tab = create_signal(0usize);
     let switch_ref = NodeRef::new();
 
-    let (document, [_panel]) = toolbar_of({
-        move || {
-            let condition = create_memo(move || tab.get() == 0);
-            [view! {
-                <List spacing=0.0>
-                    <ShowKeepAlive condition>
-                        <Switch @node_ref=&switch_ref on=false />
-                    </ShowKeepAlive>
-                </List>
-            }]
-        }
+    let (document, [_panel]) = toolbar_of(move || {
+        let condition = create_memo(move || tab.get() == 0);
+        [view! {
+            <List spacing=0.0>
+                <ShowKeepAlive condition>
+                    <Switch @node_ref=&switch_ref on=false />
+                </ShowKeepAlive>
+            </List>
+        }]
     });
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());

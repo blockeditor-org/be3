@@ -8,19 +8,17 @@ fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {
     let _root = crate::reactive::RootScope::new();
     let drawing = NodeRef::new();
     let asking = create_signal(None);
-    let mut document = build({
-        move || {
-            let on = create_signal(true);
-            asking.update(|asking| *asking = Some(on));
-            let draw: Prop<Draw> = Prop::dynamic(move || match on.get() {
-                true => blinking(),
-                false => still(),
-            });
-            view! {
-                <Frame width=40.0 height=20.0>
-                    <Drawing @node_ref=&drawing draw={draw} />
-                </Frame>
-            }
+    let mut document = build(move || {
+        let on = create_signal(true);
+        asking.update(|asking| *asking = Some(on));
+        let draw: Prop<Draw> = Prop::dynamic(move || match on.get() {
+            true => blinking(),
+            false => still(),
+        });
+        view! {
+            <Frame width=40.0 height=20.0>
+                <Drawing @node_ref=&drawing draw={draw} />
+            </Frame>
         }
     });
     let drawing = drawing.get();

@@ -79,9 +79,8 @@ pub fn CommandPalette(
     };
     set_component_state(state);
 
-    let opened = open;
     create_effect(move || {
-        if opened.get() {
+        if open.get() {
             untrack(|| start(state));
         }
     });
@@ -165,7 +164,6 @@ fn CommandRow(
     });
     let glyph = action.glyph().to_owned();
     let shortcut = action.shortcut_label();
-    let face_disabled = disabled;
     view! {
         <unstyled::Button
             @node_ref={&button}
@@ -185,7 +183,7 @@ fn CommandRow(
                 label: label.clone(),
                 glyph: glyph.clone(),
                 shortcut: shortcut.clone(),
-                disabled: face_disabled,
+                disabled,
                 highlighted: highlight.memo(Some(key)),
                 hovered: handle.hovered,
             })

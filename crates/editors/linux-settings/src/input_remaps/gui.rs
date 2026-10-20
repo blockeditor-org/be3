@@ -519,7 +519,6 @@ fn TextRow(
     #[prop(default = true)] separated: bool,
     on_change: Callback<String>,
 ) -> NodeId {
-    let echoed = value;
     view! {
         <SettingsRow label={label} description={description} separated={separated}>
             <TextInput
@@ -530,7 +529,7 @@ fn TextRow(
                 disabled={read_only}
                 @test_id={id}
                 on_change={move |text: String| {
-                    if text != echoed.get_untracked() {
+                    if text != value.get_untracked() {
                         on_change.call(text);
                     }
                 }}

@@ -9,20 +9,18 @@ fn dragging_a_sheet_handle_resizes_it_to_a_stop_or_closes_it() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let closed = create_signal(0);
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @sizing=ItemSize::Percent(100.0) />
-                    <Sheet
-                        @node_ref=&sheet
-                        extent=600.0
-                        on_close={move || closed.update(|closed| *closed += 1)}
-                    >
-                        <Frame height=1000.0 />
-                    </Sheet>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @sizing=ItemSize::Percent(100.0) />
+                <Sheet
+                    @node_ref=&sheet
+                    extent=600.0
+                    on_close={move || closed.update(|closed| *closed += 1)}
+                >
+                    <Frame height=1000.0 />
+                </Sheet>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));

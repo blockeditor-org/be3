@@ -10,22 +10,20 @@ fn escape_back_and_a_press_outside_all_reach_a_layers_back_handler() {
     let _root = crate::reactive::RootScope::new();
     let backs = create_signal(0);
     let dismissed = create_signal(Vec::new());
-    let document = build({
-        move || {
-            view! {
-                <Frame>
-                    <Overlay
-                        anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
-                        placement=Placement::At
-                        open=true
-                        on_dismiss={move |reason: Dismiss| dismissed.update(|dismissed| dismissed.push(reason))}
-                    >
-                        <BackHandler on_back={move || backs.update(|backs| *backs += 1)}>
-                            <Frame width=40.0 height=30.0 />
-                        </BackHandler>
-                    </Overlay>
-                </Frame>
-            }
+    let document = build(move || {
+        view! {
+            <Frame>
+                <Overlay
+                    anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
+                    placement=Placement::At
+                    open=true
+                    on_dismiss={move |reason: Dismiss| dismissed.update(|dismissed| dismissed.push(reason))}
+                >
+                    <BackHandler on_back={move || backs.update(|backs| *backs += 1)}>
+                        <Frame width=40.0 height=30.0 />
+                    </BackHandler>
+                </Overlay>
+            </Frame>
         }
     });
     let mut harness = Harness::new(document);

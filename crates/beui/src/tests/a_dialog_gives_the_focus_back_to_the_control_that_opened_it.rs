@@ -11,41 +11,38 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
         NodeRef::new(),
         NodeRef::new(),
     );
-    let document = build({
-        move || {
-            let open = create_signal(false);
-            let aimed = create_signal(false);
-            let (opening, closing, aiming) = (open, open, open);
-            view! {
-                <List spacing=8.0>
-                    <Button
-                        @node_ref=&opener
-                        variant=ButtonVariant::Secondary
-                        label="Open"
-                        on_click={move || opening.set(true)}
-                    />
-                    <Button
-                        @node_ref=&target
-                        variant=ButtonVariant::Secondary
-                        label="Elsewhere"
-                        focused={aimed}
-                    />
-                    <Dialog open={open} title="Rename" on_dismiss={move || closing.set(false)}>
-                        <List spacing=8.0>
-                            <TextInput @node_ref=&field value="" focused={open} />
-                            <Button
-                                @node_ref=&go
-                                variant=ButtonVariant::Primary
-                                label="Go elsewhere"
-                                on_click={move || {
-                                    aimed.set(true);
-                                    aiming.set(false);
-                                }}
-                            />
-                        </List>
-                    </Dialog>
-                </List>
-            }
+    let document = build(move || {
+        let open = create_signal(false);
+        let aimed = create_signal(false);
+        view! {
+            <List spacing=8.0>
+                <Button
+                    @node_ref=&opener
+                    variant=ButtonVariant::Secondary
+                    label="Open"
+                    on_click={move || open.set(true)}
+                />
+                <Button
+                    @node_ref=&target
+                    variant=ButtonVariant::Secondary
+                    label="Elsewhere"
+                    focused={aimed}
+                />
+                <Dialog open={open} title="Rename" on_dismiss={move || open.set(false)}>
+                    <List spacing=8.0>
+                        <TextInput @node_ref=&field value="" focused={open} />
+                        <Button
+                            @node_ref=&go
+                            variant=ButtonVariant::Primary
+                            label="Go elsewhere"
+                            on_click={move || {
+                                aimed.set(true);
+                                open.set(false);
+                            }}
+                        />
+                    </List>
+                </Dialog>
+            </List>
         }
     });
     let mut harness = Harness::new(document);

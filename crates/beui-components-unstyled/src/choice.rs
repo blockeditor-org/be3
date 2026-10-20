@@ -105,20 +105,18 @@ pub fn Choice(
         |_, option| option,
         move |index| {
             let label = built_options.value().borrow()[index].label;
-            let accessibility_label = label;
             let is_selected = selection.memo(Some(index));
-            let selected_accessibility = is_selected;
             let accessibility = create_memo(move || {
                 let mut node = Node::new(match kind {
                     ChoiceKind::Tabs => Role::Tab,
                     ChoiceKind::Radio => Role::RadioButton,
                     ChoiceKind::Listbox => Role::ListBoxOption,
                 });
-                node.set_label(accessibility_label.get());
+                node.set_label(label.get());
                 if kind == ChoiceKind::Radio {
-                    node.set_toggled(Toggled::from(selected_accessibility.get()));
+                    node.set_toggled(Toggled::from(is_selected.get()));
                 } else {
-                    node.set_selected(selected_accessibility.get());
+                    node.set_selected(is_selected.get());
                 }
                 node
             });

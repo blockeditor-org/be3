@@ -91,7 +91,6 @@ pub fn Calendar(
     cell: RenderFn<CalendarCellHandle>,
     on_change: Callback<Date>,
 ) -> NodeId {
-    let (day, month, year) = (cell, cell, cell);
     let today = today.get_untracked().unwrap_or_else(Date::today);
     let min = create_memo(move || min.get());
     let max = create_memo(move || max.get());
@@ -205,13 +204,11 @@ pub fn Calendar(
     let days_shown = create_memo(move || mode.get() == CalendarMode::Days);
     let months_shown = create_memo(move || mode.get() == CalendarMode::Months);
     let years_shown = create_memo(move || mode.get() == CalendarMode::Years);
-    let days_label = label;
-    let months_label = label;
     view! {
         <List spacing>
             {header_node}
             <Show condition={days_shown}>||
-                <CalendarGrid label=days_label spacing>
+                <CalendarGrid label=label spacing>
                     <List direction=Direction::Horizontal spacing>
                         <ForEach keys={(0..DAYS_PER_WEEK).collect::<Vec<_>>()}>|column: usize|
                             <CalendarWeekday
@@ -227,15 +224,15 @@ pub fn Calendar(
                             week
                             grid_start={grid_start}
                             spacing
-                            day={day}
+                            day={cell}
                         />
                     </ForEach>
                 </CalendarGrid>
             </Show>
             <Show condition={months_shown}>||
-                <CalendarGrid label=months_label spacing>
+                <CalendarGrid label=label spacing>
                     <ForEach keys={(0..MONTH_ROWS).collect::<Vec<_>>()}>|row: usize|
-                        <CalendarMonthRow state={state} row spacing month={month} />
+                        <CalendarMonthRow state={state} row spacing month={cell} />
                     </ForEach>
                 </CalendarGrid>
             </Show>
@@ -247,7 +244,7 @@ pub fn Calendar(
                             row
                             first_year={first_year}
                             spacing
-                            year={year}
+                            year={cell}
                         />
                     </ForEach>
                 </CalendarGrid>
@@ -309,9 +306,7 @@ fn CalendarYear(
         node.set_selected(selected.get());
         node
     });
-    let (focus_year, click_year, key_year) = (year, year, year);
     let focused_as = Cell::new(None);
-    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -320,7 +315,7 @@ fn CalendarYear(
             accessibility
             on_focus_change={move |has_focus: bool| {
                 if has_focus {
-                    let year = focus_year.get_untracked();
+                    let year = year.get_untracked();
                     focused_as.set(Some(year));
                     state.year_focus.set(Some(year));
                 } else if let Some(year) = focused_as.take()
@@ -329,8 +324,8 @@ fn CalendarYear(
                     state.year_focus.set(None);
                 }
             }}
-            on_click={move || pick_year(state, click_year.get_untracked())}
-            on_key={move |press: KeyPress| year_key(state, key_year.get_untracked(), press)}
+            on_click={move || pick_year(state, year.get_untracked())}
+            on_key={move |press: KeyPress| year_key(state, year.get_untracked(), press)}
         >|button: ButtonHandle| {
             face.call(CalendarCellHandle {
                 kind: CalendarMode::Years,
@@ -338,7 +333,7 @@ fn CalendarYear(
                 selected,
                 marked: current,
                 outside: create_memo(|| false),
-                disabled: handle_disabled,
+                disabled,
                 hovered: button.hovered,
                 active: button.active,
                 focused: button.focused,
@@ -422,9 +417,7 @@ fn CalendarDay(
         node.set_selected(selected.get());
         node
     });
-    let (focus_date, click_date, key_date) = (date, date, date);
     let focused_as = Cell::new(None);
-    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -433,7 +426,7 @@ fn CalendarDay(
             accessibility
             on_focus_change={move |has_focus: bool| {
                 if has_focus {
-                    let date = focus_date.get_untracked();
+                    let date = date.get_untracked();
                     focused_as.set(Some(date));
                     state.day_focus.set(Some(date));
                     state.active.set(date);
@@ -443,8 +436,8 @@ fn CalendarDay(
                     state.day_focus.set(None);
                 }
             }}
-            on_click={move || choose(state, click_date.get_untracked())}
-            on_key={move |press: KeyPress| day_key(state, key_date.get_untracked(), press)}
+            on_click={move || choose(state, date.get_untracked())}
+            on_key={move |press: KeyPress| day_key(state, date.get_untracked(), press)}
         >|button: ButtonHandle| {
             face.call(CalendarCellHandle {
                 kind: CalendarMode::Days,
@@ -452,7 +445,7 @@ fn CalendarDay(
                 selected,
                 marked: today,
                 outside,
-                disabled: handle_disabled,
+                disabled,
                 hovered: button.hovered,
                 active: button.active,
                 focused: button.focused,
@@ -509,9 +502,7 @@ fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -
         node.set_selected(selected.get());
         node
     });
-    let (focus_month, click_month) = (month, month);
     let focused_as = Cell::new(None);
-    let handle_disabled = disabled;
     view! {
         <unstyled::Button
             tab_stop
@@ -520,7 +511,7 @@ fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -
             accessibility
             on_focus_change={move |has_focus: bool| {
                 if has_focus {
-                    let month = focus_month.get_untracked();
+                    let month = month.get_untracked();
                     focused_as.set(Some(month));
                     state.month_focus.set(Some(month));
                 } else if let Some(month) = focused_as.take()
@@ -529,7 +520,7 @@ fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -
                     state.month_focus.set(None);
                 }
             }}
-            on_click={move || pick_month(state, click_month.get_untracked())}
+            on_click={move || pick_month(state, month.get_untracked())}
             on_key={move |press: KeyPress| month_key(state, number, press)}
         >|button: ButtonHandle| {
             face.call(CalendarCellHandle {
@@ -538,7 +529,7 @@ fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -
                 selected,
                 marked: current,
                 outside: create_memo(|| false),
-                disabled: handle_disabled,
+                disabled,
                 hovered: button.hovered,
                 active: button.active,
                 focused: button.focused,

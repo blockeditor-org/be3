@@ -7,21 +7,19 @@ fn an_embed_reports_its_placement_when_it_moves() {
     let _root = crate::reactive::RootScope::new();
     let placed = create_signal(Vec::new());
     let slot = EmbedSlot::new();
-    slot.on_place({
-        move |placement| placed.update(|placed| placed.push(placement.map(|at| at.rect)))
+    slot.on_place(move |placement| {
+        placed.update(|placed| placed.push(placement.map(|at| at.rect)))
     });
     let moved = create_signal(None);
-    let document = build({
-        move || {
-            let x = create_signal(10.0);
-            moved.update(|moved| *moved = Some(x));
-            view! {
-                <Canvas>
-                    <CanvasItem x={x} y=20.0 width=30.0 height=40.0>
-                        <Embed slot={slot} />
-                    </CanvasItem>
-                </Canvas>
-            }
+    let document = build(move || {
+        let x = create_signal(10.0);
+        moved.update(|moved| *moved = Some(x));
+        view! {
+            <Canvas>
+                <CanvasItem x={x} y=20.0 width=30.0 height=40.0>
+                    <Embed slot={slot} />
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);

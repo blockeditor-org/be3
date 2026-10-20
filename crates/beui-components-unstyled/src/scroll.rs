@@ -573,7 +573,6 @@ fn Scrolling(
         }
     });
     let bar_width = scrollbar.width();
-    let edge_axis = direction;
     let bar = ScrollHandle {
         position,
         direction,
@@ -590,12 +589,10 @@ fn Scrolling(
     let across = across(&direction);
     let axis = create_memo(move || Some(direction.get()));
     let catcher = NodeRef::new();
-    let catcher_rect = catcher;
     let origin = create_signal(None::<Pos2>);
     let marked = create_memo(move || origin.get().is_some());
     let anchor = create_memo(move || OverlayAnchor::Point(origin.get().unwrap_or(Pos2::ZERO)));
     let marker_axis = create_memo(move || direction.get());
-    let content_axis = marker_axis;
     on_scroll_key(KeyAt::Node(catcher), KeyPhase::Bubble, move |event| {
         event
             .press()
@@ -613,13 +610,13 @@ fn Scrolling(
                     scroll_axis={axis}
                     @node_ref=&catcher
                     claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                        motion.value().flinging() && under(&catcher_rect, pos)
+                        motion.value().flinging() && under(&catcher, pos)
                     }}
                     on_press={move |_: PointerPress| motion.value().stop_fling()}
                     on_hover_move={move |press: PointerPress| {
                         let at_edge = bar_width > 0.0
                             && position.get_untracked().max_offset() > 0.0
-                            && near_edge(edge_axis.get_untracked(), press, bar_width);
+                            && near_edge(direction.get_untracked(), press, bar_width);
                         if near.get_untracked() != at_edge {
                             near.set(at_edge);
                         }
@@ -642,7 +639,7 @@ fn Scrolling(
                     <Frame
                         outline={focus_outline(focused, focus_color, FOCUS_RING_WIDTH, FOCUS_RING_INSET)}
                     >
-                        <List direction={content_axis} spacing=0.0>
+                        <List direction={marker_axis} spacing=0.0>
                             {node} @sizing={content_sizing(fit)}
                             <ShowKeepAlive condition={marked}>
                                 <Overlay
@@ -680,13 +677,10 @@ pub fn Scroll(
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
 ) -> NodeId {
-    let content_direction = direction;
-    let rows_direction = direction;
     let fade = scrollbar.fade();
     let faded = create_signal(None::<ScrollPosition>);
     let edges = create_memo(move || fade_edges(direction.get(), faded.get(), fade));
     let rows = NodeRef::new();
-    let revealed = rows;
     let marker = marker.unwrap_or_else(|| {
         Render::new(|_| {
             view! {
@@ -708,7 +702,7 @@ pub fn Scroll(
             <Fade edges>
                 <Offset
                     offset
-                    direction={content_direction}
+                    direction={direction}
                     fit
                     on_change={move |position: ScrollPosition| {
                         faded.set(Some(position));
@@ -716,9 +710,7 @@ pub fn Scroll(
                     }}
                 >
                     <Frame padding={bleed}>
-                        <List @node_ref=&rows direction={rows_direction} spacing=0.0>
-                            {children}
-                        </List>
+                        <List @node_ref=&rows direction={direction} spacing=0.0>{children}</List>
                     </Frame>
                 </Offset>
             </Fade>
@@ -728,7 +720,7 @@ pub fn Scroll(
         let Some(index) = reveal.get() else {
             return;
         };
-        let rows = revealed.get();
+        let rows = rows.get();
         with_document(|document| {
             let row = document.arena.get(rows).children().get(index).copied();
             if let Some(row) = row {

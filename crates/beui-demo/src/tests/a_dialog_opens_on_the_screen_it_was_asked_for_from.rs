@@ -8,7 +8,6 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
     let right = Rect::from_min_size(pos2(640.0, 0.0), Vec2::new(460.0, 320.0));
     let document = build(move || {
         let open = create_signal(false);
-        let closing = open;
         view! {
             <Frame fill=ColorRole::Background>
                 <List direction=beui::Direction::Horizontal justify=Justify::End spacing=0.0>
@@ -22,7 +21,7 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
                         open={open}
                         title="About"
                         width=320.0
-                        on_dismiss={move || closing.set(false)}
+                        on_dismiss={move || open.set(false)}
                     >
                         <Text
                             style=TextStyle::PARAGRAPH

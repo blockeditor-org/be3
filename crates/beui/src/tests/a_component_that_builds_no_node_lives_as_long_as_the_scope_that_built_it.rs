@@ -37,27 +37,25 @@ fn a_component_that_builds_no_node_lives_as_long_as_the_scope_that_built_it() {
     let legend = NodeRef::new();
     let disposals = create_signal::<usize>(0);
     let shown = create_signal(true);
-    let document = build({
-        move || {
-            let loose = view! {
-                <Noted label="loose" disposals={disposals} />
-            };
-            assert_eq!(loose.label, "loose");
-            drop(loose);
-            assert_eq!(
-                disposals.get_untracked(),
-                0,
-                "the value does not own its component's scope; the scope that built it does"
-            );
+    let document = build(move || {
+        let loose = view! {
+            <Noted label="loose" disposals={disposals} />
+        };
+        assert_eq!(loose.label, "loose");
+        drop(loose);
+        assert_eq!(
+            disposals.get_untracked(),
+            0,
+            "the value does not own its component's scope; the scope that built it does"
+        );
 
-            view! {
-                <Legend @node_ref=&legend>
-                    <Noted label="first" disposals={disposals} />
-                    <Show condition={shown}>
-                        <Noted label="second" disposals={disposals} />
-                    </Show>
-                </Legend>
-            }
+        view! {
+            <Legend @node_ref=&legend>
+                <Noted label="first" disposals={disposals} />
+                <Show condition={shown}>
+                    <Noted label="second" disposals={disposals} />
+                </Show>
+            </Legend>
         }
     });
 

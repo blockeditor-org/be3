@@ -12,29 +12,27 @@ fn a_virtual_list_reaches_the_end_when_rows_outgrow_their_estimate() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            @node_ref=&list
-                            keys={indices(ROWS)}
-                            item_size=ESTIMATE
-                        >|index: ReadSignal<usize>| {
-                            create_binding(move || {
-                                let index = index.get();
-                                built.update(|built| built.push(index));
-                            });
-                            view! {
-                                <Frame height=ACTUAL>
-                                    <Spacer />
-                                </Frame>
-                            }
-                        }</VirtualList>
-                    </Offset>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        @node_ref=&list
+                        keys={indices(ROWS)}
+                        item_size=ESTIMATE
+                    >|index: ReadSignal<usize>| {
+                        create_binding(move || {
+                            let index = index.get();
+                            built.update(|built| built.push(index));
+                        });
+                        view! {
+                            <Frame height=ACTUAL>
+                                <Spacer />
+                            </Frame>
+                        }
+                    }</VirtualList>
+                </Offset>
+            </List>
         }
     });
     let (scroll, list) = (scroll.get(), list.get());

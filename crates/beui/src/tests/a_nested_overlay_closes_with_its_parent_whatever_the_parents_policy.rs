@@ -13,36 +13,34 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
     let dismissed = create_signal(0);
     let nested_dismissed = create_signal(0);
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <Frame>
-                    <Overlay
-                        @node_ref=&outer
-                        anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
-                        placement=Placement::At
-                        policy={policy}
-                        open={open}
-                        on_dismiss={move |_: Dismiss| dismissed.update(|dismissed| *dismissed += 1)}
-                    >
-                        <List spacing=0.0>
+    let document = build(move || {
+        view! {
+            <Frame>
+                <Overlay
+                    @node_ref=&outer
+                    anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
+                    placement=Placement::At
+                    policy={policy}
+                    open={open}
+                    on_dismiss={move |_: Dismiss| dismissed.update(|dismissed| *dismissed += 1)}
+                >
+                    <List spacing=0.0>
+                        <Frame width=40.0 height=30.0 />
+                        <Overlay
+                            @node_ref=&inner
+                            anchor=OverlayAnchor::Point(pos2(60.0, 10.0))
+                            placement=Placement::At
+                            open={nested_open}
+                            on_dismiss={move |_: Dismiss| {
+                                nested_dismissed.update(|nested_dismissed| *nested_dismissed += 1);
+                                nested_open.set(false);
+                            }}
+                        >
                             <Frame width=40.0 height=30.0 />
-                            <Overlay
-                                @node_ref=&inner
-                                anchor=OverlayAnchor::Point(pos2(60.0, 10.0))
-                                placement=Placement::At
-                                open={nested_open}
-                                on_dismiss={move |_: Dismiss| {
-                                    nested_dismissed.update(|nested_dismissed| *nested_dismissed += 1);
-                                    nested_open.set(false);
-                                }}
-                            >
-                                <Frame width=40.0 height=30.0 />
-                            </Overlay>
-                        </List>
-                    </Overlay>
-                </Frame>
-            }
+                        </Overlay>
+                    </List>
+                </Overlay>
+            </Frame>
         }
     });
     let mut harness = Harness::new(document);

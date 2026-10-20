@@ -23,22 +23,21 @@ fn the_launcher_filters_as_it_is_typed_and_launches_with_enter() {
     ]);
     let document = build(move || {
         let open = create_signal(true);
-        let (closing, launching, running) = (open, open, open);
         view! {
             <Launcher
                 open
                 items
                 on_launch={move |key: String| {
                     heard.update(|heard| heard.push(format!("launch {key}")));
-                    launching.set(false);
+                    open.set(false);
                 }}
                 on_run={move |line: String| {
                     heard.update(|heard| heard.push(format!("run {line}")));
-                    running.set(false);
+                    open.set(false);
                 }}
                 on_close={move || {
                     heard.update(|heard| heard.push("close".to_owned()));
-                    closing.set(false);
+                    open.set(false);
                 }}
             />
         }

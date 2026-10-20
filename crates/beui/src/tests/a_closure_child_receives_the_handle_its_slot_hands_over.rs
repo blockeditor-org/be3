@@ -12,20 +12,18 @@ fn a_closure_child_receives_the_handle_its_slot_hands_over() {
     let measured = create_signal::<Option<ReadSignal<Vec2>>>(None);
     let item = NodeRef::new();
 
-    let document = build({
-        move || {
-            view! {
-                <Frame width=PANEL_WIDTH>
-                    <Container>|size: ReadSignal<Vec2>| {
-                        measured.update(|measured| *measured = Some(size));
-                        view! {
-                            <Frame @node_ref=&item height=ITEM_HEIGHT>
-                                <Spacer />
-                            </Frame>
-                        }
-                    }</Container>
-                </Frame>
-            }
+    let document = build(move || {
+        view! {
+            <Frame width=PANEL_WIDTH>
+                <Container>|size: ReadSignal<Vec2>| {
+                    measured.update(|measured| *measured = Some(size));
+                    view! {
+                        <Frame @node_ref=&item height=ITEM_HEIGHT>
+                            <Spacer />
+                        </Frame>
+                    }
+                }</Container>
+            </Frame>
         }
     });
 

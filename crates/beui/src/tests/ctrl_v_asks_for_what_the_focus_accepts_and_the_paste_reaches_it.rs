@@ -8,31 +8,29 @@ fn ctrl_v_asks_for_what_the_focus_accepts_and_the_paste_reaches_it() {
     let _root = crate::reactive::RootScope::new();
     let heard = create_signal(Vec::new());
     let forwarded = create_signal(Vec::new());
-    let document = build({
-        move || {
-            view! {
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive
-                            focusable=true
-                            pastes={vec![PasteKind::Image]}
-                            on_paste={move |paste: Pasted| heard.update(|heard| heard.push(format!("{:?}", paste.kind())))}
-                            on_text={move |text: String| heard.update(|heard| heard.push(text))}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                    <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive
-                            focusable=true
-                            pastes={vec![PasteKind::Text, PasteKind::Image]}
-                            on_forward={move |input: ForwardedInput| forwarded.update(|forwarded| forwarded.extend(flattened(input)))}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
-            }
+    let document = build(move || {
+        view! {
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive
+                        focusable=true
+                        pastes={vec![PasteKind::Image]}
+                        on_paste={move |paste: Pasted| heard.update(|heard| heard.push(format!("{:?}", paste.kind())))}
+                        on_text={move |text: String| heard.update(|heard| heard.push(text))}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+                <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive
+                        focusable=true
+                        pastes={vec![PasteKind::Text, PasteKind::Image]}
+                        on_forward={move |input: ForwardedInput| forwarded.update(|forwarded| forwarded.extend(flattened(input)))}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);

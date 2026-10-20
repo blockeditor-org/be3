@@ -219,12 +219,11 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
     });
     let remove = move || data.operate_view(DatabaseView::remove_filter(id));
     let read_only = data.read_only;
-    let label = text;
     view! {
         <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius={Radius::custom(14.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <unstyled::Popover
-                    label={label}
+                    label={text}
                     @test_id={format!("database-view.filter.{}", id.as_uuid())}
                     trigger={move |handle: PopoverTriggerHandle| {
                         view! {
@@ -442,9 +441,6 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
     let picked = |_: DatabaseBlockPickRequest| {};
     let (condition_off, value_off, text_off) = (data.read_only, data.read_only, data.read_only);
     let labels = data.labels;
-    let choice_filter = filter;
-    let choice_field = field;
-    let condition_names = kinds;
     view! {
         <Frame width=EDITOR_WIDTH>
             <List spacing={SPACING * 1.5}>
@@ -455,7 +451,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                             options={view! {
                                 <ForEach keys={kind_keys}>|index: usize| {
                                     let label = create_memo(move || {
-                                        condition_names.with(|kinds| {
+                                        kinds.with(|kinds| {
                                             kinds.get(index).map(|kind| kind.label()).unwrap_or_default().to_owned()
                                         })
                                     });
@@ -473,7 +469,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
                     </Frame>
                 </List>
                 <Show condition={choosing}>
-                    <ValueChoices data={data} id={id} filter={choice_filter} field={choice_field} />
+                    <ValueChoices data={data} id={id} filter={filter} field={field} />
                 </Show>
                 <Show condition={comparing}>
                     <DatabaseValueEditor

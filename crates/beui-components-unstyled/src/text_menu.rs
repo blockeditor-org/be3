@@ -63,7 +63,6 @@ pub fn TextContextMenu(
             false => vec![MenuAction::Paste, MenuAction::SelectAll],
         }
     });
-    let chosen = actions;
     let no_menu = !menu.is_some();
     let off = create_memo(move || no_menu || disabled.get());
     let open = Callback::new(move |at: Option<Rect>| {
@@ -87,7 +86,7 @@ pub fn TextContextMenu(
             on_select={move |path: Vec<usize>| {
                 let Some(action) = path
                     .first()
-                    .and_then(|index| chosen.get_untracked().get(*index).copied())
+                    .and_then(|index| actions.get_untracked().get(*index).copied())
                 else {
                     return;
                 };

@@ -101,7 +101,6 @@ pub fn PanZoom(editor: Editor) -> NodeId {
     let panel_shown = create_memo(move || chrome.get() && open.get());
     let rail_shown = create_memo(move || chrome.get() && !open.get());
     let panel = (editor, selected, open);
-    let rail_open = open;
 
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
@@ -112,7 +111,7 @@ pub fn PanZoom(editor: Editor) -> NodeId {
                 }
             }</Show>
             <Show condition={rail_shown}>
-                <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) open={rail_open} />
+                <Rail @sizing=ItemSize::Fixed(RAIL_WIDTH) open={open} />
             </Show>
             <Stage
                 @sizing=ItemSize::Percent(100.0)

@@ -113,7 +113,6 @@ pub fn NumberInput(
         }
         held.set(Some((press.pos, value.get_untracked(), false)));
     };
-    let changed = on_change;
     let dragged = move |at: PointerPress| {
         let Some((origin, start, moved)) = held.get() else {
             return;
@@ -128,7 +127,7 @@ pub fn NumberInput(
         held.set(Some((origin, start, true)));
         let next = next.clamp(min, max);
         text.set(format_number(next, decimals.get_untracked()));
-        changed.call(next);
+        on_change.call(next);
     };
     let open = move || {
         if !off.get_untracked() {
@@ -143,13 +142,12 @@ pub fn NumberInput(
         }
     };
 
-    let previewed = on_preview;
     let edited = move |typed: String| {
         if !editing.get_untracked() {
             return;
         }
         text.set(typed.clone());
-        previewed.call(parse(&typed).map(|parsed| parsed.clamp(min, max)));
+        on_preview.call(parse(&typed).map(|parsed| parsed.clamp(min, max)));
     };
     let finish = move |keep: bool| {
         if !editing.get_untracked() {

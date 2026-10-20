@@ -16,32 +16,30 @@ fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_ben
     let _root = crate::reactive::RootScope::new();
     let child = create_signal(Vec::<Event>::new());
     let parent = create_signal(Vec::<Event>::new());
-    let document = build({
-        move || {
-            view! {
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width=100.0 height=200.0>
-                        <Interactive
-                            on_forward={move |input: ForwardedInput| {
-                                child.update(|child| child.extend(flattened(input)))
-                            }}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                    <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>
-                        <Interactive
-                            hit_at={|local: Pos2| local.x >= 100.0}
-                            claim_at={|(_, held): (Pos2, Modifiers)| held.logo}
-                            on_forward={move |input: ForwardedInput| {
-                                parent.update(|parent| parent.extend(flattened(input)))
-                            }}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
-            }
+    let document = build(move || {
+        view! {
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=100.0 height=200.0>
+                    <Interactive
+                        on_forward={move |input: ForwardedInput| {
+                            child.update(|child| child.extend(flattened(input)))
+                        }}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+                <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>
+                    <Interactive
+                        hit_at={|local: Pos2| local.x >= 100.0}
+                        claim_at={|(_, held): (Pos2, Modifiers)| held.logo}
+                        on_forward={move |input: ForwardedInput| {
+                            parent.update(|parent| parent.extend(flattened(input)))
+                        }}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);

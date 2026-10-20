@@ -8,32 +8,30 @@ use crate::reactive::*;
 fn a_forwarding_catcher_in_a_menu_under_its_open_submenu_still_hears_the_pointer() {
     let _root = crate::reactive::RootScope::new();
     let heard = create_signal(Vec::<ForwardedInput>::new());
-    let document = build({
-        move || {
-            view! {
-                <Frame>
-                    <Overlay
-                        anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
-                        placement=Placement::At
-                        open=true
-                    >
-                        <List spacing=0.0>
-                            <Interactive
-                                on_forward={move |input| heard.update(|heard| heard.push(input))}
-                            >
-                                <Frame width=80.0 height=60.0 />
-                            </Interactive>
-                            <Overlay
-                                anchor=OverlayAnchor::Point(pos2(200.0, 10.0))
-                                placement=Placement::At
-                                open=true
-                            >
-                                <Frame width=80.0 height=60.0 />
-                            </Overlay>
-                        </List>
-                    </Overlay>
-                </Frame>
-            }
+    let document = build(move || {
+        view! {
+            <Frame>
+                <Overlay
+                    anchor=OverlayAnchor::Point(pos2(10.0, 10.0))
+                    placement=Placement::At
+                    open=true
+                >
+                    <List spacing=0.0>
+                        <Interactive
+                            on_forward={move |input| heard.update(|heard| heard.push(input))}
+                        >
+                            <Frame width=80.0 height=60.0 />
+                        </Interactive>
+                        <Overlay
+                            anchor=OverlayAnchor::Point(pos2(200.0, 10.0))
+                            placement=Placement::At
+                            open=true
+                        >
+                            <Frame width=80.0 height=60.0 />
+                        </Overlay>
+                    </List>
+                </Overlay>
+            </Frame>
         }
     });
     let mut harness = Harness::new(document);

@@ -156,7 +156,6 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
         create_memo(move || !matches!(chosen.get(), PixelTool::Rectangle | PixelTool::Ellipse));
     let horizontal = tools.mirror_horizontal;
     let vertical = tools.mirror_vertical;
-    let square_shape = shape;
     view! {
         <List spacing=SPACING>
             <Text style=TextStyle::HEADING string="Tools" />
@@ -192,7 +191,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                     label="Square brush"
                     icon_only=true
                     pressed={square}
-                    on_change={move |_| square_shape.set(BrushShape::Square)}
+                    on_change={move |_| shape.set(BrushShape::Square)}
                 />
                 <ToggleButton
                     glyph={ICON_CIRCLE.to_owned()}
@@ -282,13 +281,11 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
             .collect();
         tools.operate(PixelArtOperation::SetPalette { colors });
     };
-    let active = color;
-    let palette_color = color;
     view! {
         <List spacing=SPACING>
             <Text style=TextStyle::HEADING string="Color" />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Swatch color={active} selected=false on_click={move || {}} />
+                <Swatch color={color} selected=false on_click={move || {}} />
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
                     value={hex}
@@ -304,8 +301,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
             <Text string="Palette" />
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
                 <ForEach keys={palette}>|swatch: PixelColor| {
-                    let active = palette_color;
-                    let chosen = create_memo(move || active.get() == swatch);
+                    let chosen = create_memo(move || color.get() == swatch);
                     let pick = move || tools.set_active_color(swatch, true);
                     view! {
                         <Swatch color={swatch} selected={chosen} on_click={pick} />

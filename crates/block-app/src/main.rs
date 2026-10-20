@@ -283,9 +283,8 @@ impl Shell {
             surfaces::create_handles();
             let store = AppViewStore::new(AppView::default());
             view = Some(store);
-            let view = store;
             beui::reactive::view! {
-                <ui::Root view />
+                <ui::Root view={store} />
             }
         });
         document.on_interacted(plugin_host::start_frames);

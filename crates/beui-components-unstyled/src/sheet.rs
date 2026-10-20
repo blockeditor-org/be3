@@ -1010,10 +1010,9 @@ pub fn Sheet(
             motion.place_content(offset, 0.0);
         }
     });
-    let shown = open;
     let was_open = Cell::new(false);
     create_effect(move || {
-        let open = shown.get();
+        let open = open.get();
         if open == was_open.replace(open) {
             return;
         }
@@ -1025,7 +1024,6 @@ pub fn Sheet(
     let shifted = create_memo(move || vec2(0.0, shift.get()));
     let axis = create_memo(|| Some(Direction::Vertical));
     let catcher = NodeRef::new();
-    let catcher_rect = catcher;
     let grip = grip.call(SheetGripHandle {
         dragging: dragging.read_only(),
         on_drag: Callback::new(move |gesture| motion.value().outside_drag(gesture)),
@@ -1044,7 +1042,7 @@ pub fn Sheet(
                                 scroll_axis={axis}
                                 @node_ref=&catcher
                                 claim_at={move |(pos, _): (Pos2, beui_core::input::Modifiers)| {
-                                    motion.value().flinging() && super::scroll::under(&catcher_rect, pos)
+                                    motion.value().flinging() && super::scroll::under(&catcher, pos)
                                 }}
                                 on_press={move |_: PointerPress| motion.value().stop_fling()}
                                 on_scroll={move |gesture: ScrollGesture| motion.value().wheel(gesture)}
@@ -1094,14 +1092,11 @@ pub fn ModalSheet(
     on_close: ClickCallback,
     #[prop(children)] content: Render,
 ) -> NodeId {
-    let dismiss = on_close;
     let gone = create_signal(true);
     let presence = create_signal(0.0_f32);
-    let opened = open;
-    let appearing = gone;
     create_effect(move || {
-        if opened.get() {
-            appearing.set(false);
+        if open.get() {
+            gone.set(false);
         }
     });
     let shown = create_memo(move || open.get() || !gone.get());
@@ -1112,7 +1107,7 @@ pub fn ModalSheet(
             open={shown}
             placement=Placement::Fill
             scrim={faded}
-            on_dismiss={move |_: Dismiss| dismiss.call()}
+            on_dismiss={move |_: Dismiss| on_close.call()}
             content={move || view! {
                 <ModalSheetBody
                     open
@@ -1149,10 +1144,9 @@ fn ModalSheetBody(
 ) -> NodeId {
     let drag = Rc::new(Cell::new(None::<Callback<DragGesture>>));
     let target = drag.clone();
-    let render_grip = grip;
     let grip = Render::new(move |handle: SheetGripHandle| {
         target.set(Some(handle.on_drag));
-        render_grip.call(handle)
+        grip.call(handle)
     });
     view! {
         <LayoutBuilder>|size: ReadSignal<Vec2>| {
@@ -1161,14 +1155,12 @@ fn ModalSheetBody(
             let room = create_memo(move || {
                 ItemSize::Percent(100.0).min(extent.get() * (1.0 - highest))
             });
-            let outside = on_close;
-            let closing = on_close;
             view! {
                 <List spacing=0.0>
                     <Interactive
                         @sizing={room}
                         @test_id={"sheet.outside"}
-                        on_click={outside}
+                        on_click={on_close}
                         scroll_axis={Some(Direction::Vertical)}
                         on_scroll_drag={move |gesture: DragGesture| {
                             if let Some(handler) = drag.get() { handler.call(gesture); }
@@ -1188,7 +1180,7 @@ fn ModalSheetBody(
                         panel
                         on_presence={move |presence: f32| on_presence.call(presence)}
                         on_gone={on_gone}
-                        on_close={closing}
+                        on_close={on_close}
                     >
                         {children}
                     </Sheet>

@@ -1303,10 +1303,9 @@ pub fn TextArea(
                 });
 
                 let focus_requests = state.focus_requests();
-                let focus_writer = focused;
                 create_effect(move || {
                     if focus_requests.get() > 0 {
-                        focus_writer.set(true);
+                        focused.set(true);
                     }
                 });
                 create_effect(move || focused.set(focus_request.get()));
@@ -1363,7 +1362,6 @@ pub fn TextArea(
                     pastes_images,
                     on_image_paste,
                 };
-                let scrolled = field;
                 let multi_line = !single_line;
                 let strip_width = create_memo(move || gutter.get());
                 let width = create_memo(move || size.get().x);
@@ -1375,15 +1373,8 @@ pub fn TextArea(
                     true => 1.0,
                     false => 0.0,
                 });
-                let (strip_height, border_height, area_width, area_height) = (
-                    height,
-                    height,
-                    width,
-                    height,
-                );
                 let has_menu = completion_menu.is_some();
                 let menu = create_memo(move || has_menu && completing.get());
-                let menu_render = completion_menu;
                 if multi_line {
                     action_scope(&outer);
                     actions::register(state, disabled);
@@ -1401,35 +1392,30 @@ pub fn TextArea(
                                     width={width}
                                     height={height}
                                 >
-                                    <CanvasItem
-                                        x=0.0
-                                        y=0.0
-                                        width={strip_width}
-                                        height={strip_height}
-                                    >
+                                    <CanvasItem x=0.0 y=0.0 width={strip_width} height={height}>
                                         <Frame fill=gutter_color />
                                     </CanvasItem>
                                     <CanvasItem
                                         x={border_x}
                                         y=0.0
                                         width={border_width}
-                                        height={border_height}
+                                        height={height}
                                     >
                                         <Frame fill=border_color />
                                     </CanvasItem>
-                                    <CanvasItem x=0.0 y=0.0 width={area_width} height={area_height}>
+                                    <CanvasItem x=0.0 y=0.0 width={width} height={height}>
                                         <Scroll
                                             offset={offset}
                                             focus_color={Color32::TRANSPARENT}
                                             on_change={move |position: ScrollPosition| scroll.set(position)}
                                         >
-                                            <Editing field={scrolled} />
+                                            <Editing field={field} />
                                         </Scroll>
                                     </CanvasItem>
                                 </Canvas>
                             </Show>
                             <Show condition={menu}>|| {
-                                let menu = menu_render
+                                let menu = completion_menu
                                     .expect("a completion menu is only shown when the area was given one");
                                 view! {
                                     <Completions cx menu />

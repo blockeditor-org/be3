@@ -1531,29 +1531,27 @@ pub(crate) struct VirtualScroll {
 
 pub(crate) fn virtual_list(built: Signal<Vec<usize>>) -> VirtualScroll {
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            @node_ref=&list
-                            keys={indices(VIRTUAL_ITEM_COUNT)}
-                            item_size=VIRTUAL_ITEM_HEIGHT
-                        >|index: ReadSignal<usize>| {
-                            create_binding(move || {
-                                let index = index.get();
-                                built.update(|built| built.push(index));
-                            });
-                            view! {
-                                <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
-                                    <Spacer />
-                                </Frame>
-                            }
-                        }</VirtualList>
-                    </Offset>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        @node_ref=&list
+                        keys={indices(VIRTUAL_ITEM_COUNT)}
+                        item_size=VIRTUAL_ITEM_HEIGHT
+                    >|index: ReadSignal<usize>| {
+                        create_binding(move || {
+                            let index = index.get();
+                            built.update(|built| built.push(index));
+                        });
+                        view! {
+                            <Frame padding={Sides::symmetric(0.0, VIRTUAL_ITEM_HEIGHT / 2.0)}>
+                                <Spacer />
+                            </Frame>
+                        }
+                    }</VirtualList>
+                </Offset>
+            </List>
         }
     });
     VirtualScroll {
@@ -1575,29 +1573,27 @@ pub(crate) fn keyed_virtual_list(built: Signal<Vec<usize>>) -> KeyedVirtualScrol
     let owned_keys = crate::reactive::OwnedSignal::new(indices(VIRTUAL_ITEM_COUNT));
     let keys = owned_keys.handle();
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                        <VirtualList
-                            @node_ref=&list
-                            keys={keys}
-                            item_size=VIRTUAL_ITEM_HEIGHT
-                        >|key: ReadSignal<usize>| {
-                            create_binding(move || {
-                                let key = key.get();
-                                built.update(|built| built.push(key));
-                            });
-                            view! {
-                                <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                    <Spacer />
-                                </Frame>
-                            }
-                        }</VirtualList>
-                    </Offset>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
+                    <VirtualList
+                        @node_ref=&list
+                        keys={keys}
+                        item_size=VIRTUAL_ITEM_HEIGHT
+                    >|key: ReadSignal<usize>| {
+                        create_binding(move || {
+                            let key = key.get();
+                            built.update(|built| built.push(key));
+                        });
+                        view! {
+                            <Frame height=VIRTUAL_ITEM_HEIGHT>
+                                <Spacer />
+                            </Frame>
+                        }
+                    }</VirtualList>
+                </Offset>
+            </List>
         }
     });
     KeyedVirtualScroll {
@@ -1617,15 +1613,13 @@ pub(crate) struct HelloColumn {
 
 pub(crate) fn hello_column() -> HelloColumn {
     let (padding, text) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @node_ref=&padding padding=4.0>
-                        <Text @node_ref=&text string="Hello" color=Color32::WHITE />
-                    </Frame>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @node_ref=&padding padding=4.0>
+                    <Text @node_ref=&text string="Hello" color=Color32::WHITE />
+                </Frame>
+            </List>
         }
     });
     HelloColumn {
@@ -1652,25 +1646,23 @@ pub(crate) struct ThreePanels {
 pub(crate) fn three_panels() -> ThreePanels {
     let list = NodeRef::new();
     let (top, middle, bottom) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List @node_ref=&list spacing=0.0>
-                    <Frame @node_ref=&top height=100.0 fill=Color32::WHITE radius=0.0 />
-                    <Frame
-                        @node_ref=&middle
-                        height=100.0
-                        fill={Color32::from_gray(40)}
-                        radius=0.0
-                    />
-                    <Frame
-                        @node_ref=&bottom
-                        height=100.0
-                        fill={Color32::from_gray(80)}
-                        radius=0.0
-                    />
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List @node_ref=&list spacing=0.0>
+                <Frame @node_ref=&top height=100.0 fill=Color32::WHITE radius=0.0 />
+                <Frame
+                    @node_ref=&middle
+                    height=100.0
+                    fill={Color32::from_gray(40)}
+                    radius=0.0
+                />
+                <Frame
+                    @node_ref=&bottom
+                    height=100.0
+                    fill={Color32::from_gray(80)}
+                    radius=0.0
+                />
+            </List>
         }
     });
     ThreePanels {
@@ -1684,14 +1676,12 @@ pub(crate) fn three_panels() -> ThreePanels {
 
 pub(crate) fn stacked_panels() -> StackedPanels {
     let (upper, lower) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @node_ref=&upper height=100.0 fill=Color32::WHITE radius=0.0 />
-                    <Frame @node_ref=&lower height=100.0 fill={Color32::from_gray(40)} radius=0.0 />
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @node_ref=&upper height=100.0 fill=Color32::WHITE radius=0.0 />
+                <Frame @node_ref=&lower height=100.0 fill={Color32::from_gray(40)} radius=0.0 />
+            </List>
         }
     });
     StackedPanels {
@@ -2132,32 +2122,30 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
     let _root = crate::reactive::RootScope::new();
     let open = create_signal(true);
     let heard = create_signal(Vec::<String>::new());
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Button
-                        label="Programs"
-                        variant=ButtonVariant::Secondary
-                        @test_id={"reopen"}
-                        on_click={move || open.set(true)}
-                    />
-                    <Launcher
-                        open={open}
-                        items={Rc::new(vec![LauncherItem {
-                            key: "files".to_owned(),
-                            title: "Files".to_owned(),
-                            ..LauncherItem::default()
-                        }])}
-                        on_launch={|_: String| {}}
-                        on_run={move |line: String| heard.update(|heard| heard.push(format!("run {line}")))}
-                        on_close={move || {
-                            heard.update(|heard| heard.push("close".to_owned()));
-                            open.set(false);
-                        }}
-                    />
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Button
+                    label="Programs"
+                    variant=ButtonVariant::Secondary
+                    @test_id={"reopen"}
+                    on_click={move || open.set(true)}
+                />
+                <Launcher
+                    open={open}
+                    items={Rc::new(vec![LauncherItem {
+                        key: "files".to_owned(),
+                        title: "Files".to_owned(),
+                        ..LauncherItem::default()
+                    }])}
+                    on_launch={|_: String| {}}
+                    on_run={move |line: String| heard.update(|heard| heard.push(format!("run {line}")))}
+                    on_close={move || {
+                        heard.update(|heard| heard.push("close".to_owned()));
+                        open.set(false);
+                    }}
+                />
+            </List>
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(1600.0, 1000.0));

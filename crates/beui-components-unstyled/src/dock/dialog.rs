@@ -172,7 +172,6 @@ impl super::State {
 #[component]
 pub(super) fn DockDialogs(dock: State) -> NodeId {
     let keys = dock.dialogs;
-    let settling = dock;
     let state = dock.state;
     let described = dock.dialog;
     create_effect(move || {
@@ -182,7 +181,7 @@ pub(super) fn DockDialogs(dock: State) -> NodeId {
                 parts.modal.get();
             }
         }
-        untrack(|| settling.settle_dialog_focus());
+        untrack(|| dock.settle_dialog_focus());
     });
     view! {
         <beui_view::primitives::List spacing=0.0>
@@ -243,9 +242,8 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let focus = dock.dialog_focus;
     let focused = create_memo(move || focus.get() == Some(tab));
     let attention = create_signal(false);
-    let calm = attention;
     let settle = create_timer(move || {
-        calm.set(false);
+        attention.set(false);
         None
     });
     let requests = dock.attention;
@@ -281,7 +279,6 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             {body}
         </Frame>
     };
-    let closing = on_close;
     let face = dock.dialog_chrome.call(DockDialogHandle {
         tab,
         title,
@@ -292,19 +289,13 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         attention: attention.read_only(),
         closable: on_close.is_some(),
         close: ClickCallback::new(move || {
-            if let Some(close) = &closing {
+            if let Some(close) = &on_close {
                 close.call();
             }
         }),
         body,
     });
-    let pressed = dock;
-    let attending = dock;
-    let dismissing = on_close;
-    let modal_now = blocking;
     let overlay = NodeRef::new();
-    let raised = overlay;
-    let (opening, attended) = (shown, focused);
     let view = view! {
         <Overlay
             @node_ref=&overlay
@@ -314,47 +305,42 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
             traps_focus=false
             open={shown}
             on_dismiss={move |reason: Dismiss| match reason {
-                Dismiss::OutsidePress if modal_now.get_untracked() => {
-                    attending.focus_dialog(tab);
-                    attending.focus_into_dialog();
-                    attending.call_attention();
+                Dismiss::OutsidePress if blocking.get_untracked() => {
+                    dock.focus_dialog(tab);
+                    dock.focus_into_dialog();
+                    dock.call_attention();
                 }
                 Dismiss::Escape | Dismiss::Back => {
-                    if let Some(close) = &dismissing {
+                    if let Some(close) = &on_close {
                         close.call();
                     }
                 }
                 Dismiss::OutsidePress | Dismiss::WithParent => {}
             }}
         >
-            <Interactive
-                @node_ref=&frame
-                on_press={move |_: PointerPress| pressed.focus_dialog(tab)}
-            >
+            <Interactive @node_ref=&frame on_press={move |_: PointerPress| dock.focus_dialog(tab)}>
                 {face}
             </Interactive>
         </Overlay>
     };
     create_effect(move || {
-        if !(blocking.get() || attended.get()) {
+        if !(blocking.get() || focused.get()) {
             return;
         }
-        if let Some(overlay) = raised.try_get() {
+        if let Some(overlay) = overlay.try_get() {
             with_document(|document| document.raise_overlay(overlay));
         }
     });
-    let focusing = dock;
     create_effect(move || {
-        if attended.get() {
-            untrack(|| focusing.focus_into_dialog());
+        if focused.get() {
+            untrack(|| dock.focus_into_dialog());
         }
     });
-    let opened = dock;
     let was_shown = std::cell::Cell::new(false);
     create_effect(move || {
-        let now = opening.get();
+        let now = shown.get();
         if now && !was_shown.replace(true) {
-            untrack(|| opened.focus_dialog(tab));
+            untrack(|| dock.focus_dialog(tab));
         }
     });
     view

@@ -7,21 +7,19 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
     let _root = crate::reactive::RootScope::new();
     let hovers = create_signal::<Vec<bool>>(Vec::new());
     let (top, bottom) = (NodeRef::new(), NodeRef::new());
-    let mut document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Interactive
-                        @node_ref=&top
-                        on_hover_change={move |hovered: bool| hovers.update(|hovers| hovers.push(hovered))}
-                    >
-                        <Frame height=100.0 />
-                    </Interactive>
-                    <Interactive @node_ref=&bottom on_click={|| {}}>
-                        <Frame height=100.0 />
-                    </Interactive>
-                </List>
-            }
+    let mut document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Interactive
+                    @node_ref=&top
+                    on_hover_change={move |hovered: bool| hovers.update(|hovers| hovers.push(hovered))}
+                >
+                    <Frame height=100.0 />
+                </Interactive>
+                <Interactive @node_ref=&bottom on_click={|| {}}>
+                    <Frame height=100.0 />
+                </Interactive>
+            </List>
         }
     });
     let (top, bottom) = (top.get(), bottom.get());

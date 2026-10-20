@@ -179,28 +179,23 @@ pub fn build(state: Stored<State>) -> Panel {
     let selection = create_signal(Vec::<Key>::new());
     let compact = create_signal(false);
     let tree = NodeRef::new();
-    let tree_ref = tree;
 
     let document = beui_view::reactive::build(|| {
-        let count_text = create_memo({
-            move || match tab.get() {
-                InspectorTab::Performance => {
-                    performance.with(|performance| performance.samples.clone())
-                }
-                InspectorTab::Simulation => String::new(),
-                InspectorTab::Components => {
-                    total_label(summary.with(|summary| summary.total), "component")
-                }
-                _ => total_label(summary.with(|summary| summary.total), "node"),
+        let count_text = create_memo(move || match tab.get() {
+            InspectorTab::Performance => {
+                performance.with(|performance| performance.samples.clone())
             }
+            InspectorTab::Simulation => String::new(),
+            InspectorTab::Components => {
+                total_label(summary.with(|summary| summary.total), "component")
+            }
+            _ => total_label(summary.with(|summary| summary.total), "node"),
         });
-        let tree_visible = create_memo({
-            move || {
-                matches!(
-                    tab.get(),
-                    InspectorTab::Beui | InspectorTab::Components | InspectorTab::AccessKit
-                )
-            }
+        let tree_visible = create_memo(move || {
+            matches!(
+                tab.get(),
+                InspectorTab::Beui | InspectorTab::Components | InspectorTab::AccessKit
+            )
         });
         let performance_visible = create_memo(move || tab.get() == InspectorTab::Performance);
         let simulation_visible = create_memo(move || tab.get() == InspectorTab::Simulation);
@@ -219,16 +214,6 @@ pub fn build(state: Stored<State>) -> Panel {
             false => ItemSize::Fixed(0.0),
         });
         let selected = create_memo(move || selection.with(|path| path.last().copied()));
-        let lineage = selection;
-        let row_entries = entries;
-        let item_entries = entries;
-        let header_tree_visible = tree_visible;
-        let body_tree_visible = tree_visible;
-        let footer_tree_visible = tree_visible;
-        let body_performance_visible = performance_visible;
-        let footer_performance_visible = performance_visible;
-        let body_simulation_visible = simulation_visible;
-        let footer_simulation_visible = simulation_visible;
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Separator direction=Direction::Vertical />
@@ -248,7 +233,7 @@ pub fn build(state: Stored<State>) -> Panel {
                                         string={count_text}
                                         align=TextAlign::End
                                     />
-                                    <ShowKeepAlive condition={header_tree_visible}>
+                                    <ShowKeepAlive condition={tree_visible}>
                                         <PickToggle state={state} picking />
                                     </ShowKeepAlive>
                                     <Show condition={create_memo(move || !compact.get())}>
@@ -275,15 +260,15 @@ pub fn build(state: Stored<State>) -> Panel {
                         <Separator />
                         <Frame @sizing=ItemSize::Percent(100.0)>
                             <List spacing=0.0>
-                                <ShowKeepAlive condition={body_tree_visible}>
+                                <ShowKeepAlive condition={tree_visible}>
                                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
                                         <Tree
                                             @sizing=ItemSize::Percent(100.0 - PROPERTIES_SHARE)
-                                            @node_ref=&tree_ref
+                                            @node_ref=&tree
                                             keys
-                                            item={move |key: Key| item(&item_entries, key)}
+                                            item={move |key: Key| item(&entries, key)}
                                             selected={selected}
-                                            ancestors={move |key: Key| ancestors(lineage.read_only(), key)}
+                                            ancestors={move |key: Key| ancestors(selection.read_only(), key)}
                                             padding=BODY_PADDING
                                             row_test_id={move |key: Key| key.test_id()}
                                             reveal_test_id={"inspector.reveal".to_owned()}
@@ -298,7 +283,7 @@ pub fn build(state: Stored<State>) -> Panel {
                                                 state.value().hover(key.node(), hovered);
                                             }}
                                         >|row: TreeRowFace<Key>|
-                                            <TreeCells row_key={row.key} entries={row_entries} />
+                                            <TreeCells row_key={row.key} entries={entries} />
                                         </Tree>
                                         <Frame
                                             @sizing={properties_size}
@@ -309,7 +294,7 @@ pub fn build(state: Stored<State>) -> Panel {
                                         </Frame>
                                     </List>
                                 </ShowKeepAlive>
-                                <ShowKeepAlive condition={body_performance_visible}>
+                                <ShowKeepAlive condition={performance_visible}>
                                     <PerformancePanel
                                         @sizing=ItemSize::Percent(100.0)
                                         @test_id={"inspector.performance"}
@@ -319,7 +304,7 @@ pub fn build(state: Stored<State>) -> Panel {
                                         state={state}
                                     />
                                 </ShowKeepAlive>
-                                <ShowKeepAlive condition={body_simulation_visible}>
+                                <ShowKeepAlive condition={simulation_visible}>
                                     <SimulationPanel
                                         @sizing=ItemSize::Percent(100.0)
                                         state={state}
@@ -332,7 +317,7 @@ pub fn build(state: Stored<State>) -> Panel {
                         <Separator />
                         <Frame padding=FOOTER_PADDING>
                             <List spacing=0.0>
-                                <ShowKeepAlive condition={footer_tree_visible}>
+                                <ShowKeepAlive condition={tree_visible}>
                                     <List spacing=FOOTER_SPACING>
                                         <Text style=TextStyle::CODE string={selection_text} />
                                         <Text
@@ -342,14 +327,14 @@ pub fn build(state: Stored<State>) -> Panel {
                                         />
                                     </List>
                                 </ShowKeepAlive>
-                                <ShowKeepAlive condition={footer_performance_visible}>
+                                <ShowKeepAlive condition={performance_visible}>
                                     <Button
                                         label="Reset samples"
                                         variant=ButtonVariant::Secondary
                                         on_click={move || state.value().reset_performance()}
                                     />
                                 </ShowKeepAlive>
-                                <ShowKeepAlive condition={footer_simulation_visible}>
+                                <ShowKeepAlive condition={simulation_visible}>
                                     <Text
                                         style=TextStyle::CODE
                                         string={native_pixel_ratio_text}
@@ -1021,14 +1006,13 @@ fn entry_field<T: Clone + Default + PartialEq + 'static>(
 
 #[component]
 fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
-    let key = row_key;
-    let kind = entry_field(&entries, key, |entry| entry.kind.to_owned());
-    let detail = entry_field(&entries, key, |entry| entry.detail.clone());
-    let size = entry_field(&entries, key, |entry| entry.size.clone());
+    let kind = entry_field(&entries, row_key, |entry| entry.kind.to_owned());
+    let detail = entry_field(&entries, row_key, |entry| entry.detail.clone());
+    let size = entry_field(&entries, row_key, |entry| entry.size.clone());
 
     view! {
         <List
-            @test_id={key.test_id()}
+            @test_id={row_key.test_id()}
             direction=Direction::Horizontal
             align=Align::Center
             spacing=ROW_SPACING

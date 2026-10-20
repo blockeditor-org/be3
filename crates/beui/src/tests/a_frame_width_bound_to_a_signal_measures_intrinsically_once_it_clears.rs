@@ -10,16 +10,14 @@ fn a_frame_width_bound_to_a_signal_measures_intrinsically_once_it_clears() {
     let _root = crate::reactive::RootScope::new();
     let outer = NodeRef::new();
     let width = create_signal(Some(GIVEN_WIDTH));
-    let document = build({
-        move || {
-            view! {
-                <List direction=Direction::Horizontal spacing=0.0>
-                    <Frame @node_ref=&outer width=width>
-                        <Frame width=CHILD_WIDTH height=CHILD_HEIGHT />
-                    </Frame>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List direction=Direction::Horizontal spacing=0.0>
+                <Frame @node_ref=&outer width=width>
+                    <Frame width=CHILD_WIDTH height=CHILD_HEIGHT />
+                </Frame>
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+            </List>
         }
     });
     let outer = outer.get();

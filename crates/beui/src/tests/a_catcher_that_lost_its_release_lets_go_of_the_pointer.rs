@@ -14,24 +14,22 @@ fn a_catcher_that_lost_its_release_lets_go_of_the_pointer() {
             })
         }
     };
-    let document = build({
-        move || {
-            let first = catcher(0, heard);
-            let second = catcher(1, heard);
-            view! {
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive on_forward={first}>
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                    <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive on_forward={second}>
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
-            }
+    let document = build(move || {
+        let first = catcher(0, heard);
+        let second = catcher(1, heard);
+        view! {
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive on_forward={first}>
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+                <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive on_forward={second}>
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);

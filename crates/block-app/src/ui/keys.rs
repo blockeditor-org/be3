@@ -62,7 +62,6 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
             ]));
         }
     };
-    let submit = confirm;
     view! {
         <Column>
             <Text style=TextStyle::TITLE string={title} />
@@ -99,7 +98,7 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
                 value={third}
                 label={third_label}
                 on_change={move |value: String| third.set(value)}
-                on_submit={move |_value: String| submit()}
+                on_submit={move |_value: String| confirm()}
             />
             <ErrorText text={error} />
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -147,7 +146,6 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             send(UiCommand::UnlockWithPhrase(phrase.get_untracked()));
         }
     };
-    let submit = open;
     view! {
         <Column>
             <Text style=TextStyle::TITLE string={title} />
@@ -163,7 +161,7 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                     label="Recovery phrase"
                     placeholder="twelve words"
                     on_change={move |value: String| phrase.set(value)}
-                    on_submit={move |_value: String| submit()}
+                    on_submit={move |_value: String| open()}
                 />
                 <List direction=Direction::Horizontal spacing=8.0>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -253,13 +251,11 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
             ));
         }
     };
-    let submit = approve;
     let dismiss = move || {
         if let Some(request) = request.get_untracked() {
             send(UiCommand::DismissPairing(request.from));
         }
     };
-    let ignore = dismiss;
     view! {
         <Dialog open={open} title="Add a device" width=340.0 on_dismiss={dismiss}>
             <List spacing=10.0>
@@ -269,11 +265,11 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
                     label="Code"
                     placeholder="XXXX-XXXX"
                     on_change={move |value: String| code.set(value)}
-                    on_submit={move |_value: String| submit()}
+                    on_submit={move |_value: String| approve()}
                 />
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Button label="Ignore" variant=ButtonVariant::Secondary on_click={ignore} />
+                    <Button label="Ignore" variant=ButtonVariant::Secondary on_click={dismiss} />
                     <Button
                         label="Approve"
                         variant=ButtonVariant::Primary

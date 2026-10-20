@@ -123,7 +123,6 @@ pub fn Slider(
     };
     let grab = Rc::new(Cell::new(0.0f32));
     let press_grab = grab.clone();
-    let press_fraction = fraction;
     let dragged_to = move |press: PointerPress| {
         let travel = press.size.x - thumb;
         match travel > 0.0 {
@@ -132,10 +131,9 @@ pub fn Slider(
         }
     };
     let jump_to = dragged_to.clone();
-    let jump_value = set_value;
     let grabbed = move |press: PointerPress| {
         let travel = (press.size.x - thumb).max(0.0);
-        let centre = thumb / 2.0 + press_fraction.get_untracked() * travel;
+        let centre = thumb / 2.0 + fraction.get_untracked() * travel;
         let on_thumb = thumb > 0.0 && (press.local.x - centre).abs() <= thumb / 2.0;
         press_grab.set(if on_thumb {
             centre - press.local.x
@@ -143,12 +141,9 @@ pub fn Slider(
             0.0
         });
         if !on_thumb {
-            jump_value(scale.value_at(jump_to(press), min, max));
+            set_value(scale.value_at(jump_to(press), min, max));
         }
     };
-    let step_value = set_value;
-    let key_value = set_value;
-    let value_for_keys = current;
 
     set_component_state(current.read_only());
 
@@ -162,8 +157,8 @@ pub fn Slider(
                 on_focus_change.call(next);
             }}
             on_step={move |delta: f32| {
-                let value = value_for_keys.get_untracked();
-                step_value(stepped(scale, value, delta * STEP, min, max));
+                let value = current.get_untracked();
+                set_value(stepped(scale, value, delta * STEP, min, max));
             }}
             on_key={move |press: KeyPress| {
                 if press.modifiers.ctrl || press.modifiers.alt {
@@ -178,7 +173,7 @@ pub fn Slider(
                     _ => return false,
                 };
                 if press.pressed {
-                    key_value(next);
+                    set_value(next);
                 }
                 true
             }}

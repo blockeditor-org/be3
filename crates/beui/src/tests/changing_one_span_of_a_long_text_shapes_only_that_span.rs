@@ -14,25 +14,23 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
     let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
     let writer = create_signal::<Option<Signal<Vec<String>>>>(None);
-    let document = build({
-        move || {
-            let words = create_signal(words());
-            writer.update(|writer| *writer = Some(words));
-            let keys = create_memo(move || (0..words.get().len()).collect::<Vec<usize>>());
-            view! {
-                <Frame width=200.0>
-                    <Text @node_ref=&text wrap=true>
-                        <ForEach keys={keys}>|index: usize| {
-                            let word = create_memo(move || {
-                                words.get().get(index).cloned().unwrap_or_default()
-                            });
-                            view! {
-                                <Span text={word} />
-                            }
-                        }</ForEach>
-                    </Text>
-                </Frame>
-            }
+    let document = build(move || {
+        let words = create_signal(words());
+        writer.update(|writer| *writer = Some(words));
+        let keys = create_memo(move || (0..words.get().len()).collect::<Vec<usize>>());
+        view! {
+            <Frame width=200.0>
+                <Text @node_ref=&text wrap=true>
+                    <ForEach keys={keys}>|index: usize| {
+                        let word = create_memo(move || {
+                            words.get().get(index).cloned().unwrap_or_default()
+                        });
+                        view! {
+                            <Span text={word} />
+                        }
+                    }</ForEach>
+                </Text>
+            </Frame>
         }
     });
     let written = writer.get_untracked().expect("the words were made");

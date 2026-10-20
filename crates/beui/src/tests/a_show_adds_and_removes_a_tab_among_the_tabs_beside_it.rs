@@ -7,22 +7,20 @@ fn a_show_adds_and_removes_a_tab_among_the_tabs_beside_it() {
     let _root = crate::reactive::RootScope::new();
     let tabs = NodeRef::new();
     let extra = create_signal(false);
-    let (document, [_tabs]) = toolbar_of({
-        move || {
-            [view! {
-                <Tabs
-                    @node_ref=&tabs
-                    options={view! {
-                        <unstyled::ChoiceOption label="List" />
-                        <Show condition={extra}>
-                            <unstyled::ChoiceOption label="Load" />
-                        </Show>
-                        <unstyled::ChoiceOption label="Name" />
-                    }}
-                    selected=0
-                />
-            }]
-        }
+    let (document, [_tabs]) = toolbar_of(move || {
+        [view! {
+            <Tabs
+                @node_ref=&tabs
+                options={view! {
+                    <unstyled::ChoiceOption label="List" />
+                    <Show condition={extra}>
+                        <unstyled::ChoiceOption label="Load" />
+                    </Show>
+                    <unstyled::ChoiceOption label="Name" />
+                }}
+                selected=0
+            />
+        }]
     });
     let tabs = tabs.get();
     let mut harness = Harness::new(document);

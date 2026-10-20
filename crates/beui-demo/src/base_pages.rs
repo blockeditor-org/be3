@@ -403,14 +403,13 @@ fn ShowToggle() -> NodeId {
 fn PlanetList() -> NodeId {
     let count = create_signal(3usize);
     let planets = create_memo(move || PLANETS[..count.get()].to_vec());
-    let fewer = count;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=8.0>
                 <Button
                     label="Remove one"
                     variant=ButtonVariant::Secondary
-                    on_click={move || fewer.update(|count| *count = count.saturating_sub(1))}
+                    on_click={move || count.update(|count| *count = count.saturating_sub(1))}
                 />
                 <Button
                     label="Add one"
@@ -466,7 +465,6 @@ fn InteractiveCard() -> NodeId {
     let active = create_signal(false);
     let focused = create_signal(false);
     let log = create_signal("Hover, press, or Tab to it and type".to_owned());
-    let clicked = log;
     let fill = create_memo(move || {
         let theme = theme.get();
         match (active.get(), hovered.get()) {
@@ -490,7 +488,7 @@ fn InteractiveCard() -> NodeId {
                 on_hover_change={move |on| hovered.set(on)}
                 on_active_change={move |on| active.set(on)}
                 on_focus_change={move |on| focused.set(on)}
-                on_click={move || clicked.set("Clicked".to_owned())}
+                on_click={move || log.set("Clicked".to_owned())}
                 on_key={move |press: KeyPress| {
                     if press.pressed {
                         log.set(format!("Pressed {:?}", press.key));
@@ -622,8 +620,6 @@ fn AnchoredOverlay() -> NodeId {
     let theme = use_theme();
     let anchor = NodeRef::new();
     let open = create_signal(false);
-    let dismiss = open;
-    let target = anchor;
     let face = theme.surface_raised;
     let ink = theme.text;
     view! {
@@ -633,7 +629,7 @@ fn AnchoredOverlay() -> NodeId {
                 on_click={move || open.update(|open| *open = !*open)}
             >
                 <Frame
-                    @node_ref=&target
+                    @node_ref=&anchor
                     fill=face
                     radius={Radius::Md.px()}
                     padding={Sides::symmetric(16.0, 10.0)}
@@ -645,7 +641,7 @@ fn AnchoredOverlay() -> NodeId {
                 anchor=anchor
                 placement=Placement::BelowStart
                 open={open}
-                on_dismiss={move |_: Dismiss| dismiss.set(false)}
+                on_dismiss={move |_: Dismiss| open.set(false)}
             >
                 <Frame padding={Sides::vertical(4.0)}>
                     <Frame

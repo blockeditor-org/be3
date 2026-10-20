@@ -379,7 +379,6 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
             .to_owned()
     });
     let badged = create_memo(move || !hotkey.get().is_empty());
-    let badge_text = text;
     view! {
         <Frame
             width=SLOT_SIZE
@@ -412,7 +411,7 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                         <Text
                             string={hotkey}
                             size=TextSize::Xs
-                            color={badge_text}
+                            color={text}
                             align=TextAlign::Center
                             vertical_align=TextAlign::Center
                         />

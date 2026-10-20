@@ -731,7 +731,6 @@ fn ExportMenu() -> NodeId {
 #[component]
 fn RunSplit() -> NodeId {
     let ran = create_signal("Nothing run".to_owned());
-    let picked = ran;
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=0.0>
@@ -758,7 +757,7 @@ fn RunSplit() -> NodeId {
                     }}
                     on_click={move || ran.set("Ran".to_owned())}
                     on_select={move |path: Vec<usize>| {
-                        picked.set(format!("Ran option {}", path.first().map_or(0, |index| index + 1)));
+                        ran.set(format!("Ran option {}", path.first().map_or(0, |index| index + 1)));
                     }}
                 />
             </List>
@@ -972,12 +971,11 @@ fn OpenableFiles() -> NodeId {
     let opened = create_signal("Double-click a file, or press Enter on it".to_owned());
     let row = move |index: usize, name: &'static str| {
         let selected = create_memo(move || chosen.get() == index);
-        let (choose, open) = (chosen, opened);
         view! {
             <unstyled::ListRow
                 selected={selected}
-                on_click={move || choose.set(index)}
-                on_activate={move || open.set(format!("Opened {name}"))}
+                on_click={move || chosen.set(index)}
+                on_activate={move || opened.set(format!("Opened {name}"))}
             >|handle: ButtonHandle|
                 <FileRowFace handle selected name />
             </unstyled::ListRow>
@@ -1240,13 +1238,12 @@ fn FolderTree() -> NodeId {
     });
     let tree = NodeRef::new();
     let viewport = NodeRef::new();
-    let rows = tree;
     view! {
         <Frame width=PANEL_WIDTH height=TREE_HEIGHT>
             <List spacing=0.0>
                 <unstyled::Scroll @sizing=ItemSize::Percent(100.0) @node_ref={&viewport}>
                     <unstyled::Tree
-                        @node_ref={&rows}
+                        @node_ref={&tree}
                         keys
                         item
                         selected={selected}
@@ -1465,8 +1462,6 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
 #[component]
 fn PullUpSheet() -> NodeId {
     let open = create_signal(false);
-    let closing = open;
-    let done = open;
     let ink = TextColor::Default;
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
@@ -1483,7 +1478,7 @@ fn PullUpSheet() -> NodeId {
                 panel={move |content: Child| view! {
                     <Frame fill=ColorRole::Surface radius=Radius::Lg>{content}</Frame>
                 }}
-                on_close={move || closing.set(false)}
+                on_close={move || open.set(false)}
             >
                 <Frame padding=PAGE_PADDING>
                     <List spacing=SECTION_SPACING>
@@ -1494,7 +1489,7 @@ fn PullUpSheet() -> NodeId {
                         />
                         <List direction=Direction::Horizontal spacing=0.0>
                             <unstyled::Button
-                                on_click={move || done.set(false)}
+                                on_click={move || open.set(false)}
                             >|handle: ButtonHandle|
                                 <PillFace handle label="Done" />
                             </unstyled::Button>
@@ -1518,7 +1513,6 @@ fn FolderPages() -> NodeId {
     let theme = use_theme();
     let depth = create_signal(0_u32);
     let nested = create_memo(move || depth.get() > 0);
-    let rising = depth;
     let page = theme.background;
     let ink = TextColor::Default;
     let above = move || {
@@ -1533,7 +1527,7 @@ fn FolderPages() -> NodeId {
     view! {
         <unstyled::BackSlide
             enabled={nested}
-            on_back={move || rising.set(depth.get_untracked().saturating_sub(1))}
+            on_back={move || depth.set(depth.get_untracked().saturating_sub(1))}
             behind={above}
         >
             <Frame fill={ColorRole::custom(page)}>

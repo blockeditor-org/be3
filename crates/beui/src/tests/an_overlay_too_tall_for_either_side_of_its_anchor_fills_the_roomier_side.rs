@@ -8,21 +8,19 @@ use crate::reactive::*;
 fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {
     let _root = crate::reactive::RootScope::new();
     let overlay = NodeRef::new();
-    let document = build({
-        move || {
-            view! {
-                <Frame>
-                    <Overlay
-                        @node_ref=&overlay
-                        anchor=OverlayAnchor::Point(pos2(10.0, 200.0))
-                        placement=Placement::BelowStart
-                        open=true
-                        on_dismiss={|_: Dismiss| {}}
-                    >
-                        <Frame width=40.0 height=1000.0 />
-                    </Overlay>
-                </Frame>
-            }
+    let document = build(move || {
+        view! {
+            <Frame>
+                <Overlay
+                    @node_ref=&overlay
+                    anchor=OverlayAnchor::Point(pos2(10.0, 200.0))
+                    placement=Placement::BelowStart
+                    open=true
+                    on_dismiss={|_: Dismiss| {}}
+                >
+                    <Frame width=40.0 height=1000.0 />
+                </Overlay>
+            </Frame>
         }
     });
     let mut harness = Harness::sized(document, vec2(400.0, 300.0));

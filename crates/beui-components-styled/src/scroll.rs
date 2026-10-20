@@ -79,7 +79,6 @@ pub fn Scroll(
     children: Children<ListChild>,
 ) -> NodeId {
     let theme = use_theme();
-    let along = direction;
     let scroll = view! {
         <unstyled::Scroll
             offset
@@ -101,7 +100,7 @@ pub fn Scroll(
         return scroll;
     };
     view! {
-        <List direction={along} spacing=0.0>
+        <List direction={direction} spacing=0.0>
             {scroll} @sizing={ItemSize::Intrinsic.max(max_length)}
         </List>
     }

@@ -26,42 +26,39 @@ pub(crate) fn Artwork(state: RayState) -> NodeId {
             let top = create_memo(move || artwork.get().top());
             let side = create_memo(move || artwork.get().width());
 
-            let press_artwork = artwork;
             let press_view = state.editor().canvas();
             let on_press = move |press: PointerPress| {
                 let Some(at) = world_point(
                     press.pos,
                     &press_view,
                     editor,
-                    press_artwork.get_untracked(),
+                    artwork.get_untracked(),
                 ) else {
                     return;
                 };
                 state.press(at);
             };
 
-            let drag_artwork = artwork;
             let drag_view = state.editor().canvas();
             let on_drag = move |press: PointerPress| {
                 let Some(at) = world_point(
                     press.pos,
                     &drag_view,
                     editor,
-                    drag_artwork.get_untracked(),
+                    artwork.get_untracked(),
                 ) else {
                     return;
                 };
                 state.drag(at);
             };
 
-            let hover_artwork = artwork;
             let hover_view = state.editor().canvas();
             let on_hover_move = move |press: PointerPress| {
                 state.hover(world_point(
                     press.pos,
                     &hover_view,
                     editor,
-                    hover_artwork.get_untracked(),
+                    artwork.get_untracked(),
                 ));
             };
 

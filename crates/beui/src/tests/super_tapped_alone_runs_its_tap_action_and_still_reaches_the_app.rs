@@ -18,27 +18,25 @@ fn super_tapped_alone_runs_its_tap_action_and_still_reaches_the_app() {
     let _root = crate::reactive::RootScope::new();
     let taps = create_signal(0);
     let forwarded = create_signal(Vec::<Event>::new());
-    let document = build({
-        move || {
-            Action::new("test.tap", "Tap", move || taps.update(|taps| *taps += 1))
-                .shortcut(Chord::tap(Key::Logo))
-                .at(KeyAt::Window)
-                .capture()
-                .register();
-            view! {
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive
-                            focusable=true
-                            on_forward={move |input: ForwardedInput| {
-                                forwarded.update(|forwarded| forwarded.extend(flattened(input)));
-                            }}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
-            }
+    let document = build(move || {
+        Action::new("test.tap", "Tap", move || taps.update(|taps| *taps += 1))
+            .shortcut(Chord::tap(Key::Logo))
+            .at(KeyAt::Window)
+            .capture()
+            .register();
+        view! {
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive
+                        focusable=true
+                        on_forward={move |input: ForwardedInput| {
+                            forwarded.update(|forwarded| forwarded.extend(flattened(input)));
+                        }}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);

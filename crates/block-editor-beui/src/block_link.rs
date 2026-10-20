@@ -31,7 +31,6 @@ pub fn watch_block_label(
     target: Memo<Option<ChildTarget>>,
 ) -> ReadSignal<BlockDisplay> {
     let shown = create_signal(BlockDisplay::default());
-    let shown_now = shown;
     let opened = RefCell::new(None::<(ChildTarget, BlockList)>);
     let blocks = editor.blocks();
     let catalog = editor.host();
@@ -66,7 +65,7 @@ pub fn watch_block_label(
             automatic: label.automatic,
             resolved,
         };
-        if shown_now.get_untracked() != display {
+        if shown.get_untracked() != display {
             shown.set(display);
         }
     });

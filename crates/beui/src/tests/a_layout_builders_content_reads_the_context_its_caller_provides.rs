@@ -22,11 +22,9 @@ fn Provider(seen: Signal<Option<Color32>>) -> NodeId {
 fn a_layout_builders_content_reads_the_context_its_caller_provides() {
     let _root = crate::reactive::RootScope::new();
     let seen = create_signal(None);
-    let document = build({
-        move || {
-            view! {
-                <Provider seen={seen} />
-            }
+    let document = build(move || {
+        view! {
+            <Provider seen={seen} />
         }
     });
     let mut harness = Harness::new(document);

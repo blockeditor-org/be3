@@ -14,39 +14,37 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
     let held = create_signal::<Option<TextAreaState>>(None);
     let block = NodeRef::new();
     let popup = NodeRef::new();
-    let document = build({
-        move || {
-            let document =
-                Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
-            let state = TextAreaState::new(document);
-            held.update(|held| *held = Some(state));
-            let widgets = vec![
-                TextWidget {
-                    range: 4..7,
-                    label: "Inline".to_owned(),
-                    ..TextWidget::default()
-                },
-                TextWidget {
-                    range: 13..18,
-                    label: "Large".to_owned(),
-                    block_size: Some(BLOCK),
-                    ..TextWidget::default()
-                },
-            ];
-            view! {
-                <Frame width=600.0 height=400.0>
-                    <TextArea
-                        state={state}
-                        widgets={widgets}
-                        block={move |_: usize| view! {
-                            <Frame @node_ref=&block />
-                        }}
-                        selected_widget={move |_: usize| view! {
-                            <Frame @node_ref=&popup width=40.0 height=20.0 />
-                        }}
-                    />
-                </Frame>
-            }
+    let document = build(move || {
+        let document =
+            Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
+        let state = TextAreaState::new(document);
+        held.update(|held| *held = Some(state));
+        let widgets = vec![
+            TextWidget {
+                range: 4..7,
+                label: "Inline".to_owned(),
+                ..TextWidget::default()
+            },
+            TextWidget {
+                range: 13..18,
+                label: "Large".to_owned(),
+                block_size: Some(BLOCK),
+                ..TextWidget::default()
+            },
+        ];
+        view! {
+            <Frame width=600.0 height=400.0>
+                <TextArea
+                    state={state}
+                    widgets={widgets}
+                    block={move |_: usize| view! {
+                        <Frame @node_ref=&block />
+                    }}
+                    selected_widget={move |_: usize| view! {
+                        <Frame @node_ref=&popup width=40.0 height=20.0 />
+                    }}
+                />
+            </Frame>
         }
     });
     let mut harness = Harness::new(document);

@@ -25,7 +25,6 @@ pub fn Pressable(
             on_click.call();
         }
     };
-    let key_click = click;
 
     view! {
         <Interactive
@@ -33,7 +32,7 @@ pub fn Pressable(
             tab_stop={enabled}
             on_focus_change={on_focus_change}
             on_activate_change={move |pressed| key_active.set(pressed)}
-            on_activate={key_click}
+            on_activate={click}
             cursor=CursorIcon::PointingHand
             key_active
             on_click={click}

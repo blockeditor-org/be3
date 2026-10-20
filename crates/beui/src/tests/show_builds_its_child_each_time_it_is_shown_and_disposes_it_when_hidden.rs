@@ -8,28 +8,26 @@ fn show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden() {
     let _root = crate::reactive::RootScope::new();
     let (column, toggle) = (NodeRef::new(), NodeRef::new());
     let builds = create_signal(0);
-    let document = build({
-        move || {
-            let visible = create_signal(false);
-            view! {
-                <List @node_ref=&column spacing=0.0>
-                    <Button
-                        @node_ref=&toggle
-                        on_click={move || visible.update(|visible| *visible = !*visible)}
-                    >
-                        <Text string="toggle" />
-                    </Button>
-                    <Show
-                        condition={visible}
-                        then={move || {
-                            builds.update(|builds| *builds += 1);
-                            view! {
-                                <Text string="panel" />
-                            }
-                        }}
-                    />
-                </List>
-            }
+    let document = build(move || {
+        let visible = create_signal(false);
+        view! {
+            <List @node_ref=&column spacing=0.0>
+                <Button
+                    @node_ref=&toggle
+                    on_click={move || visible.update(|visible| *visible = !*visible)}
+                >
+                    <Text string="toggle" />
+                </Button>
+                <Show
+                    condition={visible}
+                    then={move || {
+                        builds.update(|builds| *builds += 1);
+                        view! {
+                            <Text string="panel" />
+                        }
+                    }}
+                />
+            </List>
         }
     });
 

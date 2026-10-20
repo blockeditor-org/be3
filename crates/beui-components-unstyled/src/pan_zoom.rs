@@ -162,14 +162,11 @@ pub fn PanZoom(
                 max_scale: create_memo(move || max_scale.get()),
                 on_change,
             };
-            let scroll_camera = camera;
-            let zoom_camera = camera;
 
             let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ScrollView)));
             component_accessibility(create_memo(move || accessibility.get()));
 
             let focused = create_signal(false);
-            let key_camera = camera;
             let cursor = create_memo(move || if panning.get() {
                 CursorIcon::Grabbing
             } else {
@@ -188,17 +185,17 @@ pub fn PanZoom(
                 <Interactive
                     focusable=true
                     on_focus_change={move |next: bool| focused.set(next)}
-                    on_key={move |press: KeyPress| key_camera.key(press)}
+                    on_key={move |press: KeyPress| camera.key(press)}
                     cursor={cursor}
                     on_scroll={move |gesture: ScrollGesture| {
                         if gesture.modifiers.ctrl {
                             let factor = (gesture.delta.y * ZOOM_PER_SCROLL_POINT).exp();
-                            scroll_camera.zoom(factor, gesture.pos);
+                            camera.zoom(factor, gesture.pos);
                         } else {
-                            scroll_camera.pan(gesture.delta);
+                            camera.pan(gesture.delta);
                         }
                     }}
-                    on_zoom={move |gesture: ZoomGesture| zoom_camera.zoom(gesture.factor, gesture.pos)}
+                    on_zoom={move |gesture: ZoomGesture| camera.zoom(gesture.factor, gesture.pos)}
                     on_pan_drag={move |delta: Vec2| camera.pan(delta)}
                     on_pan_active_change={move |next: bool| panning.set(next)}
                     children={Some(content_node)}

@@ -86,8 +86,6 @@ pub fn LockScreen(
                                 index == 0 && open.get() && !busy.get()
                             });
                             let submit = submit.clone();
-                            let action = on_action;
-                            let changed = password;
                             let card = view! {
                                 <LockCard
                                     place={place}
@@ -100,9 +98,9 @@ pub fn LockScreen(
                                     password={password.read_only()}
                                     focused={focused}
                                     id={format!("{}.{index}", id)}
-                                    on_change={move |typed: String| changed.set(typed)}
+                                    on_change={move |typed: String| password.set(typed)}
                                     on_submit={move |typed: String| submit(typed)}
-                                    on_action={action}
+                                    on_action={on_action}
                                 />
                             };
                             let layer: Layer = card.into_child();
@@ -183,7 +181,6 @@ fn LockCard(
                     </List>
                     <List direction=Direction::Horizontal spacing=ACTION_SPACING>
                         <ForEach keys={slots}>|index: usize| {
-                            let chose = on_action;
                             let glyph = create_memo(move || {
                                 actions.with(|actions| actions.get(index).map(|action| action.glyph.clone()).unwrap_or_default())
                             });
@@ -195,7 +192,7 @@ fn LockCard(
                                     glyph
                                     label
                                     @test_id={format!("{action_id}.action.{index}")}
-                                    on_click={move || chose.call(index)}
+                                    on_click={move || on_action.call(index)}
                                 />
                             }
                         }</ForEach>

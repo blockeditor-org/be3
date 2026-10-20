@@ -7,21 +7,19 @@ use crate::unstyled::Button;
 fn for_each_reuses_nodes_for_keys_that_persist_across_an_update() {
     let _root = crate::reactive::RootScope::new();
     let (list, shuffle) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            let items = create_signal(vec![1i64, 2, 3]);
-            view! {
-                <List spacing=0.0>
-                    <Button @node_ref=&shuffle on_click={move || items.set(vec![3, 2, 4])}>
-                        <Text string="shuffle" />
-                    </Button>
-                    <List @node_ref=&list spacing=0.0>
-                        <ForEach keys={items}>|value: i64|
-                            <Text string={value.to_string()} />
-                        </ForEach>
-                    </List>
+    let document = build(move || {
+        let items = create_signal(vec![1i64, 2, 3]);
+        view! {
+            <List spacing=0.0>
+                <Button @node_ref=&shuffle on_click={move || items.set(vec![3, 2, 4])}>
+                    <Text string="shuffle" />
+                </Button>
+                <List @node_ref=&list spacing=0.0>
+                    <ForEach keys={items}>|value: i64|
+                        <Text string={value.to_string()} />
+                    </ForEach>
                 </List>
-            }
+            </List>
         }
     });
 

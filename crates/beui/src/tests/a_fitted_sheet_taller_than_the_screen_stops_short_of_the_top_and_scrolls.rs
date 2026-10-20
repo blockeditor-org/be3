@@ -8,20 +8,18 @@ fn a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls() {
     let _root = crate::reactive::RootScope::new();
     let rows = NodeRef::new();
     let open = create_signal(false);
-    let document = build({
-        move || {
-            view! {
-                <List spacing=0.0>
-                    <Frame @sizing=ItemSize::Percent(100.0) />
-                    <ModalSheet open={open} fit=true on_close={|| ()}>
-                        <List @node_ref=&rows spacing=0.0>
-                            <ForEach keys={indices(SHEET_ROWS)}>|_: usize|
-                                <Frame height=SHEET_ROW_HEIGHT />
-                            </ForEach>
-                        </List>
-                    </ModalSheet>
-                </List>
-            }
+    let document = build(move || {
+        view! {
+            <List spacing=0.0>
+                <Frame @sizing=ItemSize::Percent(100.0) />
+                <ModalSheet open={open} fit=true on_close={|| ()}>
+                    <List @node_ref=&rows spacing=0.0>
+                        <ForEach keys={indices(SHEET_ROWS)}>|_: usize|
+                            <Frame height=SHEET_ROW_HEIGHT />
+                        </ForEach>
+                    </List>
+                </ModalSheet>
+            </List>
         }
     });
     let mut harness = Harness::sized(document, Vec2::new(400.0, 600.0));

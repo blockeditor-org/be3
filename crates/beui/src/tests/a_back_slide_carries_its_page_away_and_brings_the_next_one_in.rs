@@ -9,14 +9,12 @@ fn a_back_slide_carries_its_page_away_and_brings_the_next_one_in() {
     let _root = crate::reactive::RootScope::new();
     let depth = create_signal(2_u32);
     let page = NodeRef::new();
-    let document = build({
-        move || {
-            let nested = create_memo(move || depth.get() > 0);
-            view! {
-                <BackSlide enabled={nested} on_back={move || depth.set(depth.get_untracked() - 1)}>
-                    <Text string="Page" color=Color32::WHITE @node_ref={&page} />
-                </BackSlide>
-            }
+    let document = build(move || {
+        let nested = create_memo(move || depth.get() > 0);
+        view! {
+            <BackSlide enabled={nested} on_back={move || depth.set(depth.get_untracked() - 1)}>
+                <Text string="Page" color=Color32::WHITE @node_ref={&page} />
+            </BackSlide>
         }
     });
 

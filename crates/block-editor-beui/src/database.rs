@@ -355,7 +355,6 @@ fn EnumValue(
         };
         options.with(|options| options.iter().position(|option| option.id == chosen))
     });
-    let names = options;
     let picked = move |index: Option<usize>| {
         let (Some(index), Some(field_id)) = (
             index,
@@ -377,7 +376,7 @@ fn EnumValue(
             options={view! {
                 <ForEach keys={keys}>|id: Uuid| {
                     let label = create_memo(move || {
-                        names.with(|options| {
+                        options.with(|options| {
                             options
                                 .iter()
                                 .find(|option| option.id == id)
@@ -565,7 +564,6 @@ fn RelationValue(
         choices.with(|choices| choices.iter().position(|(link, _)| *link == chosen))
     });
     let unlinked = create_memo(move || target.get().is_none());
-    let names = choices;
     let picked = move |index: Option<usize>| {
         let Some(field_id) = field.with_untracked(|field| field.as_ref().map(|field| field.id))
         else {
@@ -593,7 +591,7 @@ fn RelationValue(
                 options={view! {
                     <ForEach keys={keys}>|link: RowRef| {
                         let label = create_memo(move || {
-                            names.with(|choices| {
+                            choices.with(|choices| {
                                 choices
                                     .iter()
                                     .find(|(held, _)| *held == link)
@@ -673,16 +671,13 @@ fn LinksValue(
         links.push(link);
         emit(links);
     };
-    let names = addable;
-    let chip_labels = labels;
     let add_id = format!("{id}.add");
-    let add_off = disabled;
     view! {
         <List spacing=SPACING>
             <ForEach keys={linked}>|link: RowRef| {
                 let remove_id = format!("{id}.remove.{}", link.row);
                 let label = create_memo(move || {
-                    chip_labels.with(|labels| labels.row(&link))
+                    labels.with(|labels| labels.row(&link))
                 });
                 let remove = move || {
                     let links = linked
@@ -709,7 +704,7 @@ fn LinksValue(
                 options={view! {
                     <ForEach keys={add_keys}>|link: RowRef| {
                         let label = create_memo(move || {
-                            names.with(|rows| {
+                            addable.with(|rows| {
                                 rows.iter()
                                     .find(|(held, _)| *held == link)
                                     .map_or_else(String::new, |(_, label)| label.clone())
@@ -722,7 +717,7 @@ fn LinksValue(
                 }}
                 selected={None}
                 label="Add a link"
-                disabled={add_off}
+                disabled={disabled}
                 @test_id={add_id}
                 on_change={added}
             />

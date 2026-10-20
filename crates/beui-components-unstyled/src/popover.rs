@@ -108,8 +108,6 @@ pub fn Popover(
         open: open.read_only(),
         close,
     };
-    let trigger_label = label;
-    let trigger_open = open;
     let toggle = move || {
         if !disabled.get_untracked() {
             open.update(|open| *open = !*open);
@@ -119,7 +117,7 @@ pub fn Popover(
         <List spacing=0.0>
             <unstyled::Button
                 @node_ref=&trigger_ref
-                label={trigger_label}
+                label={label}
                 glyph
                 disabled={disabled}
                 focused={refocus}
@@ -132,7 +130,7 @@ pub fn Popover(
                 on_click={toggle}
             >|button: ButtonHandle| {
                 trigger.call(PopoverTriggerHandle {
-                    open: trigger_open.read_only(),
+                    open: open.read_only(),
                     button,
                 })
             }</unstyled::Button>

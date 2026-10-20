@@ -70,7 +70,6 @@ fn PowerItem(action: PowerAction, available: Memo<PowerAvailability>) -> MenuIte
 #[component]
 pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
     let available = editor.host_value::<Power>();
-    let allowed = available;
     let confirming = create_signal(PowerAction::LogOut);
     let open = create_signal(false);
     let chose = move |path: Vec<usize>| {
@@ -80,7 +79,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
         else {
             return;
         };
-        if !allowed.get_untracked().allows(action) {
+        if !available.get_untracked().allows(action) {
             return;
         }
         match action {

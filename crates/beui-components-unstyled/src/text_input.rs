@@ -171,10 +171,6 @@ pub fn TextInput(
             open.call(at);
         }
     };
-    let masked_menu = masked;
-    let menu_disabled = disabled;
-    let field_disabled = disabled;
-    let handle_focused = is_focused;
     let surround = move |field: Child, padded: bool| {
         let field = match padded {
             true => view! {
@@ -191,8 +187,8 @@ pub fn TextInput(
                 @node_ref=&menu_node
                 state={state}
                 menu
-                masked={masked_menu}
-                disabled={menu_disabled}
+                masked={masked}
+                disabled={disabled}
                 child_size={match padded {
                     true => ItemSize::Intrinsic,
                     false => ItemSize::Percent(100.0),
@@ -203,8 +199,8 @@ pub fn TextInput(
                     Some(build) => build.call(TextInputHandle {
                         field,
                         hovered: hovered.read_only(),
-                        focused: handle_focused.read_only(),
-                        disabled: field_disabled,
+                        focused: is_focused.read_only(),
+                        disabled,
                         empty,
                         clear,
                     }),

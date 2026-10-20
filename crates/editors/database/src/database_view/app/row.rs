@@ -90,7 +90,6 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
             }
         });
     };
-    let (previous, next) = (step, step);
     let retitled = move |text: String| {
         let Some(field) = data.title_field.get_untracked() else {
             return;
@@ -101,8 +100,6 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
         }
     };
     let close = move || data.deselect();
-    let back = close;
-    let (close_narrow, close_wide) = (close, close);
     let open_page = move || {
         if let Some(index) = index.get_untracked() {
             data.open_page(index);
@@ -123,7 +120,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
     let (title_off, page_off, delete_off) = (data.read_only, data.read_only, data.read_only);
     let editor = data.editor();
     view! {
-        <BackHandler on_back={back}>
+        <BackHandler on_back={close}>
             <Frame fill=ColorRole::Background>
                 <List spacing=0.0>
                     <Frame padding={Sides::symmetric(SPACING, 6.0)}>
@@ -134,7 +131,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                     label="Back to the list"
                                     variant=ButtonVariant::Ghost
                                     @test_id={"database-view.detail.back"}
-                                    on_click={close_narrow}
+                                    on_click={close}
                                 />
                             </Show>
                             <IconButton
@@ -142,14 +139,14 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                 label="Previous row"
                                 variant=ButtonVariant::Ghost
                                 @test_id={"database-view.detail.previous"}
-                                on_click={move || previous(-1)}
+                                on_click={move || step(-1)}
                             />
                             <IconButton
                                 glyph={ICON_EXPAND_MORE.to_owned()}
                                 label="Next row"
                                 variant=ButtonVariant::Ghost
                                 @test_id={"database-view.detail.next"}
-                                on_click={move || next(1)}
+                                on_click={move || step(1)}
                             />
                             <Frame padding={Sides::horizontal(6.0)}>
                                 <Text
@@ -187,7 +184,7 @@ pub fn RowPanel(data: Data, row: ObjectId) -> NodeId {
                                     label="Close"
                                     variant=ButtonVariant::Ghost
                                     @test_id={"database-view.detail.close"}
-                                    on_click={close_wide}
+                                    on_click={close}
                                 />
                             </Show>
                         </List>
@@ -397,7 +394,6 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
         wanted.push(link);
         data.set_value(row, field, Some(DatabaseValue::Links(wanted)));
     };
-    let names = addable;
     let add_off = data.read_only;
     view! {
         <List spacing=4.0>
@@ -410,7 +406,7 @@ fn LinkSection(data: Data, row: ObjectId, field: Uuid) -> NodeId {
                         options={view! {
                             <ForEach keys={add_keys}>|link: RowRef| {
                                 let label = create_memo(move || {
-                                    names.with(|rows| {
+                                    addable.with(|rows| {
                                         rows.iter()
                                             .find(|(held, _)| *held == link)
                                             .map_or_else(String::new, |(_, label)| label.clone())

@@ -9,9 +9,8 @@ fn nested_batches_defer_effects_but_memo_reads_are_current() {
     let seen = Rc::new(RefCell::new(Vec::new()));
     let sum = scope.run(|| {
         let sum = create_memo(move || left.get() + right.get());
-        let observed = sum;
         let seen = seen.clone();
-        create_effect(move || seen.borrow_mut().push(observed.get()));
+        create_effect(move || seen.borrow_mut().push(sum.get()));
         sum
     });
     batch(|| {

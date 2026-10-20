@@ -26,9 +26,6 @@ pub fn ResponsiveTabs(
     let highlighted = create_memo(move || Some(current.get()));
 
     let tab_options = options.clone();
-    let tab_selected = current;
-    let tab_change = on_change;
-    let tab_set = current;
 
     view! {
         <List spacing=0.0>
@@ -37,10 +34,10 @@ pub fn ResponsiveTabs(
                 then={move || { let tab_options = tab_options.clone(); view! {
                     <Tabs
                         options={tab_options}
-                        selected={tab_selected}
+                        selected={current}
                         on_change={move |index| {
-                            tab_set.set(index);
-                            tab_change.call(index);
+                            current.set(index);
+                            on_change.call(index);
                         }}
                     />
                 } }}

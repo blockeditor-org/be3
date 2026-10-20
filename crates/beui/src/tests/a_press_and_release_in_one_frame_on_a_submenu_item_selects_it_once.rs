@@ -7,25 +7,23 @@ fn a_press_and_release_in_one_frame_on_a_submenu_item_selects_it_once() {
     let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
     let selected = create_signal(Vec::new());
-    let (document, _) = toolbar_of({
-        move || {
-            let items = view! {
-                <unstyled::MenuItem label="Profiles">
-                    <unstyled::MenuItem label="Profile 1" />
-                    <unstyled::MenuItem label="Profile 2" />
-                </unstyled::MenuItem>
-            };
-            [view! {
-                <MenuButton
-                    @node_ref=&button
-                    label="More"
-                    items
-                    on_select={move |path: Vec<usize>| {
-                        selected.update(|selected| selected.push(path));
-                    }}
-                />
-            }]
-        }
+    let (document, _) = toolbar_of(move || {
+        let items = view! {
+            <unstyled::MenuItem label="Profiles">
+                <unstyled::MenuItem label="Profile 1" />
+                <unstyled::MenuItem label="Profile 2" />
+            </unstyled::MenuItem>
+        };
+        [view! {
+            <MenuButton
+                @node_ref=&button
+                label="More"
+                items
+                on_select={move |path: Vec<usize>| {
+                    selected.update(|selected| selected.push(path));
+                }}
+            />
+        }]
     });
     let button = button.get();
     let mut harness = Harness::new(document);

@@ -239,9 +239,8 @@ pub fn DateTimeField(
                     0 => String::new(),
                     _ => separator(order[index - 1], segment_kind),
                 };
-                let face = segment;
                 view! {
-                    <SegmentView state segment=segment_kind prefix literal face />
+                    <SegmentView state segment=segment_kind prefix literal face={segment} />
                 }
             }</ForEach>
         </List>
@@ -292,7 +291,6 @@ fn SegmentView(
         }
         node
     }));
-    let ime = is_focused;
     let content = face.call(DateSegmentHandle {
         segment,
         text,
@@ -302,13 +300,12 @@ fn SegmentView(
         disabled: state.disabled,
     });
     let shown = !prefix.is_empty();
-    let text = prefix;
     view! {
         <Interactive
             focusable=true
             tab_stop
             focused
-            ime
+            ime={is_focused}
             on_focus_change={move |has_focus: bool| {
                 is_focused.set(has_focus);
                 segment_focus(state, segment, has_focus);
@@ -320,7 +317,7 @@ fn SegmentView(
             on_hover_change={move |next: bool| hovered.set(next)}
         >
             <List direction=Direction::Horizontal spacing=0.0>
-                <Show condition=shown>|| { literal.call(text.clone()) }</Show>
+                <Show condition=shown>|| { literal.call(prefix.clone()) }</Show>
                 {content}
             </List>
         </Interactive>

@@ -14,46 +14,44 @@ fn a_nested_container_reports_its_own_width_not_the_windows() {
     let sizes = create_signal::<Vec<ReadSignal<Vec2>>>(Vec::new());
     let collapsed = create_signal::<Vec<Memo<bool>>>(Vec::new());
     let (outer_item, inner_item) = (NodeRef::new(), NodeRef::new());
-    let document = build({
-        move || {
-            view! {
-                <Container>|size| {
-                    sizes.update(|sizes| sizes.push(size));
-                    let narrow = narrower_than(BREAKPOINT);
-                    collapsed.update(|collapsed| collapsed.push(narrow));
-                    view! {
-                        <List spacing=0.0>
-                            <Stack spacing=0.0 breakpoint=BREAKPOINT>
-                                <Frame
-                                    @sizing=ItemSize::Percent(100.0)
-                                    @node_ref=&outer_item
-                                    height=ITEM_HEIGHT
-                                >
-                                    <Spacer />
-                                </Frame>
-                            </Stack>
-                            <Frame width=INNER_WIDTH>
-                                <Container>|size| {
-                                    sizes.update(|sizes| sizes.push(size));
-                                    let narrow = narrower_than(BREAKPOINT);
-                                    collapsed.update(|collapsed| collapsed.push(narrow));
-                                    view! {
-                                        <Stack spacing=0.0 breakpoint=BREAKPOINT>
-                                            <Frame
-                                                @sizing=ItemSize::Percent(100.0)
-                                                @node_ref=&inner_item
-                                                height=ITEM_HEIGHT
-                                            >
-                                                <Spacer />
-                                            </Frame>
-                                        </Stack>
-                                    }
-                                }</Container>
+    let document = build(move || {
+        view! {
+            <Container>|size| {
+                sizes.update(|sizes| sizes.push(size));
+                let narrow = narrower_than(BREAKPOINT);
+                collapsed.update(|collapsed| collapsed.push(narrow));
+                view! {
+                    <List spacing=0.0>
+                        <Stack spacing=0.0 breakpoint=BREAKPOINT>
+                            <Frame
+                                @sizing=ItemSize::Percent(100.0)
+                                @node_ref=&outer_item
+                                height=ITEM_HEIGHT
+                            >
+                                <Spacer />
                             </Frame>
-                        </List>
-                    }
-                }</Container>
-            }
+                        </Stack>
+                        <Frame width=INNER_WIDTH>
+                            <Container>|size| {
+                                sizes.update(|sizes| sizes.push(size));
+                                let narrow = narrower_than(BREAKPOINT);
+                                collapsed.update(|collapsed| collapsed.push(narrow));
+                                view! {
+                                    <Stack spacing=0.0 breakpoint=BREAKPOINT>
+                                        <Frame
+                                            @sizing=ItemSize::Percent(100.0)
+                                            @node_ref=&inner_item
+                                            height=ITEM_HEIGHT
+                                        >
+                                            <Spacer />
+                                        </Frame>
+                                    </Stack>
+                                }
+                            }</Container>
+                        </Frame>
+                    </List>
+                }
+            }</Container>
         }
     });
 

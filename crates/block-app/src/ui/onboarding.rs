@@ -50,7 +50,6 @@ pub(super) fn Column(children: beui::reactive::Children<beui::reactive::ListChil
 #[component]
 pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
     let message = create_memo(move || view.error.get().message);
-    let copied = message;
     let pending = create_memo(move || view.error.get().pending);
     let asking = create_memo(move || pending.get().is_some());
     let title = create_memo(move || match pending.get() {
@@ -96,7 +95,7 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
                 <Button
                     label="Copy"
                     variant=ButtonVariant::Secondary
-                    on_click={move || copy_text(copied.get_untracked())}
+                    on_click={move || copy_text(message.get_untracked())}
                 />
                 <Button
                     label="Delete client database..."
@@ -198,9 +197,6 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
         true => "Open the last organization used".to_owned(),
         false => "Choose an organization".to_owned(),
     });
-    let log_out = key;
-    let open = key;
-    let choose = key;
     view! {
         <Card>
             <List spacing=6.0>
@@ -212,7 +208,7 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                         icon_only=true
                         arrow=false
                         on_select={move |_path: Vec<usize>| {
-                            send(UiCommand::LogOut(log_out.get_untracked()));
+                            send(UiCommand::LogOut(key.get_untracked()));
                         }}
                         items={view! {
                             <MenuItem
@@ -232,13 +228,13 @@ fn AccountCard(account: Memo<AccountRow>) -> NodeId {
                         <Button
                             label="Open"
                             variant=ButtonVariant::Primary
-                            on_click={move || send(UiCommand::OpenAccount(open.get_untracked()))}
+                            on_click={move || send(UiCommand::OpenAccount(key.get_untracked()))}
                         />
                     </Tooltip>
                     <IconButton
                         glyph={ICON_KEYBOARD_ARROW_DOWN.to_owned()}
                         label="Open a different organization"
-                        on_click={move || send(UiCommand::ChooseOrganization(choose.get_untracked()))}
+                        on_click={move || send(UiCommand::ChooseOrganization(key.get_untracked()))}
                     />
                 </List>
             </List>
@@ -635,8 +631,6 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
     let created = create_memo(move || organizations.get().created);
     let account = create_memo(move || view.account.get());
     let name = create_memo(move || account.get().name);
-    let rows = organizations;
-    let reload_busy = busy;
     view! {
         <Column>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -658,7 +652,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
                 <IconButton
                     glyph={ICON_REFRESH.to_owned()}
                     label="Reload organizations"
-                    disabled={reload_busy}
+                    disabled={busy}
                     on_click={|| send(UiCommand::ReloadOrganizations)}
                 />
             </List>
@@ -679,7 +673,7 @@ pub(super) fn OrganizationsScreen(view: AppViewStore) -> NodeId {
             <Text style=TextStyle::HEADING string="Open an organization" />
             <ForEach keys={keys}>|id: Uuid| {
                 let label = create_memo(move || {
-                    rows.get()
+                    organizations.get()
                         .organizations
                         .into_iter()
                         .find(|(organization, _)| *organization == id)
@@ -746,7 +740,6 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
             send(UiCommand::OpenInvite(link.get_untracked()));
         }
     };
-    let submit = open;
     view! {
         <List spacing=8.0 @test_id={"app.join"}>
             <Show condition={asking}>
@@ -787,7 +780,7 @@ fn JoinOrganization(view: AppViewStore, busy: Memo<bool>) -> NodeId {
                             placeholder="https://…/#invite/…"
                             @test_id={"app.join.link"}
                             on_change={move |value: String| link.set(value)}
-                            on_submit={move |_value: String| submit()}
+                            on_submit={move |_value: String| open()}
                         />
                         <Button
                             label="Open"
@@ -829,8 +822,6 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
     let session_type = create_memo(move || status.get().session_type);
     let new_label =
         create_memo(move || format!("New {} session", session_type_name(session_type.get())));
-    let new_type = session_type;
-    let (sessions, profiles) = (status, status);
     view! {
         <Column>
             <Text style=TextStyle::TITLE string={title} />
@@ -847,7 +838,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
             />
             <ForEach keys={profile_keys}>|id: Uuid| {
                 let row = create_memo(move || {
-                    profiles.get().profiles.into_iter().find(|profile| profile.id == id)
+                    status.get().profiles.into_iter().find(|profile| profile.id == id)
                 });
                 let label = create_memo(move || match row.get() {
                     Some(profile) if profile.current => format!("{} (this device)", profile.name),
@@ -891,7 +882,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
             />
             <ForEach keys={session_keys}>|id: Uuid| {
                 let label = create_memo(move || {
-                    sessions.get()
+                    status.get()
                         .sessions
                         .into_iter()
                         .find(|session| session.id == id)
@@ -923,7 +914,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
                         <MenuItem label={format!("New {} session", SESSION_TYPES[index].1)} />
                     </ForEach>
                 }}
-                on_click={move || send(UiCommand::OpenNewSession(new_type.get_untracked()))}
+                on_click={move || send(UiCommand::OpenNewSession(session_type.get_untracked()))}
                 on_select={|path: Vec<usize>| {
                     if let Some((editor, _)) = path.first().and_then(|index| SESSION_TYPES.get(*index)) {
                         send(UiCommand::OpenNewSession(*editor));
@@ -993,7 +984,6 @@ fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
             send(UiCommand::CreateOrganization(name.get_untracked()));
         }
     };
-    let submit = create;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <TextInput
@@ -1002,7 +992,7 @@ fn CreateOrganization(busy: Memo<bool>, created: Memo<u64>) -> NodeId {
                 placeholder="Organization name"
                 label="Organization name"
                 on_change={move |value: String| name.set(value)}
-                on_submit={move |_value: String| submit()}
+                on_submit={move |_value: String| create()}
             />
             <Button
                 label="Create"

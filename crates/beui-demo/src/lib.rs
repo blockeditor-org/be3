@@ -510,13 +510,12 @@ fn switch_tabs_with_alt_q(layout: DockingLayout<TabId>) {
             next.shift(),
         ),
     ] {
-        let held = modifiers;
         Action::new(id, label, move || {
             match layout.switching() {
                 true => layout.step_switch(backwards),
                 false => layout.begin_switch(backwards),
             }
-            if !held.get_untracked().alt {
+            if !modifiers.get_untracked().alt {
                 layout.commit_switch();
             }
         })

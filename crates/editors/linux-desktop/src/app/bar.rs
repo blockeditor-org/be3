@@ -84,7 +84,6 @@ pub(crate) fn DesktopBar(
                 .collect::<Vec<_>>()
         })
     });
-    let named = listed;
     let settings = sessions.settings;
     let unready = create_memo(move || settings.get().is_none());
     let listing = create_memo(move || !listed.with(Vec::is_empty));
@@ -123,7 +122,7 @@ pub(crate) fn DesktopBar(
                         items={view! {
                             <ForEach keys={keys}>|block: uuid::Uuid| {
                                 let label = create_memo(move || {
-                                    named.with(|sessions| {
+                                    listed.with(|sessions| {
                                         sessions
                                             .iter()
                                             .find(|session| session.block == block)

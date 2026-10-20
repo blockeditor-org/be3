@@ -7,15 +7,13 @@ use crate::reactive::*;
 fn a_secondary_drag_released_as_the_pointer_leaves_still_ends() {
     let _root = crate::reactive::RootScope::new();
     let drags = create_signal(Vec::<SecondaryDrag>::new());
-    let document = build({
-        move || {
-            view! {
-                <Interactive
-                    on_secondary_drag={move |drag: SecondaryDrag| drags.update(|drags| drags.push(drag))}
-                >
-                    <Frame />
-                </Interactive>
-            }
+    let document = build(move || {
+        view! {
+            <Interactive
+                on_secondary_drag={move |drag: SecondaryDrag| drags.update(|drags| drags.push(drag))}
+            >
+                <Frame />
+            </Interactive>
         }
     });
     let mut harness = Harness::new(document);

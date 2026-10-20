@@ -7,13 +7,11 @@ use crate::reactive::*;
 fn right_dragging_over_a_click_catcher_reports_a_secondary_drag() {
     let _root = crate::reactive::RootScope::new();
     let drags = create_signal::<Vec<SecondaryDrag>>(Vec::new());
-    let document = build({
-        move || {
-            view! {
-                <Interactive on_secondary_drag={move |drag| drags.update(|drags| drags.push(drag))}>
-                    <Frame width=200.0 height=200.0 />
-                </Interactive>
-            }
+    let document = build(move || {
+        view! {
+            <Interactive on_secondary_drag={move |drag| drags.update(|drags| drags.push(drag))}>
+                <Frame width=200.0 height=200.0 />
+            </Interactive>
         }
     });
     let mut harness = Harness::new(document);

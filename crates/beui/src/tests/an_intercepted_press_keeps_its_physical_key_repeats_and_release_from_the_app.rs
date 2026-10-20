@@ -37,34 +37,32 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
     let _root = crate::reactive::RootScope::new();
     let ran = create_signal(0);
     let forwarded = create_signal(Vec::<Event>::new());
-    let document = build({
-        move || {
-            Action::new("test.fullscreen", "Fullscreen", move || {
-                ran.update(|ran| *ran += 1)
-            })
-            .shortcut(Chord::logo(Key::F))
-            .at(KeyAt::Window)
-            .capture()
-            .register();
-            view! {
-                <Canvas>
-                    <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive
-                            focusable=true
-                            on_forward={move |input: ForwardedInput| {
-                                forwarded.update(|forwarded| forwarded.extend(flattened(input)));
-                            }}
-                        >
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                    <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
-                        <Interactive focusable=true>
-                            <Frame />
-                        </Interactive>
-                    </CanvasItem>
-                </Canvas>
-            }
+    let document = build(move || {
+        Action::new("test.fullscreen", "Fullscreen", move || {
+            ran.update(|ran| *ran += 1)
+        })
+        .shortcut(Chord::logo(Key::F))
+        .at(KeyAt::Window)
+        .capture()
+        .register();
+        view! {
+            <Canvas>
+                <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive
+                        focusable=true
+                        on_forward={move |input: ForwardedInput| {
+                            forwarded.update(|forwarded| forwarded.extend(flattened(input)));
+                        }}
+                    >
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+                <CanvasItem x=200.0 y=0.0 width=100.0 height=100.0>
+                    <Interactive focusable=true>
+                        <Frame />
+                    </Interactive>
+                </CanvasItem>
+            </Canvas>
         }
     });
     let mut harness = Harness::new(document);

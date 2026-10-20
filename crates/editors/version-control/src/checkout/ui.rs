@@ -135,25 +135,19 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
     let branch_blocked =
         create_memo(move || blocked.get() || branch_name.with(|name| name.trim().is_empty()));
 
-    let commit_message = message;
-    let clear_message = message;
-    let new_branch = branch_name;
-    let clear_branch = branch_name;
     let change_rows = move |row: ChangeRow| {
         view! {
             <ChangeLine editor row />
         }
     };
-    let resolve_blocked = blocked;
     let conflict_rows = move |row: ConflictRow| {
-        let blocked = resolve_blocked;
+        let blocked = blocked;
         view! {
             <ConflictLine editor blocked row />
         }
     };
-    let switch_blocked = blocked;
     let branch_rows = move |(name, current): (String, bool)| {
-        let blocked = switch_blocked;
+        let blocked = blocked;
         view! {
             <BranchLine editor blocked name current />
         }
@@ -243,9 +237,9 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         disabled={commit_blocked}
                                         @test_id={"checkout.commit"}
                                         on_click={move || {
-                                            let message = commit_message.get().trim().to_owned();
-                                            editor.version(VersionCommand::Commit { message });
-                                            clear_message.set(String::new());
+                                            let text = message.get().trim().to_owned();
+                                            editor.version(VersionCommand::Commit { message: text });
+                                            message.set(String::new());
                                         }}
                                     />
                                 </List>
@@ -274,9 +268,9 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
                                         disabled={branch_blocked}
                                         @test_id={"checkout.make-branch"}
                                         on_click={move || {
-                                            let name = new_branch.get().trim().to_owned();
+                                            let name = branch_name.get().trim().to_owned();
                                             editor.version(VersionCommand::CreateBranch { name });
-                                            clear_branch.set(String::new());
+                                            branch_name.set(String::new());
                                         }}
                                     />
                                 </List>
@@ -337,7 +331,6 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
         choose(ConflictSide::Ours),
         choose(ConflictSide::Theirs),
     );
-    let (base_blocked, ours_blocked, theirs_blocked) = (blocked, blocked, blocked);
     let (base, ours, theirs) = (side(base), side(ours), side(theirs));
     let keep = choose(ConflictSide::Merged);
     let working = Some(ChildTarget::new(block, block_type));
@@ -363,21 +356,21 @@ fn ConflictLine(editor: Editor, blocked: Memo<bool>, row: ConflictRow) -> NodeId
                         <Button
                             label="Take base"
                             variant=ButtonVariant::Secondary
-                            disabled={base_blocked}
+                            disabled={blocked}
                             @test_id={format!("checkout.base.{block}")}
                             on_click={take_base}
                         />
                         <Button
                             label="Take yours"
                             variant=ButtonVariant::Secondary
-                            disabled={ours_blocked}
+                            disabled={blocked}
                             @test_id={format!("checkout.ours.{block}")}
                             on_click={take_ours}
                         />
                         <Button
                             label="Take theirs"
                             variant=ButtonVariant::Secondary
-                            disabled={theirs_blocked}
+                            disabled={blocked}
                             @test_id={format!("checkout.theirs.{block}")}
                             on_click={take_theirs}
                         />
