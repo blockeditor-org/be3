@@ -1,0 +1,15 @@
+[package]
+name = "prompt"
+description = "Questions asked at a terminal: a menu, a line of text and a secret, and the keys saved from them"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[target.'cfg(unix)'.dependencies]
+libc = "0.2"
+
+[target.'cfg(windows)'.dependencies]
+windows-sys = { version = "0.61", features = ["Win32_Foundation", "Win32_System_Console"] }
+
+[lints]
+workspace = true

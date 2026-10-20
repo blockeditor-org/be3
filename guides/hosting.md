@@ -72,7 +72,7 @@ cannot issue an app session from an unclaimed approval.
 
 - uploads each `be` bundle (Linux x86_64 and arm64) to the storage zone as
   `data/BUILD/be-TRIPLE/` (`BUNNY_STORAGE_KEY`), reads it back from
-  `be3.pfg.pw` to check the hash, and pins it in `scripts/internal/common.sh`,
+  `be3.pfg.pw` to check the hash, and pins it in `scripts/internal/pins`,
   which `./scripts/be` must match the server by (guides/tracker.md);
 - uploads the app's downloads to `data/BUILD/app/` in the same zone, each read
   back the same way: `:native` with its plugins for Linux, macOS and Windows on

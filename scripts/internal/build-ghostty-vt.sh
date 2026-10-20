@@ -2,7 +2,7 @@
 
 set -euo pipefail
 
-source "$(dirname "${BASH_SOURCE[0]}")/common.sh"
+source "$(dirname "${BASH_SOURCE[0]}")/download.sh"
 
 # The Ghostty commit libghostty-vt is built from. Bump this to pick up a newer
 # terminal emulator; the checkout under external/ is refreshed automatically

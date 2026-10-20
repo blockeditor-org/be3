@@ -1,40 +1,12 @@
-#!/usr/bin/env bash
+#!/bin/sh
 #
-# The tracker's command line tool (guides/tracker.md), as the release pinned in
-# scripts/internal/common.sh, which is built from the same commit as the server
-# the tracker lives on. Arguments go to be unchanged.
-#
-# BE3_AGENT_CREDENTIALS holds the JSON copied from the app's Agents dialog.
-# Otherwise read that JSON from external/.tracker-credentials, fetched by setup.
-# BE3_AUTHORIZATION can supply a separate gateway Be3-Gateway-Authorization header.
+# The tracker's command line tool (guides/tracker.md), as the release
+# scripts/internal/pins names.
 #
 # Usage:
 #   ./scripts/be ls
 #   ./scripts/be BE-7K3Q2M
+#
+# guides/bootstrap.md says what runs it.
 
-set -euo pipefail
-
-source "$(dirname "${BASH_SOURCE[0]}")/internal/common.sh"
-
-credentials="$repository/external/.tracker-credentials"
-bundle="${BE3_AGENT_CREDENTIALS:-}"
-if [[ -z "$bundle" ]]; then
-    if [[ ! -f "$credentials" ]]; then
-        echo "Set BE3_AGENT_CREDENTIALS or save the copied agent JSON in $credentials." >&2
-        exit 1
-    fi
-    bundle="$(cat "$credentials")"
-fi
-
-be="$(be_path)"
-if [[ -z "$be_release" ]]; then
-    echo 'No be release is pinned yet (be_release in scripts/internal/common.sh).' >&2
-    exit 1
-fi
-if [[ ! -x "$be" || ! -f "$(dirname "$be")/$be_metadata_file" ]]; then
-    "$internal/install-be.sh" >&2
-fi
-
-exec env -u BE3_SERVER -u BE3_ORGANIZATION -u BE3_WORKSPACE -u BE3_TOKEN -u BE3_RECOVERY_PHRASE \
-    BE3_AGENT_CREDENTIALS="$bundle" \
-    "$be" "$@"
+exec sh "$(dirname "$0")/internal/bootstrap.sh" be "$@"
