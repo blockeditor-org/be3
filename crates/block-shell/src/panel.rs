@@ -176,9 +176,8 @@ pub(crate) fn BlockPanel(workspace: Workspace, tab: TabId) -> NodeId {
         true => TopBar::Phone,
         false => TopBar::Shown,
     });
-    let session = workspace
-        .tab(tab)
-        .is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
+    let session =
+        untrack(|| workspace.tab(tab)).is_some_and(|item| VIEW_EDITORS.contains(&item.block_type));
     let desktop = create_memo(move || !phone.get() && !session);
     let preview = create_memo(move || workspace.revisions.preview_for(workspace.tab(tab)));
     let previewing = create_memo(move || preview.get().is_some());

@@ -3,7 +3,7 @@ use std::rc::Rc;
 
 use crate::arena::{self, Key};
 use crate::computation::Computation;
-use crate::runtime::probe;
+use crate::runtime::{check_tracked_read, probe};
 use crate::signal::{Get, Tracked, Value, track};
 
 pub struct Memo<T> {
@@ -51,6 +51,7 @@ impl<T> Copy for Memo<T> {}
 
 impl<T: 'static> Get<T> for Memo<T> {
     fn with<R>(&self, f: impl FnOnce(&T) -> R) -> R {
+        check_tracked_read::<Self>();
         let output = arena::get::<Value<Option<T>>>(self.key)
             .expect("memo used after the scope that owns it was disposed");
         let producer = output.source.producer.borrow().upgrade();

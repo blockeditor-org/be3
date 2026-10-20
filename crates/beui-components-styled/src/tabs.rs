@@ -14,7 +14,7 @@ pub fn Tabs(
 ) -> NodeId {
     let options = options.into_run();
     let count = options.clone();
-    let selected = selected.map(move |selected| Some(selected.min(count.len().saturating_sub(1))));
+    let selected = Prop::dynamic(move || Some(selected.get().min(count.len().saturating_sub(1))));
     view! {
         <Choice
             options

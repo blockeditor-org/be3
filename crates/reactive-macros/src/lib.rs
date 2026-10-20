@@ -104,6 +104,7 @@ fn expand(input: &DeriveInput) -> syn::Result<proc_macro2::TokenStream> {
 
         impl ::reactive::Get<#source> for #store {
             fn with<R>(&self, f: impl FnOnce(&#source) -> R) -> R {
+                ::reactive::check_tracked_read::<Self>();
                 f(&#source { #(#reads)* })
             }
 

@@ -703,13 +703,16 @@ fn BlockOptions(
     field: Memo<Option<DatabaseField>>,
     read_only: Memo<bool>,
 ) -> NodeId {
-    let catalog = editor.block_types();
-    let mut known: Vec<(Uuid, String)> = catalog
-        .iter()
-        .map(|(id, entry)| (*id, entry.display_name.clone()))
-        .collect();
-    known.sort_by(|(left_id, left), (right_id, right)| {
-        left.cmp(right).then_with(|| left_id.cmp(right_id))
+    let known = create_memo(move || {
+        let mut known: Vec<(Uuid, String)> = editor
+            .block_types()
+            .iter()
+            .map(|(id, entry)| (*id, entry.display_name.clone()))
+            .collect();
+        known.sort_by(|(left_id, left), (right_id, right)| {
+            left.cmp(right).then_with(|| left_id.cmp(right_id))
+        });
+        known
     });
     let wanted = create_memo(move || {
         field.with(|field| {
@@ -720,6 +723,7 @@ fn BlockOptions(
     });
     let entries = create_memo(move || {
         let mut entries: Vec<(Option<Uuid>, String)> = vec![(None, "Any block".to_owned())];
+        let known = known.get();
         entries.extend(known.iter().map(|(id, name)| (Some(*id), name.clone())));
         match wanted.get() {
             Some(unknown) if !known.iter().any(|(id, _)| *id == unknown) => {

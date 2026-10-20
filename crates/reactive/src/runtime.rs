@@ -20,6 +20,8 @@ pub(crate) struct Runtime {
     pub(crate) sequence: Cell<u64>,
     pub(crate) flushes: Cell<u64>,
     pub(crate) removals: Cell<u64>,
+    #[cfg(debug_assertions)]
+    pub(crate) component_body: Cell<bool>,
 }
 
 impl Runtime {
@@ -38,6 +40,8 @@ impl Runtime {
             sequence: Cell::new(0),
             flushes: Cell::new(0),
             removals: Cell::new(0),
+            #[cfg(debug_assertions)]
+            component_body: Cell::new(false),
         }
     }
 
@@ -140,7 +144,58 @@ pub fn untrack<T>(f: impl FnOnce() -> T) -> T {
         )
     });
     let _context = Context::enter_pending(no_computation(), owner, pending);
+    let _body = leave_component_body();
     f()
+}
+
+pub fn component_body<T>(f: impl FnOnce() -> T) -> T {
+    #[cfg(debug_assertions)]
+    let _body = Reset::set(|runtime| &runtime.component_body, true);
+    f()
+}
+
+pub(crate) struct LeaveBody {
+    #[cfg(debug_assertions)]
+    _reset: Reset<bool>,
+}
+
+pub(crate) fn leave_component_body() -> LeaveBody {
+    LeaveBody {
+        #[cfg(debug_assertions)]
+        _reset: Reset::set(|runtime| &runtime.component_body, false),
+    }
+}
+
+#[cfg(debug_assertions)]
+fn short_type_name(name: &str) -> String {
+    let mut short = String::new();
+    let mut word = String::new();
+    for character in name.chars() {
+        if character.is_alphanumeric() || character == '_' {
+            word.push(character);
+        } else if character == ':' {
+            word.clear();
+        } else {
+            short.push_str(&word);
+            word.clear();
+            short.push(character);
+        }
+    }
+    short + &word
+}
+
+#[track_caller]
+pub fn check_tracked_read<T: ?Sized>() {
+    #[cfg(debug_assertions)]
+    if RUNTIME.with(|runtime| runtime.component_body.get()) {
+        let name = short_type_name(std::any::type_name::<T>());
+        panic!(
+            "a component body read `{name}` with `get` or `with`, which subscribes nothing \
+             because a component body runs once. Move the read into a closure, memo or effect \
+             so it updates; or pass the signal or memo itself as the prop; or, if a one-time \
+             snapshot is intended, use `get_untracked()` or `with_untracked()`"
+        );
+    }
 }
 
 pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
@@ -152,6 +207,7 @@ pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
     );
     batch(|| {
         let _context = Context::enter(no_computation(), Weak::new());
+        let _body = leave_component_body();
         RUNTIME.with(|runtime| {
             runtime.probe.replace(Some(Probe {
                 read: Vec::new(),
