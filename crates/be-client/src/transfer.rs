@@ -1,11 +1,12 @@
 use std::{collections::HashMap, hash::BuildHasherDefault};
 
 use be_block::{ARTIFACT, BlockMetadata, LOCAL_ID};
-use be_protocol::BlockSummary;
+use be_commit::CommitId;
+use be_protocol::{BlockSummary, ClientMessage, ServerMessage};
 use be_store::ObjectStore;
 use uuid::Uuid;
 
-use crate::{ClientError, Peer, Saved as Published};
+use crate::{ClientError, Peer};
 
 pub const EXTENSION: &str = "block";
 
@@ -14,6 +15,7 @@ pub const MIME_TYPE: &str = "application/x-be3-block";
 const MAGIC: &[u8] = b"be3 block file\n";
 const VERSION: u32 = 1;
 const TOP: u32 = u32::MAX;
+const CONTENTS_BLOCKS: usize = 256;
 
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Saved {
@@ -276,52 +278,69 @@ pub fn renumber(blocks: Vec<Saved>) -> Vec<Saved> {
 }
 
 impl<S: ObjectStore> Peer<S> {
-    pub async fn head_content(
+    pub async fn read_contents(
         &self,
-        summary: &BlockSummary,
-    ) -> Result<Option<Vec<u8>>, ClientError> {
-        let Some(head) = summary.head else {
-            return Ok(None);
-        };
-        let commit = self.load_commit(head).await?;
-        Ok(Some(self.read_manifest(&commit.manifest).await?))
-    }
-
-    pub async fn download_block(
-        &self,
-        block: Uuid,
-        block_type: Uuid,
-        parent: Option<usize>,
-    ) -> Result<Saved, ClientError> {
-        let summary = self.summary(block).await?;
-        Ok(Saved {
-            id: block,
-            block_type,
-            parent,
-            metadata: self.metadata_of_summary(&summary).await?,
-            content: self.head_content(&summary).await?,
-            references: summary.references,
-        })
-    }
-
-    pub async fn publish_content(&self, block: &Saved) -> Result<Option<Published>, ClientError> {
-        let Some(content) = &block.content else {
-            return Ok(None);
-        };
-        let manifest = self
-            .write_content(block.id, block.block_type, content)
-            .await?;
-        self.publish_manifest(
-            block.id,
-            manifest,
-            block.references.clone(),
-            None,
-            be_commit::now_milliseconds(),
-            false,
-            Vec::new(),
-            &block.metadata,
-        )
+        blocks: &[(Uuid, Option<CommitId>)],
+    ) -> Result<Vec<(BlockSummary, Option<Vec<u8>>)>, ClientError> {
+        let mut asked = Vec::new();
+        for group in blocks.chunks(CONTENTS_BLOCKS) {
+            let ids: Vec<Uuid> = group.iter().map(|(id, _)| *id).collect();
+            let held = group
+                .iter()
+                .filter_map(|(_, head)| *head)
+                .filter(|head| self.holds(*head))
+                .collect();
+            let answer = self
+                .connection()
+                .send(|request| ClientMessage::ReadContents {
+                    request,
+                    blocks: ids.clone(),
+                    held,
+                })?;
+            asked.push((ids, answer));
+        }
+        let mut summaries = Vec::with_capacity(blocks.len());
+        for (ids, answer) in asked {
+            let ServerMessage::Contents {
+                blocks, objects, ..
+            } = answer.await?
+            else {
+                return Err(ClientError::Unexpected);
+            };
+            if !blocks.iter().map(|summary| summary.id).eq(ids) {
+                return Err(ClientError::Unexpected);
+            }
+            let store = self.commits().vault().store();
+            for object in &objects {
+                store.put(object)?;
+            }
+            for summary in &blocks {
+                self.note(summary);
+            }
+            summaries.extend(blocks);
+        }
+        futures_util::future::try_join_all(summaries.into_iter().map(|summary| async move {
+            let content = match summary.head {
+                Some(head) => {
+                    let commit = self.load_commit(head).await?;
+                    Some(self.read_manifest(&commit.manifest).await?)
+                }
+                None => None,
+            };
+            Ok((summary, content))
+        }))
         .await
-        .map(Some)
+    }
+
+    fn holds(&self, head: CommitId) -> bool {
+        let store = self.commits().vault().store();
+        matches!(
+            self.commits().try_get(head),
+            Ok(Some(commit)) if commit
+                .manifest
+                .chunk_hashes()
+                .into_iter()
+                .all(|hash| store.has(hash).unwrap_or(false))
+        )
     }
 }
