@@ -7,13 +7,13 @@ use serde_json::{Value, json};
 use uuid::Uuid;
 
 use crate::blocks::Entry;
-use crate::tracker::{Assignment, Body, Filter, NewColumn, RowView, Target, Tracker};
+use crate::tracker::{Assignment, Body, Filter, NewColumn, RowView, Tracker, looks_like_row};
 
 pub const USAGE: &str = "\
 Usage: be TARGET [VERB] [ARGUMENTS]   or   be COMMAND
 
 TARGET is a block, by the start of its id (`be ls` prints it), its full id or
-its name, or a database row, by its id such as BE-7K3Q2M.
+its name. A row is named within its database: `be Issues BE-7K3Q2M`.
 
 Commands:
   be ls [TARGET]                      List the workspaces and what is shared with this
@@ -24,12 +24,8 @@ Commands:
   be new-database NAME [--prefix BE] [--in TARGET]
                                       Make a database (and a list view of it) in TARGET,
                                       or in the one workspace this account may write in
-  be pull-request EVENT-FILE          Move the rows a GitHub pull request names
-  be upload FILE [--in TARGET] [--prefix BE]
-                                      Copy the blocks a download wrote into TARGET (or,
-                                      as new-database, a workspace) with new ids; --prefix renames a
-                                      database's row ids when another database here has
-                                      its prefix
+  be upload FILE [--in TARGET]        Copy the blocks a download wrote into TARGET (or,
+                                      as new-database, a workspace) with new ids
 
 Any block:
   ls | info                           Its children, or where it is and who may change it
@@ -53,8 +49,10 @@ A database (or a view of one):
                                       block or relation
   import FILE [--page COLUMN]         Add a row for each line of a CSV file, such as
                                       Linear's export (Title, Description, ...)
+  pull-request EVENT-FILE             Move the rows of this database a GitHub pull
+                                      request names
 
-A row:
+A row (be DATABASE ROW-ID [VERB]):
   show                                Its fields and its page (what a bare row id does)
   set [FIELD=VALUE]... [--body TEXT] [--append TEXT]
                                       FIELD+=VALUE adds a link to a relation of several
@@ -105,13 +103,32 @@ pub enum Outcome {
     },
 }
 
-const COMMANDS: [&str; 7] = [
+const VERBS: [&str; 17] = [
+    "ls",
+    "info",
+    "help",
+    "delete",
+    "download",
+    "cat",
+    "write",
+    "append",
+    "edit",
+    "rows",
+    "new",
+    "schema",
+    "option",
+    "add-option",
+    "add-column",
+    "import",
+    "pull-request",
+];
+
+const COMMANDS: [&str; 6] = [
     "ls",
     "workspaces",
     "whoami",
     "help",
     "new-database",
-    "pull-request",
     "upload",
 ];
 
@@ -189,25 +206,12 @@ pub async fn run<S: ObjectStore>(
     let Some(target) = &invocation.target else {
         return command(tracker, invocation).await.map(Outcome::Print);
     };
-    match tracker.resolve(target).await? {
-        Target::Row { database, row } => {
-            let code = database_code(tracker, database, row).await?;
-            row_verb(tracker, &code, invocation).await
-        }
-        Target::Block(entry) => block_verb(tracker, &entry, invocation).await,
+    let entry = tracker.resolve(target).await?;
+    if !VERBS.contains(&invocation.verb.as_str()) && looks_like_row(&invocation.verb) {
+        let database = tracker.database_of(&entry).await?;
+        return row_verb(tracker, database, invocation).await;
     }
-}
-
-async fn database_code<S: ObjectStore>(
-    tracker: &Tracker<S>,
-    database: Uuid,
-    row: be_block::ObjectId,
-) -> Result<String, String> {
-    let content = tracker
-        .read::<DatabaseContent>(database)
-        .await?
-        .ok_or("the database is empty")?;
-    Ok(content.root().short_id(row))
+    block_verb(tracker, &entry, invocation).await
 }
 
 async fn command<S: ObjectStore>(
@@ -290,14 +294,12 @@ async fn command<S: ObjectStore>(
         "upload" => {
             let file = arguments
                 .first()
-                .ok_or("usage: be upload FILE [--in TARGET] [--prefix BE]")?;
+                .ok_or("usage: be upload FILE [--in TARGET]")?;
             let bytes =
                 std::fs::read(file).map_err(|error| format!("could not read {file}: {error}"))?;
             let blocks = be_client::transfer::decode(&bytes)?;
             let parent = within(tracker, invocation).await?;
-            let uploaded = tracker
-                .upload(blocks, parent, invocation.options.prefix.as_deref())
-                .await?;
+            let uploaded = tracker.upload(blocks, parent).await?;
             let index = tracker.index().await?;
             let top = index.get(uploaded.top).map_or_else(
                 || uploaded.top.to_string(),
@@ -307,33 +309,7 @@ async fn command<S: ObjectStore>(
             if uploaded.blocks > 1 {
                 said.push_str(&format!(" and {} blocks inside it", uploaded.blocks - 1));
             }
-            if let Some((old, new)) = uploaded.renamed_prefix {
-                said.push_str(&format!("; its rows are {new}-… where they were {old}-…"));
-            }
             Ok(said)
-        }
-        "pull-request" => {
-            let event = arguments
-                .first()
-                .ok_or("usage: be pull-request EVENT-FILE")?;
-            let text = std::fs::read_to_string(event)
-                .map_err(|error| format!("could not read {event}: {error}"))?;
-            let event: Value = serde_json::from_str(&text)
-                .map_err(|error| format!("{event} is not a GitHub event: {error}"))?;
-            let setting = |name: &str, default: &str| {
-                std::env::var(name)
-                    .ok()
-                    .filter(|value| !value.trim().is_empty())
-                    .unwrap_or_else(|| default.to_owned())
-            };
-            let statuses = Statuses {
-                field: setting("BE3_STATUS_FIELD", "Status"),
-                review: setting("BE3_REVIEW_STATUS", "In review"),
-                done: std::env::var("BE3_DONE_STATUS")
-                    .ok()
-                    .filter(|value| !value.trim().is_empty()),
-            };
-            Ok(pull_request(tracker, &event, &statuses).await?.join("\n"))
         }
         other => Err(format!("unknown command {other}\n\n{USAGE}")),
     }
@@ -344,10 +320,7 @@ async fn within<S: ObjectStore>(
     invocation: &Invocation,
 ) -> Result<BlockParent, String> {
     match &invocation.options.within {
-        Some(within) => match tracker.resolve(within).await? {
-            Target::Block(entry) => Ok(BlockParent::Block(entry.id)),
-            Target::Row { .. } => Err("--in takes a block, not a row".to_owned()),
-        },
+        Some(within) => Ok(BlockParent::Block(tracker.resolve(within).await?.id)),
         None => Ok(BlockParent::Block(
             tracker.index().await?.default_parent()?.id,
         )),
@@ -585,6 +558,33 @@ async fn block_verb<S: ObjectStore>(
             said.extend(imported.problems);
             print(said.join("\n"))
         }
+        ("pull-request", _, Some(database)) => {
+            let event = arguments
+                .first()
+                .ok_or_else(|| format!("usage: be {} pull-request EVENT-FILE", entry.short))?;
+            let text = std::fs::read_to_string(event)
+                .map_err(|error| format!("could not read {event}: {error}"))?;
+            let event: Value = serde_json::from_str(&text)
+                .map_err(|error| format!("{event} is not a GitHub event: {error}"))?;
+            let setting = |name: &str, default: &str| {
+                std::env::var(name)
+                    .ok()
+                    .filter(|value| !value.trim().is_empty())
+                    .unwrap_or_else(|| default.to_owned())
+            };
+            let statuses = Statuses {
+                field: setting("BE3_STATUS_FIELD", "Status"),
+                review: setting("BE3_REVIEW_STATUS", "In review"),
+                done: std::env::var("BE3_DONE_STATUS")
+                    .ok()
+                    .filter(|value| !value.trim().is_empty()),
+            };
+            print(
+                pull_request(tracker, database, &event, &statuses)
+                    .await?
+                    .join("\n"),
+            )
+        }
         (verb, _, _) => Err(format!(
             "{} ({}) is a {}; it takes {}",
             entry.label(),
@@ -593,7 +593,7 @@ async fn block_verb<S: ObjectStore>(
             match (is_text, database) {
                 (true, _) => "cat, write, append, edit, ls, info, download and delete",
                 (false, Some(_)) =>
-                    "rows, new, schema, option, add-option, add-column, import, ls, info, download and delete",
+                    "rows, a row id, new, schema, option, add-option, add-column, import, pull-request, ls, info, download and delete",
                 (false, None) => "ls, info, download and delete",
             }
         ) + &format!(", not {verb}")),
@@ -602,24 +602,30 @@ async fn block_verb<S: ObjectStore>(
 
 async fn row_verb<S: ObjectStore>(
     tracker: &Tracker<S>,
-    code: &str,
+    database: Uuid,
     invocation: &Invocation,
 ) -> Result<Outcome, String> {
     let json = invocation.json;
-    let arguments = &invocation.arguments;
+    let code = invocation.verb.as_str();
+    let (verb, arguments) = match invocation.arguments.split_first() {
+        Some((verb, arguments)) => (verb.as_str(), arguments),
+        None => ("", &[][..]),
+    };
     let print = |text: String| Ok(Outcome::Print(text));
-    match invocation.verb.as_str() {
-        "" | "show" => print(shown(&tracker.show(code).await?, json)),
+    match verb {
+        "" | "show" => print(shown(&tracker.show(database, code).await?, json)),
         "set" => {
             let body = invocation.options.body.clone().unwrap_or(Body::Keep);
-            let row = tracker.update(code, &assignments(arguments)?, body).await?;
+            let row = tracker
+                .update(database, code, &assignments(arguments)?, body)
+                .await?;
             print(shown(&row, json))
         }
-        "delete" => print(tracker.delete(code).await?),
+        "delete" => print(tracker.delete(database, code).await?),
         "page" => {
             let action = arguments.first().map_or("cat", String::as_str);
             let writing = matches!(action, "write" | "append" | "edit");
-            let page = tracker.page_of(code, writing).await?;
+            let page = tracker.page_of(database, code, writing).await?;
             match (action, page) {
                 ("cat", None) => print(String::new()),
                 ("cat", Some(page)) => print(tracker.text(page).await?),
@@ -627,7 +633,7 @@ async fn row_verb<S: ObjectStore>(
                     let text = arguments
                         .get(1)
                         .cloned()
-                        .ok_or_else(|| format!("usage: be {code} page {action} TEXT"))?;
+                        .ok_or_else(|| format!("usage: be DATABASE {code} page {action} TEXT"))?;
                     let body = match action {
                         "write" => Body::Replace(text),
                         _ => Body::Append(text),
@@ -762,6 +768,7 @@ pub struct Statuses {
 
 pub async fn pull_request<S: ObjectStore>(
     tracker: &Tracker<S>,
+    database: Uuid,
     event: &Value,
     statuses: &Statuses,
 ) -> Result<Vec<String>, String> {
@@ -788,9 +795,20 @@ pub async fn pull_request<S: ObjectStore>(
         text("/pull_request/body"),
     ]
     .join("\n");
+    let prefix = tracker
+        .read::<DatabaseContent>(database)
+        .await?
+        .map(|content| content.root().prefix)
+        .unwrap_or_default();
     let mut said = Vec::new();
     for id in row_ids(&mentioned) {
-        let Ok(row) = tracker.show(&id).await else {
+        if !id
+            .rsplit_once('-')
+            .is_some_and(|(held, _)| held.eq_ignore_ascii_case(prefix.trim()))
+        {
+            continue;
+        }
+        let Ok(row) = tracker.show(database, &id).await else {
             continue;
         };
         let (status, link) = match action.as_str() {
@@ -798,7 +816,7 @@ pub async fn pull_request<S: ObjectStore>(
                 Some(match &statuses.done {
                     Some(done) => done.clone(),
                     None => tracker
-                        .closed_option(&row.id, &statuses.field)
+                        .closed_option(database, &statuses.field)
                         .await?
                         .unwrap_or_else(|| "Done".to_owned()),
                 }),
@@ -818,7 +836,12 @@ pub async fn pull_request<S: ObjectStore>(
             false => Body::Keep,
         };
         match tracker
-            .update(&row.id, &[Assignment::set(&statuses.field, &status)], body)
+            .update(
+                database,
+                &row.id,
+                &[Assignment::set(&statuses.field, &status)],
+                body,
+            )
             .await
         {
             Ok(_) => said.push(format!("{}: {} is now {status}", row.id, statuses.field)),

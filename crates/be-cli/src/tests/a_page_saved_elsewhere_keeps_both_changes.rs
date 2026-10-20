@@ -38,7 +38,7 @@ async fn a_page_saved_elsewhere_keeps_both_changes() {
     editor.save(page, &text, head).await.unwrap();
 
     let changed = tracker
-        .update(&made.id, &[], Body::Append("appended".into()))
+        .update(database, &made.id, &[], Body::Append("appended".into()))
         .await
         .unwrap();
 

@@ -43,20 +43,25 @@ async fn a_merged_pull_request_closes_rows_without_a_done_status() {
         done: done.map(str::to_owned),
     };
 
-    let said = pull_request(&tracker, &event, &statuses(None))
+    let said = pull_request(&tracker, board.database, &event, &statuses(None))
         .await
         .unwrap();
     assert_eq!(said, [format!("{}: Status is now Shipped", made.id)]);
-    let shipped = tracker.show(&made.id).await.unwrap();
+    let shipped = tracker.show(board.database, &made.id).await.unwrap();
     assert_eq!(
         pairs(&shipped),
         [("Status".to_owned(), "Shipped".to_owned())]
     );
 
-    pull_request(&tracker, &event, &statuses(Some("Canceled")))
-        .await
-        .unwrap();
-    let canceled = tracker.show(&made.id).await.unwrap();
+    pull_request(
+        &tracker,
+        board.database,
+        &event,
+        &statuses(Some("Canceled")),
+    )
+    .await
+    .unwrap();
+    let canceled = tracker.show(board.database, &made.id).await.unwrap();
     assert_eq!(
         pairs(&canceled),
         [("Status".to_owned(), "Canceled".to_owned())]

@@ -49,11 +49,11 @@ be ls                                   the workspaces and what is shared with t
 be workspaces                           the workspaces, and which it may write in
 be a1f3 ls                              a block's children
 be Issues rows Status!=Done Project=Launch
-be BE-7K3Q2M                            a row: its fields and its page
+be Issues BE-7K3Q2M                     a row, named within its database: its fields and its page
 be Issues new "Fix the login" Status="To do" "Blocked by=BE-4HV8ND" --body "Steps..."
-be BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND" --append "Fixed in #412."
-be BE-7K3Q2M page edit                  its page in $EDITOR, merged with any change since
-be BE-7K3Q2M delete
+be Issues BE-7K3Q2M set Status=Done "Blocked by-=BE-4HV8ND" --append "Fixed in #412."
+be Issues BE-7K3Q2M page edit           its page in $EDITOR, merged with any change since
+be Issues BE-7K3Q2M delete
 be 3fa9 delete                          a block and everything in it, to Recently Deleted
 be 3fa9 cat                             a text block, reached directly
 be Issues schema                        columns; each choice with its colour, icon, closed, default
@@ -63,7 +63,7 @@ be Issues add-column "Blocked by" relation --links Issues --multiple --inverse B
 be new-database Milestones --prefix MS  in the one workspace it may write in (or --in a1f3)
 be Issues import issues.csv             Linear's export, or any CSV
 be Issues download issues.block         a block and everything inside it, as one file
-be upload issues.block --in a1f3 --prefix CP
+be upload issues.block --in a1f3
                                         a copy of it, here or in another organization
                                         (without --in, where new-database puts one)
 ```
@@ -74,11 +74,11 @@ block. `new-database` and `upload` without `--in` go into the one workspace
 the account may write in, or, with none, the one shared folder it may; with
 several they ask for `--in`. A target is a block, by the start of its id as `be ls` prints it, its full id
 or (unless it is deleted) its name (a database view and the database inside it share a name, and the
-name means the database), or a row by its id. A row's id is its database's
-prefix and six characters made from the row's own id, so it never changes and
-needs no coordination; the prefix is kept in the database's sealed metadata,
-which is how `be` finds the database without opening the others, and two
-databases with one prefix are refused. Field values are matched by name, case
+name means the database). A row is named within its database, `be DATABASE
+ROW-ID`, never on its own. A row's id is its database's prefix and six
+characters made from the row's own id, so it never changes and needs no
+coordination. The prefix is only a label: two databases may share one, and a
+copy keeps it, since nothing resolves a row id without its database. Field values are matched by name, case
 aside: an option's name for an Enum column, a row's title or id for a Relation.
 `option FIELD OPTION` changes an option the column has, refusing any other
 name, and `add-option` adds one; both take
@@ -96,8 +96,7 @@ may read; a database inside a view is downloaded from the view. The app writes a
 pane's Export as, Block file, and the block picker's Import tab. `upload` gives every block a new id and swaps the old
 ids for the new ones in the content bytes (as 16 raw bytes, hyphenated or
 simple hex) and references, so the copy points at its own children; ids of
-blocks outside the file are left as they were. A database whose prefix is
-taken where it lands needs `--prefix`. The file format is frozen (guides/frozen_formats.md). An import's Title column is the title, Description the page, and every
+blocks outside the file are left as they were. The file format is frozen (guides/frozen_formats.md). An import's Title column is the title, Description the page, and every
 column named like a field sets it, adding the options an Enum column lacks and
 the rows a Relation column names that its database lacks.
 
@@ -158,8 +157,9 @@ them in the handoff.
   merging it with what it has not saved yet. A text write changes
   only the span that differs. Deleting a row also removes the links to it from
   the rows of its own database.
-- **GitHub.** `.github/workflows/tracker.yml` runs `be pull-request` on the
-  event: ids in the branch, title or body move to `BE3_REVIEW_STATUS` (In
+- **GitHub.** `.github/workflows/tracker.yml` runs `be DATABASE pull-request`
+  on the event, with the database's full id from the `BE3_TRACKER_DATABASE`
+  variable: ids with that database's prefix in the branch, title or body move to `BE3_REVIEW_STATUS` (In
   review) when the pull request opens, with a link on the page, and to
   `BE3_DONE_STATUS` when it merges, or, when that is unset, to the status
   column's first closed option (Done if it has none). It reads the

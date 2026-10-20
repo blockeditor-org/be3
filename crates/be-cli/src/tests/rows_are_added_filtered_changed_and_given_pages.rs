@@ -43,15 +43,18 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
         )
     );
     assert_eq!(
-        run(&tracker, &format!("{} show", made.id)).await.unwrap(),
+        run(&tracker, &format!("Issues {} show", made.id))
+            .await
+            .unwrap(),
         {
-            let shown = tracker.show(&made.id).await.unwrap();
+            let shown = tracker.show(board.database, &made.id).await.unwrap();
             cli::row_text(&shown)
         }
     );
 
     let changed = tracker
         .update(
+            board.database,
             &made.id.to_lowercase(),
             &[set("Status", "Done"), set("Project", "")],
             Body::Append("Fixed by retrying.".into()),
@@ -76,7 +79,12 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
             .is_err()
     );
     let refused = tracker
-        .update(&made.id, &[set("Status", "Maybe")], Body::Keep)
+        .update(
+            board.database,
+            &made.id,
+            &[set("Status", "Maybe")],
+            Body::Keep,
+        )
         .await
         .unwrap_err();
     assert!(refused.contains("To do, Done"), "{refused}");
@@ -106,13 +114,17 @@ async fn rows_are_added_filtered_changed_and_given_pages() {
         Some("Fix the login")
     );
     assert_eq!(
-        run(&tracker, &format!("{} page", made.id)).await.unwrap(),
+        run(&tracker, &format!("Issues {} page", made.id))
+            .await
+            .unwrap(),
         "It fails on a slow network.\nFixed by retrying."
     );
 
-    let deleted = run(&tracker, &format!("{} delete", made.id)).await.unwrap();
+    let deleted = run(&tracker, &format!("Issues {} delete", made.id))
+        .await
+        .unwrap();
     assert!(deleted.starts_with("deleted"), "{deleted}");
-    assert!(tracker.show(&made.id).await.is_err());
+    assert!(tracker.show(board.database, &made.id).await.is_err());
     assert_eq!(
         tracker.peer().summary(page).await.unwrap().parent,
         Some(BlockParent::Detached)

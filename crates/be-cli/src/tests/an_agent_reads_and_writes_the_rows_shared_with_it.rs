@@ -93,7 +93,7 @@ async fn an_agent_reads_and_writes_the_rows_shared_with_it() {
         )
         .await
         .unwrap();
-    let read = owner.show(&made.id).await.unwrap();
+    let read = owner.show(board.database, &made.id).await.unwrap();
     assert_eq!(read.title, "Found by the agent");
     assert_eq!(read.body.as_deref(), Some("Steps to reproduce."));
 
