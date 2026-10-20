@@ -39,6 +39,9 @@ pub const USAGE: &str = "Reading:
   shot [TARGET]             a screenshot, of TARGET only when given
   paint [TARGET]            what the window paints, plugins included, as a paint snapshot,
                             of TARGET only when given
+  overflows                 what the window shows out of bounds, plugins included, one per line:
+                            cut off where nothing scrolls to it, drawn outside its own box, or
+                            with its outline cut while its box shows
 Pointer:
   click TARGET [right|middle|double]
   move TARGET               move the pointer onto TARGET (hover)
@@ -161,6 +164,7 @@ enum Phase {
         asked: bool,
         ready: bool,
         crop: Option<[f32; 4]>,
+        overflows: bool,
     },
     Reading {
         pasted: std::sync::mpsc::Receiver<Pasted>,
@@ -484,10 +488,36 @@ impl Automation {
         matches!(
             self.active,
             Some(Active {
-                phase: Phase::Painting { ready: true, .. },
+                phase: Phase::Painting {
+                    ready: true,
+                    overflows: false,
+                    ..
+                },
                 ..
             })
         )
+    }
+
+    pub fn wants_overflows(&self) -> bool {
+        matches!(
+            self.active,
+            Some(Active {
+                phase: Phase::Painting {
+                    ready: true,
+                    overflows: true,
+                    ..
+                },
+                ..
+            })
+        )
+    }
+
+    pub fn overflowed(&mut self, found: Vec<String>) {
+        if self.wants_overflows() {
+            self.finish(Reply::Text(
+                found.into_iter().map(|line| line + "\n").collect(),
+            ));
+        }
     }
 
     pub fn painted(&mut self, painting: Result<crate::painting::Painting, String>) {
@@ -1275,8 +1305,15 @@ impl Automation {
                     asked: false,
                     ready: false,
                     crop,
+                    overflows: false,
                 }))
             }
+            "overflows" => Ok(Started::Phase(Phase::Painting {
+                asked: false,
+                ready: false,
+                crop: None,
+                overflows: true,
+            })),
             other => Err(format!("unknown command {other}\n{USAGE}")),
         }
     }

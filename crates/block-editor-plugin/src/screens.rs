@@ -129,11 +129,14 @@ impl Screens {
     pub(crate) fn paintings(&mut self) -> Message {
         let mut paintings = paint_format::ScreenPaintings::default();
         for placement in self.layout.screens.clone() {
-            if let Some(painting) = self
-                .sessions
-                .get_mut(&placement.instance)
-                .and_then(|session| session.painting(placement.region))
-            {
+            let Some(session) = self.sessions.get_mut(&placement.instance) else {
+                continue;
+            };
+            let overflows = session.overflows(placement.region);
+            if !overflows.is_empty() {
+                paintings.overflows.push((placement.screen.0, overflows));
+            }
+            if let Some(painting) = session.painting(placement.region) {
                 paintings.screens.push((placement.screen.0, painting));
                 if paintings.encoded_len() > block_plugin_api::MAX_BLOB_BYTES {
                     paintings.screens.pop();

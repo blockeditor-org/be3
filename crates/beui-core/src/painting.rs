@@ -16,6 +16,27 @@ use crate::image::Image;
 
 pub trait Paints {
     fn painting(&self, rect: Rect) -> Option<Painting>;
+
+    fn overflows(&self, _rect: Rect) -> Vec<String> {
+        Vec::new()
+    }
+}
+
+pub fn overflows(output: &FrameOutput, pixels_per_point: f32) -> Vec<String> {
+    let mut found = output.overflows.clone();
+    for quad in crate::draw::quads(output, pixels_per_point).list {
+        if let Quad::Drawing { rect, drawing, .. } = &quad
+            && let Some(paints) = drawing.paints()
+        {
+            found.extend(paints.overflows(Rect::from_min_max(
+                pos2(rect[0] / pixels_per_point, rect[1] / pixels_per_point),
+                pos2(rect[2] / pixels_per_point, rect[3] / pixels_per_point),
+            )));
+        }
+    }
+    found.sort();
+    found.dedup();
+    found
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

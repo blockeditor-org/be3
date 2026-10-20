@@ -239,6 +239,9 @@ deletes the paintings no test named.
 treated the same way: `:test` runs here and `:test-run` is the action
 `./scripts/verify` reads paintings from. `run_env` is the environment the test
 runs with, kept out of its compile. crates/app-tests runs block-app's `:native` headless, so it runs on Linux x86_64 only.
+It also passes `run_apart = True`, which makes a `:test-run-<file>` for each file under
+`src/tests/` in place of one `:test-run`: a failed action keeps no outputs, so a failing test
+then loses only its own paintings, not every one the crate accepts.
 crates/be-server captures its SSR portal as text browser paintings without a browser.
 
 Each compile-fail suite keeps a `Cargo.toml` listing its dependencies. The rule
