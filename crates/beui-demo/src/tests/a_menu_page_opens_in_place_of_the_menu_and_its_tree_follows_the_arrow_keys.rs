@@ -21,32 +21,32 @@ fn a_menu_page_opens_in_place_of_the_menu_and_its_tree_follows_the_arrow_keys() 
     );
     test.snapshot("a_menu_page_shows_a_tree_with_the_chosen_folder_checked");
 
-    press(&mut test, Key::ArrowDown);
+    press_key(&mut test, Key::ArrowDown);
     assert!(
         focused(&test, "demo.new.folder.2"),
         "Down moves to Projects"
     );
-    press(&mut test, Key::ArrowRight);
+    press_key(&mut test, Key::ArrowRight);
     assert!(test.shows("demo.new.folder.3"), "Right opens Projects");
-    press(&mut test, Key::ArrowRight);
+    press_key(&mut test, Key::ArrowRight);
     assert!(
         focused(&test, "demo.new.folder.3"),
         "Right on an open folder moves into it"
     );
-    press(&mut test, Key::ArrowLeft);
+    press_key(&mut test, Key::ArrowLeft);
     assert!(
         focused(&test, "demo.new.folder.2"),
         "Left on a leaf goes to its parent"
     );
-    press(&mut test, Key::ArrowLeft);
+    press_key(&mut test, Key::ArrowLeft);
     assert!(
         !test.shows("demo.new.folder.3"),
         "Left closes an open folder"
     );
 
-    press(&mut test, Key::ArrowRight);
-    press(&mut test, Key::ArrowDown);
-    press(&mut test, Key::Enter);
+    press_key(&mut test, Key::ArrowRight);
+    press_key(&mut test, Key::ArrowDown);
+    press_key(&mut test, Key::Enter);
     assert!(
         test.shows("demo.new.location") && focused(&test, "demo.new.location"),
         "choosing a folder goes back to the menu, on the row that opened the page"
@@ -56,12 +56,12 @@ fn a_menu_page_opens_in_place_of_the_menu_and_its_tree_follows_the_arrow_keys() 
         focused(&test, "demo.new.folder.3"),
         "the folder chosen is the one checked now"
     );
-    press(&mut test, Key::Escape);
+    press_key(&mut test, Key::Escape);
     assert!(
         test.shows("demo.new.location"),
         "Escape goes back a page rather than closing the menu"
     );
-    press(&mut test, Key::Escape);
+    press_key(&mut test, Key::Escape);
     assert!(
         !test.shows("demo.new.location"),
         "Escape on the menu closes it"

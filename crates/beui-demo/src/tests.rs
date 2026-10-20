@@ -7,7 +7,10 @@ use crate::{DemoApp, PAGES, Page};
 use beui::icons::ICON_VOLUME_UP;
 use std::time::Duration;
 
+mod a_destructive_dialog_does_not_confirm_on_enter;
+mod a_dialog_confirms_on_enter_from_its_field;
 mod a_dialog_hangs_from_the_tab_that_opened_it;
+mod a_dialog_keeps_its_buttons_side_by_side_on_a_narrow_screen;
 mod a_dialog_opens_on_the_screen_it_was_asked_for_from;
 mod a_docked_page_shown_fullscreen_covers_the_dock_until_escape;
 mod a_long_menu_page_scrolls_to_the_row_the_keyboard_is_on;
@@ -115,15 +118,20 @@ fn reveal(test: &mut DocumentTest, test_id: &str) {
     panic!("the page never showed {test_id}");
 }
 
-fn press(test: &mut DocumentTest, key: beui::Key) {
-    for pressed in [true, false] {
-        test.frame(vec![beui::Event::key(beui::KeyPress {
-            key,
-            pressed,
-            repeat: false,
-            modifiers: beui::Modifiers::NONE,
-        })]);
-    }
+fn press_key(test: &mut DocumentTest, key: beui::Key) {
+    test.frame(
+        [true, false]
+            .into_iter()
+            .map(|pressed| {
+                beui::Event::key(beui::KeyPress {
+                    key,
+                    pressed,
+                    repeat: false,
+                    modifiers: beui::Modifiers::NONE,
+                })
+            })
+            .collect(),
+    );
     test.frame(Vec::new());
 }
 

@@ -257,27 +257,23 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
         }
     };
     view! {
-        <Dialog open={open} title="Add a device" width=340.0 on_dismiss={dismiss}>
-            <List spacing=10.0>
-                <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
-                <TextInput
-                    value={code}
-                    label="Code"
-                    placeholder="XXXX-XXXX"
-                    on_change={move |value: String| code.set(value)}
-                    on_submit={move |_value: String| approve()}
-                />
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Button label="Ignore" variant=ButtonVariant::Secondary on_click={dismiss} />
-                    <Button
-                        label="Approve"
-                        variant=ButtonVariant::Primary
-                        disabled={cannot}
-                        on_click={approve}
-                    />
-                </List>
-            </List>
+        <Dialog
+            open={open}
+            title="Add a device"
+            width=340.0
+            confirm="Approve"
+            cancel="Ignore"
+            confirm_disabled={cannot}
+            on_confirm={approve}
+            on_dismiss={dismiss}
+        >
+            <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
+            <TextInput
+                value={code}
+                label="Code"
+                placeholder="XXXX-XXXX"
+                on_change={move |value: String| code.set(value)}
+            />
         </Dialog>
     }
 }

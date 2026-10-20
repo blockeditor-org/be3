@@ -44,7 +44,7 @@ fn a_sheet_hangs_from_its_tab_and_waits_while_another_tab_is_shown() {
         "holding what it held"
     );
 
-    press(&mut test, beui::Key::Escape);
+    press_key(&mut test, beui::Key::Escape);
     assert!(!test.shows(&sheet), "Escape closes the sheet");
     assert!(!test.shows(&waiting), "and the tab stops waiting");
 }

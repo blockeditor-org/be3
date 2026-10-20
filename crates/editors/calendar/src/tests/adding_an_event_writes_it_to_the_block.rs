@@ -10,7 +10,7 @@ fn adding_an_event_writes_it_to_the_block() {
     calendar.run();
     calendar.editor.text("Stand up");
     calendar.run();
-    calendar.editor.click("calendar.form.save");
+    calendar.editor.click("calendar.form.confirm");
     calendar.run();
 
     let titles: Vec<String> = calendar

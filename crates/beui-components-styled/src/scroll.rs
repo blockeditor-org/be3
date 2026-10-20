@@ -29,6 +29,9 @@ impl Bleed {
     pub const POPOVER: Bleed = Bleed::new(PANEL_PADDING, PANEL_PADDING);
     pub const CARD: Bleed = Bleed::new(card::PADDING_HORIZONTAL, card::PADDING_VERTICAL);
     pub const DIALOG: Bleed = Bleed::new(dialog::PADDING_HORIZONTAL, dialog::PADDING_VERTICAL);
+    pub const DIALOG_ABOVE_ACTIONS: Bleed = Bleed {
+        reach: Bleed::DIALOG.reach.bottom(dialog::SPACING),
+    };
 
     const fn new(horizontal: f32, vertical: f32) -> Self {
         Self {
@@ -76,7 +79,7 @@ pub fn Scroll(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
     #[prop(default = None)] max_length: Option<f32>,
-    #[prop(default = Bleed::NONE)] bleed: Bleed,
+    #[prop(default = Bleed::NONE)] bleed: Prop<Bleed>,
     #[prop(default = true)] tab_stop: bool,
     on_change: Callback<ScrollPosition>,
     children: Children<ListChild>,
@@ -88,7 +91,7 @@ pub fn Scroll(
             reveal
             direction
             fit={fit || max_length.is_some()}
-            bleed={bleed.reach}
+            bleed={bleed.map(|bleed| bleed.reach)}
             tab_stop
             focus_color={theme.accent}
             scrollbar={scrollbar_style()}

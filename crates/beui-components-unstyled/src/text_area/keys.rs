@@ -57,6 +57,7 @@ fn selected(state: TextAreaState) -> bool {
 fn single_line_command(cx: &Context, press: KeyPress) -> bool {
     let modifiers = press.modifiers;
     match press.key {
+        Key::Enter if cx.on_submit.is_empty() => false,
         Key::Enter => {
             submit(cx);
             true

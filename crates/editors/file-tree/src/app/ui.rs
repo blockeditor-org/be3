@@ -4,8 +4,8 @@ use block_editor_beui::BlockParent;
 use block_editor_beui::be_block::WorkspaceContent;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::{
-    ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_AUTO_AWESOME, ICON_CLOSE, ICON_FILE_DOWNLOAD,
-    ICON_OPEN_WITH, ICON_WORKSPACES,
+    ICON_ACCOUNT_CIRCLE, ICON_ADD, ICON_AUTO_AWESOME, ICON_FILE_DOWNLOAD, ICON_OPEN_WITH,
+    ICON_WORKSPACES,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -311,9 +311,15 @@ fn Inspector(inspecting: Signal<Option<Inspection>>) -> NodeId {
     let generated = field(|shown| &shown.generated);
     let shown_as = field(|shown| &shown.shown_as);
     let dismiss = move || inspecting.set(None);
-    let close = move || inspecting.set(None);
     view! {
-        <Dialog open={open} title="Inspect" width=INSPECT_WIDTH on_dismiss={dismiss}>
+        <Dialog
+            open={open}
+            title="Inspect"
+            width=INSPECT_WIDTH
+            id="file-tree.inspect"
+            cancel="Close"
+            on_dismiss={dismiss}
+        >
             <List spacing=ROW_SPACING>
                 <Field label="Name" value={name} named="name" />
                 <Field label="ID" value={id} named="id" />
@@ -324,20 +330,6 @@ fn Inspector(inspecting: Signal<Option<Inspection>>) -> NodeId {
                 <Field label="Your access" value={access} named="access" />
                 <Field label="Generated" value={generated} named="generated" />
                 <Field label="Shown here as" value={shown_as} named="shown-as" />
-                <List
-                    direction=Direction::Horizontal
-                    align=Align::Center
-                    justify=Justify::End
-                    spacing=ROW_SPACING
-                >
-                    <Button
-                        glyph={ICON_CLOSE.to_owned()}
-                        label="Close"
-                        variant=ButtonVariant::Secondary
-                        @test_id={"file-tree.inspect.close"}
-                        on_click={close}
-                    />
-                </List>
             </List>
         </Dialog>
     }

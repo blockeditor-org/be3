@@ -21,6 +21,7 @@ const FOCUS_RING_OFFSET: f32 = 6.0;
 pub enum ButtonVariant {
     Primary,
     Secondary,
+    Danger,
     Ghost,
 }
 
@@ -29,6 +30,7 @@ impl ButtonVariant {
         if disabled {
             return match self {
                 ButtonVariant::Primary => theme.accent_soft.get(),
+                ButtonVariant::Danger => theme.danger_soft.get(),
                 ButtonVariant::Secondary => theme.surface.get(),
                 ButtonVariant::Ghost => Color32::TRANSPARENT,
             };
@@ -37,6 +39,9 @@ impl ButtonVariant {
             (ButtonVariant::Primary, _, true) => theme.accent_active.get(),
             (ButtonVariant::Primary, true, false) => theme.accent_hover.get(),
             (ButtonVariant::Primary, false, false) => theme.accent.get(),
+            (ButtonVariant::Danger, _, true) => theme.danger_fill_active.get(),
+            (ButtonVariant::Danger, true, false) => theme.danger_fill_hover.get(),
+            (ButtonVariant::Danger, false, false) => theme.danger_fill.get(),
             (ButtonVariant::Secondary, _, true) => theme.pressed.get(),
             (ButtonVariant::Secondary, true, false) => theme.hover.get(),
             (ButtonVariant::Secondary, false, false) => theme.surface.get(),
@@ -52,6 +57,7 @@ impl ButtonVariant {
         }
         match self {
             ButtonVariant::Primary => TextColor::OnAccent,
+            ButtonVariant::Danger => TextColor::OnDanger,
             ButtonVariant::Secondary | ButtonVariant::Ghost => TextColor::Default,
         }
     }
@@ -60,7 +66,7 @@ impl ButtonVariant {
 #[component]
 pub fn Button(
     #[prop(default = String::new())] label: Prop<String>,
-    variant: ButtonVariant,
+    variant: Prop<ButtonVariant>,
     #[prop(default = String::new())] glyph: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
@@ -77,7 +83,7 @@ pub fn Button(
 #[component]
 pub fn ButtonFace(
     handle: unstyled::ButtonHandle,
-    variant: ButtonVariant,
+    variant: Prop<ButtonVariant>,
     #[prop(default = String::new())] trailing_glyph: Prop<String>,
     #[prop(default = false)] icon_only: Prop<bool>,
 ) -> NodeId {
@@ -91,9 +97,14 @@ pub fn ButtonFace(
         ..
     } = handle;
     let theme = use_theme();
-    let fill_color =
-        create_memo(move || variant.fill(&theme, disabled.get(), hovered.get(), active.get()));
-    let label_color = create_memo(move || variant.label(disabled.get()));
+    let fill_color = create_memo(move || {
+        variant
+            .get()
+            .fill(&theme, disabled.get(), hovered.get(), active.get())
+    });
+    let label_color = create_memo(move || variant.get().label(disabled.get()));
+    let border =
+        create_memo(move || (variant.get() == ButtonVariant::Secondary).then_some(Border::DEFAULT));
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     let trailing = create_memo(move || trailing_glyph.get());
     let has_trailing = create_memo(move || !trailing.get().is_empty());
@@ -106,7 +117,7 @@ pub fn ButtonFace(
         <FocusRing focused radius={Radius::custom(Radius::Md.px() + 4.0)} offset=FOCUS_RING_OFFSET>
             <Frame
                 fill={ColorRole::custom(fill_color)}
-                border={(variant == ButtonVariant::Secondary).then_some(Border::DEFAULT)}
+                border={border}
                 radius=Radius::Md
                 padding={padding}
             >

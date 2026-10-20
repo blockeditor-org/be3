@@ -118,22 +118,16 @@ pub(super) fn ErrorScreen(view: AppViewStore) -> NodeId {
                     on_click={|| send(UiCommand::Exit)}
                 />
             </List>
-            <Dialog open={asking} title={title} on_dismiss={|| send(UiCommand::CancelErrorAction)}>
-                <List spacing=12.0>
-                    <Text style=TextStyle::PARAGRAPH string={confirmation} wrap=true />
-                    <List direction=Direction::Horizontal spacing=8.0>
-                        <Button
-                            label="Delete"
-                            variant=ButtonVariant::Primary
-                            on_click={|| send(UiCommand::ConfirmErrorAction)}
-                        />
-                        <Button
-                            label="Cancel"
-                            variant=ButtonVariant::Secondary
-                            on_click={|| send(UiCommand::CancelErrorAction)}
-                        />
-                    </List>
-                </List>
+            <Dialog
+                open={asking}
+                title={title}
+                confirm="Delete"
+                cancel="Cancel"
+                destructive=true
+                on_confirm={|| send(UiCommand::ConfirmErrorAction)}
+                on_dismiss={|| send(UiCommand::CancelErrorAction)}
+            >
+                <Text style=TextStyle::PARAGRAPH string={confirmation} wrap=true />
             </Dialog>
         </Column>
     }
@@ -373,12 +367,13 @@ pub(super) fn AddAccountDialog(
         }
         .to_owned()
     });
-    let show_footer_primary = create_memo(move || editing.get() || waiting.get());
     let footer_primary = create_memo(move || {
         if waiting.get() {
             "Open browser".to_owned()
-        } else {
+        } else if editing.get() {
             submit_label.get()
+        } else {
+            String::new()
         }
     });
     let primary_disabled = create_memo(move || !waiting.get() && not_ready.get());
@@ -396,7 +391,30 @@ pub(super) fn AddAccountDialog(
             open={open}
             title={title}
             width=460.0
+            id="account"
+            confirm={footer_primary}
+            cancel="Cancel"
+            confirm_disabled={primary_disabled}
+            on_confirm={move || {
+                if waiting.get_untracked() {
+                    send(UiCommand::OpenLoginBrowser);
+                } else {
+                    submit();
+                }
+            }}
             on_dismiss={|| send(UiCommand::CloseAddAccount)}
+            extra_actions={move || view! {
+                <Show condition={editing}>
+                    <Button
+                        label="Back"
+                        variant=ButtonVariant::Secondary
+                        on_click={move || {
+                            selection.set(None);
+                            send(UiCommand::RetryAccount);
+                        }}
+                    />
+                </Show>
+            }}
         >
             <List spacing=20.0>
                 <Show condition={choosing}>
@@ -583,31 +601,6 @@ pub(super) fn AddAccountDialog(
                 <Show condition={create_memo(move || error.get().is_some())}>
                     <ErrorText text={error} />
                 </Show>
-                <Separator />
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Show condition={editing}>
-                        <Button
-                            label="Back"
-                            variant=ButtonVariant::Secondary
-                            on_click={move || { selection.set(None); send(UiCommand::RetryAccount); }}
-                        />
-                    </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::CloseAddAccount)}
-                    />
-                    <Show condition={show_footer_primary}>
-                        <Button
-                            label={footer_primary}
-                            variant=ButtonVariant::Primary
-                            disabled={primary_disabled}
-                            @test_id="account.continue"
-                            on_click={move || { if waiting.get_untracked() { send(UiCommand::OpenLoginBrowser); } else { submit(); } }}
-                        />
-                    </Show>
-                </List>
             </List>
         </Dialog>
     }
@@ -1021,28 +1014,23 @@ pub(super) fn ReauthDialog(view: AppViewStore) -> NodeId {
             open={open}
             title="Session expired"
             width=460.0
+            confirm="Continue in browser"
+            confirm_disabled={busy}
+            on_confirm={|| send(UiCommand::ReauthSubmit)}
             on_dismiss={|| send(UiCommand::ReauthClose)}
+            extra_actions={|| view! {
+                <Button
+                    label="Log out"
+                    variant=ButtonVariant::Secondary
+                    on_click={|| send(UiCommand::ReauthLogOut)}
+                />
+            }}
         >
             <List spacing=20.0>
                 <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
                 <Show condition={create_memo(move || error.get().is_some())}>
                     <ErrorText text={error} />
                 </Show>
-                <Separator />
-                <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Button
-                        label="Log out"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::ReauthLogOut)}
-                    />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Button
-                        label="Continue in browser"
-                        variant=ButtonVariant::Primary
-                        disabled={busy}
-                        on_click={|| send(UiCommand::ReauthSubmit)}
-                    />
-                </List>
             </List>
         </Dialog>
     }

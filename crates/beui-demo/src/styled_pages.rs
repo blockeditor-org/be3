@@ -717,6 +717,11 @@ fn ButtonVariants() -> NodeId {
                     on_click={move || clicked.set("Clicked Secondary".to_owned())}
                 />
                 <Button
+                    label="Danger"
+                    variant=ButtonVariant::Danger
+                    on_click={move || clicked.set("Clicked Danger".to_owned())}
+                />
+                <Button
                     label="Ghost"
                     variant=ButtonVariant::Ghost
                     on_click={move || clicked.set("Clicked Ghost".to_owned())}
@@ -853,6 +858,11 @@ fn NameInput() -> NodeId {
                 value=String::new()
                 placeholder="A note, over several lines"
                 multiline=true
+            />
+            <TextInput
+                value="https://blocks.example/invite/3f9c"
+                label="Invite link"
+                copyable=true
             />
         </List>
     }
@@ -1923,6 +1933,9 @@ pub(crate) fn OverlaysPage() -> NodeId {
             <Sample title="Dialog" code={vec![DiscardDialog::SOURCE]}>
                 <DiscardDialog />
             </Sample>
+            <Sample title="Dialog with a field" code={vec![RenameDialog::SOURCE]}>
+                <RenameDialog />
+            </Sample>
             <Sample title="Keep changes" code={vec![KeepModeChange::SOURCE]}>
                 <KeepModeChange />
             </Sample>
@@ -2034,6 +2047,7 @@ fn DiscardDialog() -> NodeId {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Button
+                    @test_id={"demo.discard.open"}
                     label="Discard changes…"
                     variant=ButtonVariant::Secondary
                     on_click={move || dialog.set(true)}
@@ -2044,35 +2058,69 @@ fn DiscardDialog() -> NodeId {
                 open={dialog}
                 title="Discard changes?"
                 width=DIALOG_WIDTH
+                id="demo.discard"
+                confirm="Discard"
+                cancel="Keep"
+                destructive=true
+                on_confirm={move || {
+                    outcome.set("Discarded the changes".to_owned());
+                    dialog.set(false);
+                }}
                 on_dismiss={move || dialog.set(false)}
             >
-                <List spacing=ROW_SPACING>
-                    <Text
-                        style=TextStyle::PARAGRAPH
-                        string="Escape, a click outside or the back gesture dismisses a dialog."
-                        wrap=true
-                    />
-                    <List
-                        direction=Direction::Horizontal
-                        align=Align::Center
-                        justify=Justify::End
-                        spacing=8.0
-                    >
-                        <Button
-                            label="Keep"
-                            variant=ButtonVariant::Secondary
-                            on_click={move || dialog.set(false)}
-                        />
-                        <Button
-                            label="Discard"
-                            variant=ButtonVariant::Primary
-                            on_click={move || {
-                                outcome.set("Discarded the changes".to_owned());
-                                dialog.set(false);
-                            }}
-                        />
-                    </List>
-                </List>
+                <Text
+                    style=TextStyle::PARAGRAPH
+                    string="Escape, a click outside or the back gesture dismisses a dialog."
+                    wrap=true
+                />
+            </Dialog>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn RenameDialog() -> NodeId {
+    let dialog = create_signal(false);
+    let name = create_signal("Notes".to_owned());
+    let typed = create_signal(String::new());
+    let blank = create_memo(move || typed.get().trim().is_empty());
+    let rename = move || {
+        name.set(typed.get_untracked().trim().to_owned());
+        dialog.set(false);
+    };
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
+                <Button
+                    @test_id={"demo.rename.open"}
+                    label="Rename…"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || {
+                        typed.set(name.get_untracked());
+                        dialog.set(true);
+                    }}
+                />
+            </List>
+            <Text style=TextStyle::CAPTION string={name} @test_id={"demo.rename.name"} />
+            <Dialog
+                open={dialog}
+                title="Rename"
+                width=DIALOG_WIDTH
+                id="demo.rename"
+                confirm="Rename"
+                cancel="Cancel"
+                confirm_disabled={blank}
+                on_confirm={rename}
+                on_dismiss={move || dialog.set(false)}
+            >
+                <TextInput
+                    value={typed}
+                    label="Name"
+                    clearable=true
+                    @test_id={"demo.rename.field"}
+                    on_change={move |value: String| typed.set(value)}
+                />
             </Dialog>
         </List>
     }

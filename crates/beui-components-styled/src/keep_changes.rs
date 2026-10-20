@@ -1,14 +1,13 @@
-use crate::frame::{Border, ColorRole, Frame, Radius};
+use crate::dialog::{DialogActions, DialogSurface, SCRIM};
+use crate::frame::Frame;
 use beui_core::layer::Dismiss;
 use std::time::{Duration, Instant};
 
-use accesskit::{Node, Role};
+use accesskit::Role;
 use beui_macros::{component, view};
 
-use crate::button::{Button, ButtonVariant};
 use crate::text::{Text, TextStyle};
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::color::Color32;
 use beui_core::geometry::Rect;
 use beui_core::node::NodeId;
 use beui_core::screens::bounds;
@@ -19,12 +18,6 @@ use beui_view::reactive::*;
 pub const KEEP_CHANGES_TIMEOUT: Duration = Duration::from_secs(15);
 
 const WIDTH: f32 = 400.0;
-const MARGIN: f32 = 12.0;
-const PADDING_HORIZONTAL: f32 = 20.0;
-const PADDING_VERTICAL: f32 = 18.0;
-const SPACING: f32 = 12.0;
-const BUTTON_SPACING: f32 = 8.0;
-const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 150);
 const SECOND: Duration = Duration::from_secs(1);
 
 #[component]
@@ -153,55 +146,34 @@ fn KeepChangesCard(
     let inset = create_memo(move || Sides::new(place.get().left(), place.get().top(), 0.0, 0.0));
     let width = create_memo(move || place.get().width());
     let height = create_memo(move || place.get().height());
-    component_accessibility(create_memo(move || {
-        let mut node = Node::new(Role::AlertDialog);
-        node.set_label(title.get());
-        node
-    }));
-    let card_id = id.clone();
+    let actions_id = id.clone();
+    let actions = DialogActions {
+        id: create_memo(move || actions_id.clone()),
+        confirm: create_memo(|| "Keep".to_owned()),
+        cancel: create_memo(|| "Revert".to_owned()),
+        destructive: create_memo(|| false),
+        confirm_disabled: create_memo(|| false),
+        focus_confirm: focused,
+        on_confirm: on_keep,
+        on_cancel: on_revert,
+    };
     view! {
         <Frame padding=inset align=Align::Start>
             <Frame width=width height=height align=Align::Center>
-                <Frame padding=MARGIN>
-                    <Frame
-                        width={Extent::at_most(WIDTH)}
-                        fill=ColorRole::SurfaceRaised
-                        border={Border::DEFAULT}
-                        radius=Radius::Lg
-                        padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
-                        @test_id=card_id
-                    >
-                        <List spacing=SPACING>
-                            <Text style=TextStyle::TITLE string={title} />
-                            <Text
-                                style=TextStyle::PARAGRAPH
-                                string={message}
-                                @test_id={format!("{id}.countdown")}
-                                wrap=true
-                            />
-                            <List
-                                direction=Direction::Horizontal
-                                align=Align::Center
-                                justify=Justify::End
-                                spacing=BUTTON_SPACING
-                            >
-                                <Button
-                                    label="Revert"
-                                    variant=ButtonVariant::Secondary
-                                    @test_id={format!("{id}.revert")}
-                                    on_click={on_revert}
-                                />
-                                <Button
-                                    label="Keep"
-                                    variant=ButtonVariant::Primary
-                                    focused={focused}
-                                    @test_id={format!("{id}.keep")}
-                                    on_click={on_keep}
-                                />
-                            </List>
-                        </List>
-                    </Frame>
-                </Frame>
+                <DialogSurface
+                    width=WIDTH
+                    title={title}
+                    role=Role::AlertDialog
+                    actions={actions}
+                    surface_id={id.clone()}
+                >
+                    <Text
+                        style=TextStyle::PARAGRAPH
+                        string={message}
+                        @test_id={format!("{id}.countdown")}
+                        wrap=true
+                    />
+                </DialogSurface>
             </Frame>
         </Frame>
     }

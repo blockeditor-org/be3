@@ -43,9 +43,10 @@ fn add_to_canvas(app: &mut AppTest, target: &str) {
 fn pick_tile(app: &mut AppTest, target: &str) {
     app.wait("Dialog \"Add block\"");
     let hidden = |app: &mut AppTest| {
-        !app.tree()
-            .lines()
-            .any(|line| line.contains(target) && !line.contains("offscreen"))
+        !app.tree().lines().any(|line| {
+            line.contains(target)
+                && (!line.contains("offscreen") || line.contains("partly offscreen"))
+        })
     };
     for _ in 0..50 {
         if !hidden(app) {
