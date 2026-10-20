@@ -819,6 +819,9 @@ pub(crate) fn InputsPage() -> NodeId {
             <Sample title="Number input" code={vec![SeatsInput::SOURCE]}>
                 <SeatsInput />
             </Sample>
+            <Sample title="One value, two bindings" code={vec![Temperatures::SOURCE]}>
+                <Temperatures />
+            </Sample>
             <Sample title="Sliders and progress" code={vec![LoadSliders::SOURCE]}>
                 <LoadSliders />
             </Sample>
@@ -888,6 +891,28 @@ fn greeting_label(name: &str) -> String {
     match name.is_empty() {
         true => "Nobody yet".to_owned(),
         false => format!("Hello, {name}"),
+    }
+}
+
+#[sample]
+#[component]
+fn Temperatures() -> NodeId {
+    let celsius = create_signal(20.0f64);
+    let fahrenheit = Binding::new(
+        create_memo(move || celsius.get() * 9.0 / 5.0 + 32.0),
+        move |fahrenheit: f64| celsius.set((fahrenheit - 32.0) * 5.0 / 9.0),
+    );
+    view! {
+        <List spacing=ROW_SPACING>
+            <Text style=TextStyle::CAPTION string="Celsius, a signal" />
+            <NumberInput value={celsius} label="Celsius" @test_id="demo.temperature.celsius" />
+            <Text style=TextStyle::CAPTION string="Fahrenheit, derived from it both ways" />
+            <NumberInput
+                value={fahrenheit}
+                label="Fahrenheit"
+                @test_id="demo.temperature.fahrenheit"
+            />
+        </List>
     }
 }
 
