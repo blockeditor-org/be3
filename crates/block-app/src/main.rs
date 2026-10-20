@@ -2012,10 +2012,7 @@ impl BlockApp {
         {
             return;
         }
-        if self.set_up_profile.is_some()
-            && self.with_editor(shell, |editor| editor.known()) == Some(true)
-            && let Some(profile) = self.set_up_profile.take()
-        {
+        if let Some(profile) = self.set_up_profile.take() {
             self.show_block(
                 None,
                 BlockOpen {

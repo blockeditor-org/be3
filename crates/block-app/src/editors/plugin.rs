@@ -290,9 +290,8 @@ impl PluginEditor {
         let Some(plugin) = &self.plugin else {
             return;
         };
-        if std::mem::take(&mut self.opened) {
-            crate::plugin_host::close(&plugin.identity.id, self.instance);
-        }
+        std::mem::take(&mut self.opened);
+        crate::plugin_host::close(&plugin.identity.id, self.instance);
     }
 
     pub(crate) fn id(&self) -> Uuid {
@@ -435,17 +434,11 @@ impl PluginEditor {
         )
     }
 
-    pub(crate) fn known(&self) -> bool {
-        self.plugin
-            .as_ref()
-            .is_some_and(|plugin| crate::plugin_host::knows(&plugin.identity.id, self.instance))
-    }
-
     pub(crate) fn show_block(&self, open: super::BlockOpen) {
         let Some(plugin) = &self.plugin else {
             return;
         };
-        crate::plugin_host::show_block(&plugin.identity.id, self.instance, open);
+        crate::plugin_host::show_block(plugin, self.instance, open);
     }
 
     pub(crate) fn show_dialog(&self, id: Uuid, dialog: block_plugin_api::ShellDialog) {

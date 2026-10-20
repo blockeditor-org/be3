@@ -67,6 +67,8 @@ pub(super) struct Instances {
     audio_changes: AudioChanges,
     published: Published,
     shell: Option<EditorInstanceId>,
+    waiting: HashMap<EditorInstanceId, Vec<Message>>,
+    gone: HashSet<EditorInstanceId>,
 }
 
 struct AudioChanges {
@@ -605,6 +607,41 @@ impl Instances {
         });
     }
 
+    pub(super) fn hold_unreported(&mut self, messages: Vec<Message>) -> Vec<Message> {
+        let mut passed = Vec::with_capacity(messages.len());
+        for message in messages {
+            match &message {
+                Message::Editor(editor)
+                    if !matches!(editor, EditorMessage::Close { .. })
+                        && !self.entries.contains_key(&editor.instance()) =>
+                {
+                    let instance = editor.instance();
+                    if !self.gone.contains(&instance) {
+                        self.waiting.entry(instance).or_default().push(message);
+                    }
+                }
+                _ => passed.push(message),
+            }
+        }
+        passed
+    }
+
+    pub(super) fn take_reported(&mut self) -> Vec<Message> {
+        if self.waiting.is_empty() {
+            return Vec::new();
+        }
+        let reported: Vec<EditorInstanceId> = self
+            .waiting
+            .keys()
+            .copied()
+            .filter(|instance| self.entries.contains_key(instance))
+            .collect();
+        reported
+            .into_iter()
+            .flat_map(|instance| self.waiting.remove(&instance).unwrap_or_default())
+            .collect()
+    }
+
     pub(super) fn gate(&mut self, messages: Vec<Message>) -> Vec<Message> {
         let mut allowed = Vec::with_capacity(messages.len());
         for message in messages {
@@ -644,6 +681,8 @@ impl Instances {
     }
 
     pub(super) fn remove(&mut self, instance: EditorInstanceId) -> bool {
+        self.waiting.remove(&instance);
+        self.gone.insert(instance);
         let Some(entry) = self.entries.remove(&instance) else {
             return false;
         };
@@ -1982,10 +2021,6 @@ impl Instances {
         statuses
     }
 
-    pub(super) fn knows(&self, instance: EditorInstanceId) -> bool {
-        self.entries.contains_key(&instance)
-    }
-
     pub(super) fn creation_ready(&self, instance: EditorInstanceId) -> bool {
         self.entries
             .get(&instance)
@@ -3236,9 +3271,6 @@ impl Instances {
         instance: EditorInstanceId,
         open: OpenRequest,
     ) -> Vec<Message> {
-        if !self.entries.contains_key(&instance) {
-            return Vec::new();
-        }
         vec![Message::Editor(EditorMessage::ShowBlock {
             instance,
             block_id: open.id.into_bytes(),

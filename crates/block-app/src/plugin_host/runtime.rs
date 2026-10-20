@@ -668,15 +668,21 @@ impl Runtime {
         }
     }
 
-    fn send(&mut self, mut messages: Vec<Message>) {
+    fn send(&mut self, messages: Vec<Message>) {
         if messages.is_empty() || self.error.is_some() {
             return;
         }
+        let mut messages = self.instances.hold_unreported(messages);
         for message in &mut messages {
             self.instances.translate(message, false);
         }
         self.queued.extend(self.instances.gate(messages));
         self.deliver();
+    }
+
+    fn release_reported(&mut self) {
+        let messages = self.instances.take_reported();
+        self.send(messages);
     }
 
     fn deliver(&mut self) {
@@ -949,9 +955,11 @@ pub(crate) fn creation(slot: CreationSlot<'_>) -> CreationState {
         };
         let ready = runtime.contain(|runtime| {
             runtime.error.is_none().then(|| {
-                runtime
+                let ready = runtime
                     .instances
-                    .report_creation(instance, client_id, block_types, role)
+                    .report_creation(instance, client_id, block_types, role);
+                runtime.release_reported();
+                ready
             })
         });
         match (ready, runtime.error.clone()) {
@@ -993,6 +1001,7 @@ pub(crate) fn artifact(slot: ArtifactSlot<'_>) -> ArtifactState {
                 resync,
             );
             runtime.send(messages);
+            runtime.release_reported();
             runtime.instances.artifact_description(instance)
         });
         match (description, runtime.error.clone()) {
@@ -1270,14 +1279,21 @@ pub(crate) fn show_panel(plugin_id: &str, instance: EditorInstanceId, panel: Hos
 }
 
 pub(crate) fn show_block(
-    plugin_id: &str,
+    plugin: &PluginManifest,
     instance: EditorInstanceId,
     open: crate::editors::BlockOpen,
 ) {
-    with(plugin_id, |runtime| {
-        let messages = runtime.instances.show_block(instance, open);
-        runtime.send(messages);
+    HOST.with(|host| {
+        let mut host = host.borrow_mut();
+        let Ok(runtime) = host.runtime(plugin) else {
+            return;
+        };
+        runtime.contain(|runtime| {
+            let messages = runtime.instances.show_block(instance, open);
+            runtime.send(messages);
+        });
     });
+    mark(&plugin.identity.id);
 }
 
 pub(crate) fn set_artifact_states(
@@ -1345,10 +1361,6 @@ pub(crate) fn region_size(
         runtime.instances.region_size(instance, region)
     })
     .flatten()
-}
-
-pub(crate) fn knows(plugin_id: &str, instance: EditorInstanceId) -> bool {
-    with(plugin_id, |runtime| runtime.instances.knows(instance)).unwrap_or_default()
 }
 
 pub(crate) fn creation_ready(plugin_id: &str, instance: EditorInstanceId) -> bool {
@@ -1591,6 +1603,7 @@ pub(crate) fn mount_region(slot: RegionSlot<'_>) {
             runtime
                 .instances
                 .mount(instance, region, client_id, role, block_types);
+            runtime.release_reported();
         });
         mark(&plugin.identity.id);
     });
