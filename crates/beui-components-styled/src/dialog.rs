@@ -60,11 +60,7 @@ pub fn Dialog(
             scrim={scrim}
             on_dismiss={move |_: Dismiss| on_dismiss.call()}
             content={move || view! {
-                <BackSlide
-                    enters=false
-                    on_back={on_dismiss}
-                    on_presence={presence}
-                >
+                <BackSlide enters=false on_back={on_dismiss} on_presence={presence}>
                     <DialogSurface
                         width={width}
                         title={title}

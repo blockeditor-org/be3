@@ -762,10 +762,7 @@ fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={wide}>
-                <Checkbox
-                    label="Mobile"
-                    checked={mobile}
-                />
+                <Checkbox label="Mobile" checked={mobile} />
             </Show>
             <Select
                 label="Theme"

@@ -240,18 +240,10 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
                     glyph={network}
                     pressed={paused}
                 />
-                <ToggleButton
-                    @test_id="demo.collaboration.runs"
-                    label="Runs"
-                    pressed={runs}
-                />
+                <ToggleButton @test_id="demo.collaboration.runs" label="Runs" pressed={runs} />
                 <Text style=TextStyle::CAPTION string={latency_label} />
             </List>
-            <Slider
-                value={latency}
-                max=MAX_LATENCY
-                label="Latency"
-            />
+            <Slider value={latency} max=MAX_LATENCY label="Latency" />
             <unstyled::Stack spacing=ROW_SPACING narrow={narrow}>
                 <EditorPane
                     @sizing=ItemSize::Percent(50.0)

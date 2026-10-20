@@ -773,10 +773,7 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     });
     let disabled = cx.disabled;
     if let Some(render) = &cx.checkbox {
-        return render.call(TextCheckbox {
-            checked,
-            disabled,
-        });
+        return render.call(TextCheckbox { checked, disabled });
     }
     view! {
         <Toggle

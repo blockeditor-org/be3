@@ -111,13 +111,7 @@ fn inline_checkbox() -> RenderFn<TextCheckbox> {
     RenderFn::new(|checkbox: TextCheckbox| {
         let TextCheckbox { checked, disabled } = checkbox;
         view! {
-            <Checkbox
-                checked
-                disabled
-                capture_presses=true
-                tab_stop=false
-                press_focus=false
-            />
+            <Checkbox checked disabled capture_presses=true tab_stop=false press_focus=false />
         }
     })
 }

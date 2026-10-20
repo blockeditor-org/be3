@@ -134,10 +134,7 @@ fn Shown(windows: Windows) -> NodeId {
                 }}
             >
                 <List spacing=0.0>
-                    <TextInput
-                        @test_id={"test.input"}
-                        value={text}
-                    />
+                    <TextInput @test_id={"test.input"} value={text} />
                     <ForEach keys={ids}>|id: WindowId| {
                         let list = windows.list();
                         let size = create_memo(move || {

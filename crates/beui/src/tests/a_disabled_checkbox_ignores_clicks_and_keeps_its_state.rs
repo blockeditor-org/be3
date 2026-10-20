@@ -8,11 +8,7 @@ fn a_disabled_checkbox_ignores_clicks_and_keeps_its_state() {
     let checked = create_signal(false);
     let (document, [checkbox]) = toolbar_of(|| {
         [view! {
-            <Checkbox
-                label="Minimum"
-                checked={checked}
-                disabled=true
-            />
+            <Checkbox label="Minimum" checked={checked} disabled=true />
         }]
     });
     let mut harness = Harness::new(document);

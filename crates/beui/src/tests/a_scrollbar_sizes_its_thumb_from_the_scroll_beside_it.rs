@@ -17,10 +17,7 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
         let position = create_signal(ScrollPosition::ZERO);
         view! {
             <List spacing=0.0>
-                <Offset
-                    @sizing=ItemSize::Percent(100.0)
-                    on_change={position}
-                >
+                <Offset @sizing=ItemSize::Percent(100.0) on_change={position}>
                     <VirtualList
                         keys={indices(ROWS)}
                         item_size=ROW_HEIGHT

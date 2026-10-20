@@ -66,10 +66,7 @@ const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"
 
 #[sample]
 #[component]
-pub(crate) fn LabelledSwitch(
-    label: &'static str,
-    on: Binding<bool>,
-) -> NodeId {
+pub(crate) fn LabelledSwitch(label: &'static str, on: Binding<bool>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <Switch label on />
@@ -784,10 +781,7 @@ fn PinToggle() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <ToggleButton
-                    label="Pin selection"
-                    pressed
-                />
+                <ToggleButton label="Pin selection" pressed />
             </List>
             <Text style=TextStyle::CAPTION string={pinned} />
         </List>
@@ -923,12 +917,7 @@ fn SeatsInput() -> NodeId {
     let seats_text = create_memo(move || format!("{} seats", seats.get()));
     view! {
         <List spacing=SECTION_SPACING>
-            <NumberInput
-                value={seats}
-                min=1.0
-                max=12.0
-                label="Seats"
-            />
+            <NumberInput value={seats} min=1.0 max=12.0 label="Seats" />
             <Text style=TextStyle::CAPTION string={seats_text} />
         </List>
     }
@@ -1107,13 +1096,10 @@ fn ColorListbox() -> NodeId {
 fn FruitSelect() -> NodeId {
     let fruit = create_signal(Some(0));
     let fruit_text = create_memo(move || {
-        fruit
-            .get()
-            .and_then(|index| FRUITS.get(index))
-            .map_or_else(
-                || "Nothing selected".to_owned(),
-                |label| format!("{label} selected"),
-            )
+        fruit.get().and_then(|index| FRUITS.get(index)).map_or_else(
+            || "Nothing selected".to_owned(),
+            |label| format!("{label} selected"),
+        )
     });
     view! {
         <List spacing=SECTION_SPACING>
@@ -1248,12 +1234,7 @@ fn DayField() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <DateTimeField
-                value={day}
-                parts=DateTimeParts::Date
-                label="Day"
-                today={Some(today)}
-            />
+            <DateTimeField value={day} parts=DateTimeParts::Date label="Day" today={Some(today)} />
             <Text style=TextStyle::CAPTION string={day_text} />
         </List>
     }
@@ -1354,11 +1335,7 @@ fn PaintPicker() -> NodeId {
         create_memo(move || format!("Painting in {}", beui::format_hex(shown_paint.get(), false)));
     view! {
         <List spacing=SECTION_SPACING>
-            <ColorPicker
-                value={paint}
-                alpha=false
-                on_preview={preview}
-            />
+            <ColorPicker value={paint} alpha=false on_preview={preview} />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
@@ -1375,10 +1352,7 @@ fn HueWheel() -> NodeId {
         create_memo(move || format!("Painting in {}", beui::format_hex(shown_paint.get(), false)));
     view! {
         <List spacing=SECTION_SPACING>
-            <ColorWheel
-                value={paint}
-                on_preview={preview}
-            />
+            <ColorWheel value={paint} on_preview={preview} />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
@@ -1403,10 +1377,7 @@ fn PerceptualWheel() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION string="Turning the hue keeps lightness and chroma" />
-            <OklchColorWheel
-                value={paint}
-                on_preview={preview}
-            />
+            <OklchColorWheel value={paint} on_preview={preview} />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
@@ -2747,14 +2718,8 @@ fn ThousandsOfRows() -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
-                <Checkbox
-                    label="Show timings"
-                    checked={timings}
-                />
-                <LabelledSwitch
-                    label="Compact rows"
-                    on={compact}
-                />
+                <Checkbox label="Show timings" checked={timings} />
+                <LabelledSwitch label="Compact rows" on={compact} />
                 <Text
                     style=TextStyle::CAPTION
                     @sizing=ItemSize::Percent(100.0)
@@ -3466,10 +3431,7 @@ fn ZoomableStage() -> NodeId {
                     on_click={move || stage_view.set(STAGE_VIEW)}
                 />
             </List>
-            <CanvasStage
-                @sizing=ItemSize::Fixed(STAGE_HEIGHT)
-                view={stage_view}
-            />
+            <CanvasStage @sizing=ItemSize::Fixed(STAGE_HEIGHT) view={stage_view} />
             <Text
                 style=TextStyle::CAPTION
                 wrap=true

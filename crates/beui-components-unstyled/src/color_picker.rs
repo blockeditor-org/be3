@@ -112,7 +112,6 @@ impl<Model: ColorModel> ColorPickerState<Model> {
         let held = self.color.get_untracked();
         self.apply(Model::from_color_keeping(color, held));
     }
-
 }
 
 impl ColorPickerState<Hsva> {

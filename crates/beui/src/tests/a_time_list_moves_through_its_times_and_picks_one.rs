@@ -35,5 +35,8 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
     harness.key(Key::PageDown, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
 
-    assert_eq!(picked.get_untracked(), [Some(Time::new(10, 0)), Some(Time::new(12, 0))]);
+    assert_eq!(
+        picked.get_untracked(),
+        [Some(Time::new(10, 0)), Some(Time::new(12, 0))]
+    );
 }

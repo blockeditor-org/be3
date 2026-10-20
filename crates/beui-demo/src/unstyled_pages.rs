@@ -245,9 +245,7 @@ fn VolumeMeter() -> NodeId {
     let volume_text = create_memo(move || format!("Volume {}%", (volume.get() * 100.0).round()));
     view! {
         <List spacing=SECTION_SPACING>
-            <unstyled::Slider
-                value={volume}
-            >|handle: SliderHandle|
+            <unstyled::Slider value={volume}>|handle: SliderHandle|
                 <MeterFace handle />
             </unstyled::Slider>
             <Text string={volume_text} color=TextColor::Muted />

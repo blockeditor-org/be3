@@ -82,15 +82,9 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
             </Card>
             <Text style=TextStyle::HEADING string="Check that you saved them" />
             <Text style=TextStyle::CAPTION string={first_label} />
-            <TextInput
-                value={first}
-                label={first_label}
-            />
+            <TextInput value={first} label={first_label} />
             <Text style=TextStyle::CAPTION string={second_label} />
-            <TextInput
-                value={second}
-                label={second_label}
-            />
+            <TextInput value={second} label={second_label} />
             <Text style=TextStyle::CAPTION string={third_label} />
             <TextInput
                 value={third}
@@ -264,11 +258,7 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
             on_dismiss={dismiss}
         >
             <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
-            <TextInput
-                value={code}
-                label="Code"
-                placeholder="XXXX-XXXX"
-            />
+            <TextInput value={code} label="Code" placeholder="XXXX-XXXX" />
         </Dialog>
     }
 }

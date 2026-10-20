@@ -95,10 +95,7 @@ pub fn Popover(
         PopoverPlacement::Below => Placement::BelowStart,
         PopoverPlacement::Over(inset) => Placement::Over(inset),
     };
-    let handle = PopoverHandle {
-        open,
-        close,
-    };
+    let handle = PopoverHandle { open, close };
     let toggle = move || {
         if !disabled.get_untracked() {
             open.update(|open| *open = !*open);

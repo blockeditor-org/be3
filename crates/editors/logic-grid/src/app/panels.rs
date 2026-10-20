@@ -26,35 +26,20 @@ pub(super) fn Panels(session: Session) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Show condition={challenged}>
-                <Accordion
-                    title="Challenge"
-                    open={challenge_open}
-                >
+                <Accordion title="Challenge" open={challenge_open}>
                     <ChallengePanel session={session} />
                 </Accordion>
             </Show>
-            <Accordion
-                title="Simulation"
-                open={simulation_open}
-            >
+            <Accordion title="Simulation" open={simulation_open}>
                 <SimulationPanel session={session} />
             </Accordion>
-            <Accordion
-                title="Metrics"
-                open={metrics_open}
-            >
+            <Accordion title="Metrics" open={metrics_open}>
                 <MetricsPanel session={session} />
             </Accordion>
-            <Accordion
-                title="Grid debugger"
-                open={debugger_open}
-            >
+            <Accordion title="Grid debugger" open={debugger_open}>
                 <DebuggerPanel session={session} />
             </Accordion>
-            <Accordion
-                title="Generated graph"
-                open={graph_open}
-            >
+            <Accordion title="Generated graph" open={graph_open}>
                 <GraphPanel session={session} />
             </Accordion>
             <StorageDialog session={session} />

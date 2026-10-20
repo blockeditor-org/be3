@@ -7,11 +7,7 @@ fn a_driver_types_into_a_field_found_by_its_test_id() {
     let document = build(|| {
         let name = create_signal(String::new());
         view! {
-            <TextInput
-                @test_id={"form.name"}
-                value={name}
-                placeholder="Name"
-            />
+            <TextInput @test_id={"form.name"} value={name} placeholder="Name" />
         }
     });
     let mut driven = Driven::new(document);

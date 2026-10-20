@@ -8,10 +8,7 @@ fn clicking_a_checkbox_toggles_it() {
     let checked = create_signal(false);
     let (document, [checkbox]) = toolbar_of(|| {
         [view! {
-            <Checkbox
-                label="Show timings"
-                checked={checked}
-            />
+            <Checkbox label="Show timings" checked={checked} />
         }]
     });
     let mut harness = Harness::new(document);

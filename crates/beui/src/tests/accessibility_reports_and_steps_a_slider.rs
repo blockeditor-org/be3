@@ -9,10 +9,7 @@ fn accessibility_reports_and_steps_a_slider() {
     let changed = create_signal(0.5);
     let document = build(move || {
         view! {
-            <styled::Slider
-                value={changed}
-                label="Volume"
-            />
+            <styled::Slider value={changed} label="Volume" />
         }
     });
     let mut harness = Harness::new(document);

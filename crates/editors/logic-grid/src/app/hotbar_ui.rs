@@ -309,11 +309,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                 on_select={chose}
             >
                 <Tooltip label={label}>
-                    <Interactive
-                        focusable=true
-                        on_activate={clicked}
-                        on_hover_change={hovered}
-                    >
+                    <Interactive focusable=true on_activate={clicked} on_hover_change={hovered}>
                         <Draggable
                             @test_id={element_test_id}
                             payload={payload}

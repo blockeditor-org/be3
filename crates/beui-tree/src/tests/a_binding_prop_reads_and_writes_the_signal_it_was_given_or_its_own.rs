@@ -21,8 +21,12 @@ fn a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own() {
     let (shared, owned) = (Rc::new(Cell::new(None)), Rc::new(Cell::new(None)));
     let (controlled, uncontrolled) = scope.run(|| {
         (
-            view! { <Switch on={given} grab={shared.clone()} /> },
-            view! { <Switch grab={owned.clone()} /> },
+            view! {
+                <Switch on={given} grab={shared.clone()} />
+            },
+            view! {
+                <Switch grab={owned.clone()} />
+            },
         )
     });
     assert!(controlled.html().contains(">false</p>"));
@@ -33,7 +37,6 @@ fn a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own() {
     assert!(!given.get_untracked());
     assert!(controlled.html().contains(">false</p>"));
     let owned: Binding<bool> = owned.get().unwrap();
-    assert!(owned.signal().is_some());
     owned.set(false);
     assert!(uncontrolled.html().contains(">false</p>"));
 }

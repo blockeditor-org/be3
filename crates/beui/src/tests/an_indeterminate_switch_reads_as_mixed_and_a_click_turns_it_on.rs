@@ -10,11 +10,7 @@ fn an_indeterminate_switch_reads_as_mixed_and_a_click_turns_it_on() {
     let on = create_signal(false);
     let (document, [switch]) = toolbar_of(|| {
         [view! {
-            <Switch
-                label="Every light"
-                on={on}
-                indeterminate=true
-            />
+            <Switch label="Every light" on={on} indeterminate=true />
         }]
     });
     let mut harness = Harness::new(document);

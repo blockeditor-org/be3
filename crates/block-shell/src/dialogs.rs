@@ -90,12 +90,7 @@ fn RenameDialog(workspace: Workspace) -> NodeId {
             on_confirm={submit}
             on_dismiss={move || workspace.close_dialog()}
         >
-            <TextInput
-                value={name}
-                label="Name"
-                focused=true
-                @test_id={"rename.name"}
-            />
+            <TextInput value={name} label="Name" focused=true @test_id={"rename.name"} />
             <Show condition={invalid}>
                 <Text style=TextStyle::CAPTION string={error} />
             </Show>

@@ -43,27 +43,6 @@ impl<T: Clone + 'static> Binding<T> {
             Prop::Dynamic(read) => Self(Source::Derived(read, write)),
         }
     }
-
-    pub fn map<U: Clone + PartialEq + 'static>(
-        self,
-        into: impl Fn(T) -> U + 'static,
-        from: impl Fn(U) -> T + 'static,
-    ) -> Binding<U>
-    where
-        T: PartialEq,
-    {
-        Binding::new(
-            Prop::dynamic(move || into(self.get())),
-            move |value: U| self.set(from(value)),
-        )
-    }
-
-    pub fn signal(&self) -> Option<Signal<T>> {
-        match self.0 {
-            Source::Signal(signal) => Some(signal),
-            Source::Derived(..) => None,
-        }
-    }
 }
 
 impl<T: 'static> From<Signal<T>> for Binding<T> {

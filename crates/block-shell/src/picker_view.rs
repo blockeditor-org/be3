@@ -407,7 +407,10 @@ fn PlaceItem(
                 .map(|row| row.expanded)
         }),
         move |open: Option<bool>| {
-            act.call(PickAction::UnfoldPlace(unfolded.clone(), open == Some(true)))
+            act.call(PickAction::UnfoldPlace(
+                unfolded.clone(),
+                open == Some(true),
+            ))
         },
     );
     let checked =

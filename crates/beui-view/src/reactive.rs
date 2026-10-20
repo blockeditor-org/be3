@@ -251,8 +251,7 @@ pub fn bind_test_id(node: NodeId, test_id: Prop<String>) {
 
 pub use crate::actions::{
     Action, ActionBuilder, ActionScope, Chord, action_disabled, action_glyph, action_label,
-    action_scope, action_tooltip, active_actions, active_actions_from,
-    menu_actions,
+    action_scope, action_tooltip, active_actions, active_actions_from, menu_actions,
 };
 pub use crate::file_picker::{
     FileFilter, FilePick, FilePicker, PickedFile, create_file_picker, pick_file,

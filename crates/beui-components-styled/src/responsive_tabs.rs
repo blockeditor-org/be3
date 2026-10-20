@@ -36,19 +36,13 @@ pub fn ResponsiveTabs(
             <Show
                 condition={wide}
                 then={move || { let tab_options = tab_options.clone(); view! {
-                    <Tabs
-                        options={tab_options}
-                        selected
-                    />
+                    <Tabs options={tab_options} selected />
                 } }}
             />
             <Show
                 condition={narrow}
                 then={move || { let options = options.clone(); view! {
-                    <Select
-                        options
-                        selected={highlighted}
-                    />
+                    <Select options selected={highlighted} />
                 } }}
             />
         </List>

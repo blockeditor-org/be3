@@ -7,10 +7,7 @@ fn a_driver_composes_with_an_input_method_and_holds_a_key() {
     let document = build(|| {
         let text = create_signal(String::new());
         view! {
-            <TextInput
-                @test_id={"field"}
-                value={text}
-            />
+            <TextInput @test_id={"field"} value={text} />
         }
     });
     let mut driven = Driven::new(document);

@@ -24,7 +24,9 @@ impl<V, R> Copy for Target<V, R> {}
 
 impl<V: 'static, R: 'static> Callback<V, R> {
     pub fn new(handler: impl FnMut(V) -> R + 'static) -> Self {
-        Self(Target::Handler(store(RefCell::new(Some(Box::new(handler))))))
+        Self(Target::Handler(store(RefCell::new(Some(Box::new(
+            handler,
+        ))))))
     }
 
     pub fn empty() -> Self {

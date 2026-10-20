@@ -10,10 +10,7 @@ fn a_key_dragged_off_the_software_keyboard_types_once_when_let_go() {
     let typed = create_signal(String::new());
     let document = build(move || {
         view! {
-            <TextInput
-                @test_id="field"
-                value={typed}
-            />
+            <TextInput @test_id="field" value={typed} />
         }
     });
     let mut harness = Harness::new(document);

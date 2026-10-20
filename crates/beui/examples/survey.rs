@@ -18,10 +18,7 @@ impl SurveyApp {
                 <Frame fill=ColorRole::Background padding=16.0>
                     <List spacing=8.0>
                         <Text string={state} />
-                        <TextInput
-                            value={state}
-                            label="Text"
-                        />
+                        <TextInput value={state} label="Text" />
                     </List>
                 </Frame>
             }

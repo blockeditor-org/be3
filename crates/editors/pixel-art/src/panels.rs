@@ -206,14 +206,8 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 disabled={shapes}
             />
             <Text string="Symmetry" />
-            <Checkbox
-                label="Mirror horizontally"
-                checked={horizontal}
-            />
-            <Checkbox
-                label="Mirror vertically"
-                checked={vertical}
-            />
+            <Checkbox label="Mirror horizontally" checked={horizontal} />
+            <Checkbox label="Mirror vertically" checked={vertical} />
         </List>
     }
 }

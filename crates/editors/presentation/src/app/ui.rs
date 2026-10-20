@@ -233,10 +233,7 @@ fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
 
     view! {
         <Frame visible={shown} height=PLAYBACK_HEIGHT>
-            <Interactive
-                on_hover_change={over}
-                @test_id={"presentation.playback"}
-            >
+            <Interactive on_hover_change={over} @test_id={"presentation.playback"}>
                 <Frame
                     visible={over}
                     fill={ColorRole::Custom(Color32::from_rgba_unmultiplied(0, 0, 0, 180))}

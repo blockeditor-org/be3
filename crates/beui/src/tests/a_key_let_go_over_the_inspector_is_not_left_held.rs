@@ -10,10 +10,7 @@ fn a_key_let_go_over_the_inspector_is_not_left_held() {
     let typed = create_signal(String::new());
     let document = build(move || {
         view! {
-            <TextInput
-                @test_id="field"
-                value={typed}
-            />
+            <TextInput @test_id="field" value={typed} />
         }
     });
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);

@@ -1487,7 +1487,6 @@ pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Doc
     crate::reactive::with_reactive_scope(document, || crate::reactive::with_document(f))
 }
 
-
 #[component]
 pub(crate) fn MenuRegion() -> NodeId {
     view! {
@@ -1520,10 +1519,7 @@ pub(crate) fn PanZoomStage(
     >,
 ) -> NodeId {
     view! {
-        <unstyled::PanZoom
-            @test_id="stage"
-            view
-        >|handle: unstyled::PanZoomHandle| {
+        <unstyled::PanZoom @test_id="stage" view>|handle: unstyled::PanZoomHandle| {
             let unstyled::PanZoomHandle { view, .. } = handle;
             view! {
                 <Canvas view>
@@ -2532,4 +2528,3 @@ impl Intaken {
         self.seen.take()
     }
 }
-

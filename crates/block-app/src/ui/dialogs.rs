@@ -448,11 +448,7 @@ fn AgentsPanel(view: AppViewStore) -> NodeId {
                             }
                         }</ForEach>
                         <Text style=TextStyle::CAPTION string="Name" />
-                        <TextInput
-                            value={name}
-                            label="Agent name"
-                            @test_id={"app.agents.name"}
-                        />
+                        <TextInput value={name} label="Agent name" @test_id={"app.agents.name"} />
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Button
                                 label="Add agent"
@@ -599,11 +595,7 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
             <List spacing=8.0>
                 <Text style=TextStyle::CAPTION string={organization} />
                 <Text style=TextStyle::CAPTION string="Email address" />
-                <TextInput
-                    value={email}
-                    label="Email address"
-                    @test_id={"app.invite.email"}
-                />
+                <TextInput value={email} label="Email address" @test_id={"app.invite.email"} />
                 <Text style=TextStyle::CAPTION string="Role" />
                 <Tabs
                     selected={Binding::new(role_index, move |index: usize| administrator.set(index == 1))}
@@ -636,7 +628,11 @@ fn InvitePanel(view: AppViewStore) -> NodeId {
                             string="Send them this link yourself, through an app you trust. Only their account can use it, and only once. It is shown only once."
                             wrap=true
                         />
-                        <TextInput value={Binding::new(link, Callback::empty())} label="Invite link" @test_id={"app.invite.link"} />
+                        <TextInput
+                            value={Binding::new(link, Callback::empty())}
+                            label="Invite link"
+                            @test_id={"app.invite.link"}
+                        />
                     </List>
                 </Show>
             </List>

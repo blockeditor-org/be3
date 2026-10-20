@@ -37,12 +37,7 @@ pub fn SelectableText(
                 _ => {}
             }}
         >
-            <unstyled::Selectable
-                state
-                color
-                handle_color
-                on_toolbar={toolbar_at}
-            >
+            <unstyled::Selectable state color handle_color on_toolbar={toolbar_at}>
                 {children}
             </unstyled::Selectable>
         </ContextMenu>
