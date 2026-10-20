@@ -595,6 +595,10 @@ or `Fraction`, a weight in what is left), with `column_spacing` and
 several columns is written `<GridCell span=2>`. It is for forms and property
 panels whose labels should share one width, not for a list of rows, which is
 a `List` or a `VirtualList`.
+A table of values to compare is `styled::Table`: column headings along the
+top (each a `TableColumn`, which can carry a caption), a `TableRow` per row with its heading down the side, and a `TableCell`
+per column, each with an optional caption under its value; every row shares the
+column weights, so its cells line up, and it reads as a table to assistive tech.
 `Text` carries its own decoration too: `underline` is painted from the galley's
 baseline, so switching it on never moves anything. `Portal` shows a subtree that belongs to
 someone else: it takes a `NodeId`, lays it out and paints it where the portal

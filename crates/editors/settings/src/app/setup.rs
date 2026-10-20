@@ -10,8 +10,6 @@ use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::{BlockQuery, ContentProjection, Editor};
 use uuid::Uuid;
 
-const NAME_WEIGHT: f32 = 40.0;
-const VALUE_WEIGHT: f32 = 30.0;
 const CELL_PADDING_HORIZONTAL: f32 = 16.0;
 const CELL_PADDING_VERTICAL: f32 = 10.0;
 const ACTION_SPACING: f32 = 8.0;
@@ -260,60 +258,23 @@ pub(super) fn DifferencesSection(setup: DeviceSetup, blocked: Memo<bool>) -> Nod
             title="Where this device differs"
             description="Everything else follows your other devices."
         >
-            <Frame padding={Sides::symmetric(CELL_PADDING_HORIZONTAL, CELL_PADDING_VERTICAL)}>
-                <List direction=Direction::Horizontal spacing=0.0>
-                    <Text
-                        @sizing=ItemSize::Percent(NAME_WEIGHT)
-                        style=TextStyle::CAPTION
-                        string="Setting"
-                    />
-                    <Text
-                        @sizing=ItemSize::Percent(VALUE_WEIGHT)
-                        style=TextStyle::CAPTION
-                        string="Your devices"
-                    />
-                    <Text
-                        @sizing=ItemSize::Percent(VALUE_WEIGHT)
-                        style=TextStyle::CAPTION
-                        string="This device"
-                    />
-                </List>
-            </Frame>
-            <ForEach keys={rows}>|key: String| {
-                let name = setup.cell(key.clone(), |cell| cell.default.name().to_owned());
-                let everywhere = setup.cell(key.clone(), |cell| cell.default.every_device(cell.every));
-                let here = setup.cell(key.clone(), |cell| cell.default.kept(cell.own).unwrap_or_default());
-                view! {
-                    <List spacing=0.0>
-                        <Frame padding={Sides::horizontal(CELL_PADDING_HORIZONTAL)}>
-                            <Separator />
-                        </Frame>
-                        <Frame
-                            padding={Sides::symmetric(CELL_PADDING_HORIZONTAL, CELL_PADDING_VERTICAL)}
-                            @test_id={format!("setup.differs.{key}")}
-                        >
-                            <List direction=Direction::Horizontal spacing=0.0>
-                                <Text
-                                    @sizing=ItemSize::Percent(NAME_WEIGHT)
-                                    string={name}
-                                    wrap=true
-                                />
-                                <Text
-                                    @sizing=ItemSize::Percent(VALUE_WEIGHT)
-                                    color=TextColor::Muted
-                                    string={everywhere}
-                                    wrap=true
-                                />
-                                <Text
-                                    @sizing=ItemSize::Percent(VALUE_WEIGHT)
-                                    string={here}
-                                    wrap=true
-                                />
-                            </List>
-                        </Frame>
-                    </List>
-                }
-            }</ForEach>
+            <Table
+                label="Where this device differs"
+                heading="Setting"
+                columns={vec![TableColumn::new("Your devices"), TableColumn::new("This device")]}
+            >
+                <ForEach keys={rows}>|key: String| {
+                    let name = setup.cell(key.clone(), |cell| cell.default.name().to_owned());
+                    let everywhere = setup.cell(key.clone(), |cell| cell.default.every_device(cell.every));
+                    let here = setup.cell(key.clone(), |cell| cell.default.kept(cell.own).unwrap_or_default());
+                    view! {
+                        <TableRow label={name} @test_id={format!("setup.differs.{key}")}>
+                            <TableCell text={everywhere} color=TextColor::Muted />
+                            <TableCell text={here} />
+                        </TableRow>
+                    }
+                }</ForEach>
+            </Table>
             <Frame padding={Sides::horizontal(CELL_PADDING_HORIZONTAL)}>
                 <Separator />
             </Frame>

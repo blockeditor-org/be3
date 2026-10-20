@@ -2619,6 +2619,9 @@ pub(crate) fn LayoutPage() -> NodeId {
             <Sample title="Settings sections" code={vec![SettingsSections::SOURCE]}>
                 <SettingsSections />
             </Sample>
+            <Sample title="Table" code={vec![PlanetTable::SOURCE]}>
+                <PlanetTable />
+            </Sample>
             <Sample title="Separators and borders" code={vec![Separators::SOURCE]}>
                 <Separators />
             </Sample>
@@ -2745,6 +2748,43 @@ fn Accordions() -> NodeId {
                 </Accordion>
             </List>
         </Card>
+    }
+}
+
+#[sample]
+#[component]
+fn PlanetTable() -> NodeId {
+    const PLANETS: [(&str, &str, &str, &str); 3] = [
+        ("Mercury", "88 days", "None", ""),
+        ("Earth", "365 days", "1", "The Moon"),
+        ("Jupiter", "12 years", "95", "Four large ones"),
+    ];
+    view! {
+        <SettingsSection
+            title="Planets"
+            description="A table heads its rows down the side and its columns along the top. A cell can carry a caption under its value."
+        >
+            <Table
+                label="Planets"
+                heading="Planet"
+                columns={vec![TableColumn::new("Year"), TableColumn::new("Moons").caption("Known")]}
+            >
+                <ForEach keys={PLANETS.to_vec()}>|(name, year, moons, caption): (&'static str, &'static str, &'static str, &'static str)|
+                    <TableRow label={name.to_owned()} @test_id={format!("table.{}", name.to_lowercase())}>
+                        <TableCell
+                            text={year.to_owned()}
+                            color=TextColor::Muted
+                            @test_id={format!("table.{}.year", name.to_lowercase())}
+                        />
+                        <TableCell
+                            text={moons.to_owned()}
+                            caption={caption.to_owned()}
+                            @test_id={format!("table.{}.moons", name.to_lowercase())}
+                        />
+                    </TableRow>
+                </ForEach>
+            </Table>
+        </SettingsSection>
     }
 }
 
