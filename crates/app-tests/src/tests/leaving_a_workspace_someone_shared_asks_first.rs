@@ -27,7 +27,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.click("#account.local");
     app.click("#account.name");
     app.type_text("Ada");
-    app.click("#account.continue");
+    app.click("#account.confirm");
     app.wait("Label value=\"Check that you saved them\"");
     confirm_phrase(&mut app);
     app.click("Button \"Personal\"");
@@ -46,7 +46,7 @@ fn leaving_a_workspace_someone_shared_asks_first() {
     app.wait("Dialog \"Rename block\"");
     app.key("ctrl+a");
     app.type_text("Team");
-    app.click("#rename.submit");
+    app.click("#rename.confirm");
     app.wait("TreeItem \"Team\"");
     app.run(&["click", "TreeItem \"Team\"", "right"]);
     app.click("#file-tree.section.share");

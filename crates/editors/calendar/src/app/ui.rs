@@ -1,8 +1,6 @@
 use block_editor_beui::be_block::{Calendar, CalendarContent};
 use block_editor_beui::beui::datetime::DateTime;
-use block_editor_beui::beui::icons::{
-    ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_CLOSE, ICON_DELETE, ICON_SAVE,
-};
+use block_editor_beui::beui::icons::{ICON_ADD, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
@@ -254,10 +252,29 @@ fn EventDialog(
         }
         form.set(None);
     };
-    let cancel = move || form.set(None);
     let dismiss = move || form.set(None);
     view! {
-        <Dialog open={open} title={title} width=FORM_WIDTH on_dismiss={dismiss}>
+        <Dialog
+            open={open}
+            title={title}
+            width=FORM_WIDTH
+            id="calendar.form"
+            confirm="Save"
+            cancel="Cancel"
+            confirm_disabled={blank}
+            on_confirm={save}
+            on_dismiss={dismiss}
+            extra_actions={move || view! {
+                <Show condition={editing}>
+                    <Button
+                        label="Delete"
+                        variant=ButtonVariant::Danger
+                        @test_id={"calendar.form.delete"}
+                        on_click={delete}
+                    />
+                </Show>
+            }}
+        >
             <List spacing=SPACING>
                 <TextInput
                     value={name}
@@ -286,33 +303,6 @@ fn EventDialog(
                 <Show condition={backwards}>
                     <Text style=TextStyle::CAPTION string="The event ends before it starts." />
                 </Show>
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Button
-                        glyph={ICON_SAVE.to_owned()}
-                        label="Save"
-                        variant=ButtonVariant::Primary
-                        disabled={blank}
-                        @test_id={"calendar.form.save"}
-                        on_click={save}
-                    />
-                    <Show condition={editing}>
-                        <Button
-                            glyph={ICON_DELETE.to_owned()}
-                            label="Delete"
-                            variant=ButtonVariant::Secondary
-                            @test_id={"calendar.form.delete"}
-                            on_click={delete}
-                        />
-                    </Show>
-                    <Button
-                        glyph={ICON_CLOSE.to_owned()}
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        @test_id={"calendar.form.cancel"}
-                        on_click={cancel}
-                    />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
             </List>
         </Dialog>
     }

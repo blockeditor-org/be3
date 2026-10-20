@@ -14,7 +14,7 @@ fn a_local_account_needs_only_a_display_name() {
     assert!(!tree.contains("Password"));
     app.crop("Dialog \"Create local account\"");
     app.snapshot("a_local_account_needs_only_a_display_name");
-    app.click("#account.continue");
+    app.click("#account.confirm");
     app.wait("Label value=\"Check that you saved them\"");
     app.close();
 }

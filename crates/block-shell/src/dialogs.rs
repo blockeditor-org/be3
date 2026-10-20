@@ -80,34 +80,26 @@ fn RenameDialog(workspace: Workspace) -> NodeId {
         }
     };
     view! {
-        <Dialog open={open} title="Rename block" on_dismiss={move || workspace.close_dialog()}>
-            <List spacing=10.0>
-                <TextInput
-                    value={name}
-                    label="Name"
-                    focused=true
-                    @test_id={"rename.name"}
-                    on_change={move |value: String| name.set(value)}
-                    on_submit={move |_value: String| submit()}
-                />
-                <Show condition={invalid}>
-                    <Text style=TextStyle::CAPTION string={error} />
-                </Show>
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Button
-                        label="Rename"
-                        variant=ButtonVariant::Primary
-                        disabled={invalid}
-                        @test_id={"rename.submit"}
-                        on_click={submit}
-                    />
-                    <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || workspace.close_dialog()}
-                    />
-                </List>
-            </List>
+        <Dialog
+            open={open}
+            title="Rename block"
+            id="rename"
+            confirm="Rename"
+            cancel="Cancel"
+            confirm_disabled={invalid}
+            on_confirm={submit}
+            on_dismiss={move || workspace.close_dialog()}
+        >
+            <TextInput
+                value={name}
+                label="Name"
+                focused=true
+                @test_id={"rename.name"}
+                on_change={move |value: String| name.set(value)}
+            />
+            <Show condition={invalid}>
+                <Text style=TextStyle::CAPTION string={error} />
+            </Show>
         </Dialog>
     }
 }
@@ -124,39 +116,28 @@ fn UnlinkDialog(workspace: Workspace) -> NodeId {
             open={open}
             title="Unlink from the source block?"
             width=360.0
+            id="workspace"
+            confirm="Unlink"
+            cancel="Cancel"
+            destructive=true
+            on_confirm={move || {
+                if let Some(block) = block.get_untracked() {
+                    workspace.host().unlink_artifact(block);
+                }
+                workspace.close_dialog();
+            }}
             on_dismiss={move || workspace.close_dialog()}
         >
-            <List spacing=12.0>
-                <Text
-                    style=TextStyle::PARAGRAPH
-                    string="This block keeps what was generated for it, but stops being rebuilt from its source and becomes editable."
-                    wrap=true
-                />
-                <Text
-                    style=TextStyle::PARAGRAPH
-                    string="The link and its settings cannot be restored."
-                    wrap=true
-                />
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Button
-                        label="Unlink"
-                        variant=ButtonVariant::Primary
-                        @test_id={"workspace.confirm"}
-                        on_click={move || {
-                            if let Some(block) = block.get_untracked() {
-                                workspace.host().unlink_artifact(block);
-                            }
-                            workspace.close_dialog();
-                        }}
-                    />
-                    <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || workspace.close_dialog()}
-                    />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                </List>
-            </List>
+            <Text
+                style=TextStyle::PARAGRAPH
+                string="This block keeps what was generated for it, but stops being rebuilt from its source and becomes editable."
+                wrap=true
+            />
+            <Text
+                style=TextStyle::PARAGRAPH
+                string="The link and its settings cannot be restored."
+                wrap=true
+            />
         </Dialog>
     }
 }
@@ -205,41 +186,30 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
             open={open}
             title="Dynamic artifact settings"
             width=360.0
+            id="artifact-settings"
+            confirm="Apply"
+            cancel="Cancel"
+            confirm_disabled={unchanged}
+            on_confirm={move || {
+                if let Some(child) = state.with_untracked(|state| state.child) {
+                    workspace.host().commit_child(child, BlockParent::Root, None);
+                }
+                workspace.close_dialog();
+            }}
             on_dismiss={move || workspace.close_dialog()}
         >
-            <List spacing=12.0>
-                <Frame height=height>
-                    <Subregion
-                        editor={editor}
-                        placed={placed}
-                        mode=ChildMode::Live
-                        @test_id={"artifact-settings.editor"}
-                        on_state={move |next: ChildState| state.set(next)}
-                    />
-                </Frame>
-                <Show condition={has_summary}>
-                    <Text style=TextStyle::CAPTION string={summary_text} />
-                </Show>
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Button
-                        label="Apply"
-                        variant=ButtonVariant::Primary
-                        disabled={unchanged}
-                        @test_id={"artifact-settings.apply"}
-                        on_click={move || {
-                            if let Some(child) = state.with_untracked(|state| state.child) {
-                                workspace.host().commit_child(child, BlockParent::Root, None);
-                            }
-                            workspace.close_dialog();
-                        }}
-                    />
-                    <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={move || workspace.close_dialog()}
-                    />
-                </List>
-            </List>
+            <Frame height=height>
+                <Subregion
+                    editor={editor}
+                    placed={placed}
+                    mode=ChildMode::Live
+                    @test_id={"artifact-settings.editor"}
+                    on_state={move |next: ChildState| state.set(next)}
+                />
+            </Frame>
+            <Show condition={has_summary}>
+                <Text style=TextStyle::CAPTION string={summary_text} />
+            </Show>
         </Dialog>
     }
 }
@@ -352,7 +322,13 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
     let invited = create_memo(move || !invite_link.get().is_empty());
     let act = Callback::new(move |action: ShareAction| workspace.share_action(action));
     view! {
-        <Dialog open={open} title={title} width=460.0 on_dismiss={move || workspace.close_dialog()}>
+        <Dialog
+            open={open}
+            title={title}
+            width=460.0
+            cancel="Done"
+            on_dismiss={move || workspace.close_dialog()}
+        >
             <List spacing=10.0>
                 <Show condition={has_error}>
                     <Text style=TextStyle::CAPTION string={error_text} />
@@ -502,18 +478,6 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         }</ForEach>
                     </Scroll>
                 </Frame>
-                <List
-                    direction=Direction::Horizontal
-                    align=Align::Center
-                    justify=Justify::End
-                    spacing=8.0
-                >
-                    <Button
-                        label="Done"
-                        variant=ButtonVariant::Primary
-                        on_click={move || workspace.close_dialog()}
-                    />
-                </List>
             </List>
         </Dialog>
     }

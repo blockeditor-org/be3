@@ -16,7 +16,7 @@ fn the_inspect_dialog_stays_on_a_narrow_screen() {
 
     fixture.choose(block, "Inspect");
 
-    for field in ["file-tree.inspect.id", "file-tree.inspect.close"] {
+    for field in ["file-tree.inspect.id", "file-tree.inspect.cancel"] {
         let rect = fixture.test.rect_of(field);
         assert!(
             rect.left() >= 0.0 && rect.right() <= WIDTH,

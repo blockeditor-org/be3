@@ -34,7 +34,7 @@ fn inspecting_a_row_shows_what_is_known_about_its_block() {
         "inspecting a block must not open it"
     );
 
-    fixture.test.click("file-tree.inspect.close");
+    fixture.test.click("file-tree.inspect.cancel");
     fixture.settle();
     assert!(
         !fixture.test.shown("file-tree.inspect.id"),

@@ -679,27 +679,21 @@ fn LeaveDialog(view: AppViewStore) -> NodeId {
     let leaving = view.leaving;
     let open = create_memo(move || leaving.get());
     view! {
-        <Dialog open={open} title="Leave?" on_dismiss={|| send(UiCommand::CancelLeave)}>
-            <List spacing=12.0>
-                <Text
-                    style=TextStyle::PARAGRAPH
-                    string="You will no longer see this or anything inside it, unless someone shares it with you again. Whoever can edit it gives it new keys."
-                    wrap=true
-                />
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Button
-                        label="Leave"
-                        variant=ButtonVariant::Primary
-                        @test_id={"app.leave.confirm"}
-                        on_click={|| send(UiCommand::ConfirmLeave)}
-                    />
-                    <Button
-                        label="Stay"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::CancelLeave)}
-                    />
-                </List>
-            </List>
+        <Dialog
+            open={open}
+            title="Leave?"
+            id="app.leave"
+            confirm="Leave"
+            cancel="Stay"
+            destructive=true
+            on_confirm={|| send(UiCommand::ConfirmLeave)}
+            on_dismiss={|| send(UiCommand::CancelLeave)}
+        >
+            <Text
+                style=TextStyle::PARAGRAPH
+                string="You will no longer see this or anything inside it, unless someone shares it with you again. Whoever can edit it gives it new keys."
+                wrap=true
+            />
         </Dialog>
     }
 }
@@ -727,22 +721,16 @@ fn DiscardDialog(view: AppViewStore) -> NodeId {
             .unwrap_or_default()
     });
     view! {
-        <Dialog open={open} title={title} on_dismiss={|| send(UiCommand::CancelDiscard)}>
-            <List spacing=12.0>
-                <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
-                <List direction=Direction::Horizontal spacing=8.0>
-                    <Button
-                        label={button}
-                        variant=ButtonVariant::Primary
-                        on_click={|| send(UiCommand::Discard)}
-                    />
-                    <Button
-                        label="Cancel"
-                        variant=ButtonVariant::Secondary
-                        on_click={|| send(UiCommand::CancelDiscard)}
-                    />
-                </List>
-            </List>
+        <Dialog
+            open={open}
+            title={title}
+            confirm={button}
+            cancel="Cancel"
+            destructive=true
+            on_confirm={|| send(UiCommand::Discard)}
+            on_dismiss={|| send(UiCommand::CancelDiscard)}
+        >
+            <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
         </Dialog>
     }
 }

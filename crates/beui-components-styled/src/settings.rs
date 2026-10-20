@@ -1,4 +1,3 @@
-use crate::button::{Button, ButtonVariant};
 use crate::dialog::Dialog;
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use crate::text::{Icon, TextColor};
@@ -239,7 +238,6 @@ pub fn SettingsLink(
         asking.set(false);
         on_reset.call();
     };
-    let confirm_test_id = create_memo(move || format!("{}.confirm", reset_test_id.get()));
     let marker = create_memo(move || match modified.get() {
         true => ColorRole::Accent,
         false => ColorRole::None,
@@ -269,23 +267,17 @@ pub fn SettingsLink(
                     </unstyled::Button>
                 </Frame>
             </List>
-            <Dialog open={asking} title="Reset?" on_dismiss={move || asking.set(false)}>
-                <List spacing=CONTROL_SPACING>
-                    <Text style=TextStyle::PARAGRAPH string={confirm} wrap=true />
-                    <List direction=Direction::Horizontal spacing=CONTROL_SPACING>
-                        <Button
-                            label="Reset"
-                            variant=ButtonVariant::Primary
-                            @test_id={confirm_test_id}
-                            on_click={confirmed}
-                        />
-                        <Button
-                            label="Cancel"
-                            variant=ButtonVariant::Secondary
-                            on_click={move || asking.set(false)}
-                        />
-                    </List>
-                </List>
+            <Dialog
+                open={asking}
+                title="Reset?"
+                id={reset_test_id}
+                confirm="Reset"
+                cancel="Cancel"
+                destructive=true
+                on_confirm={confirmed}
+                on_dismiss={move || asking.set(false)}
+            >
+                <Text style=TextStyle::PARAGRAPH string={confirm} wrap=true />
             </Dialog>
         </List>
     }

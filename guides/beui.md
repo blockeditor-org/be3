@@ -1287,6 +1287,20 @@ window. `styled::Dialog` puts its title and body in a fitted `Scroll` with
 `Bleed::DIALOG` that gives up length when the screen is short, so every dialog
 scrolls rather than spilling over the edge.
 
+A dialog's buttons are props of `styled::Dialog`, never buttons in its body, so
+every dialog places and draws them the same way: a footer under the scroll that
+stays in view while the body scrolls. `confirm` names the action (drawn primary,
+or `ButtonVariant::Danger` with `destructive`; `confirm_disabled` greys it) and
+runs `on_confirm`; `cancel` names the dismissal (secondary beside a confirm,
+primary alone, such as "Close" or "Done") and runs `on_dismiss`. An empty label
+leaves its button out. Confirm is rightmost and cancel beside it, and
+`extra_actions` (such as Delete in an edit form) start the row on the left.
+The row wraps rather than stacking, so the buttons stay side by side until they
+no longer fit. Enter that nothing in the dialog takes runs the
+confirm action, unless it is disabled or destructive, so a field needs no
+`on_submit` of its own. With `id`, the buttons are `{id}.confirm` and
+`{id}.cancel`. `KeepChanges` draws its prompt with the same surface and footer.
+
 A layer at `LayerLevel::Lock` that blocks everything is a lock screen
 (`styled::LockScreen`): it is above every other layer, so anything opened while
 it is up opens beneath it; it is never dismissable; the focus cannot leave it,

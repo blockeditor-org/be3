@@ -18,7 +18,7 @@ fn moving_the_start_of_an_event_keeps_its_length() {
     }
     calendar.editor.key_press(Key::ArrowUp);
     calendar.run();
-    calendar.editor.click("calendar.form.save");
+    calendar.editor.click("calendar.form.confirm");
     calendar.run();
 
     let events: Vec<(i64, i64)> = calendar
