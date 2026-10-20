@@ -8,7 +8,8 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{MenuItem, PopoverHandle};
-use block_editor_beui::{Epaper, EpaperRequest, Media, Power, Wifi, utc_offset};
+use block_editor_beui::be_block::DisplaySettings;
+use block_editor_beui::{Displays, Epaper, EpaperRequest, Media, Power, Wifi, utc_offset};
 use block_shell::Workspace;
 
 use super::calendar::{CALENDAR_WIDTH, DesktopCalendar};
@@ -17,6 +18,7 @@ use super::notifications::{DesktopNotifications, NotificationsButton};
 use super::placeholders::{OpenAllButton, Placeholders};
 use super::popup::BarPopup;
 use super::power::PowerMenu;
+use super::rotate::RotateButton;
 use super::sessions::Sessions;
 use super::tray::TrayItems;
 use super::volume::VolumeButton;
@@ -73,6 +75,12 @@ pub(crate) fn DesktopBar(
     let powered = editor.host_offers::<Power>();
     let epaper = editor.host_value::<Epaper>();
     let refresh = move || editor.act(EpaperRequest::Refresh);
+    let displays = editor.host_value::<Displays>();
+    let screen = create_memo(move || displays.with(|displays| displays.first().cloned()));
+    let display_settings = editor.effective_settings::<DisplaySettings>();
+    let rotatable = create_memo(move || {
+        display_settings.with(DisplaySettings::rotate_in_bar) && screen.with(Option::is_some)
+    });
     let menu = move || editor.host().show_app_menu(editor.block_id());
     let sessions = Sessions::new(workspace);
     let listed = sessions.listed;
@@ -166,6 +174,9 @@ pub(crate) fn DesktopBar(
                             press_focus=false
                             on_click={refresh}
                         />
+                    </Show>
+                    <Show condition={rotatable}>
+                        <RotateButton editor={editor} display={screen} />
                     </Show>
                     <IconButton
                         glyph={ICON_KEYBOARD.to_owned()}
