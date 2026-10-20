@@ -896,20 +896,6 @@ impl ServerStore {
         Ok(self.objects.get(hash)?)
     }
 
-    pub fn get_object_range(
-        &self,
-        hash: Hash,
-        offset: u64,
-        length: u64,
-    ) -> Result<Option<Vec<u8>>, ServerError> {
-        if !self.objects.has(hash)? {
-            return Ok(None);
-        }
-        let offset = usize::try_from(offset).unwrap_or(usize::MAX);
-        let length = usize::try_from(length).unwrap_or(usize::MAX);
-        Ok(Some(self.objects.get_range(hash, offset, length)?))
-    }
-
     pub fn missing_objects(&self, hashes: &[Hash]) -> Result<Vec<Hash>, ServerError> {
         let mut missing = Vec::new();
         for hash in hashes {

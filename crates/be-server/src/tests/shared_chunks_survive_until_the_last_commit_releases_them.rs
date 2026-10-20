@@ -36,6 +36,7 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
             pinned: false,
             references: Vec::new(),
             metadata: Vec::new(),
+            objects: Vec::new(),
         })
         .await;
     client
@@ -53,6 +54,7 @@ async fn shared_chunks_survive_until_the_last_commit_releases_them() {
             pinned: false,
             references: Vec::new(),
             metadata: Vec::new(),
+            objects: Vec::new(),
         })
         .await;
 

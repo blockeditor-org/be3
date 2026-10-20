@@ -15,11 +15,13 @@ pub(super) const IN_FLIGHT: usize = 8;
 
 pub type Imported = Result<BlockSummary, ClientError>;
 
+type Message = Box<dyn FnOnce(u64) -> ClientMessage + Send>;
+
 struct Prepared {
     id: Uuid,
     keys: KeySet,
-    create: ClientMessage,
-    publish: Option<ClientMessage>,
+    create: Message,
+    publish: Option<Message>,
     objects: Vec<Hash>,
 }
 
@@ -136,15 +138,20 @@ impl<S: ObjectStore> Peer<S> {
         };
         scopes.insert(block.id, children);
         let vault = self.commits.vault();
-        let create = ClientMessage::CreateBlock {
-            request: 0,
-            block: block.id,
-            content_type: block.block_type,
-            parent,
-            metadata: vault.seal(key, &block.metadata.encode())?,
-            key,
-            keys: keys.clone(),
-        };
+        let create: Message = Box::new({
+            let metadata = vault.seal(key, &block.metadata.encode())?;
+            let (block, content_type) = (block.id, block.block_type);
+            let keys = keys.clone();
+            move |request| ClientMessage::CreateBlock {
+                request,
+                block,
+                content_type,
+                parent,
+                metadata,
+                key,
+                keys,
+            }
+        });
         let Some(content) = &block.content else {
             return Ok(Prepared {
                 id: block.id,
@@ -170,18 +177,23 @@ impl<S: ObjectStore> Peer<S> {
             id: block.id,
             keys,
             create,
-            publish: Some(ClientMessage::Publish {
-                request: 0,
-                block: block.id,
-                commit: id,
-                expected: None,
-                parents: Vec::new(),
-                chunks,
-                time: commit.time,
-                pinned: false,
-                references,
-                metadata: vault.seal(key, &encoded)?,
-            }),
+            publish: Some(Box::new({
+                let (block, time) = (block.id, commit.time);
+                let metadata = vault.seal(key, &encoded)?;
+                move |request| ClientMessage::Publish {
+                    request,
+                    block,
+                    commit: id,
+                    expected: None,
+                    parents: Vec::new(),
+                    chunks,
+                    time,
+                    pinned: false,
+                    references,
+                    metadata,
+                    objects: Vec::new(),
+                }
+            })),
             objects,
         })
     }
@@ -225,30 +237,21 @@ impl<S: ObjectStore> Peer<S> {
     }
 
     fn send_batch(&self, group: Vec<Prepared>) -> Sent<'_> {
-        let mut messages = Vec::with_capacity(group.len() * 2);
-        for ready in &group {
-            messages.push(ready.create.clone());
-            messages.extend(ready.publish.clone());
+        let mut sent = Vec::with_capacity(group.len());
+        for ready in group {
+            let created = self.connection.send(ready.create);
+            let published = ready.publish.map(|publish| self.connection.send(publish));
+            sent.push((ready.id, ready.keys, created, published));
         }
-        let sent = self
-            .connection
-            .send(|request| ClientMessage::Batch { request, messages });
         Box::pin(async move {
-            let ServerMessage::Batched { responses, .. } = sent?.await? else {
-                return Err(ClientError::Unexpected);
-            };
-            let mut responses = responses.into_iter();
-            let mut results = Vec::with_capacity(group.len());
-            for ready in group {
-                let created = responses.next();
-                let published = match ready.publish {
-                    Some(_) => responses.next(),
+            let mut results = Vec::with_capacity(sent.len());
+            for (id, keys, created, published) in sent {
+                let created = answered(created).await?;
+                let published = match published {
+                    Some(published) => Some(answered(published).await?),
                     None => None,
                 };
-                results.push((
-                    ready.id,
-                    self.imported(ready.id, &ready.keys, created, published),
-                ));
+                results.push((id, self.imported(id, &keys, Some(created), published)));
             }
             Ok(results)
         })
@@ -282,5 +285,18 @@ impl<S: ObjectStore> Peer<S> {
             self.remember(block, head);
         }
         Ok(summary)
+    }
+}
+
+async fn answered(
+    sent: Result<crate::connection::Answer, ClientError>,
+) -> Result<ServerMessage, ClientError> {
+    match sent?.await {
+        Err(ClientError::Refused(code, message)) => Ok(ServerMessage::Failed {
+            request: 0,
+            code,
+            message,
+        }),
+        answer => answer,
     }
 }

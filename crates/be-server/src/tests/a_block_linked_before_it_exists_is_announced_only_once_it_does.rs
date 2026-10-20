@@ -32,6 +32,7 @@ async fn a_block_linked_before_it_exists_is_announced_only_once_it_does() {
             pinned: false,
             references: vec![note],
             metadata: Vec::new(),
+            objects: Vec::new(),
         })
         .await;
     assert!(

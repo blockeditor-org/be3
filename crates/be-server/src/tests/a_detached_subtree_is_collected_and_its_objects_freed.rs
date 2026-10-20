@@ -28,6 +28,7 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
             pinned: false,
             references: Vec::new(),
             metadata: Vec::new(),
+            objects: Vec::new(),
         })
         .await;
 
@@ -43,6 +44,7 @@ async fn a_detached_subtree_is_collected_and_its_objects_freed() {
             pinned: false,
             references: vec![child],
             metadata: Vec::new(),
+            objects: Vec::new(),
         })
         .await;
 

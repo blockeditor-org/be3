@@ -27,6 +27,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
             pinned: false,
             references: Vec::new(),
             metadata: Vec::new(),
+            objects: Vec::new(),
         })
         .await;
     assert!(
@@ -46,9 +47,11 @@ async fn blocks_publish_and_read_back_through_the_server() {
     };
 
     let (second, next_chunks) = author.compose(b"second draft\n", 2_000, Some(first));
-    client
-        .upload(&author.store, &author.objects_of(second, &next_chunks))
-        .await;
+    let carried = author
+        .objects_of(second, &next_chunks)
+        .into_iter()
+        .map(|hash| be_protocol::ByteBuf::from(author.store.get(hash).unwrap().unwrap()))
+        .collect();
     let response = client
         .send(|request| ClientMessage::Publish {
             request,
@@ -61,6 +64,7 @@ async fn blocks_publish_and_read_back_through_the_server() {
             pinned: false,
             references: Vec::new(),
             metadata: Vec::new(),
+            objects: carried,
         })
         .await;
     assert!(

@@ -769,42 +769,10 @@ impl Connection {
                     hashes: self.store.put_objects(&objects)?,
                 })
             }
-            ClientMessage::Batch { request, messages } => {
-                let mut responses = Vec::with_capacity(messages.len());
-                for message in messages {
-                    let id = message.request();
-                    let response = match message {
-                        ClientMessage::Batch { .. } => Err(ServerError::Refused(
-                            ErrorCode::InvalidRequest,
-                            "a batch may not hold another batch".into(),
-                        )),
-                        message => Box::pin(self.dispatch(message)).await,
-                    };
-                    responses.push(response.unwrap_or_else(|error| ServerMessage::Failed {
-                        request: id,
-                        code: error.code(),
-                        message: error.to_string(),
-                    }));
-                }
-                Ok(ServerMessage::Batched { request, responses })
-            }
             ClientMessage::GetObject { request, hash } => {
                 let identity = self.identity()?;
                 let bytes = match self.store.may_read_object(identity, hash).await? {
                     true => self.store.get_object(hash)?,
-                    false => None,
-                };
-                Ok(ServerMessage::Object { request, bytes })
-            }
-            ClientMessage::GetObjectRange {
-                request,
-                hash,
-                offset,
-                length,
-            } => {
-                let identity = self.identity()?;
-                let bytes = match self.store.may_read_object(identity, hash).await? {
-                    true => self.store.get_object_range(hash, offset, length)?,
                     false => None,
                 };
                 Ok(ServerMessage::Object { request, bytes })
@@ -861,8 +829,10 @@ impl Connection {
                 pinned,
                 references,
                 metadata,
+                objects,
             } => {
                 let identity = self.identity()?;
+                self.store.put_objects(&objects)?;
                 let outcome = self
                     .store
                     .publish(
