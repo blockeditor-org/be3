@@ -14,7 +14,7 @@ fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
         [view! {
             <Select
                 options
-                selected={reporting(None, move |selected| {
+                selected={Binding::new(None, move |selected| {
                     changes.update(|changes| changes.push(selected));
                 })}
             />

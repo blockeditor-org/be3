@@ -9,7 +9,7 @@ fn dragging_a_number_input_sideways_changes_its_value() {
     let (document, [input]) = toolbar_of(|| {
         [view! {
             <NumberInput
-                value={recorded(4.0, changes)}
+                value={Binding::new(4.0, move |next| changes.update(|changes| changes.push(next)))}
                 min=0.0
                 max=100.0
                 drag={NumberDrag::Linear { speed: 0.5 }}

@@ -1487,16 +1487,6 @@ pub(crate) fn with_installed<R>(document: &mut Document, f: impl FnOnce(&mut Doc
     crate::reactive::with_reactive_scope(document, || crate::reactive::with_document(f))
 }
 
-pub(crate) fn reporting<T: Clone + PartialEq + 'static>(
-    initial: T,
-    mut report: impl FnMut(T) + 'static,
-) -> Binding<T> {
-    let value = create_signal(initial);
-    Binding::new(value, move |next: T| {
-        value.set(next.clone());
-        report(next);
-    })
-}
 
 #[component]
 pub(crate) fn MenuRegion() -> NodeId {
@@ -2543,14 +2533,3 @@ impl Intaken {
     }
 }
 
-pub(crate) fn recorded<T: Clone + PartialEq + 'static>(
-    initial: T,
-    changes: crate::reactive::Signal<Vec<T>>,
-) -> crate::reactive::Binding<T> {
-    use crate::reactive::{Set, create_signal};
-    let value = create_signal(initial);
-    crate::reactive::Binding::new(value, move |next: T| {
-        value.set(next.clone());
-        changes.update(|changes| changes.push(next));
-    })
-}

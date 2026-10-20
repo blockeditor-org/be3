@@ -14,7 +14,7 @@ fn dragging_a_color_picker_previews_the_color_and_reports_it_once() {
             <List spacing=0.0>
                 <ColorPicker
                     @node_ref=&picker
-                    value={recorded(Hsva::new(0.0, 1.0, 1.0, 1.0).to_color(), changes)}
+                    value={Binding::new(Hsva::new(0.0, 1.0, 1.0, 1.0).to_color(), move |next| changes.update(|changes| changes.push(next)))}
                     on_preview={move |color| previews.update(|previews| previews.push(color))}
                 />
             </List>

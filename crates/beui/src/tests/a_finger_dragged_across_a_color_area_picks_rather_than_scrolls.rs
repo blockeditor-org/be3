@@ -15,7 +15,7 @@ fn a_finger_dragged_across_a_color_area_picks_rather_than_scrolls() {
                 <Scroll @sizing=ItemSize::Fixed(200.0)>
                     <ColorPicker
                         @node_ref=&picker
-                        value={recorded(Hsva::new(120.0, 1.0, 1.0, 1.0).to_color(), changes)}
+                        value={Binding::new(Hsva::new(120.0, 1.0, 1.0, 1.0).to_color(), move |next| changes.update(|changes| changes.push(next)))}
                     />
                 </Scroll>
             </List>

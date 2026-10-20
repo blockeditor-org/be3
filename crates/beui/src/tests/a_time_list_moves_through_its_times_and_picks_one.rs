@@ -14,7 +14,7 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
                 <List @sizing=ItemSize::Fixed(200.0) spacing=0.0>
                     <TimeList
                         @sizing=ItemSize::Percent(100.0)
-                        value={reporting(Some(Time::new(10, 7)), move |time| picked.update(|picked| picked.push(time)))}
+                        value={Binding::new(Some(Time::new(10, 7)), move |time| picked.update(|picked| picked.push(time)))}
                         step_minutes=30
                         focused=true
                         option={|handle: TimeOptionHandle| view! {

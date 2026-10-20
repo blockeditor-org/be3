@@ -17,7 +17,7 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
                 <List spacing=0.0>
                     <DateTimeField
                         @node_ref=&field
-                        value={reporting(Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT)), move |value: Option<DateTime>| {
+                        value={Binding::new(Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT)), move |value: Option<DateTime>| {
                             reported.update(|reported| reported.push(value.map(|value| value.date)))
                         })}
                         today={Some(Date::new(2026, 1, 1))}

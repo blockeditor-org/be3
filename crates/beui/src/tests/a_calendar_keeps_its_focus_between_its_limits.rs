@@ -12,7 +12,7 @@ fn a_calendar_keeps_its_focus_between_its_limits() {
     let document = build(move || {
         view! {
             <Calendar
-                selected={reporting(None, move |date| picked.update(|picked| picked.push(date)))}
+                selected={Binding::new(None, move |date| picked.update(|picked| picked.push(date)))}
                 today={Some(Date::new(2026, 5, 10))}
                 min={Some(Date::new(2026, 5, 8))}
                 max={Some(Date::new(2026, 5, 12))}

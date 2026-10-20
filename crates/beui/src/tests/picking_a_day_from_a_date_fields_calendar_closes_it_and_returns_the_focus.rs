@@ -14,7 +14,7 @@ fn picking_a_day_from_a_date_fields_calendar_closes_it_and_returns_the_focus() {
         view! {
             <Container>|_size|
                 <DateTimeField
-                    value={reporting(Some(DateTime::new(Date::new(2026, 2, 27), Time::new(8, 45))), move |value| reported.update(|reported| reported.push(value)))}
+                    value={Binding::new(Some(DateTime::new(Date::new(2026, 2, 27), Time::new(8, 45))), move |value| reported.update(|reported| reported.push(value)))}
                     today={Some(Date::new(2026, 1, 1))}
                     parts=DateTimeParts::Date
                     label="Due"

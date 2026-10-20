@@ -10,7 +10,7 @@ fn arrow_and_page_keys_walk_a_calendar_by_day_week_month_and_year() {
     let document = build(move || {
         view! {
             <Calendar
-                selected={reporting(Some(Date::new(2026, 1, 30)), move |date| picked.update(|picked| picked.push(date)))}
+                selected={Binding::new(Some(Date::new(2026, 1, 30)), move |date| picked.update(|picked| picked.push(date)))}
                 today={Some(Date::new(2026, 1, 1))}
                 focused=true
             />

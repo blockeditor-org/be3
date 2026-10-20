@@ -10,7 +10,7 @@ fn a_calendar_jumps_to_a_month_from_its_months_view() {
     let document = build(move || {
         view! {
             <Calendar
-                selected={reporting(Some(Date::new(2026, 1, 15)), move |date| picked.update(|picked| picked.push(date)))}
+                selected={Binding::new(Some(Date::new(2026, 1, 15)), move |date| picked.update(|picked| picked.push(date)))}
                 today={Some(Date::new(2026, 1, 1))}
                 focused=true
             />

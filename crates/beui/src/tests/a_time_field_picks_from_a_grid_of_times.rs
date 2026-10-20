@@ -12,7 +12,7 @@ fn a_time_field_picks_from_a_grid_of_times() {
         view! {
             <Container>|_size|
                 <DateTimeField
-                    value={reporting(Some(DateTime::new(crate::datetime::Date::EPOCH, Time::new(10, 0))), move |value: Option<DateTime>| {
+                    value={Binding::new(Some(DateTime::new(crate::datetime::Date::EPOCH, Time::new(10, 0))), move |value: Option<DateTime>| {
                         reported.update(|reported| reported.push(value.map(|value| value.time)))
                     })}
                     parts=DateTimeParts::Time

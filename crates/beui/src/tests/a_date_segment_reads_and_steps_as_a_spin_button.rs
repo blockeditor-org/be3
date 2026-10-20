@@ -14,7 +14,7 @@ fn a_date_segment_reads_and_steps_as_a_spin_button() {
         view! {
             <Container>|_size|
                 <DateTimeField
-                    value={reporting(Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT)), move |value: Option<DateTime>| {
+                    value={Binding::new(Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT)), move |value: Option<DateTime>| {
                         reported.update(|reported| reported.push(value.map(|value| value.date)))
                     })}
                     parts=DateTimeParts::Date

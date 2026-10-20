@@ -12,7 +12,7 @@ fn tapping_a_calendar_day_picks_it() {
     let document = build(move || {
         view! {
             <Calendar
-                selected={reporting(None, move |date| picked.update(|picked| picked.push(date)))}
+                selected={Binding::new(None, move |date| picked.update(|picked| picked.push(date)))}
                 today={Some(Date::new(2026, 1, 1))}
             />
         }

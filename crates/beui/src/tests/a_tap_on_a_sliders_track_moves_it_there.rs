@@ -9,7 +9,7 @@ fn a_tap_on_a_sliders_track_moves_it_there() {
     let (document, [slider]) = toolbar_of(|| {
         [view! {
             <Slider
-                value={recorded(0.3, changes)}
+                value={Binding::new(0.3, move |next| changes.update(|changes| changes.push(next)))}
             />
         }]
     });

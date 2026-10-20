@@ -12,7 +12,7 @@ fn arrows_at_the_ends_of_a_date_field_leave_its_value_alone() {
         view! {
             <Container>|_size|
                 <DateTimeField
-                    value={reporting(Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT)), move |value| reported.update(|reported| reported.push(value)))}
+                    value={Binding::new(Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT)), move |value| reported.update(|reported| reported.push(value)))}
                     parts=DateTimeParts::Date
                 />
             </Container>
