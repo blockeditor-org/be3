@@ -481,6 +481,11 @@ pub enum ClientMessage {
         request: u64,
         block: Uuid,
     },
+    ReadContents {
+        request: u64,
+        blocks: Vec<Uuid>,
+        held: Vec<CommitId>,
+    },
     SetParent {
         request: u64,
         block: Uuid,
@@ -688,6 +693,7 @@ impl ClientMessage {
             | Self::Publish { request, .. }
             | Self::HoldObjects { request, .. }
             | Self::ReadBlock { request, .. }
+            | Self::ReadContents { request, .. }
             | Self::SetParent { request, .. }
             | Self::ListChildren { request, .. }
             | Self::ListBackrefs { request, .. }
@@ -899,6 +905,11 @@ pub enum ServerMessage {
         request: u64,
         responses: Vec<ServerMessage>,
     },
+    Contents {
+        request: u64,
+        blocks: Vec<BlockSummary>,
+        objects: Vec<ByteBuf>,
+    },
 }
 
 impl ServerMessage {
@@ -913,6 +924,7 @@ impl ServerMessage {
             | Self::OrganizationOpened { request, .. }
             | Self::Stored { request, .. }
             | Self::Batched { request, .. }
+            | Self::Contents { request, .. }
             | Self::Object { request, .. }
             | Self::Missing { request, .. }
             | Self::Block { request, .. }

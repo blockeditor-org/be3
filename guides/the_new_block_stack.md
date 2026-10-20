@@ -920,6 +920,11 @@ block and everything under it. A plugin asks the host for one with
 tree from the graph mirror (starting from the view when asked for a database
 inside one) and the worker fills in each block's bytes, from its open session or
 else its head, so it works for content types the app does not know.
+`Peer::read_contents` reads the heads, which `be download` uses too: one
+`ReadContents` request per 256 blocks answers each block's summary with its head
+commit and chunks (those that fit in half a frame, and none for a head the
+client says it already holds), and anything left out is fetched afterwards, so
+a tree costs one round trip, not three per block.
 `HostRequest::ImportBlocks(parent)` has the host pick a file and `be::import`
 it: every block gets a new id, old ids in the content bytes and references are
 swapped for the new ones, a database whose row id prefix is taken here loses

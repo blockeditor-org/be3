@@ -1783,27 +1783,32 @@ async fn apply(
             false
         }
         Command::Export { mut blocks, reply } => {
-            let mut failed = None;
+            let mut wanted = Vec::new();
             for block in &mut blocks {
-                let content = match sessions.get(&block.id) {
-                    Some(session) => Ok(Some(session.bytes())),
-                    None => match peer.summary(block.id).await {
-                        Ok(summary) => peer.head_content(&summary).await,
-                        Err(error) => Err(error),
-                    },
-                };
-                match content {
-                    Ok(content) => block.content = content,
-                    Err(error) => {
-                        failed = Some(error.to_string());
-                        break;
-                    }
+                match sessions.get(&block.id) {
+                    Some(session) => block.content = Some(session.bytes()),
+                    None => wanted.push(block.id),
                 }
             }
-            reply(match failed {
-                Some(error) => Err(error),
-                None => Ok(be_client::transfer::encode(&blocks)),
-            });
+            let wanted: Vec<_> = {
+                let held = shared.lock().unwrap_or_else(PoisonError::into_inner);
+                wanted
+                    .into_iter()
+                    .map(|id| (id, held.graph.get(id).and_then(|node| node.head)))
+                    .collect()
+            };
+            let read = peer.read_contents(&wanted).await;
+            reply(read.map_err(|error| error.to_string()).map(|read| {
+                let mut read = read.into_iter();
+                for block in &mut blocks {
+                    if !sessions.contains_key(&block.id)
+                        && let Some((_, content)) = read.next()
+                    {
+                        block.content = content;
+                    }
+                }
+                be_client::transfer::encode(&blocks)
+            }));
             crate::host::wake();
             false
         }

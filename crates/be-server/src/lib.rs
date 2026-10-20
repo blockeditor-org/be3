@@ -12,7 +12,8 @@ use std::{
 };
 
 use be_protocol::{
-    ClientMessage, ErrorCode, MAX_FRAME_BYTES, ServerMessage, decode, encode, hello, read_hello,
+    ByteBuf, ClientMessage, ErrorCode, MAX_FRAME_BYTES, ServerMessage, decode, encode, hello,
+    read_hello,
 };
 use be_session::Claim;
 use futures_util::{
@@ -141,6 +142,7 @@ const PING_INTERVAL: Duration = Duration::from_secs(30);
 pub(crate) const IDLE_TIMEOUT: Duration = Duration::from_secs(90);
 const OUTBOUND_LIMIT: usize = 4096;
 const ACCEPT_RETRY: Duration = Duration::from_millis(100);
+const CONTENTS_BYTES: usize = MAX_FRAME_BYTES / 2;
 
 pub async fn serve_with_config(
     listener: TcpListener,
@@ -906,6 +908,33 @@ impl Connection {
                 request,
                 block: self.store.read_block(self.identity()?, block).await?,
             }),
+            ClientMessage::ReadContents {
+                request,
+                blocks,
+                held,
+            } => {
+                let (blocks, hashes) = self
+                    .store
+                    .read_contents(self.identity()?, blocks, held)
+                    .await?;
+                let mut objects = Vec::new();
+                let mut room = CONTENTS_BYTES;
+                for hash in hashes {
+                    let Some(bytes) = self.store.get_object(hash)? else {
+                        continue;
+                    };
+                    if bytes.len() > room {
+                        break;
+                    }
+                    room -= bytes.len();
+                    objects.push(ByteBuf::from(bytes));
+                }
+                Ok(ServerMessage::Contents {
+                    request,
+                    blocks,
+                    objects,
+                })
+            }
             ClientMessage::SetParent {
                 request,
                 block,
