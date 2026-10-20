@@ -25,11 +25,18 @@ changed; a full repaint sends none, which means the whole plane.
 
 `epaper.rs` in beui-adapter-drm finds the panel by the display device's driver name. The
 driver draws each pixel by its hint: a bit depth (Y1, Y2 or Y4), threshold or dither, and
-whether to redraw it later with a slower, cleaner waveform. The adapter sets the default hint
-to Y2, threshold, no redraw (`0x10`: four greys on the fast waveform) when it starts and
-whenever it takes the seat back, and puts back the hint it found (the module's
-`default_hint`) when it ends. pinenote-dist's per-window hints (pinenote-service and its sway
-bridge) are not used.
+whether to redraw it later with a slower, cleaner waveform (guides/pinenote_ebc.md has the
+driver's sources, its ioctls and how it schedules). The adapter sets the default hint to Y2,
+threshold, no redraw (`0x10`: four greys) when it starts and whenever it takes the seat back,
+and puts back the hint it found (the module's `default_hint`) when it ends. pinenote-dist's
+per-window hints (pinenote-service and its sway bridge) are not used.
+
+Y2 cannot change a pixel again until its transition ends, which is too slow for motion. While
+anything animates or input keeps arriving, the adapter switches to dithered black and white
+(`0x40`), whose transitions are short and can reverse partway; once the screen is still it
+switches back and repaints everything in four greys (`Pace` in `epaper.rs`). beui reports
+animating when an `Animation` runs (scroll flings included, `FrameOutput::animating`), and a
+plugin reports it in `FrameReady::animating`. A Wayland window counts as still.
 
 Fast waveforms leave ghosts. The adapter provides `beui_adapter_drm::Epaper`, whose `refresh()`
 runs the driver's global refresh, a full redraw that clears them. block-app publishes the

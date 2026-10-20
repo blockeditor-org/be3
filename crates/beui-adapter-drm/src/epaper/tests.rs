@@ -1,3 +1,5 @@
 use super::*;
 
+mod an_animation_holds_the_panel_fast_until_it_ends;
+mod input_hurries_the_panel_until_it_has_been_still_for_a_moment;
 mod the_ioctls_match_the_drivers_numbers;

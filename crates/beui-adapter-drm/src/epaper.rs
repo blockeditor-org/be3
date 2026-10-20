@@ -1,6 +1,7 @@
 use std::cell::Cell;
 use std::ffi::OsStr;
 use std::rc::Rc;
+use std::time::Duration;
 
 use beui::Waker;
 use rustix::ioctl::{Opcode, Setter, Updater, ioctl, opcode};
@@ -11,6 +12,8 @@ const DRIVER: &str = "rockchip-ebc";
 const DEFAULT_HINT: &str = "/sys/module/rockchip_ebc/parameters/default_hint";
 const HINT_MASK: u8 = 0xf0;
 const FOUR_GREYS_AT_ONCE: u8 = 0x10;
+const DITHERED_BLACK_AND_WHITE: u8 = 0x40;
+const SETTLE_AFTER_INPUT: Duration = Duration::from_millis(500);
 const DRM_COMMAND_BASE: u8 = 0x40;
 
 #[repr(C)]
@@ -54,9 +57,54 @@ impl Epaper {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum Change {
+    Hurry,
+    Settle,
+}
+
+#[derive(Default)]
+pub(crate) struct Pace {
+    hurried: bool,
+    animating: bool,
+    touched: Option<Duration>,
+}
+
+impl Pace {
+    pub(crate) fn touched(&mut self, now: Duration) {
+        self.touched = Some(now);
+    }
+
+    pub(crate) fn animating(&mut self, animating: bool) {
+        self.animating = animating;
+    }
+
+    pub(crate) fn settles_at(&self) -> Option<Duration> {
+        (self.hurried && !self.animating).then(|| self.settled_at())
+    }
+
+    pub(crate) fn step(&mut self, now: Duration) -> Option<Change> {
+        let hurried = self.animating || now < self.settled_at();
+        if hurried == self.hurried {
+            return None;
+        }
+        self.hurried = hurried;
+        Some(match hurried {
+            true => Change::Hurry,
+            false => Change::Settle,
+        })
+    }
+
+    fn settled_at(&self) -> Duration {
+        self.touched
+            .map_or(Duration::ZERO, |touched| touched + SETTLE_AFTER_INPUT)
+    }
+}
+
 pub(crate) struct Panel {
     drm: DrmDeviceFd,
     found: Option<u8>,
+    pub(crate) pace: Pace,
 }
 
 impl Panel {
@@ -72,11 +120,24 @@ impl Panel {
         Some(Self {
             drm: drm.clone(),
             found,
+            pace: Pace::default(),
         })
     }
 
-    pub(crate) fn take_over(&self) {
-        if let Err(error) = self.set_default_hint(FOUR_GREYS_AT_ONCE) {
+    pub(crate) fn take_over(&mut self) {
+        self.pace = Pace::default();
+        self.hint(FOUR_GREYS_AT_ONCE);
+    }
+
+    pub(crate) fn change(&self, change: Change) {
+        self.hint(match change {
+            Change::Hurry => DITHERED_BLACK_AND_WHITE,
+            Change::Settle => FOUR_GREYS_AT_ONCE,
+        });
+    }
+
+    fn hint(&self, hint: u8) {
+        if let Err(error) = self.set_default_hint(hint) {
             eprintln!("beui: the e-paper display's refresh mode could not be set: {error}");
         }
     }
