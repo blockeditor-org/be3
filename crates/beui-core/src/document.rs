@@ -26,7 +26,7 @@ use crate::node::{
     ANCESTOR_LIMIT, Arena, Element, NodeId, NodeMap, NodeOf, Placed, Rects, SpaceId,
 };
 use crate::paint::{self, PaintCache, verify};
-use crate::painter::{Painter, PainterState};
+use crate::painter::{Painter, PainterState, Zoom};
 use crate::performance::{FrameMeasurement, FrameWork, PerformanceSnapshot, PerformanceTracker};
 use crate::pixel_grid::PixelGrid;
 use crate::screen_simulation::{self, Placement};
@@ -2075,11 +2075,24 @@ impl Document {
         clip: Rect,
         out: &Rects,
     ) -> Painter {
+        self.enter_zoomed_space(host, slot, painter, translation, Zoom::NONE, clip, out)
+    }
+
+    pub fn enter_zoomed_space(
+        &mut self,
+        host: NodeId,
+        slot: u8,
+        painter: &Painter,
+        translation: Vec2,
+        zoom: Zoom,
+        clip: Rect,
+        out: &Rects,
+    ) -> Painter {
         let space = SpaceId::inside(host, slot);
-        let entered = painter.shifted(space, translation, clip);
+        let entered = painter.zoomed(space, translation, zoom, clip);
         let state = painter.state();
         let kept = state.clip.intersect(clip);
-        if out.set_space(space, state.space, translation, kept) {
+        if out.set_scaled_space(space, state.space, translation, zoom.scale, kept) {
             self.accessibility_tree.get_mut().mark(host, &self.arena);
         }
         entered
@@ -2300,8 +2313,10 @@ impl Document {
             else {
                 continue;
             };
+            let transform = rects.transform(held.given.space);
             let state = PainterState {
-                origin: rects.offset(held.given.space),
+                origin: transform.offset,
+                scale: transform.scale,
                 space_clip: rects.space_clip(held.given.space),
                 ..held.given
             };

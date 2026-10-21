@@ -123,8 +123,8 @@ impl OffsetNode {
 
     fn content_start(&self, out: &Rects, host: NodeId, id: NodeId) -> Option<f32> {
         let rect = out.get(&id)?;
-        let space = out.offset(Some(SpaceId::inside(host, 1)));
-        Some(self.direction.main(rect.min.to_vec2() - space))
+        let space = out.transform(Some(SpaceId::inside(host, 1)));
+        Some(self.direction.main(space.local_pos(rect.min).to_vec2()))
     }
 
     fn drift(

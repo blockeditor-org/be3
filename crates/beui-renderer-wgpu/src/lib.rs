@@ -515,7 +515,10 @@ impl Walk {
                 ..*self
             },
             Group::Scroll {
-                viewport, offset, ..
+                viewport,
+                offset,
+                scale,
+                ..
             } => {
                 let clip = self.clip.intersect(viewport.translate(self.offset));
                 let at = self.offset + offset;
@@ -524,8 +527,12 @@ impl Walk {
                     self.origin[1] + (at.y * self.factor).round(),
                 ];
                 let bound = overlap(pixels(clip, self.factor, self.origin), self.bound);
+                let scale = match scale > 0.0 && scale.is_finite() {
+                    true => scale,
+                    false => 1.0,
+                };
                 Self {
-                    factor: self.factor,
+                    factor: self.factor * scale,
                     space: space(origin, bound, self.fade),
                     origin,
                     bound,

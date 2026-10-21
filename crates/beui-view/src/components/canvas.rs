@@ -1,4 +1,8 @@
-use crate::reactive::{Child, Children, Get, Placed, Prop, create_effect, with_document};
+use std::time::Duration;
+
+use crate::reactive::{
+    Child, Children, Get, Placed, Prop, create_effect, create_memo, create_timer, with_document,
+};
 use beui_core::base::canvas::{CanvasNode, CanvasView};
 use beui_core::document::Document;
 use beui_core::geometry::{Rect, Vec2, pos2};
@@ -6,6 +10,8 @@ use beui_core::node::NodeId;
 use beui_macros::component;
 
 pub type CanvasItem = Placed<CanvasNode>;
+
+const RASTER_SETTLE: Duration = Duration::from_millis(150);
 
 #[component]
 pub fn Canvas(
@@ -19,6 +25,20 @@ pub fn Canvas(
     with_document(|document| document.set_canvas_scrolls_across(canvas, scrolls_across));
     children.mount(canvas);
     create_effect(move || with_document(|document| document.set_canvas_view(canvas, view.get())));
+    let scale = create_memo(move || view.get().map_or(1.0, |view| view.scale));
+    let settle = create_timer(move || {
+        let raster = scale.get_untracked();
+        with_document(|document| document.set_canvas_raster(canvas, Some(raster)));
+        None
+    });
+    create_effect(move || {
+        let scale = scale.get();
+        let unset = with_document(|document| document.canvas_raster(canvas).is_none());
+        match unset {
+            true => with_document(|document| document.set_canvas_raster(canvas, Some(scale))),
+            false => settle.restart(RASTER_SETTLE),
+        }
+    });
     create_effect(move || {
         let size = Vec2::new(width.get(), height.get());
         with_document(|document| document.set_canvas_size(canvas, size));
@@ -34,6 +54,7 @@ pub fn CanvasItem(
     height: Prop<f32>,
     #[prop(default = true)] clip: Prop<bool>,
     #[prop(default = true)] pointer: Prop<bool>,
+    #[prop(default = false)] scales: Prop<bool>,
     children: Option<Child>,
 ) -> CanvasItem {
     let item = with_document(|document| {
@@ -53,6 +74,9 @@ pub fn CanvasItem(
     });
     create_effect(move || {
         with_document(|document| document.set_canvas_item_pointer(item, pointer.get()))
+    });
+    create_effect(move || {
+        with_document(|document| document.set_canvas_item_scales(item, scales.get()))
     });
     CanvasItem::new(item.id(), ())
 }

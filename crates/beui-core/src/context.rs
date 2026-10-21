@@ -67,6 +67,7 @@ struct Inner {
     mouse_viewport: Cell<Option<Rect>>,
     shown: Cell<Option<Rect>>,
     pixels_per_point: Cell<f32>,
+    raster: Cell<f32>,
     native_pixels_per_point: Cell<f32>,
     simulated_pixels_per_point: Cell<Option<f32>>,
     screen_simulation: Cell<Option<ScreenSimulation>>,
@@ -294,6 +295,7 @@ impl Context {
                 mouse_viewport: Cell::new(None),
                 shown: Cell::new(None),
                 pixels_per_point: Cell::new(1.0),
+                raster: Cell::new(1.0),
                 native_pixels_per_point: Cell::new(1.0),
                 simulated_pixels_per_point: Cell::new(None),
                 screen_simulation: Cell::new(None),
@@ -1162,7 +1164,17 @@ impl Context {
     }
 
     pub fn pixels_per_point(&self) -> f32 {
-        self.inner.pixels_per_point.get()
+        self.inner.pixels_per_point.get() * self.inner.raster.get()
+    }
+
+    pub fn rastered<R>(&self, raster: f32, content: impl FnOnce() -> R) -> R {
+        if self.inner.raster.get() == raster {
+            return content();
+        }
+        let held = self.inner.raster.replace(raster);
+        let result = content();
+        self.inner.raster.set(held);
+        result
     }
 
     pub fn set_long_press_delay(&self, delay: Duration) {
@@ -1260,7 +1272,7 @@ impl Context {
         if scale == 1.0 {
             return content();
         }
-        let pixels_per_point = self.pixels_per_point();
+        let pixels_per_point = self.inner.pixels_per_point.get();
         self.inner.pixels_per_point.set(pixels_per_point * scale);
         let input = self
             .inner
@@ -1375,8 +1387,14 @@ fn overlaps_besides(layers: &[Layer], roots: &[Rc<Display>], area: Rect) -> bool
                 Group::Transform { .. } => return true,
                 Group::Clip(clip) => area.intersect(clip),
                 Group::Scroll {
-                    viewport, offset, ..
-                } => area.intersect(viewport).translate(-offset),
+                    viewport,
+                    offset,
+                    scale,
+                    ..
+                } => area
+                    .intersect(viewport)
+                    .translate(-offset)
+                    .scaled(scale.recip()),
                 Group::Mask { .. } | Group::Filter(_) => area,
             };
             within.is_positive() && overlaps_besides(inner, roots, within)

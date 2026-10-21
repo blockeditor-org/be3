@@ -449,15 +449,15 @@ impl PaintCache {
             else {
                 continue;
             };
-            if previous.offset == scroll.offset {
+            if previous.offset == scroll.offset && previous.scale == scroll.scale {
                 continue;
             }
             let viewport = absolute(scroll.viewport, now);
-            match still && previous.viewport == scroll.viewport {
+            match still && previous.viewport == scroll.viewport && previous.scale == scroll.scale {
                 true => self.moves.push(Move {
                     space: scroll.space,
                     viewport,
-                    by: scroll.offset - previous.offset,
+                    by: (scroll.offset - previous.offset) * now.scale,
                 }),
                 false => {
                     stale(&mut self.stale, (previous.viewport, previous.around));
@@ -514,6 +514,8 @@ struct Scrolled {
     space: SpaceId,
     viewport: Rect,
     offset: Vec2,
+    scale: f32,
+    raster: f32,
     around: Option<SpaceId>,
 }
 
@@ -558,6 +560,8 @@ impl<'a> Elements<'a> {
                                 space,
                                 viewport,
                                 offset: held.offset,
+                                scale: held.scale,
+                                raster: held.raster,
                             },
                             None => *group,
                         },
@@ -581,6 +585,8 @@ impl<'a> Elements<'a> {
                             space,
                             viewport,
                             offset,
+                            scale,
+                            raster,
                         } => {
                             if !self.scrolls.iter().any(|held| held.space == space) {
                                 let viewport = self.place(path, viewport);
@@ -588,6 +594,8 @@ impl<'a> Elements<'a> {
                                     space,
                                     viewport,
                                     offset,
+                                    scale,
+                                    raster,
                                     around: scroll,
                                 });
                             }
@@ -846,7 +854,10 @@ impl Fixed {
                 Part::Group(group, inner) => match *group {
                     Group::Scroll { space, .. } if space == self.scroll => {}
                     Group::Scroll {
-                        viewport, offset, ..
+                        viewport,
+                        offset,
+                        scale: 1.0,
+                        ..
                     } => self.parts(
                         display,
                         inner,
@@ -867,7 +878,7 @@ impl Fixed {
                         self.parts(display, inner, at, clip);
                         self.faded -= 1;
                     }
-                    Group::Transform { .. } | Group::Filter(_) => {
+                    Group::Scroll { .. } | Group::Transform { .. } | Group::Filter(_) => {
                         self.both(part.bounds().translate(at).intersect(clip));
                     }
                 },
@@ -947,7 +958,7 @@ pub fn covers(shape: &Shape, viewport: Rect) -> bool {
 }
 
 fn absolute(rect: Rect, state: PainterState) -> Rect {
-    rect.intersect(state.space_clip).translate(state.origin)
+    state.to_screen(rect.intersect(state.space_clip))
 }
 
 fn contains(roots: &[(NodeId, Rect)], id: NodeId) -> bool {
@@ -1024,7 +1035,9 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
             ctx.enter_paint(id);
             let outer = ctx.swap_space_read(false);
             let local = Rect::from_min_size(Pos2::ZERO, rect.size());
-            doc.arena.get(id).paint(doc, &own, rects, local);
+            ctx.rastered(own.state().raster, || {
+                doc.arena.get(id).paint(doc, &own, rects, local)
+            });
             let reads = ctx.swap_space_read(outer);
             let recorded = Recorded {
                 reads,

@@ -354,10 +354,17 @@ pub fn group(group: Group, factor: f32) -> (String, String) {
             (clipped(x, y), within(x, y, Vec2::ZERO))
         }
         Group::Scroll {
-            viewport, offset, ..
+            viewport,
+            offset,
+            scale,
+            ..
         } => {
             let (x, y) = shown(viewport);
-            (clipped(x, y), within(x, y, offset))
+            let mut inner = within(x, y, offset);
+            if scale != 1.0 {
+                let _ = write!(inner, "transform:scale({scale});");
+            }
+            (clipped(x, y), inner)
         }
         Group::Mask { fade, .. } => {
             let (x, y) = shown(fade.rect);

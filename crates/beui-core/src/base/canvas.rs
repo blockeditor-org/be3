@@ -4,7 +4,7 @@ use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::node::{Element, NodeId, NodeOf, Rects, SpaceId};
-use crate::painter::Painter;
+use crate::painter::{Painter, Zoom};
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct CanvasView {
@@ -50,15 +50,18 @@ impl ChildHost for CanvasNode {
 
 pub struct CanvasNode {
     view: Option<CanvasView>,
+    raster: Option<f32>,
     size: Vec2,
     items: ChildList<NodeId>,
     host: Option<NodeId>,
     shift: Vec2,
+    zoom: Zoom,
     scrolls_across: bool,
 }
 
 const CLIPPED: u8 = 1;
 const UNCLIPPED: u8 = 2;
+const SCALED: u8 = 3;
 
 impl CanvasNode {
     pub fn pans(&self) -> bool {
@@ -79,18 +82,34 @@ impl CanvasNode {
     }
 
     fn scale(&self) -> f32 {
-        self.view.map_or(1.0, |view| view.scale)
+        self.view
+            .map(|view| view.scale)
+            .filter(|scale| *scale > 0.0 && scale.is_finite())
+            .unwrap_or(1.0)
+    }
+
+    fn zoom(&self) -> Zoom {
+        let scale = self.scale();
+        Zoom {
+            scale,
+            raster: self
+                .raster
+                .filter(|raster| *raster > 0.0 && raster.is_finite())
+                .unwrap_or(scale),
+        }
     }
 
     fn slot(doc: &Document, item: NodeOf<CanvasItemNode>) -> u8 {
-        match doc.arena.get_as::<CanvasItemNode>(item).clip {
-            true => CLIPPED,
-            false => UNCLIPPED,
+        let item = doc.arena.get_as::<CanvasItemNode>(item);
+        match (item.scales, item.clip) {
+            (true, _) => SCALED,
+            (false, true) => CLIPPED,
+            (false, false) => UNCLIPPED,
         }
     }
 }
 
-fn scaled(rect: Rect, scale: f32) -> Rect {
+fn scaled_rect(rect: Rect, scale: f32) -> Rect {
     Rect::from_min_max(
         pos2(rect.min.x * scale, rect.min.y * scale),
         pos2(rect.max.x * scale, rect.max.y * scale),
@@ -109,19 +128,23 @@ impl Element for CanvasNode {
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
         let host = doc.laying_out().expect("a canvas is laid out as itself");
         let shift = self.shift(doc, painter);
+        let zoom = self.zoom();
         self.host = Some(host);
         self.shift = shift;
+        self.zoom = zoom;
         let clipped = doc.enter_space(host, CLIPPED, painter, shift, rect, out);
         let unclipped = doc.enter_space(host, UNCLIPPED, painter, shift, Rect::EVERYTHING, out);
+        let scaled = doc.enter_zoomed_space(host, SCALED, painter, shift, zoom, rect, out);
         let visible = rect.translate(-shift);
-        let scale = self.scale();
+        let seen = visible.scaled(zoom.scale.recip());
         for item in self.items.iter() {
-            let placed = scaled(doc.canvas_item_rect(NodeOf::assumed(*item)), scale);
-            if placed.intersects(visible) {
-                let painter = match Self::slot(doc, NodeOf::assumed(*item)) {
-                    CLIPPED => &clipped,
-                    _ => &unclipped,
-                };
+            let world = doc.canvas_item_rect(NodeOf::assumed(*item));
+            let (painter, placed, shown) = match Self::slot(doc, NodeOf::assumed(*item)) {
+                SCALED => (&scaled, world, seen),
+                CLIPPED => (&clipped, scaled_rect(world, zoom.scale), visible),
+                _ => (&unclipped, scaled_rect(world, zoom.scale), visible),
+            };
+            if placed.intersects(shown) {
                 crate::layout::layout(doc, painter, *item, placed, out);
             }
         }
@@ -137,9 +160,11 @@ impl Element for CanvasNode {
             self.shift,
             Rect::EVERYTHING,
         );
+        let scaled = painter.zoomed(SpaceId::inside(host, SCALED), self.shift, self.zoom, rect);
         for item in self.items.iter() {
             if rects.contains_key(item) {
                 let painter = match Self::slot(doc, NodeOf::assumed(*item)) {
+                    SCALED => &scaled,
                     CLIPPED => &clipped,
                     _ => &unclipped,
                 };
@@ -163,8 +188,11 @@ impl Element for CanvasNode {
     fn detail(&self) -> Option<String> {
         let view = self.view?;
         Some(format!(
-            "{:.0},{:.0} at {:.2}",
-            view.origin.x, view.origin.y, view.scale
+            "{:.0},{:.0} at {:.2}, text at {:.2}",
+            view.origin.x,
+            view.origin.y,
+            view.scale,
+            self.zoom().raster
         ))
     }
 
@@ -182,6 +210,7 @@ pub struct CanvasItemNode {
     rect: Rect,
     clip: bool,
     pointer: bool,
+    scales: bool,
 }
 
 impl Element for CanvasItemNode {
@@ -214,7 +243,10 @@ impl Element for CanvasItemNode {
     }
 
     fn pointer_children(&self) -> Vec<NodeId> {
-        self.child.filter(|_| self.pointer).into_iter().collect()
+        self.child
+            .filter(|_| self.pointer && !self.scales)
+            .into_iter()
+            .collect()
     }
 
     fn remove_child(&mut self, child: NodeId) {
@@ -229,11 +261,15 @@ impl Element for CanvasItemNode {
 
     fn detail(&self) -> Option<String> {
         Some(format!(
-            "{:.0},{:.0} {:.0}x{:.0}",
+            "{:.0},{:.0} {:.0}x{:.0}{}",
             self.rect.min.x,
             self.rect.min.y,
             self.rect.width(),
-            self.rect.height()
+            self.rect.height(),
+            match self.scales {
+                true => " scaled",
+                false => "",
+            }
         ))
     }
 
@@ -261,10 +297,12 @@ impl Document {
     pub fn create_canvas(&mut self) -> NodeOf<CanvasNode> {
         self.arena.insert(CanvasNode {
             view: None,
+            raster: None,
             size: Vec2::ZERO,
             items: ChildList::default(),
             host: None,
             shift: Vec2::ZERO,
+            zoom: Zoom::NONE,
             scrolls_across: false,
         })
     }
@@ -281,6 +319,16 @@ impl Document {
         }
     }
 
+    pub fn set_canvas_raster(&mut self, canvas: NodeOf<CanvasNode>, raster: Option<f32>) {
+        if self.arena.get_as::<CanvasNode>(canvas).raster != raster {
+            self.arena.get_mut_as::<CanvasNode>(canvas).raster = raster;
+        }
+    }
+
+    pub fn canvas_raster(&self, canvas: NodeOf<CanvasNode>) -> Option<f32> {
+        self.arena.get_as::<CanvasNode>(canvas).raster
+    }
+
     pub fn set_canvas_size(&mut self, canvas: NodeOf<CanvasNode>, size: Vec2) {
         if self.arena.get_as::<CanvasNode>(canvas).size != size {
             self.arena.get_mut_as::<CanvasNode>(canvas).size = size;
@@ -293,6 +341,7 @@ impl Document {
             rect: Rect::ZERO,
             clip: true,
             pointer: true,
+            scales: false,
         })
     }
 
@@ -317,6 +366,15 @@ impl Document {
     pub fn set_canvas_item_pointer(&mut self, item: NodeOf<CanvasItemNode>, pointer: bool) {
         if self.arena.get_as::<CanvasItemNode>(item).pointer != pointer {
             self.arena.touch_mut_as::<CanvasItemNode>(item).pointer = pointer;
+        }
+    }
+
+    pub fn set_canvas_item_scales(&mut self, item: NodeOf<CanvasItemNode>, scales: bool) {
+        if self.arena.get_as::<CanvasItemNode>(item).scales != scales {
+            self.arena.get_mut_as::<CanvasItemNode>(item).scales = scales;
+            if let Some(canvas) = self.arena.parent(item.id()) {
+                self.arena.invalidate_node(canvas);
+            }
         }
     }
 
