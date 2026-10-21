@@ -76,6 +76,7 @@ pub(crate) struct GridLook {
     pub(crate) radius: f32,
     pub(crate) between: f32,
     pub(crate) color: Color32,
+    origin: Pos2,
 }
 
 impl GridLook {
@@ -94,6 +95,7 @@ impl GridLook {
             radius: DOT_RADIUS / zoom,
             between,
             color,
+            origin: Pos2::ZERO,
         })
     }
 
@@ -141,32 +143,59 @@ impl GridTile {
     }
 }
 
-fn draw_tile(painter: &Painter, corner: Pos2, look: GridLook) {
+fn draw_tile(painter: &Painter, corner: Pos2, look: GridLook, inside: &Option<Vec<Rect>>) {
     let between = with_opacity(look.color, look.between);
     let size = Vec2::splat(look.radius * 2.0);
     for row in 0..TILE_DOTS {
         for column in 0..TILE_DOTS {
+            let offset = Vec2::new(column as f32, row as f32) * look.step;
+            if let Some(inside) = inside {
+                let world = look.origin + offset;
+                if !inside.iter().any(|frame| frame.contains(world)) {
+                    continue;
+                }
+            }
             let color = match row % 2 == 0 && column % 2 == 0 {
                 true => look.color,
                 false => between,
             };
-            let center = corner + Vec2::new(column as f32, row as f32) * look.step;
+            let center = corner + offset;
             painter.rect_filled(Rect::from_center_size(center, size), look.radius, color);
         }
     }
 }
 
 #[component]
-pub(crate) fn GridTileItem(tile: GridTile, look: Memo<Option<GridLook>>) -> CanvasItem {
+pub(crate) fn GridTileItem(
+    tile: GridTile,
+    look: Memo<Option<GridLook>>,
+    frames: Memo<Vec<Rect>>,
+) -> CanvasItem {
     let rect = tile.rect();
     let step = f32::from_bits(tile.step);
+    let inside = create_memo(move || {
+        frames.with(|frames| {
+            (!frames.is_empty()).then(|| {
+                frames
+                    .iter()
+                    .filter(|frame| frame.intersects(rect))
+                    .copied()
+                    .collect::<Vec<_>>()
+            })
+        })
+    });
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     create_effect(move || {
         let Some(look) = look.get().filter(|look| look.step == step) else {
             return;
         };
+        let look = GridLook {
+            origin: rect.min,
+            ..look
+        };
+        let inside = inside.get();
         draw.set_unconditionally(Rc::new(move |painter: &Painter, rect: Rect| {
-            draw_tile(painter, rect.min, look)
+            draw_tile(painter, rect.min, look, &inside)
         }));
     });
     view! {

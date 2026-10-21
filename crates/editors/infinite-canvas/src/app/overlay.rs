@@ -23,6 +23,7 @@ const HINT_MARGIN: f32 = 16.0;
 const SELECT_BOX_FILL: Color32 = Color32::from_rgba_unmultiplied(66, 153, 225, 28);
 const BADGE_SIDE: f32 = 22.0;
 const OUTSIDE_FRAMES: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 56);
+const FRAME_OUTLINE: f32 = 1.0;
 const FRAME_LABEL_SIZE: f32 = 12.0;
 const DASHES: [f32; 2] = [4.0, 4.0];
 const GROUP_MARGIN: f32 = 6.0;
@@ -46,6 +47,7 @@ pub(crate) struct Backdrop {
     pub(crate) camera: Camera,
     pub(crate) stage: Rect,
     pub(crate) label: Color32,
+    pub(crate) outline: Color32,
     pub(crate) chrome: bool,
     pub(crate) frames: Vec<FrameBackdrop>,
 }
@@ -66,6 +68,7 @@ impl Backdrop {
         }
         for frame in &self.frames {
             let rect = self.camera.rect(frame.bounds);
+            painter.rect_stroke(rect, 0.0, FRAME_OUTLINE, self.outline);
             let galley = painter.layout(
                 &frame.name,
                 FontId::proportional(FRAME_LABEL_SIZE),

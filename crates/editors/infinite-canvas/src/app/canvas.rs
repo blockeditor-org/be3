@@ -49,6 +49,15 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             });
             let previewing = state.previewing();
             let (grid, tiles) = grid_of(state, camera, shown);
+            let frames = create_memo(move || {
+                state
+                    .entities
+                    .shown_frames()
+                    .iter()
+                    .filter(|frame| !frame.hidden)
+                    .map(|frame| entity_bounds(frame).rect())
+                    .collect::<Vec<_>>()
+            });
             view! {
                 <CanvasMenu disabled={previewing}>
                     <Frame padding={inset}>
@@ -59,7 +68,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                             >
                                 <CanvasBackdrop state={state} camera={camera} stage={shown} />
                                 <ForEach keys={tiles}>|tile: GridTile|
-                                    <GridTileItem tile look={grid} />
+                                    <GridTileItem tile look={grid} frames />
                                 </ForEach>
                                 <ForEach keys={ids}>|id: Uuid| {
                                     let camera = camera;
@@ -215,6 +224,7 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
             camera: Camera::of(Some(camera.get()), stage.get().min),
             stage: stage.get(),
             label: theme.text_muted.get(),
+            outline: theme.border.get(),
             chrome: !state.previewing(),
             frames: frames.get(),
         };
