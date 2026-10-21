@@ -11,7 +11,7 @@ use super::actions::CanvasActions;
 use super::selection_bar::SelectionTools;
 use super::state::{CanvasState, Tool};
 
-const TOOLS: [(Tool, &str); 9] = [
+const TOOLS: [(Tool, &str); 10] = [
     (Tool::Select, "Select"),
     (Tool::Pen, "Pen"),
     (Tool::Rectangle, "Rectangle"),
@@ -21,6 +21,7 @@ const TOOLS: [(Tool, &str); 9] = [
     (Tool::Line, "Line"),
     (Tool::Text, "Text"),
     (Tool::Frame, "Frame"),
+    (Tool::Eraser, "Eraser"),
 ];
 const PILL_MARGIN: f32 = 12.0;
 const PILL_RADIUS: f32 = 16.0;
@@ -35,8 +36,7 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     let tools = actions.clone();
     let chosen = create_memo(move || {
         !state.selection.get().is_empty()
-            || (state.profile.get() == CanvasProfile::Prototyping
-                && !matches!(state.tool.get(), Tool::Select))
+            || (state.profile.get() == CanvasProfile::Prototyping && state.tool.get().styles())
     });
     let tool_keys = create_memo(move || {
         let profile = state.profile.get();
@@ -74,6 +74,11 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 </List>
             }}
         >
+            <ToggleButton
+                icon_only=true
+                action={actions.tool_lock.clone()}
+                @test_id={"infinite-canvas.dock.tool-lock"}
+            />
             <ForEach keys={tool_keys}>|index: usize| {
                 let actions = tools.clone();
                 view! {

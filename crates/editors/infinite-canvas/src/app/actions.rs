@@ -4,8 +4,8 @@ use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CONTENT_COPY, ICON_CONTENT_CUT,
     ICON_CONTENT_PASTE, ICON_DATA_OBJECT, ICON_DELETE, ICON_DESELECT, ICON_DIAGONAL_LINE,
     ICON_DOWNLOAD, ICON_EDIT, ICON_FILTER_CENTER_FOCUS, ICON_FIT_SCREEN, ICON_FLIP_TO_BACK,
-    ICON_FLIP_TO_FRONT, ICON_GESTURE, ICON_GROUP_WORK, ICON_IMAGE, ICON_LIBRARY_ADD, ICON_LOCK,
-    ICON_LOCK_OPEN, ICON_OPEN_IN_NEW, ICON_POLYLINE, ICON_RECTANGLE, ICON_SELECT_ALL,
+    ICON_FLIP_TO_FRONT, ICON_GESTURE, ICON_GROUP_WORK, ICON_IMAGE, ICON_KEEP, ICON_LIBRARY_ADD,
+    ICON_LOCK, ICON_LOCK_OPEN, ICON_OPEN_IN_NEW, ICON_POLYLINE, ICON_RECTANGLE, ICON_SELECT_ALL,
     ICON_SWAP_HORIZ, ICON_TEXT_FIELDS, ICON_WORKSPACES, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
@@ -30,6 +30,8 @@ pub(crate) struct CanvasActions {
     pub(crate) diamond: Action,
     pub(crate) text: Action,
     pub(crate) pen: Action,
+    pub(crate) eraser: Action,
+    pub(crate) tool_lock: Action,
     pub(crate) add_rectangle: Action,
     pub(crate) add_line: Action,
     pub(crate) add_text: Action,
@@ -83,7 +85,24 @@ impl CanvasActions {
             Tool::Diamond => self.diamond.clone(),
             Tool::Text => self.text.clone(),
             Tool::Pen => self.pen.clone(),
+            Tool::Eraser => self.eraser.clone(),
         }
+    }
+
+    pub(crate) fn tools(&self) -> [&Action; 11] {
+        [
+            &self.select,
+            &self.lasso,
+            &self.rectangle,
+            &self.diamond,
+            &self.ellipse,
+            &self.arrow,
+            &self.line,
+            &self.pen,
+            &self.text,
+            &self.eraser,
+            &self.frame,
+        ]
     }
 }
 
@@ -317,8 +336,47 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     );
     let select = tool("canvas.tool.select", "Select", Tool::Select)
         .shortcut(Chord::key(Key::V))
+        .shortcut(Chord::key(Key::One))
+        .register();
+    let rectangle = tool("canvas.tool.rectangle", "Draw a rectangle", Tool::Rectangle)
+        .shortcut(Chord::key(Key::R))
+        .shortcut(Chord::key(Key::Two))
+        .register();
+    let diamond = tool("canvas.tool.diamond", "Draw a diamond", Tool::Diamond)
+        .shortcut(Chord::key(Key::D))
+        .shortcut(Chord::key(Key::Three))
+        .in_menu()
+        .register();
+    let ellipse = tool("canvas.tool.ellipse", "Draw an ellipse", Tool::Ellipse)
+        .shortcut(Chord::key(Key::O))
+        .shortcut(Chord::key(Key::Four))
+        .in_menu()
+        .register();
+    let arrow = tool("canvas.tool.arrow", "Draw an arrow", Tool::Arrow)
+        .shortcut(Chord::key(Key::A))
+        .shortcut(Chord::key(Key::Five))
+        .in_menu()
+        .register();
+    let line = tool("canvas.tool.line", "Draw a line", Tool::Line)
+        .shortcut(Chord::key(Key::L))
+        .shortcut(Chord::key(Key::Six))
+        .in_menu()
+        .register();
+    let pen = tool("canvas.tool.pen", "Draw freehand", Tool::Pen)
+        .shortcut(Chord::key(Key::P))
+        .shortcut(Chord::key(Key::Seven))
+        .register();
+    let text = tool("canvas.tool.text", "Write text", Tool::Text)
+        .shortcut(Chord::key(Key::T))
+        .shortcut(Chord::key(Key::Eight))
+        .register();
+    let eraser = tool("canvas.tool.eraser", "Erase", Tool::Eraser)
+        .shortcut(Chord::key(Key::E))
+        .shortcut(Chord::key(Key::Zero))
+        .in_menu()
         .register();
     let lasso = tool("canvas.tool.lasso", "Lasso select", Tool::Lasso)
+        .shortcut(Chord::key(Key::V).shift())
         .in_menu()
         .register();
     let select_mode = Action::new("canvas.tool.select-mode", "Select", move || {
@@ -331,28 +389,17 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         .shortcut(Chord::key(Key::F))
         .in_menu()
         .register();
-    let line = tool("canvas.tool.line", "Draw a line", Tool::Line)
-        .shortcut(Chord::key(Key::L))
-        .in_menu()
-        .register();
-    let arrow = tool("canvas.tool.arrow", "Draw an arrow", Tool::Arrow)
-        .in_menu()
-        .register();
-    let rectangle = tool("canvas.tool.rectangle", "Draw a rectangle", Tool::Rectangle)
-        .shortcut(Chord::key(Key::R))
-        .register();
-    let ellipse = tool("canvas.tool.ellipse", "Draw an ellipse", Tool::Ellipse)
-        .in_menu()
-        .register();
-    let diamond = tool("canvas.tool.diamond", "Draw a diamond", Tool::Diamond)
-        .in_menu()
-        .register();
-    let text = tool("canvas.tool.text", "Write text", Tool::Text)
-        .shortcut(Chord::key(Key::T))
-        .register();
-    let pen = tool("canvas.tool.pen", "Draw freehand", Tool::Pen)
-        .shortcut(Chord::key(Key::P))
-        .register();
+    let tool_lock = Action::new(
+        "canvas.tool-lock",
+        "Keep the tool after drawing",
+        move || state.tool_locked.update(|locked| *locked = !*locked),
+    )
+    .glyph(ICON_KEEP)
+    .shortcut(Chord::key(Key::Q))
+    .checked(state.tool_locked)
+    .enabled(free)
+    .in_menu()
+    .register();
     let add_rectangle = add(
         "canvas.add.rectangle",
         "Add a rectangle",
@@ -376,6 +423,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         ))
     })
     .glyph(ICON_IMAGE)
+    .shortcut(Chord::key(Key::Nine))
     .enabled(free)
     .register();
     let add_block = Action::new("canvas.add.block", "Add a block…", move || {
@@ -474,6 +522,8 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         diamond,
         text,
         pen,
+        eraser,
+        tool_lock,
         add_rectangle,
         add_line,
         add_text,

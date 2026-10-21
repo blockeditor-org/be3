@@ -15,8 +15,9 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::beui::icons::{
-    ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DIAMOND, ICON_DRAW, ICON_LASSO_SELECT,
-    ICON_NORTH_EAST, ICON_PANORAMA_FISH_EYE, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS,
+    ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DIAMOND, ICON_DRAW, ICON_INK_ERASER,
+    ICON_LASSO_SELECT, ICON_NORTH_EAST, ICON_PANORAMA_FISH_EYE, ICON_RECTANGLE, ICON_SELECT,
+    ICON_TEXT_FIELDS,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
@@ -93,6 +94,7 @@ pub(crate) enum Tool {
     Diamond,
     Text,
     Pen,
+    Eraser,
 }
 
 impl Tool {
@@ -108,6 +110,7 @@ impl Tool {
             Tool::Diamond => ICON_DIAMOND,
             Tool::Text => ICON_TEXT_FIELDS,
             Tool::Pen => ICON_DRAW,
+            Tool::Eraser => ICON_INK_ERASER,
         }
     }
 
@@ -131,6 +134,10 @@ impl Tool {
             self,
             Tool::Rectangle | Tool::Ellipse | Tool::Diamond | Tool::Line | Tool::Arrow
         )
+    }
+
+    pub(crate) fn styles(self) -> bool {
+        !self.selects() && self != Tool::Eraser
     }
 
     pub(crate) fn belongs_to(self, profile: CanvasProfile) -> bool {
@@ -253,7 +260,14 @@ pub(crate) enum Gesture {
         originals: Vec<CanvasEntity>,
         snap_angle: bool,
     },
+    Erase {
+        trail: Vec<CanvasPoint>,
+        erased: Vec<CanvasEntity>,
+    },
 }
+
+pub(crate) const ERASER_TRAIL: usize = 24;
+const ERASED_OPACITY: f32 = 0.25;
 
 pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
     match gesture {
@@ -333,6 +347,14 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             current,
             ..
         } => vec![with_point(original.as_ref().clone(), *index, *current)],
+        Gesture::Erase { erased, .. } => erased
+            .iter()
+            .cloned()
+            .map(|mut entity| {
+                entity.style.opacity *= ERASED_OPACITY;
+                entity
+            })
+            .collect(),
         Gesture::Create { .. }
         | Gesture::Pen { .. }
         | Gesture::SelectBox { .. }
@@ -392,7 +414,6 @@ struct CanvasCells {
     pointer_down: Cell<bool>,
     touch: Cell<bool>,
     pen_seen: Cell<bool>,
-    erasing: Cell<bool>,
     retapped: Cell<Option<(Uuid, Pos2)>>,
     text_entry: Cell<Option<TextEntry>>,
     client: u64,
@@ -417,6 +438,7 @@ pub(crate) struct CanvasState {
     pub(crate) pointer: Signal<Option<CanvasPoint>>,
     pub(crate) entities: Entities,
     pub(crate) tool: Signal<Tool>,
+    pub(crate) tool_locked: Signal<bool>,
     pub(crate) profile: Signal<CanvasProfile>,
     styles: Signal<HashMap<CanvasProfile, CanvasStyle>>,
     pub(crate) selection: Signal<HashSet<Uuid>>,
@@ -511,7 +533,6 @@ impl CanvasState {
             pointer_down: Cell::new(false),
             touch: Cell::new(false),
             pen_seen: Cell::new(false),
-            erasing: Cell::new(false),
             retapped: Cell::new(None),
             text_entry: Cell::new(None),
             client: Uuid::new_v4().as_u64_pair().0 | 1 << 63,
@@ -534,6 +555,7 @@ impl CanvasState {
             pointer,
             entities,
             tool,
+            tool_locked: create_signal(false),
             profile,
             styles,
             selection,
@@ -1103,14 +1125,6 @@ impl CanvasState {
         self.cells.value().pen_seen.get()
     }
 
-    pub(crate) fn set_erasing(&self, erasing: bool) {
-        self.cells.value().erasing.set(erasing);
-    }
-
-    pub(crate) fn erasing(&self) -> bool {
-        self.cells.value().erasing.get()
-    }
-
     pub(crate) fn note_retap(&self, retap: Option<(Uuid, Pos2)>) {
         self.cells.value().retapped.set(retap);
     }
@@ -1309,6 +1323,69 @@ impl CanvasState {
                 })
             })
             .map(|entity| entity.id)
+    }
+
+    pub(crate) fn begin_erasing(&self, at: CanvasPoint) {
+        self.begin_gesture(Some(Gesture::Erase {
+            trail: Vec::new(),
+            erased: Vec::new(),
+        }));
+        self.erase_toward(at, false);
+    }
+
+    pub(crate) fn erase_toward(&self, at: CanvasPoint, restore: bool) {
+        let Some(Gesture::Erase { trail, .. }) = self.gesture.get_untracked() else {
+            return;
+        };
+        let from = trail.last().copied().unwrap_or(at);
+        let crossed = self.erasable_between(from, at);
+        self.update_gesture(|gesture| {
+            let Gesture::Erase { trail, erased } = gesture else {
+                return;
+            };
+            if trail.len() == ERASER_TRAIL {
+                trail.remove(0);
+            }
+            trail.push(at);
+            match restore {
+                true => erased.retain(|entity| !crossed.iter().any(|hit| hit.id == entity.id)),
+                false => {
+                    for entity in crossed {
+                        if !erased.iter().any(|held| held.id == entity.id) {
+                            erased.push(entity);
+                        }
+                    }
+                }
+            }
+        });
+    }
+
+    fn erasable_between(&self, from: CanvasPoint, to: CanvasPoint) -> Vec<CanvasEntity> {
+        let radius = HIT_RADIUS / self.scale();
+        let steps = (distance(from, to) / radius).ceil().max(1.0) as usize;
+        let samples: Vec<CanvasPoint> = (0..=steps)
+            .map(|step| {
+                let t = step as f32 / steps as f32;
+                CanvasPoint::new(from.x + (to.x - from.x) * t, from.y + (to.y - from.y) * t)
+            })
+            .collect();
+        let entities = self.entities.all_untracked();
+        let erasable =
+            |entity: &CanvasEntity| !entity.hidden && !entity.locked && !entity.is_frame();
+        let mut crossed = HashSet::new();
+        for entity in entities.iter().filter(|entity| erasable(entity)) {
+            if !crossed.contains(&entity.id)
+                && samples
+                    .iter()
+                    .any(|point| hit_entity(entity, *point, radius))
+            {
+                crossed.extend(self.selection_ids(&entities, entity.id));
+            }
+        }
+        entities
+            .into_iter()
+            .filter(|entity| crossed.contains(&entity.id) && erasable(entity))
+            .collect()
     }
 
     pub(crate) fn add_entity(&self, entity: CanvasEntity) {
@@ -2138,10 +2215,11 @@ impl CanvasState {
             } => {
                 if let Some(entity) = self.created_entity(tool, start, current, from_center) {
                     let entity = drafted(entity, id, start);
-                    let done = matches!(entity.shape, CanvasShape::Text | CanvasShape::Frame);
+                    let created = entity.id;
                     self.add_entity(entity);
-                    if done {
+                    if !self.tool_locked.get_untracked() {
                         self.put_down_tool();
+                        self.selection.set(HashSet::from([created]));
                     }
                 }
             }
@@ -2219,6 +2297,15 @@ impl CanvasState {
                 let updates = preview_entities(&gesture);
                 if !updates.is_empty() {
                     self.record_update(originals.clone(), updates, false);
+                }
+            }
+            Gesture::Erase { erased, .. } => {
+                let ids: Vec<Uuid> = erased.iter().map(|entity| entity.id).collect();
+                if !ids.is_empty() {
+                    let mut selection = self.selection.get_untracked();
+                    selection.retain(|id| !ids.contains(id));
+                    self.selection.set(selection);
+                    self.record(InfiniteCanvasOperation::Remove { ids });
                 }
             }
             Gesture::Endpoint {
@@ -2307,7 +2394,9 @@ impl CanvasState {
                 frame.text = format!("Frame {}", count + 1).as_str().into();
                 Some(frame)
             }
-            Tool::Line | Tool::Arrow | Tool::Select | Tool::Lasso | Tool::Pen => None,
+            Tool::Line | Tool::Arrow | Tool::Select | Tool::Lasso | Tool::Pen | Tool::Eraser => {
+                None
+            }
         }
     }
 }

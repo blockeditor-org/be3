@@ -12,6 +12,7 @@ use block_editor_beui::{ResizeMode, Sidebar, narrow_chrome};
 
 use crate::geometry::*;
 
+use super::actions::CanvasActions;
 use super::components::CanvasComponents;
 use super::layers::LayersSection;
 use super::paint::resolve_color;
@@ -1162,25 +1163,40 @@ fn TextOptions(state: CanvasState) -> NodeId {
     }
 }
 
-const SHORTCUTS: [(&str, &str); 10] = [
-    ("Pan / Select", "H / V"),
-    ("Rectangle / Line", "R / L"),
-    ("Text / Pen", "T / P"),
+const SHORTCUTS: [(&str, &str); 8] = [
     ("Pan", "Drag empty space, space-drag, or two fingers"),
     ("Zoom", "Ctrl-scroll or pinch"),
     ("Select all", "Ctrl+A"),
     ("Nudge", "Arrow keys; Shift for 10×"),
     ("Duplicate", "Ctrl+D or Alt-drag"),
     ("Edit selected block", "Enter"),
+    ("Restore while erasing", "Alt"),
     ("Exit tool or editor", "Escape"),
 ];
 
 #[component]
 fn ShortcutsSection() -> NodeId {
     let open = create_signal(false);
+    let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
+    let mut tools: Vec<Action> = actions.tools().into_iter().cloned().collect();
+    tools.push(actions.add_image.clone());
+    tools.push(actions.tool_lock.clone());
+    let count = tools.len();
     view! {
         <Accordion title="Shortcuts" open={open}>
             <List spacing=4.0>
+                <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
+                    let action = tools[index].clone();
+                    let keys = action
+                        .shortcuts()
+                        .iter()
+                        .map(|chord| chord.label())
+                        .collect::<Vec<_>>()
+                        .join(" / ");
+                    view! {
+                        <Shortcut keys={keys} description={action.label()} />
+                    }
+                }</ForEach>
                 <ForEach keys={(0..SHORTCUTS.len()).collect::<Vec<usize>>()}>|index: usize| {
                     let (action, keys) = SHORTCUTS[index];
                     view! {

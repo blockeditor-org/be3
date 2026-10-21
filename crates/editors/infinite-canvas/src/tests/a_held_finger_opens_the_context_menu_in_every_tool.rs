@@ -13,6 +13,7 @@ fn a_held_finger_opens_the_context_menu_in_every_tool() {
         "Line",
         "Text",
         "Frame",
+        "Eraser",
     ] {
         let rectangle = card();
         let mut editor = vector_phone(std::slice::from_ref(&rectangle));

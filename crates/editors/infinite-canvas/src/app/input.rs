@@ -1,9 +1,8 @@
 use block_editor_beui::be_block::canvas::{
     CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
-    InfiniteCanvasOperation,
 };
 use block_editor_beui::beui::{CursorIcon, Key, KeyPress, PointerPress};
-use block_editor_beui::reactive::{Get, Set, untrack};
+use block_editor_beui::reactive::{Get, untrack};
 use uuid::Uuid;
 
 use crate::geometry::*;
@@ -98,13 +97,10 @@ impl CanvasState {
                 self.focus_editor(None);
             }
         }
-        if press.pen.is_some_and(|pen| pen.eraser) {
-            self.begin_gesture(None);
-            self.set_erasing(true);
-            self.erase_at(world);
-            return;
-        }
-        let tool = self.tool_for(press);
+        let tool = match press.pen.is_some_and(|pen| pen.eraser) {
+            true => Tool::Eraser,
+            false => self.tool_for(press),
+        };
         if press.clicks >= 2 && tool.selects() && self.double_press(press, world) {
             self.begin_gesture(None);
             return;
@@ -133,6 +129,7 @@ impl CanvasState {
                 pressures: pen_pressure(press).into_iter().collect(),
                 predicted: None,
             })),
+            Tool::Eraser => self.begin_erasing(world),
         }
     }
 
@@ -171,25 +168,6 @@ impl CanvasState {
             Tool::Pen if press.touch && self.pen_seen() => Tool::Select,
             tool => tool,
         }
-    }
-
-    fn erase_at(&self, world: CanvasPoint) {
-        let Some(entity) = self
-            .entity_at(world)
-            .and_then(|id| self.entities.get_untracked(id))
-        else {
-            return;
-        };
-        if entity.locked || entity.is_frame() {
-            return;
-        }
-        let mut selection = self.selection.get_untracked();
-        if selection.remove(&entity.id) {
-            self.selection.set(selection);
-        }
-        self.record(InfiniteCanvasOperation::Remove {
-            ids: vec![entity.id],
-        });
     }
 
     fn press_select(&self, press: PointerPress, world: CanvasPoint, lasso: bool) {
@@ -363,11 +341,11 @@ impl CanvasState {
         }
         let world = self.world_at(press.pos);
         self.hover(Some(world));
-        if self.erasing() {
-            self.erase_at(world);
+        let modifiers = press.modifiers;
+        if matches!(self.gesture.get_untracked(), Some(Gesture::Erase { .. })) {
+            self.erase_toward(world, modifiers.alt);
             return;
         }
-        let modifiers = press.modifiers;
         let scale = self.scale();
         let pen_step = 1.0 / scale;
         let predicted = press.predicted.map(|at| self.world_at(at));
@@ -460,6 +438,7 @@ impl CanvasState {
                     || *force_preserve_aspect_ratio
                     || *default_preserve_aspect_ratio != modifiers.shift;
             }
+            Gesture::Erase { .. } => {}
             Gesture::Pen {
                 points,
                 pressures,
@@ -481,7 +460,6 @@ impl CanvasState {
     }
 
     pub(crate) fn release(&self) {
-        self.set_erasing(false);
         if self.touching() {
             self.hover(None);
         }
@@ -504,7 +482,6 @@ impl CanvasState {
     }
 
     pub(crate) fn cancel(&self) {
-        self.set_erasing(false);
         self.begin_gesture(None);
     }
 
@@ -513,7 +490,9 @@ impl CanvasState {
             return false;
         }
         if press.key == Key::Escape {
-            if self.focused_editor.get_untracked().is_some() {
+            if matches!(self.gesture.get_untracked(), Some(Gesture::Erase { .. })) {
+                self.begin_gesture(None);
+            } else if self.focused_editor.get_untracked().is_some() {
                 self.focus_editor(None);
             } else if let Some(group) = self.leave_group() {
                 self.select_group(group);
@@ -586,7 +565,7 @@ impl CanvasState {
                 text.placeholder = "Text".into();
                 text
             }
-            Tool::Select | Tool::Lasso | Tool::Pen | Tool::Frame => {
+            Tool::Select | Tool::Lasso | Tool::Pen | Tool::Eraser | Tool::Frame => {
                 self.set_tool(tool);
                 return;
             }

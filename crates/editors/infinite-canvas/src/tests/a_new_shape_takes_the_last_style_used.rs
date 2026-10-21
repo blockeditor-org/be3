@@ -6,6 +6,7 @@ use block_editor_beui::beui::Vec2;
 fn a_new_shape_takes_the_last_style_used() {
     let mut editor = editor(&[]);
 
+    editor.click("infinite-canvas.dock.tool-lock");
     editor.click("infinite-canvas.dock.tool.Rectangle");
     editor.run();
     assert!(

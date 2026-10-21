@@ -1,8 +1,8 @@
 use block_editor_beui::ResizeMode;
 use block_editor_beui::be_block::canvas::{CanvasPoint, CanvasStyle};
 use block_editor_beui::beui::{
-    Color32, FillRule, FontId, LineJoin, Painter, Path, Pos2, Rect, Stroke, TextAlign, TextLayout,
-    Vec2, pos2,
+    Color32, FillRule, FontId, LineCap, LineJoin, Painter, Path, Pos2, Rect, Stroke, TextAlign,
+    TextLayout, Vec2, pos2,
 };
 
 use crate::freehand;
@@ -34,6 +34,7 @@ pub(crate) struct PathGrips {
     pub(crate) points: Vec<CanvasPoint>,
     pub(crate) middles: Vec<CanvasPoint>,
 }
+const ERASER_TRAIL_WIDTH: f32 = 6.0;
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct FrameBackdrop {
@@ -152,6 +153,18 @@ impl Overlay {
             }) => {
                 let bounds = WorldRect::from_points(*start, *current);
                 painter.rect_stroke(self.camera.rect(bounds), 0.0, 2.0, self.palette.auto);
+            }
+            Some(Gesture::Erase { trail, .. }) => {
+                let points: Vec<Pos2> = trail.iter().map(|at| self.camera.at(*at)).collect();
+                if let [only] = points.as_slice() {
+                    let dot = Path::ellipse(*only, Vec2::splat(ERASER_TRAIL_WIDTH / 2.0));
+                    painter.fill_path(&dot, FillRule::NonZero, self.palette.muted);
+                } else if !points.is_empty() {
+                    let stroke = Stroke::new(ERASER_TRAIL_WIDTH)
+                        .join(LineJoin::Round)
+                        .cap(LineCap::Round);
+                    painter.stroke_path(&Path::polyline(points), &stroke, self.palette.muted);
+                }
             }
             Some(Gesture::Pen {
                 points,
