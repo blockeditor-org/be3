@@ -58,14 +58,15 @@ impl CanvasState {
 
     pub(crate) fn live_child_at(&self, world: CanvasPoint) -> Option<Uuid> {
         self.entities
-            .all_untracked()
-            .iter()
+            .embedding_untracked()
+            .into_iter()
             .rev()
+            .filter_map(|id| self.entities.get_untracked(id))
             .find_map(|entity| {
                 (entity.shape == CanvasShape::Editor
                     && !entity.hidden
                     && !self.shows_preview(entity.id)
-                    && direct_editor_layout(entity)
+                    && direct_editor_layout(&entity)
                         .is_some_and(|layout| layout.content.contains(world)))
                 .then_some(entity.id)
             })
@@ -234,13 +235,12 @@ impl CanvasState {
             return;
         }
         if let Some(id) = self.entity_at(world) {
-            let entities = self.entities.all_untracked();
-            let entity = entities
-                .iter()
-                .find(|entity| entity.id == id)
+            let entity = self
+                .entities
+                .get_untracked(id)
                 .expect("the hit entity is one of the canvas entities");
             if entity.shape == CanvasShape::Editor {
-                let content = direct_editor_layout(entity)
+                let content = direct_editor_layout(&entity)
                     .is_some_and(|layout| layout.content.contains(world));
                 if content && self.takes_frame(entity.id) {
                     self.focus_editor(Some(id));

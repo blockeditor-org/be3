@@ -1227,8 +1227,4 @@ impl CanvasEntity {
     }
 }
 
-pub fn first_frame(entities: &[CanvasEntity]) -> Option<&CanvasEntity> {
-    entities.iter().find(|entity| entity.is_frame())
-}
-
 pub type CanvasContent = Document<Canvas>;

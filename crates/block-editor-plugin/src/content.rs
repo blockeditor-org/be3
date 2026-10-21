@@ -433,6 +433,12 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         self.inner().project_keyed(project)
     }
 
+    pub fn on_touched(&self, key: Touched, run: impl Fn(&C, &[Touched]) + 'static) {
+        let projection = self.inner();
+        run(&projection.visible.borrow(), &[Touched::Everything]);
+        projection.register(Some(key), Rc::new(run));
+    }
+
     pub fn operate(&self, operation: C::Op) {
         self.inner().operate(operation);
     }
@@ -477,7 +483,6 @@ where
     where
         T: Model + 'static,
     {
-        let projection = self.inner();
         let read = move |content: &Document<R>, touched: &[Touched], held: &Objects<T>| {
             let everything = touched.contains(&Touched::Everything);
             let changed: HashSet<ObjectId> = touched
@@ -504,19 +509,11 @@ where
                 })
                 .collect::<Vec<_>>()
         };
-        let first = read(
-            &projection.visible.borrow(),
-            &[Touched::Everything],
-            &Objects::default(),
-        );
-        let objects = create_signal(Objects(Rc::new(first)));
-        projection.register(
-            Some(Touched::Subtree(owner)),
-            Rc::new(move |content, touched| {
-                let next = objects.with_untracked(|held| read(content, touched, held));
-                objects.set(Objects(Rc::new(next)));
-            }),
-        );
+        let objects = create_signal(Objects::default());
+        self.on_touched(Touched::Subtree(owner), move |content, touched| {
+            let next = objects.with_untracked(|held| read(content, touched, held));
+            objects.set(Objects(Rc::new(next)));
+        });
         objects.read_only()
     }
 

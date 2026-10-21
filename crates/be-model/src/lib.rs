@@ -364,6 +364,23 @@ impl<R: Model> Document<R> {
         }
     }
 
+    pub fn index_of<M, T>(
+        &self,
+        owner: ObjectId,
+        field: FieldRef<M, List<T>>,
+        id: ObjectId,
+    ) -> Option<usize> {
+        match self
+            .tree
+            .object(owner)?
+            .fields
+            .get(usize::from(field.index()))?
+        {
+            Value::List(ids) => ids.index_of(id),
+            _ => None,
+        }
+    }
+
     pub fn step(&self, edit: &Edit) -> Option<Step> {
         history::step(&self.tree, edit)
     }

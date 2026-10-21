@@ -669,7 +669,7 @@ impl CanvasState {
     }
 
     pub(crate) fn framed(&self) -> Option<WorldRect> {
-        self.preview.then(|| embedded_region(&self.entities.all()))
+        self.preview.then(|| self.entities.region())
     }
 
     pub(crate) fn scale(&self) -> f32 {

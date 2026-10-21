@@ -36,7 +36,7 @@ use state::CanvasState;
 use toolbar::{ImportError, ToolDock, ZoomPill};
 use touch::TouchSetting;
 
-use crate::geometry::{MIN_SIZE, embedded_region};
+use crate::geometry::MIN_SIZE;
 
 pub struct CanvasApp;
 
@@ -115,7 +115,7 @@ fn CanvasPreview(editor: Editor) -> NodeId {
 
 fn report_intrinsic_size(editor: Editor, state: CanvasState) {
     create_effect(move || {
-        let region = embedded_region(&state.entities.all()).size();
+        let region = state.entities.region().size();
         editor.set_intrinsic_size(Some(Vec2::new(
             region.x.max(MIN_SIZE),
             region.y.max(MIN_SIZE),

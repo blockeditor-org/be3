@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::canvas::{
     CanvasArrowhead, CanvasEntity, CanvasPathPoint, CanvasPoint, CanvasShape, CanvasStyle,
-    CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform, first_frame,
+    CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform,
 };
 use block_editor_beui::beui::{Pos2, Rect, Vec2, pos2};
 use block_editor_beui::block_ui::{
@@ -197,12 +197,11 @@ pub(crate) fn entity_kind_label(entity: &CanvasEntity) -> &'static str {
     }
 }
 
-pub(crate) fn embedded_region(entities: &[CanvasEntity]) -> WorldRect {
-    if let Some(frame) = first_frame(entities) {
-        return entity_bounds(frame);
+pub(crate) fn embedded_region(frame: Option<WorldRect>, extent: Option<WorldRect>) -> WorldRect {
+    if let Some(frame) = frame {
+        return frame;
     }
-    let bounds = entities.iter().map(entity_bounds).reduce(WorldRect::union);
-    let (center, size) = bounds.map_or_else(
+    let (center, size) = extent.map_or_else(
         || (CanvasPoint::default(), CanvasPoint::new(100.0, 100.0)),
         |bounds| {
             (
