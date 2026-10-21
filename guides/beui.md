@@ -63,7 +63,8 @@ or `component_placed` to watch, so calling any of them in its body
 panics when it is built, and `@test_id` and `@node_ref` on its tag do not compile,
 because they only take a component whose output implements `BuildsNode`.
 `unstyled::MenuItem` is one: a menu item is a label, an icon, a detail, a
-`checked` state (`Some` makes it a check box item, ticked when true), a
+`checked` state (`Some` makes it a check box item, or a radio item with
+`radio`, ticked when true; an `action`'s own tick by default), a
 disabled and a danger flag, a separator above it, an `on_click` and its
 own submenu or page items, so a menu is written as tags and each row follows
 the signals its tag was given, and `unstyled::ChoiceOption` is the same for the
@@ -760,7 +761,7 @@ or as a sheet: every menu opens as a dropdown when a mouse opened it and as the
 same items in a `ModalSheet` when a finger did, so the two show the same
 features. A `MenuStyle` carries both looks (the styled `menu_style()`), and an
 unstyled one without a sheet stays a dropdown. An item's children cascade as a
-submenu, or with `page` open in place of the menu as a page led by a back row
+submenu in a dropdown; in a sheet, or with `page`, they open in place of the menu as a page led by a back row
 titled by the item (`<id>.back` for an item with a `row_test_id`); Left, Escape
 and the back row return to the item, and the dropdown or sheet resizes to each
 page. `then` says what choosing an item does: `MenuThen::Close` (the default),
@@ -770,8 +771,15 @@ tiles in `columns`, which the arrow keys walk in two dimensions and leave for
 the rows above and below. A page of rows with a `depth` is a tree: `expanded`,
 a `Binding<Option<bool>>` (`None` for a leaf), draws the chevron, Right and Left
 and the chevron write `Some(open)` to it, and the caller shows the rows of open
-branches (a `ForEach` over them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check, and
-a page opens with the keyboard on that row. `lead` is a few muted words before
+branches (a `ForEach` over them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check (with
+`radio` it is read as one choice of a group), and
+a page opens with the keyboard on that row. A row with an `action` takes its
+label, glyph, enabled state, tick and first shortcut (drawn muted at the row's
+end, or `shortcut` given) from it. `MenuNodes` builds the rows from a
+description of actions, submenus and separators (`MenuNode`, see
+guides/beui_keyboard.md, Actions and the command palette), each row's test id
+`<test_prefix>.<id>`, so one description fills a context menu, the dock's More
+menu and a plugin's frame menu. `lead` is a few muted words before
 an item's icon on the same line, read with its label (`New in` before a folder's
 name). The dropdown is never taller than a fixed height
 and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu

@@ -42,6 +42,8 @@ pub struct MenuRowHandle {
     pub glyph_color: Prop<Option<beui_core::color::Color32>>,
     pub detail: Prop<String>,
     pub checked: Prop<Option<bool>>,
+    pub radio: bool,
+    pub shortcut: Prop<String>,
     pub disabled: Prop<bool>,
     pub danger: Prop<bool>,
     pub separated: Prop<bool>,
@@ -69,6 +71,8 @@ pub struct MenuItem {
     glyph_color: Memo<Option<beui_core::color::Color32>>,
     detail: Memo<String>,
     checked: Memo<Option<bool>>,
+    radio: bool,
+    shortcut: Memo<String>,
     pub(crate) disabled: Memo<bool>,
     danger: Memo<bool>,
     separated: Memo<bool>,
@@ -119,6 +123,8 @@ pub fn MenuItem(
     #[prop(default = None)] glyph_color: Prop<Option<beui_core::color::Color32>>,
     #[prop(default = String::new())] detail: Prop<String>,
     #[prop(default = None)] checked: Prop<Option<bool>>,
+    #[prop(default = false)] radio: bool,
+    #[prop(default = String::new())] shortcut: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = false)] danger: Prop<bool>,
     #[prop(default = false)] separated: Prop<bool>,
@@ -134,6 +140,12 @@ pub fn MenuItem(
     let label = action_label(action.as_ref(), label);
     let glyph = action_glyph(action.as_ref(), glyph);
     let disabled = action_disabled(action.as_ref(), disabled);
+    let checked = action_checked(action.as_ref(), checked);
+    let radio = radio || action.as_ref().is_some_and(Action::is_radio);
+    let shortcut = match (&shortcut, action.as_ref().and_then(Action::shortcut_label)) {
+        (Prop::Static(set), Some(chord)) if set.is_empty() => Prop::Static(chord),
+        _ => shortcut,
+    };
     MenuItem {
         kind: Kind::Row,
         label: create_memo(move || label.get()),
@@ -142,6 +154,8 @@ pub fn MenuItem(
         glyph_color: create_memo(move || glyph_color.get()),
         detail: create_memo(move || detail.get()),
         checked: create_memo(move || checked.get()),
+        radio,
+        shortcut: create_memo(move || shortcut.get()),
         disabled: create_memo(move || disabled.get()),
         danger: create_memo(move || danger.get()),
         separated: create_memo(move || separated.get()),
@@ -192,6 +206,8 @@ fn plain(label: Prop<String>, children: Run<MenuItem>) -> MenuItem {
         glyph_color: create_memo(|| None),
         detail: create_memo(String::new),
         checked: create_memo(|| None),
+        radio: false,
+        shortcut: create_memo(String::new),
         disabled: create_memo(|| false),
         danger: create_memo(|| false),
         separated: create_memo(|| false),
@@ -273,6 +289,7 @@ struct State {
     page: Signal<Option<usize>>,
     parent: MenuParent,
     titled: bool,
+    pages: bool,
     on_select: Callback<(Vec<usize>, MenuThen)>,
 }
 
@@ -286,6 +303,7 @@ pub(crate) fn MenuList(
     #[prop(default = String::new())] title_test_id: String,
     active: Prop<bool>,
     #[prop(default = false)] focus_first: bool,
+    #[prop(default = false)] pages: bool,
     on_select: Callback<(Vec<usize>, MenuThen)>,
 ) -> NodeId {
     let row = row.expect("menu_list requires a `row` builder");
@@ -302,6 +320,7 @@ pub(crate) fn MenuList(
         page,
         parent,
         titled: title.is_some(),
+        pages,
         on_select,
     };
     set_component_state(state);
@@ -406,6 +425,7 @@ fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<Child>) 
             title_test_id
             active=true
             focus_first=true
+            pages={state.pages}
             on_select={move |(mut path, then): (Vec<usize>, MenuThen)| {
                 path.insert(0, index);
                 state.on_select.call((path, then));
@@ -464,6 +484,8 @@ fn quiet_handle(kind: MenuRowKind, label: Prop<String>) -> MenuRowHandle {
         glyph_color: Prop::Static(None),
         detail: Prop::Static(String::new()),
         checked: Prop::Static(None),
+        radio: false,
+        shortcut: Prop::Static(String::new()),
         disabled: Prop::Static(false),
         danger: Prop::Static(false),
         separated: Prop::Static(false),
@@ -487,6 +509,8 @@ fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) ->
         glyph_color: item.glyph_color.into_prop(),
         detail: item.detail.into_prop(),
         checked: item.checked.into_prop(),
+        radio: item.radio,
+        shortcut: item.shortcut.into_prop(),
         disabled: item.disabled.into_prop(),
         danger: item.danger.into_prop(),
         separated: item.separated.into_prop(),
@@ -502,10 +526,14 @@ fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) ->
 
 fn row_accessibility(item: &Rc<MenuItem>) -> Memo<Node> {
     let (checked, depth, expanded) = (item.checked, item.depth, item.expanded);
+    let radio = item.radio;
     create_memo(move || {
         let mut node = match checked.get() {
             Some(on) => {
-                let mut node = Node::new(Role::MenuItemCheckBox);
+                let mut node = Node::new(match radio {
+                    true => Role::MenuItemRadio,
+                    false => Role::MenuItemCheckBox,
+                });
                 node.set_toggled(Toggled::from(on));
                 node
             }
@@ -641,7 +669,7 @@ fn MenuRow(
     let (spoken, unavailable) = (item.spoken(), item.disabled);
     let test_id = item.test_id.clone();
     let children = item.children.clone();
-    let cascades = !item.page;
+    let cascades = !(item.page || state.pages);
     let has_children = create_memo({
         let children = children.clone();
         move || !children.is_empty()
@@ -820,7 +848,7 @@ fn open_submenu(state: State, index: usize) -> bool {
         return false;
     }
     let enabled = !row.item.disabled.get_untracked();
-    let (page, submenu) = (row.item.page, row.submenu.open);
+    let (page, submenu) = (row.item.page || state.pages, row.submenu.open);
     drop(rows);
     match (enabled, page) {
         (false, _) => {}
@@ -855,7 +883,7 @@ fn hover(state: State, at: Focus) {
             .value()
             .borrow()
             .get(index)
-            .is_some_and(|row| row.has_children() && !row.item.page);
+            .is_some_and(|row| row.has_children() && !row.item.page && !state.pages);
         if cascades {
             close_sibling_submenus(state, Some(index));
             open_submenu(state, index);
@@ -1132,4 +1160,58 @@ fn key(state: State, at: Focus, press: KeyPress) -> bool {
         focus_on(state, target);
     }
     true
+}
+
+#[component]
+pub fn MenuNodes(
+    nodes: Prop<Vec<MenuNode>>,
+    #[prop(default = String::new())] test_prefix: String,
+) -> DynamicSegment<MenuItem> {
+    let nodes = create_memo(move || nodes.get());
+    let keys = create_memo(move || {
+        nodes.with(|nodes| nodes.iter().filter_map(MenuNode::key).collect::<Vec<u64>>())
+    });
+    view! {
+        <ForEach keys>|key: u64|
+            <MenuNodeItem nodes={nodes} key test_prefix={test_prefix.clone()} />
+        </ForEach>
+    }
+}
+
+#[component]
+fn MenuNodeItem(nodes: Memo<Vec<MenuNode>>, key: u64, test_prefix: String) -> MenuItem {
+    let node =
+        nodes.with_untracked(|nodes| nodes.iter().find(|node| node.key() == Some(key)).cloned());
+    let separated = create_memo(move || {
+        nodes.with(|nodes| {
+            let at = nodes.iter().position(|node| node.key() == Some(key));
+            at.is_some_and(|at| at > 0 && matches!(nodes[at - 1], MenuNode::Separator))
+        })
+    });
+    let row_test_id = node
+        .as_ref()
+        .and_then(MenuNode::id)
+        .filter(|_| !test_prefix.is_empty())
+        .map(|id| format!("{test_prefix}.{id}"));
+    let mut item = match node {
+        Some(MenuNode::Action { action, label }) => {
+            let label = label.unwrap_or_default();
+            view! {
+                <MenuItem action label separated />
+            }
+        }
+        Some(MenuNode::Submenu(submenu)) => {
+            let items = submenu.items.clone();
+            view! {
+                <MenuItem label={submenu.label.clone()} glyph={submenu.glyph.clone()} separated>
+                    <MenuNodes nodes={items} test_prefix />
+                </MenuItem>
+            }
+        }
+        Some(MenuNode::Separator) | None => view! {
+            <MenuItem label="" disabled=true />
+        },
+    };
+    item.test_id = row_test_id;
+    item
 }

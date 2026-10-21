@@ -136,12 +136,12 @@ pub(crate) fn ChromeRoot(
 
 #[component]
 fn PanelItem(open: Signal<bool>) -> NodeId {
-    Action::new("chrome.open-panel", "Open the side panel", move || {
+    let opener = Action::new("chrome.open-panel", "Open the side panel", move || {
         open.set(true)
     })
     .glyph(ICON_TUNE)
-    .in_menu()
     .register();
+    add_to_menu(vec![MenuNode::action(&opener)]);
     view! {
         <List spacing=0.0 />
     }

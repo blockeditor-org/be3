@@ -16,7 +16,7 @@ use beui_components_unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
     DockDragged, DockGripHandle, DockKey, DockMode, DockNode, DockPreviewHandle, DockSheetHandle,
     DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
-    DockingLayout, Entry, MenuItem, Picture,
+    DockingLayout, Entry, MenuNodes, Picture,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
@@ -495,7 +495,7 @@ fn DockTitleBar(
     tabs: Option<NodeId>,
     title: Prop<String>,
     vacant: Memo<bool>,
-    menu: Memo<Vec<Action>>,
+    menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
@@ -530,7 +530,7 @@ fn DockSideBar(
     tabs: Option<NodeId>,
     title: Prop<String>,
     vacant: Memo<bool>,
-    menu: Memo<Vec<Action>>,
+    menu: Memo<Vec<MenuNode>>,
     closable: Memo<bool>,
     close: ClickCallback,
 ) -> NodeId {
@@ -576,12 +576,10 @@ fn DockSideBar(
 
 #[component]
 pub(crate) fn DockMenu(
-    menu: Memo<Vec<Action>>,
+    menu: Memo<Vec<MenuNode>>,
     #[prop(default = IconButtonSize::Compact)] size: IconButtonSize,
 ) -> DynamicSegment<ListChild> {
     let offered = create_memo(move || menu.with(|items| !items.is_empty()));
-    let keys =
-        create_memo(move || menu.with(|items| items.iter().map(Action::key).collect::<Vec<u64>>()));
     view! {
         <Show condition={offered}>
             <IconMenuButton
@@ -590,19 +588,7 @@ pub(crate) fn DockMenu(
                 glyph=ICON_MORE_VERT
                 size
                 items={view! {
-                    <ForEach keys={keys}>|key: u64| {
-                        let item = menu.with_untracked(|items| {
-                            items.iter().find(|action| action.key() == key).cloned()
-                        });
-                        match item {
-                            Some(action) => view! {
-                                <MenuItem action />
-                            },
-                            None => view! {
-                                <MenuItem label="" disabled=true />
-                            },
-                        }
-                    }</ForEach>
+                    <MenuNodes nodes={menu} test_prefix={"dock.menu".to_owned()} />
                 }}
             />
         </Show>

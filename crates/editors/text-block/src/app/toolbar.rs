@@ -44,24 +44,24 @@ pub(crate) fn EditorMenu(state: State) -> NodeId {
 fn menu_actions(state: State, settings: Signal<bool>) {
     let hex = state.hex_view;
     let in_text = create_memo(move || !hex.get());
-    Action::new("text.hex", "Toggle hex view", move || {
-        state.toggle_hex_view()
-    })
-    .glyph(ICON_DATA_ARRAY)
-    .checked(create_memo(move || hex.get()))
-    .in_menu()
-    .register();
-    Action::new("text.insert-block", "Insert a block", move || {
+    let hex_view = Action::new("text.hex", "Hex view", move || state.toggle_hex_view())
+        .glyph(ICON_DATA_ARRAY)
+        .checked(create_memo(move || hex.get()))
+        .register();
+    let insert = Action::new("text.insert-block", "Insert a block", move || {
         pick_block(state)
     })
     .glyph(ICON_ADD_BOX)
     .enabled(in_text)
-    .in_menu()
     .register();
-    Action::new("text.settings", "Text settings", move || settings.set(true))
+    let settings = Action::new("text.settings", "Text settings", move || settings.set(true))
         .glyph(ICON_SETTINGS)
-        .in_menu()
         .register();
+    add_to_menu(vec![
+        MenuNode::action(&hex_view),
+        MenuNode::action(&insert),
+        MenuNode::action(&settings),
+    ]);
 }
 
 const FORMATS: [(&str, &str, &str, MarkdownCommand, Option<Chord>); 10] = [

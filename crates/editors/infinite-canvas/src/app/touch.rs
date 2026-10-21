@@ -32,7 +32,6 @@ impl TouchChoice {
         .glyph(ICON_DO_NOT_TOUCH)
         .checked(create_memo(move || chosen.get() == CanvasTouch::Off))
         .enabled(create_memo(move || write.with(Option::is_some)))
-        .in_menu()
         .register()
     }
 }

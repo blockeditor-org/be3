@@ -156,8 +156,10 @@ view! {
 outermost one) and removes it when the registering scope goes. `Button`,
 `IconButton`, `ToggleButton`, `ActionRow` and `MenuItem` take an `action` prop:
 they show its label and glyph unless they are given their own, are disabled
-while it is, show its first shortcut in their tooltip, and run it when pressed;
-a `ToggleButton` is pressed while the action is `checked`. An action's `run`
+while it is, show its first shortcut in their tooltip (a `MenuItem` beside its
+label), and run it when pressed; a `ToggleButton` is pressed, and a `MenuItem`
+ticked, while the action is `checked`. `.checked(signal)` makes a checkbox and
+`.radio(signal)` one choice of a group (a `MenuItem` then has the radio role). An action's `run`
 does nothing while it is disabled.
 
 An action is a listener too. `action_scope(&node_ref)` makes a scope that
@@ -227,9 +229,14 @@ when it opened: typing filters them by every word, Up/Down/Page Up/Page Down
 move the highlight over the enabled ones, Enter or a click runs the highlighted
 one, and Escape closes it; disabled actions are listed last and greyed. Closing
 it puts the focus back where it was before the action runs. An editor frame
-opens it with Ctrl+Shift+P and from a row of its menu, and
-`menu_actions()` (every action registered with
-`in_menu()`) is what fills that menu, which the dock shows behind its More
+opens it with Ctrl+Shift+P and from a row of its menu.
+
+A menu is described once as `MenuNode`s: `MenuNode::action(&action)` (or
+`labelled` to name it differently in this menu), `MenuNode::submenu(id, label,
+glyph, items)` and `MenuNode::Separator`. `<MenuNodes nodes />` turns that into
+`MenuItem` rows for a `ContextMenu`, a `MenuPopup` or a menu button, and
+`add_to_menu(nodes)` adds a part to the document's own menu, `document_menu()`,
+which an editor frame hands its host and the dock shows behind its More
 button.
 
 ## One input path

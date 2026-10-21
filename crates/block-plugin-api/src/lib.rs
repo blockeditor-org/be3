@@ -39,6 +39,7 @@ pub use ui_types::{
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
+pub const MAX_MENU_DEPTH: usize = 8;
 pub const MAX_TEXT_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_BLOB_BYTES: usize = 64 * 1024 * 1024;
 pub const MAX_OPAQUE_DESCRIPTOR_BYTES: usize = 64 * 1024;
@@ -100,12 +101,47 @@ pub enum BarAction {
     Details,
 }
 
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MenuEntry {
+    Command(MenuCommand),
+    Submenu(MenuSubmenu),
+    Separator,
+}
+
 #[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct MenuEntry {
+pub struct MenuCommand {
     pub id: String,
     pub label: String,
     pub glyph: String,
     pub enabled: bool,
+    pub check: MenuCheck,
+    pub shortcut: Option<KeyChord>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum MenuCheck {
+    #[default]
+    None,
+    Checkbox(bool),
+    Radio(bool),
+}
+
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub struct MenuSubmenu {
+    pub id: String,
+    pub label: String,
+    pub glyph: String,
+    pub entries: Vec<MenuEntry>,
+}
+
+impl MenuEntry {
+    pub fn command(entries: &[MenuEntry], id: &str) -> Option<MenuCommand> {
+        entries.iter().find_map(|entry| match entry {
+            MenuEntry::Command(command) => (command.id == id).then(|| command.clone()),
+            MenuEntry::Submenu(submenu) => MenuEntry::command(&submenu.entries, id),
+            MenuEntry::Separator => None,
+        })
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -2641,11 +2677,27 @@ fn metadata(entries: &MetadataEntries) -> Result<(), DecodeError> {
 }
 
 fn menu(entries: &[MenuEntry]) -> Result<(), DecodeError> {
-    collection(entries.len())?;
+    let mut count = 0;
+    menu_level(entries, 0, &mut count)
+}
+
+fn menu_level(entries: &[MenuEntry], depth: usize, count: &mut usize) -> Result<(), DecodeError> {
+    if depth > MAX_MENU_DEPTH {
+        return Err(DecodeError::LimitExceeded("menu depth"));
+    }
+    *count += entries.len();
+    collection(*count)?;
     for entry in entries {
-        string(&entry.id)?;
-        string(&entry.label)?;
-        string(&entry.glyph)?;
+        match entry {
+            MenuEntry::Command(command) => {
+                strings([&command.id, &command.label, &command.glyph])?;
+            }
+            MenuEntry::Submenu(submenu) => {
+                strings([&submenu.id, &submenu.label, &submenu.glyph])?;
+                menu_level(&submenu.entries, depth + 1, count)?;
+            }
+            MenuEntry::Separator => {}
+        }
     }
     Ok(())
 }

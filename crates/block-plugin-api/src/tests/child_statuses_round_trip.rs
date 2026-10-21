@@ -18,12 +18,13 @@ fn child_statuses_round_trip() {
             capabilities: EditorCapabilities::default(),
             resize: ResizeMode::Both,
             error: None,
-            menu: vec![MenuEntry {
+            menu: vec![MenuEntry::Command(MenuCommand {
                 id: "editor.rename".into(),
                 label: "Rename".into(),
                 glyph: "edit".into(),
                 enabled: true,
-            }],
+                ..MenuCommand::default()
+            })],
             creation: Some(CreationProgress::Options { ready: true }),
             settings: Some(SettingsProgress {
                 changed: true,

@@ -32,7 +32,7 @@ fn a_stacked_dock_bar_shows_the_menu_its_tab_hands_it() {
                                 renamed.update(|renamed| *renamed += 1)
                             })
                             .detached();
-                            dock_menu(create_memo(move || vec![rename.clone()]));
+                            dock_menu(create_memo(move || vec![MenuNode::action(&rename)]));
                             view! {
                                 <Frame @test_id="content.2" />
                             }

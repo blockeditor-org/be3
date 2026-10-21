@@ -11,8 +11,8 @@ use block_editor_beui::{
 };
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FrameChrome,
-    FrameReport, HelloAccepted, InputBatch, MenuEntry, Message, ScreenId, ScreenRequest, ScreenSet,
-    SurfaceFormat, SurfaceSpec, TopBar, ViewportMetrics,
+    FrameReport, HelloAccepted, InputBatch, MenuCommand, MenuEntry, Message, ScreenId,
+    ScreenRequest, ScreenSet, SurfaceFormat, SurfaceSpec, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -368,12 +368,26 @@ impl<A: BeuiApp> BeuiTest<A> {
         &self.menu
     }
 
-    pub fn menu_entry(&self, id: &str) -> MenuEntry {
-        self.menu
-            .iter()
-            .find(|entry| entry.id == id)
-            .cloned()
-            .unwrap_or_else(|| panic!("the menu offers no {id:?}"))
+    pub fn menu_entry(&self, id: &str) -> MenuCommand {
+        MenuEntry::command(&self.menu, id).unwrap_or_else(|| panic!("the menu offers no {id:?}"))
+    }
+
+    pub fn menu_ids(&self) -> Vec<String> {
+        fn collect(entries: &[MenuEntry], ids: &mut Vec<String>) {
+            for entry in entries {
+                match entry {
+                    MenuEntry::Command(command) => ids.push(command.id.clone()),
+                    MenuEntry::Submenu(submenu) => {
+                        ids.push(submenu.id.clone());
+                        collect(&submenu.entries, ids);
+                    }
+                    MenuEntry::Separator => {}
+                }
+            }
+        }
+        let mut ids = Vec::new();
+        collect(&self.menu, &mut ids);
+        ids
     }
 
     pub fn pick_menu(&mut self, id: &str) {

@@ -159,6 +159,7 @@ pub fn MenuPopup(
                             row
                             panel={sheet_panel}
                             active={raised}
+                            pages=true
                             on_select={sheet_choose}
                         />
                     },

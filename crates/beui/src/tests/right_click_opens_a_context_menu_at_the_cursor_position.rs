@@ -22,7 +22,7 @@ fn right_click_opens_a_context_menu_at_the_cursor_position() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
 
-    let pos = harness.center(region);
+    let pos = harness.rect(region).min + Vec2::new(10.0, 10.0);
     harness.frame(vec![Event::PointerMoved(pos)]);
     harness.frame(vec![Event::PointerButton {
         pos,

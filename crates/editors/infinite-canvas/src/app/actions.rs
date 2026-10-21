@@ -41,6 +41,7 @@ pub(crate) struct CanvasActions {
     pub(crate) open: Action,
     pub(crate) toggle_mode: Action,
     pub(crate) fit_selection: Action,
+    pub(crate) fit_frame: Action,
     pub(crate) cut: Action,
     pub(crate) copy: Action,
     pub(crate) paste: Action,
@@ -133,7 +134,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let tool = |id: &str, label: &'static str, tool: Tool| {
         Action::new(id, label, move || state.set_tool(tool))
             .glyph(tool.glyph())
-            .checked(create_memo(move || state.tool.get() == tool))
+            .radio(create_memo(move || state.tool.get() == tool))
             .enabled(free)
     };
     let command = |id: &str, label: &'static str, glyph: &str, command: CanvasCommand| {
@@ -160,7 +161,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let cut = command("canvas.cut", "Cut", ICON_CONTENT_CUT, CanvasCommand::Cut)
         .shortcut(Chord::ctrl(Key::X))
         .enabled(selected)
-        .in_menu()
         .register();
     let copy = command(
         "canvas.copy",
@@ -170,7 +170,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::C))
     .enabled(selected)
-    .in_menu()
     .register();
     let paste = command(
         "canvas.paste",
@@ -180,7 +179,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::V))
     .enabled(free)
-    .in_menu()
     .register();
     let theme = use_theme();
     let exporter = Exporter::new(
@@ -197,7 +195,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
             })
             .glyph(glyph)
             .enabled(drawn)
-            .in_menu()
             .register()
         };
     let copy_png = export(
@@ -236,7 +233,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::D))
     .enabled(selected)
-    .in_menu()
     .register();
     let delete = command(
         "canvas.delete",
@@ -245,7 +241,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         CanvasCommand::Delete,
     )
     .enabled(unlocked)
-    .in_menu()
     .register();
     let group = command(
         "canvas.group",
@@ -255,7 +250,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::G))
     .enabled(groupable)
-    .in_menu()
     .register();
     let ungroup = command(
         "canvas.ungroup",
@@ -265,11 +259,9 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::G).shift())
     .enabled(grouped)
-    .in_menu()
     .register();
     let lock = command("canvas.lock", "Lock", ICON_LOCK, CanvasCommand::Lock)
         .enabled(unlocked)
-        .in_menu()
         .register();
     let unlock = command(
         "canvas.unlock",
@@ -278,7 +270,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         CanvasCommand::Unlock,
     )
     .enabled(locked)
-    .in_menu()
     .register();
     let select_all = command(
         "canvas.select-all",
@@ -288,7 +279,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::A))
     .enabled(free)
-    .in_menu()
     .register();
     let invert = command(
         "canvas.invert-selection",
@@ -298,28 +288,24 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     )
     .shortcut(Chord::ctrl(Key::A).shift())
     .enabled(free)
-    .in_menu()
     .register();
     let fit_selection = Action::new("canvas.fit-selection", "Fit selection", move || {
         state.request_fit_selection()
     })
     .glyph(ICON_FILTER_CENTER_FOCUS)
     .enabled(selected)
-    .in_menu()
     .register();
-    Action::new("canvas.fit-frame", "Fit the first frame", move || {
+    let fit_frame = Action::new("canvas.fit-frame", "Fit the first frame", move || {
         state.request_fit_frame()
     })
     .glyph(ICON_FIT_SCREEN)
     .enabled(framed)
-    .in_menu()
     .register();
     let profile = |id: &str, label: &'static str, glyph: &str, profile: CanvasProfile| {
         Action::new(id, label, move || state.switch_profile(profile))
             .glyph(glyph)
-            .checked(create_memo(move || state.profile.get() == profile))
+            .radio(create_memo(move || state.profile.get() == profile))
             .enabled(live)
-            .in_menu()
             .register()
     };
     let prototyping = profile(
@@ -345,22 +331,18 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let diamond = tool("canvas.tool.diamond", "Draw a diamond", Tool::Diamond)
         .shortcut(Chord::key(Key::D))
         .shortcut(Chord::key(Key::Three))
-        .in_menu()
         .register();
     let ellipse = tool("canvas.tool.ellipse", "Draw an ellipse", Tool::Ellipse)
         .shortcut(Chord::key(Key::O))
         .shortcut(Chord::key(Key::Four))
-        .in_menu()
         .register();
     let arrow = tool("canvas.tool.arrow", "Draw an arrow", Tool::Arrow)
         .shortcut(Chord::key(Key::A))
         .shortcut(Chord::key(Key::Five))
-        .in_menu()
         .register();
     let line = tool("canvas.tool.line", "Draw a line", Tool::Line)
         .shortcut(Chord::key(Key::L))
         .shortcut(Chord::key(Key::Six))
-        .in_menu()
         .register();
     let pen = tool("canvas.tool.pen", "Draw freehand", Tool::Pen)
         .shortcut(Chord::key(Key::P))
@@ -373,11 +355,9 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let eraser = tool("canvas.tool.eraser", "Erase", Tool::Eraser)
         .shortcut(Chord::key(Key::E))
         .shortcut(Chord::key(Key::Zero))
-        .in_menu()
         .register();
     let lasso = tool("canvas.tool.lasso", "Lasso select", Tool::Lasso)
         .shortcut(Chord::key(Key::V).shift())
-        .in_menu()
         .register();
     let select_mode = Action::new("canvas.tool.select-mode", "Select", move || {
         state.switch_select_tool()
@@ -387,7 +367,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     .detached();
     let frame = tool("canvas.tool.frame", "Draw a frame", Tool::Frame)
         .shortcut(Chord::key(Key::F))
-        .in_menu()
         .register();
     let tool_lock = Action::new(
         "canvas.tool-lock",
@@ -398,7 +377,6 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     .shortcut(Chord::key(Key::Q))
     .checked(state.tool_locked)
     .enabled(free)
-    .in_menu()
     .register();
     let add_rectangle = add(
         "canvas.add.rectangle",
@@ -533,6 +511,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         open,
         toggle_mode,
         fit_selection,
+        fit_frame,
         cut,
         copy,
         paste,

@@ -29,7 +29,7 @@ fn a_held_finger_opens_the_context_menu_in_every_tool() {
         editor.finger(1, TouchPhase::End, center);
         editor.run();
         assert!(
-            editor.shown("infinite-canvas.menu.delete"),
+            editor.shown("infinite-canvas.menu.canvas.delete"),
             "holding a finger opens the menu with the {tool} tool"
         );
         assert_eq!(
@@ -40,7 +40,7 @@ fn a_held_finger_opens_the_context_menu_in_every_tool() {
         if tool == "Pen" {
             editor.snapshot("a_held_finger_opens_the_context_menu");
         }
-        editor.click("infinite-canvas.menu.delete");
+        editor.click("infinite-canvas.menu.canvas.delete");
         editor.run();
         assert!(
             entities(&editor).is_empty(),

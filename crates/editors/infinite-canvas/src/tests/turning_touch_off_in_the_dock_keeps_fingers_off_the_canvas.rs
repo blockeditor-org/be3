@@ -59,7 +59,7 @@ fn turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas() {
         "and selects nothing"
     );
     assert!(
-        !editor.shown("infinite-canvas.menu.delete"),
+        !editor.shown("infinite-canvas.menu.canvas.delete"),
         "nor opens the menu"
     );
 

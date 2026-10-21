@@ -3,8 +3,8 @@ use beui::KeyAt;
 use beui::TextAlign;
 use beui::icons::{
     ICON_ADD, ICON_ATTACH_FILE, ICON_CHECK_CIRCLE, ICON_CLOSE, ICON_FOLDER, ICON_FORMAT_QUOTE,
-    ICON_IMAGE, ICON_INFO, ICON_SAVE, ICON_SCHEDULE, ICON_SUBJECT, ICON_TABLE_CHART,
-    ICON_UPLOAD_FILE, ICON_WARNING,
+    ICON_FORMAT_SIZE, ICON_IMAGE, ICON_INFO, ICON_SAVE, ICON_SCHEDULE, ICON_SUBJECT,
+    ICON_TABLE_CHART, ICON_UPLOAD_FILE, ICON_WARNING,
 };
 use beui::unstyled::MenuThen;
 
@@ -1415,6 +1415,9 @@ pub(crate) fn MenusPage() -> NodeId {
             <Sample title="Context menu" code={vec![CardMenu::SOURCE]}>
                 <CardMenu />
             </Sample>
+            <Sample title="Menus built from actions" code={vec![ActionMenu::SOURCE]}>
+                <ActionMenu />
+            </Sample>
             <Sample title="Menu buttons" code={vec![SortMenus::SOURCE]}>
                 <SortMenus />
             </Sample>
@@ -1485,6 +1488,75 @@ fn GlobalActions() -> NodeId {
             </List>
             <Text style=TextStyle::CAPTION>{locked}</Text>
             <CommandPalette open />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn ActionMenu() -> NodeId {
+    let wrapped = create_signal(true);
+    let size = create_signal(14u32);
+    let copies = create_signal(0);
+    let copy = Action::new("demo.menu.copy", "Copy", move || {
+        copies.update(|copies| *copies += 1)
+    })
+    .glyph(ICON_CONTENT_COPY)
+    .shortcut(Chord::ctrl(Key::C))
+    .register();
+    let wrap = Action::new("demo.menu.wrap", "Wrap lines", move || {
+        wrapped.update(|wrapped| *wrapped = !*wrapped)
+    })
+    .checked(wrapped)
+    .register();
+    let sized = |id: &str, label: &'static str, points: u32| {
+        Action::new(id, label, move || size.set(points))
+            .radio(create_memo(move || size.get() == points))
+            .register()
+    };
+    let nodes = vec![
+        MenuNode::action(&copy),
+        MenuNode::Separator,
+        MenuNode::action(&wrap),
+        MenuNode::submenu(
+            "demo.menu.size",
+            "Text size",
+            ICON_FORMAT_SIZE,
+            [
+                sized("demo.menu.small", "Small", 12),
+                sized("demo.menu.medium", "Medium", 14),
+                sized("demo.menu.large", "Large", 18),
+            ]
+            .iter()
+            .map(MenuNode::action)
+            .collect(),
+        ),
+    ];
+    let state = create_memo(move || {
+        format!(
+            "Copied {} times, wrapping {}, {} pt",
+            copies.get(),
+            if wrapped.get() { "on" } else { "off" },
+            size.get()
+        )
+    });
+    view! {
+        <List spacing=SECTION_SPACING>
+            <ContextMenu
+                items={view! {
+                    <unstyled::MenuNodes nodes />
+                }}
+            >
+                <Card>
+                    <Text style=TextStyle::PARAGRAPH wrap=true>
+                        "One description of actions, separators and submenus fills this menu, a \
+                         plugin's frame menu and the command palette. Each row shows its action's \
+                         shortcut, a checkbox ticks while its action is checked, and a radio group \
+                         ticks the chosen one."
+                    </Text>
+                </Card>
+            </ContextMenu>
+            <Text style=TextStyle::CAPTION>{state}</Text>
         </List>
     }
 }

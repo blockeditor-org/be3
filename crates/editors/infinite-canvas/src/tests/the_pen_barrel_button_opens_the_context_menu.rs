@@ -18,11 +18,11 @@ fn the_pen_barrel_button_opens_the_context_menu() {
     editor.pen(PenPhase::Up(PointerButton::Secondary), center, 0.0);
     editor.run();
     assert!(
-        editor.shown("infinite-canvas.menu.delete"),
+        editor.shown("infinite-canvas.menu.canvas.delete"),
         "the barrel button opens the menu where the pen is"
     );
     assert_eq!(entities(&editor).len(), 1, "and draws nothing");
-    editor.click("infinite-canvas.menu.delete");
+    editor.click("infinite-canvas.menu.canvas.delete");
     editor.run();
     assert!(
         entities(&editor).is_empty(),

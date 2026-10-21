@@ -26,7 +26,7 @@ use beui_view::reactive::*;
 const PADDING_HORIZONTAL: f32 = 14.0;
 const PADDING_VERTICAL: f32 = 6.0;
 const MENU_PADDING: f32 = 4.0;
-const MENU_WIDTH: f32 = 200.0;
+const MENU_WIDTH: f32 = 256.0;
 const SUBMENU_SPACING: f32 = 8.0;
 const SHEET_PADDING: f32 = 8.0;
 const SHEET_STOPS: [f32; 2] = [0.5, 0.9];
@@ -198,6 +198,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         glyph_color,
         detail,
         checked,
+        shortcut,
         disabled,
         danger,
         separated,
@@ -209,6 +210,8 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         focused,
         ..
     } = handle;
+    let shortcut = create_memo(move || shortcut.get());
+    let has_shortcut = create_memo(move || !shortcut.get().is_empty());
     let theme = use_theme();
     let disabled = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
@@ -268,6 +271,11 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             </Text>
                         </Show>
                     </List>
+                    <Show condition={has_shortcut}>
+                        <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
+                            {shortcut}
+                        </Text>
+                    </Show>
                     <MenuCheck checked />
                     <Frame visible={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
@@ -436,6 +444,7 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         hovered,
         active,
         focused,
+        ..
     } = handle;
     let glyph = match kind {
         MenuRowKind::Back => Prop::Static(ICON_CHEVRON_LEFT.to_owned()),

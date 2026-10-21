@@ -37,7 +37,6 @@ pub(crate) fn grid_actions(state: CanvasState) -> GridActions {
     .glyph(ICON_GRID_ON)
     .checked(create_memo(move || !grid.get().hidden))
     .enabled(live)
-    .in_menu()
     .register();
     let spaced = |id: &str, label: &'static str, spacing: CanvasGridSpacing| {
         Action::new(id, label, move || {
@@ -46,7 +45,7 @@ pub(crate) fn grid_actions(state: CanvasState) -> GridActions {
                 spacing,
             })
         })
-        .checked(create_memo(move || grid.get().shown() == Some(spacing)))
+        .radio(create_memo(move || grid.get().shown() == Some(spacing)))
         .enabled(live)
         .register()
     };

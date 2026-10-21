@@ -83,6 +83,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let scope = NodeRef::new();
     action_scope(&scope);
     let actions = canvas_actions(state);
+    add_to_menu(menu::frame_menu(&actions));
     let touch = actions.touch;
     let exporter = actions.exporter;
     provide_context(actions);

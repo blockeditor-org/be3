@@ -14,14 +14,14 @@ pub(super) fn register(state: TextAreaState, disabled: Memo<bool>) {
         .glyph(ICON_SEARCH)
         .shortcut(Chord::ctrl(Key::F))
         .register();
-    Action::new("text.replace", "Find and replace", move || {
+    let replace = Action::new("text.replace", "Find and replace", move || {
         state.open_find(true)
     })
     .glyph(ICON_FIND_REPLACE)
     .shortcut(Chord::ctrl(Key::H))
     .enabled(editable)
-    .in_menu()
     .register();
+    add_to_menu(vec![MenuNode::action(&replace)]);
     Action::new("text.find-next", "Find the next match", move || {
         state.find_step(FindDirection::Next);
     })

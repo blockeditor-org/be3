@@ -132,7 +132,7 @@ pub struct DockBarHandle {
     pub title: Memo<String>,
     pub vacant: Memo<bool>,
     pub closable: Memo<bool>,
-    pub menu: Memo<Vec<Action>>,
+    pub menu: Memo<Vec<MenuNode>>,
     pub close: ClickCallback,
 }
 
@@ -154,7 +154,7 @@ pub struct DockStackHandle {
     pub icon: Memo<String>,
     pub backward: Memo<bool>,
     pub actions: Memo<Option<NodeId>>,
-    pub menu: Memo<Vec<Action>>,
+    pub menu: Memo<Vec<MenuNode>>,
     pub back: ClickCallback,
     pub others: Memo<usize>,
     pub switchable: Memo<bool>,
@@ -301,7 +301,7 @@ struct DockTabActions {
     actions: Signal<HashMap<TabId, NodeId>>,
 }
 
-pub type DockMenus = HashMap<TabId, (u64, Memo<Vec<Action>>)>;
+pub type DockMenus = HashMap<TabId, (u64, Memo<Vec<MenuNode>>)>;
 
 #[derive(Clone, Copy)]
 pub struct DockTabMenu {
@@ -313,7 +313,7 @@ thread_local! {
     static NEXT_MENU: Cell<u64> = const { Cell::new(1) };
 }
 
-pub fn dock_menu(items: Memo<Vec<Action>>) {
+pub fn dock_menu(items: Memo<Vec<MenuNode>>) {
     let Some(DockTabMenu { tab, menu }) = use_context::<DockTabMenu>() else {
         return;
     };
@@ -330,7 +330,7 @@ pub fn dock_menu(items: Memo<Vec<Action>>) {
     });
 }
 
-pub fn dock_menu_items(menus: ReadSignal<DockMenus>, tab: Option<TabId>) -> Vec<Action> {
+pub fn dock_menu_items(menus: ReadSignal<DockMenus>, tab: Option<TabId>) -> Vec<MenuNode> {
     let Some(tab) = tab else {
         return Vec::new();
     };
@@ -493,7 +493,7 @@ impl State {
         }
     }
 
-    fn leaf_menu(&self, leaf: Option<LeafId>) -> Memo<Vec<Action>> {
+    fn leaf_menu(&self, leaf: Option<LeafId>) -> Memo<Vec<MenuNode>> {
         let dock = *self;
         create_memo(move || {
             let tab = leaf.and_then(|leaf| {
