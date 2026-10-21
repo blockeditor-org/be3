@@ -8,6 +8,7 @@ mod block_ids;
 mod host_value;
 mod linux;
 mod manifest;
+mod nesting;
 mod session;
 pub use block_ids::BlockIdRole;
 pub use host_value::{
@@ -131,6 +132,7 @@ pub struct MenuSubmenu {
     pub id: String,
     pub label: String,
     pub glyph: String,
+    #[serde(deserialize_with = "nesting::submenu")]
     pub entries: Vec<MenuEntry>,
 }
 
@@ -2264,7 +2266,12 @@ pub fn decode_frame(frame: &[u8]) -> Result<Message, DecodeError> {
     }
     let message = codec()
         .deserialize(&frame[4..])
-        .map_err(|_| DecodeError::MalformedPayload)?;
+        .map_err(|error| match *error {
+            bincode::ErrorKind::Custom(message) if message == nesting::TOO_DEEP => {
+                DecodeError::LimitExceeded("menu depth")
+            }
+            _ => DecodeError::MalformedPayload,
+        })?;
     validate(&message)?;
     Ok(message)
 }
