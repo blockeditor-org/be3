@@ -106,6 +106,23 @@ impl Path {
         self.elements.is_empty()
     }
 
+    pub fn translated(&self, by: Vec2) -> Self {
+        let elements = self
+            .elements
+            .iter()
+            .map(|element| match *element {
+                PathElement::MoveTo(to) => PathElement::MoveTo(to + by),
+                PathElement::LineTo(to) => PathElement::LineTo(to + by),
+                PathElement::QuadTo(control, to) => PathElement::QuadTo(control + by, to + by),
+                PathElement::CubicTo(first, second, to) => {
+                    PathElement::CubicTo(first + by, second + by, to + by)
+                }
+                PathElement::Close => PathElement::Close,
+            })
+            .collect();
+        Self { elements }
+    }
+
     pub fn bounds(&self) -> Rect {
         self.elements
             .iter()
