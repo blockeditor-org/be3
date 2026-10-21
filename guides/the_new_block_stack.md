@@ -421,7 +421,7 @@ impl Root for Calendar {
 pub type CalendarContent = Document<Calendar>;
 ```
 
-A field is one of eight things. A `Count` is a counter whose concurrent changes
+A field is one of nine things. A `Count` is a counter whose concurrent changes
 add up. A `Grid<T>` is a dense block of fixed-size cells addressed by
 coordinates, for pixel data: its bounds are part of its value, so a resize moves
 the bounds and keeps every cell at its coordinates, `paint` sets cells and
@@ -439,7 +439,20 @@ so concurrent typing and deleting never need rebasing. Positions and tombstones
 are session state (positions only: the receiver fills the visible bytes in from
 its own copy, and an undelete carries the bytes it brings back), and an offline
 merge is a line diff3. The text block is `Document<TextBlock>`, its body a
-`Text` (see `plans/text.md`).
+`Text` (see `plans/text.md`). A `RichText` is a `Text` with formatting, the
+marks beui's rich text editor makes (`sequence::marks`, re-exported as
+`be_model::marks` and by `text_editor_core`): each mark is a key and value
+(bold, a link, a heading level) over a range, inline or over whole lines,
+anchored to positions, so its edits are `Change::Text` for the bytes and
+`Change::Mark` and `Change::Unmark` for the formatting. A mark has an id
+(a clock and the client), the later id wins where marks overlap, and
+concurrent formatting and typing converge like typing does. It saves its
+bytes and its formatting as byte ranges, resolved so no two ranges of one
+key overlap, and reloads them as fresh marks; the session state carries the
+live marks with the positions. Undoing a format removes that mark only. An
+offline merge is a line diff3 where a line is its bytes and its formatting
+together, so formatting a line on one side and typing in it on the other
+conflicts and is rendered with the same markers as text.
 
 Client `0` (`sequence::LOADED`) belongs to the initial buffer; edits cannot
 allocate positions under it. The text editor anchors each boundary before one
@@ -1565,20 +1578,23 @@ same way rather than joining it to the peer's `UserActive` entry.
 
 ### Editors with their own model
 
-The text editor cannot hand its state to a projection: `text_editor_core` wants
-a `Document` that hands out anchors, so a cursor stays on its character while
-other people type. An anchor names one byte and dies with it. Only the bytes
-something holds a position on have one: `text_editor_core::AnchorTable` makes
-them on demand and moves them on every edit, so its cost follows the cursors and
-undo steps, not the length of the text. `text_block::document::BlockDocument`
-keeps the bytes and their table itself, turns each local edit into
-`TextOp::Delete` and `TextOp::Insert` that the editor pushes into its
-`ContentProjection` every frame, and adopts a change from elsewhere by diffing
-the projection's text against its own: anchors on unchanged bytes move with
-them, and the rest are dropped. Its undo is its own too, because it has to give the text core back its
-cursors. Each step remembers the anchors either side of the text it replaced
-and both versions of that text, so undo finds the text wherever it has moved to
-and skips it when someone else has changed it since.
+The text editor cannot hand its state to a projection: `text_editor_core`
+wants a `Document` that hands out positions, so a cursor stays on its
+character while other people type. `block_editor_beui::live_text::LiveText`
+is that document for any `Text` or `RichText` field of any block, and it is
+the only one: the text editor and anything else that edits text in place
+(a canvas text shape) mount the editor on one. A `TextField` names the
+object and field it edits, and optionally a language and indentation the
+block stores beside it (`text_block::document::TextBody` does that for a text
+block); `FieldOf::rich` and `FieldOf::plain` name a field and nothing else. It
+keeps its own copy of the field's sequence and marks, turns each local edit
+into `Change::Text` and each format into `Change::Mark` (a plain `Text`
+takes no formats), and `LiveText::sync`, called on every change of the
+document and of the projection (the projection must `record()`), sends them,
+asks the host to undo or redo, applies the edits others made to the field in
+place, and takes in the whole field otherwise, which is a no-op when nothing
+in it changed. Undo is the host's (`Document::step`), so it leaves other
+people's typing and formatting alone.
 
 Dynamic artifacts reach content from the artifact session through the
 host: `EditorHost::content_of` gives a regeneration a projection of its source,

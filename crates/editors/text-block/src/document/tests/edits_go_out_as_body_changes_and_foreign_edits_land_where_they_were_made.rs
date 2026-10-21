@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn edits_go_out_as_body_changes_and_foreign_edits_land_where_they_were_made() {
-    let document = BlockDocument::new(Waker::default());
+    let document = BlockDocument::new(TextBody, Waker::default());
     let mut content = TextBlock::of("hello world");
     document.adopt(&content);
 

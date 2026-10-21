@@ -1447,6 +1447,7 @@ name = "block-editor-beui"
 version = "0.1.0"
 dependencies = [
  "be-block",
+ "be-model",
  "beui",
  "beui-adapter-plugin",
  "block-editor-plugin",
@@ -1454,6 +1455,7 @@ dependencies = [
  "block-ui",
  "serde",
  "serde_json",
+ "text-editor-core",
  "uuid",
 ]
 

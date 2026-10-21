@@ -2,7 +2,7 @@ use super::*;
 
 #[test]
 fn undo_and_redo_are_asked_of_the_host() {
-    let document = BlockDocument::new(Waker::default());
+    let document = BlockDocument::new(TextBody, Waker::default());
     document.adopt(&TextBlock::of("text"));
     let revision = document.revision();
 

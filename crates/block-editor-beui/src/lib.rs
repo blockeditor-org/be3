@@ -15,6 +15,7 @@ pub mod fonts;
 pub mod headless;
 mod instance;
 mod layered_settings;
+pub mod live_text;
 mod loading;
 mod related_content;
 mod rotation;

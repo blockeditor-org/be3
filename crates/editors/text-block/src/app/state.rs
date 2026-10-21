@@ -9,12 +9,13 @@ use beui::{Rect, Vec2};
 use block_editor_beui::BlockQuery;
 use block_editor_beui::be_block::presence::pick_free_color;
 use block_editor_beui::be_block::{ImageContent, TextContent};
+use block_editor_beui::live_text::Synced;
 use block_editor_beui::{BlockList, Blocks};
-use block_editor_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBase, Projected};
+use block_editor_beui::{ChildState, ContentProjection, Editor, EditorHost, LinkBase};
 use text_editor_core::{EditorCommand, TextLanguage};
 use uuid::Uuid;
 
-use crate::document::{BlockDocument, History, inside_block_url};
+use crate::document::{BlockDocument, TextBody, inside_block_url, reference_ranges};
 use crate::presence::TextCursor;
 
 use super::embeds::{ResolvedEmbed, image_embed_directive, resolve_embeds};
@@ -68,7 +69,7 @@ impl State {
         let block_id = editor.block_id();
         let content = editor.block_content::<TextContent>();
         content.record();
-        let document = Arc::new(BlockDocument::new(editor.host().waker()));
+        let document = Arc::new(BlockDocument::new(TextBody, editor.host().waker()));
         let text = TextAreaState::new(Arc::clone(&document) as Arc<dyn text_editor_core::Document>);
         text.with_core_mut(|core| core.config.inside_atomic_unit = inside_block_url);
         let dependencies = client.watch(BlockQuery::References(block_id));
@@ -136,48 +137,16 @@ impl State {
 
     pub fn pump(&self) {
         let inner = self.inner();
-        let operations = inner.document.take_operations();
-        let own = !operations.is_empty();
-        let refused = own && !self.host().editable();
-        for operation in operations {
-            inner.content.operate(operation);
+        let first = !inner.adopted.get();
+        let synced = inner
+            .document
+            .sync(&inner.content, &self.host(), self.block_id, first);
+        match synced {
+            Synced::Waiting => return,
+            Synced::External => self.text.external_edit(),
+            Synced::Unchanged => self.text.sync(),
         }
-        match inner.document.take_history() {
-            Some(History::Undo) => self.host().undo(self.block_id),
-            Some(History::Redo) => self.host().redo(self.block_id),
-            None => {}
-        }
-        if inner.content.revision().is_err() {
-            return;
-        }
-        let projected = inner.content.take_projected();
-        let first = !inner.adopted.replace(true);
-        let mut whole = first
-            || refused
-            || (own
-                && projected
-                    .iter()
-                    .any(|projected| matches!(projected, Projected::Applied(_))));
-        if !whole {
-            for projected in &projected {
-                let applied = match projected {
-                    Projected::Applied(edit) => inner.document.apply(edit),
-                    Projected::Rebuilt => false,
-                };
-                if !applied {
-                    whole = true;
-                    break;
-                }
-            }
-        }
-        if whole {
-            let _ = inner.content.read(|content| inner.document.adopt(content));
-        }
-        if inner.document.take_external_edit() {
-            self.text.external_edit();
-        } else {
-            self.text.sync();
-        }
+        inner.adopted.set(true);
         if first {
             let start = self.text.with_core(|core| core.position(0));
             self.text.execute(EditorCommand::SetSelection {
@@ -293,7 +262,9 @@ impl State {
 
     pub fn replace_child(&self, old: Uuid, new: Uuid) -> bool {
         let inner = self.inner();
-        let ranges = inner.document.reference_ranges(old);
+        let ranges = inner
+            .document
+            .with_bytes(|bytes| reference_ranges(bytes, old));
         self.text.execute(EditorCommand::ReplaceRanges {
             ranges: &ranges,
             replacement: new.to_string().as_bytes(),
