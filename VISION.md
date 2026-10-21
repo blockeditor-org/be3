@@ -1,0 +1,276 @@
+# Vision
+
+What BE3 is for, and why it has the parts it has. Where a direction is still
+open, it says so. What each part of the repository is lives in
+`guides/repository.md`.
+
+## The problem and the bet
+
+Every application writes files to a file system, and then reinvents, or goes
+without, live collaboration, sharing, permissions, accounts, undo, history and
+teams. BE3 is a bet on a new base for computers: every document is a block, and
+every block gets those from the platform instead of from its application.
+
+It is for the people who use Google Docs, Notion or Obsidian today. A person or
+their company would pay for storage. If outside developers come, an extension
+store could earn something, and if the desktop side gets good enough, hardware
+could. None of that is decided.
+
+## What it has to be
+
+Two things, and neither is enough alone.
+
+- **A strong core for extension.** What a block gets for free has to be good
+  enough that building on BE3 beats building a standalone app, and the plugin
+  API has to be safe and stable enough for strangers to build on.
+- **Apps that win on their own.** A few apps have to be solid, or new, enough
+  to attract people who don't care about the vision. An app is worth building
+  first when it is clearly better than what people use today, or does something
+  they can't do elsewhere, and shows off the core while doing it. The apps
+  people need from day one (notes, sharing, a calendar) still have to be good.
+
+## The core: layers a block can use
+
+The platform offers layers, and each block uses as many as it needs. What goes
+through a layer gets that layer's guarantees, and nothing else does.
+
+1. **Identity, organization and sharing.** Accounts, workspaces, folders,
+   names, members and permissions. Every block gets these, even one that is
+   only a link.
+2. **Connection setup.** Finding the other people in a block and introducing
+   their clients to each other. A shared game world can stop here: BE3 sets up
+   the join, and the game talks over a channel of its own.
+3. **Storage and history.** Encrypted, content-addressed bytes, commits, and
+   three-way merge of offline edits. The server stores objects it can't read.
+4. **Live sync.** Today every block goes through a session owner that puts each
+   operation in one order, so nothing has to be a CRDT. Once plugins can
+   provide block types, a plugin should be able to bring its own instead: a
+   CRDT that needs no true order, OT, or a game's own netcode that has no
+   operations at all, while still using the layers below.
+5. **The built-in model.** `be_model` documents get merging, undo and
+   addressing of their parts without writing them. Most first-party editors use
+   it.
+
+Some blocks stop early:
+
+- **A document kept by another service** is a link. The service keeps its own
+  data, and BE3 gives the link a name, a place in a folder, and sharing (layer
+  1).
+- **A shared game world** uses layers 1 and 2.
+- **A foreign file**, a format with no editor of its own, uses layer 3 as a
+  blob. A blob can't be edited live, so it is locked instead, like cloud saves
+  in games but a little better:
+  - "Alex is editing this file. Edit anyway?"
+  - "You are offline. Edit anyway?"
+  - "This file was edited offline. Keep your version or theirs?", with a preview
+    of both, so the choice isn't blind. Both versions stay in history, so a
+    wrong choice can be undone. The stack already keeps the losing side of a
+    conflicted merge as a commit (`Peer::stash`).
+
+The guarantees follow the layers. "The server can't read it" and "every later
+version can open it" hold only for what is stored in layer 3. A link or a game's
+own channel keeps neither, and the app should be honest about that.
+
+## Extension
+
+Every editor is a plugin, so that eventually anyone can write one.
+
+**Kinds.** Plugins are wasm only today. Native plugins existed once and were
+dropped to save maintenance effort for now; they will come back. Web plugins
+will be a third kind, supported on every platform: webtech is possibly the most
+popular way to build a GUI there is. The protocol stays the same for all three,
+and free of any one GUI framework. What differs is how messages travel and how
+images are passed: wasm and native plugins hand over GPU textures, and a web
+plugin passes none, the app just deals with it.
+
+**Trust.** Plugins aren't properly sandboxed yet. The baseline to reach is that
+the app can safely and automatically preview what a plugin draws, on your own
+machine, even when a malicious person sent you the plugin. That is the least a
+plugin can be trusted with. Installing one, so that it shows up in the add-block
+menu and elsewhere, is a higher level of trust. Until the baseline holds, the
+first release has to be more careful, and should not run a plugin without the
+user confirming it.
+
+**Entry points.** The file tree is the only way into a block today. An editor
+may want an entry point of its own, the way the Google Sheets app on Android
+opens to your sheets and a button to make one. Not designed yet.
+
+## Where it runs
+
+- **Linux, Windows, macOS, the web and Android** run today.
+- **iOS** is required before a release. It is deferred because it is hard to
+  build for and there is no iPhone to test on. The app feels more like Android
+  than iOS today, so after the basic port its behaviour needs close attention:
+  back navigation, sheets, long press, text selection and scrolling.
+- **The desktop.** If BE3 is the base of a computer, it has to be able to be the
+  computer. With `--session`, block-app is a Wayland compositor whose shell is
+  a plugin (`guides/linux_desktop.md`). On Linux, a foreign file's own program
+  can then open inside a tab; elsewhere it opens in a separate app, and web and
+  Android can't open it at all.
+- **The PineNote** (`guides/pinenote.md`) is supported because it is a device we
+  own. It shows the app owning a tablet's whole UI, at the cost of some e-paper
+  specific work.
+- **Embedded Linux**, maybe. A GUI framework with a DRM backend could compete
+  with Slint, Qt Quick, LVGL and flutter-pi there, if its footprint and
+  performance are good enough.
+
+## Stances
+
+- **No reach to strangers.** Every sharing or messaging relationship starts with
+  a contact link given outside the app. That rules out spam, discovery and
+  moderation problems, and is a stance on privacy and social features.
+- **Being able to leave.** Export to plain files is part of trusting the app with
+  your notes, and doubles as a second backup.
+- **Frozen formats.** Nobody trusts an app with their notes if an update can
+  break them (`guides/frozen_formats.md`).
+
+## Decisions
+
+**Why beui.** The app needs a GUI framework that works without compromises on
+desktop, mobile and web, and isn't webtech. No big option does that:
+
+- Flutter is the closest. It draws its own pixels everywhere, but on the web it
+  has a large download, text input and selection that never feel native, and
+  accessibility through a shadow DOM. It is also Dart.
+- Compose Multiplatform, Qt, Avalonia and Uno are each strong somewhere and
+  weak on the web or on mobile.
+- The Rust options (Slint, Makepad, iced, egui, Dioxus, GPUI, Xilem) are small,
+  so choosing one means owning it anyway and working around what's broken. If
+  we have to own a framework to make it good, it may as well be ours.
+
+The project's own needs point the same way: plugins are sandboxed guests that
+render offscreen and hand over GPU textures, and the same UI is also a desktop
+shell. Owning the framework means owning text shaping, IME, accessibility
+(through AccessKit) and every platform's quirks. On the web beui has Flutter's
+problems, and Rust's wasm binaries stay large, but it already feels better there
+than Flutter.
+
+A compositor isn't usually written with a GUI framework: most composite client
+buffers with simple GPU operations. GNOME Shell, KWin and COSMIC (smithay with
+iced) do put one in the shell. What matters is that client windows stay
+textures passed straight through, so the framework costs only what the shell
+itself draws.
+
+**Why a session owner instead of a CRDT.** A single order makes merging, undo
+and the wire protocol simple, and lets an editor use plain data. Offline edits
+merge three ways over the stored bytes, so a wholesale rewrite conflicts
+visibly instead of interleaving. A block that is better as a CRDT can still be
+one (layer 4).
+
+## Editors
+
+Each editor's own direction. Most are early, and existing ones aren't
+necessarily the ones that should exist.
+
+### Text
+
+A core app for the first release, and the base of note keeping
+(`plans/daily_driver.md`). It has to be fast on large files and feel native,
+including text input on the web.
+
+### Infinite canvas
+
+A core app for the first release. Slides are canvases, so it is also the base
+of presentations.
+
+### Files, folders and the workspace
+
+Where you find and organize everything. The file tree is today's only entry
+point (see Extension). The phone layout (`plans/mobile.md`) and search,
+history, trash and export (`plans/daily_driver.md`, phase 7) come next.
+
+### Version control
+
+Version control is a powerful tool that only programmers get. The aim is to
+make it good and easy enough for anyone. Because collaboration is already
+offline merges plus live edits, a third-party editor shouldn't need special
+support to get it. It isn't there yet. **Open:** how it relates to a file's
+revision history; to a user they should probably be one concept.
+
+### Database
+
+Holds structured data, including the project's own tracker
+(`guides/tracker.md`). **Open:** views should probably work like Notion's: rows
+have properties, and a view filters and lays out the same rows as a table, a
+board or a calendar. If any block could carry properties, the calendar would be
+a view over blocks with a date and the map one over blocks with a place.
+
+### Calendar
+
+If BE3 is your computer, it needs a calendar. Possibly a view over dated
+blocks, as above.
+
+### Map
+
+For notes tied to places. The current editor isn't that experience yet. It
+might become a view over location metadata, as above.
+
+### Chat
+
+A group chat is a planned editor. It hasn't been designed. As a block it would
+get members, permissions and history from the core, and links to the documents
+it talks about.
+
+### Presentation
+
+A deck of slides, each one a canvas. `plans/presentation.md` lists ideas, such
+as speaker notes and following the presenter live.
+
+### Pixel art and video
+
+Candidates for apps done well. Pixel art might grow to be nearly as good as
+Aseprite, or be dropped in favour of storing Aseprite's own files as foreign
+files. Light video editing is in the same position.
+
+### Image, audio and PDF
+
+Viewers for the files people keep. They show that the stack streams large files
+instead of loading them whole.
+
+### Browser tab
+
+Paused. A system web view never worked well, so the tab only says that the app
+can't show web pages yet. A real browser means embedding Chromium, and would
+make sense once block-app can be your whole desktop. Sharing a tab, so someone
+else sees your browser live, is one possible direction.
+
+### Games
+
+A game is an application, so if the platform is good it has to run games. The
+tabletop games (chess, checkers and others, as deterministic wasm modules) and
+the logic game (a video game concept with some time put into it) are separate
+projects that show what the plugin API can build once it is safe for third
+parties and frozen. A shared game world that only uses BE3 to join (layers 1
+and 2) is another shape a game can take.
+
+### 3D scene
+
+An experiment that might grow into a persistent VR world.
+
+### Settings and the desktop shell
+
+Settings are blocks too, so they sync and can be shared like any other. The
+linux-desktop shell is the editor that makes block-app a desktop.
+
+### Terminal
+
+Planned for the desktop session, through ghostty-vt.
+
+### Debug and example editors
+
+The counter, triangle, pan-and-zoom, beui gallery, block-debug, checklist and
+pixel ray tracer editors are examples, tests and experiments, not apps.
+
+## Open questions
+
+- How version control and revision history become one concept.
+- Whether beui on the web keeps its own layout but swaps some leaf elements for
+  real DOM ones: text inputs first, then selection, links, video and web plugins
+  in iframes. That is what Flutter's platform views do, and it costs the same: a
+  DOM element can't sit between two layers beui draws, it must follow beui's
+  clips and scrolling without lagging a frame, and input and focus move between
+  the two. Building on beui's unstyled components keeps the option open.
+- Property-based views, as described under Database.
+- How a plugin provides its own live sync, and what the app tells people about
+  the guarantees such a block keeps.
+- Entry points other than the file tree.

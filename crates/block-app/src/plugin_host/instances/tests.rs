@@ -33,15 +33,7 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
         1.0,
         PASS,
     );
-    instances.place(
-        INSTANCE,
-        REGION,
-        Placement {
-            rect,
-            clip: rect,
-            pass: PASS,
-        },
-    );
+    instances.place(INSTANCE, REGION, Placement { rect, clip: rect });
     instances
 }
 

@@ -3,6 +3,7 @@ BE3 project
 You are inside of an Ubuntu VM. You may install and remove programs as needed, and free up disk space if it runs out.
 
 Guides:
+- VISION.md: what the project is for, why it has the parts it has, and where each editor is headed
 - guides/adding_a_block.md
 - guides/adding_a_game.md
 - guides/adding_a_plugin_editor.md
@@ -20,6 +21,7 @@ Guides:
 - guides/pinenote.md: block-app's session on the PineNote: e-paper, a display device that cannot draw, building for it
 - guides/pinenote_ebc.md: hrdl's `rockchip_ebc` e-paper driver: where its sources are, its hints and waveforms, its ioctl header
 - guides/reactive.md: the reactive graph under beui
+- guides/repository.md: which crates are the product, tooling, examples, separate projects or unrelated
 - guides/running/drive.md: how to run and test any app; read this first
 - guides/running/native.md
 - guides/running/web.md

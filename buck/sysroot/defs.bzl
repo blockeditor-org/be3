@@ -38,8 +38,7 @@ deb_lock = rule(
     impl = _deb_lock_impl,
 )
 
-# The packages laid out as a sysroot: headers, libraries (with GTK's and
-# WebKitGTK's loadable modules), the gcc install clang takes the C++ runtime
+# The packages laid out as a sysroot: headers, libraries, the gcc install clang takes the C++ runtime
 # from, and pkg-config files. /lib and /lib64 link into usr/, as on a merged-/usr
 # root, and absolute symlinks are made relative so they resolve inside it; one
 # pointing at something left behind is removed.
