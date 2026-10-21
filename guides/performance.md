@@ -19,10 +19,11 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
 - `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
 - `//crates/be-graph:example-access-bench` times the server's access queries (one block,
   what one account sees, a block's audience) on an organization of 100,000 blocks.
-- `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|ink]` opens the
+- `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|drag|ink]` opens the
   canvas editor through block-ui-test, the way its tests do, on 100 and on 10,000 shapes. It
-  pans and zooms by the host's view, and draws pen strokes, and prints each frame's wall
-  time (the whole host round trip), beui's layout, paint and interaction, and the most
+  pans and zooms by the host's view, drags a shape back and forth, and draws pen strokes, and
+  prints each frame's wall time (the whole host round trip, including the test host applying
+  each edit, keeping its undo history and answering the canvas's references query), beui's layout, paint and interaction, and the most
   nodes one frame measured, placed and painted. For ink it also counts the frames between
   a pen event's delivery and the first frame whose damage covers the pen, which should
   always be 0. `shape()` is the one place it names the canvas model. An editor with an
@@ -38,9 +39,18 @@ The target for opening a page is under 2 ms warm. The canvas bench measured, in 
 | pan at scale 1, p50 wall | 0.06 ms | 0.07 ms (layout 0.01 ms) |
 | pan at scale 0.1, p50 wall | 0.08 ms | 0.48 ms (layout 0.30 ms) |
 | zoom, p50 wall | 0.16 ms | 0.43 ms (layout 0.24 ms) |
-| pen move, p50 wall | 0.05 ms | 0.06 ms |
-| pen lift, p50 wall | 0.6 ms | 1.3 ms (interaction 0.9 ms) |
+| drag, p50 wall | 0.39 ms (interaction 0.16 ms) | 15 ms (interaction 0.56 ms) |
+| pen move, p50 wall | 0.47 ms (interaction 0.17 ms) | 14 ms (interaction 0.42 ms) |
+| pen lift, p50 wall | 0.23 ms | 14 ms (interaction 0.23 ms) |
 | frames from pen event to ink | 0 | 0 |
+
+Every frame of a gesture writes the document (guides/adding_a_plugin_editor.md), so a drag
+or a pen move is an edit the host applies and the editor reads back. The editor's own work
+stays the same few nodes and entities whatever the count; what grows with 10,000 shapes is
+the host's: the test host, like the app's worker each time it publishes, finds the block's
+references by walking every object of the document (be-model `references::collect`, which
+skips decoding values that hold no block ref). Walking only what an edit touched is the next
+thing to do there, and it belongs in be-model and the client, not in editors.
 
 A pan, zoom or pen move places and paints the same few nodes whatever the count. A canvas
 finds the items near its view through a grid of world cells, so only what is in view costs

@@ -6,7 +6,7 @@ use block_editor_beui::be_block::canvas::{
     CanvasTransform,
 };
 use block_editor_beui::beui::{
-    self, Event, FramePerformance, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2,
+    self, Event, FramePerformance, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect, Vec2,
 };
 use block_editor_beui::{EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
@@ -70,6 +70,7 @@ fn open(count: usize) -> BeuiTest<CanvasApp> {
     beui::verify_paint(false);
     let canvas = Canvas::with_entities((0..count).map(shape));
     test.hold(None, CanvasContent::new(&canvas));
+    test.store().keep_history::<CanvasContent>(None);
     test.run();
     test.settle();
     test
@@ -252,6 +253,58 @@ fn ink(count: usize) -> Ink {
     ink
 }
 
+fn button(pos: Pos2, pressed: bool) -> Event {
+    Event::PointerButton {
+        pos,
+        button: PointerButton::Primary,
+        pressed,
+        modifiers: Modifiers::default(),
+    }
+}
+
+fn drag(count: usize) -> Vec<Frame> {
+    let mut test = open(count);
+    let rows = count.div_ceil(COLUMNS);
+    let index = rows / 2 * COLUMNS + 48;
+    let held = shape(index).transform.center;
+    let canvas = test.rect_of("infinite-canvas.canvas");
+    let from = canvas.center();
+    let at = |along: f32| from + Vec2::new(200.0 * along, 40.0 * (along * 6.0).sin());
+    let mut moves = Vec::new();
+    for _ in 0..STROKES {
+        camera(&mut test, from - Vec2::new(held.x, held.y), 1.0);
+        test.run();
+        test.settle();
+        for (start, end) in [(0.0, 1.0), (1.0, 0.0)] {
+            let grabbed = at(start);
+            frame(
+                &mut test,
+                vec![Event::PointerMoved(grabbed), button(grabbed, true)],
+            );
+            for step in 1..=STROKE_MOVES {
+                let along = step as f32 / STROKE_MOVES as f32;
+                let pointer = at(start + (end - start) * along);
+                moves.push(frame(&mut test, vec![Event::PointerMoved(pointer)]));
+            }
+            frame(&mut test, vec![button(at(end), false)]);
+            let moved = test
+                .content::<CanvasContent>(None)
+                .root()
+                .entities()
+                .into_iter()
+                .find(|entity| entity.id == shape(index).id)
+                .map(|entity| entity.transform.center);
+            let expected = at(end) - at(0.0);
+            assert!(
+                moved.is_some_and(|moved| (moved.x - held.x - expected.x).abs() < 0.5
+                    && (moved.y - held.y - expected.y).abs() < 0.5),
+                "the drag moves the shape {held:?} by {expected:?}, but it is at {moved:?}"
+            );
+        }
+    }
+    moves
+}
+
 fn main() {
     let only = std::env::args().nth(1);
     let wanted = |name: &str| only.as_deref().is_none_or(|only| name.contains(only));
@@ -267,6 +320,9 @@ fn main() {
         }
         if wanted("zoom") {
             report(&format!("zoom {count}"), &zoom(count));
+        }
+        if wanted("drag") {
+            report(&format!("drag {count}"), &drag(count));
         }
         if wanted("ink") {
             let ink = ink(count);
