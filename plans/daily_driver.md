@@ -4,9 +4,9 @@ A plan to get the app to the point where the user keeps their own notes in it.
 Each phase lists what "done" looks like.
 
 Real notes live in one remote workspace on a server running on a single VPS.
-Local-only workspaces (the embedded server) stay, but only for testing, so
-nothing here has to protect their data. Offline support on web waits until
-before a public release.
+Local-only workspaces (the embedded server) are permanent: someone who never
+signs in keeps their work in one. Offline support on web waits until before a
+public release.
 
 From the freeze on (phase 8):
 - Data written by the app must keep working in later versions.
