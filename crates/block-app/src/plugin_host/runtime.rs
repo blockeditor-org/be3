@@ -915,18 +915,17 @@ pub(crate) fn take_child_commits(
     .unwrap_or_default()
 }
 
-pub(crate) fn request_pick(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    pick: u64,
-    filter: block_plugin_api::BlockFilter,
-    parent: block_plugin_api::BlockLocation,
-    within: Option<Uuid>,
-) {
+pub(crate) struct Pick {
+    pub(crate) pick: u64,
+    pub(crate) filter: block_plugin_api::BlockFilter,
+    pub(crate) parent: block_plugin_api::BlockLocation,
+    pub(crate) within: Option<Uuid>,
+    pub(crate) touch: bool,
+}
+
+pub(crate) fn request_pick(plugin_id: &str, instance: EditorInstanceId, pick: Pick) {
     with(plugin_id, |runtime| {
-        let messages = runtime
-            .instances
-            .request_pick(instance, pick, filter, parent, within);
+        let messages = runtime.instances.request_pick(instance, pick);
         runtime.send(messages);
     });
 }

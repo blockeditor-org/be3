@@ -101,6 +101,7 @@ pub struct PickRequest {
     pub parent: BlockParent,
     pub within: Option<Uuid>,
     pub anchor: Option<Rect>,
+    pub touch: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

@@ -43,7 +43,7 @@ pub(crate) use runtime::{
     frame_rects, hold, install, intrinsic_size, kill, menu, menu_pick, poll, present, presenting,
     publish, reanchor, record_pacing, regenerate_artifact, region_size, replace_child, replace_gpu,
     report_child_bars, report_child_focus, report_child_views, report_children, request_painting,
-    request_pick, resized, revoke_frame_child, running, set_artifact_states, set_focus,
+    Pick, request_pick, resized, revoke_frame_child, running, set_artifact_states, set_focus,
     set_presence_visible, set_shell, settle, show_block, show_dialog, show_panel, start_frames,
     take_actions, take_artifact_outcome, take_artifact_watch, take_bar_actions, take_block_pick,
     take_child_commits, take_child_menu_picks, take_crashed, take_created, take_focus_report,

@@ -195,6 +195,7 @@ impl EditorSession {
         filter: block_plugin_api::BlockFilter,
         parent: crate::graph::BlockParent,
         within: Option<Uuid>,
+        touch: bool,
     ) {
         let origin = self.rect(EditorRegion::Frame).min.to_vec2();
         let anchor = filter.anchor.map(|anchor| {
@@ -207,6 +208,7 @@ impl EditorSession {
             parent,
             within,
             anchor,
+            touch,
         });
     }
 

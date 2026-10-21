@@ -343,6 +343,7 @@ impl beui::App for Shell {
             be::seal_owed();
         }
         wayland::before(context, rect, &mut self.document);
+        self.app.touched = self.document.last_pointer.is_some_and(|pointer| pointer.touch);
         self.app.frame(context);
         self.app.sync_ui_settings();
         if let Some(theme) = self.app.theme.take() {
@@ -478,6 +479,7 @@ struct BlockApp {
     ui_settings: Option<(be_block::Theme, u32)>,
     theme: Option<be_block::Theme>,
     scale: Option<f32>,
+    touched: bool,
     input: SettingsSync<InputSettings>,
     display: SettingsSync<DisplaySettings>,
     display_round: Option<u64>,
@@ -731,6 +733,7 @@ impl BlockApp {
             ui_settings: None,
             theme: None,
             scale: None,
+            touched: false,
             input: SettingsSync::default(),
             display: SettingsSync::default(),
             display_round: None,
@@ -2195,10 +2198,13 @@ impl BlockApp {
                 crate::plugin_host::request_pick(
                     &picker.plugin_id,
                     picker.instance,
-                    pick,
-                    filter,
-                    parent,
-                    within,
+                    crate::plugin_host::Pick {
+                        pick,
+                        filter,
+                        parent,
+                        within,
+                        touch: self.touched,
+                    },
                 );
             }
         }

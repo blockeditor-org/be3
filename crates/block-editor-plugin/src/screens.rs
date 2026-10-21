@@ -482,6 +482,7 @@ impl Screens {
                 filter,
                 parent,
                 within,
+                touch,
             }) => {
                 if let Some(session) = self.sessions.get(instance) {
                     session.pick_requested(
@@ -489,6 +490,7 @@ impl Screens {
                         filter.clone(),
                         crate::graph::BlockParent::decode(*parent),
                         within.map(Uuid::from_bytes),
+                        *touch,
                     );
                 }
             }

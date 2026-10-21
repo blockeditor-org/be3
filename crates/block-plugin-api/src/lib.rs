@@ -1043,6 +1043,7 @@ pub enum EditorMessage {
         filter: BlockFilter,
         parent: BlockLocation,
         within: Option<[u8; 16]>,
+        touch: bool,
     },
     PickAnswered {
         instance: EditorInstanceId,

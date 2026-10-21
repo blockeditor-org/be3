@@ -154,7 +154,8 @@ fn PickerMenu(
     let anchor = create_memo(move || placed.get().0);
     let placement = create_memo(move || placed.get().1);
     let phone = workspace.phone;
-    let sheet = create_memo(move || phone.get());
+    let touch = held.get_untracked().is_some_and(|held| held.touch);
+    let sheet = create_memo(move || touch || phone.get());
     let items = match templates {
         true => view! {
             <SlideItems workspace held act />
