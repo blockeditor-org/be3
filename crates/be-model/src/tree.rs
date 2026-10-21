@@ -4,8 +4,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::items::ItemsState;
 use crate::{
-    Anchor, Change, Items, Malformed, Model, Object, ObjectId, Objects, Place, Sequence, Touched,
-    Value,
+    Anchor, Change, Items, Kind, Malformed, Model, Object, ObjectId, Objects, Place, Sequence,
+    Shape, Touched, Value,
 };
 use sequence::State;
 use sequence::marks::{Rich, RichState};
@@ -147,7 +147,7 @@ impl Tree {
         fields
     }
 
-    fn permits(&self, change: &Change) -> bool {
+    fn permits(&self, root: fn() -> Kind, change: &Change) -> bool {
         let locked = |id: &ObjectId| self.objects.get(id).is_some_and(Object::is_locked);
         let parent_locked = |id: &ObjectId| {
             self.objects
@@ -169,12 +169,45 @@ impl Tree {
             | Change::Unmark { object, .. } => !locked(object),
             Change::Insert { place, .. } => !locked(&place.object),
             Change::Remove { object } | Change::RemoveIf { object, .. } => !parent_locked(object),
-            Change::Move { object, place, .. } => !parent_locked(object) && !locked(&place.object),
+            Change::Move { object, place, .. } => {
+                !parent_locked(object)
+                    && !locked(&place.object)
+                    && self.same_kind(root, *object, *place)
+            }
         }
     }
 
-    pub(crate) fn apply(&mut self, change: &Change) -> bool {
-        if !self.permits(change) {
+    fn same_kind(&self, root: fn() -> Kind, object: ObjectId, place: Place) -> bool {
+        let Some(from) = self.objects.get(&object).and_then(|held| held.parent) else {
+            return false;
+        };
+        if from == place {
+            return true;
+        }
+        let kind = |place| self.listed_kind(root, place);
+        kind(from).is_some_and(|from| kind(place) == Some(from))
+    }
+
+    fn listed_kind(&self, root: fn() -> Kind, place: Place) -> Option<&'static str> {
+        let mut fields = vec![place.field];
+        let mut cursor = place.object;
+        while cursor != ObjectId::ROOT {
+            let parent = self.objects.get(&cursor)?.parent?;
+            fields.push(parent.field);
+            cursor = parent.object;
+        }
+        let mut kind = root();
+        for field in fields.into_iter().rev() {
+            let Shape::List(child) = kind.properties.get(usize::from(field))?.shape else {
+                return None;
+            };
+            kind = child();
+        }
+        Some(kind.name)
+    }
+
+    pub(crate) fn apply(&mut self, root: fn() -> Kind, change: &Change) -> bool {
+        if !self.permits(root, change) {
             return false;
         }
         match change {
@@ -297,8 +330,8 @@ impl Tree {
         }
     }
 
-    pub(crate) fn inverse(&self, change: &Change) -> Option<(Change, Change)> {
-        if !self.permits(change) {
+    pub(crate) fn inverse(&self, root: fn() -> Kind, change: &Change) -> Option<(Change, Change)> {
+        if !self.permits(root, change) {
             return None;
         }
         match change {

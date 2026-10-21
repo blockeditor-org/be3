@@ -533,7 +533,8 @@ values, and every algorithm is written once against that table:
   `Item` the list reads back as), and edits name the object, not a position.
   An edit to an object that has since moved into another list still lands on
   it, and a `move_into` carries an object and everything under it from one list
-  to another.
+  to another of the same kind (by the schema's kind name); a move into a list
+  of another kind changes nothing, since saving would retype the object.
 - **Edits.** The derive gives each field a typed constant, `CalendarEvent::TITLE`,
   that builds the changes an `Edit` is made of: `set` for a register, `add` for a
   `Count`, `put` for a key of a `Map`, `insert` and `move_into` for a `List`, and

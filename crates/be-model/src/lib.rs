@@ -331,14 +331,14 @@ impl<R: Model> Document<R> {
 
     pub fn apply(&mut self, edit: &Edit) {
         for change in &edit.0 {
-            self.tree.apply(change);
+            self.tree.apply(R::kind, change);
         }
     }
 
     pub fn apply_touching(&mut self, edit: &Edit, touched: &mut Vec<Touched>) {
         for change in &edit.0 {
             self.tree.touched(change, touched);
-            self.tree.apply(change);
+            self.tree.apply(R::kind, change);
         }
     }
 
@@ -382,7 +382,7 @@ impl<R: Model> Document<R> {
     }
 
     pub fn step(&self, edit: &Edit) -> Option<Step> {
-        history::step(&self.tree, edit)
+        history::step(&self.tree, R::kind, edit)
     }
 
     pub fn to_bytes(&self) -> Vec<u8> {

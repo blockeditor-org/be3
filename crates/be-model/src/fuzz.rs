@@ -184,23 +184,13 @@ impl Client {
                     .then(|| Column::CARDS.insert_as(id, place.object, anchor, &card))
             }
             2 => pick(input, &objects).map(|id| Change::remove(*id)),
-            _ => pick(input, &objects)
-                .filter(|id| self.is_column(**id) == (place.field == Board::COLUMNS.index()))
-                .map(|id| Change::Move {
-                    object: *id,
-                    place,
-                    anchor,
-                    client: crate::local_client(),
-                }),
+            _ => pick(input, &objects).map(|id| Change::Move {
+                object: *id,
+                place,
+                anchor,
+                client: crate::local_client(),
+            }),
         }
-    }
-
-    fn is_column(&self, id: ObjectId) -> bool {
-        self.visible
-            .tree()
-            .object(id)
-            .and_then(|object| object.parent())
-            .is_some_and(|place| place.object == ObjectId::ROOT)
     }
 
     fn write(&self, kind: u8, input: &mut Input) -> Option<Change> {

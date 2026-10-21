@@ -1,4 +1,4 @@
-use crate::{Change, Edit, SeqOp, Tree};
+use crate::{Change, Edit, Kind, SeqOp, Tree};
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct Step {
@@ -139,24 +139,24 @@ fn follows(done: &Change, following: &Change) -> bool {
     }
 }
 
-pub(crate) fn step(tree: &Tree, edit: &Edit) -> Option<Step> {
+pub(crate) fn step(tree: &Tree, root: fn() -> Kind, edit: &Edit) -> Option<Step> {
     let mut undo = Vec::new();
     let mut redo = Vec::new();
     match edit.0.as_slice() {
         [] => return None,
         [change] => {
-            let (back, forward) = tree.inverse(change)?;
+            let (back, forward) = tree.inverse(root, change)?;
             undo.push(back);
             redo.push(forward);
         }
         changes => {
             let mut scratch = tree.clone();
             for change in changes {
-                if let Some((back, forward)) = scratch.inverse(change) {
+                if let Some((back, forward)) = scratch.inverse(root, change) {
                     undo.push(back);
                     redo.push(forward);
                 }
-                scratch.apply(change);
+                scratch.apply(root, change);
             }
         }
     }
