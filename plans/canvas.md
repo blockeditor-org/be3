@@ -47,11 +47,17 @@ square; the end is resolved against that shape whenever the canvas is read
 (`CanvasEntity::follow`), so it follows the shape whoever moved it. Every
 part of the style is its own field, so concurrent restyles merge.
 
+Shapes, lines and arrows have a clean look and a hand-drawn one: `rough.rs`
+ports rough.js, seeded by the shape's stored `seed`, and `app/sketch.rs` turns
+an entity into the paths it draws (hand-drawn strokes, hatched and hand-drawn
+fills, freehand outlines), kept per entity until its geometry or style
+changes. A freehand stroke is filled as a perfect-freehand outline
+(`freehand.rs`) that follows its pressures, or simulates them from speed when
+it has none; the stroke being drawn uses the same outline.
+
 What holds it back:
 
-- A pen stroke is line segments with a dot at each joint
-  (`paint.rs::stroke`); shapes, lines and arrows are drawn as beui paths in
-  the clean look only, and labels are drawn but not yet edited.
+- Labels are drawn but not yet edited.
 - Text entities are text fields shaped at the camera's scale, so every zoom
   frame lays them out and paints them again; shapes are scaled by the renderer.
 - Text and labels are plain strings in the `text` field, not rich text yet.
