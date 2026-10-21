@@ -2,7 +2,7 @@ use block_editor_beui::be_block::canvas::{
     CanvasEntityKind, CanvasPoint, CanvasTextStyle, CanvasTransform,
 };
 use block_editor_beui::beui::{CursorIcon, Key, KeyPress, PointerPress};
-use block_editor_beui::reactive::Get;
+use block_editor_beui::reactive::{Get, untrack};
 use uuid::Uuid;
 
 use crate::geometry::*;
@@ -58,7 +58,7 @@ impl CanvasState {
 
     pub(crate) fn live_child_at(&self, world: CanvasPoint) -> Option<Uuid> {
         self.entities
-            .get_untracked()
+            .all_untracked()
             .iter()
             .rev()
             .find_map(|entity| {
@@ -88,10 +88,8 @@ impl CanvasState {
         if let Some(focused) = self.focused_editor.get_untracked() {
             let inside = self
                 .entities
-                .get_untracked()
-                .iter()
-                .find(|entity| entity.id == focused)
-                .is_some_and(|entity| entity_bounds(entity).contains(world));
+                .get_untracked(focused)
+                .is_some_and(|entity| entity_bounds(&entity).contains(world));
             if !inside {
                 self.focus_editor(None);
             }
@@ -100,7 +98,7 @@ impl CanvasState {
             && self.tool.get_untracked() == Tool::Select
             && let Some(id) = self.entity_at(world)
         {
-            let entities = self.entities.get_untracked();
+            let entities = self.entities.all_untracked();
             let entity = entities.iter().find(|entity| entity.id == id);
             if let Some(entity) = entity
                 && matches!(entity.kind, CanvasEntityKind::Text { .. })
@@ -201,7 +199,7 @@ impl CanvasState {
             return;
         }
         if let Some(id) = self.entity_at(world) {
-            let entities = self.entities.get_untracked();
+            let entities = self.entities.all_untracked();
             let entity = entities
                 .iter()
                 .find(|entity| entity.id == id)
@@ -476,7 +474,7 @@ impl CanvasState {
 
 fn selection_frame_of(state: &CanvasState) -> Option<SelectionFrame> {
     super::state::selection_frame(
-        &state.entities.get_untracked(),
+        &untrack(|| state.selected_entities()),
         &state.selection.get_untracked(),
     )
 }

@@ -10,7 +10,6 @@ use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::canvas::{
     CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
     CanvasLayerMove, CanvasPoint, CanvasTextStyle, CanvasTransform, InfiniteCanvasOperation,
-    first_artboard,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
@@ -27,6 +26,8 @@ use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
 use crate::geometry::*;
+
+use super::entities::Entities;
 use crate::images::{image_filter, imported_image};
 
 pub(crate) const ZOOM_STEP: f32 = 1.25;
@@ -282,7 +283,7 @@ pub(crate) struct CanvasState {
     editor: Editor,
     preview: bool,
     pub(crate) pointer: Signal<Option<CanvasPoint>>,
-    pub(crate) entities: ReadSignal<Vec<CanvasEntity>>,
+    pub(crate) entities: Entities,
     pub(crate) tool: Signal<Tool>,
     pub(crate) selection: Signal<HashSet<Uuid>>,
     pub(crate) gesture: Signal<Option<Gesture>>,
@@ -301,11 +302,24 @@ pub(crate) struct CanvasState {
 impl CanvasState {
     pub(crate) fn new(editor: Editor, preview: bool) -> Self {
         let content = editor.block_content::<CanvasContent>();
-        let entities = content.project(|canvas| canvas.root().entities());
+        let entities = Entities::new(content);
         let tool = create_signal(Tool::Select);
         let selection = create_signal(HashSet::new());
         let gesture = create_signal(None);
-        let typed = create_signal(None);
+        let typed = create_signal(None::<CanvasEntity>);
+        create_binding(move || {
+            let mut previews = gesture.with(|gesture: &Option<Gesture>| {
+                gesture.as_ref().map(preview_entities).unwrap_or_default()
+            });
+            if let Some(typed) = typed.get() {
+                match previews.iter_mut().find(|entity| entity.id == typed.id) {
+                    Some(previewed) => *previewed = typed,
+                    None if entities.get_untracked(typed.id).is_some() => previews.push(typed),
+                    None => {}
+                }
+            }
+            entities.preview(previews);
+        });
         let focused_editor = create_signal(None);
         let editing_text = create_signal(None);
         let import_error = create_signal(None);
@@ -424,7 +438,7 @@ impl CanvasState {
     }
 
     pub(crate) fn framed(&self) -> Option<WorldRect> {
-        self.preview.then(|| embedded_region(&self.entities.get()))
+        self.preview.then(|| embedded_region(&self.entities.all()))
     }
 
     pub(crate) fn scale(&self) -> f32 {
@@ -443,16 +457,6 @@ impl CanvasState {
     pub(crate) fn viewport_center(&self) -> CanvasPoint {
         let center = self.visible_world().center();
         CanvasPoint::new(center.x, center.y)
-    }
-
-    pub(crate) fn displayed(&self) -> Vec<CanvasEntity> {
-        let mut displayed = displayed_entities(&self.entities.get(), &self.gesture.get());
-        if let Some(typed) = self.typed.get()
-            && let Some(entity) = displayed.iter_mut().find(|entity| entity.id == typed.id)
-        {
-            *entity = typed;
-        }
-        displayed
     }
 
     pub(crate) fn preview_typed(&self, entity: Option<CanvasEntity>) {
@@ -607,29 +611,6 @@ fn fit_scale(stage: Rect, framed: WorldRect) -> f32 {
     (stage.width() / size.x.max(f32::EPSILON))
         .min(stage.height() / size.y.max(f32::EPSILON))
         .max(f32::EPSILON)
-}
-
-pub(crate) fn displayed_entities(
-    entities: &[CanvasEntity],
-    gesture: &Option<Gesture>,
-) -> Vec<CanvasEntity> {
-    let Some(gesture) = gesture else {
-        return entities.to_vec();
-    };
-    let preview: HashMap<Uuid, CanvasEntity> = preview_entities(gesture)
-        .into_iter()
-        .map(|entity| (entity.id, entity))
-        .collect();
-    entities
-        .iter()
-        .map(|entity| preview.get(&entity.id).unwrap_or(entity).clone())
-        .chain(
-            preview
-                .values()
-                .filter(|entity| !entities.iter().any(|stored| stored.id == entity.id))
-                .cloned(),
-        )
-        .collect()
 }
 
 impl CanvasState {
@@ -834,22 +815,18 @@ impl CanvasState {
     }
 
     pub(crate) fn first_artboard(&self) -> Option<CanvasEntity> {
-        first_artboard(&self.entities.get()).cloned()
+        self.entities.first_artboard()
     }
 
     pub(crate) fn request_fit_artboard(&self) {
-        if let Some(artboard) = first_artboard(&self.entities.get_untracked()) {
-            self.fit_into_view(entity_bounds(artboard));
+        if let Some(artboard) = untrack(|| self.entities.first_artboard()) {
+            self.fit_into_view(entity_bounds(&artboard));
         }
     }
 
     pub(crate) fn selected_entities(&self) -> Vec<CanvasEntity> {
-        let selection = self.selection.get();
-        self.entities
-            .get()
-            .into_iter()
-            .filter(|entity| selection.contains(&entity.id))
-            .collect()
+        self.selection
+            .with(|selection| self.entities.among(selection))
     }
 
     pub(crate) fn selected_unlocked(&self) -> Vec<CanvasEntity> {
@@ -888,7 +865,7 @@ impl CanvasState {
     }
 
     pub(crate) fn select(&self, id: Uuid, additive: bool) {
-        let entities = self.entities.get_untracked();
+        let entities = self.entities.all_untracked();
         let ids = Self::selection_ids(&entities, id);
         let mut selection = self.selection.get_untracked();
         if additive {
@@ -922,7 +899,7 @@ impl CanvasState {
     pub(crate) fn entity_at(&self, point: CanvasPoint) -> Option<Uuid> {
         let scale = self.scale();
         let radius = HIT_RADIUS / scale;
-        let entities = self.entities.get_untracked();
+        let entities = self.entities.all_untracked();
         let (artboards, drawn): (Vec<_>, Vec<_>) = entities
             .iter()
             .filter(|entity| !entity.style.hidden)
@@ -983,7 +960,7 @@ impl CanvasState {
     pub(crate) fn set_hidden(&self, id: Uuid, hidden: bool) {
         let Some(held) = self
             .entities
-            .get_untracked()
+            .all_untracked()
             .into_iter()
             .find(|entity| entity.id == id)
         else {
@@ -1000,7 +977,7 @@ impl CanvasState {
         }
         let mut order: Vec<Uuid> = self
             .entities
-            .get_untracked()
+            .all_untracked()
             .iter()
             .map(|entity| entity.id)
             .collect();
@@ -1046,7 +1023,7 @@ impl CanvasState {
         }
         let before = self
             .entities
-            .get_untracked()
+            .all_untracked()
             .into_iter()
             .filter(|entity| entity.group_id.is_some_and(|group| groups.contains(&group)))
             .collect::<Vec<_>>();
@@ -1153,31 +1130,31 @@ impl CanvasState {
     }
 
     pub(crate) fn can_reorder(&self, movement: CanvasLayerMove) -> bool {
-        let entities = self.entities.get();
-        let selection = self.selection.get();
-        let selected: HashSet<_> = entities
+        let selected: HashSet<_> = self
+            .selected_entities()
             .iter()
-            .filter(|entity| selection.contains(&entity.id) && !entity.locked)
+            .filter(|entity| !entity.locked)
             .map(|entity| entity.id)
             .collect();
+        let entities = self.entities.ids().get();
         if selected.is_empty() {
             return false;
         }
         match movement {
             CanvasLayerMove::BringToFront | CanvasLayerMove::ForwardOne => {
-                entities.iter().enumerate().any(|(index, entity)| {
-                    selected.contains(&entity.id)
+                entities.iter().enumerate().any(|(index, id)| {
+                    selected.contains(id)
                         && entities[index + 1..]
                             .iter()
-                            .any(|later| !selected.contains(&later.id))
+                            .any(|later| !selected.contains(later))
                 })
             }
             CanvasLayerMove::BackOne | CanvasLayerMove::SendToBack => {
-                entities.iter().enumerate().any(|(index, entity)| {
-                    selected.contains(&entity.id)
+                entities.iter().enumerate().any(|(index, id)| {
+                    selected.contains(id)
                         && entities[..index]
                             .iter()
-                            .any(|earlier| !selected.contains(&earlier.id))
+                            .any(|earlier| !selected.contains(earlier))
                 })
             }
         }
@@ -1199,7 +1176,7 @@ impl CanvasState {
             CanvasCommand::SelectAll => {
                 let all = self
                     .entities
-                    .get_untracked()
+                    .all_untracked()
                     .iter()
                     .map(|entity| entity.id)
                     .collect();
@@ -1210,7 +1187,7 @@ impl CanvasState {
                 let selection = self.selection.get_untracked();
                 let inverted = self
                     .entities
-                    .get_untracked()
+                    .all_untracked()
                     .iter()
                     .filter(|entity| !selection.contains(&entity.id))
                     .map(|entity| entity.id)
@@ -1428,11 +1405,7 @@ impl CanvasState {
     }
 
     fn entities_among(&self, selected: &HashSet<Uuid>) -> Vec<CanvasEntity> {
-        self.entities
-            .get_untracked()
-            .into_iter()
-            .filter(|entity| selected.contains(&entity.id))
-            .collect()
+        untrack(|| self.entities.among(selected))
     }
 
     pub(crate) fn update_selected(
@@ -1479,7 +1452,7 @@ impl CanvasState {
     pub(crate) fn replace_referenced_block(&self, old: Uuid, new: Uuid) -> bool {
         let replaced = self
             .entities
-            .get_untracked()
+            .all_untracked()
             .into_iter()
             .filter_map(|entity| {
                 let kind = match entity.kind {
@@ -1799,7 +1772,7 @@ impl CanvasState {
                     false => HashSet::new(),
                 };
                 if distance(start, current) >= HIT_RADIUS / self.scale() {
-                    let entities = self.entities.get_untracked();
+                    let entities = self.entities.all_untracked();
                     let box_rect = gesture_rect(start, current, from_center);
                     let hits = entities
                         .iter()
@@ -1920,7 +1893,7 @@ impl CanvasState {
                 }
                 let count = self
                     .entities
-                    .get_untracked()
+                    .all_untracked()
                     .iter()
                     .filter(|entity| entity.is_artboard())
                     .count();
@@ -1960,7 +1933,7 @@ impl CanvasState {
         }
         let state = self;
         create_effect(move || {
-            state.entities.with(|_| ());
+            state.entities.track_edits();
             state.child_states.with(|_| ());
             untrack(|| state.autosize_direct_editors());
         });
@@ -1974,7 +1947,7 @@ impl CanvasState {
         });
         let state = self;
         create_effect(move || {
-            state.entities.with(|_| ());
+            state.entities.track_edits();
             state.peers.with(|_| ());
             untrack(|| state.read_presence());
         });
@@ -2098,7 +2071,7 @@ impl CanvasState {
     }
 
     fn read_presence(&self) {
-        let entities = self.entities.get_untracked();
+        let entities = self.entities.all_untracked();
         let mut presence = Presence::default();
         for (_, cursor) in self.peers.get_untracked() {
             let color = cursor.color;
@@ -2129,7 +2102,7 @@ impl CanvasState {
     }
 
     fn resize_first_artboard(&self, size: Vec2) {
-        let Some(artboard) = first_artboard(&self.entities.get_untracked()).cloned() else {
+        let Some(artboard) = untrack(|| self.entities.first_artboard()) else {
             return;
         };
         let wanted = CanvasPoint::new(size.x.max(MIN_SIZE), size.y.max(MIN_SIZE));
@@ -2151,7 +2124,7 @@ impl CanvasState {
         else {
             return;
         };
-        let entities = self.entities.get_untracked();
+        let entities = self.entities.all_untracked();
         let target = cursor.pointer.or_else(|| {
             entities
                 .iter()
@@ -2181,7 +2154,7 @@ impl CanvasState {
     fn autosize_direct_editors(&self) {
         let mut before = Vec::new();
         let mut after = Vec::new();
-        for entity in self.entities.get_untracked() {
+        for entity in self.entities.all_untracked() {
             let CanvasEntityKind::DirectEditor { scale, .. } = entity.kind else {
                 continue;
             };

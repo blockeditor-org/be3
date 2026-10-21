@@ -11,6 +11,7 @@ use uuid::Uuid;
 pub(crate) mod actions;
 pub(crate) mod canvas;
 pub(crate) mod components;
+pub(crate) mod entities;
 pub(crate) mod input;
 pub(crate) mod layers;
 pub(crate) mod menu;
@@ -97,7 +98,7 @@ fn CanvasPreview(editor: Editor) -> NodeId {
 
 fn report_intrinsic_size(editor: Editor, state: CanvasState) {
     create_effect(move || {
-        let region = embedded_region(&state.entities.get()).size();
+        let region = embedded_region(&state.entities.all()).size();
         editor.set_intrinsic_size(Some(Vec2::new(
             region.x.max(MIN_SIZE),
             region.y.max(MIN_SIZE),

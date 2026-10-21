@@ -19,15 +19,9 @@ struct Layer(Uuid);
 #[component]
 pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
     let open = create_signal(true);
-    let ids = create_memo(move || {
-        state
-            .entities
-            .get()
-            .iter()
-            .rev()
-            .map(|entity| entity.id)
-            .collect::<Vec<Uuid>>()
-    });
+    let entities = state.entities.ids();
+    let ids =
+        create_memo(move || entities.with(|ids| ids.iter().rev().copied().collect::<Vec<Uuid>>()));
     let empty = create_memo(move || ids.with(Vec::is_empty));
     view! {
         <Accordion title="Layers" open={open}>
@@ -45,13 +39,7 @@ pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
 
 #[component]
 fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
-    let entity = create_memo(move || {
-        state
-            .entities
-            .get()
-            .into_iter()
-            .find(|entity| entity.id == id)
-    });
+    let entity = state.entities.watch(id).stored();
     let label = create_memo(move || {
         entity
             .get()

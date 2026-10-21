@@ -35,13 +35,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             let camera = create_memo(move || {
                 super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
             });
-            let ids = create_memo(move || {
-                state
-                    .displayed()
-                    .iter()
-                    .map(|entity| entity.id)
-                    .collect::<Vec<Uuid>>()
-            });
+            let ids = state.entities.shown_ids();
             let inset = create_memo(move || {
                 let (placed, shown) = (placed.get(), shown.get());
                 Sides::new(
@@ -127,21 +121,19 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<Overlay>);
     create_effect(move || {
+        let selection = state.selection.get();
+        let selected = state.entities.shown_among(&selection);
         let overlay = Overlay {
             camera: Camera::of(Some(camera.get()), stage.get().min),
             palette: palette(&theme),
             stage: stage.get(),
-            empty: state.entities.get().is_empty(),
+            empty: state.entities.ids().with(Vec::is_empty),
             gesture: state.gesture.get(),
-            outlines: super::state::selected_outlines(&state.displayed(), &state.selection.get()),
-            frame: super::state::selection_frame(&state.displayed(), &state.selection.get()),
-            line: state.selected_line().and_then(|line| {
-                let shown = state
-                    .displayed()
-                    .into_iter()
-                    .find(|entity| entity.id == line.id)?;
-                Some(line_ends(&shown))
-            }),
+            outlines: super::state::selected_outlines(&selected, &selection),
+            frame: super::state::selection_frame(&selected, &selection),
+            line: state
+                .selected_line()
+                .and_then(|line| Some(line_ends(&state.entities.shown(line.id)?))),
             resize: state.selection_handles().0,
             rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),
             presence: state.presence.get(),
@@ -175,7 +167,8 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
     let shown = RefCell::new(None::<Backdrop>);
     create_effect(move || {
         let artboards = state
-            .displayed()
+            .entities
+            .shown_artboards()
             .into_iter()
             .filter(|entity| !entity.style.hidden)
             .filter_map(|entity| match &entity.kind {
@@ -348,7 +341,7 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
 }
 
 fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {
-    create_memo(move || state.displayed().into_iter().find(|entity| entity.id == id))
+    state.entities.watch(id).shown()
 }
 
 fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {
