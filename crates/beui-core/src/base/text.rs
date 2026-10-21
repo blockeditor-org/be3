@@ -132,14 +132,6 @@ impl ChildItem for TextPart {
             TextPart::Inline(node) | TextPart::Anchored(node) => Some(*node),
         }
     }
-
-    fn same(&self, other: &Self) -> bool {
-        match (self, other) {
-            (TextPart::Span(left), TextPart::Span(right)) => Rc::ptr_eq(&left.0, &right.0),
-            (TextPart::Gap(left), TextPart::Gap(right)) => left == right,
-            _ => self.node().is_some() && self.node() == other.node(),
-        }
-    }
 }
 
 #[derive(Clone)]
