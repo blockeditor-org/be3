@@ -204,7 +204,10 @@ impl Computation {
         let memo_depth = RUNTIME.with(|runtime| runtime.memo_depth.get());
         let _memo_guard = Reset::set(
             |runtime| &runtime.memo_depth,
-            memo_depth + usize::from(self.source.is_some()),
+            match self.source {
+                Some(_) => memo_depth + 1,
+                None => 0,
+            },
         );
         self.state.set(State::Clean);
         let result = {

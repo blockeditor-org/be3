@@ -1,6 +1,6 @@
 use reactive::Get;
 use reactive::Set;
-use reactive::{Pending, Ready, wait_for};
+use reactive::{Pending, Ready, wait_while};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::rc::Rc;
@@ -489,11 +489,10 @@ impl Blocks {
         self.graph.watch(query);
         self.waker.wake();
         let alive = Rc::new(());
-        let held = Rc::downgrade(&alive);
         let graph = Rc::downgrade(&self.graph);
-        wait_for(move || match (held.upgrade(), graph.upgrade()) {
-            (Some(_), Some(graph)) => graph.result(query).map(drop),
-            _ => Ok(()),
+        wait_while(Rc::downgrade(&alive), move || match graph.upgrade() {
+            Some(graph) => graph.result(query).map(drop),
+            None => Ok(()),
         });
         BlockList {
             graph: Rc::clone(&self.graph),

@@ -1,4 +1,4 @@
-use block_editor_beui::Editor;
+use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
 
@@ -16,7 +16,9 @@ pub struct SettingsApp;
 impl block_editor_beui::BeuiApp for SettingsApp {
     fn view(editor: Editor) -> NodeId {
         view! {
-            <SettingsView editor={editor} />
+            <Loaded>
+                <SettingsView editor={editor} />
+            </Loaded>
         }
     }
 
@@ -30,7 +32,9 @@ pub struct SettingsProfileApp;
 impl block_editor_beui::BeuiApp for SettingsProfileApp {
     fn view(editor: Editor) -> NodeId {
         view! {
-            <SettingsProfileView editor={editor} />
+            <Loaded>
+                <SettingsProfileView editor={editor} />
+            </Loaded>
         }
     }
 

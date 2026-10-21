@@ -24,6 +24,7 @@ pub(crate) struct RevisionHistory {
     editor: Editor,
     target: Signal<Option<TabItem>>,
     entries: Signal<Vec<Revision>>,
+    listed: Signal<Option<Uuid>>,
     selected: Signal<Option<Selected>>,
     error: Signal<Option<String>>,
     loading: Signal<bool>,
@@ -45,6 +46,7 @@ impl RevisionHistory {
     pub(crate) fn new(editor: Editor) -> Self {
         let target = create_signal(None);
         let entries = create_signal(Vec::new());
+        let listed = create_signal(None);
         let selected = create_signal(None);
         let error = create_signal(None);
         let loading = create_signal(false);
@@ -54,6 +56,7 @@ impl RevisionHistory {
             editor,
             target,
             entries,
+            listed,
             selected,
             error,
             loading,
@@ -100,7 +103,10 @@ impl RevisionHistory {
             .generation
             .set(self.state.value().generation.get() + 1);
         self.busy.set(false);
-        self.entries.set(Vec::new());
+        if target.is_none() {
+            self.entries.set(Vec::new());
+            self.listed.set(None);
+        }
         self.error.set(None);
         self.target.set(target);
     }
@@ -179,8 +185,19 @@ impl RevisionHistory {
             if *generation == state.generation.get() && *request == state.latest_list.get() {
                 self.loading.set(false);
                 match result {
-                    Ok(entries) => self.entries.set(entries),
-                    Err(error) => self.error.set(Some(error)),
+                    Ok(entries) => batch(|| {
+                        self.entries.set(entries);
+                        self.listed
+                            .set(self.target.get_untracked().map(|item| item.id));
+                    }),
+                    Err(error) => batch(|| {
+                        let target = self.target.get_untracked().map(|item| item.id);
+                        if self.listed.get_untracked() != target {
+                            self.entries.set(Vec::new());
+                            self.listed.set(None);
+                        }
+                        self.error.set(Some(error));
+                    }),
                 }
             }
             false
@@ -270,6 +287,9 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
             .with(|entries| entries.iter().map(|entry| entry.commit).collect::<Vec<_>>())
     });
     let no_file = create_memo(move || history.target.get().is_none());
+    let stale = create_memo(move || {
+        history.busy.get() || history.listed.get() != history.target.get().map(|item| item.id)
+    });
     let has_file = create_memo(move || !no_file.get());
     let empty = create_memo(move || {
         !no_file.get()
@@ -330,7 +350,7 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
                             <Button
                                 label
                                 variant=ButtonVariant::Secondary
-                                disabled={history.busy}
+                                disabled={stale}
                                 @test_id={format!("workspace.revision.{}", revision_key(&commit))}
                                 on_click={move || {
                                     let revision = revisions.with(|entries| entries.get(&commit).cloned());

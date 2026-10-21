@@ -111,7 +111,10 @@ where
             if revealed.value().get() {
                 return;
             }
-            let state = boundary.state();
+            let state = boundary.state().and_then(|()| {
+                content.value().1.flush_owned();
+                boundary.state()
+            });
             let shown = shown.value();
             let mut shown = shown.borrow_mut();
             match state {

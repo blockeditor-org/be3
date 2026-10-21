@@ -1,5 +1,5 @@
 use std::cell::{Cell, RefCell};
-use std::rc::Rc;
+use std::rc::{Rc, Weak};
 
 use crate::runtime::in_memo;
 use crate::{
@@ -82,7 +82,7 @@ impl Boundary {
         self.state.get()
     }
 
-    fn add(self, probe: Probe) {
+    fn add(self, probe: Probe) -> u64 {
         let id = self.waits.with(|waits| {
             let id = waits.next.get();
             waits.next.set(id + 1);
@@ -90,6 +90,11 @@ impl Boundary {
             id
         });
         self.changed.update(|changed| *changed += 1);
+        id
+    }
+
+    fn add_scoped(self, probe: Probe) {
+        let id = self.add(probe);
         on_cleanup(move || {
             let removed = self.waits.try_with(|waits| {
                 waits.probes.borrow_mut().retain(|(held, _)| *held != id);
@@ -115,7 +120,16 @@ fn settle(states: impl Iterator<Item = Ready<()>>) -> Ready<()> {
 
 pub fn wait_for(probe: impl Fn() -> Ready<()> + 'static) {
     if let Some(boundary) = Boundary::current() {
-        boundary.add(Rc::new(probe));
+        boundary.add_scoped(Rc::new(probe));
+    }
+}
+
+pub fn wait_while<A: ?Sized + 'static>(alive: Weak<A>, probe: impl Fn() -> Ready<()> + 'static) {
+    if let Some(boundary) = Boundary::current() {
+        boundary.add(Rc::new(move || match alive.upgrade() {
+            Some(_) => probe(),
+            None => Ok(()),
+        }));
     }
 }
 

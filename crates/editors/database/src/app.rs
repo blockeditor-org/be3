@@ -1,7 +1,7 @@
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::database::create_database;
-use block_editor_beui::{BlockQuery, Loaded};
+use block_editor_beui::Loaded;
 use block_editor_beui::{Creation, Editor};
 use uuid::Uuid;
 
@@ -13,12 +13,8 @@ pub struct DatabaseApp;
 
 impl block_editor_beui::BeuiApp for DatabaseApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded =
-            editor.loaded::<block_editor_beui::be_block::DatabaseContent>(&[BlockQuery::Backrefs(
-                editor.block_id(),
-            )]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <DatabaseEditor editor={editor} />
             </Loaded>
         }

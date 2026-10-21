@@ -67,7 +67,7 @@ fn listed(workspace: &Workspace) -> Vec<Session> {
             editor
                 .content_of::<EditorViewContent>(*session)
                 .read(|view| view.root().editor)
-                == Some(WORKSPACE_EDITOR)
+                == Ok(WORKSPACE_EDITOR)
         })
         .map(|block| Session {
             block,

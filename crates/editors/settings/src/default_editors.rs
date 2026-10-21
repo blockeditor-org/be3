@@ -17,14 +17,12 @@ pub struct DefaultEditorsApp;
 
 impl block_editor_beui::BeuiApp for DefaultEditorsApp {
     fn view(editor: Editor) -> NodeId {
-        let settings = LayeredSettings::<EditorSettings>::page(editor);
-        let content = editor.loaded::<block_editor_beui::be_block::EditorSettingsContent>(&[]);
-        let catalog = editor.block_types_known();
-        let ready = settings.ready();
-        let loaded = create_memo(move || content.get() && catalog.get() && ready.get());
-        let device = settings.on_this_device();
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>|| {
+                let settings = LayeredSettings::<EditorSettings>::page(editor);
+                let device = settings.on_this_device();
+                editor.block_types_known();
+                view! {
                 <List spacing=0.0>
                     <Keyed value={device} key={|device: bool| device}>|_device: ReadSignal<bool>|
                         <DefaultEditorsView
@@ -34,7 +32,8 @@ impl block_editor_beui::BeuiApp for DefaultEditorsApp {
                         />
                     </Keyed>
                 </List>
-            </Loaded>
+                }
+            }</Loaded>
         }
     }
 

@@ -10,7 +10,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::root_settings::is_own_settings;
-use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor, Loaded};
+use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor};
 use uuid::Uuid;
 
 use super::devices::DevicesTable;
@@ -60,14 +60,16 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let own = create_memo(move || is_own_settings(&editor, block));
     let others = create_memo(move || !own.get());
     let blocked = blocked(editor, settings, own);
-    let loaded =
-        editor.loaded::<SettingsContent>(&[BlockQuery::Roots, BlockQuery::Children(block)]);
+    let blocks = editor.blocks();
+    let _graph = store((
+        blocks.watch(BlockQuery::Roots),
+        blocks.watch(BlockQuery::Children(block)),
+    ));
     let shown = shown_block(editor);
     let devices = create_signal(false);
     let here = create_memo(move || !devices.get());
     let away = create_memo(move || devices.get());
     view! {
-        <Loaded loaded={loaded}>
             <Frame fill=ColorRole::Background>
                 <Scroll>
                     <Frame padding=PADDING>
@@ -110,7 +112,6 @@ pub fn SettingsView(editor: Editor) -> NodeId {
                     </Frame>
                 </Scroll>
             </Frame>
-        </Loaded>
     }
 }
 
@@ -208,11 +209,12 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     let profile = editor.block_content::<SettingsProfileContent>();
     let block = editor.block_id();
     let listed = editor.blocks().watch(BlockQuery::Block(block));
+    let _roots = store(editor.blocks().watch(BlockQuery::Roots));
     let parent = create_memo(move || {
         listed
             .read()
-            .into_iter()
-            .next()
+            .ok()
+            .and_then(|list| list.into_iter().next())
             .and_then(|info| info.parent?.block())
     });
     let own = create_memo(move || {
@@ -222,9 +224,6 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     });
     let others = create_memo(move || !own.get());
     let setup = DeviceSetup::new(editor, profile, parent);
-    let held = profile_loaded(editor, profile, parent);
-    let set_up_ready = setup.ready();
-    let loaded = create_memo(move || held.get() && set_up_ready.get());
     let blocked = blocked(editor, profile, own);
     let client = editor.host().client_id();
     let used = create_memo(move || {
@@ -232,7 +231,9 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
             editor
                 .content_of::<SettingsContent>(parent)
                 .read(|settings| settings.root().profile(client))
-        }) == Some(Some(block))
+                .ok()
+                .flatten()
+        }) == Some(block)
     });
     let unused = create_memo(move || !used.get() && !blocked.get());
     let shown = shown_block(editor);
@@ -246,7 +247,6 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
         false => "Not used on this device".to_owned(),
     });
     view! {
-        <Loaded loaded={loaded}>
             <SettingsPage>
                 <Show condition={others}>
                     <Frame padding={Sides::horizontal(NOTICE_INSET)}>
@@ -299,7 +299,6 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
                     </SettingsSection>
                 </Show>
             </SettingsPage>
-        </Loaded>
     }
 }
 
@@ -432,22 +431,4 @@ fn opener<C: Layer, K: BlockContent + Default>(
         host.open_block(id, K::CONTENT_TYPE);
     };
     (open, resolved)
-}
-
-fn profile_loaded(
-    editor: Editor,
-    profile: ContentProjection<SettingsProfileContent>,
-    parent: Memo<Option<Uuid>>,
-) -> Memo<bool> {
-    let content = profile.loaded();
-    let blocks = editor.blocks();
-    let listed = blocks.watch(BlockQuery::Block(editor.block_id()));
-    let roots = blocks.watch(BlockQuery::Roots);
-    let settings = editor.related_content::<SettingsContent>(parent).settled();
-    create_memo(move || {
-        content.get()
-            && listed.is_loaded()
-            && roots.is_loaded()
-            && (parent.get().is_none() || settings.get())
-    })
 }

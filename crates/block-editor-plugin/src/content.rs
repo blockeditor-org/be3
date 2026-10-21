@@ -66,6 +66,7 @@ struct Projection<C: LiveEdit> {
     pending: RefCell<VecDeque<C::Op>>,
     acknowledged: Cell<u64>,
     loaded: Cell<bool>,
+    told: Cell<bool>,
     resyncing: Cell<bool>,
     watchers: Rc<RefCell<Watchers<C>>>,
     next_watcher: Cell<u64>,
@@ -86,6 +87,7 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
             pending: RefCell::new(VecDeque::new()),
             acknowledged: Cell::new(0),
             loaded: Cell::new(false),
+            told: Cell::new(false),
             resyncing: Cell::new(false),
             watchers: Rc::new(RefCell::new(Watchers::new())),
             next_watcher: Cell::new(0),
@@ -123,7 +125,8 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
     fn ready(&self) -> Ready<()> {
         self.announced.get();
         self.adopt_lazily();
-        if self.loaded.get() {
+        let told = self.told.get() || self.due.borrow().is_none();
+        if self.loaded.get() && told {
             Ok(())
         } else {
             Err(Pending::Loading)
@@ -209,6 +212,9 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
     fn pump(&self) {
         self.adopt();
         self.notify();
+        if self.loaded.get() {
+            self.told.set(true);
+        }
         self.announced.set(self.revision.get());
     }
 

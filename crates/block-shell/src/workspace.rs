@@ -157,7 +157,7 @@ impl Workspace {
             shows.get();
             untrack(|| workspace.show_requested());
         });
-        create_effect(move || {
+        create_binding(move || {
             workspace.restore();
         });
         create_effect(move || {
@@ -375,8 +375,8 @@ impl Workspace {
             .entry(id)
             .or_insert_with(|| self.blocks().watch(BlockQuery::Block(id)));
         list.read()
-            .into_iter()
-            .next()
+            .ok()
+            .and_then(|list| list.into_iter().next())
             .or_else(|| self.blocks().info(id))
     }
 
@@ -480,6 +480,7 @@ impl Workspace {
                 self.host().forget_request(request);
             }
             share.error = None;
+            share.relisting();
             share.request = Some(self.host().list_access(share.block));
         }
         self.share.set(Some(share));
@@ -540,7 +541,10 @@ impl Workspace {
                 self.blocks().watch(BlockQuery::Shared),
             )
         });
-        (roots.read(), shared.read())
+        (
+            roots.read().unwrap_or_default(),
+            shared.read().unwrap_or_default(),
+        )
     }
 
     fn graph(&self, tree: PickTree) -> Graph {
@@ -552,7 +556,7 @@ impl Workspace {
         for block in lists
             .into_iter()
             .flat_map(HashMap::values)
-            .flat_map(BlockList::read)
+            .flat_map(|list| list.read().unwrap_or_default())
             .chain(roots.iter().cloned())
             .chain(shared.iter().cloned())
         {
@@ -562,7 +566,7 @@ impl Workspace {
             .into_iter()
             .flat_map(HashMap::iter)
             .filter_map(|(query, list)| match query {
-                BlockQuery::Children(id) if list.is_loaded() => Some(*id),
+                BlockQuery::Children(id) if list.read().is_ok() => Some(*id),
                 _ => None,
             })
             .collect();
@@ -773,7 +777,7 @@ impl Workspace {
         let Some(view) = self.editor.view_content() else {
             return;
         };
-        let Some(layout) = view.read(|held| held.root().state(LAYOUT).cloned()) else {
+        let Ok(layout) = view.read(|held| held.root().state(LAYOUT).cloned()) else {
             return;
         };
         inner.restored.set(true);

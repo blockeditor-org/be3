@@ -20,10 +20,18 @@ pub(crate) fn StatusBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                 .map_or_else(String::new, |info| format!("Type: {}", info.type_name))
         })
     });
-    let loaded = create_memo(move || {
-        info.with(|info| info.as_ref().is_some_and(|info| info.parents.loaded))
+    let relationships = create_memo(move || {
+        info.with(|info| {
+            info.as_ref()
+                .map_or(Err(Pending::Loading), |info| info.parents.state.clone())
+        })
     });
+    let loaded = create_memo(move || relationships.with(Result::is_ok));
     let loading = create_memo(move || !loaded.get());
+    let pending = create_memo(move || match relationships.get() {
+        Err(Pending::Failed(error)) => error,
+        _ => "Relationships loading…".to_owned(),
+    });
     let backrefs = create_memo(move || {
         info.with(|info| {
             info.as_ref()
@@ -42,7 +50,7 @@ pub(crate) fn StatusBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
         <Toolbar spacing=SPACING>
             <Text style=TextStyle::CAPTION string={type_label} />
             <Show condition={loading}>
-                <Text style=TextStyle::CAPTION string="Relationships loading…" />
+                <Text style=TextStyle::CAPTION string={pending} />
             </Show>
             <Show condition={loaded}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -91,7 +99,7 @@ pub(crate) fn ReferenceMenu(
                 .iter()
                 .filter(|reference| reference.deleted)
                 .count();
-            match (refs.loaded, deleted) {
+            match (refs.state.is_ok(), deleted) {
                 (false, _) => format!("{name}: …"),
                 (true, 0) => format!("{name}: {}", refs.list.len()),
                 (true, deleted) => {
@@ -102,9 +110,10 @@ pub(crate) fn ReferenceMenu(
     });
     let indices = create_memo(move || refs.with(|refs| (0..refs.list.len()).collect::<Vec<_>>()));
     let nothing = create_memo(move || refs.with(|refs| refs.list.is_empty()));
-    let nothing_label = create_memo(move || match refs.with(|refs| refs.loaded) {
-        true => empty.clone(),
-        false => "Loading…".to_owned(),
+    let nothing_label = create_memo(move || match refs.with(|refs| refs.state.clone()) {
+        Ok(()) => empty.clone(),
+        Err(Pending::Loading) => "Loading…".to_owned(),
+        Err(Pending::Failed(error)) => error,
     });
     let button = NodeRef::new();
     view! {

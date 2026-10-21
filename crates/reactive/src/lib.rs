@@ -13,7 +13,7 @@ mod stored;
 
 pub use computation::{Effect, create_binding, create_effect};
 pub use keyed::{KeyedItems, KeyedStore, Mapping, OwnedKeyedStore, numbered};
-pub use loading::{Boundary, Pending, Ready, hold, wait_for};
+pub use loading::{Boundary, Pending, Ready, hold, wait_for, wait_while};
 pub use memo::{Memo, create_memo};
 pub use reactive_macros::Store;
 pub use runtime::{

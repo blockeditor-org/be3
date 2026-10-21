@@ -141,6 +141,10 @@ where
                 && loaded(layers.this_device)
                 && (!page || loaded(Some(block)))
         });
+        wait_for(move || match ready.get() {
+            true => Ok(()),
+            false => Err(Pending::Loading),
+        });
         Self {
             editor,
             target,
