@@ -446,14 +446,16 @@ fn CentredSurface(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> 
         built |= open.get();
         built
     });
-    let surface = create_memo(move || {
-        body.get().then(|| {
-            untrack(|| {
+    let surface = create_signal(None);
+    create_binding(move || {
+        if body.get() {
+            let node = untrack(|| {
                 view! {
                     <PickerSurface workspace pick />
                 }
-            })
-        })
+            });
+            surface.set(Some(node));
+        }
     });
     let in_dialog = create_memo(move || wide.get().then(|| surface.get()).flatten());
     let in_sheet = create_memo(move || narrow.get().then(|| surface.get()).flatten());

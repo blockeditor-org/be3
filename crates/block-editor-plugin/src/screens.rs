@@ -309,6 +309,16 @@ impl Screens {
                         .collect(),
                 );
             }
+            Message::Editor(EditorMessage::BlocksFailed {
+                instance,
+                query,
+                error,
+            }) => {
+                let Some(session) = self.sessions.get(instance) else {
+                    return false;
+                };
+                session.fail_blocks(crate::BlockQuery::decode(*query), error.clone());
+            }
             Message::Editor(EditorMessage::PeerPresence {
                 instance,
                 block_id,

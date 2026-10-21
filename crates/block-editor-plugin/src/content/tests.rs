@@ -91,6 +91,7 @@ impl Fixture {
     fn text(&self, id: ObjectId) -> String {
         self.projection
             .read(|content| content.root().items.get(id).map(|item| item.text.clone()))
+            .ok()
             .flatten()
             .unwrap_or_default()
     }

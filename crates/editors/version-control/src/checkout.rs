@@ -11,11 +11,8 @@ pub struct CheckoutApp;
 
 impl block_editor_beui::BeuiApp for CheckoutApp {
     fn view(editor: Editor) -> NodeId {
-        let content = editor.loaded::<block_editor_beui::be_block::CheckoutContent>(&[]);
-        let status = editor.version_known();
-        let loaded = create_memo(move || content.get() && status.get());
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <CheckoutView editor={editor} />
             </Loaded>
         }

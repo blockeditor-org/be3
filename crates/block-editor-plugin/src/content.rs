@@ -8,7 +8,7 @@ use std::{
 use be_block::be_model::{Document, Field, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
 use reactive::{
-    Get, KeyedStore, OwnedSignal, OwnedStored, ReadSignal, Set, Signal, Stored, batch,
+    Get, KeyedStore, OwnedSignal, OwnedStored, Pending, ReadSignal, Ready, Set, Stored, batch,
     create_signal, on_cleanup,
 };
 
@@ -66,13 +66,13 @@ struct Projection<C: LiveEdit> {
     pending: RefCell<VecDeque<C::Op>>,
     acknowledged: Cell<u64>,
     loaded: Cell<bool>,
+    told: Cell<bool>,
     resyncing: Cell<bool>,
     watchers: Rc<RefCell<Watchers<C>>>,
     next_watcher: Cell<u64>,
     touched: RefCell<Vec<Touched>>,
     revision: Cell<u64>,
     announced: OwnedSignal<u64>,
-    loaded_signals: RefCell<Vec<Signal<bool>>>,
     due: RefCell<Option<Rc<dyn Fn()>>>,
     projected: RefCell<Option<Vec<Projected<C::Op>>>>,
 }
@@ -87,13 +87,13 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
             pending: RefCell::new(VecDeque::new()),
             acknowledged: Cell::new(0),
             loaded: Cell::new(false),
+            told: Cell::new(false),
             resyncing: Cell::new(false),
             watchers: Rc::new(RefCell::new(Watchers::new())),
             next_watcher: Cell::new(0),
             touched: RefCell::new(Vec::new()),
             revision: Cell::new(0),
             announced: OwnedSignal::new(0),
-            loaded_signals: RefCell::new(Vec::new()),
             due: RefCell::new(None),
             projected: RefCell::new(None),
         }
@@ -122,22 +122,23 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         *self.due.borrow_mut() = Some(Rc::new(due));
     }
 
-    fn loaded(&self) -> ReadSignal<bool> {
-        let loaded = create_signal(self.loaded.get());
-        self.loaded_signals.borrow_mut().push(loaded);
-        loaded.read_only()
-    }
-
-    fn revision(&self) -> Option<u64> {
+    fn ready(&self) -> Ready<()> {
         self.announced.get();
         self.adopt_lazily();
-        self.loaded.get().then(|| self.revision.get())
+        let told = self.told.get() || self.due.borrow().is_none();
+        if self.loaded.get() && told {
+            Ok(())
+        } else {
+            Err(Pending::Loading)
+        }
     }
 
-    fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
-        self.announced.get();
-        self.adopt_lazily();
-        self.loaded.get().then(|| read(&self.visible.borrow()))
+    fn revision(&self) -> Ready<u64> {
+        self.ready().map(|()| self.revision.get())
+    }
+
+    fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Ready<T> {
+        self.ready().map(|()| read(&self.visible.borrow()))
     }
 
     fn watch<T>(&self, key: Option<Touched>, project: impl Fn(&C) -> T + 'static) -> ReadSignal<T>
@@ -211,6 +212,9 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
     fn pump(&self) {
         self.adopt();
         self.notify();
+        if self.loaded.get() {
+            self.told.set(true);
+        }
         self.announced.set(self.revision.get());
     }
 
@@ -261,11 +265,7 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
                     }
                     *self.confirmed.borrow_mut() = confirmed;
                     self.resyncing.set(false);
-                    if !self.loaded.replace(true) {
-                        for loaded in self.loaded_signals.borrow_mut().drain(..) {
-                            loaded.set(true);
-                        }
-                    }
+                    self.loaded.set(true);
                     self.rebuild();
                 }
                 ContentUpdate::Operations(operations) => {
@@ -390,15 +390,15 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
         self.inner().block
     }
 
-    pub fn loaded(&self) -> ReadSignal<bool> {
-        self.inner().loaded()
+    pub fn ready(&self) -> Ready<()> {
+        self.inner().ready()
     }
 
-    pub fn revision(&self) -> Option<u64> {
+    pub fn revision(&self) -> Ready<u64> {
         self.inner().revision()
     }
 
-    pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Option<T> {
+    pub fn read<T>(&self, read: impl FnOnce(&C) -> T) -> Ready<T> {
         self.inner().read(read)
     }
 

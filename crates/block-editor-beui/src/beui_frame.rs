@@ -177,7 +177,7 @@ impl Watched {
                 .blocks()
                 .watch(BlockQuery::Block(self.editor.block_id()))
         });
-        list.read().into_iter().next()
+        list.read().ok()?.into_iter().next()
     }
 
     fn can_edit(&self) -> bool {

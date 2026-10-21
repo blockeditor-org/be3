@@ -14,9 +14,8 @@ pub struct DatabaseSchemaApp;
 
 impl block_editor_beui::BeuiApp for DatabaseSchemaApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::DatabaseSchemaContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <SchemaView editor={editor} />
             </Loaded>
         }

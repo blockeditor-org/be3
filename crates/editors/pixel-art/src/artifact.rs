@@ -195,12 +195,16 @@ impl Regeneration {
     }
 
     pub fn poll(&mut self) -> Option<Result<(), String>> {
-        let source = self.source.read(|content| content.root().artwork())?;
+        let source = match self.source.read(|content| content.root().artwork()) {
+            Ok(source) => source,
+            Err(Pending::Loading) => return None,
+            Err(Pending::Failed(error)) => return Some(Err(error)),
+        };
         let name = self
             .named
             .read()
-            .into_iter()
-            .next()
+            .ok()
+            .and_then(|blocks| blocks.into_iter().next())
             .and_then(|info| info.name())
             .unwrap_or_else(|| "Pixel Art".to_owned());
         let generated = generate(&source, &name, &self.settings);

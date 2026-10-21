@@ -207,7 +207,10 @@ pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
     let memo_depth = RUNTIME.with(|runtime| runtime.memo_depth.get());
     let _memo_depth = Reset::set(
         |runtime| &runtime.memo_depth,
-        memo_depth + usize::from(memo),
+        match memo {
+            true => memo_depth + 1,
+            false => 0,
+        },
     );
     batch(|| {
         let _context = Context::enter(no_computation(), Weak::new());
@@ -238,6 +241,10 @@ pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
             owner: probe.owner,
         }
     })
+}
+
+pub(crate) fn in_memo() -> bool {
+    RUNTIME.with(|runtime| runtime.memo_depth.get() > 0)
 }
 
 pub(crate) fn tracking() -> bool {

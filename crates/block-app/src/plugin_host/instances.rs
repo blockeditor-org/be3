@@ -151,7 +151,8 @@ struct Instance {
     watched: HashMap<Uuid, ContentLink>,
     shown: std::collections::HashSet<(Uuid, Uuid)>,
     block_queries: Vec<block_plugin_api::BlockQuery>,
-    sent_blocks: HashMap<block_plugin_api::BlockQuery, Vec<block_plugin_api::BlockInfo>>,
+    sent_blocks:
+        HashMap<block_plugin_api::BlockQuery, Result<Vec<block_plugin_api::BlockInfo>, String>>,
     blocks_seen: Option<u64>,
     version_sent: Option<u64>,
     stale: bool,
@@ -389,18 +390,29 @@ impl Instance {
         self.blocks_seen = Some(revision);
         let mut messages = Vec::new();
         for query in &self.block_queries {
-            if !crate::be::ready(super::graph::query_of(*query)) {
+            let graph_query = super::graph::query_of(*query);
+            let answer = match crate::be::ready(graph_query) {
+                true => Ok(super::graph::answer(*query)),
+                false => match crate::be::failure(graph_query) {
+                    Some(error) => Err(error),
+                    None => continue,
+                },
+            };
+            if self.sent_blocks.get(query) == Some(&answer) {
                 continue;
             }
-            let blocks = super::graph::answer(*query);
-            if self.sent_blocks.get(query) == Some(&blocks) {
-                continue;
-            }
-            self.sent_blocks.insert(*query, blocks.clone());
-            messages.push(Message::Editor(EditorMessage::Blocks {
-                instance,
-                query: *query,
-                blocks,
+            self.sent_blocks.insert(*query, answer.clone());
+            messages.push(Message::Editor(match answer {
+                Ok(blocks) => EditorMessage::Blocks {
+                    instance,
+                    query: *query,
+                    blocks,
+                },
+                Err(error) => EditorMessage::BlocksFailed {
+                    instance,
+                    query: *query,
+                    error,
+                },
             }));
         }
         messages

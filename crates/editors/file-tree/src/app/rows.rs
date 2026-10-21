@@ -1,6 +1,7 @@
 use std::cell::{Cell, RefCell};
 use std::collections::{HashMap, HashSet};
 use std::rc::Rc;
+use std::time::{Duration, Instant};
 
 use block_editor_beui::be_block::ViewState;
 use block_editor_beui::beui::icons::{ICON_DATABASE, ICON_HISTORY, ICON_PEOPLE, ICON_WORKSPACES};
@@ -121,11 +122,50 @@ struct Folded {
     system_open: bool,
 }
 
+const GRACE: Duration = Duration::from_millis(300);
+
+struct Listing {
+    list: Rc<BlockList>,
+    since: Instant,
+}
+
+impl Listing {
+    fn watch(client: &Blocks, query: BlockQuery) -> Self {
+        Self {
+            list: Rc::new(client.watch(query)),
+            since: now(),
+        }
+    }
+}
+
+#[derive(Clone, Copy)]
+struct Clock {
+    now: Instant,
+    due: Option<Instant>,
+}
+
+impl Clock {
+    fn listed(&mut self, listing: &Listing) -> Result<Vec<BlockInfo>, Option<String>> {
+        match listing.list.read() {
+            Ok(blocks) => Ok(blocks),
+            Err(Pending::Failed(error)) => Err(Some(error)),
+            Err(Pending::Loading) if self.now >= listing.since + GRACE => {
+                Err(Some("Loading…".to_owned()))
+            }
+            Err(Pending::Loading) => {
+                let due = listing.since + GRACE;
+                self.due = Some(self.due.map_or(due, |held| held.min(due)));
+                Err(None)
+            }
+        }
+    }
+}
+
 #[derive(Default)]
 struct Watched {
-    expanded: HashMap<Uuid, BlockList>,
-    sections: HashMap<Uuid, BlockList>,
-    orphans: Option<BlockList>,
+    expanded: HashMap<Uuid, Listing>,
+    sections: HashMap<Uuid, Listing>,
+    orphans: Option<Listing>,
     block_types: HashMap<Uuid, Uuid>,
     workspaces: HashSet<Uuid>,
     system: HashSet<Uuid>,
@@ -149,20 +189,57 @@ struct Inner {
 impl Tree {
     pub(crate) fn watch(editor: Editor) -> Self {
         let client = editor.blocks();
-        let roots = client.watch(BlockQuery::Roots);
-        let shared = client.watch(BlockQuery::Shared);
+        let roots = Listing::watch(&client, BlockQuery::Roots);
+        let shared = Listing::watch(&client, BlockQuery::Shared);
         let watched = Rc::new(RefCell::new(Watched::default()));
         let expanded = create_signal(HashSet::<Uuid>::new());
         let collapsed = create_signal(HashSet::<Uuid>::new());
         let folded = create_signal(Folded::default());
         let rows = create_signal(Vec::<Row>::new());
         let remembered = create_signal(0_u64);
+        let tick = create_signal(0_u64);
+        let timer = create_timer(move || {
+            tick.update(|count| *count += 1);
+            None
+        });
+
+        let restored = Rc::new(Cell::new(false));
+        let adopted = Rc::clone(&restored);
+        let view = editor.view_content();
+        create_binding(move || {
+            if adopted.get() {
+                return;
+            }
+            let Some(view) = view else {
+                return;
+            };
+            let Ok(opened) = view.read(|held| {
+                held.root()
+                    .state(OPENED)
+                    .and_then(ViewState::value::<Opened>)
+            }) else {
+                return;
+            };
+            untrack(|| {
+                if let Some(opened) = opened {
+                    expanded.set(opened.expanded.into_iter().collect());
+                    collapsed.set(opened.collapsed.into_iter().collect());
+                    folded.set(Folded {
+                        orphans_open: opened.orphans,
+                        shared_closed: opened.shared_closed,
+                        system_open: opened.system,
+                    });
+                }
+            });
+            adopted.set(true);
+        });
 
         let build = Rc::clone(&watched);
         let host = editor.host();
         let building = client.clone();
-        create_effect(move || {
+        create_binding(move || {
             remembered.get();
+            tick.get();
             let mut watched = build.borrow_mut();
             let open = expanded.get();
             let collapsed = collapsed.get();
@@ -176,21 +253,31 @@ impl Tree {
                 watched
                     .expanded
                     .entry(*id)
-                    .or_insert_with(|| building.watch(BlockQuery::References(*id)));
+                    .or_insert_with(|| Listing::watch(&building, BlockQuery::References(*id)));
             }
             if showing && watched.orphans.is_none() {
-                watched.orphans = Some(building.watch(BlockQuery::Detached));
+                watched.orphans = Some(Listing::watch(&building, BlockQuery::Detached));
             }
             if !showing {
                 watched.orphans = None;
             }
 
             let types = host.block_types();
-            let listed = roots.read();
-            let sections = workspaces(listed.clone(), host.account_id(), types.as_ref());
-            let system = own_system(listed.clone(), host.account_id());
-            let loose = shared_with_me(listed, shared.read());
-            watched.system = system.iter().map(|block| block.id).collect();
+            let mut clock = Clock {
+                now: now(),
+                due: None,
+            };
+            let listed = clock.listed(&roots);
+            let held = listed.clone().unwrap_or_default();
+            let sections = workspaces(held.clone(), host.account_id(), types.as_ref());
+            let system = listed
+                .as_ref()
+                .map(|_| own_system(held.clone(), host.account_id()))
+                .map_err(Clone::clone);
+            let loose = clock
+                .listed(&shared)
+                .map(|shared| shared_with_me(held, shared));
+            watched.system = system.iter().flatten().map(|block| block.id).collect();
             watched.workspaces = sections.iter().map(|block| block.id).collect();
             let shown: HashSet<Uuid> = sections
                 .iter()
@@ -202,60 +289,39 @@ impl Tree {
                 watched
                     .sections
                     .entry(*id)
-                    .or_insert_with(|| building.watch(BlockQuery::References(*id)));
+                    .or_insert_with(|| Listing::watch(&building, BlockQuery::References(*id)));
             }
             let mut builder = Builder {
                 account: host.account_id(),
                 client: &building,
                 types: types.as_ref(),
                 watched: &mut watched,
+                clock,
                 rows: Vec::new(),
             };
-            if sections.is_empty() && roots.is_loaded() {
-                builder
-                    .rows
-                    .push(Row::note(Vec::new(), 0, "No workspaces yet"));
+            match listed {
+                Ok(_) if sections.is_empty() => {
+                    builder
+                        .rows
+                        .push(Row::note(Vec::new(), 0, "No workspaces yet"))
+                }
+                Err(Some(error)) => builder.rows.push(Row::note(Vec::new(), 0, &error)),
+                Ok(_) | Err(None) => {}
             }
             for section in sections {
                 let open = shown.contains(&section.id);
                 builder.push_section(section, open);
             }
-            builder.push_shared(loose, !shared_closed, shared.is_loaded());
+            builder.push_shared(loose, !shared_closed);
             builder.push_orphans(showing);
-            builder.push_system(system, system_open, roots.is_loaded());
+            builder.push_system(system, system_open);
+            let due = builder.clock.due;
             let built = builder.rows;
             drop(watched);
+            if let Some(due) = due {
+                timer.start(due.saturating_duration_since(clock.now));
+            }
             rows.set(built);
-        });
-
-        let restored = Rc::new(Cell::new(false));
-        let adopted = Rc::clone(&restored);
-        create_effect(move || {
-            if adopted.get() {
-                return;
-            }
-            let Some(view) = editor.view_content() else {
-                return;
-            };
-            let Some(opened) = view.read(|held| {
-                held.root()
-                    .state(OPENED)
-                    .and_then(ViewState::value::<Opened>)
-            }) else {
-                return;
-            };
-            adopted.set(true);
-            if let Some(opened) = opened {
-                untrack(|| {
-                    expanded.set(opened.expanded.into_iter().collect());
-                    collapsed.set(opened.collapsed.into_iter().collect());
-                    folded.set(Folded {
-                        orphans_open: opened.orphans,
-                        shared_closed: opened.shared_closed,
-                        system_open: opened.system,
-                    });
-                });
-            }
         });
         create_effect(move || {
             let mut expanded: Vec<Uuid> = expanded.get().into_iter().collect();
@@ -409,7 +475,23 @@ struct Builder<'a> {
     client: &'a Blocks,
     types: &'a dyn BlockTypes,
     watched: &'a mut Watched,
+    clock: Clock,
     rows: Vec<Row>,
+}
+
+fn note_for(
+    rows: &mut Vec<Row>,
+    listed: Result<Vec<BlockInfo>, Option<String>>,
+    empty: &str,
+    note: impl Fn(&str) -> Row,
+) -> Option<Vec<BlockInfo>> {
+    match listed {
+        Ok(blocks) if blocks.is_empty() => rows.push(note(empty)),
+        Ok(blocks) => return Some(blocks),
+        Err(Some(error)) => rows.push(note(&error)),
+        Err(None) => {}
+    }
+    None
 }
 
 impl Builder<'_> {
@@ -429,26 +511,21 @@ impl Builder<'_> {
         let Some(orphans) = self.watched.orphans.as_ref() else {
             return;
         };
-        let listed = orphans.read();
-        if !orphans.is_loaded() {
-            self.rows
-                .push(Row::note_at(RowKey::OrphansNote, 1, "Loading…"));
+        let listed = self.clock.listed(orphans);
+        let Some(listed) = note_for(
+            &mut self.rows,
+            listed,
+            "No recently deleted blocks",
+            |label| Row::note_at(RowKey::OrphansNote, 1, label),
+        ) else {
             return;
-        }
-        if listed.is_empty() {
-            self.rows.push(Row::note_at(
-                RowKey::OrphansNote,
-                1,
-                "No recently deleted blocks",
-            ));
-            return;
-        }
+        };
         for block in listed {
             self.push(block, 1, None, &mut Vec::new(), true);
         }
     }
 
-    fn push_system(&mut self, blocks: Vec<BlockInfo>, open: bool, loaded: bool) {
+    fn push_system(&mut self, blocks: Result<Vec<BlockInfo>, Option<String>>, open: bool) {
         self.rows.push(Row {
             section: true,
             expandable: true,
@@ -459,16 +536,11 @@ impl Builder<'_> {
         if !open {
             return;
         }
-        if !loaded {
-            self.rows
-                .push(Row::note_at(RowKey::SystemNote, 1, "Loading…"));
+        let Some(blocks) = note_for(&mut self.rows, blocks, "Nothing here yet", |label| {
+            Row::note_at(RowKey::SystemNote, 1, label)
+        }) else {
             return;
-        }
-        if blocks.is_empty() {
-            self.rows
-                .push(Row::note_at(RowKey::SystemNote, 1, "Nothing here yet"));
-            return;
-        }
+        };
         for block in blocks {
             self.push(block, 1, None, &mut Vec::new(), false);
         }
@@ -507,22 +579,19 @@ impl Builder<'_> {
         let Some(watched) = self.watched.sections.get(&section.id) else {
             return;
         };
-        let children = watched.read();
-        if !watched.is_loaded() {
-            self.rows.push(Row::note(path, 1, "Loading…"));
+        let listed = self.clock.listed(watched);
+        let Some(children) = note_for(&mut self.rows, listed, "Nothing here yet", |label| {
+            Row::note(path.clone(), 1, label)
+        }) else {
             return;
-        }
-        if children.is_empty() {
-            self.rows.push(Row::note(path, 1, "Nothing here yet"));
-            return;
-        }
+        };
         let mut path = path;
         for child in children {
             self.push(child, 1, Some(section.id), &mut path, false);
         }
     }
 
-    fn push_shared(&mut self, shared: Vec<BlockInfo>, open: bool, loaded: bool) {
+    fn push_shared(&mut self, shared: Result<Vec<BlockInfo>, Option<String>>, open: bool) {
         self.rows.push(Row {
             key: RowKey::Shared,
             section: true,
@@ -534,19 +603,14 @@ impl Builder<'_> {
         if !open {
             return;
         }
-        if !loaded {
-            self.rows
-                .push(Row::note_at(RowKey::SharedNote, 1, "Loading…"));
+        let Some(shared) = note_for(
+            &mut self.rows,
+            shared,
+            "Nothing has been shared with you",
+            |label| Row::note_at(RowKey::SharedNote, 1, label),
+        ) else {
             return;
-        }
-        if shared.is_empty() {
-            self.rows.push(Row::note_at(
-                RowKey::SharedNote,
-                1,
-                "Nothing has been shared with you",
-            ));
-            return;
-        }
+        };
         for block in shared {
             let at = self.rows.len();
             let leavable = block.author != Some(self.account);
@@ -594,18 +658,12 @@ impl Builder<'_> {
         if !expanded || path.contains(&reference.id) {
             return;
         }
-        let watched = &self.watched.expanded[&reference.id];
-        let children = watched.read();
-        if !watched.is_loaded() {
-            self.rows
-                .push(Row::note(key_path.clone(), depth + 1, "Loading…"));
+        let listed = self.clock.listed(&self.watched.expanded[&reference.id]);
+        let Some(children) = note_for(&mut self.rows, listed, "No references", |label| {
+            Row::note(key_path.clone(), depth + 1, label)
+        }) else {
             return;
-        }
-        if children.is_empty() {
-            self.rows
-                .push(Row::note(key_path.clone(), depth + 1, "No references"));
-            return;
-        }
+        };
         path.push(reference.id);
         for child in children {
             self.push(child, depth + 1, Some(reference.id), path, trashed);
@@ -777,16 +835,18 @@ pub(crate) fn unlink_permission(
     block_types: &HashMap<Uuid, Uuid>,
     container: Option<Uuid>,
 ) -> Result<(), &'static str> {
-    let container_type = container.and_then(|id| block_types.get(&id).copied());
-    match (container, container_type) {
-        (Some(_), Some(block_type)) if !types.child_edits(block_type).replace => {
+    let held: Ready<(Uuid, Uuid)> = container
+        .and_then(|id| Some((id, *block_types.get(&id)?)))
+        .ok_or(Pending::Loading);
+    match held {
+        Ok((_, block_type)) if !types.child_edits(block_type).replace => {
             Err("This container doesn't support replacing a reference")
         }
-        (Some(container), Some(_)) if !client.access(container).can_edit() => {
+        Ok((container, _)) if !client.access(container).can_edit() => {
             Err("You don't have permission to edit this container")
         }
-        (Some(_), Some(_)) => Ok(()),
-        _ => Err("Loading…"),
+        Ok(_) => Ok(()),
+        Err(_) => Err("Loading…"),
     }
 }
 

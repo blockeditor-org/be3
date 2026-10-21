@@ -12,9 +12,8 @@ pub struct LogicGridApp;
 
 impl block_editor_beui::BeuiApp for LogicGridApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::LogicGridContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <LogicGridView editor={editor} />
             </Loaded>
         }

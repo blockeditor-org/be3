@@ -226,10 +226,19 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             .unwrap_or_default()
     });
     let loading = create_memo(move || {
-        state.with(|share| share.as_ref().is_some_and(|share| share.loading()))
+        state.with(|share| {
+            share
+                .as_ref()
+                .is_some_and(|share| share.members == Err(Pending::Loading))
+        })
     });
     let error = create_memo(move || {
-        state.with(|share| share.as_ref().and_then(|share| share.error.clone()))
+        state.with(|share| {
+            share.as_ref().and_then(|share| match &share.members {
+                Err(Pending::Failed(error)) => Some(error.clone()),
+                _ => share.error.clone(),
+            })
+        })
     });
     let has_error = create_memo(move || error.get().is_some());
     let error_text = create_memo(move || error.get().unwrap_or_default());
@@ -299,7 +308,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             .collect::<Vec<_>>()
     });
     let nobody = create_memo(move || {
-        state.with(|share| share.as_ref().is_some_and(|share| share.loaded))
+        state.with(|share| share.as_ref().is_some_and(|share| share.members.is_ok()))
             && members.get().is_empty()
     });
     let inviting = create_memo(move || {

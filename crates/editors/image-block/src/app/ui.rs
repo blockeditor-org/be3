@@ -10,12 +10,7 @@ use super::{filter, imported};
 
 #[component]
 pub fn ImageEditor(editor: Editor) -> NodeId {
-    let block = editor.block_content::<ImageContent>();
-    let shown = watch(editor, block);
-    let image = create_memo(move || shown.get().image);
     let placeholder = thumbhash(editor);
-    let failed = create_memo(move || shown.get().error.is_some());
-    let reason = create_memo(move || shown.get().error.unwrap_or_default());
 
     let chooser = FileChooser::new(filter(), imported);
     chooser.on_chosen(move |chooser| {
@@ -32,9 +27,17 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     let refusal = create_memo(move || failure.get().unwrap_or_default());
     let choose = move || chooser.open();
 
-    create_effect(move || {
-        editor.set_intrinsic_size(image.get().map(|image| image.size()));
-    });
+    let fallback = move |pending: Pending| {
+        let image = create_memo(|| None);
+        let error = match pending {
+            Pending::Loading => None,
+            Pending::Failed(error) => Some(error),
+        };
+        let error = create_memo(move || error.clone());
+        view! {
+            <ImageArea editor={editor} image={image} thumbhash={placeholder} error={error} />
+        }
+    };
 
     let chrome = editor.chrome_shown();
     let content = NodeRef::new();
@@ -42,17 +45,25 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                <List align=Align::Stretch spacing=0.0>
-                    <Artwork
-                        @sizing=ItemSize::Percent(100.0)
-                        editor={editor}
-                        image={image}
-                        thumbhash={placeholder}
-                    />
-                    <Show condition={failed}>
-                        <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
-                    </Show>
-                </List>
+                <Layers>
+                    <Loading fallback>|| {
+                        let block = editor.block_content::<ImageContent>();
+                        let shown = watch(editor, block);
+                        let image = create_memo(move || shown.get().image);
+                        let error = create_memo(move || shown.get().error);
+                        create_effect(move || {
+                            editor.set_intrinsic_size(image.get().map(|image| image.size()));
+                        });
+                        view! {
+                            <ImageArea
+                                editor={editor}
+                                image={image}
+                                thumbhash={placeholder}
+                                error={error}
+                            />
+                        }
+                    }</Loading>
+                </Layers>
             </Frame>
             <Sidebar shown={chrome}>
                 <Text style=TextStyle::HEADING string="Image" />
@@ -68,6 +79,30 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </Sidebar>
+        </List>
+    }
+}
+
+#[component]
+fn ImageArea(
+    editor: Editor,
+    image: Memo<Option<Image>>,
+    thumbhash: Memo<Option<Thumbhash>>,
+    error: Memo<Option<String>>,
+) -> NodeId {
+    let failed = create_memo(move || error.with(Option::is_some));
+    let reason = create_memo(move || error.get().unwrap_or_default());
+    view! {
+        <List align=Align::Stretch spacing=0.0>
+            <Artwork
+                @sizing=ItemSize::Percent(100.0)
+                editor={editor}
+                image={image}
+                thumbhash={thumbhash}
+            />
+            <Show condition={failed}>
+                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
+            </Show>
         </List>
     }
 }
@@ -117,11 +152,23 @@ fn Artwork(
 
 #[component]
 pub fn ImagePreview(editor: Editor) -> NodeId {
-    let block = editor.block_content::<ImageContent>();
-    let shown = watch(editor, block);
-    let image = create_memo(move || shown.get().image);
     let placeholder = thumbhash(editor);
+    let fallback = move |_: Pending| {
+        let image = create_memo(|| None);
+        view! {
+            <Picture image={image} thumbhash={placeholder} fit=ImageFit::Contain />
+        }
+    };
     view! {
-        <Picture image={image} thumbhash={placeholder} fit=ImageFit::Contain />
+        <Layers>
+            <Loading fallback>|| {
+                let block = editor.block_content::<ImageContent>();
+                let shown = watch(editor, block);
+                let image = create_memo(move || shown.get().image);
+                view! {
+                    <Picture image={image} thumbhash={placeholder} fit=ImageFit::Contain />
+                }
+            }</Loading>
+        </Layers>
     }
 }

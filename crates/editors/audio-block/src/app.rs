@@ -16,9 +16,8 @@ pub struct AudioApp;
 
 impl block_editor_beui::BeuiApp for AudioApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::AudioContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <AudioView editor={editor} />
             </Loaded>
         }

@@ -108,6 +108,7 @@ where
                     editor
                         .content_of::<Document<R>>(block)
                         .read(|content| content.root())
+                        .ok()
                 })
                 .unwrap_or_default()
         };
@@ -128,10 +129,7 @@ where
         let ready = create_memo(move || {
             let loaded = |block: Option<Uuid>| {
                 block.is_none_or(|block| {
-                    editor
-                        .content_of::<Document<R>>(block)
-                        .read(|_| ())
-                        .is_some()
+                    editor.content_of::<Document<R>>(block).read(|_| ()).is_ok()
                 })
             };
             let layers = layers.get();
@@ -139,6 +137,10 @@ where
                 && loaded(layers.every_device)
                 && loaded(layers.this_device)
                 && (!page || loaded(Some(block)))
+        });
+        wait_for(move || match ready.get() {
+            true => Ok(()),
+            false => Err(Pending::Loading),
         });
         Self {
             editor,

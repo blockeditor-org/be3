@@ -231,6 +231,7 @@ impl EditorMessage {
                     self::query(query, &mut existing);
                 }
             }
+            Self::BlocksFailed { query, .. } => self::query(query, &mut existing),
             Self::Blocks { query, blocks, .. } => {
                 self::query(query, &mut existing);
                 for block in blocks {

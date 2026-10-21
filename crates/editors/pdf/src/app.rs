@@ -13,18 +13,16 @@ pub struct PdfApp;
 
 impl block_editor_beui::BeuiApp for PdfApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::PdfContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <PdfEditor editor={editor} />
             </Loaded>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::PdfContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <PdfPreview editor={editor} />
             </Loaded>
         }

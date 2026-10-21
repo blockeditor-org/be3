@@ -36,9 +36,6 @@ fn board() -> Rc<Board> {
     with_document(|document| document.drag_board())
 }
 
-#[derive(Clone, Copy)]
-struct DropDepth(usize);
-
 #[component]
 pub fn Draggable<P>(
     payload: Prop<Option<P>>,
@@ -186,15 +183,12 @@ pub fn DropTarget<P>(
 where
     P: Clone + 'static,
 {
-    let depth = use_context::<DropDepth>().map_or(0, |DropDepth(depth)| depth + 1);
-    provide_context(DropDepth(depth));
     let accepts = accepts.unwrap_or_else(|| Func::new(|_| true));
     let carrying = create_signal(false);
     let pointer = create_signal(None::<DragPoint>);
     let board = board();
     let id = board.register(Target {
         id: 0,
-        depth,
         node: component_node(),
         accepts: Rc::new(move |payload: &dyn Any| {
             payload
