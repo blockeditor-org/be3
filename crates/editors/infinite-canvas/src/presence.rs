@@ -32,6 +32,7 @@ impl PresenceKind for CanvasCursor {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum CanvasDraft {
     Shape(Box<CanvasEntity>),
+    Change(Box<CanvasEntity>),
     Stroke {
         id: Uuid,
         part: u16,
@@ -55,13 +56,14 @@ pub(crate) enum Draft {
         style: CanvasStyle,
     },
     Shape(Box<CanvasEntity>),
+    Change(Box<CanvasEntity>),
 }
 
 impl Draft {
     pub(crate) fn id(&self) -> Uuid {
         match self {
             Self::Stroke { id, .. } => *id,
-            Self::Shape(entity) => entity.id,
+            Self::Shape(entity) | Self::Change(entity) => entity.id,
         }
     }
 }
@@ -102,26 +104,38 @@ pub(crate) fn assemble(peers: &[(u64, CanvasDraft)]) -> Vec<(u64, Draft)> {
     }
     by_client
         .into_iter()
-        .filter_map(|(client, drafts)| Some((client, assemble_one(&drafts)?)))
+        .flat_map(|(client, drafts)| {
+            assemble_one(&drafts)
+                .into_iter()
+                .map(move |draft| (client, draft))
+        })
         .collect()
 }
 
-fn assemble_one(drafts: &[&CanvasDraft]) -> Option<Draft> {
+fn assemble_one(drafts: &[&CanvasDraft]) -> Vec<Draft> {
+    let entities: Vec<Draft> = drafts
+        .iter()
+        .filter_map(|draft| match draft {
+            CanvasDraft::Shape(entity) => Some(Draft::Shape(entity.clone())),
+            CanvasDraft::Change(entity) => Some(Draft::Change(entity.clone())),
+            CanvasDraft::Stroke { .. } => None,
+        })
+        .collect();
+    if !entities.is_empty() {
+        return entities;
+    }
+    assemble_stroke(drafts).into_iter().collect()
+}
+
+fn assemble_stroke(drafts: &[&CanvasDraft]) -> Option<Draft> {
     let (id, style) = drafts.iter().find_map(|draft| match draft {
-        CanvasDraft::Shape(entity) => Some((entity.id, None)),
         CanvasDraft::Stroke {
             id,
             style: Some(style),
             ..
-        } => Some((*id, Some(*style))),
-        CanvasDraft::Stroke { .. } => None,
+        } => Some((*id, *style)),
+        _ => None,
     })?;
-    let Some(style) = style else {
-        return drafts.iter().find_map(|draft| match draft {
-            CanvasDraft::Shape(entity) => Some(Draft::Shape(entity.clone())),
-            CanvasDraft::Stroke { .. } => None,
-        });
-    };
     let mut parts: Vec<_> = drafts
         .iter()
         .filter_map(|draft| match draft {
@@ -168,6 +182,9 @@ pub(crate) fn unlanded(
     drafts
         .into_iter()
         .filter(|(_, draft)| {
+            if let Draft::Change(_) = draft {
+                return true;
+            }
             let id = draft.id();
             if exists(id) {
                 landed.insert(id);

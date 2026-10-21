@@ -37,6 +37,7 @@ mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_multiple_selection_outlines_each_selected_entity;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
 mod a_new_shape_takes_the_last_style_used;
+mod a_peer_sees_a_labelled_shape_while_it_is_moved;
 mod a_peer_sees_a_shape_while_it_is_dragged;
 mod a_peer_sees_a_stroke_while_it_is_drawn;
 mod a_peer_sees_where_another_is_writing;

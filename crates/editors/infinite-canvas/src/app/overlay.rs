@@ -8,13 +8,9 @@ use block_editor_beui::beui::{
 use crate::freehand;
 use crate::geometry::*;
 
-use std::rc::Rc;
-
 use super::paint::{
-    Camera, EntityPaint, Palette, SELECTION, arrowhead, handle, outline, resolve_color,
-    with_opacity,
+    Camera, Palette, SELECTION, arrowhead, handle, outline, resolve_color, with_opacity,
 };
-use super::sketch::Sketch;
 use super::state::{Gesture, Presence, Tool};
 use crate::presence::Draft;
 
@@ -109,7 +105,11 @@ pub(crate) struct Overlay {
 
 impl Overlay {
     pub(crate) fn draw(&self, painter: &Painter) {
-        if self.empty && self.gesture.is_none() && self.presence.drafts.is_empty() {
+        if self.empty
+            && self.gesture.is_none()
+            && self.presence.drafts.is_empty()
+            && self.presence.entities.is_empty()
+        {
             let galley = painter.layout_text(
                 HINT,
                 FontId::proportional(16.0),
@@ -311,18 +311,7 @@ impl Overlay {
                     color,
                 );
             }
-            Draft::Shape(entity) => EntityPaint {
-                entity: (**entity).clone(),
-                camera: self.camera,
-                palette: self.palette.clone(),
-                title: String::new(),
-                glyph: None,
-                automatic: false,
-                covered: false,
-                placeholder: None,
-                sketch: Rc::new(Sketch::of(entity)),
-            }
-            .draw(painter),
+            Draft::Shape(_) | Draft::Change(_) => {}
         }
     }
 

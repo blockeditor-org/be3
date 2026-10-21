@@ -15,7 +15,7 @@ use block_editor_beui::be_block::canvas::{
     CanvasTransform, InfiniteCanvasOperation,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
-use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
+use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind, pick_free_color};
 use block_editor_beui::beui::icons::{
     ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DIAMOND, ICON_DRAW, ICON_INK_ERASER,
     ICON_LASSO_SELECT, ICON_NORTH_EAST, ICON_PANORAMA_FISH_EYE, ICON_RECTANGLE, ICON_SELECT,
@@ -400,6 +400,7 @@ pub(crate) struct Presence {
     pub(crate) selections: Vec<RemoteSelection>,
     pub(crate) carets: Vec<(CanvasCaret, PresenceColor)>,
     pub(crate) drafts: Vec<Draft>,
+    pub(crate) entities: Vec<CanvasEntity>,
 }
 
 #[derive(Clone)]
@@ -528,6 +529,7 @@ impl CanvasState {
         });
         let child_states = create_signal(HashMap::new());
         let presence = create_signal(Presence::default());
+        let drafted = create_memo(move || presence.with(|presence| presence.entities.clone()));
         let peer_carets = create_memo(move || presence.with(|presence| presence.carets.clone()));
         let pointer = create_signal(None);
         let caret = create_signal(None);
@@ -594,6 +596,13 @@ impl CanvasState {
                     None => {}
                 }
             }
+            drafted.with(|drafted| {
+                for entity in drafted {
+                    if !previews.iter().any(|previewed| previewed.id == entity.id) {
+                        previews.push(entity.clone());
+                    }
+                }
+            });
             entities.preview(previews);
         });
         state
@@ -2595,6 +2604,11 @@ impl CanvasState {
     pub(crate) fn land_draft(&self, gesture: Option<&Gesture>) {
         let landing = match gesture {
             Some(Gesture::Pen { id, .. } | Gesture::Create { id, .. }) => Some(*id),
+            Some(Gesture::Move {
+                duplicate: true,
+                originals,
+                ..
+            }) => originals.first().map(|entity| entity.id),
             _ => None,
         };
         self.cells.value().landing.set(landing);
@@ -2631,10 +2645,29 @@ impl CanvasState {
                 let entity = untrack(|| self.drawn_shape())?;
                 Some((id, vec![CanvasDraft::Shape(Box::new(entity))]))
             }
-            Some(_) => None,
-            None => held.filter(|(id, _)| {
-                self.cells.value().landing.get() == Some(*id)
-                    || self.entities.get_untracked(*id).is_some()
+            Some(gesture) => {
+                let parts: Vec<CanvasDraft> = preview_entities(&gesture)
+                    .into_iter()
+                    .filter_map(|entity| match self.entities.get_untracked(entity.id) {
+                        Some(stored) if stored == entity => None,
+                        Some(_) => Some(CanvasDraft::Change(Box::new(entity))),
+                        None => Some(CanvasDraft::Shape(Box::new(entity))),
+                    })
+                    .take(CanvasDraft::SLOTS as usize)
+                    .collect();
+                let id = match parts.first()? {
+                    CanvasDraft::Shape(entity) | CanvasDraft::Change(entity) => entity.id,
+                    CanvasDraft::Stroke { id, .. } => *id,
+                };
+                Some((id, parts))
+            }
+            None => held.filter(|(id, parts)| {
+                let landing = self.cells.value().landing.get() == Some(*id)
+                    || self.entities.get_untracked(*id).is_some();
+                landing
+                    && !parts
+                        .iter()
+                        .any(|part| matches!(part, CanvasDraft::Change(_)))
             }),
         }
     }
@@ -2662,10 +2695,23 @@ impl CanvasState {
             |id| self.entities.get_untracked(id).is_some(),
             &mut self.cells.value().landed.borrow_mut(),
         );
-        let mut presence = Presence {
-            drafts: drafts.into_iter().map(|(_, draft)| draft).collect(),
-            ..Presence::default()
-        };
+        let mut presence = Presence::default();
+        for (_, draft) in drafts {
+            match draft {
+                Draft::Stroke { .. } => presence.drafts.push(draft),
+                Draft::Shape(entity) => presence.entities.push(*entity),
+                Draft::Change(entity) => {
+                    if self.entities.get_untracked(entity.id).is_some() {
+                        presence.entities.push(*entity);
+                    }
+                }
+            }
+        }
+        let drafted: HashMap<Uuid, &CanvasEntity> = presence
+            .entities
+            .iter()
+            .map(|entity| (entity.id, entity))
+            .collect();
         for (_, cursor) in self.peers.get_untracked() {
             let color = cursor.color;
             if !cursor.selection.is_empty() {
@@ -2673,6 +2719,7 @@ impl CanvasState {
                 if let Some(bounds) = entities
                     .iter()
                     .filter(|entity| selected.contains(&entity.id))
+                    .map(|entity| drafted.get(&entity.id).copied().unwrap_or(entity))
                     .map(entity_bounds)
                     .reduce(WorldRect::union)
                 {

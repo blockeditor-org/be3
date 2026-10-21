@@ -30,6 +30,13 @@ fn a_peer_sees_a_shape_while_it_is_dragged() {
         panic!("a shape being dragged is one draft");
     };
     assert_eq!(first.shape, CanvasShape::Ellipse);
+    assert!(
+        watcher
+            .document()
+            .find_test_id(&format!("infinite-canvas.entity.{}", first.id))
+            .is_some(),
+        "the peer draws the draft as the shape it will be"
+    );
 
     drawer.next_frame();
     drawer.pen(PenPhase::Move, from + Vec2::new(240.0, 160.0), 0.5);
