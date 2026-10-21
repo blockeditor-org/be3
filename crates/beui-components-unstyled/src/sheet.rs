@@ -31,6 +31,7 @@ const LEAVE_SECONDS: f32 = 0.22;
 const RETURN_SECONDS: f32 = 0.25;
 const HIDDEN_SHIFT: f32 = 100_000.0;
 const UNPLACED_FRAMES: u8 = 3;
+const HANDOFF_SECONDS: f32 = 0.1;
 
 pub struct SheetGripHandle {
     pub dragging: ReadSignal<bool>,
@@ -85,7 +86,38 @@ enum Slide {
         elapsed: f32,
         from: f32,
     },
+    Morphing {
+        elapsed: f32,
+        from: f32,
+        waited: u8,
+    },
     Gone,
+}
+
+#[derive(Clone, Copy)]
+enum Handoff {
+    Leaving(Stored<Motion>),
+    Entering(Stored<Motion>),
+}
+
+#[derive(Clone, Default)]
+struct Handoffs(Rc<Cell<Option<Handoff>>>);
+
+fn handoffs() -> Handoffs {
+    with_document(|document| document.extension_or_insert_with(Handoffs::default))
+}
+
+fn claim(
+    me: Stored<Motion>,
+    wanted: impl Fn(&Handoff) -> Option<Stored<Motion>>,
+) -> Option<Rc<Motion>> {
+    let offered = handoffs().0.take()?;
+    let other = wanted(&offered).filter(|other| *other != me)?;
+    other.try_value()
+}
+
+fn offer(handoff: Handoff) {
+    handoffs().0.set(Some(handoff));
 }
 
 struct Held {
@@ -261,6 +293,7 @@ impl Motion {
     }
 
     fn grab(&self) {
+        self.settle_morph();
         let shape = self.shape();
         let displaced = {
             let held = self.held.borrow();
@@ -359,6 +392,7 @@ impl Motion {
         let backing = self.held.borrow().backing;
         match gesture {
             BackGesture::Started { .. } => {
+                self.settle_morph();
                 let mut held = self.held.borrow_mut();
                 if height.is_some()
                     && held.travel.is_none()
@@ -414,9 +448,18 @@ impl Motion {
         self.laid_out().0.map(|sheet| sheet.height())
     }
 
-    fn enter(&self) {
+    fn enter(&self, me: Stored<Motion>) {
         self.gone.set(false);
         self.reset();
+        let leaving = claim(me, |offered| match offered {
+            Handoff::Leaving(other) => Some(*other),
+            Handoff::Entering(_) => None,
+        });
+        if let Some(from) = leaving.and_then(|other| other.hand_off()) {
+            self.morph(from);
+            return;
+        }
+        offer(Handoff::Entering(me));
         {
             let mut held = self.held.borrow_mut();
             held.slide = Slide::Entering {
@@ -430,7 +473,18 @@ impl Motion {
         self.kick();
     }
 
-    fn leave(&self) {
+    fn leave(&self, me: Stored<Motion>) {
+        let entering = claim(me, |offered| match offered {
+            Handoff::Entering(other) => Some(*other),
+            Handoff::Leaving(_) => None,
+        });
+        if let Some(other) = entering.filter(|other| other.just_entered())
+            && let Some(from) = self.visible_height()
+        {
+            self.vanish();
+            other.morph(from);
+            return;
+        }
         let Some(height) = self.sheet_height().filter(|height| *height > 0.0) else {
             self.held.borrow_mut().slide = Slide::Gone;
             self.on_presence.call(0.0);
@@ -458,7 +512,98 @@ impl Motion {
             };
         }
         self.dragging.set(false);
+        offer(Handoff::Leaving(me));
         self.kick();
+    }
+
+    fn just_entered(&self) -> bool {
+        matches!(self.held.borrow().slide, Slide::Entering { elapsed, .. } if elapsed < HANDOFF_SECONDS)
+    }
+
+    fn visible_height(&self) -> Option<f32> {
+        self.sheet_height()
+            .map(|height| (height - self.shifted.get()).max(0.0))
+            .filter(|height| *height > 0.0)
+    }
+
+    fn hand_off(&self) -> Option<f32> {
+        let leaving = matches!(
+            self.held.borrow().slide,
+            Slide::Leaving { elapsed, .. } if elapsed < HANDOFF_SECONDS
+        );
+        let from = self.visible_height().filter(|_| leaving)?;
+        self.vanish();
+        Some(from)
+    }
+
+    fn vanish(&self) {
+        {
+            let mut held = self.held.borrow_mut();
+            held.travel = None;
+            held.handle = None;
+            held.dismiss_drag = false;
+            held.phase = Phase::Still;
+            held.flung = 0.0;
+            held.slide = Slide::Gone;
+        }
+        self.dragging.set(false);
+        self.on_presence.call(0.0);
+        self.gone.set(true);
+        self.on_gone.call();
+    }
+
+    fn morph(&self, from: f32) {
+        self.held.borrow_mut().slide = Slide::Morphing {
+            elapsed: 0.0,
+            from,
+            waited: 0,
+        };
+        self.shifted.set(0.0);
+        self.shift.set(0.0);
+        self.on_presence.call(1.0);
+        self.place_height(Rest::Free(from));
+        self.kick();
+    }
+
+    fn step_morph(&self, before: f32, from: f32, waited: u8, elapsed: f32) -> bool {
+        let (sheet, body, _) = self.laid_out();
+        if sheet.is_none() || body.is_none() {
+            if waited < UNPLACED_FRAMES {
+                self.held.borrow_mut().slide = Slide::Morphing {
+                    elapsed: before,
+                    from,
+                    waited: waited + 1,
+                };
+                return true;
+            }
+            self.held.borrow_mut().slide = Slide::Shown;
+            self.place_height(self.resting);
+            return false;
+        }
+        let shape = self.shape();
+        let goal = self.rest_height(self.resting, &shape);
+        let elapsed = before + elapsed;
+        let progress = tween(elapsed, ENTER_SECONDS, Easing::Linear);
+        if progress >= 1.0 {
+            self.held.borrow_mut().slide = Slide::Shown;
+            self.place_height(self.resting);
+            return false;
+        }
+        let eased = Easing::OutCubic.sample(progress);
+        self.held.borrow_mut().slide = Slide::Morphing {
+            elapsed,
+            from,
+            waited,
+        };
+        self.place_height(Rest::Free(from + (goal - from) * eased));
+        true
+    }
+
+    fn settle_morph(&self) {
+        let morphing = matches!(self.held.borrow().slide, Slide::Morphing { .. });
+        if morphing {
+            self.held.borrow_mut().slide = Slide::Shown;
+        }
     }
 
     fn kick(&self) {
@@ -470,8 +615,16 @@ impl Motion {
 
     fn step_slide(&self, elapsed: f32) -> bool {
         let slide = self.held.borrow().slide;
+        if let Slide::Morphing {
+            elapsed: before,
+            from,
+            waited,
+        } = slide
+        {
+            return self.step_morph(before, from, waited, elapsed);
+        }
         let height = match (slide, self.sheet_height().filter(|height| *height > 0.0)) {
-            (Slide::Shown | Slide::Gone, _) => return false,
+            (Slide::Shown | Slide::Gone | Slide::Morphing { .. }, _) => return false,
             (_, Some(height)) => height,
             (Slide::Entering { elapsed, waited }, None) if waited < UNPLACED_FRAMES => {
                 self.held.borrow_mut().slide = Slide::Entering {
@@ -550,7 +703,7 @@ impl Motion {
                 };
                 (from * (1.0 - eased), next)
             }
-            Slide::Shown | Slide::Gone => return false,
+            Slide::Shown | Slide::Gone | Slide::Morphing { .. } => return false,
         };
         {
             let mut held = self.held.borrow_mut();
@@ -563,7 +716,7 @@ impl Motion {
                 self.on_gone.call();
                 false
             }
-            Slide::Shown => false,
+            Slide::Shown | Slide::Morphing { .. } => false,
             Slide::Entering { .. } | Slide::Leaving { .. } | Slide::Returning { .. } => true,
         }
     }
@@ -664,6 +817,7 @@ impl Motion {
     }
 
     fn grab_handle(&self) {
+        self.settle_morph();
         if self.content().0 > 0.0 {
             self.place_height(self.top_rest());
             let mut held = self.held.borrow_mut();
@@ -831,6 +985,7 @@ impl Motion {
                 self.shift.set(0.0);
                 self.on_presence.call(1.0);
             }
+            Slide::Morphing { .. } => self.place_height(self.resting),
             _ => {}
         }
     }
@@ -1017,8 +1172,8 @@ pub fn Sheet(
             return;
         }
         untrack(|| match open {
-            true => motion.value().enter(),
-            false => motion.value().leave(),
+            true => motion.value().enter(motion),
+            false => motion.value().leave(motion),
         });
     });
     let shifted = create_memo(move || vec2(0.0, shift.get()));

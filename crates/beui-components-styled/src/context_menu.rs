@@ -50,7 +50,6 @@ pub fn ContextMenu(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
     #[prop(default = true)] open_at_focuses: bool,
-    #[prop(default = false)] open_at_pointer: Prop<bool>,
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
@@ -66,7 +65,6 @@ pub fn ContextMenu(
             disabled={disabled}
             open_at={open_at}
             open_at_focuses
-            open_at_pointer
             selection
             toolbar_at
             opens_on_hold

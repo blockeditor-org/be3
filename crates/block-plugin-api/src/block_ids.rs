@@ -136,7 +136,7 @@ impl EditorMessage {
                     | BlockCommand::SimulateAccess { .. }
                     | BlockCommand::CloseEditor
                     | BlockCommand::Restore
-                    | BlockCommand::AppMenu => {}
+                    | BlockCommand::AppMenu { .. } => {}
                 }
             }
             Self::PickRequested {

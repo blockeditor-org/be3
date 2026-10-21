@@ -34,7 +34,6 @@ pub fn ContextMenu(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = None)] open_at: Prop<Option<Pos2>>,
     #[prop(default = true)] open_at_focuses: bool,
-    #[prop(default = false)] open_at_pointer: Prop<bool>,
     #[prop(default = false)] selection: bool,
     #[prop(default = None)] toolbar_at: Prop<Option<Rect>>,
     #[prop(default = true)] opens_on_hold: bool,
@@ -66,23 +65,6 @@ pub fn ContextMenu(
         requested_touch.set(last_pointer().is_some_and(|pointer| pointer.touch));
         requested_focusing.set(open_at_focuses);
         requested.set(true);
-    });
-    let (pointed, pointed_touch, pointed_position, pointed_focusing) =
-        (open, touched, position, focusing);
-    let mut pointer_opened = false;
-    create_effect(move || {
-        if !open_at_pointer.get() {
-            if std::mem::take(&mut pointer_opened) {
-                pointed.set(false);
-            }
-            return;
-        }
-        pointer_opened = true;
-        let pointer = last_pointer();
-        pointed_position.set(pointer.map_or(Pos2::ZERO, |pointer| pointer.pos));
-        pointed_touch.set(pointer.is_some_and(|pointer| pointer.touch));
-        pointed_focusing.set(true);
-        pointed.set(true);
     });
     let shown = create_memo(move || open.get());
     let touch_shown = create_memo(move || !selection && touched.get());

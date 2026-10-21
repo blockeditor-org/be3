@@ -7,6 +7,12 @@ use crate::{DemoApp, PAGES, Page};
 use beui::icons::ICON_VOLUME_UP;
 use std::time::Duration;
 
+mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
+mod a_card_keeps_inside_a_small_window;
+mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
+mod a_card_opened_from_a_button_opens_under_it_where_there_is_room;
+mod a_card_opened_from_a_button_shifts_inside_a_narrow_window;
+mod a_card_opened_from_a_button_stands_apart_in_the_light_theme;
 mod a_destructive_dialog_does_not_confirm_on_enter;
 mod a_dialog_confirms_on_enter_from_its_field;
 mod a_dialog_hangs_from_the_tab_that_opened_it;
@@ -22,7 +28,6 @@ mod a_modal_dialog_blocks_its_tab_and_stacks_a_nested_one;
 mod a_sample_carries_the_source_it_was_written_with;
 mod a_sample_shows_its_code_when_asked;
 mod a_scrollbar_shows_over_a_page_as_it_scrolls_and_widens_to_a_track_under_the_pointer;
-mod a_sheet_hangs_from_its_tab_and_waits_while_another_tab_is_shown;
 mod a_sheet_rises_from_the_bottom_on_a_phone;
 mod a_table_lines_its_cells_up_under_its_columns;
 mod a_toast_shows_over_an_open_dialog_and_takes_a_press;
@@ -80,6 +85,23 @@ const CATALOG_X: f32 = 40.0;
 fn demo(size: Vec2) -> DocumentTest {
     let (year, month, day) = TODAY;
     DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size)
+}
+
+fn demo_in(size: Vec2, theme: beui::styled::Theme) -> DocumentTest {
+    use beui::styled::DocumentTheme;
+    let (year, month, day) = TODAY;
+    let mut app = DemoApp::on(Date::new(year, month, day));
+    app.document.set_theme(theme);
+    DocumentTest::new(app.document, size)
+}
+
+fn open_pointing_card(test: &mut DocumentTest) -> (beui::Rect, beui::Rect) {
+    reveal(test, "demo.dialog.pointing");
+    let button = test.rect_of("demo.dialog.pointing");
+    test.click("demo.dialog.pointing");
+    test.frame(Vec::new());
+    test.settle();
+    (button, test.rect_of(&dialog_id(0)))
 }
 
 fn alone(size: Vec2, page: Page) -> DocumentTest {

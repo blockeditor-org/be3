@@ -1,4 +1,3 @@
-use beui::NodeId;
 use beui::icons::{
     ICON_BUG_REPORT, ICON_CHECK, ICON_CONTACTS, ICON_GPP_MAYBE, ICON_GROUP, ICON_INFO, ICON_KEY,
     ICON_MANAGE_ACCOUNTS, ICON_PERSON_ADD, ICON_POWER_SETTINGS_NEW, ICON_SMART_TOY,
@@ -7,12 +6,13 @@ use beui::icons::{
 use beui::reactive::*;
 use beui::styled::*;
 use beui::unstyled::{Container, MenuItem};
+use beui::{NodeId, OverlayAnchor, Pos2};
 use block_plugin_api::HostPanel;
 
 use super::debug::DebugPanels;
 use super::dialogs::Dialogs;
 use super::keys::PairingDialog;
-use super::{AppViewStore, StatusView, UiCommand, send};
+use super::{AppMenuView, AppViewStore, StatusView, UiCommand, send};
 use crate::compositor::PresentingSurface;
 use crate::surfaces::MainSurface;
 
@@ -38,7 +38,7 @@ fn OrganizationBody(view: AppViewStore) -> NodeId {
             <Show condition={normal}>
                 <MainSurface @sizing=ItemSize::Percent(100.0) />
             </Show>
-            <AppMenu status={status} open={menu} />
+            <AppMenu status={status} menu={menu} />
             <PresentingSurface />
             <Dialogs view={view} />
             <PairingDialog view={view} />
@@ -52,7 +52,24 @@ fn pick(command: UiCommand) {
 }
 
 #[component]
-fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
+fn AppMenu(status: Memo<StatusView>, menu: Prop<Option<AppMenuView>>) -> NodeId {
+    let menu = create_memo(move || menu.get());
+    let open = create_memo(move || menu.with(Option::is_some));
+    let placed = create_memo(move || {
+        let opened = menu.get()?;
+        let pointer = untrack(last_pointer);
+        let anchor = match opened.at {
+            Some(rect) => OverlayAnchor::Rect(rect),
+            None => OverlayAnchor::Point(pointer.map_or(Pos2::ZERO, |pointer| pointer.pos)),
+        };
+        Some((anchor, pointer.is_some_and(|pointer| pointer.touch)))
+    });
+    let anchor = create_memo(move || {
+        placed
+            .get()
+            .map_or(OverlayAnchor::Point(Pos2::ZERO), |(anchor, _)| anchor)
+    });
+    let sheet = create_memo(move || placed.get().is_some_and(|(_, touch)| touch));
     let saved = create_memo(move || status.get().changes_saved);
     let unsaved = create_memo(move || !saved.get());
     let saved_label = create_memo(move || match saved.get() {
@@ -72,10 +89,11 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
     let escrow_warning = create_memo(move || status.get().escrow_warning.unwrap_or_default());
     let warned = create_memo(move || !escrow_warning.get().is_empty());
     view! {
-        <ContextMenu
-            disabled=true
-            open_at_pointer={open}
-            on_close={|| send(UiCommand::AppMenu(false))}
+        <MenuPopup
+            anchor
+            open
+            sheet
+            on_dismiss={|| send(UiCommand::AppMenu(false))}
             items={view! {
                 <MenuItem
                     row_test_id={"app.menu.status".to_owned()}
@@ -176,9 +194,7 @@ fn AppMenu(status: Memo<StatusView>, open: Prop<bool>) -> NodeId {
                     on_click={|| pick(UiCommand::OpenInspector)}
                 />
             }}
-        >
-            <Frame />
-        </ContextMenu>
+        />
     }
 }
 

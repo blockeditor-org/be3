@@ -3,11 +3,32 @@ use beui_core::node::NodeId;
 use beui_macros::{component, view};
 use beui_view::primitives;
 use beui_view::reactive::{
-    Align2, Child, Corners, Extent, Get, IntoProp, Memo, Outline, Prop, Sides, create_memo,
+    Align2, Child, Corners, Extent, Get, IntoProp, Memo, Outline, Prop, Shadow, Sides, create_memo,
     focus_ring,
 };
 
-use crate::theme::{BORDER_WIDTH, FOCUS_RING_WIDTH, ThemeStore, use_theme};
+use crate::theme::{
+    BORDER_WIDTH, FLOATING_SHADOW_DROP, FLOATING_SHADOW_SPREAD, FOCUS_RING_WIDTH, POINTER_REACH,
+    ThemeStore, use_theme,
+};
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
+pub enum Elevation {
+    #[default]
+    Flat,
+    Floating,
+}
+
+impl Elevation {
+    fn shadow(self, theme: &ThemeStore) -> Option<Shadow> {
+        match self {
+            Elevation::Flat => None,
+            Elevation::Floating => Some(
+                Shadow::new(theme.shadow.get(), FLOATING_SHADOW_SPREAD).drop(FLOATING_SHADOW_DROP),
+            ),
+        }
+    }
+}
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub enum ColorRole {
@@ -247,6 +268,8 @@ pub fn Frame(
     #[prop(default = ColorRole::None)] fill: Prop<ColorRole>,
     #[prop(default = Radius::None)] radius: Prop<Radius>,
     #[prop(default = None)] border: Prop<Option<Border>>,
+    #[prop(default = Elevation::Flat)] elevation: Prop<Elevation>,
+    #[prop(default = false)] pointer: Prop<bool>,
     #[prop(default = true)] visible: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
@@ -254,9 +277,26 @@ pub fn Frame(
     let fill = fill_color(fill, theme);
     let outline = border_outline(border, theme);
     let radius = radius.map(Radius::corners);
+    let shadow = match elevation {
+        Prop::Static(Elevation::Flat) => Prop::Static(None),
+        elevation => Prop::dynamic(move || elevation.get().shadow(&theme)),
+    };
+    let pointer = pointer.map(|pointer| if pointer { POINTER_REACH } else { 0.0 });
     match children {
         Some(child) => view! {
-            <primitives::Frame width height aspect_ratio padding align fill radius outline visible>
+            <primitives::Frame
+                width
+                height
+                aspect_ratio
+                padding
+                align
+                fill
+                radius
+                outline
+                shadow
+                pointer
+                visible
+            >
                 {child}
             </primitives::Frame>
         },
@@ -270,6 +310,8 @@ pub fn Frame(
                 fill
                 radius
                 outline
+                shadow
+                pointer
                 visible
             />
         },

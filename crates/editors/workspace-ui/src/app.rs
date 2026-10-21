@@ -14,7 +14,7 @@ use block_editor_beui::{
     NARROW_WIDTH, TopBar,
 };
 use block_shell::{
-    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialogs, PickerSheet,
+    AttachedWindow, BlockTab, FILES, Failure, PanelStatus, PanelWindow, PickerDialog, Pickers,
     REVISIONS, RevisionHistoryPanel, SETTINGS, WindowTab, Workspace, WorkspaceDialogs,
 };
 
@@ -71,7 +71,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let block_tabs = workspace.block_tabs();
     let top_windows = workspace.windows();
     let dialog_windows = workspace.dialogs();
-    let picker_sheets = workspace.picker_sheets();
+    let picker_dialogs = workspace.picker_dialogs();
     let panels = workspace.panels();
     view! {
         <Frame @node_ref={&surface} fill=ColorRole::Background>
@@ -110,11 +110,11 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
                     <ForEach keys={dialog_windows}>|(window, parent): (HostWindowId, HostWindowId)|
                         <AttachedWindow workspace window parent />
                     </ForEach>
-                    <ForEach keys={picker_sheets}>|(pick, tab): (u64, TabId)|
-                        <PickerSheet workspace pick tab />
+                    <ForEach keys={picker_dialogs}>|(pick, tab): (u64, TabId)|
+                        <PickerDialog workspace pick tab />
                     </ForEach>
                 </Docking>
-                <PickerDialogs workspace />
+                <Pickers workspace />
                 <WorkspaceDialogs workspace />
             </List>
         </Frame>

@@ -1043,6 +1043,7 @@ pub enum EditorMessage {
         filter: BlockFilter,
         parent: BlockLocation,
         within: Option<[u8; 16]>,
+        touch: bool,
     },
     PickAnswered {
         instance: EditorInstanceId,
@@ -1485,7 +1486,7 @@ pub struct HistoryState {
     pub can_redo: bool,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
 pub enum BlockCommand {
     Share,
     Leave,
@@ -1519,7 +1520,9 @@ pub enum BlockCommand {
         linked: bool,
     },
     Restore,
-    AppMenu,
+    AppMenu {
+        anchor: Option<ChildRect>,
+    },
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]

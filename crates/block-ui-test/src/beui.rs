@@ -862,6 +862,27 @@ impl<A: BeuiApp> BeuiTest<A> {
         parent: block_plugin_api::BlockLocation,
         within: Option<Uuid>,
     ) {
+        self.ask_pick(pick, filter, parent, within, false);
+    }
+
+    pub fn request_touch_pick(
+        &mut self,
+        pick: u64,
+        filter: block_editor_beui::BlockFilter,
+        parent: block_plugin_api::BlockLocation,
+        within: Option<Uuid>,
+    ) {
+        self.ask_pick(pick, filter, parent, within, true);
+    }
+
+    fn ask_pick(
+        &mut self,
+        pick: u64,
+        filter: block_editor_beui::BlockFilter,
+        parent: block_plugin_api::BlockLocation,
+        within: Option<Uuid>,
+        touch: bool,
+    ) {
         self.inbox
             .push(Message::Editor(EditorMessage::PickRequested {
                 instance: INSTANCE,
@@ -869,6 +890,7 @@ impl<A: BeuiApp> BeuiTest<A> {
                 filter,
                 parent,
                 within: within.map(Uuid::into_bytes),
+                touch,
             }));
     }
 

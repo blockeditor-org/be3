@@ -704,22 +704,31 @@ impl Document {
         }
     }
 
-    pub fn layer_cover(&self, layer: &Layer) -> Option<Rect> {
-        let content = self.node_rect(layer.content?)?;
-        let cover = match (layer.blocks_all(), layer.overlay) {
-            (true, Some(overlay)) => self
-                .node_rect(self.overlay_scrim(overlay))
-                .map_or(content, |scrim| scrim.union(content)),
-            _ => content,
+    pub fn layer_covers(&self, layer: &Layer) -> Vec<Rect> {
+        let Some(content) = layer.content.and_then(|content| self.node_rect(content)) else {
+            return Vec::new();
         };
-        cover.is_positive().then_some(cover)
+        let scrim = layer
+            .overlay
+            .filter(|overlay| self.arena.get_as::<OverlayNode>(*overlay).scrim_covers())
+            .and_then(|overlay| self.node_rect(self.overlay_scrim(overlay)));
+        let blocked = layer
+            .hangs_from
+            .filter(|_| layer.policy == LayerPolicy::BlocksParent)
+            .and_then(|node| self.node_rect(node));
+        let covers = match (layer.policy, scrim.or(blocked)) {
+            (LayerPolicy::BlocksAll, Some(scrim)) => vec![scrim.union(content)],
+            (_, Some(scrim)) => vec![scrim, content],
+            (_, None) => vec![content],
+        };
+        covers.into_iter().filter(Rect::is_positive).collect()
     }
 
     pub fn overlay_rects(&self) -> Vec<Rect> {
         self.layers()
             .iter()
             .skip(1)
-            .filter_map(|layer| self.layer_cover(layer))
+            .flat_map(|layer| self.layer_covers(layer))
             .collect()
     }
 
@@ -737,7 +746,11 @@ impl Document {
             .iter()
             .enumerate()
             .skip(1)
-            .filter_map(|(index, layer)| Some((vec![index], self.layer_cover(layer)?)))
+            .flat_map(|(index, layer)| {
+                self.layer_covers(layer)
+                    .into_iter()
+                    .map(move |cover| (vec![index], cover))
+            })
             .collect()
     }
 

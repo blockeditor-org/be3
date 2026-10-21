@@ -147,7 +147,7 @@ pub(crate) fn DockingPage() -> NodeId {
             </Sample>
             <Sample
                 title="Dialogs attached to a tab"
-                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE, AttachedSheet::SOURCE]}
+                code={vec![AttachedDialogs::SOURCE, AttachedDialog::SOURCE, AttachedCard::SOURCE]}
             >
                 <AttachedDialogs />
             </Sample>
@@ -160,6 +160,12 @@ pub(crate) fn DockingPage() -> NodeId {
 fn AttachedDialogs() -> NodeId {
     let dialogs = use_context::<DemoDialogs>();
     let tab = use_dock_tab().map(|control| control.tab());
+    let pointing = NodeRef::new();
+    let open_card = move |anchor: Option<Rect>| {
+        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
+            dialogs.open_card(tab, anchor);
+        }
+    };
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
@@ -184,13 +190,20 @@ fn AttachedDialogs() -> NodeId {
                     }}
                 />
                 <Button
-                    @test_id="demo.dialog.sheet"
-                    label="Open a sheet"
+                    @test_id="demo.dialog.card"
+                    label="Open a card"
+                    variant=ButtonVariant::Secondary
+                    on_click={move || open_card(None)}
+                />
+                <Button
+                    @test_id="demo.dialog.pointing"
+                    @node_ref=&pointing
+                    label="Open a card from here"
                     variant=ButtonVariant::Secondary
                     on_click={move || {
-                        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
-                            dialogs.open_sheet(tab);
-                        }
+                        open_card(pointing.try_get().and_then(|button| {
+                            with_document(|document| document.node_rect(button))
+                        }))
                     }}
                 />
             </List>
@@ -204,10 +217,19 @@ fn AttachedDialogs() -> NodeId {
             />
             <Text
                 style=TextStyle::CAPTION
-                string="A sheet drops from under the tab bar, dims the tab and waits for a \
-                 choice, with a dot on the tab meanwhile. Other tabs and panes stay usable, and \
-                 the sheet keeps what was done in it while another tab is shown. On a phone it \
+                string="A card floats just under the tab bar, centred on the tab but free to \
+                 reach past its pane, dims the tab and waits for a choice, with a dot on the tab \
+                 meanwhile. Pressing the dimmed tab closes it. Other tabs and panes stay usable, \
+                 and the card keeps what was done in it while another tab is shown. On a phone it \
                  is a sheet from the bottom of the screen."
+                wrap=true
+            />
+            <Text
+                style=TextStyle::CAPTION
+                string="A card opened from a control points at it instead, like a popover: it \
+                 opens under the control, or above it where there is no room below, and leaves \
+                 the tab undimmed. Pressing elsewhere on the tab closes it, and it keeps its \
+                 place on the tab when the pane is moved or resized."
                 wrap=true
             />
         </List>
@@ -258,7 +280,7 @@ pub(crate) fn AttachedDialog(modal: bool) -> NodeId {
 
 #[sample]
 #[component]
-pub(crate) fn AttachedSheet() -> NodeId {
+pub(crate) fn AttachedCard() -> NodeId {
     let dialogs = use_context::<DemoDialogs>();
     let tab = use_dock_tab().map(|control| control.tab());
     let id = tab.map_or(0, TabId::value);
@@ -282,7 +304,7 @@ pub(crate) fn AttachedSheet() -> NodeId {
                         @sizing=ItemSize::Percent(100.0)
                     />
                     <IconButton
-                        @test_id={format!("demo.sheet.{id}.close")}
+                        @test_id={format!("demo.card.{id}.close")}
                         glyph=ICON_CLOSE
                         label="Close"
                         variant=ButtonVariant::Ghost
@@ -295,12 +317,12 @@ pub(crate) fn AttachedSheet() -> NodeId {
                 <Frame padding=PAGE_PADDING>
                     <List spacing=SECTION_SPACING>
                         <Text
-                            string="Only the tab under this sheet waits for it. Show another tab \
+                            string="Only the tab under this card waits for it. Show another tab \
                              and come back: the count below is kept."
                             wrap=true
                         />
                         <Button
-                            @test_id={format!("demo.sheet.{id}.count")}
+                            @test_id={format!("demo.card.{id}.count")}
                             label={label}
                             variant=ButtonVariant::Secondary
                             on_click={move || presses.update(|presses| *presses += 1)}

@@ -34,7 +34,7 @@ use sample::{Sample, ScrollPage};
 use std::rc::Rc;
 use std::sync::Arc;
 use styled_pages::{
-    AttachedDialog, AttachedSheet, ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage,
+    AttachedCard, AttachedDialog, ButtonsPage, CanvasPage, ChoicesPage, ColorsPage, DockingPage,
     EditorPage, InputsPage, LabelledSwitch, LayoutPage, MenusPage, OverlaysPage, PickersPage,
     RowsPage, TextPage, ThemesPage, TreePage,
 };
@@ -56,7 +56,7 @@ const CATALOG: TabId = TabId::new(1);
 const DIALOG_TABS: u64 = 1 << 40;
 const DIALOG_SIZE: beui::Vec2 = beui::Vec2::new(460.0, 120.0);
 const NESTED_DIALOG_INSET: beui::Vec2 = beui::Vec2::new(56.0, 16.0);
-const SHEET_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
+const CARD_SIZE: beui::Vec2 = beui::Vec2::new(440.0, 300.0);
 const PAGE_SHARE: f32 = 0.76;
 const SHELL_PADDING: f32 = 10.0;
 const TOOLBAR_SPACING: f32 = 8.0;
@@ -370,28 +370,38 @@ struct DemoDialog {
     id: TabId,
     parent: TabId,
     modal: bool,
-    sheet: bool,
+    card: bool,
+    anchor: Option<[u32; 4]>,
     depth: u8,
 }
 
 impl DemoDialog {
     fn size(self) -> beui::Vec2 {
-        match self.sheet {
-            true => SHEET_SIZE,
+        match self.card {
+            true => CARD_SIZE,
             false => DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth),
         }
     }
 
+    fn anchor(self) -> Option<Rect> {
+        self.anchor.map(|[left, top, right, bottom]| {
+            Rect::from_min_max(
+                beui::pos2(f32::from_bits(left), f32::from_bits(top)),
+                beui::pos2(f32::from_bits(right), f32::from_bits(bottom)),
+            )
+        })
+    }
+
     fn presentation(self) -> DockDialogPresentation {
-        match self.sheet {
-            true => DockDialogPresentation::Sheet,
+        match self.card {
+            true => DockDialogPresentation::Card,
             false => DockDialogPresentation::Window,
         }
     }
 
     fn title(self) -> &'static str {
-        match (self.sheet, self.modal) {
-            (true, _) => "Sheet",
+        match (self.card, self.modal) {
+            (true, _) => "Card",
             (false, true) => "Modal dialog",
             (false, false) => "Dialog",
         }
@@ -414,14 +424,16 @@ impl DemoDialogs {
     }
 
     fn open(&self, parent: TabId, modal: bool) {
-        self.add(parent, modal, false);
+        self.add(parent, modal, false, None);
     }
 
-    fn open_sheet(&self, parent: TabId) {
-        self.add(parent, true, true);
+    fn open_card(&self, parent: TabId, anchor: Option<Rect>) {
+        self.add(parent, true, true, anchor);
     }
 
-    fn add(&self, parent: TabId, modal: bool, sheet: bool) {
+    fn add(&self, parent: TabId, modal: bool, card: bool, anchor: Option<Rect>) {
+        let anchor =
+            anchor.map(|rect| [rect.min.x, rect.min.y, rect.max.x, rect.max.y].map(f32::to_bits));
         let id = TabId::new(self.next.with(|next| next.replace(next.get() + 1)));
         self.open.update(|open| {
             let depth = open
@@ -432,7 +444,8 @@ impl DemoDialogs {
                 id,
                 parent,
                 modal,
-                sheet,
+                card,
+                anchor,
                 depth,
             });
         });
@@ -630,6 +643,8 @@ fn DemoShell() -> NodeId {
                             parent={dialog.parent}
                             modal={dialog.modal}
                             presentation={dialog.presentation()}
+                            anchor={dialog.anchor()}
+                            dismiss_on_outside_press={dialog.card}
                             title={dialog.title()}
                             icon=ICON_OPEN_IN_NEW
                             size={dialog.size()}
@@ -646,9 +661,9 @@ fn DemoShell() -> NodeId {
 
 #[component]
 fn DemoDialogBody(dialog: DemoDialog) -> NodeId {
-    match dialog.sheet {
+    match dialog.card {
         true => view! {
-            <AttachedSheet />
+            <AttachedCard />
         },
         false => view! {
             <AttachedDialog modal={dialog.modal} />

@@ -37,7 +37,7 @@ pub(crate) use runtime::place_screens;
 #[cfg(target_os = "linux")]
 pub(crate) use runtime::watched;
 pub(crate) use runtime::{
-    PACING, artifact, artifact_draft, aspect_ratio, assigned_size, block_picked, busy, close,
+    PACING, Pick, artifact, artifact_draft, aspect_ratio, assigned_size, block_picked, busy, close,
     commit_creation, crash, creation, creation_ready, drawing, flush, frame_child, frame_placement,
     frame_rects, hold, install, intrinsic_size, kill, menu, menu_pick, poll, present, presenting,
     publish, reanchor, record_pacing, regenerate_artifact, region_size, replace_child, replace_gpu,

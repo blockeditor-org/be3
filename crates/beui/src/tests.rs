@@ -73,9 +73,15 @@ mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_disposed_animation_cancels_without_completion;
+mod a_dock_card_anchored_at_a_control_flips_above_it_near_the_bottom;
+mod a_dock_card_anchored_at_a_control_follows_its_pane_when_it_resizes;
+mod a_dock_card_anchored_at_a_control_points_at_it_without_dimming_its_tab;
+mod a_dock_card_anchored_at_a_control_shifts_to_stay_inside_the_window;
+mod a_dock_card_closes_on_a_press_on_its_tab_when_asked;
+mod a_dock_card_reaches_past_its_pane_and_holds_only_its_tab;
+mod a_dock_card_stays_inside_a_small_window;
 mod a_dock_dialog_floats_over_its_parent_and_hides_with_its_tab;
 mod a_dock_dialog_is_never_a_tab;
-mod a_dock_sheet_hangs_under_its_tab_bar_and_holds_only_its_tab;
 mod a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced;
 mod a_dock_tab_in_a_window_opens_its_menu_over_the_window;
 mod a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names;
@@ -190,7 +196,6 @@ mod a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whi
 mod a_long_press_on_selectable_text_selects_the_word_and_its_toolbar_copies_it;
 mod a_long_text_area_only_builds_the_lines_in_view;
 mod a_menu_item_shows_its_icon_and_detail_and_runs_its_click_in_a_dropdown_and_a_sheet;
-mod a_menu_opened_at_the_pointer_is_a_sheet_after_a_tap_and_a_dropdown_after_a_click;
 mod a_menu_row_with_a_submenu_shows_an_arrow_the_leaf_rows_do_not;
 mod a_middle_click_on_a_dock_tab_closes_it;
 mod a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling;
@@ -281,6 +286,7 @@ mod a_selection_across_text_with_spans_is_painted;
 mod a_selection_handle_takes_a_tap_before_the_button_it_covers;
 mod a_separator_keeps_the_length_it_is_given_where_its_row_centres_it;
 mod a_sheet_is_never_taller_than_what_it_holds;
+mod a_sheet_opened_as_another_closes_takes_its_place_without_sliding;
 mod a_sheet_pulled_past_its_top_stretches_and_springs_back;
 mod a_shifted_child_in_a_scrolled_view_still_paints;
 mod a_shortcut_can_leave_keys_to_the_text_input_that_has_the_focus;
@@ -2528,5 +2534,156 @@ impl Intaken {
             }
         }
         self.seen.take()
+    }
+}
+
+const CARD: u64 = 10;
+const CARD_SIZE: Vec2 = Vec2::new(520.0, 240.0);
+
+struct CardDock {
+    document: Document,
+    layout: unstyled::DockingLayout<u64>,
+    pressed: Signal<Vec<u64>>,
+    built: Signal<u32>,
+    attended: ReadSignal<Vec<u64>>,
+    open: Signal<bool>,
+    anchor: Signal<Option<Rect>>,
+}
+
+#[component]
+fn CardBody(built: Signal<u32>, attended: Signal<Vec<u64>>) -> NodeId {
+    built.update(|built| *built += 1);
+    if let Some(tab) = unstyled::use_dock_tab() {
+        let called = crate::reactive::create_memo(move || tab.attention());
+        crate::reactive::create_effect(move || {
+            if called.get().is_some() {
+                attended.update(|attended| attended.push(CARD));
+            }
+        });
+    }
+    view! {
+        <Interactive focusable=true @test_id="card.field">
+            <Frame width=120.0 height=40.0 />
+        </Interactive>
+    }
+}
+
+#[component]
+fn PressPanel(owner: u64, pressed: Signal<Vec<u64>>) -> NodeId {
+    view! {
+        <Interactive
+            focusable=true
+            @test_id={format!("content.{owner}")}
+            on_press={move |_: crate::input::PointerPress| pressed.update(|pressed| pressed.push(owner))}
+        >
+            <Frame />
+        </Interactive>
+    }
+}
+
+fn card_dock(dismiss_on_outside_press: bool) -> CardDock {
+    dock_with_card(dismiss_on_outside_press, true)
+}
+
+fn anchored_card_dock(dismiss_on_outside_press: bool) -> CardDock {
+    dock_with_card(dismiss_on_outside_press, false)
+}
+
+fn open_anchored(
+    harness: &mut Harness,
+    (anchor, open): (Signal<Option<Rect>>, Signal<bool>),
+    place: impl Fn(Rect) -> Rect,
+) -> Rect {
+    harness.frame(Vec::new());
+    let panel = harness.rect(harness.find("content.1"));
+    let rect = place(panel);
+    anchor.set(Some(rect));
+    open.set(true);
+    harness.frame(Vec::new());
+    harness.frame(Vec::new());
+    rect
+}
+
+fn beak(output: &crate::FrameOutput) -> Option<Pos2> {
+    output.shapes().into_iter().find_map(|shape| match shape {
+        crate::painter::Shape::Rect { rotation, .. }
+            if (rotation.angle - std::f32::consts::FRAC_PI_4).abs() < 1e-3 =>
+        {
+            Some(rotation.pivot)
+        }
+        _ => None,
+    })
+}
+
+fn dims(output: &crate::FrameOutput, panel: Rect) -> bool {
+    output.shapes().into_iter().any(|shape| match shape {
+        crate::painter::Shape::Rect { rect, color, .. } => {
+            let [red, green, blue, alpha] = color.to_array();
+            rect.contains_rect(panel) && red == 0 && green == 0 && blue == 0 && alpha > 0
+        }
+        _ => false,
+    })
+}
+
+fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool) -> CardDock {
+    let pressed = create_signal(Vec::new());
+    let built = create_signal(0);
+    let attended = create_signal(Vec::new());
+    let open = create_signal(open_now);
+    let anchor = create_signal(None::<Rect>);
+    let layout = unstyled::DockingLayout::new();
+    let document = build(move || {
+        let cards = crate::reactive::create_memo(move || match open.get() {
+            true => vec![CARD],
+            false => Vec::new(),
+        });
+        view! {
+            <styled::Docking layout>
+                <unstyled::DockSplit id="root" fraction=0.3>
+                    <unstyled::DockPane id="left">
+                        <unstyled::DockTab id=4_u64 title="Left">
+                            <PressPanel owner=4 pressed />
+                        </unstyled::DockTab>
+                    </unstyled::DockPane>
+                    <unstyled::DockSplit id="rest" fraction=0.5>
+                        <unstyled::DockPane id="tabs">
+                            <ForEach keys={vec![1_u64, 2]}>|id: u64|
+                                <unstyled::DockTab id title={format!("Tab {id}")}>
+                                    <PressPanel owner=id pressed />
+                                </unstyled::DockTab>
+                            </ForEach>
+                        </unstyled::DockPane>
+                        <unstyled::DockPane id="side">
+                            <unstyled::DockTab id=3_u64 title="Side">
+                                <PressPanel owner=3 pressed />
+                            </unstyled::DockTab>
+                        </unstyled::DockPane>
+                    </unstyled::DockSplit>
+                </unstyled::DockSplit>
+                <ForEach keys={cards}>|id: u64|
+                    <unstyled::DockDialog
+                        id
+                        parent=1_u64
+                        title="Card"
+                        size=CARD_SIZE
+                        presentation=unstyled::DockDialogPresentation::Card
+                        anchor
+                        dismiss_on_outside_press
+                        on_close={move || open.set(false)}
+                    >
+                        <CardBody built attended />
+                    </unstyled::DockDialog>
+                </ForEach>
+            </styled::Docking>
+        }
+    });
+    CardDock {
+        document,
+        layout,
+        pressed,
+        built,
+        attended: attended.read_only(),
+        open,
+        anchor,
     }
 }

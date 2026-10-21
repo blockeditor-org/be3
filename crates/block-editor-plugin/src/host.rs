@@ -101,6 +101,7 @@ pub struct PickRequest {
     pub parent: BlockParent,
     pub within: Option<Uuid>,
     pub anchor: Option<Rect>,
+    pub touch: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -806,10 +807,16 @@ impl EditorHost {
             .push((block_id, BlockCommand::Leave));
     }
 
-    pub fn show_app_menu(&self, block_id: Uuid) {
+    pub fn show_app_menu(&self, block_id: Uuid, anchor: Option<ChildRect>) {
+        let origin = self.region.get().origin;
+        let anchor = anchor.map(|anchor| ChildRect {
+            x: anchor.x - origin.x,
+            y: anchor.y - origin.y,
+            ..anchor
+        });
         self.block_commands
             .borrow_mut()
-            .push((block_id, BlockCommand::AppMenu));
+            .push((block_id, BlockCommand::AppMenu { anchor }));
     }
 
     pub fn rename_block(&self, block_id: Uuid) {

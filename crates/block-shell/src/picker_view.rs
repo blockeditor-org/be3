@@ -7,7 +7,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     self, ButtonHandle, DockDialog, DockDialogPresentation, DockNode, MenuThen, TabId, TreeItem,
 };
-use block_editor_beui::beui::{NodeId, OverlayAnchor, Placement, Pos2, TextAlign, Vec2};
+use block_editor_beui::beui::{Color32, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, Vec2};
 use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{
     BlockParent, ChildMode, ChildState, CreationProgress, Subregion, SubregionContent, label_glyph,
@@ -49,7 +49,7 @@ fn act_on(workspace: Workspace, pick: u64) -> Act {
 }
 
 #[component]
-pub fn PickerDialogs(workspace: Workspace) -> NodeId {
+pub fn Pickers(workspace: Workspace) -> NodeId {
     let picks = workspace.picks;
     let ids = create_memo(move || {
         picks.with(|picks| picks.iter().map(|held| held.pick).collect::<Vec<_>>())
@@ -57,21 +57,29 @@ pub fn PickerDialogs(workspace: Workspace) -> NodeId {
     view! {
         <List spacing=0.0>
             <ForEach keys={ids}>|pick: u64|
-                <PickerDialog workspace pick />
+                <Picker workspace pick />
             </ForEach>
         </List>
     }
 }
 
 #[component]
-pub fn PickerSheet(workspace: Workspace, pick: u64, tab: TabId) -> DockNode<TabId> {
+pub fn PickerDialog(workspace: Workspace, pick: u64, tab: TabId) -> DockNode<TabId> {
+    let choosing = create_memo(move || {
+        workspace
+            .pick(pick)
+            .is_some_and(|held| held.creating.is_none())
+    });
+    let anchor = workspace.pick_anchor(pick).and_then(|anchor| anchor.rect);
     view! {
         <DockDialog
             id={picker_tab(pick)}
             parent={tab}
             title="Add block"
             size=SURFACE_SIZE
-            presentation=DockDialogPresentation::Sheet
+            presentation=DockDialogPresentation::Card
+            anchor
+            dismiss_on_outside_press={choosing}
             on_close={move || close_surface(workspace, pick)}
         >
             <PickerSurface workspace pick />
@@ -91,7 +99,7 @@ fn close_surface(workspace: Workspace, pick: u64) {
 }
 
 #[component]
-fn PickerDialog(workspace: Workspace, pick: u64) -> NodeId {
+fn Picker(workspace: Workspace, pick: u64) -> NodeId {
     let held = held_memo(workspace, pick);
     let act = act_on(workspace, pick);
     let error = create_memo(move || held.get().and_then(|held| held.error));
@@ -148,7 +156,8 @@ fn PickerMenu(
     let anchor = create_memo(move || placed.get().0);
     let placement = create_memo(move || placed.get().1);
     let phone = workspace.phone;
-    let sheet = create_memo(move || phone.get());
+    let touch = held.get_untracked().is_some_and(|held| held.touch);
+    let sheet = create_memo(move || touch || phone.get());
     let items = match templates {
         true => view! {
             <SlideItems workspace held act />
@@ -712,7 +721,7 @@ fn ChoiceFace(
     } = handle;
     let fill = create_memo(move || match hovered.get() || focused.get() {
         true => theme.hover.get(),
-        false => theme.background.get(),
+        false => Color32::TRANSPARENT,
     });
     let color = create_memo(move || match enabled.get() {
         true => TextColor::Default,

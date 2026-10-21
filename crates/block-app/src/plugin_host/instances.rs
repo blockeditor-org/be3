@@ -1954,20 +1954,18 @@ impl Instances {
     pub(super) fn request_pick(
         &self,
         instance: EditorInstanceId,
-        pick: u64,
-        filter: block_plugin_api::BlockFilter,
-        parent: block_plugin_api::BlockLocation,
-        within: Option<Uuid>,
+        pick: super::runtime::Pick,
     ) -> Vec<Message> {
         if !self.entries.contains_key(&instance) {
             return Vec::new();
         }
         vec![Message::Editor(EditorMessage::PickRequested {
             instance,
-            pick,
-            filter,
-            parent,
-            within: within.map(Uuid::into_bytes),
+            pick: pick.pick,
+            filter: pick.filter,
+            parent: pick.parent,
+            within: pick.within.map(Uuid::into_bytes),
+            touch: pick.touch,
         })]
     }
 

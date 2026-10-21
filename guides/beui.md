@@ -590,6 +590,15 @@ for one that is not), `radius` a `Radius` (`Xs` to `Lg`, `Full`, or
 `Border::FOCUS`, `Border::new(role)` with `.width(..)` and `.offset(..)`;
 `focus_border` shows one only while the focus ring is visible). A
 `ColorRole::custom(..)` wraps a colour or a signal of one.
+A frame can also paint a `shadow` (`Shadow`: a colour, a `spread` drawn as one
+ring per point fading outwards, and a `drop`) and a `pointer`, a beak of that
+reach on its top or bottom edge, filled and outlined with the frame so its
+border runs on around the beak; it shows only while an overlay points it at its
+anchor (below). Both paint outside the frame's box without taking room, so give
+them room in a padded frame around it: a plugin's host draws what is outside an
+overlay's content under the editors it holds. The styled `Frame` takes them as
+tokens: `elevation` (`Elevation::Floating`, the theme's `shadow` colour at
+`FLOATING_SHADOW_SPREAD`) and `pointer=true` (`POINTER_REACH`).
 `Layers` lays every child over the same box, sized to the largest, later
 children on top: content over a background, a badge over an icon. A child that
 should not fill the box goes in a `Frame` that aligns it. Pointer input is the
@@ -735,14 +744,15 @@ and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu
 opened by something other than a button, such as a model holding a request: it
 shows while `open` holds, under `anchor` at `placement`, as the sheet while
 `sheet` holds, `width` wide, and reports `on_dismiss` for Escape or a press
-outside. `MenuButton` is the button that
+outside. A host that opens one for a plugin's button (block-app's app menu)
+anchors it to the button's rect, which the plugin sends from `node_anchor`, and
+sets `sheet` from `last_pointer` (`Document::last_pointer`): the host routed that
+press, so it knows whether a finger made it. `MenuButton` is the button that
 opens a menu under itself, which is what a toolbar reaches for where `Select`
 would imply the choice sticks (`IconMenuButton` is the same with an icon
 button's face); `ContextMenu` is the same menu on a secondary press, and it
 also takes an `open_at` point so a touch gesture can raise it where the finger
-was, or `open_at_pointer` to open where the last pointer was, reading
-`Document::last_pointer` to know whether that was a finger, for a menu something
-else asks for (the app menu a plugin's button opens). A text selection's menu
+was. A text selection's menu
 sets `selection` and stays beside the selection under a finger too. A finger
 held still for the long-press delay (`Context::set_long_press_delay`, which a
 test sets to zero rather than waiting) is a secondary press where it rests, so
@@ -786,7 +796,12 @@ and lowers it once the content is back at its start. It is never taller than
 what it holds, whatever stop it rests at, and pulled past its top it stretches
 like an overscroll. It slides up as it opens, easing out, and slides down as it
 closes, easing in from however fast it was flicked; a `ModalSheet` stays up
-while it leaves however it was closed, and fades its scrim with it. Let go, it springs to the
+while it leaves however it was closed, and fades its scrim with it. A sheet
+that opens within a moment of another closing in the same document (a menu's
+sheet giving way to the sheet of the dialog it opened, either order in the same
+frame) takes the other's place instead: the closing one goes at once, and the
+opening one starts at the height the other showed and eases to its own, so the
+two read as one sheet changing its content (`Slide::Morphing`). Let go, it springs to the
 stop nearest where the flick was heading, or closed below the lowest one, and
 its content flings and bounces at its bottom end as a `Scroll` does. A fling
 reaching the content's start bounces the whole sheet down and back without
@@ -1240,6 +1255,19 @@ window that was covered comes up with its window; an inert layer rises alone,
 so a tooltip shown over a covered window leaves the window where it was.
 `Document::layers()` is worked out once for each change to the tree or the
 layers and shared until the next, so asking for it again costs nothing.
+
+An overlay is anchored to a node, a point, a rect in document coordinates, or a
+rect pinned to a node (`OverlayAnchor::Pinned { node, rect }`): the rect is
+taken in document coordinates and, the first time the overlay is placed, held
+by its offset from the node's nearer edge on each axis, so it follows the node
+when it moves or resizes and the layer still hangs from the node.
+`Placement::Popover { gap, margin }` places content like a popover: centred on
+the anchor and `gap` below it, flipping above where only that side has room and
+shifting sideways to stay `margin` inside the screen (the vertical choice and
+the shrinking when neither side fits are `BelowStart`'s). Given a `pointer`
+frame in its content, the overlay moves the content so that frame, not the
+content's padded edge, stands `gap` off the anchor, and points the frame's beak
+at the anchor's middle on whichever side it opened.
 
 Hand an `Overlay` what it shows as `content={move || ...}` rather than as
 children: it calls that the first time it opens, so a closed tooltip, select,
@@ -1796,20 +1824,46 @@ dialogs), its label shows a dot (`DockTabHandle::waiting`, styled
 `dock.tab.<tab>.waiting`): the tab is waiting on a choice, which matters most
 once another tab is shown in its place and hides the dialog.
 
-`presentation=DockDialogPresentation::Sheet` (rather than the default `Window`)
-shows the same dialog as a sheet attached to its tab, like an old macOS sheet:
-always modal, it drops from the top of the parent's panel, just under its tab
-bar, centred across it at `size` or smaller where the pane is smaller (the body
-is `Extent::at_most(size)`), over a backdrop (Docking's `dialog_scrim`) that dims
-that panel alone. A press on the backdrop calls the sheet's attention, while the
-tab bar, other tabs and other panes stay live. It has no title bar: its content
-draws its own header and close button (styled: square top corners flush with
-the bar, a border on the other three sides, rounded bottom corners and a
-shadow). Its layer hangs from the panel, so it follows the tab into another pane
-or a window. In a stacked dock it is `dialog_sheet` instead (styled: a
-`ModalSheet`), and the same body moves between the two through `Portal`s, so
-nothing in it is rebuilt. A dialog's body is built once when it is declared and
-kept while its tab is hidden, whichever presentation it has.
+`presentation=DockDialogPresentation::Card` (rather than the default `Window`)
+shows the same dialog as a card floating from its tab: always modal, it is
+centred on the parent's panel a small gap under its tab bar
+(`Placement::HangFrom`, Docking's `dialog_margin`) and keeps the `size` it asks
+for even where the pane is narrower, reaching over the panes beside it; it is
+only kept that margin inside the window, and shrinks only where the window is
+too small (the body is `Extent::at_most(size)`): in a short window it shrinks
+under its tab bar first, and rises over the bar, hiding the tab's waiting dot,
+only when even its smallest size does not fit below it. Its scrim (Docking's
+`dialog_scrim`) dims that panel alone: a `BlocksParent` overlay with a visible
+scrim lays it over the node it blocks. A `BlocksParent` layer occludes the node
+it blocks and its content (`Document::layer_covers`), dimmed or not, so the card
+draws over other panes and takes the presses it covers there, a plugin's host
+routes presses on the blocked panel to the dock rather than to an editor shown
+in it, and the rest of those panes, the tab bar and other tabs stay live. A
+press on the blocked panel calls the card's attention, or
+closes it through `on_close` with `dismiss_on_outside_press` (any modal
+`DockDialog` takes it; a press on another pane never closes one). It has no
+title bar: its content draws its own header and close button (styled: the
+dialog card's raised surface, `Radius::Lg` on every corner, the dialog outline
+that shows focus and attention, and the floating shadow, kept `dialog::MARGIN`
+from the tab bar and the window's edges). Its layer hangs from the panel, so it
+follows the tab into another pane or a window.
+
+Given an `anchor`, the rect in document coordinates of the control that asked
+for it, a card is a popover instead: it hangs `Placement::Popover` from that rect
+pinned to the parent's panel (`OverlayAnchor::Pinned`), Docking's `dialog_gap`
+off it and `dialog_margin` inside the window, so it keeps its place on the tab
+when the pane moves or resizes and follows the tab into another pane or window.
+It is not dimmed: the panel is blocked all the same, so a press on it closes the
+card or calls its attention as above. The chrome names the frame to point from
+with the handle's `pointer` (styled: the card's frame, whose beak points at the
+control's middle from the side the card opened on). Everything else - modal to
+its tab, hidden with it, the waiting dot, the keyboard, the sheet in a stacked
+dock - is the card's. In a stacked dock it is
+`dialog_sheet` instead (styled: a `ModalSheet`), whose body fills the sheet's
+width as every sheet's does rather than keeping the card's `size`, and the same
+body moves between the two through `Portal`s, so nothing in it is rebuilt. A dialog's
+body is built once when it is declared and kept while its tab is hidden,
+whichever presentation it has.
 
 One tab at a time can be fullscreen: `DockState::set_fullscreen` with a
 `DockFullscreen` naming the tab and an area (a rect in document coordinates, or

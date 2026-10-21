@@ -20,6 +20,7 @@ pub fn Overlay(
     #[prop(default = LayerLevel::Normal)] level: Prop<LayerLevel>,
     #[prop(default = true)] traps_focus: Prop<bool>,
     trigger: Option<NodeRef>,
+    pointer: Option<NodeRef>,
     open: Prop<bool>,
     on_dismiss: Callback<Dismiss>,
     children: Option<Child>,
@@ -32,6 +33,7 @@ pub fn Overlay(
             document.set_overlay_content(overlay, content);
         }
         document.set_overlay_trigger(overlay, trigger);
+        document.set_overlay_pointer(overlay, pointer);
         document.set_overlay_on_dismiss(overlay, on_dismiss);
         overlay
     });

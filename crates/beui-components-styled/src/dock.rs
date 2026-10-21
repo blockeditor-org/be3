@@ -1,7 +1,7 @@
 mod stack;
 mod switch;
 
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::frame::{Border, ColorRole, Elevation, Frame, Radius, focus_border};
 use crate::sheet::ModalSheet;
 use beui_macros::{component, view};
 
@@ -10,7 +10,7 @@ use crate::context_menu::menu_style;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::use_theme;
+use crate::theme::{FLOATING_SHADOW_DROP, FLOATING_SHADOW_SPREAD, POINTER_REACH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
@@ -28,7 +28,6 @@ use beui_core::icons::{
 use beui_core::image::Image;
 use beui_core::input::Modifiers;
 use beui_core::node::NodeId;
-use beui_core::painter::Corners;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use stack::{DockStackBar, DockSwitcher};
@@ -56,12 +55,14 @@ const AWAY_SPACING: f32 = 12.0;
 const AWAY_PADDING: f32 = 24.0;
 const PREVIEW_ALPHA: u8 = 235;
 const WAITING_DOT: f32 = 6.0;
-const SHEET_SHADOW: [Color32; 3] = [
-    Color32::from_rgba_unmultiplied(0, 0, 0, 24),
-    Color32::from_rgba_unmultiplied(0, 0, 0, 36),
-    Color32::from_rgba_unmultiplied(0, 0, 0, 56),
-];
-const SHEET_SHADOW_WIDTH: f32 = 4.0;
+const CARD_SHADOW_ROOM: Sides = Sides {
+    left: FLOATING_SHADOW_SPREAD,
+    top: f32::max(FLOATING_SHADOW_SPREAD - FLOATING_SHADOW_DROP, POINTER_REACH),
+    right: FLOATING_SHADOW_SPREAD,
+    bottom: FLOATING_SHADOW_SPREAD + FLOATING_SHADOW_DROP,
+};
+const CARD_MARGIN: u16 = (crate::dialog::MARGIN - CARD_SHADOW_ROOM.top) as u16;
+const CARD_GAP: u16 = (POINTER_REACH + 2.0) as u16;
 
 #[component]
 pub fn Docking<K>(
@@ -120,6 +121,8 @@ where
                 <DockDialogSheet handle />
             }}
             dialog_scrim={crate::dialog::SCRIM}
+            dialog_margin=CARD_MARGIN
+            dialog_gap=CARD_GAP
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
             }}
@@ -350,8 +353,8 @@ fn DockDialogFace(handle: DockDialogHandle) -> NodeId {
         DockDialogPresentation::Window => view! {
             <DockWindowFace handle />
         },
-        DockDialogPresentation::Sheet => view! {
-            <DockSheetFace handle />
+        DockDialogPresentation::Card => view! {
+            <DockCardFace handle />
         },
     }
 }
@@ -380,56 +383,27 @@ fn dialog_outline(focused: Memo<bool>, attention: ReadSignal<bool>) -> Memo<Opti
     create_memo(move || Some(Border::new(ColorRole::Custom(color.get())).width(CHROME_BORDER)))
 }
 
-fn sheet_radius(outset: f32) -> Radius {
-    let bottom = Radius::Lg.px() + outset;
-    Radius::Custom(Corners {
-        top_left: 0.0,
-        top_right: 0.0,
-        bottom_right: bottom,
-        bottom_left: bottom,
-    })
-}
-
 #[component]
-fn DockSheetFace(handle: DockDialogHandle) -> NodeId {
+fn DockCardFace(handle: DockDialogHandle) -> NodeId {
     let DockDialogHandle {
         focused,
         attention,
+        pointer,
         body,
         ..
     } = handle;
-    let ring = Sides::new(
-        SHEET_SHADOW_WIDTH,
-        0.0,
-        SHEET_SHADOW_WIDTH,
-        SHEET_SHADOW_WIDTH,
-    );
-    let edge = Sides::new(CHROME_BORDER, 0.0, CHROME_BORDER, CHROME_BORDER);
-    let outline = dialog_outline_color(focused, attention);
     view! {
-        <Frame
-            fill={ColorRole::Custom(SHEET_SHADOW[0])}
-            radius={sheet_radius(CHROME_BORDER + 3.0 * SHEET_SHADOW_WIDTH)}
-            padding=ring
-        >
+        <Frame padding=CARD_SHADOW_ROOM>
             <Frame
-                fill={ColorRole::Custom(SHEET_SHADOW[1])}
-                radius={sheet_radius(CHROME_BORDER + 2.0 * SHEET_SHADOW_WIDTH)}
-                padding=ring
+                @node_ref=&pointer
+                fill=ColorRole::SurfaceRaised
+                border={dialog_outline(focused, attention)}
+                radius=Radius::Lg
+                elevation=Elevation::Floating
+                pointer=true
+                padding=CHROME_BORDER
             >
-                <Frame
-                    fill={ColorRole::Custom(SHEET_SHADOW[2])}
-                    radius={sheet_radius(CHROME_BORDER + SHEET_SHADOW_WIDTH)}
-                    padding=ring
-                >
-                    <Frame
-                        fill={ColorRole::custom(outline)}
-                        radius={sheet_radius(CHROME_BORDER)}
-                        padding=edge
-                    >
-                        <Frame fill=ColorRole::Background radius={sheet_radius(0.0)}>{body}</Frame>
-                    </Frame>
-                </Frame>
+                {body}
             </Frame>
         </Frame>
     }

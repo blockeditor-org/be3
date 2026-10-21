@@ -31,6 +31,9 @@ pub enum EditorAction {
         id: Uuid,
         command: block_plugin_api::BlockCommand,
     },
+    AppMenu {
+        at: Option<beui::Rect>,
+    },
 }
 
 #[derive(Clone, Copy, Debug)]

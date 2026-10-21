@@ -1,9 +1,8 @@
 use std::time::Duration;
 
-use beui_core::base::Align;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
-use beui_core::geometry::Vec2;
+use beui_core::geometry::{Rect, Vec2};
 use beui_core::input::PointerPress;
 use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
@@ -20,7 +19,7 @@ const ATTENTION: Duration = Duration::from_millis(400);
 pub enum DockDialogPresentation {
     #[default]
     Window,
-    Sheet,
+    Card,
 }
 
 #[derive(Clone, Copy)]
@@ -30,6 +29,8 @@ pub(crate) struct DialogParts {
     pub(crate) icon: Memo<String>,
     pub(crate) size: Memo<Vec2>,
     pub(crate) modal: Memo<bool>,
+    pub(crate) dismiss_on_outside_press: Memo<bool>,
+    pub(crate) anchor: Memo<Option<Rect>>,
     pub(crate) on_close: Option<ClickCallback>,
     pub(crate) content: RenderFn<()>,
 }
@@ -45,6 +46,7 @@ pub struct DockDialogHandle {
     pub attention: ReadSignal<bool>,
     pub closable: bool,
     pub close: ClickCallback,
+    pub pointer: NodeRef,
     pub body: NodeId,
 }
 
@@ -234,10 +236,12 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         icon,
         size,
         modal,
+        dismiss_on_outside_press,
+        anchor: asked_from,
         on_close,
         content,
     } = parts;
-    let sheet = presentation == DockDialogPresentation::Sheet;
+    let card = presentation == DockDialogPresentation::Card;
     let frame = NodeRef::new();
     dock.dialog_frames.value().borrow_mut().insert(tab, frame);
     let inside = NodeRef::new();
@@ -259,7 +263,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let mode = dock.mode;
     let fallback = dock.dialog_sheet;
     let stacked =
-        create_memo(move || sheet && fallback.is_some() && mode.get() == DockMode::Stacked);
+        create_memo(move || card && fallback.is_some() && mode.get() == DockMode::Stacked);
     let anchored = create_memo(move || shown.get() && !stacked.get());
     let in_sheet = create_memo(move || shown.get() && stacked.get());
     let anchor = NodeRef::new();
@@ -304,11 +308,12 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         content.call(())
     });
     store(scope);
-    let width = create_memo(move || match sheet {
-        true => Extent::at_most(size.get().x),
-        false => Extent::px(size.get().x),
+    let width = create_memo(move || match (card, stacked.get()) {
+        (true, true) => Extent::fraction(1.0),
+        (true, false) => Extent::at_most(size.get().x),
+        (false, _) => Extent::px(size.get().x),
     });
-    let height = create_memo(move || match sheet {
+    let height = create_memo(move || match card {
         true => Extent::at_most(size.get().y),
         false => Extent::px(size.get().y),
     });
@@ -328,6 +333,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         }
     });
     let held = create_memo(move || (!stacked.get()).then_some(body));
+    let pointer = NodeRef::new();
     let face = dock.dialog_chrome.call(DockDialogHandle {
         tab,
         presentation,
@@ -339,6 +345,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         attention: attention.read_only(),
         closable: on_close.is_some(),
         close,
+        pointer,
         body: view! {
             <Portal node={held} />
         },
@@ -359,36 +366,54 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         dock.focus_into_dialog();
         dock.call_attention();
     };
-    let placement = match sheet {
-        true => Placement::InsideTop,
-        false => Placement::CenterOn,
-    };
-    let scrim = dock.dialog_scrim;
+    let (margin, gap, dims) = (dock.dialog_margin, dock.dialog_gap, dock.dialog_scrim);
+    let placed = create_memo(move || match (card, asked_from.get()) {
+        (true, Some(rect)) => (
+            OverlayAnchor::Pinned { node: anchor, rect },
+            Placement::Popover { gap, margin },
+            Color32::TRANSPARENT,
+        ),
+        (true, None) => (
+            OverlayAnchor::Node(anchor),
+            Placement::HangFrom(margin),
+            dims,
+        ),
+        (false, _) => (
+            OverlayAnchor::Node(anchor),
+            Placement::CenterOn,
+            Color32::TRANSPARENT,
+        ),
+    });
+    let at = create_memo(move || placed.get().0);
+    let placement = create_memo(move || placed.get().1);
+    let scrim = create_memo(move || placed.get().2);
     let overlay = NodeRef::new();
     let view = view! {
         <List spacing=0.0>
             <Overlay
                 @node_ref=&overlay
-                anchor={OverlayAnchor::Node(anchor)}
+                anchor={at}
                 placement
+                pointer
+                scrim
                 policy
                 traps_focus=false
                 open={anchored}
                 on_dismiss={move |reason: Dismiss| match reason {
+                    Dismiss::OutsidePress if dismiss_on_outside_press.get_untracked() => {
+                        close.call()
+                    }
                     Dismiss::OutsidePress if blocking.get_untracked() => call_attention(),
                     Dismiss::Escape | Dismiss::Back => close.call(),
                     Dismiss::OutsidePress | Dismiss::WithParent => {}
                 }}
             >
-                <DialogLayer
-                    sheet
-                    scrim
-                    frame
-                    tab
-                    dock
-                    face
-                    on_backdrop={move |_: PointerPress| call_attention()}
-                />
+                <Interactive
+                    @node_ref=&frame
+                    on_press={move |_: PointerPress| dock.focus_dialog(tab)}
+                >
+                    {face}
+                </Interactive>
             </Overlay>
             {fallback}
         </List>
@@ -414,47 +439,4 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         }
     });
     view
-}
-
-#[component]
-fn DialogLayer(
-    sheet: bool,
-    scrim: Color32,
-    frame: NodeRef,
-    tab: TabId,
-    dock: State,
-    face: NodeId,
-    on_backdrop: Callback<PointerPress>,
-) -> NodeId {
-    let pressed = move |_: PointerPress| dock.focus_dialog(tab);
-    match sheet {
-        false => view! {
-            <Interactive @node_ref=&frame on_press={pressed}>{face}</Interactive>
-        },
-        true => view! {
-            <Interactive
-                @test_id={format!("dock.dialog.{}.backdrop", tab.value())}
-                on_press={move |press: PointerPress| {
-                    let inside = with_document(|document| {
-                        frame
-                            .try_get()
-                            .and_then(|frame| document.node_rect(frame))
-                            .is_some_and(|rect| rect.contains(press.pos))
-                    });
-                    if !inside {
-                        on_backdrop.call(press);
-                    }
-                }}
-            >
-                <Frame
-                    width={Extent::fraction(1.0)}
-                    height={Extent::fraction(1.0)}
-                    align={Align2::new(Align::Center, Align::Start)}
-                    fill=scrim
-                >
-                    <Interactive @node_ref=&frame on_press={pressed}>{face}</Interactive>
-                </Frame>
-            </Interactive>
-        },
-    }
 }
