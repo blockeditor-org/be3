@@ -338,6 +338,9 @@ impl MapState {
         let points = self.points.get_untracked();
         let tip = |point: &MapPoint| self.screen(view.position(point.position));
         let hit = crate::points::point_at(&points, tip, at);
+        if hit.is_none() {
+            self.editor.pan_drag();
+        }
         self.selected.set(hit);
         inner.dragged.set(hit.and_then(|id| {
             let point = points.iter().find(|point| point.id == id)?;

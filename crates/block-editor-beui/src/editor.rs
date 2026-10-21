@@ -1111,6 +1111,10 @@ impl Editor {
         self.state().host.fit_view();
     }
 
+    pub fn pan_drag(&self) {
+        self.state().host.pan_drag_view();
+    }
+
     pub fn reveal(&self, target: Rect) {
         let Some(placement) = self.view_canvas() else {
             return;
@@ -1305,6 +1309,7 @@ impl Editor {
             record.rotation.get_untracked(),
             record.opacity.get_untracked(),
             record.intrinsic.get_untracked(),
+            document.panned_by_canvas(node),
         ))
     }
 }

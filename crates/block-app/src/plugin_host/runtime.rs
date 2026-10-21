@@ -601,12 +601,20 @@ impl Runtime {
                 taken
             }
             false => {
-                let (drawing, held): (Vec<_>, Vec<_>) =
-                    forwarded.into_iter().partition(draws_the_frame);
-                if !held.is_empty() {
+                let mut drawing = Vec::with_capacity(forwarded.len());
+                let mut held = false;
+                for message in forwarded {
+                    match self.draws_the_frame(&message) {
+                        true => drawing.push(message),
+                        false => {
+                            held = true;
+                            self.held.push(message);
+                        }
+                    }
+                }
+                if held {
                     host::request_repaint();
                 }
-                self.held.extend(held);
                 drawing
             }
         };
@@ -635,6 +643,23 @@ impl Runtime {
                 self.frames,
             );
             mark(&self.plugin.identity.id);
+        }
+    }
+
+    fn draws_the_frame(&self, message: &Message) -> bool {
+        match message {
+            Message::Layout(_)
+            | Message::Frames(_)
+            | Message::FrameNeeded
+            | Message::FrameReady(_) => true,
+            Message::Children(placements) => {
+                !self.held.iter().any(|held| {
+                    matches!(held, Message::Children(earlier)
+                        if (earlier.instance, earlier.region) == (placements.instance, placements.region))
+                }) && self.instances.only_moves(placements)
+            }
+            Message::Extension { key, .. } => *key == beui::painting::PAINTING_EXTENSION,
+            _ => false,
         }
     }
 
@@ -1637,15 +1662,6 @@ pub(crate) fn crash(plugin_id: &str, error: String) {
     with(plugin_id, |runtime| runtime.crashed(error));
 }
 
-fn draws_the_frame(message: &Message) -> bool {
-    match message {
-        Message::Layout(_) | Message::Frames(_) | Message::FrameNeeded | Message::FrameReady(_) => {
-            true
-        }
-        Message::Extension { key, .. } => *key == beui::painting::PAINTING_EXTENSION,
-        _ => false,
-    }
-}
 
 pub(super) fn mark(plugin_id: &str) {
     CHANGED.with(|changed| {
@@ -2043,6 +2059,7 @@ pub(crate) fn region_view(
     instance: EditorInstanceId,
     region: EditorRegion,
     own: Option<EmbedPlacement>,
+    view: Option<EditorView>,
 ) -> RegionView {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
@@ -2054,7 +2071,7 @@ pub(crate) fn region_view(
             runtime
                 .error
                 .is_none()
-                .then(|| placed_view(runtime, instance, region, own))
+                .then(|| placed_view(runtime, instance, region, own, view))
         });
         match (view, runtime.error.clone()) {
             (_, Some(error)) => RegionView::failed(error, true),
@@ -2069,6 +2086,7 @@ fn placed_view(
     instance: EditorInstanceId,
     region: EditorRegion,
     own: Option<EmbedPlacement>,
+    view: Option<EditorView>,
 ) -> RegionView {
     {
         if let Some(stopped) = runtime.instances.stopped(instance, region) {
@@ -2106,7 +2124,7 @@ fn placed_view(
         };
         let (children, holes) = runtime
             .instances
-            .host_children(instance, region, rect, clip);
+            .host_children(instance, region, rect, clip, view);
         let report = runtime.instances.frame_report(instance, region);
         let floating_rects: Vec<Rect> = match held {
             Some(_) => Vec::new(),

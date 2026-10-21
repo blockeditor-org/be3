@@ -389,6 +389,7 @@ impl PluginEditor {
             preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
             supports_pan_and_zoom: capabilities.pan_and_zoom,
             max_zoom: capabilities.max_zoom,
+            pan: capabilities.pan,
         }
     }
 

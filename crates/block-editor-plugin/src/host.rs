@@ -10,7 +10,7 @@ use crate::graph::BlockParent;
 use block_plugin_api::TopBar;
 use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
-    BlockImport, BlockPick, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
+    BlockImport, BlockPick, Camera, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildRect, ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult, FilePick,
     FileSave, HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry,
     Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent,
@@ -1122,6 +1122,14 @@ impl EditorHost {
         self.framed_view().map(|view| view.scale)
     }
 
+    pub(crate) fn camera(&self) -> Option<Camera> {
+        self.framed_view().map(|view| Camera {
+            x: view.rect.min.x,
+            y: view.rect.min.y,
+            scale: view.scale,
+        })
+    }
+
     fn framed_view(&self) -> Option<View> {
         let region = self.region.get().region;
         matches!(region, None | Some(EditorRegion::Frame))
@@ -1146,6 +1154,10 @@ impl EditorHost {
 
     pub fn fit_view(&self) {
         self.view_changes.borrow_mut().push(ViewChange::Fit);
+    }
+
+    pub fn pan_drag_view(&self) {
+        self.view_changes.borrow_mut().push(ViewChange::PanDrag);
     }
 
     pub fn resume_auto_fit_view(&self) {
@@ -1580,6 +1592,7 @@ impl EditorHost {
         rotation: f32,
         opacity: f32,
         intrinsic: Option<Vec2>,
+        follows_camera: bool,
     ) -> ChildId {
         let state = self.region.get();
         let clip = clip.intersect(swept(rect, rotation));
@@ -1604,6 +1617,7 @@ impl EditorHost {
             }),
             rotation,
             opacity: opacity.clamp(0.0, 1.0),
+            follows_camera,
         });
         child
     }

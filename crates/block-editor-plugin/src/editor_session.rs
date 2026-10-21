@@ -1,7 +1,7 @@
 use be_block::presence::{PresenceKind, UserActive, pick_free_color};
 use block_plugin_api::accesskit::{ActionRequest, NodeId, TreeUpdate};
 use block_plugin_api::{
-    ArtifactDescription, BarAction, ChildId, ChildPlacement, ChildPlacements, ChildRect,
+    ArtifactDescription, BarAction, Camera, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
     FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
     MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange,
@@ -88,8 +88,9 @@ struct RegionState {
     reported_stopped: bool,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
+    camera: Option<Camera>,
     laid_out: Size,
-    reported_children: Option<(Size, Vec<ChildPlacement>, Vec<Occluder>)>,
+    reported_children: Option<(Size, Vec<ChildPlacement>, Vec<Occluder>, Option<Camera>)>,
     age: u32,
 }
 
@@ -813,12 +814,12 @@ impl EditorSession {
         let mut messages = Vec::new();
         for (region, state) in &mut self.regions {
             let (children, occluders) = bounded(&state.children, &state.occluders);
-            let current = (state.laid_out, children, occluders);
+            let current = (state.laid_out, children, occluders, state.camera);
             if state.reported_children.as_ref() == Some(&current) {
                 continue;
             }
             state.reported_children = Some(current.clone());
-            let (size, children, occluders) = current;
+            let (size, children, occluders, camera) = current;
             messages.push(ChildPlacements {
                 instance,
                 region: *region,
@@ -826,6 +827,7 @@ impl EditorSession {
                 size,
                 children,
                 occluders,
+                camera,
             });
         }
         messages
@@ -964,6 +966,7 @@ impl EditorSession {
             artifact.edited |= artifact.draft != draft;
             artifact.draft = draft;
         }
+        let camera = self.host.camera();
         let (placed, occluders) = self.host.end_region(region);
         self.host.set_drag(None);
         self.host.set_files(None);
@@ -990,6 +993,7 @@ impl EditorSession {
                 height: host.height(),
             };
             state.occluders = occluders;
+            state.camera = camera;
             let window = &frame.window;
             state.window = block_plugin_api::WindowRequests {
                 cursor: window.cursor,

@@ -42,6 +42,7 @@ pub struct DirectEditorCapabilities {
     pub preserve_aspect_ratio: bool,
     pub supports_pan_and_zoom: bool,
     pub max_zoom: Option<u32>,
+    pub pan: block_plugin_api::PanMode,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]

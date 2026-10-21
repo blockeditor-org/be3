@@ -12,13 +12,14 @@ use beui::{
 };
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
-    FrameChrome, FrameSpec, HostPanel, HostWindowId, SettingsProgress, TopBar, ViewChange,
+    FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar,
+    ViewChange,
 };
 use uuid::Uuid;
 
 use crate::wayland::WindowSurface;
 
-use super::region::{ChildView, PluginRegion, RegionEditor};
+use super::region::{ChildView, PanDrag, PluginRegion, RegionEditor};
 use crate::editors::plugin::PickSource;
 use crate::editors::{
     BlockLabel, Chrome, CreationStep, EditorRegistry, PendingCreation, PluginEditor,
@@ -433,6 +434,7 @@ struct Handle {
     role: plugin_host::InstanceRole,
     pan_and_zoom: bool,
     max_zoom: Option<u32>,
+    pan: PanMode,
     preview: bool,
 }
 
@@ -446,6 +448,7 @@ impl Handle {
             role: editor.role(),
             pan_and_zoom: capabilities.supports_pan_and_zoom,
             max_zoom: capabilities.max_zoom,
+            pan: capabilities.pan,
             preview: editor.has_region(EditorRegion::Preview),
         }
     }
@@ -790,6 +793,9 @@ fn fit(viewport: &mut Viewport, size: Vec2, content: Vec2) {
 }
 
 #[derive(Clone, Copy)]
+struct CameraOwner(Callback<Command>);
+
+#[derive(Clone, Copy)]
 enum Command {
     Pan(Vec2),
     Zoom { factor: f32, anchor: Option<Pos2> },
@@ -1092,8 +1098,13 @@ fn BlockFrameView(
                     .unwrap_or(vec2(420.0, 240.0));
                 vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
             });
+            let owner = use_context::<CameraOwner>();
             let command = move |command: Command| {
                     if !pan_and_zoom {
+                        if let (Some(owner), Command::Pan(_) | Command::Zoom { .. }) = (owner, command) {
+                            owner.0.call(command);
+                            return;
+                        }
                         if !on_view_change.is_empty() {
                             on_view_change.call(match command {
                                 Command::Pan(delta) => ViewChange::Pan { x: delta.x, y: delta.y },
@@ -1113,6 +1124,9 @@ fn BlockFrameView(
                         viewport.set(state);
                     }
             };
+            if pan_and_zoom {
+                provide_context(CameraOwner(Callback::new(command)));
+            }
             create_effect(
                 move || {
                     if !pan_and_zoom {
@@ -1136,6 +1150,7 @@ fn BlockFrameView(
                     }
                 },
             );
+            let pan_drags = create_signal(0u64);
             create_effect(
                 move || {
                     revision.get();
@@ -1149,6 +1164,10 @@ fn BlockFrameView(
                             },
                             ViewChange::Fit => Command::Fit,
                             ViewChange::ResumeAutoFit => Command::ResumeAutoFit,
+                            ViewChange::PanDrag => {
+                                pan_drags.update(|asked| *asked += 1);
+                                continue;
+                            }
                         });
                     }
                     let actions = plugin_host::take_bar_actions(&plugin_id.value(), instance);
@@ -1216,7 +1235,12 @@ fn BlockFrameView(
                     top_bar: top_bar.get(),
                 })
             });
-            let gestures = pan_and_zoom || !on_view_change.is_empty() && handle.pan_and_zoom;
+            let gestures = handle.pan != PanMode::None
+                && (pan_and_zoom || !on_view_change.is_empty() && handle.pan_and_zoom);
+            let pan_drag = (gestures && handle.pan == PanMode::OneFinger).then(|| PanDrag {
+                asked: pan_drags.read_only(),
+                pan: Callback::new(move |delta: Vec2| command(Command::Pan(delta))),
+            });
             let steered = create_memo(move || {
                 (!read_only && !handle.pan_and_zoom).then(|| content_rect.get())
             });
@@ -1284,6 +1308,7 @@ fn BlockFrameView(
                         view={editor_view}
                         zoom={placed_zoom}
                         passive={passive}
+                        pan_drag
                         on_focus
                         child_view
                     />
@@ -1522,7 +1547,7 @@ fn HostedChild(
                                     };
                                 };
                                 let content = create_memo(move || {
-                                    child.get().map(|child| child.rect.intersect(child.clip))
+                                    child.get().map(|child| child.view_rect.intersect(child.clip))
                                 });
                                 let chrome = create_memo(move || {
                                     match tab.stack.get().last() == Some(&id) {
@@ -1619,6 +1644,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
                         preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
                         pan_and_zoom: capabilities.supports_pan_and_zoom,
                         max_zoom: capabilities.max_zoom,
+                        pan: capabilities.pan,
                     }
                 },
                 match editor.direct_editor_resize() {

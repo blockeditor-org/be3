@@ -79,6 +79,7 @@ pub(crate) struct HostChild {
     pub(crate) top_bar: block_plugin_api::TopBar,
     pub(crate) content: HostContent,
     pub(crate) rect: Rect,
+    pub(crate) view_rect: Rect,
     pub(crate) occluders: Vec<Rect>,
     pub(crate) clip: Rect,
     pub(crate) layer: ChildLayer,

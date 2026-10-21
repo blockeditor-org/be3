@@ -345,6 +345,14 @@ pub struct ChildPlacement {
     pub intrinsic: Option<Size>,
     pub rotation: f32,
     pub opacity: f32,
+    pub follows_camera: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
+pub struct Camera {
+    pub x: f32,
+    pub y: f32,
+    pub scale: f32,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -361,6 +369,7 @@ pub struct ChildPlacements {
     pub size: Size,
     pub children: Vec<ChildPlacement>,
     pub occluders: Vec<Occluder>,
+    pub camera: Option<Camera>,
 }
 
 impl ChildPlacements {
@@ -557,6 +566,16 @@ pub struct EditorCapabilities {
     pub pan_and_zoom: bool,
     #[serde(default)]
     pub max_zoom: Option<u32>,
+    #[serde(default)]
+    pub pan: PanMode,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+pub enum PanMode {
+    None,
+    OneFinger,
+    #[default]
+    TwoFinger,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -2052,6 +2071,7 @@ pub enum ViewChange {
     },
     Fit,
     ResumeAutoFit,
+    PanDrag,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

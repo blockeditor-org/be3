@@ -2189,6 +2189,7 @@ impl CanvasState {
                 None => self.editor.zoom(factor),
             },
             block_editor_beui::ViewChange::ResumeAutoFit => self.editor.resume_auto_fit(),
+            block_editor_beui::ViewChange::PanDrag => {}
         }
     }
 

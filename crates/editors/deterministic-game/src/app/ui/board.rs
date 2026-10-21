@@ -216,6 +216,7 @@ pub(crate) fn Stage(
             None => {
                 state.panning = true;
                 editor.pan(pointer.pos - state.start);
+                editor.pan_drag();
             }
         }
     };
