@@ -12,6 +12,7 @@ fn ReadsWhereItMay(count: Signal<usize>, label: Prop<String>, seen: Rc<Cell<usiz
     });
     handler.call(());
     create_effect(move || seen.set(seen.get() + doubled.get()));
+    flush();
     view! {
         <Element
             tag="p"
@@ -36,7 +37,9 @@ fn handlers_effects_and_untracked_reads_in_a_component_body_do_not_panic() {
     assert_eq!(seen.get(), 3);
     assert!(page.html().contains(">n21</p>"));
     count.set(2);
+    flush();
     assert_eq!(seen.get(), 7);
     label.set("m".to_string());
+    flush();
     assert!(page.html().contains(">m21</p>"));
 }

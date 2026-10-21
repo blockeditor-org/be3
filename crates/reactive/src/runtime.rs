@@ -428,8 +428,8 @@ fn run_parked(zone: u64) {
     let parked = RUNTIME.with(|runtime| runtime.take_parked(zone));
     if let Some(parked) = parked {
         RUNTIME.with(|runtime| runtime.queue.borrow_mut().extend(parked));
-        settle();
     }
+    settle();
 }
 
 pub fn zone_pending(zone: u64) -> bool {

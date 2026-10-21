@@ -39,11 +39,14 @@ fn components_can_return_and_collect_child_runs() {
     assert!(page.html().contains(">one</p>"));
     assert_eq!(page.0.children.borrow().len(), 1);
     visible.set(true);
+    flush();
     label.set("two".to_string());
+    flush();
     assert!(page.html().contains(">two</p>"));
     assert!(page.html().contains(">tail</span>"));
     assert_eq!(page.0.children.borrow().len(), 2);
     visible.set(false);
+    flush();
     assert_eq!(page.0.children.borrow().len(), 1);
     assert!(
         scope

@@ -352,8 +352,9 @@ again when its tracked inputs change.
 A write never runs effects itself. The value changes at once, so a read right
 after it, of the signal or of a memo over it, sees the new value; the effects
 it wakes are queued. An entry runs them when it ends: `Scope::run`,
-`ScopeContext::run`, a computation's run, disposing a scope or an effect, and
-creating an effect outside any entry. Nested entries flush only when the
+`ScopeContext::run`, a computation's run, disposing a scope or an effect,
+creating an effect outside any entry, and entering or leaving a zone (so a
+document entered after a write runs that write's effects before its events). Nested entries flush only when the
 outermost one ends, so every event, timer, accessibility action and frame
 step beui handles, which each run inside one, sees its effects run once at its
 end. A write outside any entry, from a future or a callback the host runs,

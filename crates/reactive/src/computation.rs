@@ -3,8 +3,8 @@ use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
 use crate::runtime::{
-    Context, RUNTIME, Read, Reset, batch, current_zone, defer, enqueue, leave_component_body, probe,
-    settle,
+    Context, RUNTIME, Read, Reset, batch, current_zone, defer, enqueue, leave_component_body,
+    probe, settle,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
 use crate::signal::Tracked;

@@ -4,7 +4,7 @@ use std::rc::{Rc, Weak};
 use crate::reactive::{
     ChildList, ChildValue, Children, ForEach, Get, IntoSlotHost, Prop, Scope, Set, Show,
     ShowKeepAlive, Signal, SlotChild, SlotHost, SlotId, component, create_effect, create_memo,
-    create_signal, on_cleanup, store, view,
+    create_signal, flush, on_cleanup, store, view,
 };
 
 mod a_binding_prop_reads_and_writes_the_signal_it_was_given_or_its_own;
@@ -52,7 +52,7 @@ impl DomNode {
     }
 
     fn html(&self) -> String {
-        ::reactive::flush();
+        flush();
         let children: String = self.0.children.borrow().iter().map(DomNode::html).collect();
         let (id, tag) = (self.0.id, self.0.tag);
         format!("<{tag} id={id}>{}{children}</{tag}>", self.0.text.borrow())

@@ -19,16 +19,20 @@ fn a_derived_binding_reads_its_prop_and_writes_through_its_callback() {
         }
     });
     fahrenheit.set(212.0);
+    flush();
     assert_eq!(writes.get(), 1);
     fahrenheit.set(32.0);
+    flush();
     assert_eq!(celsius.get_untracked(), 0.0);
     assert_eq!(writes.get(), 2);
     fahrenheit.update(|value| *value += 18.0);
+    flush();
     assert_eq!(celsius.get_untracked(), 10.0);
 
     let heard = create_signal(None);
     let seeded = Binding::new(true, move |value: bool| heard.set(Some(value)));
     seeded.set(false);
+    flush();
     assert!(!seeded.get_untracked());
     assert_eq!(heard.get_untracked(), Some(false));
 }
