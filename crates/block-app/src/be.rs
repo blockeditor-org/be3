@@ -3,6 +3,7 @@ use std::sync::{Arc, Condvar, Mutex, OnceLock, PoisonError};
 #[cfg(not(target_arch = "wasm32"))]
 use std::path::PathBuf;
 
+use beui::reactive::now;
 use tokio::sync::mpsc::{UnboundedSender, unbounded_channel};
 use uuid::Uuid;
 
@@ -528,7 +529,7 @@ pub(crate) fn change_child(
         return None;
     };
     for operation in (kind.child)(&held.bytes, change)? {
-        send(Command::Operate(block, None, operation));
+        send(Command::Operate(block, None, operation, now()));
     }
     Some(true)
 }
@@ -563,11 +564,11 @@ pub(crate) fn is_versioned(content_type: Uuid) -> bool {
 }
 
 pub(crate) fn operate(block: Uuid, operation: Vec<u8>) {
-    send(Command::Operate(block, None, operation));
+    send(Command::Operate(block, None, operation, now()));
 }
 
 pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {
-    send(Command::Operate(block, Some(origin), operation));
+    send(Command::Operate(block, Some(origin), operation, now()));
 }
 
 pub(crate) fn update_since(block: Uuid, origin: u64, sent: Option<u64>) -> Option<(u64, Update)> {

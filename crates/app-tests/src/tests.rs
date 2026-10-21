@@ -36,6 +36,7 @@ mod the_members_dialog_lists_an_organizations_members_and_their_roles;
 mod the_more_card_from_the_files_reaches_over_the_block_beside_them;
 mod the_more_card_hangs_on_its_tab_and_leaves_the_files_usable;
 mod the_organizations_screen_takes_an_invite_link;
+mod typing_after_a_pause_undoes_as_its_own_step;
 
 fn add_to_my_files(app: &mut AppTest, label: &str) {
     app.click(ADD_TO_MY_FILES);

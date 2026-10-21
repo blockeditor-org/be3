@@ -47,7 +47,7 @@ pub(super) enum Command {
         owned: bool,
     },
     Close(Uuid),
-    Operate(Uuid, Option<u64>, Vec<u8>),
+    Operate(Uuid, Option<u64>, Vec<u8>, Instant),
     Duplicate {
         from: Uuid,
         to: Uuid,
@@ -372,6 +372,7 @@ pub(super) trait Session {
         &'a mut self,
         operation: &'a [u8],
         origin: Option<u64>,
+        at: Instant,
     ) -> LocalBoxFuture<'a, Result<(), ClientError>>;
 
     fn take_log(&mut self) -> Vec<Logged>;
@@ -461,7 +462,7 @@ where
 struct WithHistory<C: Undo> {
     live: Live<Store, C>,
     log: Vec<Logged>,
-    undo: Vec<(C::Step, Instant)>,
+    undo: Vec<(C::Step, Option<Instant>)>,
     redo: Vec<C::Step>,
 }
 
@@ -505,13 +506,14 @@ where
         &'a mut self,
         operation: &'a [u8],
         origin: Option<u64>,
+        at: Instant,
     ) -> LocalBoxFuture<'a, Result<(), ClientError>> {
         Box::pin(async move {
             let Ok(operation) = C::decode_operation(operation) else {
                 return Ok(());
             };
             if let Some(step) = self.live.content().step(&operation) {
-                self.record(step);
+                self.record(step, at);
             }
             drain(&mut self.live, &mut self.log, None);
             let edited = self.live.edit(operation).await;
@@ -607,7 +609,7 @@ where
             };
             match redo {
                 false => self.redo.push(step),
-                true => self.undo.push((step, Instant::now())),
+                true => self.undo.push((step, None)),
             }
             for operation in operations {
                 self.live.edit(operation).await?;
@@ -618,11 +620,10 @@ where
 }
 
 impl<C: Undo> WithHistory<C> {
-    fn record(&mut self, step: C::Step) {
+    fn record(&mut self, step: C::Step, now: Instant) {
         self.redo.clear();
-        let now = Instant::now();
         let step = match self.undo.last_mut() {
-            Some((previous, at)) if now.duration_since(*at) <= EDIT_BURST => {
+            Some((previous, Some(at))) if now.saturating_duration_since(*at) <= EDIT_BURST => {
                 match C::absorb(previous, step) {
                     Ok(()) => {
                         *at = now;
@@ -633,7 +634,7 @@ impl<C: Undo> WithHistory<C> {
             }
             _ => step,
         };
-        self.undo.push((step, now));
+        self.undo.push((step, Some(now)));
         if self.undo.len() > HISTORY_STEPS {
             self.undo.remove(0);
         }
@@ -703,6 +704,7 @@ where
         &'a mut self,
         operation: &'a [u8],
         origin: Option<u64>,
+        _at: Instant,
     ) -> LocalBoxFuture<'a, Result<(), ClientError>> {
         Box::pin(async move {
             let Ok(operation) = C::decode_operation(operation) else {
@@ -1617,11 +1619,11 @@ async fn apply(
             held.touch(block);
             true
         }
-        Command::Operate(block, origin, operation) => {
+        Command::Operate(block, origin, operation, at) => {
             let Some(session) = sessions.get_mut(&block) else {
                 return false;
             };
-            if let Err(error) = session.edit(&operation, origin).await {
+            if let Err(error) = session.edit(&operation, origin, at).await {
                 record(shared, error);
             }
             false

@@ -1071,8 +1071,9 @@ before the stack stops, which is when the organization changes.
 Undo lives in the app's peer, not in an editor, because it is the one place that
 sees every edit to a block from this device, whichever editor made it. A content
 type registered with `kind_with_history` gets a session that keeps an undo and a
-redo stack: every operation an editor sends records a step, a step that arrives
-within 750 ms of the last one may be absorbed into it, and `be::undo` and
+redo stack: every operation an editor sends records a step, a step sent
+within 750 ms of the last one, by beui's frame clock (`be::operate` stamps it),
+may be absorbed into it, and `be::undo` and
 `be::redo` turn a step into operations the session applies like any other edit.
 Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
 whether either is possible with `EditorMessage::WatchHistory`, which the host
