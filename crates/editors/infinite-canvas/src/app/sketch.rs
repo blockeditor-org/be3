@@ -17,6 +17,7 @@ const HATCH_GAP: f32 = 4.0;
 const CORNER_HANDLE: f32 = 0.447_715_2;
 const CORNER_STEPS: usize = 6;
 const FILL_SEED: u32 = 0x9e37_79b9;
+const ELLIPSE_HANDLE: f32 = 0.552_284_8;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub(crate) enum Ink {
@@ -88,6 +89,7 @@ impl Sketch {
                 sketch.closed(entity, hand)
             }
             CanvasShape::Path if hand => sketch.path(entity),
+            CanvasShape::Path => sketch.clean_path(entity),
             _ => {}
         }
         sketch
@@ -144,6 +146,8 @@ impl Sketch {
                 }
             }
         };
+        let clean = (!hand).then(|| clean_outline(entity));
+        let solid = clean.clone().unwrap_or(solid);
         match style.fill {
             CanvasFill::None => {}
             CanvasFill::Solid => self.push(Ink::Fill, Mark::Fill(solid)),
@@ -158,10 +162,44 @@ impl Sketch {
                 self.push(Ink::Fill, Mark::Stroke(path, round((width / 2.0).max(0.5))));
             }
         }
-        if hand {
+        let stroke = clean.unwrap_or(stroke);
+        self.push(
+            Ink::Stroke,
+            Mark::Stroke(stroke, path_stroke(style.stroke_style, width.max(0.1))),
+        );
+    }
+
+    fn clean_path(&mut self, entity: &CanvasEntity) {
+        let style = entity.style;
+        let width = style.stroke_width.max(0.1);
+        let world = entity.world_points();
+        let mut path = Path::new();
+        for (index, point) in world.iter().enumerate() {
+            let to = at(point.at());
+            path = match index.checked_sub(1).map(|before| world[before]) {
+                None => path.move_to(to),
+                Some(before) if before.handle_out.is_none() && point.handle_in.is_none() => {
+                    path.line_to(to)
+                }
+                Some(before) => path.cubic_to(
+                    at(before.handle_out.unwrap_or(before.at())),
+                    at(point.handle_in.unwrap_or(point.at())),
+                    to,
+                ),
+            };
+        }
+        self.push(
+            Ink::Stroke,
+            Mark::Stroke(path, path_stroke(style.stroke_style, width)),
+        );
+        let line: Vec<Pos2> = flattened(&world).into_iter().map(at).collect();
+        for (tip, inward, size) in arrow_ends(&style, &line) {
+            let path = arrow_wings(tip, inward, size)
+                .into_iter()
+                .fold(Path::new(), |path, wing| path.move_to(tip).line_to(wing));
             self.push(
                 Ink::Stroke,
-                Mark::Stroke(stroke, path_stroke(style.stroke_style, width.max(0.1))),
+                Mark::Stroke(path, round(width.max(size * 0.25))),
             );
         }
     }
@@ -226,7 +264,17 @@ impl Sketch {
     }
 
     pub(crate) fn draw(&self, painter: &Painter, stroke: Color32, fill: Color32) {
-        for part in &self.parts {
+        self.draw_only(painter, stroke, fill, |_| true);
+    }
+
+    pub(crate) fn draw_only(
+        &self,
+        painter: &Painter,
+        stroke: Color32,
+        fill: Color32,
+        wanted: impl Fn(&Part) -> bool,
+    ) {
+        for part in self.parts.iter().filter(|part| wanted(part)) {
             let color = match part.ink {
                 Ink::Stroke => stroke,
                 Ink::Fill => fill,
@@ -236,6 +284,49 @@ impl Sketch {
                 Mark::Stroke(path, line) => painter.stroke_path(path, line, color),
             }
         }
+    }
+}
+
+pub(crate) fn clean_outline(entity: &CanvasEntity) -> Path {
+    let transform = entity.transform;
+    let world = |x: f32, y: f32| at(transform.to_world(CanvasPoint::new(x, y)));
+    match entity.shape {
+        CanvasShape::Ellipse => {
+            let handle = 0.5 * ELLIPSE_HANDLE;
+            Path::new()
+                .move_to(world(0.5, 0.0))
+                .cubic_to(world(0.5, handle), world(handle, 0.5), world(0.0, 0.5))
+                .cubic_to(world(-handle, 0.5), world(-0.5, handle), world(-0.5, 0.0))
+                .cubic_to(world(-0.5, -handle), world(-handle, -0.5), world(0.0, -0.5))
+                .cubic_to(world(handle, -0.5), world(0.5, -handle), world(0.5, 0.0))
+                .close()
+        }
+        CanvasShape::Diamond => Path::polygon([
+            world(0.0, -0.5),
+            world(0.5, 0.0),
+            world(0.0, 0.5),
+            world(-0.5, 0.0),
+        ]),
+        _ if entity.style.corner_radius > 0.0 => {
+            let segments = edges(entity);
+            let start = match segments.first() {
+                Some(Segment::Line(from, _) | Segment::Cubic(from, ..)) => *from,
+                None => return Path::new(),
+            };
+            segments
+                .iter()
+                .fold(Path::new().move_to(start), |path, segment| match *segment {
+                    Segment::Line(_, to) => path.line_to(to),
+                    Segment::Cubic(_, first, second, to) => path.cubic_to(first, second, to),
+                })
+                .close()
+        }
+        _ => Path::polygon([
+            world(-0.5, -0.5),
+            world(0.5, -0.5),
+            world(0.5, 0.5),
+            world(-0.5, 0.5),
+        ]),
     }
 }
 

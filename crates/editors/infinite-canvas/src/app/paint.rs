@@ -6,18 +6,17 @@ use block_editor_beui::be_block::canvas::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{
-    Color32, FillRule, FontId, Image, LineCap, LineJoin, Painter, Path, Pos2, Rect, Stroke,
-    TextAlign, TextLayout, Vec2, pos2,
+    Color32, FontId, Galley, Image, LineCap, LineJoin, Painter, Pos2, Rect, Stroke, TextAlign,
+    TextLayout, Vec2, pos2,
 };
 
 use crate::geometry::*;
 
-use super::sketch::Sketch;
+use super::sketch::{Ink, Mark, Sketch};
 
 pub(crate) const SELECTION: Color32 = Color32::from_rgb(140, 200, 255);
 const PLACEHOLDER: Color32 = Color32::from_rgb(35, 35, 35);
 const ARROW_SPREAD: f32 = 0.45;
-const ELLIPSE_HANDLE: f32 = 0.552_284_8;
 
 #[derive(Clone, Copy, PartialEq)]
 pub(crate) struct Camera {
@@ -126,10 +125,6 @@ impl EntityPaint {
         let clean = style.look == CanvasLook::Clean;
         match self.entity.shape {
             CanvasShape::Rectangle if clean => self.draw_rectangle(painter, color, fill, width),
-            CanvasShape::Ellipse | CanvasShape::Diamond if clean => {
-                self.draw_outline(painter, color, fill, width)
-            }
-            CanvasShape::Path if clean => self.draw_path(painter, color, width),
             CanvasShape::Rectangle
             | CanvasShape::Ellipse
             | CanvasShape::Diamond
@@ -169,119 +164,27 @@ impl EntityPaint {
         )
     }
 
-    fn draw_path(&self, painter: &Painter, color: Color32, width: f32) {
-        let world = self.entity.world_points();
-        let mut path = Path::new();
-        for (index, point) in world.iter().enumerate() {
-            let at = self.at(point.at());
-            path = match index.checked_sub(1).map(|before| world[before]) {
-                None => path.move_to(at),
-                Some(before) if before.handle_out.is_none() && point.handle_in.is_none() => {
-                    path.line_to(at)
-                }
-                Some(before) => path.cubic_to(
-                    self.at(before.handle_out.unwrap_or(before.at())),
-                    self.at(point.handle_in.unwrap_or(point.at())),
-                    at,
-                ),
-            };
-        }
-        let style = self.entity.style;
-        painter.stroke_path(&path, &path_stroke(style.stroke_style, width), color);
-        let line: Vec<Pos2> = flattened(&world)
-            .into_iter()
-            .map(|point| self.at(point))
-            .collect();
-        for (tip, inward, size) in arrow_ends(&style, &line) {
-            arrowhead(painter, tip, inward, size, width, color);
-        }
-    }
-
-    fn draw_outline(&self, painter: &Painter, color: Color32, fill: Color32, width: f32) {
-        let path = self.outline();
-        if self.entity.style.fill == CanvasFill::Solid {
-            painter.fill_path(&path, FillRule::NonZero, fill);
-        }
-        self.sketch.draw(painter, color, fill);
-        painter.stroke_path(
-            &path,
-            &path_stroke(self.entity.style.stroke_style, width),
-            color,
-        );
-    }
-
-    fn outline(&self) -> Path {
-        let at = |x: f32, y: f32| self.at(self.entity.transform.to_world(CanvasPoint::new(x, y)));
-        match self.entity.shape {
-            CanvasShape::Ellipse => {
-                let handle = 0.5 * ELLIPSE_HANDLE;
-                Path::new()
-                    .move_to(at(0.5, 0.0))
-                    .cubic_to(at(0.5, handle), at(handle, 0.5), at(0.0, 0.5))
-                    .cubic_to(at(-handle, 0.5), at(-0.5, handle), at(-0.5, 0.0))
-                    .cubic_to(at(-0.5, -handle), at(-handle, -0.5), at(0.0, -0.5))
-                    .cubic_to(at(handle, -0.5), at(0.5, -handle), at(0.5, 0.0))
-                    .close()
-            }
-            CanvasShape::Diamond => {
-                Path::polygon([at(0.0, -0.5), at(0.5, 0.0), at(0.0, 0.5), at(-0.5, 0.0)])
-            }
-            _ => Path::polygon([at(-0.5, -0.5), at(0.5, -0.5), at(0.5, 0.5), at(-0.5, 0.5)]),
-        }
-    }
-
     fn draw_label(&self, painter: &Painter, color: Color32) {
-        let entity = &self.entity;
-        if entity.text.is_empty()
-            || matches!(
-                entity.shape,
-                CanvasShape::Text | CanvasShape::Frame | CanvasShape::Editor
-            )
-        {
-            return;
+        if let Some((at, galley)) = label(painter, &self.entity, self.camera) {
+            painter.galley(at, galley, color);
         }
-        let font = (entity.style.text_size.px() * self.camera.scale).max(1.0);
-        let (center, width) = match entity.shape {
-            CanvasShape::Path | CanvasShape::Freehand => (
-                path_middle(&flattened(&entity.world_points())),
-                f32::INFINITY,
-            ),
-            _ => (
-                entity.transform.center,
-                ((entity.transform.size.x - TEXT_INSET * 2.0) * self.camera.scale).max(1.0),
-            ),
-        };
-        let galley = painter.layout_text(
-            &entity.text,
-            FontId::proportional(font),
-            TextLayout {
-                align: TextAlign::Center,
-                ..TextLayout::wrapped(width)
-            },
-        );
-        let size = galley.size();
-        let at = self.at(center);
-        painter.galley(
-            pos2(at.x - size.x / 2.0, at.y - size.y / 2.0),
-            galley,
-            color,
-        );
     }
 
     fn draw_rectangle(&self, painter: &Painter, color: Color32, fill: Color32, width: f32) {
         let turned = self.turned(painter);
         let rect = self.box_rect();
         let radius = (self.entity.style.corner_radius * self.camera.scale).max(0.0);
+        let solid = self.entity.style.stroke_style == CanvasStrokeStyle::Solid;
         if self.entity.style.fill == CanvasFill::Solid {
             turned.rect_filled(rect, radius, fill);
         }
-        self.sketch.draw(painter, color, fill);
-        match self.entity.style.stroke_style {
-            CanvasStrokeStyle::Solid => turned.rect_stroke(rect, radius, width, color),
-            style => {
-                let outline = self.outline();
-                painter.stroke_path(&outline, &path_stroke(style, width), color)
-            }
+        self.sketch
+            .draw_only(painter, color, fill, |part| match part.mark {
+                Mark::Fill(_) => false,
+                Mark::Stroke(..) => part.ink == Ink::Fill || !solid,
+            });
+        if solid {
+            turned.rect_stroke(rect, radius, width, color);
         }
     }
 
@@ -382,6 +285,43 @@ impl EntityPaint {
             color,
         );
     }
+}
+
+pub(crate) fn label(
+    painter: &Painter,
+    entity: &CanvasEntity,
+    camera: Camera,
+) -> Option<(Pos2, Galley)> {
+    if entity.text.is_empty()
+        || matches!(
+            entity.shape,
+            CanvasShape::Text | CanvasShape::Frame | CanvasShape::Editor
+        )
+    {
+        return None;
+    }
+    let font = (entity.style.text_size.px() * camera.scale).max(1.0);
+    let (center, width) = match entity.shape {
+        CanvasShape::Path | CanvasShape::Freehand => (
+            path_middle(&flattened(&entity.world_points())),
+            f32::INFINITY,
+        ),
+        _ => (
+            entity.transform.center,
+            ((entity.transform.size.x - TEXT_INSET * 2.0) * camera.scale).max(1.0),
+        ),
+    };
+    let galley = painter.layout_text(
+        &entity.text,
+        FontId::proportional(font),
+        TextLayout {
+            align: TextAlign::Center,
+            ..TextLayout::wrapped(width)
+        },
+    );
+    let size = galley.size();
+    let at = camera.at(center);
+    Some((pos2(at.x - size.x / 2.0, at.y - size.y / 2.0), galley))
 }
 
 pub(crate) fn path_middle(line: &[CanvasPoint]) -> CanvasPoint {
