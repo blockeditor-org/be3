@@ -2,6 +2,8 @@ use std::any::Any;
 use std::cell::{Cell, RefCell};
 use std::rc::Rc;
 
+use foldhash::HashMap;
+
 use crate::callback::NodeRef;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
@@ -56,7 +58,6 @@ pub type Pending = Rc<dyn Fn(DragPoint)>;
 
 pub struct Target {
     pub id: u64,
-    pub depth: usize,
     pub node: NodeRef,
     pub accepts: Accepts,
     pub carrying: Rc<dyn Fn(bool)>,
@@ -76,6 +77,7 @@ pub struct Board {
     pressed: RefCell<Option<Pending>>,
     carried: RefCell<Option<Carried>>,
     targets: RefCell<Vec<Target>>,
+    painted: RefCell<HashMap<u64, Vec<usize>>>,
     next: Cell<u64>,
 }
 
@@ -86,6 +88,7 @@ impl Board {
             pressed: RefCell::default(),
             carried: RefCell::default(),
             targets: RefCell::default(),
+            painted: RefCell::default(),
             next: Cell::default(),
         }
     }
@@ -113,6 +116,7 @@ impl Board {
 
     pub fn unregister(&self, id: u64) {
         self.targets.borrow_mut().retain(|target| target.id != id);
+        self.painted.borrow_mut().remove(&id);
         if let Some(carried) = self.carried.borrow_mut().as_mut()
             && carried.over == Some(id)
         {
@@ -150,6 +154,19 @@ impl Board {
 
     pub fn release(&self) {
         self.pressed.borrow_mut().take();
+    }
+
+    pub fn order(&self, doc: &Document) {
+        if !self.carrying() && self.pressed.borrow().is_none() {
+            return;
+        }
+        let painted = self
+            .targets
+            .borrow()
+            .iter()
+            .filter_map(|target| Some((target.id, doc.paint_order(target.node.try_get()?))))
+            .collect();
+        *self.painted.borrow_mut() = painted;
     }
 
     pub fn track(&self, point: DragPoint) {
@@ -191,17 +208,17 @@ impl Board {
             .borrow()
             .iter()
             .filter_map(|target| Some((self.rect_of(target)?, target)))
-            .filter(|(rect, _)| rect.contains_half_open(pos))
-            .filter(|(_, target)| (target.accepts)(payload))
-            .max_by(|(rect, target), (other_rect, other)| {
+            .filter(|(_, target)| {
                 target
-                    .depth
-                    .cmp(&other.depth)
-                    .then(
-                        (other_rect.width() * other_rect.height())
-                            .total_cmp(&(rect.width() * rect.height())),
-                    )
-                    .then(target.id.cmp(&other.id))
+                    .node
+                    .try_get()
+                    .and_then(|node| self.rects.visible(&node))
+                    .is_some_and(|visible| visible.contains_half_open(pos))
+            })
+            .filter(|(_, target)| (target.accepts)(payload))
+            .max_by(|(_, target), (_, other)| {
+                let painted = self.painted.borrow();
+                painted.get(&target.id).cmp(&painted.get(&other.id))
             })
             .map(|(rect, target)| (target.id, rect, Rc::clone(&target.over)))
     }
