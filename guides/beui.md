@@ -1802,8 +1802,9 @@ dialog card's raised surface, `Radius::Lg` on every corner, the dialog outline
 that shows focus and attention, and a soft shadow, kept `dialog::MARGIN` from
 the tab bar and the window's edges). Its layer hangs from the panel, so it
 follows the tab into another pane or a window. In a stacked dock it is
-`dialog_sheet` instead (styled: a `ModalSheet`), and the same body moves
-between the two through `Portal`s, so nothing in it is rebuilt. A dialog's
+`dialog_sheet` instead (styled: a `ModalSheet`), whose body fills the sheet's
+width as every sheet's does rather than keeping the card's `size`, and the same
+body moves between the two through `Portal`s, so nothing in it is rebuilt. A dialog's
 body is built once when it is declared and kept while its tab is hidden,
 whichever presentation it has.
 

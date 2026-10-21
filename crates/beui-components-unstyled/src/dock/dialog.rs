@@ -305,9 +305,10 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         content.call(())
     });
     store(scope);
-    let width = create_memo(move || match card {
-        true => Extent::at_most(size.get().x),
-        false => Extent::px(size.get().x),
+    let width = create_memo(move || match (card, stacked.get()) {
+        (true, true) => Extent::fraction(1.0),
+        (true, false) => Extent::at_most(size.get().x),
+        (false, _) => Extent::px(size.get().x),
     });
     let height = create_memo(move || match card {
         true => Extent::at_most(size.get().y),
