@@ -878,6 +878,11 @@ pub enum EditorMessage {
         #[serde(with = "serde_bytes")]
         operation: Vec<u8>,
     },
+    Gesture {
+        instance: EditorInstanceId,
+        block_id: [u8; 16],
+        phase: GesturePhase,
+    },
     WatchContent {
         instance: EditorInstanceId,
         blocks: Vec<WatchedContent>,
@@ -1301,6 +1306,7 @@ impl EditorMessage {
             | Self::Content { instance, .. }
             | Self::ContentOperations { instance, .. }
             | Self::Operate { instance, .. }
+            | Self::Gesture { instance, .. }
             | Self::WatchContent { instance, .. }
             | Self::ResendContent { instance, .. }
             | Self::SeedContent { instance, .. }
@@ -1514,6 +1520,13 @@ pub struct ContentOperation {
     #[serde(with = "serde_bytes")]
     pub operation: Vec<u8>,
     pub mine: bool,
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub enum GesturePhase {
+    Begin,
+    Commit,
+    Cancel,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
@@ -1963,6 +1976,7 @@ impl EditorMessage {
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
             | Self::Operate { .. }
+            | Self::Gesture { .. }
             | Self::WatchContent { .. }
             | Self::ResendContent { .. }
             | Self::SeedContent { .. }

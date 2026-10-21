@@ -416,14 +416,22 @@ impl EditorSession {
                 queries: queries.into_iter().map(crate::BlockQuery::encode).collect(),
             }));
         }
-        for (block, operation) in self.host.take_all_content_operations() {
+        for (block, outgoing) in self.host.take_all_content_operations() {
             let Some(block) = block.or(self.own_block) else {
                 continue;
             };
-            messages.push(Message::Editor(EditorMessage::Operate {
-                instance,
-                block_id: block.into_bytes(),
-                operation,
+            let block_id = block.into_bytes();
+            messages.push(Message::Editor(match outgoing {
+                crate::host::Outgoing::Operation(operation) => EditorMessage::Operate {
+                    instance,
+                    block_id,
+                    operation,
+                },
+                crate::host::Outgoing::Gesture(phase) => EditorMessage::Gesture {
+                    instance,
+                    block_id,
+                    phase,
+                },
             }));
         }
         for block in self.host.take_content_resend_requests() {

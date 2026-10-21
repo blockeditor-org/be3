@@ -201,6 +201,12 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         self.operate_anyway(operation);
     }
 
+    fn gesture(&self, phase: block_plugin_api::GesturePhase) {
+        if self.host.editable() && self.loaded.get() {
+            self.host.gesture_at(self.block, phase);
+        }
+    }
+
     fn operate_anyway(&self, operation: C::Op) {
         self.visible
             .borrow_mut()
@@ -445,6 +451,18 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
 
     pub fn operate_anyway(&self, operation: C::Op) {
         self.inner().operate_anyway(operation);
+    }
+
+    pub fn begin_gesture(&self) {
+        self.inner().gesture(block_plugin_api::GesturePhase::Begin);
+    }
+
+    pub fn commit_gesture(&self) {
+        self.inner().gesture(block_plugin_api::GesturePhase::Commit);
+    }
+
+    pub fn cancel_gesture(&self) {
+        self.inner().gesture(block_plugin_api::GesturePhase::Cancel);
     }
 
     pub fn pump(&self) {

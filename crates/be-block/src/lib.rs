@@ -22,6 +22,7 @@ pub mod editor_settings;
 pub mod editor_view;
 pub mod folder;
 pub mod game;
+pub mod history;
 pub mod hotbar;
 pub mod image;
 pub mod input_remapper;
@@ -220,6 +221,8 @@ pub trait Undo: LiveEdit {
         let _ = previous;
         Err(next)
     }
+
+    fn then(previous: &mut Self::Step, next: Self::Step);
 
     fn revert(&self, step: &Self::Step) -> Vec<Self::Op>;
 

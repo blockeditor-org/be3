@@ -83,6 +83,7 @@ impl EditorMessage {
             Self::Content { block_id, .. }
             | Self::ContentOperations { block_id, .. }
             | Self::Operate { block_id, .. }
+            | Self::Gesture { block_id, .. }
             | Self::ResendContent { block_id, .. }
             | Self::SeedContent { block_id, .. }
             | Self::ReplaceContent { block_id, .. }

@@ -571,6 +571,14 @@ pub(crate) fn operate_from(block: Uuid, origin: u64, operation: Vec<u8>) {
     send(Command::Operate(block, Some(origin), operation, now()));
 }
 
+pub(crate) fn gesture(block: Uuid, origin: u64, phase: block_plugin_api::GesturePhase) {
+    send(Command::Gesture {
+        block,
+        origin: Some(origin),
+        phase,
+    });
+}
+
 pub(crate) fn update_since(block: Uuid, origin: u64, sent: Option<u64>) -> Option<(u64, Update)> {
     with_shared(|shared| {
         let content = shared_content(shared, block)?;

@@ -2754,6 +2754,25 @@ impl Instances {
                 crate::be::operate_from(block, link.origin, operation);
                 true
             }
+            EditorMessage::Gesture {
+                instance,
+                block_id,
+                phase,
+            } => {
+                let block = Uuid::from_bytes(block_id);
+                if !self.editable(block) {
+                    return false;
+                }
+                let Some(link) = self
+                    .entries
+                    .get_mut(&instance)
+                    .and_then(|entry| entry.link_mut(block))
+                else {
+                    return false;
+                };
+                crate::be::gesture(block, link.origin, phase);
+                true
+            }
             EditorMessage::WatchContent { instance, blocks } => {
                 self.watch_content(instance, blocks)
             }

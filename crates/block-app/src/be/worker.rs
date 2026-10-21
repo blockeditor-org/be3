@@ -4,11 +4,13 @@ use std::{
     time::{Duration, Instant},
 };
 
+use be_block::history::History as UndoHistory;
 use be_block::{BlockContent, BlockMetadata, LiveEdit, Merge, Undo};
 use be_client::{ClientError, Conflict, Credentials, Journaled, Live, Peer, PeerConfig, Saved};
 use be_commit::CommitId;
 use be_graph::{Access, BlockParent};
 use be_protocol::{AccessEntry, BlockSummary, ClientMessage, ServerMessage};
+use block_plugin_api::GesturePhase;
 use futures_util::future::{Either, LocalBoxFuture, select};
 use tokio::sync::mpsc::UnboundedReceiver;
 use uuid::Uuid;
@@ -23,8 +25,6 @@ use uploads::Uploads;
 
 const SEAL_INTERVAL: Duration = Duration::from_millis(750);
 const RECONNECT_DELAY: Duration = Duration::from_secs(2);
-const EDIT_BURST: Duration = Duration::from_millis(750);
-const HISTORY_STEPS: usize = 200;
 
 type AccessReply = Box<dyn FnOnce(Result<Vec<AccessEntry>, String>) + Send>;
 
@@ -68,6 +68,11 @@ pub(super) enum Command {
     History {
         block: Uuid,
         redo: bool,
+    },
+    Gesture {
+        block: Uuid,
+        origin: Option<u64>,
+        phase: GesturePhase,
     },
     Presence {
         block: Uuid,
@@ -144,6 +149,7 @@ impl Command {
             | Command::Seed { block, .. }
             | Command::Replace { block, .. }
             | Command::History { block, .. }
+            | Command::Gesture { block, .. }
             | Command::Presence { block, .. }
             | Command::Create { block, .. }
             | Command::SetParent { block, .. }
@@ -408,6 +414,15 @@ pub(super) trait Session {
         let _ = redo;
         Box::pin(async { Ok(()) })
     }
+
+    fn gesture(
+        &mut self,
+        origin: Option<u64>,
+        phase: GesturePhase,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        let _ = (origin, phase);
+        Box::pin(async { Ok(()) })
+    }
 }
 
 #[derive(Clone, Debug, Eq, PartialEq)]
@@ -453,8 +468,7 @@ where
         Ok(Box::new(WithHistory {
             live,
             log: Vec::new(),
-            undo: Vec::new(),
-            redo: Vec::new(),
+            history: UndoHistory::default(),
         }) as Box<dyn Session>)
     })
 }
@@ -462,8 +476,7 @@ where
 struct WithHistory<C: Undo> {
     live: Live<Store, C>,
     log: Vec<Logged>,
-    undo: Vec<(C::Step, Option<Instant>)>,
-    redo: Vec<C::Step>,
+    history: UndoHistory<C>,
 }
 
 impl<C> Session for WithHistory<C>
@@ -512,9 +525,8 @@ where
             let Ok(operation) = C::decode_operation(operation) else {
                 return Ok(());
             };
-            if let Some(step) = self.live.content().step(&operation) {
-                self.record(step, at);
-            }
+            self.history
+                .record(self.live.content(), &operation, origin, Some(at));
             drain(&mut self.live, &mut self.log, None);
             let edited = self.live.edit(operation).await;
             drain(&mut self.live, &mut self.log, origin);
@@ -547,8 +559,7 @@ where
             let Ok(content) = C::decode(&bytes) else {
                 return Ok(());
             };
-            self.undo.clear();
-            self.redo.clear();
+            self.history.clear();
             drain(&mut self.live, &mut self.log, None);
             let replaced = self.live.replace(content).await;
             drain(&mut self.live, &mut self.log, None);
@@ -584,60 +595,48 @@ where
 
     fn history(&self) -> History {
         History {
-            can_undo: !self.undo.is_empty(),
-            can_redo: !self.redo.is_empty(),
+            can_undo: self.history.can_undo(),
+            can_redo: self.history.can_redo(),
         }
     }
 
     fn step_history(&mut self, redo: bool) -> LocalBoxFuture<'_, Result<(), ClientError>> {
         Box::pin(async move {
-            let (step, operations) = match redo {
-                false => {
-                    let Some((step, _)) = self.undo.pop() else {
-                        return Ok(());
-                    };
-                    let operations = self.live.content().revert(&step);
-                    (step, operations)
-                }
-                true => {
-                    let Some(step) = self.redo.pop() else {
-                        return Ok(());
-                    };
-                    let operations = self.live.content().reapply(&step);
-                    (step, operations)
-                }
+            let operations = match redo {
+                false => self.history.undo(self.live.content()),
+                true => self.history.redo(self.live.content()),
             };
-            match redo {
-                false => self.redo.push(step),
-                true => self.undo.push((step, None)),
-            }
             for operation in operations {
                 self.live.edit(operation).await?;
             }
             Ok(())
         })
     }
-}
 
-impl<C: Undo> WithHistory<C> {
-    fn record(&mut self, step: C::Step, now: Instant) {
-        self.redo.clear();
-        let step = match self.undo.last_mut() {
-            Some((previous, Some(at))) if now.saturating_duration_since(*at) <= EDIT_BURST => {
-                match C::absorb(previous, step) {
-                    Ok(()) => {
-                        *at = now;
-                        return;
-                    }
-                    Err(step) => step,
+    fn gesture(
+        &mut self,
+        origin: Option<u64>,
+        phase: GesturePhase,
+    ) -> LocalBoxFuture<'_, Result<(), ClientError>> {
+        Box::pin(async move {
+            let operations = match phase {
+                GesturePhase::Begin => {
+                    self.history.begin(origin);
+                    Vec::new()
                 }
+                GesturePhase::Commit => {
+                    self.history.commit(origin);
+                    Vec::new()
+                }
+                GesturePhase::Cancel => self.history.cancel(self.live.content(), origin),
+            };
+            for operation in operations {
+                drain(&mut self.live, &mut self.log, None);
+                self.live.edit(operation).await?;
             }
-            _ => step,
-        };
-        self.undo.push((step, Some(now)));
-        if self.undo.len() > HISTORY_STEPS {
-            self.undo.remove(0);
-        }
+            drain(&mut self.live, &mut self.log, None);
+            Ok(())
+        })
     }
 }
 
@@ -1011,10 +1010,28 @@ async fn connected<S: Fn() -> Result<Store, String>>(
                 ran.done();
                 false
             }
-            Woken::Command(command) => match uploads.defer(command) {
-                Some(command) => ran.run(command).await,
-                None => false,
-            },
+            Woken::Command(command) => {
+                let mut next = Some(command);
+                let mut applied = false;
+                while let Some(command) = next.take() {
+                    let edits = matches!(command, Command::Operate(..) | Command::Gesture { .. });
+                    match command {
+                        Command::Import(blocks) => {
+                            uploads.add(blocks);
+                            ran.done();
+                        }
+                        command => {
+                            if let Some(command) = uploads.defer(command) {
+                                applied |= ran.run(command).await;
+                            }
+                        }
+                    }
+                    if edits {
+                        next = commands.try_recv().ok();
+                    }
+                }
+                applied
+            }
             Woken::Uploaded => {
                 let mut applied = false;
                 for command in uploads.runnable() {
@@ -1709,6 +1726,19 @@ async fn apply(
                 return false;
             };
             if let Err(error) = session.step_history(redo).await {
+                record(shared, error);
+            }
+            false
+        }
+        Command::Gesture {
+            block,
+            origin,
+            phase,
+        } => {
+            let Some(session) = sessions.get_mut(&block) else {
+                return false;
+            };
+            if let Err(error) = session.gesture(origin, phase).await {
                 record(shared, error);
             }
             false

@@ -12,9 +12,9 @@ use block_plugin_api::{
     AccessLevel, AccessListing, ArtifactAction, AudioCommand, AudioStatus, BarAction, BlockCommand,
     BlockImport, BlockPick, Camera, ChildContent, ChildId, ChildLayer, ChildMode, ChildPlacement,
     ChildRect, ChildStatus, ContactLinkResult, DataListing, EditorRegion, FetchResult, FilePick,
-    FileSave, HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId, MenuEntry,
-    Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand, WebViewEvent,
-    WebViewId, decode_host, encode_host,
+    FileSave, GesturePhase, HostAction, HostPanel, HostReply, HostRequest, HostValue, HostWindowId,
+    MenuEntry, Occluder, PerformanceMeasurement, ShellDialog, Size, ViewChange, WebViewCommand,
+    WebViewEvent, WebViewId, decode_host, encode_host,
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
@@ -48,7 +48,13 @@ impl HostContent {
     }
 }
 
-type ContentOperation = (Option<Uuid>, Vec<u8>);
+type ContentOperation = (Option<Uuid>, Outgoing);
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+pub(crate) enum Outgoing {
+    Operation(Vec<u8>),
+    Gesture(GesturePhase),
+}
 
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub struct ShownPresence {
@@ -953,7 +959,13 @@ impl EditorHost {
     pub(crate) fn operate_content_at(&self, block: Option<Uuid>, operation: Vec<u8>) {
         self.content_operations
             .borrow_mut()
-            .push((block, operation));
+            .push((block, Outgoing::Operation(operation)));
+    }
+
+    pub(crate) fn gesture_at(&self, block: Option<Uuid>, phase: GesturePhase) {
+        self.content_operations
+            .borrow_mut()
+            .push((block, Outgoing::Gesture(phase)));
     }
 
     pub fn take_content_operations(&self) -> Vec<Vec<u8>> {
@@ -970,10 +982,16 @@ impl EditorHost {
             .into_iter()
             .partition::<Vec<_>, _>(|(target, _)| *target == block);
         *held = kept;
-        taken.into_iter().map(|(_, operation)| operation).collect()
+        taken
+            .into_iter()
+            .filter_map(|(_, outgoing)| match outgoing {
+                Outgoing::Operation(operation) => Some(operation),
+                Outgoing::Gesture(_) => None,
+            })
+            .collect()
     }
 
-    pub(crate) fn take_all_content_operations(&self) -> Vec<(Option<Uuid>, Vec<u8>)> {
+    pub(crate) fn take_all_content_operations(&self) -> Vec<ContentOperation> {
         std::mem::take(&mut self.content_operations.borrow_mut())
     }
 
