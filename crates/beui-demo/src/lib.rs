@@ -371,6 +371,7 @@ struct DemoDialog {
     parent: TabId,
     modal: bool,
     card: bool,
+    anchor: Option<[u32; 4]>,
     depth: u8,
 }
 
@@ -380,6 +381,15 @@ impl DemoDialog {
             true => CARD_SIZE,
             false => DIALOG_SIZE - NESTED_DIALOG_INSET * f32::from(self.depth),
         }
+    }
+
+    fn anchor(self) -> Option<Rect> {
+        self.anchor.map(|[left, top, right, bottom]| {
+            Rect::from_min_max(
+                beui::pos2(f32::from_bits(left), f32::from_bits(top)),
+                beui::pos2(f32::from_bits(right), f32::from_bits(bottom)),
+            )
+        })
     }
 
     fn presentation(self) -> DockDialogPresentation {
@@ -414,14 +424,17 @@ impl DemoDialogs {
     }
 
     fn open(&self, parent: TabId, modal: bool) {
-        self.add(parent, modal, false);
+        self.add(parent, modal, false, None);
     }
 
-    fn open_card(&self, parent: TabId) {
-        self.add(parent, true, true);
+    fn open_card(&self, parent: TabId, anchor: Option<Rect>) {
+        self.add(parent, true, true, anchor);
     }
 
-    fn add(&self, parent: TabId, modal: bool, card: bool) {
+    fn add(&self, parent: TabId, modal: bool, card: bool, anchor: Option<Rect>) {
+        let anchor = anchor.map(|rect| {
+            [rect.min.x, rect.min.y, rect.max.x, rect.max.y].map(f32::to_bits)
+        });
         let id = TabId::new(self.next.with(|next| next.replace(next.get() + 1)));
         self.open.update(|open| {
             let depth = open
@@ -433,6 +446,7 @@ impl DemoDialogs {
                 parent,
                 modal,
                 card,
+                anchor,
                 depth,
             });
         });
@@ -630,6 +644,7 @@ fn DemoShell() -> NodeId {
                             parent={dialog.parent}
                             modal={dialog.modal}
                             presentation={dialog.presentation()}
+                            anchor={dialog.anchor()}
                             dismiss_on_outside_press={dialog.card}
                             title={dialog.title()}
                             icon=ICON_OPEN_IN_NEW

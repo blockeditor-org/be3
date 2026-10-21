@@ -160,6 +160,12 @@ pub(crate) fn DockingPage() -> NodeId {
 fn AttachedDialogs() -> NodeId {
     let dialogs = use_context::<DemoDialogs>();
     let tab = use_dock_tab().map(|control| control.tab());
+    let pointing = NodeRef::new();
+    let open_card = move |anchor: Option<Rect>| {
+        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
+            dialogs.open_card(tab, anchor);
+        }
+    };
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal wrap=true spacing=ROW_SPACING>
@@ -187,10 +193,17 @@ fn AttachedDialogs() -> NodeId {
                     @test_id="demo.dialog.card"
                     label="Open a card"
                     variant=ButtonVariant::Secondary
+                    on_click={move || open_card(None)}
+                />
+                <Button
+                    @test_id="demo.dialog.pointing"
+                    @node_ref=&pointing
+                    label="Open a card from here"
+                    variant=ButtonVariant::Secondary
                     on_click={move || {
-                        if let (Some(dialogs), Some(tab)) = (dialogs.as_ref(), tab) {
-                            dialogs.open_card(tab);
-                        }
+                        open_card(pointing.try_get().and_then(|button| {
+                            with_document(|document| document.node_rect(button))
+                        }))
                     }}
                 />
             </List>
@@ -209,6 +222,14 @@ fn AttachedDialogs() -> NodeId {
                  meanwhile. Pressing the dimmed tab closes it. Other tabs and panes stay usable, \
                  and the card keeps what was done in it while another tab is shown. On a phone it \
                  is a sheet from the bottom of the screen."
+                wrap=true
+            />
+            <Text
+                style=TextStyle::CAPTION
+                string="A card opened from a control points at it instead, like a popover: it \
+                 opens under the control, or above it where there is no room below, and leaves \
+                 the tab undimmed. Pressing elsewhere on the tab closes it, and it keeps its \
+                 place on the tab when the pane is moved or resized."
                 wrap=true
             />
         </List>

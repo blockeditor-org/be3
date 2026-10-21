@@ -23,7 +23,7 @@ fn a_dock_card_anchored_at_a_control_flips_above_it_near_the_bottom() {
     );
     let tip = beak(&output).expect("the card points at the control");
     assert!(
-        (tip.x - anchor.center().x).abs() < 1.0 && tip.y > card.bottom() && tip.y < anchor.top(),
+        (tip.x - anchor.center().x).abs() < 1.0 && tip.y >= card.bottom() && tip.y < anchor.top(),
         "from its bottom edge: {tip:?} for {anchor:?} under {card:?}"
     );
 

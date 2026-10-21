@@ -319,8 +319,12 @@ pub struct FrameNode {
 impl FrameNode {
     pub fn pointer_room(&self, rect: Rect) -> (f32, f32) {
         let radius = self.style.radius.largest();
-        let reach = self.style.pointer;
+        let reach = self.style.pointer + self.outline_width();
         (rect.left() + radius + reach, rect.right() - radius - reach)
+    }
+
+    fn outline_width(&self) -> f32 {
+        self.style.outline.map_or(0.0, |outline| outline.width)
     }
 
     fn paint_pointer(&self, painter: &Painter, rect: Rect) {
@@ -332,17 +336,17 @@ impl FrameNode {
             return;
         }
         let x = (rect.left() + pointing.at).clamp(lowest, highest);
-        let width = self.style.outline.map_or(0.0, |outline| outline.width);
-        let half = self.style.pointer / std::f32::consts::SQRT_2;
+        let width = self.outline_width();
+        let half = (self.style.pointer + width) / std::f32::consts::SQRT_2;
         let around = rect.expand(self.style.pointer + 1.0);
         let (y, clip, tip) = match pointing.side {
             PointerSide::Top => (
-                rect.top(),
+                rect.top() + width,
                 Rect::from_min_max(around.min, pos2(around.right(), rect.top() + width)),
                 Corners::new(TIP_RADIUS, 0.0, 0.0, 0.0),
             ),
             PointerSide::Bottom => (
-                rect.bottom(),
+                rect.bottom() - width,
                 Rect::from_min_max(pos2(around.left(), rect.bottom() - width), around.max),
                 Corners::new(0.0, 0.0, TIP_RADIUS, 0.0),
             ),

@@ -9,6 +9,10 @@ use std::time::Duration;
 
 mod a_card_floats_from_its_tab_and_waits_while_another_tab_is_shown;
 mod a_card_keeps_inside_a_small_window;
+mod a_card_opened_from_a_button_flips_above_it_near_the_bottom;
+mod a_card_opened_from_a_button_opens_under_it_where_there_is_room;
+mod a_card_opened_from_a_button_shifts_inside_a_narrow_window;
+mod a_card_opened_from_a_button_stands_apart_in_the_light_theme;
 mod a_destructive_dialog_does_not_confirm_on_enter;
 mod a_dialog_confirms_on_enter_from_its_field;
 mod a_dialog_hangs_from_the_tab_that_opened_it;
@@ -81,6 +85,23 @@ const CATALOG_X: f32 = 40.0;
 fn demo(size: Vec2) -> DocumentTest {
     let (year, month, day) = TODAY;
     DocumentTest::new(DemoApp::on(Date::new(year, month, day)).document, size)
+}
+
+fn demo_in(size: Vec2, theme: beui::styled::Theme) -> DocumentTest {
+    use beui::styled::DocumentTheme;
+    let (year, month, day) = TODAY;
+    let mut app = DemoApp::on(Date::new(year, month, day));
+    app.document.set_theme(theme);
+    DocumentTest::new(app.document, size)
+}
+
+fn open_pointing_card(test: &mut DocumentTest) -> (beui::Rect, beui::Rect) {
+    reveal(test, "demo.dialog.pointing");
+    let button = test.rect_of("demo.dialog.pointing");
+    test.click("demo.dialog.pointing");
+    test.frame(Vec::new());
+    test.settle();
+    (button, test.rect_of(&dialog_id(0)))
 }
 
 fn alone(size: Vec2, page: Page) -> DocumentTest {

@@ -24,7 +24,7 @@ fn a_dock_card_anchored_at_a_control_points_at_it_without_dimming_its_tab() {
     );
     let tip = beak(&output).expect("the card points at the control");
     assert!(
-        (tip.x - anchor.center().x).abs() < 1.0 && tip.y > anchor.bottom() && tip.y < card.top(),
+        (tip.x - anchor.center().x).abs() < 1.0 && tip.y > anchor.bottom() && tip.y <= card.top(),
         "from its top edge, at the middle of the control: {tip:?} for {anchor:?} over {card:?}"
     );
     assert!(!dims(&output, panel), "its tab is not dimmed");

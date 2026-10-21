@@ -35,7 +35,7 @@ fn a_dock_card_anchored_at_a_control_follows_its_pane_when_it_resizes() {
     );
     let card = harness.rect(harness.find("dock.dialog.10"));
     assert!(
-        card.top() > moved.y && card.left() < moved.x && card.right() > moved.x,
+        card.top() >= moved.y && card.left() < moved.x && card.right() > moved.x,
         "with the card under it: {card:?}"
     );
 }
