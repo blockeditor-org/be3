@@ -1,8 +1,9 @@
 use block_editor_beui::be_block::canvas::{
     CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
+    InfiniteCanvasOperation,
 };
 use block_editor_beui::beui::{CursorIcon, Key, KeyPress, PointerPress};
-use block_editor_beui::reactive::{Get, untrack};
+use block_editor_beui::reactive::{Get, Set, untrack};
 use uuid::Uuid;
 
 use crate::geometry::*;
@@ -76,6 +77,9 @@ impl CanvasState {
             return;
         }
         self.note_touch(press.touch);
+        if press.pen.is_some() {
+            self.note_pen();
+        }
         let world = self.world_at(press.pos);
         self.hover(Some(world));
         if let Some(child) = self.live_child_at(world) {
@@ -94,8 +98,15 @@ impl CanvasState {
                 self.focus_editor(None);
             }
         }
+        if press.pen.is_some_and(|pen| pen.eraser) {
+            self.begin_gesture(None);
+            self.set_erasing(true);
+            self.erase_at(world);
+            return;
+        }
+        let tool = self.tool_for(press);
         if press.clicks >= 2
-            && self.tool.get_untracked() == Tool::Select
+            && tool == Tool::Select
             && let Some(id) = self.entity_at(world)
         {
             let entities = self.entities.all_untracked();
@@ -110,7 +121,7 @@ impl CanvasState {
                 return;
             }
         }
-        match self.tool.get_untracked() {
+        match tool {
             Tool::Select => self.press_select(press, world),
             Tool::Line
             | Tool::Arrow
@@ -120,7 +131,7 @@ impl CanvasState {
             | Tool::Text
             | Tool::Frame => {
                 self.begin_gesture(Some(Gesture::Create {
-                    tool: self.tool.get_untracked(),
+                    tool,
                     start: world,
                     current: world,
                     pointer: world,
@@ -133,6 +144,32 @@ impl CanvasState {
                 predicted: None,
             })),
         }
+    }
+
+    fn tool_for(&self, press: PointerPress) -> Tool {
+        match self.tool.get_untracked() {
+            Tool::Pen if press.touch && self.pen_seen() => Tool::Select,
+            tool => tool,
+        }
+    }
+
+    fn erase_at(&self, world: CanvasPoint) {
+        let Some(entity) = self
+            .entity_at(world)
+            .and_then(|id| self.entities.get_untracked(id))
+        else {
+            return;
+        };
+        if entity.locked || entity.is_frame() {
+            return;
+        }
+        let mut selection = self.selection.get_untracked();
+        if selection.remove(&entity.id) {
+            self.selection.set(selection);
+        }
+        self.record(InfiniteCanvasOperation::Remove {
+            ids: vec![entity.id],
+        });
     }
 
     fn press_select(&self, press: PointerPress, world: CanvasPoint) {
@@ -274,6 +311,10 @@ impl CanvasState {
         }
         let world = self.world_at(press.pos);
         self.hover(Some(world));
+        if self.erasing() {
+            self.erase_at(world);
+            return;
+        }
         let modifiers = press.modifiers;
         let pen_step = 1.0 / self.scale();
         let predicted = press.predicted.map(|at| self.world_at(at));
@@ -374,6 +415,7 @@ impl CanvasState {
     }
 
     pub(crate) fn release(&self) {
+        self.set_erasing(false);
         if self.touching() {
             self.hover(None);
         }
@@ -394,6 +436,7 @@ impl CanvasState {
     }
 
     pub(crate) fn cancel(&self) {
+        self.set_erasing(false);
         self.begin_gesture(None);
     }
 

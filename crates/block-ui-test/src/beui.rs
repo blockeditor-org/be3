@@ -1347,6 +1347,18 @@ impl<A: BeuiApp> BeuiTest<A> {
         });
     }
 
+    pub fn eraser(&mut self, phase: PenPhase, pos: Pos2) {
+        self.push(Event::Pen {
+            phase,
+            pos,
+            pressure: 1.0,
+            pen: Pen {
+                eraser: true,
+                ..Pen::default()
+            },
+        });
+    }
+
     pub fn predict(&mut self, pos: Pos2) {
         self.push(Event::Predicted(pos));
     }

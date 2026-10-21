@@ -322,6 +322,8 @@ struct CanvasCells {
     grouped_edit: Cell<bool>,
     pointer_down: Cell<bool>,
     touch: Cell<bool>,
+    pen_seen: Cell<bool>,
+    erasing: Cell<bool>,
     retapped: Cell<Option<(Uuid, Pos2)>>,
     text_entry: Cell<Option<TextEntry>>,
     surface: NodeRef,
@@ -432,6 +434,8 @@ impl CanvasState {
             grouped_edit: Cell::new(false),
             pointer_down: Cell::new(false),
             touch: Cell::new(false),
+            pen_seen: Cell::new(false),
+            erasing: Cell::new(false),
             retapped: Cell::new(None),
             text_entry: Cell::new(None),
             surface: NodeRef::new(),
@@ -867,6 +871,22 @@ impl CanvasState {
 
     pub(crate) fn touching(&self) -> bool {
         self.cells.value().touch.get()
+    }
+
+    pub(crate) fn note_pen(&self) {
+        self.cells.value().pen_seen.set(true);
+    }
+
+    pub(crate) fn pen_seen(&self) -> bool {
+        self.cells.value().pen_seen.get()
+    }
+
+    pub(crate) fn set_erasing(&self, erasing: bool) {
+        self.cells.value().erasing.set(erasing);
+    }
+
+    pub(crate) fn erasing(&self) -> bool {
+        self.cells.value().erasing.get()
     }
 
     pub(crate) fn note_retap(&self, retap: Option<(Uuid, Pos2)>) {
