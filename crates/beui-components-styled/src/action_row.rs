@@ -1,12 +1,12 @@
 use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
 use beui_macros::{component, view};
 
-use crate::context_menu::{MenuTreeLead, SHEET_TREE_CHEVRON, SHEET_TREE_INDENT};
+use crate::context_menu::{GlyphSlot, MenuTreeLead, SHEET_TREE_CHEVRON, SHEET_TREE_INDENT};
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_core::font::TextAlign;
-use beui_core::icons::{ICON_CHECK, ICON_CHEVRON_RIGHT};
+use beui_core::icons::{ICON_CHECK, ICON_CHEVRON_RIGHT, ICON_FIBER_MANUAL_RECORD};
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
@@ -74,12 +74,18 @@ pub(crate) fn ActionRowFace(
     danger: Prop<bool>,
     #[prop(default = false)] submenu: Prop<bool>,
     #[prop(default = None)] checked: Prop<Option<bool>>,
+    #[prop(default = false)] radio: bool,
+    #[prop(default = false)] glyphs: Prop<bool>,
     #[prop(default = None)] depth: Prop<Option<usize>>,
     #[prop(default = None)] expanded: Prop<Option<bool>>,
     toggle: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
     let ticked = create_memo(move || checked.get() == Some(true));
+    let tick = match radio {
+        true => ICON_FIBER_MANUAL_RECORD,
+        false => ICON_CHECK,
+    };
     let off = create_memo(move || disabled.get());
     let danger = create_memo(move || danger.get());
     let fill = create_memo(move || match (off.get(), active.get(), hovered.get()) {
@@ -99,7 +105,7 @@ pub(crate) fn ActionRowFace(
         _ => glyph_color.get().unwrap_or(TextColor::Muted),
     });
     let glyph = create_memo(move || glyph.get());
-    let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let has_glyph = create_memo(move || !glyph.get().is_empty() || glyphs.get());
     let lead = create_memo(move || lead.get());
     let has_lead = create_memo(move || !lead.get().is_empty());
     let detail = create_memo(move || detail.get());
@@ -125,9 +131,7 @@ pub(crate) fn ActionRowFace(
                     <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                 </Show>
                 <Show condition={has_glyph}>
-                    <Text color={icon_color} align=TextAlign::Center>
-                        <Icon glyph={glyph} />
-                    </Text>
+                    <GlyphSlot glyph color={icon_color} />
                 </Show>
                 <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                     <Text color={text_color} ellipsis=true>{label}</Text>
@@ -137,7 +141,7 @@ pub(crate) fn ActionRowFace(
                 </List>
                 <Show condition={ticked}>
                     <Text color=TextColor::Accent align=TextAlign::Center>
-                        <Icon glyph={ICON_CHECK.to_owned()} />
+                        <Icon glyph={tick.to_owned()} />
                     </Text>
                 </Show>
                 <Show condition={submenu}>

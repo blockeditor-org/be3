@@ -16,8 +16,8 @@ use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
 use beui_core::geometry::{Pos2, Rect};
 use beui_core::icons::{
-    ICON_CHECK, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_KEYBOARD_ARROW_DOWN,
-    ICON_KEYBOARD_ARROW_RIGHT,
+    ICON_CHECK, ICON_CHEVRON_LEFT, ICON_CHEVRON_RIGHT, ICON_FIBER_MANUAL_RECORD,
+    ICON_KEYBOARD_ARROW_DOWN, ICON_KEYBOARD_ARROW_RIGHT,
 };
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
@@ -200,6 +200,8 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         glyph_color,
         detail,
         checked,
+        radio,
+        glyphs,
         shortcut,
         disabled,
         danger,
@@ -234,7 +236,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         MenuRowKind::Back => ICON_CHEVRON_LEFT.to_owned(),
         _ => glyph.get(),
     });
-    let has_glyph = create_memo(move || !glyph.get().is_empty());
+    let has_glyph = create_memo(move || !glyph.get().is_empty() || glyphs.get());
     let lead = create_memo(move || lead.get());
     let has_lead = create_memo(move || !lead.get().is_empty());
     let detail = create_memo(move || detail.get());
@@ -257,9 +259,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                         <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                     </Show>
                     <Show condition={has_glyph}>
-                        <Text color={icon_color} align=TextAlign::Center>
-                            <Icon glyph={glyph} />
-                        </Text>
+                        <GlyphSlot glyph color={icon_color} />
                     </Show>
                     <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
                         <Text color align=TextAlign::Start ellipsis=true>{label}</Text>
@@ -284,7 +284,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                             {shortcut}
                         </Text>
                     </Show>
-                    <MenuCheck checked />
+                    <MenuCheck checked radio />
                     <Show condition={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
                             <Icon glyph=ICON_CHEVRON_RIGHT />
@@ -297,12 +297,30 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
 }
 
 #[component]
-pub(crate) fn MenuCheck(checked: Prop<Option<bool>>) -> DynamicSegment<ListChild> {
+pub(crate) fn GlyphSlot(glyph: Memo<String>, color: Memo<TextColor>) -> NodeId {
+    view! {
+        <Frame width={TextSize::Base.icon_px()}>
+            <Text color align=TextAlign::Center>
+                <Icon glyph={glyph} />
+            </Text>
+        </Frame>
+    }
+}
+
+#[component]
+pub(crate) fn MenuCheck(
+    checked: Prop<Option<bool>>,
+    #[prop(default = false)] radio: bool,
+) -> DynamicSegment<ListChild> {
     let ticked = create_memo(move || checked.get() == Some(true));
+    let tick = match radio {
+        true => ICON_FIBER_MANUAL_RECORD,
+        false => ICON_CHECK,
+    };
     view! {
         <Show condition={ticked}>
             <Text size=TextSize::Sm color=TextColor::Accent align=TextAlign::Center>
-                <Icon glyph=ICON_CHECK />
+                <Icon glyph=tick />
             </Text>
         </Show>
     }
@@ -442,6 +460,8 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         glyph_color,
         detail,
         checked,
+        radio,
+        glyphs,
         disabled,
         danger,
         separated,
@@ -476,6 +496,8 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
                 danger
                 submenu={has_submenu}
                 checked
+                radio
+                glyphs
                 depth
                 expanded
                 toggle
