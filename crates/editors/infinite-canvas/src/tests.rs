@@ -2,8 +2,9 @@ use std::collections::{BTreeMap, HashSet};
 
 use block_editor_beui::be_block::canvas::Canvas;
 use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill, CanvasPathPoint,
-    CanvasPoint, CanvasShape, CanvasTransform, InfiniteCanvasOperation,
+    CanvasArrowhead, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill, CanvasLook,
+    CanvasPathPoint, CanvasPoint, CanvasShape, CanvasStrokeStyle, CanvasTextSize, CanvasTransform,
+    InfiniteCanvasOperation,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::{
@@ -26,6 +27,7 @@ mod a_finger_drags_a_transform_field_in_the_sheet;
 mod a_finger_just_outside_a_corner_resizes_the_selection;
 mod a_finger_on_the_pen_tool_draws_before_it_moves;
 mod a_frame_background_is_picked_in_the_sidebar;
+mod a_hand_drawn_shape_is_the_same_for_the_same_seed;
 mod a_held_finger_opens_the_context_menu_in_every_tool;
 mod a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clicked;
 mod a_moved_entity_is_drawn_where_it_was_dropped;
@@ -49,7 +51,9 @@ mod dragging_with_the_frame_tool_adds_a_frame;
 mod dragging_with_the_rectangle_tool_adds_a_rectangle;
 mod drawing_with_a_finger_adds_a_rectangle;
 mod every_shape_is_drawn_in_the_clean_look;
+mod every_shape_is_drawn_in_the_hand_drawn_look;
 mod every_transform_field_previews_what_is_typed;
+mod freehand_is_drawn_as_an_outline_that_follows_pressure;
 mod once_a_pen_has_drawn_a_finger_in_the_pen_tool_selects;
 mod panning_and_zooming_paints_no_entity_again;
 mod panning_paints_no_grid_dot_again;
@@ -81,6 +85,88 @@ mod the_transform_fields_edit_the_selected_entity;
 mod turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas;
 mod typed_text_grows_away_from_the_edges_it_is_aligned_to;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
+
+fn colored(red: u8, green: u8, blue: u8) -> CanvasColor {
+    CanvasColor::Rgba {
+        red,
+        green,
+        blue,
+        alpha: 255,
+    }
+}
+
+fn placed(id: u128, shape: CanvasShape, center: CanvasPoint) -> CanvasEntity {
+    let mut entity = shaped(Uuid::from_u128(id), shape);
+    entity.transform = CanvasTransform::new(center, CanvasPoint::new(120.0, 80.0), 0.0);
+    entity
+}
+
+fn every_shape(look: CanvasLook) -> Vec<CanvasEntity> {
+    let mut ellipse = placed(1, CanvasShape::Ellipse, CanvasPoint::new(-160.0, -100.0));
+    ellipse.style.fill = CanvasFill::Solid;
+    ellipse.style.fill_color = colored(250, 200, 80);
+    let mut diamond = placed(2, CanvasShape::Diamond, CanvasPoint::new(0.0, -100.0));
+    diamond.style.stroke_style = CanvasStrokeStyle::Dashed;
+    diamond.style.stroke_color = colored(25, 113, 194);
+    let mut labelled = placed(3, CanvasShape::Rectangle, CanvasPoint::new(160.0, -100.0));
+    labelled.text = "Label".to_owned();
+    labelled.style.text_size = CanvasTextSize::Small;
+
+    let mut polyline = path(
+        Uuid::from_u128(4),
+        &[
+            CanvasPoint::new(-220.0, 20.0),
+            CanvasPoint::new(-140.0, 80.0),
+            CanvasPoint::new(-60.0, 20.0),
+        ],
+    );
+    polyline.style.start_arrowhead = CanvasArrowhead::Arrow;
+    polyline.style.end_arrowhead = CanvasArrowhead::Arrow;
+    polyline.style.stroke_style = CanvasStrokeStyle::Dotted;
+
+    let mut curve = path(
+        Uuid::from_u128(5),
+        &[CanvasPoint::new(0.0, 20.0), CanvasPoint::new(0.0, 100.0)],
+    );
+    let mut world = curve.world_points();
+    world[0].handle_out = Some(CanvasPoint::new(80.0, 20.0));
+    world[1].handle_in = Some(CanvasPoint::new(-80.0, 100.0));
+    curve.set_world_points(world);
+    curve.text = "curve".to_owned();
+    curve.style.text_size = CanvasTextSize::Small;
+
+    let mut freehand = path(
+        Uuid::from_u128(6),
+        &[
+            CanvasPoint::new(120.0, 30.0),
+            CanvasPoint::new(160.0, 70.0),
+            CanvasPoint::new(200.0, 40.0),
+        ],
+    );
+    freehand.shape = CanvasShape::Freehand;
+    freehand.pressures = vec![0.2, 0.9, 0.5];
+
+    let mut hatched = placed(7, CanvasShape::Rectangle, CanvasPoint::new(-160.0, 160.0));
+    hatched.style.fill = CanvasFill::Hatched;
+    hatched.style.fill_color = colored(224, 49, 49);
+    hatched.style.corner_radius = 16.0;
+    let mut crossed = placed(8, CanvasShape::Ellipse, CanvasPoint::new(0.0, 160.0));
+    crossed.style.fill = CanvasFill::Hatched;
+    crossed.style.fill_color = colored(47, 158, 68);
+    crossed.transform.rotation = 0.3;
+    let mut solid = placed(9, CanvasShape::Diamond, CanvasPoint::new(160.0, 160.0));
+    solid.style.fill = CanvasFill::Solid;
+    solid.style.fill_color = colored(25, 113, 194);
+    solid.style.stroke_width = 4.0;
+
+    let mut every = vec![
+        ellipse, diamond, labelled, polyline, curve, freehand, hatched, crossed, solid,
+    ];
+    for entity in &mut every {
+        entity.style.look = look;
+    }
+    every
+}
 
 fn shaped(id: Uuid, shape: CanvasShape) -> CanvasEntity {
     let mut entity = CanvasEntity::new(

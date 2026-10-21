@@ -751,10 +751,6 @@ pub(crate) fn proportional_resize_bounds(
 pub(crate) const PEN_PRESSURE: f32 = 0.5;
 pub(crate) const MOST_PRESSED_WIDTH: f32 = 1.75;
 
-pub(crate) fn pressed_width(width: f32, pressure: f32) -> f32 {
-    width * (0.25 + 1.5 * pressure.clamp(0.0, 1.0))
-}
-
 pub(crate) fn pen_entity(
     points: Vec<CanvasPoint>,
     pressures: Vec<f32>,

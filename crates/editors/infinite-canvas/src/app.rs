@@ -20,6 +20,7 @@ pub(crate) mod overlay;
 pub(crate) mod paint;
 pub(crate) mod selection_bar;
 pub(crate) mod sidebar;
+pub(crate) mod sketch;
 pub(crate) mod state;
 pub(crate) mod text;
 pub(crate) mod toolbar;

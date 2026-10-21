@@ -5,7 +5,7 @@ use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Rect, Vec2, pos2};
+use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Pos2, Rect, Vec2, pos2};
 use block_editor_beui::{ChildBlock, ChildMode, ChildState, ChildTarget};
 use uuid::Uuid;
 
@@ -15,6 +15,7 @@ use super::grid::{GridLook, GridTile, GridTileItem};
 use super::menu::CanvasMenu;
 use super::overlay::{Backdrop, FrameBackdrop, Overlay};
 use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, path_middle, resolve_color};
+use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::CanvasState;
 use super::text::{EntityText, shown_live, text_box};
 
@@ -164,6 +165,7 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>
             presence: state.presence.get(),
             tool: state.tool.get(),
             pointer: state.pointer.get(),
+            pen_width: state.default_style().stroke_width,
         };
         if shown.borrow().as_ref() == Some(&overlay) {
             return;
@@ -251,18 +253,37 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
     let theme = use_theme();
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<EntityPaint>);
+    let sketched = RefCell::new(None::<(SketchKey, Sketch, Option<(Pos2, Rc<Sketch>)>)>);
     create_effect(move || {
         let Some(entity) = entity.get() else {
             return;
         };
+        let corner = bounds.get().min;
+        let key = SketchKey::of(&entity);
+        let mut held = sketched.borrow_mut();
+        if held.as_ref().is_none_or(|(held_key, ..)| *held_key != key) {
+            *held = Some((key, Sketch::of(&entity), None));
+        }
+        let Some((_, world, placed)) = held.as_mut() else {
+            return;
+        };
+        let sketch = match placed {
+            Some((at, sketch)) if *at == corner => Rc::clone(sketch),
+            _ => {
+                let sketch = Rc::new(world.translated(Vec2::new(-corner.x, -corner.y)));
+                *placed = Some((corner, Rc::clone(&sketch)));
+                sketch
+            }
+        };
+        drop(held);
         let reference = reference_of(&entity);
         let label = reference.and_then(|reference| state.label_of(reference));
         let missing = match reference {
             Some(_) => state.unlabeled(),
             None => "Broken link".to_owned(),
         };
-        let corner = bounds.get().min;
         let paint = EntityPaint {
+            sketch,
             covered: state.child_state(entity.id).available,
             camera: Camera::item(corner),
             palette: palette(&theme),
@@ -426,7 +447,8 @@ fn item_bounds(entity: &CanvasEntity) -> Rect {
             CanvasShape::Freehand => stroke * MOST_PRESSED_WIDTH,
             CanvasShape::Path => stroke.max(arrowhead_size(stroke) * 0.5),
             _ => stroke,
-        };
+        }
+        + rough_reach(entity);
     let bounds = match entity.text.is_empty() || !entity.shape.has_points() {
         true => bounds,
         false => bounds.union(path_label_reach(entity)),

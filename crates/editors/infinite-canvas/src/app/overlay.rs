@@ -1,12 +1,13 @@
 use block_editor_beui::ResizeMode;
 use block_editor_beui::be_block::canvas::CanvasPoint;
 use block_editor_beui::beui::{
-    Color32, FontId, Painter, Pos2, Rect, TextAlign, TextLayout, Vec2, pos2,
+    Color32, FillRule, FontId, Painter, Path, Pos2, Rect, TextAlign, TextLayout, Vec2, pos2,
 };
 
+use crate::freehand;
 use crate::geometry::*;
 
-use super::paint::{Camera, Palette, SELECTION, arrowhead, handle, outline, stroke};
+use super::paint::{Camera, Palette, SELECTION, arrowhead, handle, outline};
 use super::state::{Gesture, Presence, Tool};
 
 const HINT: &str = "Scroll or use two fingers to move around  ·  Pick a tool to draw\nDrop or paste images, or use Block to add content";
@@ -81,6 +82,7 @@ pub(crate) struct Overlay {
     pub(crate) presence: Presence,
     pub(crate) tool: Tool,
     pub(crate) pointer: Option<CanvasPoint>,
+    pub(crate) pen_width: f32,
 }
 
 impl Overlay {
@@ -154,12 +156,18 @@ impl Overlay {
                 let points: Vec<Pos2> = points
                     .iter()
                     .chain(predicted)
-                    .map(|point| self.camera.at(*point))
+                    .map(|point| pos2(point.x, point.y))
                     .collect();
                 if let Some(last) = pressures.last().copied().filter(|_| predicted.is_some()) {
                     pressures.push(last);
                 }
-                stroke(painter, &points, 2.0, &pressures, color);
+                let outline = freehand::outline(&points, &pressures, self.pen_width, false);
+                if outline.len() > 2 {
+                    let outline = outline
+                        .into_iter()
+                        .map(|at| self.camera.at(CanvasPoint::new(at.x, at.y)));
+                    painter.fill_path(&Path::polygon(outline), FillRule::NonZero, color);
+                }
             }
             Some(Gesture::SelectBox {
                 start,
