@@ -264,6 +264,9 @@ impl AccessibilityDump {
         }
         let depth = depth + usize::from(shown);
         let clip = match rect {
+            _ if node.class_name() == Some(crate::accessibility::LAYER_CLASS) => {
+                Rect::new(f64::MIN, f64::MIN, f64::MAX, f64::MAX)
+            }
             Some(rect) if matches!(node.role(), Role::Window | Role::ScrollView | Role::Pane) => {
                 clip.intersect(rect)
             }

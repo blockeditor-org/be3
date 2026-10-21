@@ -9,6 +9,8 @@ use accesskit::{
 use crate::base::focus::focus_of;
 use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
+
+pub const LAYER_CLASS: &str = "beui-layer";
 use crate::base::text::TextNode;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2};
@@ -266,17 +268,16 @@ impl Pass<'_> {
             return;
         };
         let element = document.arena.get(id);
+        let overlay = element.as_any().downcast_ref::<OverlayNode>();
         if element
             .as_any()
             .downcast_ref::<FrameNode>()
             .is_some_and(|node| !node.visible)
-            || element
-                .as_any()
-                .downcast_ref::<OverlayNode>()
-                .is_some_and(|node| !node.is_open())
+            || overlay.is_some_and(|node| !node.is_open())
         {
             return;
         }
+        let layered = overlay.is_some();
 
         let explicit = document.accessibility.get(&id);
         let text = element
@@ -284,7 +285,7 @@ impl Pass<'_> {
             .downcast_ref::<TextNode>()
             .and_then(TextNode::accessible_text);
         let named = !document.node_test_ids(id).is_empty();
-        if explicit.is_none() && text.is_none() && !named && !force {
+        if explicit.is_none() && text.is_none() && !named && !force && !layered {
             if !self.tree.stale(id)
                 && let Some(held) = self.tree.gathered.get(&id)
                 && held.origin == origin
@@ -340,7 +341,10 @@ impl Pass<'_> {
             self.visit(child, Some(id), rect.min, false, &mut inner);
         });
         self.described += 1;
-        let (node, focus) = document.describe(id, rect, origin, explicit, text, inner);
+        let (mut node, focus) = document.describe(id, rect, origin, explicit, text, inner);
+        if layered {
+            node.set_class_name(LAYER_CLASS);
+        }
         if focus.is_some() {
             out.focus = focus;
         }
