@@ -33,7 +33,7 @@ pub struct DropState {
 
 #[derive(Clone, Copy)]
 pub struct DropHandle {
-    pub state: Memo<DropState>,
+    pub state: Prop<DropState>,
     pub pointer: ReadSignal<Option<DragPoint>>,
 }
 
@@ -223,7 +223,7 @@ where
         }),
     });
     on_cleanup(move || board.unregister(id));
-    let state = create_memo(move || DropState {
+    let state = Prop::dynamic(move || DropState {
         carrying: carrying.get(),
         over: pointer.with(Option::is_some),
     });

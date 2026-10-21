@@ -717,7 +717,7 @@ pub(crate) fn ExportAs(
 
 #[component]
 fn AddChild(
-    row: Memo<unstyled::TreeRowState>,
+    row: Prop<unstyled::TreeRowState>,
     label: Memo<String>,
     named: String,
     on_click: block_editor_beui::beui::reactive::ClickCallback,

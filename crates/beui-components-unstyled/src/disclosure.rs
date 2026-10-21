@@ -9,7 +9,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 pub struct DisclosureHandle {
-    pub state: Memo<ButtonState>,
+    pub state: Prop<ButtonState>,
     pub open: Binding<bool>,
 }
 

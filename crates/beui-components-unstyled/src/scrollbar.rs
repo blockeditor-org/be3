@@ -25,7 +25,7 @@ pub struct ScrollbarState {
 pub struct ScrollbarHandle {
     pub position: Memo<ScrollPosition>,
     pub direction: Prop<Direction>,
-    pub state: Memo<ScrollbarState>,
+    pub state: Prop<ScrollbarState>,
 }
 
 pub fn thumb_length(position: ScrollPosition) -> f32 {
@@ -140,7 +140,7 @@ pub fn Scrollbar(
         interaction.hovered || interaction.pressed
     });
     create_effect(move || on_engage.call(engaged.get()));
-    let state = create_memo(move || ScrollbarState {
+    let state = Prop::dynamic(move || ScrollbarState {
         hovered: hovered.get(),
         dragging: dragging.get(),
         engaged: engaged.get(),

@@ -178,7 +178,7 @@ pub struct ColorWheelState {
 
 pub struct ColorWheelHandle {
     pub point: Binding<WheelPoint>,
-    pub state: Memo<ColorWheelState>,
+    pub state: Prop<ColorWheelState>,
 }
 
 #[component]
@@ -196,7 +196,7 @@ pub fn ColorWheel(
     let point = value;
     let interaction = create_signal(InteractionState::default());
     let disabled = create_memo(move || disabled.get());
-    let state = create_memo(move || {
+    let state = Prop::dynamic(move || {
         let interaction = interaction.get();
         ColorWheelState {
             dragging: interaction.pressed,

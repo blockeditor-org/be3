@@ -211,7 +211,7 @@ fn DockTabChrome(
     picture: Memo<Option<Image>>,
     grouped: bool,
     vertical: bool,
-    state: Memo<DockTabState>,
+    state: Prop<DockTabState>,
     waiting_test_id: String,
     close_test_id: String,
     close: ClickCallback,
@@ -350,7 +350,7 @@ fn DockDialogSheet(handle: DockSheetHandle) -> NodeId {
     }
 }
 
-fn dialog_outline_color(state: Memo<DockDialogState>) -> Memo<Color32> {
+fn dialog_outline_color(state: Prop<DockDialogState>) -> Memo<Color32> {
     let theme = use_theme();
     create_memo(
         move || match state.with(|state| (state.attention, state.focused)) {
@@ -361,7 +361,7 @@ fn dialog_outline_color(state: Memo<DockDialogState>) -> Memo<Color32> {
     )
 }
 
-fn dialog_outline(state: Memo<DockDialogState>) -> Memo<Option<Border>> {
+fn dialog_outline(state: Prop<DockDialogState>) -> Memo<Option<Border>> {
     let color = dialog_outline_color(state);
     create_memo(move || Some(Border::new(ColorRole::Custom(color.get())).width(CHROME_BORDER)))
 }

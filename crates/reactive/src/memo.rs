@@ -68,16 +68,16 @@ impl<T: 'static> Memo<T> {
         arena::get::<Value<Option<T>>>(self.key).is_some()
     }
 
-    pub fn erased(self) -> AnyMemo {
-        AnyMemo(self.key)
+    pub fn erased(self) -> AnyKey {
+        AnyKey(self.key)
     }
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub struct AnyMemo(Key);
+pub struct AnyKey(pub(crate) Key);
 
-impl AnyMemo {
-    pub fn typed<T>(self) -> Memo<T> {
+impl AnyKey {
+    pub fn memo<T>(self) -> Memo<T> {
         Memo {
             key: self.0,
             ty: PhantomData,

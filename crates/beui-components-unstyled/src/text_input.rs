@@ -45,7 +45,7 @@ pub struct TextInputState {
 
 pub struct TextInputHandle {
     pub field: Child,
-    pub state: Memo<TextInputState>,
+    pub state: Prop<TextInputState>,
     pub clear: ClickCallback,
 }
 
@@ -133,7 +133,7 @@ pub fn TextInput(
         }
     });
     let edited = state.content();
-    let input_state = create_memo(move || {
+    let input_state = Prop::dynamic(move || {
         edited.get();
         let interaction = interaction.get();
         TextInputState {

@@ -6,7 +6,7 @@ use crate::unstyled::{ButtonHandle, ButtonState};
 #[derive(Clone, Copy)]
 struct Held {
     shown: Signal<bool>,
-    button: Option<Memo<ButtonState>>,
+    button: Option<Prop<ButtonState>>,
 }
 
 #[test]

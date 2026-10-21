@@ -32,7 +32,7 @@ pub struct ChoiceOptionState {
 pub struct ChoiceOptionHandle {
     pub index: usize,
     pub label: Prop<String>,
-    pub state: Memo<ChoiceOptionState>,
+    pub state: Prop<ChoiceOptionState>,
 }
 
 pub struct ChoiceOption {
@@ -143,7 +143,7 @@ pub fn Choice(
                     option.call(ChoiceOptionHandle {
                         index,
                         label: label.into_prop(),
-                        state: create_memo(move || {
+                        state: Prop::dynamic(move || {
                             let button = button.state.get();
                             ChoiceOptionState {
                                 selected: is_selected.get(),

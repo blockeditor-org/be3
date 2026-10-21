@@ -30,7 +30,7 @@ pub struct SelectTriggerState {
 pub struct SelectTriggerHandle {
     pub selected: Binding<Option<usize>>,
     pub label: Memo<Option<String>>,
-    pub state: Memo<SelectTriggerState>,
+    pub state: Prop<SelectTriggerState>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -43,7 +43,7 @@ pub struct SelectOptionState {
 pub struct SelectOptionHandle {
     pub index: usize,
     pub label: Prop<String>,
-    pub state: Memo<SelectOptionState>,
+    pub state: Prop<SelectOptionState>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -147,7 +147,7 @@ pub fn Select(
         trigger_view.call(SelectTriggerHandle {
             selected,
             label,
-            state: create_memo(move || {
+            state: Prop::dynamic(move || {
                 let button = handle.state.get();
                 SelectTriggerState {
                     hovered: button.hovered,
@@ -270,7 +270,7 @@ fn SelectRow(
                 on_click={move || confirm(state, index)}
             >|button: ButtonHandle| {
                 let highlighted = highlight.memo(Some(index));
-                let row_state = create_memo(move || {
+                let row_state = Prop::dynamic(move || {
                     let button = button.state.get();
                     SelectOptionState {
                         highlighted: highlighted.get(),

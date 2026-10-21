@@ -28,7 +28,7 @@ pub struct TimeOptionState {
 pub struct TimeOptionHandle {
     pub time: Time,
     pub label: String,
-    pub state: Memo<TimeOptionState>,
+    pub state: Prop<TimeOptionState>,
 }
 
 #[derive(Clone, Copy)]
@@ -206,7 +206,7 @@ fn TimeOption(
             face.call(TimeOptionHandle {
                 time,
                 label,
-                state: create_memo(move || {
+                state: Prop::dynamic(move || {
                     let button = button.state.get();
                     TimeOptionState {
                         selected: selected.get(),

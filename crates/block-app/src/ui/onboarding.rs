@@ -927,7 +927,7 @@ pub(super) fn SessionsScreen(view: AppViewStore) -> NodeId {
 }
 
 #[component]
-fn OrganizationsPlaceholder(state: Memo<OrganizationsState>) -> NodeId {
+fn OrganizationsPlaceholder(state: Prop<OrganizationsState>) -> NodeId {
     let loaded = create_memo(move || state.get() == OrganizationsState::Loaded);
     let failed = create_memo(move || state.get() == OrganizationsState::Failed);
     let loading = create_memo(move || state.get() == OrganizationsState::Loading);

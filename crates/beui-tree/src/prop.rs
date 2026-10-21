@@ -1,5 +1,5 @@
 use reactive::{
-    AnyMemo, Get, Memo, ReadSignal, Signal, Stored, check_tracked_read, store, untrack,
+    AnyKey, Get, Memo, ReadSignal, Signal, Stored, check_tracked_read, store, untrack,
 };
 
 pub enum Prop<T> {
@@ -24,7 +24,7 @@ enum Source<T> {
     Function(Stored<Box<dyn Fn() -> T>>),
     Signal(ReadSignal<T>, fn(&ReadSignal<T>) -> T),
     Memo(Memo<T>, fn(&Memo<T>) -> T),
-    Field(AnyMemo, *const (), fn(AnyMemo, *const ()) -> T),
+    Field(AnyKey, *const (), fn(AnyKey, *const ()) -> T),
 }
 
 impl<T> Clone for Source<T> {
@@ -62,16 +62,30 @@ impl<T: 'static> Getter<T> {
         Self(Source::Memo(memo, <Memo<T> as Get<T>>::get))
     }
 
-    pub fn of_field<S: 'static>(memo: Memo<S>, field: fn(&S) -> T) -> Self {
-        fn read<S: 'static, T>(memo: AnyMemo, field: *const ()) -> T {
-            let field = unsafe { std::mem::transmute::<*const (), fn(&S) -> T>(field) };
-            memo.typed::<S>().with(field)
+    pub fn of_field<S: 'static>(getter: Getter<S>, field: fn(&S) -> T) -> Self {
+        fn erase<S, T>(field: fn(&S) -> T) -> *const () {
+            field as *const ()
         }
-        Self(Source::Field(
-            memo.erased(),
-            field as *const (),
-            read::<S, T>,
-        ))
+        fn restore<S, T>(field: *const ()) -> fn(&S) -> T {
+            unsafe { std::mem::transmute::<*const (), fn(&S) -> T>(field) }
+        }
+        fn function<S: 'static, T>(key: AnyKey, field: *const ()) -> T {
+            key.stored::<Box<dyn Fn() -> S>>()
+                .with(|read| restore::<S, T>(field)(&read()))
+        }
+        fn signal<S: 'static, T>(key: AnyKey, field: *const ()) -> T {
+            key.read_signal::<S>().with(restore::<S, T>(field))
+        }
+        fn memo<S: 'static, T>(key: AnyKey, field: *const ()) -> T {
+            key.memo::<S>().with(restore::<S, T>(field))
+        }
+        let pointer = erase(field);
+        Self(match getter.0 {
+            Source::Function(read) => Source::Field(read.erased(), pointer, function::<S, T>),
+            Source::Signal(read, _) => Source::Field(read.erased(), pointer, signal::<S, T>),
+            Source::Memo(read, _) => Source::Field(read.erased(), pointer, memo::<S, T>),
+            Source::Field(..) => Source::Function(store(Box::new(move || field(&getter.get())))),
+        })
     }
 
     pub fn get(&self) -> T {
@@ -89,8 +103,11 @@ impl<T: 'static> Prop<T> {
         Prop::Dynamic(Getter::new(read))
     }
 
-    pub fn field<S: 'static>(memo: Memo<S>, field: fn(&S) -> T) -> Self {
-        Prop::Dynamic(Getter::of_field(memo, field))
+    pub fn field<S: 'static>(prop: Prop<S>, field: fn(&S) -> T) -> Self {
+        match prop {
+            Prop::Static(value) => Prop::Static(field(&value)),
+            Prop::Dynamic(read) => Prop::Dynamic(Getter::of_field(read, field)),
+        }
     }
 
     pub fn map<U: 'static>(self, f: impl Fn(T) -> U + 'static) -> Prop<U> {

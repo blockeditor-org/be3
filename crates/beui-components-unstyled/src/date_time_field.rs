@@ -108,7 +108,7 @@ pub struct DateSegmentState {
 pub struct DateSegmentHandle {
     pub segment: DateSegment,
     pub text: Memo<String>,
-    pub state: Memo<DateSegmentState>,
+    pub state: Prop<DateSegmentState>,
 }
 
 type Values = [Option<i32>; 6];
@@ -270,7 +270,7 @@ fn SegmentView(
             |value| format_segment(segment, value),
         ),
     });
-    let segment_state = create_memo(move || {
+    let segment_state = Prop::dynamic(move || {
         let interaction = interaction.get();
         DateSegmentState {
             placeholder: typed.with(Option::is_none) && value.get().is_none(),

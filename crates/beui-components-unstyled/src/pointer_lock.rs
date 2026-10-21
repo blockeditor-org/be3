@@ -9,7 +9,7 @@ use beui_view::reactive::*;
 
 pub struct PointerLockHandle {
     pub locked: Binding<bool>,
-    pub state: Memo<PointerLockState>,
+    pub state: Prop<PointerLockState>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -29,7 +29,7 @@ pub fn PointerLock(
 ) -> NodeId {
     let current = locked;
     let interaction = create_signal(InteractionState::default());
-    let state = create_memo(move || {
+    let state = Prop::dynamic(move || {
         let interaction = interaction.get();
         PointerLockState {
             hovered: interaction.hovered,

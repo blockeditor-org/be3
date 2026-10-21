@@ -47,7 +47,7 @@ pub struct CalendarHeaderHandle {
     pub next: Callback<()>,
     pub show_months: Callback<()>,
     pub show_years: Callback<()>,
-    pub state: Memo<CalendarHeaderState>,
+    pub state: Prop<CalendarHeaderState>,
     pub previous_label: Memo<String>,
     pub next_label: Memo<String>,
     pub month_toggle: Memo<Node>,
@@ -68,7 +68,7 @@ pub struct CalendarCellState {
 pub struct CalendarCellHandle {
     pub kind: CalendarMode,
     pub label: Memo<String>,
-    pub state: Memo<CalendarCellState>,
+    pub state: Prop<CalendarCellState>,
 }
 
 #[derive(Clone, Copy)]
@@ -179,7 +179,7 @@ pub fn Calendar(
     });
     let previous_label = create_memo(move || format!("Previous {}", unit.get()));
     let next_label = create_memo(move || format!("Next {}", unit.get()));
-    let header_state = create_memo(move || CalendarHeaderState {
+    let header_state = Prop::dynamic(move || CalendarHeaderState {
         can_previous: can_previous(),
         can_next: can_next(),
         months_open: mode.get() == CalendarMode::Months,
@@ -531,7 +531,7 @@ fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -
 fn toggle_accessibility(
     label: Memo<String>,
     choose: &'static str,
-    state: Memo<CalendarHeaderState>,
+    state: Prop<CalendarHeaderState>,
     pick: fn(&CalendarHeaderState) -> bool,
 ) -> Memo<Node> {
     create_memo(move || {
@@ -551,8 +551,8 @@ fn cell_state(
     selected: Memo<bool>,
     marked: Memo<bool>,
     outside: Option<Memo<bool>>,
-) -> Memo<CalendarCellState> {
-    create_memo(move || {
+) -> Prop<CalendarCellState> {
+    Prop::dynamic(move || {
         let button = button.state.get();
         CalendarCellState {
             selected: selected.get(),

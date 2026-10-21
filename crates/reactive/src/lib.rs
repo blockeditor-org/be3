@@ -12,7 +12,7 @@ mod stored;
 
 pub use computation::{Effect, create_binding, create_effect};
 pub use keyed::{KeyedItems, KeyedStore, Mapping, OwnedKeyedStore, numbered};
-pub use memo::{AnyMemo, Memo, create_memo};
+pub use memo::{AnyKey, Memo, create_memo};
 pub use reactive_macros::Store;
 pub use runtime::{
     ZoneGuard, batch, check_tracked_read, component_body, enter_zone, forget_zone, untrack,

@@ -18,7 +18,7 @@ pub struct ButtonState {
 
 #[derive(Clone, Copy)]
 pub struct ButtonHandle {
-    pub state: Memo<ButtonState>,
+    pub state: Prop<ButtonState>,
     pub label: Memo<String>,
     pub glyph: Memo<String>,
     pub tooltip: Memo<String>,
@@ -55,7 +55,7 @@ pub fn Button(
     let label = create_memo(move || label.get());
     let glyph = create_memo(move || glyph.get());
     let tooltip = create_memo(move || tooltip.get());
-    let state = create_memo(move || {
+    let state = Prop::dynamic(move || {
         let interaction = interaction.get();
         ButtonState {
             hovered: interaction.hovered,
@@ -141,6 +141,6 @@ pub fn Button(
     }
 }
 
-pub fn button_state(document: &Document, button: NodeId) -> Memo<ButtonState> {
-    *document.component_state::<Memo<ButtonState>>(button)
+pub fn button_state(document: &Document, button: NodeId) -> Prop<ButtonState> {
+    *document.component_state::<Prop<ButtonState>>(button)
 }

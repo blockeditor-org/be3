@@ -78,7 +78,7 @@ impl ChildValue for TreeMenu {}
 pub struct TreeRowFace<K> {
     pub key: K,
     pub item: Memo<TreeItem>,
-    pub state: Memo<TreeRowState>,
+    pub state: Prop<TreeRowState>,
 }
 
 #[component]
@@ -402,7 +402,7 @@ fn RowMenuFace(handle: ButtonHandle, sized: Memo<Metrics>) -> NodeId {
 #[component]
 fn Chevron(
     item: Memo<TreeItem>,
-    row: Memo<TreeRowState>,
+    row: Prop<TreeRowState>,
     toggle: ClickCallback,
     sized: Memo<Metrics>,
     named: String,
@@ -430,7 +430,7 @@ fn Chevron(
 fn ChevronFace(
     handle: TreeToggleHandle,
     item: Memo<TreeItem>,
-    row: Memo<TreeRowState>,
+    row: Prop<TreeRowState>,
     sized: Memo<Metrics>,
 ) -> NodeId {
     let TreeToggleHandle {

@@ -44,7 +44,7 @@ pub struct NumberFaceState {
 
 pub struct NumberFaceHandle {
     pub text: ReadSignal<String>,
-    pub state: Memo<NumberFaceState>,
+    pub state: Prop<NumberFaceState>,
 }
 
 pub struct NumberFieldHandle {
@@ -204,7 +204,7 @@ pub fn NumberInput(
         interaction.set(next);
         button_focus.call(next);
     });
-    let state = create_memo(move || {
+    let state = Prop::dynamic(move || {
         let interaction = interaction.get();
         NumberFaceState {
             hovered: interaction.hovered,

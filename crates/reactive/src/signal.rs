@@ -311,6 +311,21 @@ impl<T: 'static> Set<T> for Signal<T> {
     }
 }
 
+impl crate::AnyKey {
+    pub fn read_signal<T>(self) -> ReadSignal<T> {
+        ReadSignal {
+            key: self.0,
+            ty: PhantomData,
+        }
+    }
+}
+
+impl<T> ReadSignal<T> {
+    pub fn erased(self) -> crate::AnyKey {
+        crate::AnyKey(self.key)
+    }
+}
+
 impl<T: 'static> Signal<T> {
     fn from_key(key: Key) -> Self {
         Self {

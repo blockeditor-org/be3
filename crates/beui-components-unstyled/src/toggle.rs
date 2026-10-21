@@ -19,7 +19,7 @@ pub struct ToggleState {
 }
 
 pub struct ToggleHandle {
-    pub state: Memo<ToggleState>,
+    pub state: Prop<ToggleState>,
     pub label: Memo<String>,
     pub glyph: Memo<String>,
     pub tooltip: Memo<String>,
@@ -54,7 +54,7 @@ pub fn Toggle(
     let interaction = create_signal(InteractionState::default());
     let disabled = create_memo(move || disabled.get());
     let mixed = create_memo(move || mixed.get());
-    let state = create_memo(move || {
+    let state = Prop::dynamic(move || {
         let interaction = interaction.get();
         ToggleState {
             checked: checked.get(),

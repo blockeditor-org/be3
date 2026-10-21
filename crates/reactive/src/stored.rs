@@ -38,7 +38,20 @@ impl<T> std::fmt::Debug for Stored<T> {
     }
 }
 
+impl crate::AnyKey {
+    pub fn stored<T>(self) -> Stored<T> {
+        Stored {
+            key: self.0,
+            ty: PhantomData,
+        }
+    }
+}
+
 impl<T: 'static> Stored<T> {
+    pub fn erased(self) -> crate::AnyKey {
+        crate::AnyKey(self.key)
+    }
+
     pub fn value(&self) -> Rc<T> {
         self.try_value()
             .expect("stored value used after the scope that owns it was disposed")

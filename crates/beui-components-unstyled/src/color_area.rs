@@ -27,7 +27,7 @@ pub struct ColorAreaHandle {
     pub color: Binding<Hsva>,
     pub x: Memo<f32>,
     pub y: Memo<f32>,
-    pub state: Memo<ColorAreaState>,
+    pub state: Prop<ColorAreaState>,
 }
 
 #[component]
@@ -43,7 +43,7 @@ pub fn ColorArea(
     let color = value;
     let interaction = create_signal(InteractionState::default());
     let disabled = create_memo(move || disabled.get());
-    let state = create_memo(move || {
+    let state = Prop::dynamic(move || {
         let interaction = interaction.get();
         ColorAreaState {
             dragging: interaction.pressed,

@@ -49,7 +49,7 @@ pub struct CompletionRowState {
 pub struct CompletionRowHandle {
     pub index: usize,
     pub completion: Memo<Option<Completion>>,
-    pub state: Memo<CompletionRowState>,
+    pub state: Prop<CompletionRowState>,
 }
 
 #[derive(Clone, Copy)]
@@ -113,7 +113,7 @@ fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) 
     let completion = create_memo(move || items.get().get(index).cloned());
     let highlighted = cx.highlighted;
     let interaction = create_signal(InteractionState::default());
-    let state = create_memo(move || CompletionRowState {
+    let state = Prop::dynamic(move || CompletionRowState {
         highlighted: highlighted.get() == index,
         hovered: interaction.get().hovered,
     });

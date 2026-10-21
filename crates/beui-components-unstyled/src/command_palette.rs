@@ -23,7 +23,7 @@ pub struct CommandRowHandle {
     pub label: Prop<String>,
     pub glyph: String,
     pub shortcut: Option<String>,
-    pub state: Memo<CommandRowState>,
+    pub state: Prop<CommandRowState>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -188,7 +188,7 @@ fn CommandRow(
                 label: label.clone(),
                 glyph: glyph.clone(),
                 shortcut: shortcut.clone(),
-                state: create_memo(move || CommandRowState {
+                state: Prop::dynamic(move || CommandRowState {
                     disabled: disabled.get(),
                     highlighted: highlighted.get(),
                     hovered: handle.state.with(|button| button.hovered),

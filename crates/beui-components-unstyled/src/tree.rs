@@ -41,7 +41,7 @@ pub struct TreeRowState {
 pub struct TreeRowHandle<K> {
     pub key: K,
     pub item: Memo<TreeItem>,
-    pub state: Memo<TreeRowState>,
+    pub state: Prop<TreeRowState>,
     pub select: ClickCallback,
     pub toggle: ClickCallback,
     pub target: TreeRowTarget,
@@ -273,7 +273,7 @@ where
         }),
     };
     let has_focus = create_signal(false);
-    let row_state = create_memo(move || {
+    let row_state = Prop::dynamic(move || {
         let interaction = interaction.get();
         TreeRowState {
             selected: selected.get(),

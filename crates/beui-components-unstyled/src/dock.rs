@@ -93,7 +93,7 @@ pub struct DockTabHandle {
     pub icon: Memo<String>,
     pub picture: Memo<Option<Image>>,
     pub tabs: Memo<Vec<TabId>>,
-    pub state: Memo<DockTabState>,
+    pub state: Prop<DockTabState>,
     pub close: ClickCallback,
 }
 
@@ -134,7 +134,7 @@ pub struct DockBarHandle {
     pub grip: NodeId,
     pub tabs: Option<NodeId>,
     pub title: Memo<String>,
-    pub state: Memo<DockBarState>,
+    pub state: Prop<DockBarState>,
     pub menu: Memo<Vec<Action>>,
     pub close: ClickCallback,
 }
@@ -148,7 +148,7 @@ pub struct DockBarState {
 
 pub struct DockSplitterHandle {
     pub direction: Direction,
-    pub state: Memo<DockSplitterState>,
+    pub state: Prop<DockSplitterState>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -158,8 +158,8 @@ pub struct DockSplitterState {
     pub focused: bool,
 }
 
-fn splitter_state(interaction: Signal<InteractionState>) -> Memo<DockSplitterState> {
-    create_memo(move || {
+fn splitter_state(interaction: Signal<InteractionState>) -> Prop<DockSplitterState> {
+    Prop::dynamic(move || {
         let interaction = interaction.get();
         DockSplitterState {
             hovered: interaction.hovered,
@@ -178,7 +178,7 @@ pub struct DockGripHandle {
 pub struct DockStackHandle {
     pub title: Memo<String>,
     pub icon: Memo<String>,
-    pub state: Memo<DockStackState>,
+    pub state: Prop<DockStackState>,
     pub actions: Memo<Option<NodeId>>,
     pub menu: Memo<Vec<Action>>,
     pub back: ClickCallback,
@@ -472,7 +472,7 @@ impl State {
         self.title.call(tab)
     }
 
-    fn bar_state(&self, focused: Memo<bool>, contents: Memo<Vec<TabId>>) -> Memo<DockBarState> {
+    fn bar_state(&self, focused: Memo<bool>, contents: Memo<Vec<TabId>>) -> Prop<DockBarState> {
         let closable = self.closable;
         create_memo(move || {
             contents.with(|tabs| DockBarState {
@@ -481,6 +481,7 @@ impl State {
                 closable: !tabs.is_empty() && tabs.iter().all(|tab| closable.call(*tab)),
             })
         })
+        .into_prop()
     }
 
     fn icon(&self, tab: TabId) -> String {
@@ -1596,7 +1597,8 @@ fn stack_handle(
             backward: backward.get(),
             switchable: tabs.with(|tabs| tabs.iter().any(|tab| Some(*tab) != shown)),
         }
-    });
+    })
+    .into_prop();
     let switch_label = create_memo(move || match others.get() {
         1 => "1 other open tab".to_owned(),
         count => format!("{count} other open tabs"),
@@ -2227,7 +2229,8 @@ fn DockTabView(
             closable: closable.get(),
             waiting: tabs.with(|tabs| dock.waiting(tabs)),
         }
-    });
+    })
+    .into_prop();
     let face = dock.tab.call(DockTabHandle {
         entry,
         leaf,

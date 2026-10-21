@@ -3469,7 +3469,7 @@ fn CanvasStage(#[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomVie
 fn CanvasBoard(
     view: Memo<Option<CanvasView>>,
     scale: Memo<f32>,
-    state: Memo<PanZoomState>,
+    state: Prop<PanZoomState>,
 ) -> NodeId {
     let [first, second, third, fourth] = STAGE_CARDS;
     let focused = Prop::field(state, |state| state.focused);

@@ -44,7 +44,7 @@ pub struct MenuRowHandle {
     pub depth: Prop<Option<usize>>,
     pub expanded: Prop<Option<bool>>,
     pub toggle: ClickCallback,
-    pub state: Memo<MenuRowState>,
+    pub state: Prop<MenuRowState>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -427,7 +427,7 @@ fn MenuBackRow(
 ) -> NodeId {
     let content = move |handle: ButtonHandle| {
         watch_hover(state, Focus::Back, handle.state);
-        let row_state = create_memo(move || {
+        let row_state = Prop::dynamic(move || {
             let button = handle.state.get();
             MenuRowState {
                 hovered: button.hovered,
@@ -464,7 +464,7 @@ fn MenuBackRow(
 fn quiet_handle(
     kind: MenuRowKind,
     label: Prop<String>,
-    state: Memo<MenuRowState>,
+    state: Prop<MenuRowState>,
 ) -> MenuRowHandle {
     MenuRowHandle {
         kind,
@@ -499,7 +499,7 @@ fn item_handle(
         depth: item.depth.into_prop(),
         expanded: item.expanded.into_prop(),
         toggle: ClickCallback::new(move || toggled.toggle()),
-        state: create_memo(move || {
+        state: Prop::dynamic(move || {
             let button = button.get();
             MenuRowState {
                 disabled: disabled.get(),
@@ -539,7 +539,7 @@ fn row_accessibility(item: &Rc<MenuItem>) -> Memo<Node> {
 fn MenuCaptionRow(state: State, index: usize, row: RenderFn<MenuRowHandle>) -> NodeId {
     let item = state.rows.value().borrow()[index].item.clone();
     let separated = item.separated;
-    let row_state = create_memo(move || MenuRowState {
+    let row_state = Prop::dynamic(move || MenuRowState {
         separated: separated.get(),
         ..MenuRowState::default()
     });
@@ -581,7 +581,7 @@ fn MenuGridRow(
                 {row.call(quiet_handle(
                     MenuRowKind::Separator,
                     Prop::Static(String::new()),
-                    create_memo(MenuRowState::default),
+                    Prop::Static(MenuRowState::default()),
                 ))}
             </Show>
             <Grid
@@ -757,7 +757,7 @@ fn choose(state: State, path: Vec<usize>, item: &MenuItem) {
     }
 }
 
-fn watch_hover(state: State, at: Focus, button: Memo<ButtonState>) {
+fn watch_hover(state: State, at: Focus, button: Prop<ButtonState>) {
     let mut was_hovered = false;
     create_effect(move || {
         let hovering = button.with(|button| button.hovered);

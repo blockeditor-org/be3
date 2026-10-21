@@ -40,7 +40,7 @@ pub struct DockDialogHandle {
     pub title: Memo<String>,
     pub icon: Memo<String>,
     pub size: Memo<Vec2>,
-    pub state: Memo<DockDialogState>,
+    pub state: Prop<DockDialogState>,
     pub closable: bool,
     pub close: ClickCallback,
     pub body: NodeId,
@@ -333,7 +333,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         }
     });
     let held = create_memo(move || (!stacked.get()).then_some(body));
-    let state = create_memo(move || DockDialogState {
+    let state = Prop::dynamic(move || DockDialogState {
         modal: modal.get(),
         focused: focused.get(),
         attention: attention.get(),

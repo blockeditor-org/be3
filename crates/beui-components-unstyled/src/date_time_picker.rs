@@ -23,7 +23,7 @@ pub struct DateTimeBoxState {
 pub struct DateTimeBoxHandle {
     pub field: Child,
     pub trigger: Option<Child>,
-    pub state: Memo<DateTimeBoxState>,
+    pub state: Prop<DateTimeBoxState>,
 }
 
 pub struct DateTimeTriggerHandle {
@@ -249,7 +249,7 @@ fn FieldBox(
     } = field;
     let within = create_signal(false);
     let interaction = create_signal(InteractionState::default());
-    let state = create_memo(move || DateTimeBoxState {
+    let state = Prop::dynamic(move || DateTimeBoxState {
         focused: within.get(),
         hovered: interaction.with(|interaction| interaction.hovered),
         disabled: disabled.get(),

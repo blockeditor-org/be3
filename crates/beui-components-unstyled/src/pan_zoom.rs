@@ -68,7 +68,7 @@ impl PanZoomView {
 pub struct PanZoomHandle {
     pub view: Memo<Option<CanvasView>>,
     pub scale: Memo<f32>,
-    pub state: Memo<PanZoomState>,
+    pub state: Prop<PanZoomState>,
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
@@ -163,7 +163,7 @@ pub fn PanZoom(
             let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ScrollView)));
             component_accessibility(create_memo(move || accessibility.get()));
 
-            let state = create_memo(move || {
+            let state = Prop::dynamic(move || {
                 let interaction = interaction.get();
                 PanZoomState {
                     panning: interaction.panning,
