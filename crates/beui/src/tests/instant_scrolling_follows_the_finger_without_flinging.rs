@@ -1,6 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::unstyled::Scroll;
+use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
 fn instant_scrolling_follows_the_finger_without_flinging() {
@@ -21,7 +22,13 @@ fn instant_scrolling_follows_the_finger_without_flinging() {
     });
     let scroll = scroll.get();
     let mut harness = Harness::new(document);
-    harness.context.set_motion(Motion::Instant);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(Motion::Instant),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     harness.frame(Vec::new());
     let x = harness.rect(scroll).center().x;
 

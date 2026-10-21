@@ -124,7 +124,12 @@ while the focus is elsewhere hands it over as an `Event::InterceptedTap`.
 `Modifiers` and `Chord` have `logo` for the Super (Windows) key. The runners
 report Super as `logo`, except on macOS, where Command acts as Ctrl and Super
 is never reported. `Key` also has the volume, mic mute, brightness and media
-transport keys, mapped wherever the platform reports them.
+transport keys, mapped wherever the platform reports them. `Key`, `Modifiers`,
+`KeyChord` and the rest of the input vocabulary (pointer buttons, touch, pen and
+back phases, IME events, `CursorIcon`, pastes and picked files) live in the
+framework-free `ui-types` crate, which the plugin protocol (`block-plugin-api`)
+uses too, so nothing converts between a host's events and a plugin's. A host
+sends a key named `Key::Unidentified` to a plugin only as the text it typed.
 
 Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. A focused node that is hidden (a closed overlay, a frame made invisible, a portal or parent that stops holding it) or removed loses the focus, and its `on_focus_change` hears `false`. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
 

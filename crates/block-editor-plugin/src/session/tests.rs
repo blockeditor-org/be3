@@ -1,7 +1,7 @@
 use super::*;
 use block_plugin_api::{
     EditorRegion, HelloAccepted, InputBatch, ScreenRequest, ScreenSet, Size, SurfaceFormat,
-    SurfaceSpec, Theme, ViewportMetrics,
+    SurfaceSpec, ViewportMetrics,
 };
 
 fn accept(session: &mut ClientSession) {
@@ -10,8 +10,7 @@ fn accept(session: &mut ClientSession) {
         surface: Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
         }),
-        theme: Theme::Dark,
-        motion: block_plugin_api::Motion::default(),
+        preferences: block_plugin_api::Preferences::default(),
     }));
 }
 
@@ -47,8 +46,8 @@ fn screen(screen: ScreenId, instance: EditorInstanceId) -> ScreenRequest {
     }
 }
 
-mod accepts_a_theme_change_while_running;
 mod accepts_content_for_an_open_instance;
+mod accepts_new_preferences_while_running;
 mod accepts_ordered_lifecycle;
 mod opens_and_closes_editor_instance;
 mod refuses_to_draw_without_a_surface;

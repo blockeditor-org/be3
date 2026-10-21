@@ -1,25 +1,4 @@
-use crate::file_picker::PickedFile;
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
-pub enum PasteKind {
-    Text,
-    Image,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq)]
-pub enum Pasted {
-    Text(String),
-    Image(PickedFile),
-}
-
-impl Pasted {
-    pub fn kind(&self) -> PasteKind {
-        match self {
-            Pasted::Text(_) => PasteKind::Text,
-            Pasted::Image(_) => PasteKind::Image,
-        }
-    }
-}
+pub use ui_types::clipboard::{PasteKind, Pasted};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum PasteRequest {

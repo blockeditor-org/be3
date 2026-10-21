@@ -3,8 +3,10 @@ package com.be3.beui;
 import android.app.Activity;
 import android.content.Context;
 import android.content.res.AssetManager;
+import android.content.res.Configuration;
 import android.graphics.Insets;
 import android.os.Build;
+import android.provider.Settings;
 import android.view.DisplayCutout;
 import android.view.KeyEvent;
 import android.view.MotionEvent;
@@ -49,8 +51,31 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
 
     @Override
     public void surfaceChanged(SurfaceHolder holder, int format, int width, int height) {
+        reportPreferences(getResources().getConfiguration());
         nativeSurfaceChanged(holder.getSurface(), width, height,
                 getResources().getDisplayMetrics().density);
+    }
+
+    @Override
+    protected void onConfigurationChanged(Configuration configuration) {
+        super.onConfigurationChanged(configuration);
+        reportPreferences(configuration);
+    }
+
+    @Override
+    public void onWindowFocusChanged(boolean focused) {
+        super.onWindowFocusChanged(focused);
+        if (focused) {
+            reportPreferences(getResources().getConfiguration());
+        }
+    }
+
+    private void reportPreferences(Configuration configuration) {
+        int night = configuration.uiMode & Configuration.UI_MODE_NIGHT_MASK;
+        float animators = Settings.Global.getFloat(getContext().getContentResolver(),
+                Settings.Global.ANIMATOR_DURATION_SCALE, 1f);
+        nativePreferences(night == Configuration.UI_MODE_NIGHT_YES,
+                night == Configuration.UI_MODE_NIGHT_NO, animators == 0f);
     }
 
     @Override
@@ -314,6 +339,8 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     private static native void nativeSurfaceDestroyed();
 
     private static native void nativeInsets(int left, int top, int right, int bottom);
+
+    private static native void nativePreferences(boolean dark, boolean light, boolean reduceMotion);
 
     private static native void nativeTouch(int device, int id, int phase, float x, float y,
             float pressure);

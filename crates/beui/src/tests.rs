@@ -447,7 +447,6 @@ mod beuis_keyboard_is_used_only_where_the_platform_has_none_of_its_own;
 mod changing_a_filter_damages_only_the_region_it_covers;
 mod changing_one_span_of_a_long_text_shapes_only_that_span;
 mod children_written_between_show_tags_are_not_built_until_it_is_shown;
-mod choosing_the_e_ink_theme_in_the_inspector_restyles_the_document;
 mod clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed;
 mod clicking_a_checkbox_toggles_it;
 mod clicking_a_choice_keeps_keyboard_focus_on_the_selected_option;
@@ -739,6 +738,7 @@ mod the_inspector_shows_the_accesskit_tree;
 mod the_inspector_shows_the_base_nodes_of_a_styled_component;
 mod the_inspector_shows_the_renderer_the_host_reports;
 mod the_inspector_swipes_back_as_far_as_its_slider_is_dragged;
+mod the_inspectors_theme_overrides_the_apps_until_it_is_cleared;
 mod the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition;
 mod the_keyboard_opening_scrolls_the_focused_field_into_what_is_left;
 mod the_launcher_filters_as_it_is_typed_and_launches_with_enter;
@@ -1223,8 +1223,28 @@ impl Harness {
         self.inspector_center("inspector.simulation.touch_emulation")
     }
 
-    pub(crate) fn animation_toggle_center(&self) -> Pos2 {
-        self.inspector_center("inspector.simulation.disable_animations")
+    pub(crate) fn choose_in_simulation(&mut self, control: &str, index: usize) {
+        let select = self
+            .inspector()
+            .find(&format!("inspector.simulation.{control}"));
+        let trigger = crate::unstyled::select_trigger(&self.inspector().document, select);
+        self.click_in_inspector(trigger);
+        self.frame(Vec::new());
+        let option =
+            crate::unstyled::select_option_button(&self.inspector().document, select, index);
+        self.click(self.node_center(option));
+        self.frame(Vec::new());
+    }
+
+    fn click_in_inspector(&mut self, node: NodeId) {
+        self.document
+            .tools_mut::<InspectorTools>()
+            .and_then(|tools| tools.inspector.as_deref_mut())
+            .expect("the inspector is closed")
+            .document
+            .reveal_node(node);
+        self.frame(Vec::new());
+        self.click(self.node_center(node));
     }
 
     pub(crate) fn mouse_toggle_center(&self) -> Pos2 {
@@ -1341,14 +1361,7 @@ impl Harness {
         self.click(tab);
         self.frame(Vec::new());
         let toggle = self.inspector().find("inspector.accessibility.enabled");
-        self.document
-            .tools_mut::<InspectorTools>()
-            .and_then(|tools| tools.inspector.as_deref_mut())
-            .expect("the inspector is closed")
-            .document
-            .reveal_node(toggle);
-        self.frame(Vec::new());
-        self.click(self.node_center(toggle));
+        self.click_in_inspector(toggle);
         self.toggle_inspector();
         self.frame(Vec::new());
     }
@@ -1413,20 +1426,6 @@ impl Harness {
         self.tab_node(4)
     }
 
-    pub(crate) fn pixel_ratio_option_center(&self, index: usize) -> Pos2 {
-        let option = self
-            .inspector()
-            .option_node("inspector.simulation.pixel_ratio", index);
-        self.node_center(option)
-    }
-
-    pub(crate) fn color_vision_option_center(&self, index: usize) -> Pos2 {
-        let option = self
-            .inspector()
-            .option_node("inspector.simulation.color_vision", index);
-        self.node_center(option)
-    }
-
     pub(crate) fn drag_simulation_slider(&mut self, control: &str, fraction: f32) {
         let track = self.inspector_rect(&format!("inspector.simulation.{control}"));
         let y = track.center().y;
@@ -1441,13 +1440,6 @@ impl Harness {
             .node_rect(inspector.find(test_id))
             .expect("the control was not laid out");
         rect.scaled(crate::inspector::scale(&self.context))
-    }
-
-    pub(crate) fn theme_option_center(&self, index: usize) -> Pos2 {
-        let option = self
-            .inspector()
-            .option_node("inspector.simulation.theme", index);
-        self.node_center(option)
     }
 
     pub(crate) fn performance_panel_visible(&self) -> bool {

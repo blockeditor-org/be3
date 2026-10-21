@@ -31,7 +31,10 @@ fn instant_motion_lands_cards_and_finishes_active_flights() {
 
     assert_eq!(moves(&editor).len(), actions.len() + 1);
     assert!(editor.shown(&flight));
-    editor.set_motion(block_editor_beui::Motion::Instant);
+    editor.set_preferences(block_editor_beui::Preferences {
+        motion: block_editor_beui::Motion::Instant,
+        ..Default::default()
+    });
     editor.run();
     assert!(!editor.shown(&flight));
     editor.snapshot("instant_motion_lands_cards");

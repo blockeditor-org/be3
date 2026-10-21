@@ -42,7 +42,6 @@ mod wayland;
 #[cfg(target_os = "linux")]
 mod wifi;
 
-use beui::styled::*;
 use std::{
     collections::{HashMap, HashSet},
     error::Error,
@@ -332,7 +331,7 @@ impl beui::App for Shell {
 
     fn update(&mut self, context: &beui::Context, rect: beui::Rect) {
         let started = std::time::Instant::now();
-        host::begin(context, &self.document);
+        host::begin(context);
         if context.hurried() {
             be::seal_owed();
         }
@@ -343,11 +342,8 @@ impl beui::App for Shell {
             .is_some_and(|pointer| pointer.touch);
         self.app.frame(context);
         self.app.sync_ui_settings();
-        if let Some(theme) = self.app.theme.take() {
-            let theme = ui::styled_theme(theme);
-            if self.document.theme() != theme {
-                self.document.set_theme(theme);
-            }
+        if let Some(preferences) = self.app.preferences.take() {
+            context.set_preference_layer(beui::PreferenceSource::App, preferences);
         }
         if let Some(scale) = self.app.scale.take() {
             context.set_zoom_factor(scale);
@@ -366,7 +362,7 @@ impl beui::App for Shell {
         plugin_host::place_screens(
             &plugin_host::shown_blits(),
             context.pixels_per_point() / context.native_pixels_per_point(),
-            self.document.theme().background,
+            beui::styled::DocumentTheme::theme(&self.document).background,
         );
         self.document.show(context, rect);
         plugin_host::describe(context);
@@ -469,8 +465,8 @@ struct BlockApp {
     next_pick: u64,
     focus_reports: HashMap<Uuid, editors::FocusReport>,
     artifact_watches: HashMap<Uuid, Vec<Uuid>>,
-    ui_settings: Option<(be_block::Theme, u32)>,
-    theme: Option<be_block::Theme>,
+    ui_settings: Option<(beui::PreferenceLayer, u32)>,
+    preferences: Option<beui::PreferenceLayer>,
     scale: Option<f32>,
     touched: bool,
     input: SettingsSync<InputSettings>,
@@ -724,7 +720,7 @@ impl BlockApp {
             artifact_watches: HashMap::new(),
             next_pick: 0,
             ui_settings: None,
-            theme: None,
+            preferences: None,
             scale: None,
             touched: false,
             input: SettingsSync::default(),
@@ -2646,12 +2642,12 @@ impl BlockApp {
         let Some(settings) = self.display.applied() else {
             return;
         };
-        let shown = (settings.theme(), settings.scale_percent());
+        let shown = (settings.preferences(), settings.scale_percent());
         if self.ui_settings == Some(shown) {
             return;
         }
         self.ui_settings = Some(shown);
-        self.theme = Some(settings.theme());
+        self.preferences = Some(shown.0);
         self.scale = Some(settings.scale());
     }
 

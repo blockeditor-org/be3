@@ -24,6 +24,7 @@ use beui_core::input::{
     CursorIcon, DroppedFile, Event, ImeArea, ImeEvent, Key, Modifiers, Pen, PenPhase,
     PointerButton, TouchId, TouchPhase,
 };
+use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
 use beui_core::window::{Appearance, WindowReports, WindowState};
@@ -499,7 +500,45 @@ async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn
     if pointer.is_some_and(|query| query.matches()) {
         let _ = agent.focus();
     }
+    watch_preferences(&window, &reports)?;
     schedule();
+    Ok(())
+}
+
+fn watch_preferences(
+    window: &web_sys::Window,
+    reports: &WindowReports,
+) -> Result<(), Box<dyn Error>> {
+    let query = |media: &str| window.match_media(media).ok().flatten();
+    let (Some(dark), Some(light), Some(reduce)) = (
+        query("(prefers-color-scheme: dark)"),
+        query("(prefers-color-scheme: light)"),
+        query("(prefers-reduced-motion: reduce)"),
+    ) else {
+        return Ok(());
+    };
+    let report = {
+        let (dark, light, reduce, reports) =
+            (dark.clone(), light.clone(), reduce.clone(), reports.clone());
+        move || {
+            reports.system_preferences(PreferenceLayer {
+                theme: match (dark.matches(), light.matches()) {
+                    (true, _) => Some(ThemeKind::Dark),
+                    (false, true) => Some(ThemeKind::Light),
+                    (false, false) => None,
+                },
+                motion: reduce.matches().then_some(Motion::Instant),
+            });
+        }
+    };
+    report();
+    for list in [dark, light, reduce] {
+        let report = report.clone();
+        on(&list, "change", move |_: web_sys::Event| {
+            report();
+            schedule();
+        })?;
+    }
     Ok(())
 }
 

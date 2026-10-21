@@ -72,7 +72,7 @@ it there as a session:
 
 `--install-session` also lists the session in `/etc/greetd/environments`, which gtkgreet offers
 on its session menu. The first time the app signs in on the PineNote it finds the e-paper panel, so
-the device's new settings profile is an E-paper tablet: it keeps the E-ink theme, a 150% scale and
+the device's new settings profile is an E-paper tablet: it keeps the E-paper theme, instant motion, a 150% scale and
 the bar's rotate button on this device, and opens to be set up (guides/the_new_block_stack.md).
 
 `devices/pinenote/vulkan-panfrost-26.3` is an optional PKGBUILD that builds panvk alone from

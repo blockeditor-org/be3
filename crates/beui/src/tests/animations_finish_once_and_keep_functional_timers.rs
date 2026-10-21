@@ -1,5 +1,6 @@
 use super::*;
 use crate::reactive::*;
+use crate::{PreferenceLayer, PreferenceSource};
 use std::cell::Cell;
 
 #[test]
@@ -25,7 +26,13 @@ fn animations_finish_once_and_keep_functional_timers() {
     let mut harness = Harness::new(document);
     harness.frame(Vec::new());
     assert_eq!(finished.get_untracked(), 0);
-    harness.context.set_motion(Motion::Instant);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(Motion::Instant),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     harness.frame(Vec::new());
     assert_eq!(finished.get_untracked(), 1);
     with_reactive_scope(harness.document_mut(), || held.get().unwrap().finish());
@@ -34,7 +41,13 @@ fn animations_finish_once_and_keep_functional_timers() {
     harness.frame(Vec::new());
     assert!(expired.get_untracked());
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
-    harness.context.set_motion(Motion::Animated);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(Motion::Animated),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     harness.frame(Vec::new());
     assert!(!held.get().unwrap().running());
     with_reactive_scope(harness.document_mut(), || held.get().unwrap().start());

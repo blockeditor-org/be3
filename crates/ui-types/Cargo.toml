@@ -1,0 +1,13 @@
+[package]
+name = "ui-types"
+description = "Framework-free vocabulary that beui and the plugin protocol share: keys, pointers, themes and preferences"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_bytes = "0.11"
+
+[lints]
+workspace = true

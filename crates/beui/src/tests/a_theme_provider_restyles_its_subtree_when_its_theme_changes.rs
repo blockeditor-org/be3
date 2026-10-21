@@ -27,12 +27,12 @@ fn a_theme_provider_restyles_its_subtree_when_its_theme_changes() {
 
     let dark = harness.frame(vec![]);
     assert_eq!(fills(&dark, Theme::DARK.accent), 1);
-    assert_eq!(fills(&dark, Theme::EINK.accent), 0);
+    assert_eq!(fills(&dark, Theme::EPAPER.accent), 0);
 
-    theme.set(Theme::EINK);
-    let eink = harness.frame(vec![]);
-    assert_eq!(fills(&eink, Theme::DARK.accent), 0);
-    assert_eq!(fills(&eink, Theme::EINK.accent), 1);
+    theme.set(Theme::EPAPER);
+    let epaper = harness.frame(vec![]);
+    assert_eq!(fills(&epaper, Theme::DARK.accent), 0);
+    assert_eq!(fills(&epaper, Theme::EPAPER.accent), 1);
     assert_eq!(
         harness.document().theme(),
         Theme::DARK,

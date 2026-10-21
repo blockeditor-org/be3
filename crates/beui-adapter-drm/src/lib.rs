@@ -27,8 +27,8 @@ pub use epaper::Epaper;
 pub use flips::{Flip, Flips};
 pub use gpu::{CursorImage, SoftwareCursor};
 pub use input::{
-    DeviceId, InputConfig, InputControl, InputFilter, PointerConfig, PointerDevice, RawInput,
-    SharedFilter,
+    InputConfig, InputControl, InputDevice, InputFilter, PointerDevice, PointerSettings,
+    PointerSpeed, RawInput, SharedFilter,
 };
 pub use problems::Problems;
 pub use rotation::Rotation;

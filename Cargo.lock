@@ -704,6 +704,7 @@ dependencies = [
  "memchr",
  "postcard",
  "serde",
+ "ui-types",
  "uuid",
 ]
 
@@ -1016,6 +1017,7 @@ dependencies = [
  "pollster",
  "raw-window-handle",
  "reactive",
+ "serde_json",
  "text-editor-core",
  "wasm-bindgen",
  "web-sys",
@@ -1047,6 +1049,7 @@ dependencies = [
  "bytemuck",
  "rustix 1.1.4",
  "smithay",
+ "ui-types",
  "wgpu",
  "xcursor",
 ]
@@ -1066,7 +1069,6 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "beui-core",
- "beui-plugin-input",
  "beui-renderer-wgpu",
  "block-editor-plugin",
  "block-plugin-api",
@@ -1095,6 +1097,7 @@ dependencies = [
  "arboard",
  "ashpd",
  "beui-core",
+ "futures-util",
  "image",
  "pollster",
  "rfd",
@@ -1145,6 +1148,7 @@ dependencies = [
  "raw-window-handle",
  "reactive",
  "thumbhash",
+ "ui-types",
  "unicode-segmentation",
 ]
 
@@ -1202,14 +1206,6 @@ dependencies = [
  "beui-view",
  "beui_macros",
  "reactive",
-]
-
-[[package]]
-name = "beui-plugin-input"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-plugin-api",
 ]
 
 [[package]]
@@ -1394,7 +1390,6 @@ dependencies = [
  "be-wayland",
  "beui",
  "beui-adapter-drm",
- "beui-plugin-input",
  "block-editor-plugin",
  "block-plugin-api",
  "block-wasm-host",
@@ -1539,6 +1534,7 @@ dependencies = [
  "serde",
  "serde_bytes",
  "serde_json",
+ "ui-types",
  "uuid",
 ]
 
@@ -1578,7 +1574,6 @@ name = "block-ui-test"
 version = "0.1.0"
 dependencies = [
  "beui",
- "beui-plugin-input",
  "block-editor-beui",
  "block-plugin-api",
  "paint-snapshot",
@@ -7467,6 +7462,14 @@ dependencies = [
  "memoffset",
  "tempfile",
  "windows-sys 0.61.2",
+]
+
+[[package]]
+name = "ui-types"
+version = "0.1.0"
+dependencies = [
+ "serde",
+ "serde_bytes",
 ]
 
 [[package]]

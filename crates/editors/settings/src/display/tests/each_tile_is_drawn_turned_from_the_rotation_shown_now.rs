@@ -4,10 +4,10 @@ use super::*;
 fn each_tile_is_drawn_turned_from_the_rotation_shown_now() {
     let mut settings = Harness::in_a_session(vec![gaming_monitor()]);
     for (current, shown) in [
-        (Rotation::Normal, HostRotation::Normal),
-        (Rotation::Clockwise90, HostRotation::Clockwise90),
-        (Rotation::Clockwise180, HostRotation::Clockwise180),
-        (Rotation::Clockwise270, HostRotation::Clockwise270),
+        (Rotation::Normal, Rotation::Normal),
+        (Rotation::Clockwise90, Rotation::Clockwise90),
+        (Rotation::Clockwise180, Rotation::Clockwise180),
+        (Rotation::Clockwise270, Rotation::Clockwise270),
     ] {
         settings
             .editor

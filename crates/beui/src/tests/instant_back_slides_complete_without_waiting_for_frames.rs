@@ -2,6 +2,7 @@ use super::*;
 use crate::input::BackGesture;
 use crate::reactive::*;
 use crate::unstyled::BackSlide;
+use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
 fn instant_back_slides_complete_without_waiting_for_frames() {
@@ -15,7 +16,13 @@ fn instant_back_slides_complete_without_waiting_for_frames() {
         }
     });
     let mut harness = Harness::new(document);
-    harness.context.set_motion(Motion::Instant);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(Motion::Instant),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     harness.frame(Vec::new());
     harness.frame(vec![Event::Back(BackGesture::Invoked)]);
     assert_eq!(backs.get_untracked(), 1);

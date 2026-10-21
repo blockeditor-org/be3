@@ -5,7 +5,7 @@ const NATURAL: &str = "input.pointer.natural-scroll";
 #[test]
 fn every_pointer_reads_as_mixed_until_it_is_set() {
     let mut scrolls_naturally = touchpad();
-    scrolls_naturally.natural_scroll = Some(true);
+    scrolls_naturally.defaults.natural_scroll = Some(true);
     let mut editor = editor(vec![mouse(), scrolls_naturally]);
     editor.snapshot("every_pointer_reads_as_mixed_until_it_is_set");
     let mouse = InputDevice {

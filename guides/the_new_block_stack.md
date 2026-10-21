@@ -1004,9 +1004,11 @@ The app can read a block itself, not only through an editor:
 pointer settings for every pointer with per-device overrides) to the `--session`
 seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
 keyboard, and the display settings to the app and the seat. `DisplaySettings` is
-one block for everything about what the device shows: the theme and the scale,
-which `sync_ui_settings` takes from the display settings last applied (the scale
-is beui's zoom factor, multiplied into the screen's own pixels per point); a
+one block for everything about what the device shows: the theme, motion and scale,
+which `sync_ui_settings` takes from the display settings last applied (the theme and
+motion are the app's layer of beui's preferences, so an unset one follows the system's,
+guides/beui.md; the scale is beui's zoom factor, multiplied into the screen's own pixels
+per point); a
 `ScreenSettings` per screen (a mode and a rotation, keyed by the monitor's EDID
 make, model and serial, or by its connector when it has no EDID), whose modes and
 rotations go to the seat's outputs through `beui_adapter_drm::DisplayControl`,
@@ -1017,7 +1019,7 @@ libinput's own for a pointer setting, which the seat reports per device and an
 editor reads as the `InputDevices` host value, and for a monitor its preferred
 resolution at the fastest refresh rate it offers there, which the seat reports
 with the monitor's modes and an editor reads as the `Displays` host value
-(guides/adding_a_plugin_editor.md says how host values reach a plugin). Because the seat runs before anyone signs in, the app
+(guides/adding_a_plugin_editor.md says how host values reach a plugin). The seat, the stored settings and those host values share one set of types from `ui-types` (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`), so nothing converts between them. Because the seat runs before anyone signs in, the app
 keeps a copy of the last settings of each kind it applied in `app_state` and
 applies that at startup, the theme and scale with it, even before anyone signs
 in; the block stays the source of truth. A kind of setting
@@ -1171,7 +1173,10 @@ Its `LayeredSettingsRow` gives every row a menu (`<id>.menu`) with Keep on this 
 profile, or deletes it there) and Reset to default (`<id>.reset`, which clears the
 layer the setting would be written to), and a "Kept on this device" or "This device
 only" note; on a profile's own page its one item is Stop keeping in this profile
-(`<id>.reset`, clearing it in that block), with a "Kept in this profile" note. Menu items
+(`<id>.reset`, clearing it in that block), with a "Kept in this profile" note. A row whose
+value the inspector overrides says so instead (`overridden`, from the `PreferenceSources` host
+value, which also gives the system's theme and motion that an unset one shows as its
+default). Menu items
 carry icons (`ICON_KEEP`, `ICON_SETTINGS_BACKUP_RESTORE`, `ICON_KEEP_OFF`). `ChangesToast` shows
 one toast per visit to a page naming what now applies on every device ("Theme, scale
 and 1 more now apply on your devices") with Keep on this device only, which moves those
@@ -1181,8 +1186,8 @@ A device's class is known before its profile is made: block-app's
 `root_settings::device_class` says E-paper tablet when the session found an e-paper
 panel, Phone on Android, and Desktop otherwise; Tablet is only ever picked by hand.
 A class may have defaults, kept on the device: each settings type lists them in one
-place (`DeviceClass::display_defaults`, today only the E-paper tablet's E-ink theme,
-150% scale and rotate button; never when the screens go off, nor a rotation).
+place (`DeviceClass::display_defaults`, today only the E-paper tablet's E-paper theme,
+instant motion, 150% scale and rotate button; never when the screens go off, nor a rotation).
 `ensure_profile` writes a new profile's class and its defaults into the profile's own
 blocks, and when there are any the host asks the shell to open the profile. Its page
 (the settings plugin's `SettingsProfileView`, `app/setup.rs`) leads with the name and

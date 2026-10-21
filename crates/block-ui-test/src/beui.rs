@@ -12,7 +12,7 @@ use block_editor_beui::{
 use block_plugin_api::{
     BarAction, BlockTypeDescriptor, Catalog, ChildId, ChildRect, EditorMessage, FrameChrome,
     FrameReport, HelloAccepted, InputBatch, MenuEntry, Message, ScreenId, ScreenRequest, ScreenSet,
-    SurfaceFormat, SurfaceSpec, Theme, TopBar, ViewportMetrics,
+    SurfaceFormat, SurfaceSpec, TopBar, ViewportMetrics,
 };
 use std::marker::PhantomData;
 use std::sync::{Arc, Condvar, Mutex, PoisonError};
@@ -236,8 +236,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             surface: Some(SurfaceSpec {
                 format: SurfaceFormat::Rgba8UnormSrgb,
             }),
-            theme: Theme::default(),
-            motion: block_plugin_api::Motion::default(),
+            preferences: block_plugin_api::Preferences::default(),
         }));
         test.deliver(Message::Editor(open));
         test.place();
@@ -624,8 +623,8 @@ impl<A: BeuiApp> BeuiTest<A> {
             }));
     }
 
-    pub fn set_motion(&mut self, motion: block_plugin_api::Motion) {
-        self.inbox.push(Message::Motion(motion));
+    pub fn set_preferences(&mut self, preferences: block_plugin_api::Preferences) {
+        self.inbox.push(Message::Preferences(preferences));
     }
 
     pub fn set_host_value<T: block_plugin_api::HostValue>(&mut self, value: &T::Value) {
@@ -1117,11 +1116,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn intercepted_keys(&self) -> Vec<KeyChord> {
-        self.window
-            .intercepted_keys
-            .iter()
-            .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
-            .collect()
+        self.window.intercepted_keys.clone()
     }
 
     pub fn app_key(&mut self, modifiers: Modifiers, key: Key) -> bool {
@@ -1217,7 +1212,24 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn click(&mut self, test_id: &str) {
+        self.reveal(test_id);
         self.click_at(self.point_of(test_id));
+    }
+
+    pub fn reveal(&mut self, test_id: &str) {
+        if self.rect_of(test_id).intersect(self.rect()).is_positive() {
+            return;
+        }
+        let region = self.region();
+        let document = self
+            .plugin
+            .document_mut(INSTANCE, region)
+            .expect("the editor has not built its view yet");
+        let node = document
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
+        document.reveal_node(node);
+        self.run();
     }
 
     pub fn double_click(&mut self, test_id: &str) {

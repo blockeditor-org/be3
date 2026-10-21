@@ -22,7 +22,7 @@ pub fn Root(
     let bars = create_memo(move || match system_bars {
         Some(bars) => bars.get(),
         None => match theme.kind.get() {
-            ThemeKind::Light | ThemeKind::EInk => SystemBars::Light,
+            ThemeKind::Light | ThemeKind::EPaper => SystemBars::Light,
             ThemeKind::Dark | ThemeKind::OledDark => SystemBars::Dark,
         },
     });

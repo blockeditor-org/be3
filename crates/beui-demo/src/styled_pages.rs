@@ -3496,7 +3496,25 @@ pub(crate) fn ThemesPage() -> NodeId {
             <Sample title="Window" code={vec![WindowSample::SOURCE]}>
                 <WindowSample />
             </Sample>
+            <Sample title="Preferences" code={vec![PreferenceSettings::SOURCE]}>
+                <PreferenceSettings />
+            </Sample>
         </ScrollPage>
+    }
+}
+
+#[sample]
+#[component]
+fn PreferenceSettings() -> NodeId {
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text style=TextStyle::PARAGRAPH wrap=true>
+                "The theme and motion this app chooses, over what the system prefers. \
+                 The demo saves them in its config folder; the inspector's Simulation tab \
+                 overrides them until it is set back to no override."
+            </Text>
+            <PreferencesSection />
+        </List>
     }
 }
 
@@ -3521,8 +3539,8 @@ fn ThemedSamples() -> NodeId {
                 <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::LIGHT>
                     <ThemeSample name="Light" />
                 </ThemeProvider>
-                <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::EINK>
-                    <ThemeSample name="E-ink" />
+                <ThemeProvider @sizing=ItemSize::Percent(50.0) theme=Theme::EPAPER>
+                    <ThemeSample name="E-paper" />
                 </ThemeProvider>
             </Stack>
         </List>

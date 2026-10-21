@@ -1,27 +1,32 @@
-use block_editor_beui::LayeredSettingsRow;
-use block_editor_beui::be_block::{DisplaySettings, Theme};
+use block_editor_beui::be_block::DisplaySettings;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::{Editor, LayeredSettingsRow, PreferenceSources};
 
 use super::ui::Settings;
 
 #[component]
-pub(super) fn AppearanceSection(settings: Settings, read_only: Memo<bool>) -> NodeId {
-    let theme = DisplaySettings::theme_setting();
-    let chosen = settings.value(&theme);
-    let below = settings.fallback(&theme);
-    let inherited_label =
-        create_memo(move || format!("Default ({})", below.get().unwrap_or_default().name()));
-    let selected = create_memo(move || {
-        Some(
-            chosen
-                .get()
-                .and_then(|theme| Theme::ALL.iter().position(|known| *known == theme))
-                .map_or(0, |index| index + 1),
-        )
-    });
+pub(super) fn AppearanceSection(
+    editor: Editor,
+    settings: Settings,
+    read_only: Memo<bool>,
+) -> NodeId {
+    let sources = editor.host_value::<PreferenceSources>();
+    let system = create_memo(move || sources.get().system.resolve());
+    let developer = create_memo(move || sources.get().developer);
+    let theme = DisplaySettings::theme_setting().with_default(Some(system.get_untracked().theme));
+    let motion =
+        DisplaySettings::motion_setting().with_default(Some(system.get_untracked().motion));
+    let chosen_theme = settings.value(&theme);
+    let below_theme = settings.fallback(&theme);
+    let chosen_motion = settings.value(&motion);
+    let below_motion = settings.fallback(&motion);
+    let theme_row = settings.row(&theme);
+    let motion_row = settings.row(&motion);
+    let set_theme = settings.setter(&theme);
+    let set_motion = settings.setter(&motion);
     let scale = DisplaySettings::scale_setting();
     let chosen_scale = settings.value(&scale);
     let below_scale = settings.fallback(&scale);
@@ -43,9 +48,7 @@ pub(super) fn AppearanceSection(settings: Settings, read_only: Memo<bool>) -> No
                 .map_or(0, |index| index + 1),
         )
     });
-    let theme_row = settings.row(&theme);
     let scale_row = settings.row(&scale);
-    let set_theme = settings.setter(&theme);
     let set_scale = settings.setter(&scale);
     view! {
         <SettingsSection title="Appearance">
@@ -54,26 +57,34 @@ pub(super) fn AppearanceSection(settings: Settings, read_only: Memo<bool>) -> No
                 label="Theme"
                 description="The colors of the app and every editor in it."
                 locked={read_only}
+                overridden={create_memo(move || developer.get().theme.is_some())}
                 id={"display.theme".to_owned()}
             >
-                <Select
+                <ThemeSelect
                     @sizing=ItemSize::Percent(100.0)
-                    width={Extent::fraction(1.0)}
-                    options={view! {
-                        <ChoiceOption label={inherited_label} />
-                        <ForEach keys={Theme::ALL.to_vec()}>|theme: Theme|
-                            <ChoiceOption label={theme.name().to_owned()} />
-                        </ForEach>
-                    }}
-                    selected={Binding::new(selected, move |index: Option<usize>| {
-                        let chosen = index
-                            .and_then(|index| index.checked_sub(1))
-                            .and_then(|index| Theme::ALL.get(index).copied());
-                        set_theme.call(chosen);
-                    })}
-                    label="Theme"
+                    chosen={chosen_theme}
+                    inherited={create_memo(move || below_theme.get().unwrap_or(system.get().theme))}
+                    on_change={set_theme}
                     disabled={read_only}
                     @test_id={"display.theme"}
+                />
+            </LayeredSettingsRow>
+            <LayeredSettingsRow
+                setting={motion_row}
+                label="Motion"
+                description="Reduced motion finishes animations at once, and stops inertia and blinking carets."
+                separated=true
+                locked={read_only}
+                overridden={create_memo(move || developer.get().motion.is_some())}
+                id={"display.motion".to_owned()}
+            >
+                <MotionSelect
+                    @sizing=ItemSize::Percent(100.0)
+                    chosen={chosen_motion}
+                    inherited={create_memo(move || below_motion.get().unwrap_or(system.get().motion))}
+                    on_change={set_motion}
+                    disabled={read_only}
+                    @test_id={"display.motion"}
                 />
             </LayeredSettingsRow>
             <LayeredSettingsRow

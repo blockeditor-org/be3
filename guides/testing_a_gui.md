@@ -90,9 +90,11 @@ session overwrites what it owns - the chrome, the view, a drag - on the next fra
 
 Call run() after
 every gesture — the view only sees an event on the frame it is delivered in — and click a
-text field before typing into it. click() panics when no node has that test id, which is
-usually a node that was never given one; shown() and label() ask about one without clicking
-it.
+text field before typing into it. click() first scrolls a target that is out of view into it
+(`reveal`, every enclosing scroll, as a person would) and runs a frame, in BeuiTest and
+DocumentTest alike, so a test need not know how much fits on its screen. It panics when no
+node has that test id, which is usually a node that was never given one, or one a virtualized
+list has not built; shown() and label() ask about one without clicking it.
 
 run() hands the editor what was queued since the last one in the frames a person would
 produce it in, as the app batches input between frames: a click (the move to it, the press

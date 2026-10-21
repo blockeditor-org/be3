@@ -14,7 +14,7 @@ fn the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated() {
         .node_rect(tab)
         .expect("the tab was laid out");
 
-    harness.click(harness.pixel_ratio_option_center(3));
+    harness.choose_in_simulation("pixel_ratio", 3);
     let output = harness.frame(vec![]);
     assert_eq!(output.pixels_per_point(), 2.0);
     let simulated = harness
@@ -30,6 +30,6 @@ fn the_inspector_keeps_its_native_size_while_a_pixel_ratio_is_simulated() {
         crate::painter::Shape::Rect { rect, .. } if *rect == on_screen
     )));
 
-    harness.click(harness.pixel_ratio_option_center(0));
+    harness.choose_in_simulation("pixel_ratio", 0);
     assert_eq!(harness.frame(vec![]).pixels_per_point(), 1.0);
 }

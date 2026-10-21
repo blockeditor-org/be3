@@ -24,8 +24,8 @@ use beui::unstyled::{
     TreeItem, dock_actions, narrower_than, use_dock_tab,
 };
 use beui::{
-    Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId, Rect,
-    ScrollGesture, TextAlign, unstyled,
+    Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId,
+    PreferenceLayer, PreferenceSource, Rect, ScrollGesture, TextAlign, unstyled,
 };
 use beui_macros::{component, sample};
 use collaboration::CollaborationPage;
@@ -788,7 +788,15 @@ fn PageView(page: Page) -> NodeId {
 
 #[component]
 fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
-    let selected_theme = create_signal(Some(0));
+    let layers = with_document(|document| document.watch_preference_layers());
+    let selected_theme = create_memo(move || {
+        let theme = layers.get().layer(PreferenceSource::App).theme;
+        Some(
+            theme
+                .and_then(|theme| ThemeKind::ALL.iter().position(|kind| *kind == theme))
+                .map_or(0, |index| index + 1),
+        )
+    });
     let narrow = narrower_than(NARROW_WIDTH);
     let wide = create_memo(move || !narrow.get());
     view! {
@@ -804,17 +812,21 @@ fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
             <Select
                 label="Theme"
                 options={view! {
-                    <ForEach
-                        keys={Theme::BUILT_IN.iter().map(|(label, _)| *label).collect::<Vec<_>>()}
-                    >|label: &'static str|
-                        <ChoiceOption label />
+                    <ChoiceOption label="System" />
+                    <ForEach keys={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
+                        <ChoiceOption label={kind.name()} />
                     </ForEach>
                 }}
                 selected={Binding::new(selected_theme, move |index: Option<usize>| {
-                    if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
-                        selected_theme.set(index);
-                        with_document(|document| document.set_theme(*theme));
-                    }
+                    let theme = index
+                        .and_then(|index| index.checked_sub(1))
+                        .and_then(|index| ThemeKind::ALL.get(index).copied());
+                    with_document(|document| {
+                        if let Some(context) = document.context() {
+                            let app = context.preference_layer(PreferenceSource::App);
+                            context.set_preference_layer(PreferenceSource::App, PreferenceLayer { theme, ..app });
+                        }
+                    });
                 })}
             />
             <IconButton

@@ -35,7 +35,7 @@ pub fn DisplaySettingsView(editor: Editor, settings: Settings) -> NodeId {
     let page = NodeRef::new();
     view! {
         <SettingsPage @node_ref=&page>
-            <AppearanceSection settings={settings} read_only={read_only} />
+            <AppearanceSection editor={editor} settings={settings} read_only={read_only} />
             <Show condition={offered}>
                 <SettingsSection title="Screens">
                     <Show condition={none}>

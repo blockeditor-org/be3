@@ -75,7 +75,7 @@ pub fn choice_color(color: ChoiceColor, kind: ThemeKind) -> Color32 {
     let (red, green, blue) = match kind {
         ThemeKind::Dark | ThemeKind::OledDark => dark,
         ThemeKind::Light => light,
-        ThemeKind::EInk => return Color32::from_gray(30),
+        ThemeKind::EPaper => return Color32::from_gray(30),
     };
     Color32::from_rgb(red, green, blue)
 }
