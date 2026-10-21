@@ -377,6 +377,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn pick_menu(&mut self, id: &str) {
+        self.menu_entry(id);
         self.inbox.push(Message::Editor(EditorMessage::MenuPick {
             instance: INSTANCE,
             id: id.to_owned(),
