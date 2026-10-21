@@ -137,22 +137,33 @@ impl CanvasState {
     }
 
     fn double_press(&self, press: PointerPress, world: CanvasPoint) -> bool {
-        let Some(entity) = self
+        let hit = self
             .entity_at(world)
-            .and_then(|id| self.entities.get_untracked(id))
-        else {
-            return false;
-        };
-        if entity.group_id.is_some() && entity.group_id != self.entered_group.get_untracked() {
+            .and_then(|id| self.entities.get_untracked(id));
+        if let Some(entity) = &hit
+            && entity.group_id.is_some()
+            && entity.group_id != self.entered_group.get_untracked()
+        {
             self.enter_group(entity.id);
             return true;
         }
-        if entity.shape == CanvasShape::Text && !entity.locked {
-            self.select(entity.id, false);
-            self.edit_text_at(entity.id, TextEntry::At(press.pos));
-            return true;
+        match self.written_at(world) {
+            Some(entity)
+                if entity.locked || (entity.shape != CanvasShape::Text && press.clicks != 2) =>
+            {
+                false
+            }
+            Some(entity) => {
+                self.select(entity.id, false);
+                self.edit_text_at(entity.id, TextEntry::At(press.pos));
+                true
+            }
+            None if press.clicks == 2 && hit.is_none() => {
+                self.write_at(world);
+                true
+            }
+            None => false,
         }
-        false
     }
 
     fn tool_for(&self, press: PointerPress) -> Tool {

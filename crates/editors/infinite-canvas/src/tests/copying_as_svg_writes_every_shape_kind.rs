@@ -57,7 +57,7 @@ fn copying_as_svg_writes_every_shape_kind() {
         blue: 80,
         alpha: 255,
     };
-    rectangle.text = "A & B".to_owned();
+    rectangle.text = "A & B".into();
     rectangle.style.text_size = CanvasTextSize::Small;
     let ellipse = placed(2, CanvasShape::Ellipse, CanvasPoint::new(80.0, 0.0));
     let mut diamond = placed(3, CanvasShape::Diamond, CanvasPoint::new(160.0, 0.0));
@@ -74,7 +74,7 @@ fn copying_as_svg_writes_every_shape_kind() {
     freehand.shape = CanvasShape::Freehand;
     freehand.pressures = vec![0.5, 0.5];
     let mut text = placed(6, CanvasShape::Text, CanvasPoint::new(160.0, 60.0));
-    text.text = "Hi".to_owned();
+    text.text = "Hi".into();
     let mut editor = editor(&[rectangle, ellipse, diamond, arrow, freehand, text]);
 
     editor.key_press_modifiers(

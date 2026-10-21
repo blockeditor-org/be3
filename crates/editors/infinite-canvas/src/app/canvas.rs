@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{CanvasColor, CanvasEntity, CanvasPoint, CanvasShape};
+use block_editor_beui::be_block::canvas::{CanvasColor, CanvasEntity, CanvasShape};
 use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::*;
@@ -14,10 +14,10 @@ use crate::geometry::*;
 use super::grid::{GridLook, GridTile, GridTileItem};
 use super::menu::CanvasMenu;
 use super::overlay::{Backdrop, FrameBackdrop, Overlay, PathGrips};
-use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, path_middle, resolve_color};
+use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, resolve_color};
 use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::CanvasState;
-use super::text::{EntityText, shown_live, text_box};
+use super::text::{EntityText, path_label_reach, text_region, writes};
 
 const ITEM_MARGIN: f32 = 2.0;
 
@@ -202,7 +202,7 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
             .filter(|entity| !entity.hidden)
             .map(|entity| FrameBackdrop {
                 bounds: entity_bounds(&entity),
-                name: entity.text.clone(),
+                name: entity.text.to_str_lossy().into_owned(),
                 fill: match entity.style.filled().unwrap_or_default() {
                     CanvasColor::Auto => theme.background.get(),
                     color => resolve_color(color, theme.text.get()),
@@ -241,17 +241,26 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
 fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
     let entity = entity_of(state, id);
     let editing = create_memo(move || state.editing_text.get() == Some(id));
-    let live = create_memo(move || entity.get().is_some_and(|entity| shown_live(&entity)));
+    let live = create_memo(move || {
+        entity.get().is_some_and(|entity| {
+            writes(&entity)
+                && (entity.shape == CanvasShape::Text || !entity.text.is_empty() || editing.get())
+        })
+    });
     let bounds = create_memo(move || {
         let Some(entity) = entity.get() else {
             return Rect::ZERO;
         };
         match live.get() {
-            true => item_bounds(&entity).union(text_box(&entity)),
+            true => item_bounds(&entity).union(text_region(&entity)),
             false => item_bounds(&entity),
         }
     });
-    let scales = create_memo(move || !live.get());
+    let scales = create_memo(move || !editing.get());
+    let unit = create_memo(move || match editing.get() {
+        true => camera.get().scale.max(f32::EPSILON),
+        false => 1.0,
+    });
     let thumbhash = create_memo(move || state.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
@@ -289,7 +298,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
         let paint = EntityPaint {
             sketch,
             covered: state.child_state(entity.id).available,
-            camera: Camera::item(corner),
+            camera: Camera::item(corner, unit.get()),
             palette: palette(&theme),
             title: label
                 .as_ref()
@@ -489,22 +498,5 @@ pub(crate) fn item_bounds(entity: &CanvasEntity) -> Rect {
     Rect::from_min_max(
         pos2(bounds.min.x - margin, bounds.min.y - margin),
         pos2(bounds.max.x + margin, bounds.max.y + margin),
-    )
-}
-
-fn path_label_reach(entity: &CanvasEntity) -> WorldRect {
-    let px = entity.style.text_size.px();
-    let lines = entity.text.lines().count().max(1) as f32;
-    let widest = entity
-        .text
-        .lines()
-        .map(|line| line.chars().count())
-        .max()
-        .unwrap_or(0) as f32;
-    let half = CanvasPoint::new(widest * px * 0.35 + px, lines * px * 0.75 + px);
-    let center = path_middle(&flattened(&entity.world_points()));
-    WorldRect::from_points(
-        CanvasPoint::new(center.x - half.x, center.y - half.y),
-        CanvasPoint::new(center.x + half.x, center.y + half.y),
     )
 }

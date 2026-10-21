@@ -20,7 +20,7 @@ fn dragging_with_the_frame_tool_adds_a_frame() {
         .filter(|entity| entity.is_frame())
         .collect();
     assert_eq!(frames.len(), 1, "the drag adds one frame");
-    assert_eq!(frames[0].text, "Frame 1");
+    assert_eq!(frames[0].text.to_str_lossy(), "Frame 1");
     assert_eq!(frames[0].transform.size, CanvasPoint::new(300.0, 200.0));
     editor.snapshot("dragging_with_the_frame_tool_adds_a_frame");
 }

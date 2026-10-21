@@ -48,6 +48,7 @@ fn double_clicking_a_group_enters_it() {
         "Rectangle selected",
         "inside the group, a click selects another member alone"
     );
+    editor.advance(std::time::Duration::from_secs(1));
     editor.drag(at(-80.0, 0.0), at(-80.0, -40.0));
     editor.run();
     let held = entities(&editor);

@@ -33,10 +33,10 @@ impl Camera {
         }
     }
 
-    pub(crate) fn item(corner: Pos2) -> Self {
+    pub(crate) fn item(corner: Pos2, scale: f32) -> Self {
         Self {
-            origin: pos2(-corner.x, -corner.y),
-            scale: 1.0,
+            origin: pos2(-corner.x * scale, -corner.y * scale),
+            scale,
         }
     }
 
@@ -138,7 +138,6 @@ impl EntityPaint {
             CanvasShape::Block => self.draw_block(painter, color, opacity),
             CanvasShape::Editor => self.draw_direct_editor(painter, color, opacity),
         }
-        self.draw_label(painter, color);
     }
 
     fn at(&self, point: CanvasPoint) -> Pos2 {
@@ -162,12 +161,6 @@ impl EntityPaint {
             self.at(self.entity.transform.center),
             self.entity.transform.rotation,
         )
-    }
-
-    fn draw_label(&self, painter: &Painter, color: Color32) {
-        if let Some((at, galley)) = label(painter, &self.entity, self.camera) {
-            painter.galley(at, galley, color);
-        }
     }
 
     fn draw_rectangle(&self, painter: &Painter, color: Color32, fill: Color32, width: f32) {
@@ -312,7 +305,7 @@ pub(crate) fn label(
         ),
     };
     let galley = painter.layout_text(
-        &entity.text,
+        &entity.text.to_str_lossy(),
         FontId::proportional(font),
         TextLayout {
             align: TextAlign::Center,

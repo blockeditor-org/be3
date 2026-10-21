@@ -8,9 +8,9 @@ use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove, CanvasLook,
-    CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle, CanvasTransform,
-    InfiniteCanvasOperation,
+    Canvas, CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove,
+    CanvasLook, CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle,
+    CanvasTransform, InfiniteCanvasOperation,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
@@ -33,6 +33,7 @@ use uuid::Uuid;
 use crate::geometry::*;
 
 use super::entities::Entities;
+use super::text::labels;
 use crate::images::{image_filter, imported_image};
 
 pub(crate) const ZOOM_STEP: f32 = 1.25;
@@ -394,6 +395,7 @@ struct CanvasCells {
     erasing: Cell<bool>,
     retapped: Cell<Option<(Uuid, Pos2)>>,
     text_entry: Cell<Option<TextEntry>>,
+    client: u64,
     surface: NodeRef,
     select_tool: Cell<Tool>,
     children: RefCell<HashMap<Uuid, ChildState>>,
@@ -525,6 +527,7 @@ impl CanvasState {
             erasing: Cell::new(false),
             retapped: Cell::new(None),
             text_entry: Cell::new(None),
+            client: Uuid::new_v4().as_u64_pair().0 | 1 << 63,
             surface: NodeRef::new(),
             select_tool: Cell::new(Tool::Select),
             children: RefCell::new(HashMap::new()),
@@ -944,8 +947,56 @@ impl CanvasState {
     }
 
     pub(crate) fn edit_text(&self, entity: Option<Uuid>) {
-        if self.editing_text.get_untracked() != entity {
-            self.editing_text.set(entity);
+        let was = self.editing_text.get_untracked();
+        if was == entity {
+            return;
+        }
+        let content = self.content();
+        match entity {
+            Some(_) => {
+                content.record();
+                content.take_projected();
+            }
+            None => content.stop_recording(),
+        }
+        self.editing_text.set(entity);
+        if let Some(was) = was {
+            self.remove_if_empty(was);
+        }
+    }
+
+    fn remove_if_empty(&self, id: Uuid) {
+        let Some(entity) = self.entities.get_untracked(id) else {
+            return;
+        };
+        if entity.shape == CanvasShape::Text && entity.text.is_empty() && !entity.locked {
+            self.selection.update(|selection| {
+                selection.remove(&id);
+            });
+            self.record(InfiniteCanvasOperation::Remove { ids: vec![id] });
+        }
+    }
+
+    pub(crate) fn content(&self) -> ContentProjection<CanvasContent> {
+        self.cells.value().content
+    }
+
+    pub(crate) fn retext(&self, id: Uuid, text: &str) {
+        let content = self.content();
+        let client = self.cells.value().client;
+        if let Ok(Some(edit)) = content.read(|canvas| Canvas::retext(canvas, client, id, text)) {
+            self.cells.value().grouped_edit.set(false);
+            content.operate(edit);
+        }
+    }
+
+    pub(crate) fn fit_edited_text(&self, id: Uuid) {
+        let Some(held) = self.entities.get_untracked(id) else {
+            return;
+        };
+        let fitted = self.fit_text(held.clone());
+        if fitted.transform != held.transform {
+            self.record_update(vec![held], vec![fitted], true);
         }
     }
 
@@ -959,8 +1010,8 @@ impl CanvasState {
     }
 
     pub(crate) fn finish_text(&self) {
-        self.edit_text(None);
         self.finish_grouped_edit();
+        self.edit_text(None);
     }
 
     pub(crate) fn surface(&self) -> NodeRef {
@@ -1186,6 +1237,37 @@ impl CanvasState {
             .iter()
             .map(entity_bounds)
             .reduce(WorldRect::union)
+    }
+
+    pub(crate) fn written_at(&self, point: CanvasPoint) -> Option<CanvasEntity> {
+        let hit = self.entity_at(point);
+        let entities = self.entities.all_untracked();
+        let writes = |entity: &&CanvasEntity| super::text::writes(entity);
+        match hit {
+            Some(id) => entities
+                .iter()
+                .find(|entity| entity.id == id)
+                .filter(writes),
+            None => entities.iter().rev().filter(writes).find(|entity| {
+                entity.shape != CanvasShape::Path
+                    && super::text::text_box(entity).contains(pos2(point.x, point.y))
+            }),
+        }
+        .cloned()
+    }
+
+    pub(crate) fn write_at(&self, point: CanvasPoint) {
+        let mut text = self.styled(CanvasEntity::new(
+            CanvasShape::Text,
+            CanvasTransform::new(point, CanvasPoint::new(16.0, 32.0), 0.0),
+        ));
+        text.placeholder = "Text".into();
+        let mut text = self.fit_text(text);
+        text.transform.center =
+            CanvasPoint::new(point.x + text.transform.size.x / 2.0 - TEXT_INSET, point.y);
+        let id = text.id;
+        self.add_entity(text);
+        self.edit_text_at(id, TextEntry::All);
     }
 
     pub(crate) fn entity_at(&self, point: CanvasPoint) -> Option<Uuid> {
@@ -2006,7 +2088,7 @@ impl CanvasState {
                     self.focus_editor(Some(entity.id));
                 }
             }
-            (CanvasShape::Text, _) if !entity.locked => {
+            (shape, _) if !entity.locked && (shape == CanvasShape::Text || labels(shape)) => {
                 self.edit_text_at(entity.id, TextEntry::All);
             }
             (CanvasShape::Block | CanvasShape::Image, Some(block_id)) => {
@@ -2201,7 +2283,7 @@ impl CanvasState {
                     CanvasShape::Frame,
                     CanvasTransform::new(bounds.center(), bounds.size(), 0.0),
                 );
-                frame.text = format!("Frame {}", count + 1);
+                frame.text = format!("Frame {}", count + 1).as_str().into();
                 Some(frame)
             }
             Tool::Line | Tool::Arrow | Tool::Select | Tool::Lasso | Tool::Pen => None,

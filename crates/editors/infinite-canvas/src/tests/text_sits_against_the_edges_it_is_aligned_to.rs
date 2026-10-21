@@ -29,7 +29,7 @@ fn text_sits_against_the_edges_it_is_aligned_to() {
             label.transform = backing.transform;
             labels.push(backing);
             label.shape = CanvasShape::Text;
-            label.text = "Aligned".to_owned();
+            label.text = "Aligned".into();
             label.text_style = CanvasTextStyle {
                 alignment,
                 vertical_alignment,

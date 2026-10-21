@@ -29,7 +29,7 @@ fn a_hand_drawn_shape_is_the_same_for_the_same_seed() {
         );
 
         let mut stored = entity.clone();
-        stored.text = "a label".to_owned();
+        stored.text = "a label".into();
         assert_eq!(
             drawn,
             Sketch::of(&stored),

@@ -32,7 +32,7 @@ fn the_canvas_paints_the_entities_it_holds() {
         0.0,
     );
     label.shape = CanvasShape::Text;
-    label.text = "Canvas".to_owned();
+    label.text = "Canvas".into();
     label.placeholder = "Text".to_owned();
 
     let mut arrow = path(

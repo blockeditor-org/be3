@@ -127,11 +127,8 @@ fn LayerGhost(label: block_editor_beui::beui::reactive::Memo<String>) -> NodeId 
 }
 
 fn layer_label(state: &CanvasState, entity: &CanvasEntity) -> String {
-    let written = entity
-        .text
-        .lines()
-        .next()
-        .filter(|line| !line.trim().is_empty());
+    let text = entity.text.to_str_lossy();
+    let written = text.lines().next().filter(|line| !line.trim().is_empty());
     match (entity.shape, written, entity.block) {
         (_, Some(line), _) => line.to_owned(),
         (CanvasShape::Text, None, _) => entity.placeholder.clone(),

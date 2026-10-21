@@ -37,6 +37,7 @@ mod a_narrow_canvas_opens_its_inspector_under_the_stage;
 mod a_new_shape_takes_the_last_style_used;
 mod a_peer_sees_a_shape_while_it_is_dragged;
 mod a_peer_sees_a_stroke_while_it_is_drawn;
+mod a_peer_types_into_the_text_being_edited;
 mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
 mod a_preview_with_no_camera_fits_its_frame;
 mod a_resize_handle_follows_the_drag_rather_than_jumping_to_the_pointer;
@@ -50,6 +51,7 @@ mod attaching_component_fills_only_missing_selected_entities;
 mod clicking_an_entity_selects_it_and_shows_its_handles;
 mod copying_as_svg_writes_every_shape_kind;
 mod double_clicking_a_group_enters_it;
+mod double_clicking_the_empty_canvas_writes_text_there;
 mod dragging_a_transform_field_twice_keeps_the_first_drag;
 mod dragging_an_end_of_a_selected_line_moves_only_that_end;
 mod dragging_any_transform_field_moves_the_entity;
@@ -58,6 +60,7 @@ mod dragging_the_middle_of_a_line_bends_it_at_a_new_point;
 mod dragging_with_the_frame_tool_adds_a_frame;
 mod dragging_with_the_rectangle_tool_adds_a_rectangle;
 mod drawing_with_a_finger_adds_a_rectangle;
+mod enter_on_a_selected_shape_edits_its_label;
 mod every_shape_is_drawn_in_the_clean_look;
 mod every_shape_is_drawn_in_the_hand_drawn_look;
 mod every_transform_field_previews_what_is_typed;
@@ -121,7 +124,7 @@ fn every_shape(look: CanvasLook) -> Vec<CanvasEntity> {
     diamond.style.stroke_style = CanvasStrokeStyle::Dashed;
     diamond.style.stroke_color = colored(25, 113, 194);
     let mut labelled = placed(3, CanvasShape::Rectangle, CanvasPoint::new(160.0, -100.0));
-    labelled.text = "Label".to_owned();
+    labelled.text = "Label".into();
     labelled.style.text_size = CanvasTextSize::Small;
 
     let mut polyline = path(
@@ -144,7 +147,7 @@ fn every_shape(look: CanvasLook) -> Vec<CanvasEntity> {
     world[0].handle_out = Some(CanvasPoint::new(80.0, 20.0));
     world[1].handle_in = Some(CanvasPoint::new(-80.0, 100.0));
     curve.set_world_points(world);
-    curve.text = "curve".to_owned();
+    curve.text = "curve".into();
     curve.style.text_size = CanvasTextSize::Small;
 
     let mut freehand = path(
@@ -203,7 +206,7 @@ fn path(id: Uuid, world: &[CanvasPoint]) -> CanvasEntity {
 fn frame(id: u128, center: CanvasPoint, size: CanvasPoint) -> CanvasEntity {
     let mut frame = shaped(Uuid::from_u128(id), CanvasShape::Frame);
     frame.transform = CanvasTransform::new(center, size, 0.0);
-    frame.text = format!("Frame {id}");
+    frame.text = format!("Frame {id}").as_str().into();
     frame
 }
 

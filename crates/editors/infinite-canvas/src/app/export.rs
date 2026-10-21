@@ -126,9 +126,10 @@ impl Scene {
                     .style
                     .filled()
                     .map_or(background, |fill| resolve_color(fill, background));
-                let name = match frame.text.trim().is_empty() {
+                let name = frame.text.to_str_lossy();
+                let name = match name.trim().is_empty() {
                     true => "Frame".to_owned(),
-                    false => frame.text.trim().to_owned(),
+                    false => name.trim().to_owned(),
                 };
                 (inside, area, true, background, name)
             }
@@ -382,7 +383,7 @@ pub(crate) fn png(
         if options.background {
             painter.rect_filled(whole, 0.0, scene.background);
         }
-        let camera = Camera::item(scene.area.min);
+        let camera = Camera::item(scene.area.min, 1.0);
         for entity in &scene.entities {
             draw(&painter, scene, entity, camera, &decoded);
         }
@@ -463,6 +464,13 @@ fn draw(
         sketch: Rc::new(Sketch::of(entity).translated(Vec2::new(camera.origin.x, camera.origin.y))),
     }
     .draw(painter);
+    if let Some((at, galley)) = label(painter, entity, camera) {
+        let color = with_opacity(
+            resolve_color(entity.style.stroke_color, scene.palette.auto),
+            opacity,
+        );
+        painter.galley(at, galley, color);
+    }
 }
 
 fn entity_corner(
@@ -479,7 +487,7 @@ fn entity_corner(
 fn text_lines(painter: &Painter, entity: &CanvasEntity, camera: Camera) -> Vec<(Pos2, Galley)> {
     let text = match entity.text.is_empty() {
         true => return Vec::new(),
-        false => &entity.text,
+        false => entity.text.to_str_lossy(),
     };
     let style = entity.text_style;
     let px = font_px(entity, 1.0) * camera.scale;
@@ -490,7 +498,7 @@ fn text_lines(painter: &Painter, entity: &CanvasEntity, camera: Camera) -> Vec<(
     let inset = TEXT_INSET * camera.scale;
     let inner = rect.shrink(inset);
     let galley = painter.layout_text(
-        text,
+        &text,
         FontId::proportional(px).bold(style.weight == CanvasTextWeight::Bold),
         TextLayout {
             wrap_width: match style.wrap {
@@ -574,7 +582,7 @@ fn svg_entity(
         resolve_color(style.stroke_color, scene.palette.auto),
         opacity,
     );
-    let world = Camera::item(Pos2::ZERO);
+    let world = Camera::item(Pos2::ZERO, 1.0);
     let turn = turn(entity);
     if entity.shape == CanvasShape::Text {
         for (at, galley) in text_lines(painter, entity, world) {

@@ -1,20 +1,27 @@
+use std::cell::Cell;
+use std::sync::Arc;
+
+use block_editor_beui::be_block::be_model::ObjectId;
 use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasShape, CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign,
-    CanvasTextWeight,
+    Canvas, CanvasEntity, CanvasPoint, CanvasShape, CanvasTextAlign, CanvasTextStyle,
+    CanvasTextVerticalAlign, CanvasTextWeight, Entity,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::styled::text_input::text_input_style;
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::{self, Prose, TextInputStyle};
+use block_editor_beui::beui::unstyled::{
+    self, Prose, SyntaxColors, TextArea, TextAreaColors, TextAreaState,
+};
 use block_editor_beui::beui::{
     Color32, Key, KeyAt, KeyPhase, NodeId, Rect, TextAlign, Vec2, line_height, pos2,
 };
-
+use block_editor_beui::live_text::{FieldOf, LiveText, Synced};
+use text_editor_core::schema::basic::Basic;
+use text_editor_core::{EditorCommand, TextBuffer};
 use uuid::Uuid;
 
-use crate::geometry::TEXT_INSET;
+use crate::geometry::{TEXT_INSET, WorldRect, flattened};
 
-use super::paint::{resolve_color, with_opacity};
+use super::paint::{path_middle, resolve_color, with_opacity};
 use super::state::{CanvasState, TextEntry};
 
 const PLACEHOLDER_OPACITY: f32 = 0.4;
@@ -42,24 +49,53 @@ pub(crate) fn prose(text_style: CanvasTextStyle, font_px: f32) -> Prose {
     }
 }
 
+pub(crate) fn labels(shape: CanvasShape) -> bool {
+    matches!(
+        shape,
+        CanvasShape::Rectangle | CanvasShape::Ellipse | CanvasShape::Diamond | CanvasShape::Path
+    )
+}
+
+pub(crate) fn writes(entity: &CanvasEntity) -> bool {
+    !entity.hidden && (entity.shape == CanvasShape::Text || labels(entity.shape))
+}
+
+pub(crate) fn text_style(entity: &CanvasEntity) -> CanvasTextStyle {
+    match entity.shape {
+        CanvasShape::Text => entity.text_style,
+        CanvasShape::Path => CanvasTextStyle {
+            alignment: CanvasTextAlign::Center,
+            vertical_alignment: CanvasTextVerticalAlign::Middle,
+            wrap: false,
+            ..entity.text_style
+        },
+        _ => CanvasTextStyle {
+            alignment: CanvasTextAlign::Center,
+            vertical_alignment: CanvasTextVerticalAlign::Middle,
+            wrap: true,
+            ..entity.text_style
+        },
+    }
+}
+
+fn rich_state(entity: &CanvasEntity) -> TextAreaState {
+    let buffer = TextBuffer::rich(entity.text.bytes(), entity.text.seeds());
+    TextAreaState::with_schema(Arc::new(buffer), Arc::new(Basic))
+}
+
 pub(crate) fn measure(entity: &CanvasEntity, scale: f32) -> Option<Vec2> {
     if entity.shape != CanvasShape::Text {
         return None;
     }
     let font_px = font_px(entity, scale);
     let wrap_width = (entity.transform.size.x - TEXT_INSET * 2.0) * scale;
-    let measured = unstyled::measure_prose(
-        &entity.text,
-        &entity.placeholder,
+    let measured = rich_state(entity).measure_prose(
         font_px,
         prose(entity.text_style, font_px),
+        &entity.placeholder,
         wrap_width,
     )?;
     Some(Vec2::new(measured.x / scale, measured.y / scale))
-}
-
-pub(crate) fn shown_live(entity: &CanvasEntity) -> bool {
-    entity.shape == CanvasShape::Text && !entity.hidden
 }
 
 pub(crate) fn text_box(entity: &CanvasEntity) -> Rect {
@@ -71,14 +107,44 @@ pub(crate) fn text_box(entity: &CanvasEntity) -> Rect {
     )
 }
 
+pub(crate) fn text_region(entity: &CanvasEntity) -> Rect {
+    match entity.shape {
+        CanvasShape::Path | CanvasShape::Freehand => {
+            let reach = path_label_reach(entity);
+            Rect::from_min_max(
+                pos2(reach.min.x, reach.min.y),
+                pos2(reach.max.x, reach.max.y),
+            )
+        }
+        _ => text_box(entity),
+    }
+}
+
+pub(crate) fn path_label_reach(entity: &CanvasEntity) -> WorldRect {
+    let px = entity.style.text_size.px();
+    let text = entity.text.to_str_lossy();
+    let lines = text.lines().count().max(1) as f32;
+    let widest = text
+        .lines()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0) as f32;
+    let half = CanvasPoint::new(widest * px * 0.35 + px, lines * px * 0.75 + px);
+    let center = path_middle(&flattened(&entity.world_points()));
+    WorldRect::from_points(
+        CanvasPoint::new(center.x - half.x, center.y - half.y),
+        CanvasPoint::new(center.x + half.x, center.y + half.y),
+    )
+}
+
 #[derive(Clone, PartialEq)]
 struct Shown {
-    text: String,
     placeholder: String,
     text_style: CanvasTextStyle,
     size: f32,
     color: Color32,
     locked: bool,
+    region: Rect,
 }
 
 #[component]
@@ -91,34 +157,28 @@ pub(crate) fn EntityText(
     editing: Memo<bool>,
 ) -> NodeId {
     let theme = use_theme();
-    let scale = create_memo(move || camera.get().scale.max(f32::EPSILON));
+    let unit = create_memo(move || match editing.get() {
+        true => camera.get().scale.max(f32::EPSILON),
+        false => 1.0,
+    });
     let shown = create_memo(move || {
-        let entity = entity
-            .get()
-            .filter(|entity| entity.shape == CanvasShape::Text)?;
+        let entity = entity.get().filter(writes)?;
         Some(Shown {
             size: font_px(&entity, 1.0),
-            text: entity.text,
-            placeholder: entity.placeholder,
-            text_style: entity.text_style,
+            placeholder: entity.placeholder.clone(),
+            text_style: text_style(&entity),
             color: with_opacity(
                 resolve_color(entity.style.stroke_color, theme.text.get()),
                 entity.style.opacity,
             ),
             locked: entity.locked,
+            region: text_region(&entity),
         })
     });
-    let text = create_memo(move || shown.get().map(|shown| shown.text).unwrap_or_default());
     let placeholder = create_memo(move || {
         shown
             .get()
             .map(|shown| shown.placeholder)
-            .unwrap_or_default()
-    });
-    let text_style = create_memo(move || {
-        shown
-            .get()
-            .map(|shown| shown.text_style)
             .unwrap_or_default()
     });
     let color = create_memo(move || {
@@ -128,40 +188,50 @@ pub(crate) fn EntityText(
     });
     let font_size = create_memo(move || {
         let size = shown.get().map_or(20.0, |shown| shown.size);
-        (size * scale.get()).clamp(4.0, 256.0)
+        (size * unit.get()).clamp(1.0, 1024.0)
+    });
+    let prose = create_memo(move || {
+        let text_style = shown
+            .get()
+            .map(|shown| shown.text_style)
+            .unwrap_or_default();
+        Some(prose(text_style, font_size.get()))
     });
     let disabled =
         create_memo(move || !editing.get() || shown.get().is_none_or(|shown| shown.locked));
     let padding = create_memo(move || {
-        let (outer, inner, scale) = (
+        let (outer, inner, unit) = (
             outer.get(),
-            entity.get().as_ref().map_or(Rect::ZERO, text_box),
-            scale.get(),
+            shown.get().map_or(Rect::ZERO, |shown| shown.region),
+            unit.get(),
         );
         Sides::new(
-            ((inner.left() - outer.left()) * scale).max(0.0),
-            ((inner.top() - outer.top()) * scale).max(0.0),
-            ((outer.right() - inner.right()) * scale).max(0.0),
-            ((outer.bottom() - inner.bottom()) * scale).max(0.0),
+            ((inner.left() - outer.left()) * unit).max(0.0),
+            ((inner.top() - outer.top()) * unit).max(0.0),
+            ((outer.right() - inner.right()) * unit).max(0.0),
+            ((outer.bottom() - inner.bottom()) * unit).max(0.0),
         )
     });
-    let style = TextInputStyle {
-        font_size: font_size.into_prop(),
-        color: color.into_prop(),
-        placeholder_color: Prop::dynamic(move || with_opacity(color.get(), PLACEHOLDER_OPACITY)),
-        padding_horizontal: Prop::dynamic(move || TEXT_INSET * scale.get()),
-        padding_vertical: Prop::dynamic(move || TEXT_INSET * scale.get()),
-        prose: Prop::dynamic(move || Some(prose(text_style.get(), font_size.get()))),
-        ..text_input_style()
-    };
+    let inset = create_memo(move || Vec2::splat(TEXT_INSET * unit.get()));
+    let colors = create_memo(move || TextAreaColors {
+        surface: Color32::TRANSPARENT,
+        selection: theme.accent_soft.get(),
+        caret: theme.accent.get(),
+        placeholder: with_opacity(color.get(), PLACEHOLDER_OPACITY),
+        syntax: SyntaxColors::uniform(color.get()),
+        ..TextAreaColors::DEFAULT
+    });
+    let area = live_text(state, id, editing);
     let field = NodeRef::new();
     create_effect(move || {
         if !editing.get() {
             return;
         }
         untrack(|| {
-            if let (Some(entry), Some(node)) = (state.take_text_entry(), field.try_get()) {
-                enter(node, entry);
+            if let Some(entry) = state.take_text_entry() {
+                with_document(|document| {
+                    document.report_after_layout(move || enter(area, field, entry))
+                });
             }
         });
     });
@@ -176,18 +246,6 @@ pub(crate) fn EntityText(
         state.focus_surface();
         true
     });
-    let changed = move |typed: String| {
-        let Some(held) = entity.get_untracked() else {
-            return;
-        };
-        if held.shape != CanvasShape::Text || held.text == typed {
-            return;
-        }
-        let mut updated = held.clone();
-        updated.text = typed;
-        let updated = state.fit_text(updated);
-        state.record_update(vec![held], vec![updated], true);
-    };
     let left = move |has_focus: bool| {
         if !has_focus && editing.get_untracked() {
             state.finish_text();
@@ -195,33 +253,97 @@ pub(crate) fn EntityText(
     };
     view! {
         <Frame padding={padding}>
-            <unstyled::TextInput
+            <TextArea
                 @node_ref=&field
                 @test_id={format!("infinite-canvas.text.{id}")}
-                value={Binding::new(text, changed)}
-                placeholder={placeholder}
-                label="Text"
-                disabled={disabled}
+                state={area}
+                line_numbers=false
+                colors
+                placeholder
+                disabled
                 focused={editing}
-                multiline=true
-                style={style}
+                font_size
+                padding={inset}
+                prose
                 on_focus_change={left}
             />
         </Frame>
     }
 }
 
-fn enter(node: NodeId, entry: TextEntry) {
-    let (field, range) = with_document(|document| {
-        let field = unstyled::text_input_state(document, node);
-        let range = match entry {
-            TextEntry::All => 0..unstyled::text_input_value(document, node).len(),
-            TextEntry::At(at) => {
-                let at = unstyled::text_input_index_at(document, node, at);
-                at..at
+fn live_text(state: CanvasState, id: Uuid, editing: Memo<bool>) -> TextAreaState {
+    let object = ObjectId::from_uuid(id);
+    let editor = state.editor();
+    let host = editor.host();
+    let content = state.content();
+    let document = Arc::new(LiveText::new(
+        FieldOf::<Canvas>::rich(object, Entity::TEXT),
+        host.waker(),
+    ));
+    let _ = untrack(|| content.read(|content| document.adopt(content)));
+    document.take_external_edit();
+    let area = TextAreaState::with_schema(
+        Arc::clone(&document) as Arc<dyn text_editor_core::Document>,
+        Arc::new(Basic),
+    );
+    let stored = content.field(object, Entity::TEXT);
+    let adopted = store(Cell::new(false));
+    let fitted = store(Cell::new(0_u64));
+    create_effect(move || {
+        area.content().get();
+        let editing = editing.get();
+        match editing {
+            true => {
+                let _ = content.revision();
             }
-        };
-        (field, range)
+            false => stored.with(|_| ()),
+        }
+        untrack(|| {
+            let Some(adopted) = adopted.try_value() else {
+                return;
+            };
+            if !editing {
+                if adopted.replace(false) {
+                    document.sync(&content, &editor.host(), state.block_id(), false);
+                }
+                let _ = content.read(|content| document.adopt(content));
+                if document.take_external_edit() {
+                    area.external_edit();
+                }
+                return;
+            }
+            let first = !adopted.get();
+            match document.sync(&content, &editor.host(), state.block_id(), first) {
+                Synced::Waiting => return,
+                Synced::External => area.external_edit(),
+                Synced::Unchanged => area.sync(),
+            }
+            adopted.set(true);
+            let revision = text_editor_core::Document::revision(document.as_ref());
+            let fitted = fitted.value();
+            if first {
+                fitted.set(revision);
+            } else if fitted.replace(revision) != revision {
+                state.fit_edited_text(id);
+            }
+        });
     });
-    field.select(range);
+    area
+}
+
+fn enter(area: TextAreaState, field: NodeRef, entry: TextEntry) {
+    let Some(node) = field.try_get() else {
+        return;
+    };
+    let range = match entry {
+        TextEntry::All => {
+            area.execute(EditorCommand::SelectAll);
+            return;
+        }
+        TextEntry::At(at) => {
+            let at = with_document(|document| unstyled::text_area_index_at(document, node, at));
+            at..at
+        }
+    };
+    area.select(range);
 }

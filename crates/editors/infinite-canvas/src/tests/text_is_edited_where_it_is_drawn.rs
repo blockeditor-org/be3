@@ -7,7 +7,7 @@ fn text_is_edited_where_it_is_drawn() {
     label.transform =
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(160.0, 40.0), 0.0);
     label.shape = CanvasShape::Text;
-    label.text = "Hello".to_owned();
+    label.text = "Hello".into();
     let mut editor = editor(std::slice::from_ref(&label));
     let field = format!("infinite-canvas.text.{}", label.id);
     let resting = editor.rect_of(&field);
@@ -31,7 +31,7 @@ fn text_is_edited_where_it_is_drawn() {
     editor.run();
 
     assert_eq!(
-        entities(&editor)[0].text,
+        entities(&editor)[0].text.to_str_lossy(),
         "Hello!",
         "typing lands at the caret, and Escape stops it"
     );

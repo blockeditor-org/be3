@@ -1,6 +1,8 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use be_model::{Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId};
+use be_model::{
+    Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId, RichText, marks::Rich,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -8,6 +10,31 @@ use crate::database::DatabaseValue;
 use crate::{ChildChange, Root};
 
 pub const BINDING_GAP: f32 = 4.0;
+
+mod rich_text {
+    use be_model::RichText;
+    use be_model::marks::Seed;
+    use serde::{Deserialize, Deserializer, Serialize, Serializer};
+
+    #[derive(Deserialize, Serialize)]
+    struct Held {
+        bytes: Vec<u8>,
+        seeds: Vec<Seed>,
+    }
+
+    pub fn serialize<S: Serializer>(text: &RichText, serializer: S) -> Result<S::Ok, S::Error> {
+        Held {
+            bytes: text.bytes().to_vec(),
+            seeds: text.seeds().to_vec(),
+        }
+        .serialize(serializer)
+    }
+
+    pub fn deserialize<'de, D: Deserializer<'de>>(deserializer: D) -> Result<RichText, D::Error> {
+        let held = Held::deserialize(deserializer)?;
+        Ok(RichText::new(held.bytes, held.seeds))
+    }
+}
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
@@ -375,7 +402,8 @@ pub struct CanvasEntity {
     pub points: Vec<CanvasPathPoint>,
     pub pressures: Vec<f32>,
     pub bindings: [Option<CanvasBinding>; 2],
-    pub text: String,
+    #[serde(with = "rich_text")]
+    pub text: RichText,
     pub placeholder: String,
     pub text_style: CanvasTextStyle,
     pub style: CanvasStyle,
@@ -469,7 +497,7 @@ pub struct Entity {
     pub pressures: Vec<f32>,
     pub start_binding: Option<CanvasBinding>,
     pub end_binding: Option<CanvasBinding>,
-    pub text: String,
+    pub text: RichText,
     pub placeholder: String,
     pub text_style: CanvasTextStyle,
     pub stroke_color: CanvasColor,
@@ -727,6 +755,32 @@ impl Canvas {
         }
     }
 
+    pub fn rich_text(content: &CanvasContent, entity: Uuid) -> Option<&Rich> {
+        content.rich(ObjectId::from_uuid(entity), Entity::TEXT)
+    }
+
+    pub fn retext(content: &CanvasContent, client: u64, entity: Uuid, text: &str) -> Option<Edit> {
+        let held = Self::rich_text(content, entity)?.text.items();
+        let wanted = text.as_bytes();
+        let start = held
+            .iter()
+            .zip(wanted)
+            .take_while(|(held, wanted)| held == wanted)
+            .count();
+        let end = held[start..]
+            .iter()
+            .rev()
+            .zip(wanted[start..].iter().rev())
+            .take_while(|(held, wanted)| held == wanted)
+            .count();
+        let op = Self::rich_text(content, entity)?.text.replace(
+            client,
+            start..held.len() - end,
+            wanted[start..wanted.len() - end].to_vec(),
+        )?;
+        Some(Entity::TEXT.edit(ObjectId::from_uuid(entity), op).into())
+    }
+
     fn reorder_to(&self, target: &[Uuid], moved: &[Uuid]) -> Edit {
         let objects: Vec<(Uuid, ObjectId)> = self
             .entities
@@ -798,7 +852,6 @@ fn update_entity(
     write!(PRESSURES, shown.pressures, update.pressures);
     write!(START_BINDING, shown.bindings[0], update.bindings[0]);
     write!(END_BINDING, shown.bindings[1], update.bindings[1]);
-    write!(TEXT, shown.text, update.text);
     write!(PLACEHOLDER, shown.placeholder, update.placeholder);
     write!(TEXT_STYLE, shown.text_style, update.text_style);
     let (was, style) = (shown.style, update.style);
@@ -1036,7 +1089,7 @@ impl CanvasEntity {
             points: Vec::new(),
             pressures: Vec::new(),
             bindings: [None, None],
-            text: String::new(),
+            text: RichText::default(),
             placeholder: String::new(),
             text_style: CanvasTextStyle::default(),
             style: CanvasStyle {

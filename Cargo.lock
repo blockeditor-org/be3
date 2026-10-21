@@ -3913,6 +3913,7 @@ dependencies = [
  "image",
  "serde",
  "serde_json",
+ "text-editor-core",
  "uuid",
 ]
 

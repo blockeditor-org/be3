@@ -21,9 +21,9 @@ fn grid(count: usize) -> Vec<CanvasEntity> {
                 blue: 160,
                 alpha: 255,
             };
-            if index % 5 == 0 && index < 6 {
+            if index % 5 == 0 {
                 shape.shape = CanvasShape::Text;
-                shape.text = format!("T{index}");
+                shape.text = format!("T{index}").as_str().into();
                 shape.placeholder = "Text".to_owned();
             }
             shape

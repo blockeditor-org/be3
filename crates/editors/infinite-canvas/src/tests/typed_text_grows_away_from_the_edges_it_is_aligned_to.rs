@@ -13,7 +13,7 @@ fn label(
     let mut label = entity(Uuid::from_u128(id));
     label.transform = CanvasTransform::new(center, CanvasPoint::new(60.0, 60.0), 0.0);
     label.shape = CanvasShape::Text;
-    label.text = "Hi".to_owned();
+    label.text = "Hi".into();
     label.text_style = CanvasTextStyle {
         alignment,
         vertical_alignment,

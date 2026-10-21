@@ -103,6 +103,10 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
         self.projected.borrow_mut().get_or_insert_with(Vec::new);
     }
 
+    fn stop_recording(&self) {
+        *self.projected.borrow_mut() = None;
+    }
+
     fn take_projected(&self) -> Vec<Projected<C::Op>> {
         self.adopt_lazily();
         self.projected
@@ -370,6 +374,10 @@ impl<C: LiveEdit + Clone + Default + 'static> ContentProjection<C> {
 
     pub fn record(&self) {
         self.inner().record();
+    }
+
+    pub fn stop_recording(&self) {
+        self.inner().stop_recording();
     }
 
     pub fn take_projected(&self) -> Vec<Projected<C::Op>> {

@@ -103,7 +103,12 @@ fn FrameSection(state: CanvasState) -> NodeId {
         entity.is_frame().then(|| entity.clone())
     });
     let shown = create_memo(move || frame.get().is_some());
-    let name = create_memo(move || frame.get().map(|entity| entity.text).unwrap_or_default());
+    let name = create_memo(move || {
+        frame
+            .get()
+            .map(|entity| entity.text.to_str_lossy().into_owned())
+            .unwrap_or_default()
+    });
     let locked = create_memo(move || frame.get().is_none_or(|entity| entity.locked));
     let first = create_memo(move || {
         frame.get().is_some_and(|entity| {
@@ -113,12 +118,9 @@ fn FrameSection(state: CanvasState) -> NodeId {
         })
     });
     let renamed = move |name: String| {
-        let Some(held) = frame.get_untracked() else {
-            return;
-        };
-        let mut updated = held.clone();
-        updated.text = name;
-        state.record_update(vec![held], vec![updated], true);
+        if let Some(held) = frame.get_untracked() {
+            state.retext(held.id, &name);
+        }
     };
     view! {
         <List spacing=0.0>
