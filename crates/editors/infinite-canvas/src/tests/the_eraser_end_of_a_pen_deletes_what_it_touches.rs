@@ -26,7 +26,6 @@ fn the_eraser_end_of_a_pen_deletes_what_it_touches() {
             .center()
     };
     let (top, middle) = (at(&editor, &locked), at(&editor, &first));
-    let before = editor.applied(None);
 
     editor.eraser(PenPhase::Move, top);
     editor.next_frame();
@@ -44,5 +43,10 @@ fn the_eraser_end_of_a_pen_deletes_what_it_touches() {
         vec![second.clone(), locked.clone()],
         "the eraser deletes what it crosses, leaves what is locked and draws nothing"
     );
-    assert_eq!(editor.applied(None), before + 1, "one stroke is one edit");
+    undo(&mut editor);
+    assert_eq!(
+        entities(&editor),
+        vec![first, second, locked],
+        "one undo brings back everything one stroke erased"
+    );
 }

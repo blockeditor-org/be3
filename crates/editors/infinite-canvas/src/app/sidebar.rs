@@ -309,13 +309,16 @@ fn TransformFields(state: CanvasState) -> NodeId {
             let mut updated = held.clone();
             apply(&mut updated, value);
             state.record_update(vec![held], vec![updated]);
+            state.commit_writes();
         };
         let preview = move |value: Option<f64>| {
-            let typed = value.zip(entity.get_untracked()).map(|(value, mut held)| {
-                apply(&mut held, value);
-                held
-            });
-            state.preview_typed(typed);
+            let (Some(value), Some(held)) = (value, entity.get_untracked()) else {
+                state.cancel_writes();
+                return;
+            };
+            let mut typed = held.clone();
+            apply(&mut typed, value);
+            state.type_value(held, typed);
         };
         (change, preview)
     };

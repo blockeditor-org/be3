@@ -12,7 +12,6 @@ use super::paint::{
     Camera, Palette, SELECTION, arrowhead, handle, outline, resolve_color, with_opacity,
 };
 use super::state::{Gesture, RemoteCursor, RemoteSelection, Tool};
-use crate::presence::Draft;
 
 const HINT: &str = "Scroll or use two fingers to move around  ·  Pick a tool to draw\nDrop or paste images, or use Block to add content";
 const HINT_MARGIN: f32 = 16.0;
@@ -240,7 +239,6 @@ pub(crate) struct Live {
     pub(crate) camera: Camera,
     pub(crate) palette: Palette,
     pub(crate) gesture: Option<Gesture>,
-    pub(crate) drafts: Vec<Draft>,
     pub(crate) cursors: Vec<RemoteCursor>,
     pub(crate) pen: CanvasStyle,
     pub(crate) badge: Option<Badge>,
@@ -249,16 +247,12 @@ pub(crate) struct Live {
 impl Live {
     pub(crate) fn is_empty(&self) -> bool {
         !self.gesture.as_ref().is_some_and(drawn)
-            && self.drafts.is_empty()
             && self.cursors.iter().all(|cursor| cursor.pointer.is_none())
             && self.badge.is_none()
     }
 
     pub(crate) fn draw(&self, painter: &Painter, stage: Rect) {
         self.draw_gesture(painter);
-        for draft in &self.drafts {
-            self.draw_draft(painter, draft);
-        }
         for cursor in &self.cursors {
             let Some(pointer) = cursor.pointer else {
                 continue;
@@ -307,14 +301,18 @@ impl Live {
                     painter.stroke_path(&Path::polyline(points), &stroke, self.palette.muted);
                 }
             }
-            Some(Gesture::Pen {
-                points,
-                pressures,
-                predicted,
-                ..
-            }) => {
-                let mut pressures = pressures.clone();
-                let points: Vec<CanvasPoint> = points.iter().chain(predicted).copied().collect();
+            Some(
+                gesture @ Gesture::Pen {
+                    points,
+                    pressures,
+                    predicted,
+                    ..
+                },
+            ) if drawn(gesture) => {
+                let from = points.len().saturating_sub(2);
+                let mut pressures = pressures.get(from..).unwrap_or_default().to_vec();
+                let points: Vec<CanvasPoint> =
+                    points[from..].iter().chain(predicted).copied().collect();
                 if let Some(last) = pressures.last().copied().filter(|_| predicted.is_some()) {
                     pressures.push(last);
                 }
@@ -354,41 +352,25 @@ impl Live {
             | Some(Gesture::Rotate { .. })
             | Some(Gesture::Endpoint { .. })
             | Some(Gesture::Bend { .. })
+            | Some(Gesture::Pen { .. })
             | None => {}
-        }
-    }
-
-    fn draw_draft(&self, painter: &Painter, draft: &Draft) {
-        match draft {
-            Draft::Stroke {
-                points,
-                pressures,
-                style,
-                ..
-            } => {
-                let color = stroke_ink(style, &self.palette);
-                live_stroke(
-                    painter,
-                    self.camera,
-                    points,
-                    pressures,
-                    style.stroke_width,
-                    color,
-                );
-            }
-            Draft::Shape(_) | Draft::Change { .. } => {}
         }
     }
 }
 
 fn drawn(gesture: &Gesture) -> bool {
+    if let Gesture::Pen {
+        points, predicted, ..
+    } = gesture
+    {
+        return points.len() < 2 || predicted.is_some();
+    }
     matches!(
         gesture,
         Gesture::Create {
             tool: Tool::Text,
             ..
         } | Gesture::Erase { .. }
-            | Gesture::Pen { .. }
             | Gesture::SelectBox { .. }
             | Gesture::Lasso { .. }
     )

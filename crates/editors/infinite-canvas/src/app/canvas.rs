@@ -37,8 +37,8 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             let camera = create_memo(move || {
                 super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
             });
-            let ids = state.entities.shown_ids();
-            let embedding = create_memo(move || state.entities.shown_embedding());
+            let ids = state.entities.ids();
+            let embedding = create_memo(move || state.entities.embedding());
             let inset = create_memo(move || {
                 let (placed, shown) = (placed.get(), shown.get());
                 Sides::new(
@@ -53,7 +53,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             let frames = create_memo(move || {
                 state
                     .entities
-                    .shown_frames()
+                    .frames()
                     .iter()
                     .filter(|frame| !frame.hidden)
                     .map(|frame| entity_bounds(frame).rect())
@@ -62,7 +62,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             let frame_ids = create_memo(move || {
                 state
                     .entities
-                    .shown_frames()
+                    .frames()
                     .iter()
                     .filter(|frame| !frame.hidden)
                     .map(|frame| frame.id)
@@ -186,10 +186,7 @@ fn CanvasHint(
     let theme = use_theme();
     let hint = create_memo(move || {
         let empty = state.entities.ids().with(Vec::is_empty);
-        let presence = state.presence.get();
-        let busy = state.gesture.with(Option::is_some)
-            || !presence.drafts.is_empty()
-            || !presence.entities.is_empty();
+        let busy = state.gesture.with(Option::is_some);
         (empty && !busy).then(|| Hint {
             color: theme.text_muted.get(),
         })
@@ -229,17 +226,14 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment
     let scale = create_memo(move || camera.get().scale.max(f32::EPSILON));
     create_effect(move || {
         let selection = state.selection.get();
-        let selected = state.entities.shown_among(&selection);
+        let selected = state.entities.among(&selection);
         let scale = scale.get();
         let mut overlay = Overlay {
             camera: Camera::item(Pos2::ZERO, scale),
             palette: palette(&theme),
             outlines: super::state::selected_outlines(&selected, &selection),
             frame: super::state::selection_frame(&selected, &selection),
-            path: state
-                .selected_path()
-                .and_then(|path| state.entities.shown(path.id))
-                .map(|path| path_grips(&path, scale)),
+            path: state.selected_path().map(|path| path_grips(&path, scale)),
             group: entered_group_bounds(state),
             resize: state.selection_handles().0,
             rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),
@@ -299,7 +293,6 @@ fn LiveOverlay(
             camera: Camera::item(visible.get().min, camera.get().scale.max(f32::EPSILON)),
             palette: palette(&theme),
             gesture: state.gesture.get(),
-            drafts: presence.drafts,
             cursors: presence.cursors,
             pen: state.default_style(),
             badge: state
@@ -586,14 +579,14 @@ fn entered_group_bounds(state: CanvasState) -> Option<WorldRect> {
         .collect();
     state
         .entities
-        .shown_among(&members)
+        .among(&members)
         .iter()
         .map(entity_bounds)
         .reduce(WorldRect::union)
 }
 
 fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {
-    state.entities.watch(id).shown()
+    state.entities.watch(id).stored()
 }
 
 pub(crate) fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {

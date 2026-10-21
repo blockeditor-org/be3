@@ -2,12 +2,9 @@ use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::presence::{
-    CanvasCaret, CanvasCursor, CanvasDraft, Draft, assemble, fingerprint, stroke_parts, unlanded,
-};
+use crate::presence::{CanvasCaret, CanvasCursor};
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::CanvasContent;
-use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::canvas::{
     Canvas, CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove,
@@ -15,7 +12,8 @@ use block_editor_beui::be_block::canvas::{
     CanvasTransform, InfiniteCanvasOperation,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
-use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind, pick_free_color};
+use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
+use block_editor_beui::be_block::{Edit, ObjectId};
 use block_editor_beui::beui::icons::{
     ICON_ARROW_SELECTOR_TOOL, ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DIAMOND, ICON_DRAW,
     ICON_INK_ERASER, ICON_LASSO_SELECT, ICON_NORTH_EAST, ICON_PANORAMA_FISH_EYE, ICON_RECTANGLE,
@@ -131,10 +129,15 @@ impl Tool {
         matches!(self, Tool::Line | Tool::Arrow)
     }
 
-    pub(crate) fn drafts_a_shape(self) -> bool {
+    pub(crate) fn draws_live(self) -> bool {
         matches!(
             self,
-            Tool::Rectangle | Tool::Ellipse | Tool::Diamond | Tool::Line | Tool::Arrow
+            Tool::Rectangle
+                | Tool::Ellipse
+                | Tool::Diamond
+                | Tool::Line
+                | Tool::Arrow
+                | Tool::Frame
         )
     }
 
@@ -150,7 +153,7 @@ impl Tool {
     }
 }
 
-fn drafted(mut entity: CanvasEntity, id: Uuid, start: CanvasPoint) -> CanvasEntity {
+fn seeded(mut entity: CanvasEntity, id: Uuid, start: CanvasPoint) -> CanvasEntity {
     entity.id = id;
     entity.style.seed = drawn_seed(entity.shape, start);
     entity
@@ -271,7 +274,7 @@ pub(crate) enum Gesture {
 pub(crate) const ERASER_TRAIL: usize = 24;
 const ERASED_OPACITY: f32 = 0.25;
 
-pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
+pub(crate) fn gesture_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
     match gesture {
         Gesture::Move {
             start,
@@ -399,8 +402,6 @@ pub(crate) struct Presence {
     pub(crate) cursors: Vec<RemoteCursor>,
     pub(crate) selections: Vec<RemoteSelection>,
     pub(crate) carets: Vec<(CanvasCaret, PresenceColor)>,
-    pub(crate) drafts: Vec<Draft>,
-    pub(crate) entities: Vec<CanvasEntity>,
 }
 
 #[derive(Clone)]
@@ -426,9 +427,7 @@ struct CanvasCells {
     placeholders: RefCell<HashMap<Uuid, Placeholder>>,
     confirmed_editor: Cell<Option<Uuid>>,
     shown: RefCell<Option<CanvasCursor>>,
-    drafted: RefCell<Option<(Uuid, Vec<CanvasDraft>)>>,
-    landing: Cell<Option<Uuid>>,
-    landed: RefCell<HashSet<(Uuid, u64)>>,
+    writing: Cell<bool>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
 }
@@ -448,7 +447,6 @@ pub(crate) struct CanvasState {
     pub(crate) selection: Signal<HashSet<Uuid>>,
     pub(crate) entered_group: Signal<Option<Uuid>>,
     pub(crate) gesture: Signal<Option<Gesture>>,
-    typed: Signal<Option<CanvasEntity>>,
     pub(crate) focused_editor: Signal<Option<Uuid>>,
     pub(crate) editing_text: Signal<Option<Uuid>>,
     pub(crate) import_error: Signal<Option<String>>,
@@ -459,7 +457,6 @@ pub(crate) struct CanvasState {
     pub(crate) presence: Signal<Presence>,
     peer_carets: Memo<Vec<(CanvasCaret, PresenceColor)>>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
-    drafts: ReadSignal<Vec<(u64, CanvasDraft)>>,
 }
 
 impl CanvasState {
@@ -482,7 +479,6 @@ impl CanvasState {
         let selection = create_signal(HashSet::new());
         let entered_group = create_signal(None);
         let gesture = create_signal(None);
-        let typed = create_signal(None::<CanvasEntity>);
         let focused_editor = create_signal(None);
         let editing_text = create_signal(None);
         let import_error = create_signal(None);
@@ -528,7 +524,6 @@ impl CanvasState {
         });
         let child_states = create_signal(HashMap::new());
         let presence = create_signal(Presence::default());
-        let drafted = create_memo(move || presence.with(|presence| presence.entities.clone()));
         let peer_carets = create_memo(move || presence.with(|presence| presence.carets.clone()));
         let pointer = create_signal(None);
         let caret = create_signal(None);
@@ -549,13 +544,12 @@ impl CanvasState {
             placeholders: RefCell::new(HashMap::new()),
             confirmed_editor: Cell::new(None),
             shown: RefCell::new(None),
-            drafted: RefCell::new(None),
-            landing: Cell::new(None),
-            landed: RefCell::new(HashSet::new()),
+            writing: Cell::new(false),
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
         });
-        let state = Self {
+
+        Self {
             cells,
             editor,
             preview,
@@ -569,7 +563,6 @@ impl CanvasState {
             selection,
             entered_group,
             gesture,
-            typed,
             focused_editor,
             editing_text,
             import_error,
@@ -580,49 +573,23 @@ impl CanvasState {
             presence,
             peer_carets,
             peers: editor.peers::<CanvasCursor>(),
-            drafts: editor.peers::<CanvasDraft>(),
-        };
-        create_binding(move || {
-            let mut previews = gesture.with(|gesture: &Option<Gesture>| {
-                gesture.as_ref().map(preview_entities).unwrap_or_default()
-            });
-            previews.extend(state.drawn_shape());
-            if let Some(typed) = typed.get() {
-                match previews.iter_mut().find(|entity| entity.id == typed.id) {
-                    Some(previewed) => *previewed = typed,
-                    None if entities.get_untracked(typed.id).is_some() => previews.push(typed),
-                    None => {}
-                }
-            }
-            drafted.with(|drafted| {
-                for entity in drafted {
-                    if !previews.iter().any(|previewed| previewed.id == entity.id) {
-                        previews.push(entity.clone());
-                    }
-                }
-            });
-            entities.preview(previews);
-        });
-        state
+        }
     }
 
-    fn drawn_shape(&self) -> Option<CanvasEntity> {
-        let Some(Gesture::Create {
+    fn drawn_shape(&self, gesture: &Gesture) -> Option<CanvasEntity> {
+        let Gesture::Create {
             id,
             tool,
             start,
             current,
             from_center,
             ..
-        }) = self.gesture.get()
+        } = *gesture
         else {
             return None;
         };
-        if !tool.drafts_a_shape() && tool != Tool::Frame {
-            return None;
-        }
         let entity = self.created_entity(tool, start, current, from_center)?;
-        Some(drafted(entity, id, start))
+        Some(seeded(entity, id, start))
     }
 
     pub(crate) fn is_alive(&self) -> bool {
@@ -690,10 +657,9 @@ impl CanvasState {
         CanvasPoint::new(center.x, center.y)
     }
 
-    pub(crate) fn preview_typed(&self, entity: Option<CanvasEntity>) {
-        if self.typed.get_untracked() != entity {
-            self.typed.set(entity);
-        }
+    pub(crate) fn type_value(&self, before: CanvasEntity, after: CanvasEntity) {
+        self.open_writes();
+        self.record_update(vec![before], vec![after]);
     }
 
     pub(crate) fn label_of(&self, reference: Uuid) -> Option<BlockLabel> {
@@ -857,7 +823,98 @@ impl CanvasState {
                 .collect::<Edit>()
         }) && !edit.0.is_empty()
         {
+            if self.gesture.with_untracked(Option::is_some) {
+                self.open_writes();
+            }
             self.cells.value().content.operate(edit);
+        }
+    }
+
+    fn open_writes(&self) {
+        if !self.cells.value().writing.replace(true) {
+            self.content().begin_gesture();
+        }
+    }
+
+    pub(crate) fn commit_writes(&self) {
+        if self.cells.value().writing.replace(false) {
+            self.content().commit_gesture();
+        }
+    }
+
+    pub(crate) fn cancel_writes(&self) {
+        if self.cells.value().writing.replace(false) {
+            self.content().cancel_gesture();
+        }
+    }
+
+    fn holds(&self, id: Uuid) -> bool {
+        self.content()
+            .read(|canvas| canvas.tree().contains(ObjectId::from_uuid(id)))
+            .unwrap_or(false)
+    }
+
+    fn put_live(&self, entities: Vec<CanvasEntity>) {
+        let (held, added): (Vec<_>, Vec<_>) = entities
+            .into_iter()
+            .partition(|entity| self.holds(entity.id));
+        let mut operations: Vec<InfiniteCanvasOperation> = added
+            .into_iter()
+            .map(|entity| InfiniteCanvasOperation::Add {
+                entity: Box::new(entity),
+            })
+            .collect();
+        if !held.is_empty() {
+            operations.push(InfiniteCanvasOperation::Update { entities: held });
+        }
+        self.operate_all(&operations);
+    }
+
+    fn write_gesture(&self) {
+        let Some(gesture) = self.gesture.get_untracked() else {
+            return;
+        };
+        match &gesture {
+            Gesture::Create {
+                id,
+                tool,
+                start,
+                current,
+                ..
+            } if tool.draws_live() && start != current => match self.drawn_shape(&gesture) {
+                Some(entity) => self.put_live(vec![entity]),
+                None if self.holds(*id) => {
+                    self.operate(&InfiniteCanvasOperation::Remove { ids: vec![*id] })
+                }
+                None => {}
+            },
+            Gesture::Pen {
+                id,
+                points,
+                pressures,
+                ..
+            } => {
+                if let [start, _, ..] = points[..] {
+                    let entity =
+                        pen_entity(points.clone(), pressures.clone(), self.default_style());
+                    self.put_live(vec![seeded(entity, *id, start)]);
+                }
+            }
+            Gesture::Move {
+                duplicate: true, ..
+            } => self.put_live(gesture_entities(&gesture)),
+            Gesture::Move { .. }
+            | Gesture::Resize { .. }
+            | Gesture::Rotate { .. }
+            | Gesture::Endpoint { .. }
+            | Gesture::Bend { .. }
+            | Gesture::Erase { .. } => {
+                let updates = gesture_entities(&gesture);
+                if !updates.is_empty() {
+                    self.operate(&InfiniteCanvasOperation::Update { entities: updates });
+                }
+            }
+            Gesture::Create { .. } | Gesture::SelectBox { .. } | Gesture::Lasso { .. } => {}
         }
     }
 
@@ -943,7 +1000,9 @@ impl CanvasState {
             self.cells.value().select_tool.set(tool);
         }
         self.tool.set(tool);
-        self.gesture.set(None);
+        if self.gesture.with_untracked(Option::is_some) {
+            self.begin_gesture(None);
+        }
     }
 
     pub(crate) fn select_tool(&self) -> Tool {
@@ -968,7 +1027,9 @@ impl CanvasState {
     }
 
     pub(crate) fn begin_gesture(&self, gesture: Option<Gesture>) {
+        self.cancel_writes();
         self.gesture.set(gesture);
+        self.write_gesture();
     }
 
     pub(crate) fn update_gesture(&self, update: impl FnOnce(&mut Gesture)) {
@@ -976,7 +1037,16 @@ impl CanvasState {
         if let Some(gesture) = held.as_mut() {
             update(gesture);
             self.gesture.set(held);
+            self.write_gesture();
         }
+    }
+
+    pub(crate) fn take_gesture(&self) -> Option<Gesture> {
+        let gesture = self.gesture.get_untracked();
+        if gesture.is_some() {
+            self.gesture.set(None);
+        }
+        gesture
     }
 
     pub(crate) fn focus_editor(&self, entity: Option<Uuid>) {
@@ -1369,6 +1439,7 @@ impl CanvasState {
         };
         let from = trail.last().copied().unwrap_or(at);
         let crossed = self.erasable_between(from, at);
+        let mut restored = Vec::new();
         self.update_gesture(|gesture| {
             let Gesture::Erase { trail, erased } = gesture else {
                 return;
@@ -1378,7 +1449,13 @@ impl CanvasState {
             }
             trail.push(at);
             match restore {
-                true => erased.retain(|entity| !crossed.iter().any(|hit| hit.id == entity.id)),
+                true => {
+                    let (kept, back): (Vec<_>, Vec<_>) = std::mem::take(erased)
+                        .into_iter()
+                        .partition(|entity| !crossed.iter().any(|hit| hit.id == entity.id));
+                    *erased = kept;
+                    restored = back;
+                }
                 false => {
                     for entity in crossed {
                         if !erased.iter().any(|held| held.id == entity.id) {
@@ -1388,6 +1465,9 @@ impl CanvasState {
                 }
             }
         });
+        if !restored.is_empty() {
+            self.operate(&InfiniteCanvasOperation::Update { entities: restored });
+        }
     }
 
     fn erasable_between(&self, from: CanvasPoint, to: CanvasPoint) -> Vec<CanvasEntity> {
@@ -1419,22 +1499,25 @@ impl CanvasState {
     }
 
     pub(crate) fn add_entity(&self, entity: CanvasEntity) {
-        let id = entity.id;
-        let text = entity.shape == CanvasShape::Text;
+        let (id, shape) = (entity.id, entity.shape);
+        if shape == CanvasShape::Text {
+            self.edit_text(Some(id));
+        }
+        self.record(InfiniteCanvasOperation::Add {
+            entity: Box::new(entity),
+        });
+        self.select_added(id, shape);
+    }
+
+    fn select_added(&self, id: Uuid, shape: CanvasShape) {
         let select_after_add = !matches!(
-            entity.shape,
+            shape,
             CanvasShape::Path
                 | CanvasShape::Rectangle
                 | CanvasShape::Ellipse
                 | CanvasShape::Diamond
                 | CanvasShape::Freehand
         );
-        if text {
-            self.edit_text(Some(id));
-        }
-        self.record(InfiniteCanvasOperation::Add {
-            entity: Box::new(entity),
-        });
         let mut selection = HashSet::new();
         if select_after_add {
             selection.insert(id);
@@ -2246,22 +2329,21 @@ impl CanvasState {
 
     pub(crate) fn finish_gesture(&self, gesture: Gesture) {
         match gesture {
-            Gesture::Create {
-                id,
-                tool,
-                start,
-                current,
-                from_center,
-                ..
-            } => {
-                if let Some(entity) = self.created_entity(tool, start, current, from_center) {
-                    let entity = drafted(entity, id, start);
-                    let created = entity.id;
-                    self.add_entity(entity);
-                    if !self.tool_locked.get_untracked() {
-                        self.put_down_tool();
-                        self.selection.set(HashSet::from([created]));
+            Gesture::Create { tool, .. } => {
+                let Some(entity) = self.drawn_shape(&gesture) else {
+                    return;
+                };
+                let (created, shape) = (entity.id, entity.shape);
+                match tool.draws_live() {
+                    true => {
+                        self.put_live(vec![entity]);
+                        self.select_added(created, shape);
                     }
+                    false => self.add_entity(entity),
+                }
+                if !self.tool_locked.get_untracked() {
+                    self.put_down_tool();
+                    self.selection.set(HashSet::from([created]));
                 }
             }
             Gesture::Pen {
@@ -2272,7 +2354,8 @@ impl CanvasState {
             } => {
                 if let Some(&start) = points.first() {
                     let entity = pen_entity(points, pressures, self.default_style());
-                    self.add_entity(drafted(entity, id, start));
+                    self.put_live(vec![seeded(entity, id, start)]);
+                    self.select_added(id, CanvasShape::Freehand);
                 }
             }
             Gesture::SelectBox {
@@ -2318,28 +2401,6 @@ impl CanvasState {
                 }
                 self.selection.set(selection);
             }
-            Gesture::Move {
-                duplicate: true, ..
-            } => {
-                let additions = preview_entities(&gesture);
-                for entity in additions {
-                    self.operate(&InfiniteCanvasOperation::Add {
-                        entity: Box::new(entity),
-                    });
-                }
-            }
-            Gesture::Move {
-                ref originals,
-                duplicate: false,
-                ..
-            }
-            | Gesture::Resize { ref originals, .. }
-            | Gesture::Rotate { ref originals, .. } => {
-                let updates = preview_entities(&gesture);
-                if !updates.is_empty() {
-                    self.record_update(originals.clone(), updates);
-                }
-            }
             Gesture::Erase { erased, .. } => {
                 let ids: Vec<Uuid> = erased.iter().map(|entity| entity.id).collect();
                 if !ids.is_empty() {
@@ -2349,20 +2410,18 @@ impl CanvasState {
                     self.record(InfiniteCanvasOperation::Remove { ids });
                 }
             }
-            Gesture::Endpoint {
-                ref original, end, ..
-            } => {
-                let mut updates = preview_entities(&gesture);
+            Gesture::Endpoint { end, .. } => {
+                let mut updates = gesture_entities(&gesture);
                 for path in &mut updates {
                     let at = path_ends(path)[end];
                     path.bindings[end] = self.binding_at(at, path.id);
                 }
-                self.record_update(vec![original.as_ref().clone()], updates);
+                self.record(InfiniteCanvasOperation::Update { entities: updates });
             }
-            Gesture::Bend { ref original, .. } => {
-                let updates = preview_entities(&gesture);
-                self.record_update(vec![original.as_ref().clone()], updates);
-            }
+            Gesture::Move { .. }
+            | Gesture::Resize { .. }
+            | Gesture::Rotate { .. }
+            | Gesture::Bend { .. } => {}
         }
     }
 
@@ -2476,16 +2535,8 @@ impl CanvasState {
         });
         let state = self;
         create_effect(move || {
-            visible.with(|_| ());
-            state.gesture.with(|_| ());
-            state.entities.track_edits();
-            untrack(|| state.publish_draft());
-        });
-        let state = self;
-        create_effect(move || {
             state.entities.track_edits();
             state.peers.with(|_| ());
-            state.drafts.with(|_| ());
             untrack(|| state.read_presence());
         });
         let state = self;
@@ -2608,123 +2659,8 @@ impl CanvasState {
         self.cells.value().shown.replace(cursor);
     }
 
-    pub(crate) fn land_draft(&self, gesture: Option<&Gesture>) {
-        let landing = match gesture {
-            Some(Gesture::Pen { id, .. } | Gesture::Create { id, .. }) => Some(*id),
-            Some(Gesture::Move {
-                duplicate: true,
-                originals,
-                ..
-            }) => originals.first().map(|entity| entity.id),
-            _ => None,
-        };
-        self.cells.value().landing.set(landing);
-        if landing.is_none() {
-            self.publish_draft();
-        }
-    }
-
-    fn draft(&self) -> Option<(Uuid, Vec<CanvasDraft>)> {
-        let held = self.cells.value().drafted.borrow().clone();
-        match self.gesture.get_untracked() {
-            Some(Gesture::Pen {
-                id,
-                points,
-                pressures,
-                ..
-            }) => {
-                let mut parts = held
-                    .filter(|(drafted, _)| *drafted == id)
-                    .map(|(_, parts)| parts)
-                    .unwrap_or_default();
-                let from = parts.len().saturating_sub(1);
-                parts.truncate(from);
-                parts.extend(stroke_parts(
-                    id,
-                    self.default_style(),
-                    &points,
-                    &pressures,
-                    from,
-                ));
-                Some((id, parts))
-            }
-            Some(Gesture::Create { id, tool, .. }) if tool.drafts_a_shape() => {
-                let entity = untrack(|| self.drawn_shape())?;
-                Some((id, vec![CanvasDraft::Shape(Box::new(entity))]))
-            }
-            Some(gesture) => {
-                let parts: Vec<CanvasDraft> = preview_entities(&gesture)
-                    .into_iter()
-                    .filter_map(|entity| match self.entities.get_untracked(entity.id) {
-                        Some(stored) if stored == entity => None,
-                        Some(stored) => Some(CanvasDraft::Change {
-                            base: fingerprint(&stored),
-                            entity: Box::new(entity),
-                        }),
-                        None => Some(CanvasDraft::Shape(Box::new(entity))),
-                    })
-                    .take(CanvasDraft::SLOTS as usize)
-                    .collect();
-                let id = parts.first()?.id();
-                Some((id, parts))
-            }
-            None => held.filter(|(id, parts)| {
-                let landing = self.cells.value().landing.get() == Some(*id)
-                    || self.entities.get_untracked(*id).is_some();
-                landing
-                    && parts.iter().all(|part| match part {
-                        CanvasDraft::Change { entity, base } => self
-                            .entities
-                            .get_untracked(entity.id)
-                            .is_some_and(|stored| fingerprint(&stored) != *base),
-                        _ => true,
-                    })
-            }),
-        }
-    }
-
-    fn publish_draft(&self) {
-        let draft = match self.editor.presence_visible().get_untracked() {
-            true => self.draft(),
-            false => None,
-        };
-        let held = self.cells.value().drafted.take();
-        let before = held.as_ref().map_or(&[][..], |(_, parts)| parts);
-        let after = draft.as_ref().map_or(&[][..], |(_, parts)| parts);
-        for slot in 0..before.len().max(after.len()) {
-            if before.get(slot) != after.get(slot) {
-                self.editor.show_in(slot as u16, after.get(slot));
-            }
-        }
-        self.cells.value().drafted.replace(draft);
-    }
-
     fn read_presence(&self) {
-        let drafts = unlanded(
-            assemble(&self.drafts.get_untracked()),
-            |draft| match draft {
-                Draft::Change { entity, base } => self
-                    .entities
-                    .get_untracked(entity.id)
-                    .is_none_or(|stored| fingerprint(&stored) != *base),
-                _ => self.entities.get_untracked(draft.id()).is_some(),
-            },
-            &mut self.cells.value().landed.borrow_mut(),
-        );
         let mut presence = Presence::default();
-        for (_, draft) in drafts {
-            match draft {
-                Draft::Stroke { .. } => presence.drafts.push(draft),
-                Draft::Shape(entity) | Draft::Change { entity, .. } => {
-                    presence.entities.push(*entity)
-                }
-            }
-        }
-        let drafted: HashMap<Uuid, &CanvasEntity> = presence
-            .entities
-            .iter()
-            .map(|entity| (entity.id, entity))
-            .collect();
         for (_, cursor) in self.peers.get_untracked() {
             let color = cursor.color;
             if !cursor.selection.is_empty()
@@ -2732,10 +2668,7 @@ impl CanvasState {
                     .selection
                     .iter()
                     .filter_map(|id| self.entities.get_untracked(*id))
-                    .map(|entity| match drafted.get(&entity.id) {
-                        Some(drafted) => entity_bounds(drafted),
-                        None => entity_bounds(&entity),
-                    })
+                    .map(|entity| entity_bounds(&entity))
                     .reduce(WorldRect::union)
             {
                 presence.selections.push(RemoteSelection {

@@ -1072,13 +1072,22 @@ before the stack stops, which is when the organization changes.
 Undo lives in the app's peer, not in an editor, because it is the one place that
 sees every edit to a block from this device, whichever editor made it. A content
 type registered with `kind_with_history` gets a session that keeps an undo and a
-redo stack: every operation an editor sends records a step, a step sent
+redo stack (`be_block::history::History`): every operation an editor sends records a step, a step sent
 within 750 ms of the last one, by beui's frame clock (`be::operate` stamps it),
 may be absorbed into it, and `be::undo` and
 `be::redo` turn a step into operations the session applies like any other edit.
+An editor groups the edits of one gesture into one step, however long it takes, with
+`EditorMessage::Gesture` (`GesturePhase::Begin`, `Commit`, `Cancel`; on the plugin side
+`ContentProjection::begin_gesture`, `commit_gesture`, `cancel_gesture`): every edit from
+that instance until the commit folds into one step (`Undo::then`, which keeps one value
+per register however many frames wrote it), and a cancel reverts the step and leaves
+nothing in the history. The worker runs edits and gesture marks already queued behind
+one another before it publishes, so a gesture written every frame costs one publish per
+batch rather than one per frame.
 Plugins reach it with `BlockCommand::Undo` and `BlockCommand::Redo`, and watch
 whether either is possible with `EditorMessage::WatchHistory`, which the host
-answers with `HistoryStates` whenever they change.
+answers with `HistoryStates` whenever they change. block-ui-test keeps the same history
+for a block a test calls `ContentStore::keep_history::<C>` on, without the 750 ms bursts.
 
 ### Organizations and workspaces
 
@@ -1576,11 +1585,7 @@ as `EditorMessage::PeerPresence`. A plugin shows presence with
 `EditorMessage::ShowPresence`, which the host takes from any instance that holds
 the block and may view it, and takes away again when the instance closes. On the
 plugin side that is `editor.show(Some(&value))` and `editor.peers::<P>()`, a
-signal of every peer's value of one `PresenceKind` (`be_block::presence`). A
-kind that shows something too big to resend whole every frame declares `SLOTS`,
-a run of kind ids after its `ID`; `editor.show_in(slot, value)` shows one of them
-and `peers::<P>()` holds every slot's value, so the canvas sends a stroke being
-drawn in parts and resends only the one that grew. The
+signal of every peer's value of one `PresenceKind` (`be_block::presence`). The
 framework shows a `UserActive` value of its own, with a colour picked by
 `pick_free_color` against the colours already showing, whenever the host says the
 block is visible. The text editor's cursors and the canvas's pointers and

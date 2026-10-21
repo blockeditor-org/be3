@@ -36,7 +36,6 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
     );
     let bounds = editor.rect_of(&format!("infinite-canvas.entity.{}", around.id));
     let outside = Pos2::new(bounds.left() - 30.0, first.y);
-    let before = editor.applied(None);
 
     editor.key_press(Key::E);
     editor.run();
@@ -46,6 +45,10 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
         entities(&editor).len(),
         4,
         "nothing is erased before release"
+    );
+    assert!(
+        entities(&editor)[1].style.opacity < left.style.opacity,
+        "what the eraser crossed is dimmed in the document, so peers see it too"
     );
     editor.snapshot("dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release");
 
@@ -68,7 +71,6 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
         vec![around.clone(), middle.clone(), right.clone()],
         "the eraser takes what it crossed, leaves frames and locked shapes, and Alt restores"
     );
-    assert_eq!(editor.applied(None), before + 1, "one erase is one edit");
 
     editor.press_at(last + Vec2::new(0.0, 50.0));
     walk(
@@ -80,5 +82,16 @@ fn dragging_the_eraser_dims_what_it_crosses_and_erases_it_on_release() {
     editor.run();
     editor.release_at(last - Vec2::new(0.0, 50.0));
     editor.run();
-    assert_eq!(entities(&editor).len(), 3, "Escape calls the erase off");
+    assert_eq!(
+        entities(&editor),
+        vec![around.clone(), middle.clone(), right.clone()],
+        "Escape calls the erase off and puts back what it dimmed"
+    );
+
+    undo(&mut editor);
+    assert_eq!(
+        entities(&editor),
+        vec![around, left, middle, right],
+        "one undo takes back the whole erase, and the one called off left nothing to undo"
+    );
 }

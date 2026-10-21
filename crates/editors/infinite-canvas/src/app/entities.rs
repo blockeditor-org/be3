@@ -16,9 +16,7 @@ use crate::geometry::{WorldRect, entity_bounds};
 #[derive(Clone, Copy)]
 pub(crate) struct EntitySignals {
     held: Memo<Option<CanvasEntity>>,
-    held_shown: Memo<Option<CanvasEntity>>,
     stored: Memo<Option<CanvasEntity>>,
-    shown: Memo<Option<CanvasEntity>>,
     frame: Memo<bool>,
     embeds: Memo<bool>,
 }
@@ -27,15 +25,10 @@ impl EntitySignals {
     pub(crate) fn stored(&self) -> Memo<Option<CanvasEntity>> {
         self.stored
     }
-
-    pub(crate) fn shown(&self) -> Memo<Option<CanvasEntity>> {
-        self.shown
-    }
 }
 
 struct Slot {
     signals: EntitySignals,
-    preview: Signal<Option<CanvasEntity>>,
     watchers: usize,
     _scope: Scope,
 }
@@ -45,7 +38,6 @@ struct Slots {
     owner: ScopeContext,
     slots: RefCell<HashMap<Uuid, Slot>>,
     released: RefCell<HashSet<Uuid>>,
-    previewed: RefCell<HashSet<Uuid>>,
     catalog: RefCell<Catalog>,
 }
 
@@ -53,8 +45,7 @@ struct Slots {
 pub(crate) struct Entities {
     slots: Stored<Slots>,
     ids: Memo<Vec<Uuid>>,
-    previewed: Signal<Vec<Uuid>>,
-    shown_ids: Memo<Vec<Uuid>>,
+    order: Memo<HashMap<Uuid, usize>>,
     frames: Signal<Vec<Uuid>>,
     embedding: Signal<Vec<Uuid>>,
     extent: Signal<Option<WorldRect>>,
@@ -286,21 +277,12 @@ impl Entities {
         let ids = create_memo(move || {
             objects.with(|ids| ids.iter().map(|id| id.as_uuid()).collect::<Vec<_>>())
         });
-        let previewed = create_signal(Vec::<Uuid>::new());
-        let shown_ids = create_memo(move || {
-            ids.with(|stored| {
-                previewed.with(|previewed| {
-                    if previewed.is_empty() {
-                        return stored.clone();
-                    }
-                    let held: HashSet<&Uuid> = stored.iter().collect();
-                    let added: Vec<Uuid> = previewed
-                        .iter()
-                        .filter(|id| !held.contains(id))
-                        .copied()
-                        .collect();
-                    stored.iter().copied().chain(added).collect()
-                })
+        let order = create_memo(move || {
+            ids.with(|ids| {
+                ids.iter()
+                    .enumerate()
+                    .map(|(index, id)| (*id, index))
+                    .collect::<HashMap<_, _>>()
             })
         });
         let slots = store(Slots {
@@ -308,14 +290,12 @@ impl Entities {
             owner: owner_scope().expect("the canvas entities are made in a scope"),
             slots: RefCell::new(HashMap::new()),
             released: RefCell::new(HashSet::new()),
-            previewed: RefCell::new(HashSet::new()),
             catalog: RefCell::new(Catalog::default()),
         });
         let entities = Self {
             slots,
             ids,
-            previewed,
-            shown_ids,
+            order,
             frames: create_signal(Vec::new()),
             embedding: create_signal(Vec::new()),
             extent: create_signal(None),
@@ -353,10 +333,6 @@ impl Entities {
         self.ids
     }
 
-    pub(crate) fn shown_ids(&self) -> Memo<Vec<Uuid>> {
-        self.shown_ids
-    }
-
     pub(crate) fn track_edits(&self) {
         let _ = self.slots.value().content.revision();
     }
@@ -381,11 +357,6 @@ impl Entities {
         untrack(|| self.get(id))
     }
 
-    pub(crate) fn shown(&self, id: Uuid) -> Option<CanvasEntity> {
-        self.shown_ids.with(|_| ());
-        self.signals(id).shown.get()
-    }
-
     pub(crate) fn all(&self) -> Vec<CanvasEntity> {
         self.ids.with(|ids| {
             ids.iter()
@@ -399,28 +370,26 @@ impl Entities {
     }
 
     pub(crate) fn among(&self, selection: &HashSet<Uuid>) -> Vec<CanvasEntity> {
-        self.ids.with(|ids| {
-            ids.iter()
-                .filter(|id| selection.contains(id))
-                .filter_map(|id| self.signals(*id).stored.get())
+        let mut listed: Vec<(usize, Uuid)> = self.order.with(|order| {
+            selection
+                .iter()
+                .filter_map(|id| Some((*order.get(id)?, *id)))
                 .collect()
-        })
-    }
-
-    pub(crate) fn shown_among(&self, selection: &HashSet<Uuid>) -> Vec<CanvasEntity> {
-        self.shown_ids.with(|ids| {
-            ids.iter()
-                .filter(|id| selection.contains(id))
-                .filter_map(|id| self.signals(*id).shown.get())
-                .collect()
-        })
-    }
-
-    pub(crate) fn shown_embedding(&self) -> Vec<Uuid> {
-        self.shown_of(self.embedding, |signals| signals.embeds)
+        });
+        listed.sort_unstable();
+        listed
             .into_iter()
-            .map(|(id, _)| id)
+            .filter_map(|(_, id)| self.signals(id).stored.get())
             .collect()
+    }
+
+    pub(crate) fn embedding(&self) -> Vec<Uuid> {
+        self.embedding.with(|ids| {
+            ids.iter()
+                .copied()
+                .filter(|id| self.signals(*id).embeds.get())
+                .collect()
+        })
     }
 
     pub(crate) fn first_frame(&self) -> Option<CanvasEntity> {
@@ -428,11 +397,14 @@ impl Entities {
         self.signals(first).stored.get()
     }
 
-    pub(crate) fn shown_frames(&self) -> Vec<CanvasEntity> {
-        self.shown_of(self.frames, |signals| signals.frame)
-            .into_iter()
-            .filter_map(|(_, signals)| signals.shown.get())
-            .collect()
+    pub(crate) fn frames(&self) -> Vec<CanvasEntity> {
+        self.frames.with(|ids| {
+            ids.iter()
+                .map(|id| self.signals(*id))
+                .filter(|signals| signals.frame.get())
+                .filter_map(|signals| signals.stored.get())
+                .collect()
+        })
     }
 
     pub(crate) fn embedding_untracked(&self) -> Vec<Uuid> {
@@ -451,24 +423,6 @@ impl Entities {
         self.slots.value().catalog.borrow().visited
     }
 
-    fn shown_of(
-        &self,
-        stored: Signal<Vec<Uuid>>,
-        kind: fn(&EntitySignals) -> Memo<bool>,
-    ) -> Vec<(Uuid, EntitySignals)> {
-        stored.with(|stored| {
-            self.previewed.with(|previewed| {
-                let held: HashSet<&Uuid> = stored.iter().collect();
-                stored
-                    .iter()
-                    .chain(previewed.iter().filter(|id| !held.contains(id)))
-                    .map(|id| (*id, self.signals(*id)))
-                    .filter(|(_, signals)| kind(signals).get())
-                    .collect()
-            })
-        })
-    }
-
     fn followed(
         &self,
         mut entity: CanvasEntity,
@@ -478,34 +432,6 @@ impl Entities {
             entity.follow(|id| target(self.watch(id)).get());
         }
         entity
-    }
-
-    pub(crate) fn preview(&self, previews: Vec<CanvasEntity>) {
-        let slots = self.slots.value();
-        let ids: Vec<Uuid> = previews.iter().map(|entity| entity.id).collect();
-        let next: HashSet<Uuid> = ids.iter().copied().collect();
-        let gone: Vec<Uuid> = slots
-            .previewed
-            .replace(next)
-            .into_iter()
-            .filter(|id| !ids.contains(id))
-            .collect();
-        for entity in previews {
-            let preview = self.slot_preview(entity.id);
-            preview.set(Some(entity));
-        }
-        for id in &gone {
-            if let Some(preview) = slots.slots.borrow().get(id).map(|slot| slot.preview) {
-                preview.set(None);
-            }
-        }
-        self.previewed.set(ids);
-        self.release(&slots, &gone);
-    }
-
-    fn slot_preview(&self, id: Uuid) -> Signal<Option<CanvasEntity>> {
-        self.signals(id);
-        self.slots.value().slots.borrow()[&id].preview
     }
 
     fn signals(&self, id: Uuid) -> EntitySignals {
@@ -519,41 +445,31 @@ impl Entities {
             .expect("the canvas outlives its entities");
         let content = slots.content;
         let entities = *self;
-        let (signals, preview) = untrack(|| {
+        let signals = untrack(|| {
             scope.run(|| {
                 let object = ObjectId::from_uuid(id);
                 let object_held = content.object::<Entity>(object);
-                let preview = create_signal(None::<CanvasEntity>);
                 let held =
                     create_memo(move || object_held.with(|entity| entity.as_ref()?.view(object)));
-                let held_shown = create_memo(move || preview.get().or_else(|| held.get()));
                 let stored = create_memo(move || {
                     Some(entities.followed(held.get()?, |signals| signals.held))
                 });
-                let shown = create_memo(move || {
-                    Some(entities.followed(held_shown.get()?, |signals| signals.held_shown))
-                });
                 let frame = create_memo(move || {
-                    held_shown.with(|entity| entity.as_ref().is_some_and(CanvasEntity::is_frame))
+                    held.with(|entity| entity.as_ref().is_some_and(CanvasEntity::is_frame))
                 });
                 let embeds = create_memo(move || {
-                    held_shown.with(|entity| {
+                    held.with(|entity| {
                         entity.as_ref().is_some_and(|entity| {
                             entity.block.is_some() && entity.shape.embeds_block()
                         })
                     })
                 });
-                (
-                    EntitySignals {
-                        held,
-                        held_shown,
-                        stored,
-                        shown,
-                        frame,
-                        embeds,
-                    },
-                    preview,
-                )
+                EntitySignals {
+                    held,
+                    stored,
+                    frame,
+                    embeds,
+                }
             })
         });
         if !slots.catalog.borrow().listed.contains_key(&id) {
@@ -563,7 +479,6 @@ impl Entities {
             id,
             Slot {
                 signals,
-                preview,
                 watchers: 0,
                 _scope: scope,
             },
@@ -599,18 +514,16 @@ impl Entities {
             })
         })
         .unwrap_or_default();
-        let previewed = slots.previewed.borrow();
         let released: Vec<Slot> = {
             let mut map = slots.slots.borrow_mut();
             let idle: Vec<Uuid> = ids
                 .iter()
-                .filter(|id| !held.contains(id) && !previewed.contains(id))
+                .filter(|id| !held.contains(id))
                 .filter(|id| map.get(id).is_some_and(|slot| slot.watchers == 0))
                 .copied()
                 .collect();
             idle.iter().filter_map(|id| map.remove(id)).collect()
         };
-        drop(previewed);
         drop(released);
     }
 }

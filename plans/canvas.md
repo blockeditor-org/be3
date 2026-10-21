@@ -72,22 +72,15 @@ since beui's `Turn` does not turn pointer input). A freehand stroke is filled as
 (`freehand.rs`) that follows its pressures, or simulates them from speed when
 it has none; the stroke being drawn uses the same outline.
 
-Peers see a stroke, shape, line or arrow while it is drawn: the canvas shows
-it as `CanvasDraft` presence (`src/presence.rs`) under the id the entity will
-get, a stroke split into parts of 32 points across the kind's slots so each
-frame resends only the part that grew. The drawer keeps it up until the
-entity exists and its next gesture starts; a peer stops drawing a draft as
-soon as an entity with its id arrives, and never draws that one again. A
-move, resize, rotation or bend of shapes that exist is drafted as
-`CanvasDraft::Change`, with a fingerprint (`presence::fingerprint`) of the
-entity it changes; the mover keeps it up after the write, until its next
-gesture or until the entity goes back to that fingerprint, and a peer draws
-it only while its own copy still has that fingerprint, so the shape does not
-jump back when presence outruns the edit. A peer shows a drafted shape or
-change as a preview of that entity, so it is drawn with its label exactly as
-the drawer sees it. Previews reach only the shown entities, which only
-drawing reads (`Entities::shown_*`); everything that counts shapes (layers,
-selection, export, the intrinsic size) reads the stored ones. Peers also see each other's carets and selections in a
+Every gesture writes the document as it goes - a shape as it is dragged out,
+a stroke point by point, a move, resize, rotation, bend, endpoint drag, the
+eraser's dimming and a value typed into the inspector - so peers see it
+through sync, with no drafts in presence. A gesture is one undo step
+(`ContentProjection::begin_gesture` and `commit_gesture` around its writes,
+`CanvasState::open_writes` / `commit_writes`), and Escape, a second finger or
+another tool calls it off with `cancel_writes`, which reverts it in the
+client and leaves nothing to undo. A shape's id and hand-drawn seed are fixed
+when the gesture starts. Peers also see each other's carets and selections in a
 text or label, whether or not they edit it themselves.
 
 What holds it back:

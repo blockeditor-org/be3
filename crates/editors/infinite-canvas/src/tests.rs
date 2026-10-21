@@ -20,7 +20,6 @@ use uuid::Uuid;
 use crate::app::CanvasApp;
 use crate::app::state::{attach_component, remove_component, set_component_value};
 use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
-use crate::presence::CanvasDraft;
 use block_editor_beui::beui::{PenPhase, PointerButton};
 
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
@@ -40,12 +39,11 @@ mod a_multiple_selection_outlines_each_selected_entity;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
 mod a_new_shape_takes_the_last_style_used;
 mod a_peer_sees_a_labelled_shape_while_it_is_moved;
+mod a_peer_sees_a_move_called_off_put_back;
 mod a_peer_sees_a_shape_while_it_is_dragged;
 mod a_peer_sees_a_stroke_while_it_is_drawn;
 mod a_peer_sees_where_another_is_writing;
-mod a_peer_stops_drawing_a_move_that_is_called_off;
 mod a_peer_types_into_the_text_being_edited;
-mod a_peers_draft_is_drawn_but_not_counted_among_the_shapes;
 mod a_pen_lift_catalogues_only_the_new_stroke;
 mod a_pen_move_paints_and_visits_no_entity_again;
 mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
@@ -83,6 +81,7 @@ mod fit_all_zooms_to_the_first_frame;
 mod frames_hide_the_grid_outside_them_and_keep_a_hairline_outline;
 mod freehand_is_drawn_as_an_outline_that_follows_pressure;
 mod once_a_pen_has_drawn_a_finger_in_the_pen_tool_selects;
+mod one_undo_takes_back_a_whole_gesture;
 mod panning_and_zooming_paints_no_entity_again;
 mod panning_paints_no_frame_backdrop_again;
 mod panning_paints_no_grid_dot_again;
@@ -275,6 +274,7 @@ fn open_sized(
         harness.store().add_block(info.clone());
     }
     harness.hold(None, CanvasContent::new(canvas));
+    harness.store().keep_history::<CanvasContent>(None);
     harness.run();
     harness
 }
@@ -355,12 +355,8 @@ fn forward_presence(
     from: &mut BeuiTest<CanvasApp>,
     to: &mut BeuiTest<CanvasApp>,
     held: &mut BTreeMap<Uuid, Vec<u8>>,
-) -> usize {
-    let mut drafts = std::collections::HashSet::new();
+) {
     for shown in from.take_shown_presence() {
-        if crate::presence::CanvasDraft::holds(shown.kind) {
-            drafts.insert(shown.kind);
-        }
         match shown.value {
             Some(value) => held.insert(shown.kind, value),
             None => held.remove(&shown.kind),
@@ -377,5 +373,17 @@ fn forward_presence(
             .collect(),
     );
     to.run();
-    drafts.len()
+}
+
+fn undo(editor: &mut BeuiTest<CanvasApp>) {
+    let block = editor.block_id().expect("the canvas has a block");
+    editor.host().undo(block);
+    editor.run();
+}
+
+fn sync(from: &mut BeuiTest<CanvasApp>, to: &mut BeuiTest<CanvasApp>) {
+    for operation in from.store().take_written(None) {
+        to.store().apply_elsewhere(None, operation);
+    }
+    to.run();
 }

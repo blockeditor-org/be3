@@ -19,7 +19,12 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
 
     editor.click(&drawn);
     editor.run();
-    let before = editor.applied(None);
+    editor.click("infinite-canvas.transform.width");
+    editor.run();
+    editor.text("150");
+    editor.run();
+    editor.key_press(Key::Enter);
+    editor.run();
     let resting = editor.rect_of(&drawn);
     editor.click("infinite-canvas.transform.x");
     editor.run();
@@ -39,11 +44,18 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
 
     assert_eq!(editor.rect_of(&drawn), resting);
     assert_eq!(entities(&editor)[0].transform.center.x, 0.0);
+    undo(&mut editor);
     assert_eq!(
-        editor.applied(None),
-        before,
-        "a cancelled edit must not reach the block, or it lands in its undo history"
+        entities(&editor)[0].transform.size.x,
+        120.0,
+        "a cancelled edit leaves nothing in the undo history, so undo takes back the width"
     );
+    editor.click("infinite-canvas.transform.width");
+    editor.run();
+    editor.text("150");
+    editor.run();
+    editor.key_press(Key::Enter);
+    editor.run();
 
     let field = editor.point_of("infinite-canvas.transform.y");
     editor.drag(field, field + Vec2::new(20.0, 0.0));

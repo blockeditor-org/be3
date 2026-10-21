@@ -464,20 +464,19 @@ impl CanvasState {
             self.hover(None);
         }
         self.hold_pointer(false);
-        let gesture = self.gesture.get_untracked();
+        let gesture = self.take_gesture();
         let retapped = self.take_retap();
-        self.land_draft(gesture.as_ref());
-        self.begin_gesture(None);
         if let (Some((id, at)), Some(Gesture::Move { start, current, .. })) = (retapped, &gesture)
             && start == current
         {
+            self.commit_writes();
             self.edit_text_at(id, TextEntry::At(at));
             return;
         }
         if let Some(gesture) = gesture {
             self.finish_gesture(gesture);
         }
-        self.land_draft(None);
+        self.commit_writes();
     }
 
     pub(crate) fn cancel(&self) {

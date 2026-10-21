@@ -72,29 +72,30 @@ fn a_pen_lift_catalogues_only_the_new_stroke() {
     editor.run();
     let entities = ENTITIES.get().expect("the canvas was built");
     editor.settle();
-    let before = entities.catalogued();
-
     let from = editor.rect_of("infinite-canvas.canvas").center() - Vec2::new(100.0, 60.0);
     pen(&mut editor, PenPhase::Move, from);
-    pen(&mut editor, PenPhase::Down(PointerButton::Primary), from);
-    pen(&mut editor, PenPhase::Move, from + Vec2::new(20.0, 5.0));
-    pen(&mut editor, PenPhase::Move, from + Vec2::new(40.0, 0.0));
-    pen(
-        &mut editor,
-        PenPhase::Up(PointerButton::Primary),
-        from + Vec2::new(40.0, 0.0),
-    );
-    editor.run();
+    for (phase, at) in [
+        (PenPhase::Down(PointerButton::Primary), from),
+        (PenPhase::Move, from + Vec2::new(20.0, 5.0)),
+        (PenPhase::Move, from + Vec2::new(40.0, 0.0)),
+        (
+            PenPhase::Up(PointerButton::Primary),
+            from + Vec2::new(40.0, 0.0),
+        ),
+    ] {
+        let before = entities.catalogued();
+        pen(&mut editor, phase, at);
+        editor.run();
+        assert!(
+            entities.catalogued() - before <= 1,
+            "a frame of the stroke catalogued other entities than the stroke"
+        );
+    }
 
     assert_eq!(
         super::entities(&editor).len(),
         50,
         "the stroke was not added"
-    );
-    assert_eq!(
-        entities.catalogued() - before,
-        1,
-        "lifting the pen catalogued other entities than the new stroke"
     );
     assert_eq!(
         untrack(|| entities.first_frame()).map(|frame| frame.id),

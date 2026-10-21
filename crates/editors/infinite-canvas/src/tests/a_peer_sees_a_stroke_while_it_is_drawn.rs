@@ -1,15 +1,10 @@
 use super::*;
-use crate::presence::CanvasDraft;
-use block_editor_beui::be_block::presence::PresenceKind;
 use block_editor_beui::beui::{PenPhase, PointerButton};
 
 #[test]
 fn a_peer_sees_a_stroke_while_it_is_drawn() {
     let mut drawer = editor(&[]);
     let mut watcher = editor(&[]);
-    drawer.presence_visible(true);
-    drawer.run();
-    let mut held = BTreeMap::new();
 
     drawer.click("infinite-canvas.dock.tool.Pen");
     drawer.run();
@@ -26,54 +21,28 @@ fn a_peer_sees_a_stroke_while_it_is_drawn() {
             at(along),
             0.2 + 0.8 * (along * std::f32::consts::PI).sin(),
         );
+        drawer.run();
         if step == steps / 2 {
-            drawer.run();
-            forward_presence(&mut drawer, &mut watcher, &mut held);
+            sync(&mut drawer, &mut watcher);
+            let [half] = &entities(&watcher)[..] else {
+                panic!("the stroke reaches the peer while it is drawn");
+            };
+            assert_eq!(half.shape, CanvasShape::Freehand);
+            assert_eq!(half.points.len(), steps / 2 + 1);
         }
     }
-    drawer.run();
-    let sent = forward_presence(&mut drawer, &mut watcher, &mut held);
-    assert_eq!(
-        sent, 2,
-        "only the parts of the stroke that grew are sent again"
-    );
-    assert_eq!(
-        held.keys()
-            .filter(|kind| CanvasDraft::holds(**kind))
-            .count(),
-        2,
-        "the stroke so far is in two parts"
-    );
+    sync(&mut drawer, &mut watcher);
     watcher.snapshot("a_peer_sees_a_stroke_while_it_is_drawn");
 
     drawer.pen(PenPhase::Up(PointerButton::Primary), at(1.0), 0.0);
     drawer.run();
-    forward_presence(&mut drawer, &mut watcher, &mut held);
-    assert!(
-        held.keys().any(|kind| CanvasDraft::holds(*kind)),
-        "the stroke stays up until the peer has its entity"
-    );
+    sync(&mut drawer, &mut watcher);
     let drawn = entities(&drawer);
     assert_eq!(drawn.len(), 1);
-    apply(
-        &mut watcher,
-        InfiniteCanvasOperation::Add {
-            entity: Box::new(drawn[0].clone()),
-        },
-    );
-    watcher.run();
-    watcher.snapshot("a_peer_sees_a_stroke_while_it_is_drawn_and_then_its_entity");
-
-    drawer.click("infinite-canvas.dock.tool.Select");
-    drawer.run();
-    drawer.drag(
-        canvas.min + Vec2::new(10.0, 10.0),
-        canvas.min + Vec2::new(30.0, 30.0),
-    );
-    drawer.run();
-    forward_presence(&mut drawer, &mut watcher, &mut held);
-    assert!(
-        !held.keys().any(|kind| CanvasDraft::holds(*kind)),
-        "the next gesture takes the stroke down"
+    assert_eq!(drawn[0].points.len(), steps + 1);
+    assert_eq!(
+        entities(&watcher),
+        drawn,
+        "the peer holds the stroke as drawn"
     );
 }

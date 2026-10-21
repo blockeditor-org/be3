@@ -1,13 +1,10 @@
 use super::*;
 
 #[test]
-fn a_peer_stops_drawing_a_move_that_is_called_off() {
+fn a_peer_sees_a_move_called_off_put_back() {
     let shape = card();
     let mut mover = editor(std::slice::from_ref(&shape));
     let mut watcher = editor(std::slice::from_ref(&shape));
-    mover.presence_visible(true);
-    mover.run();
-    let mut held = BTreeMap::new();
     let item = format!("infinite-canvas.entity.{}", shape.id);
     let resting = watcher.rect_of(&item);
 
@@ -16,22 +13,20 @@ fn a_peer_stops_drawing_a_move_that_is_called_off() {
     mover.next_frame();
     mover.pen(PenPhase::Move, from + Vec2::new(90.0, 0.0), 0.5);
     mover.run();
-    forward_presence(&mut mover, &mut watcher, &mut held);
+    sync(&mut mover, &mut watcher);
     assert_ne!(watcher.rect_of(&item), resting);
 
     mover.key_press(block_editor_beui::beui::Key::Escape);
     mover.run();
-    forward_presence(&mut mover, &mut watcher, &mut held);
-    assert!(
-        !held.keys().any(|kind| CanvasDraft::holds(*kind)),
-        "a move called off is drafted no longer"
-    );
+    sync(&mut mover, &mut watcher);
     assert_eq!(watcher.rect_of(&item), resting);
+    assert_eq!(mover.rect_of(&item).center(), from);
     mover.pen(
         PenPhase::Up(PointerButton::Primary),
         from + Vec2::new(90.0, 0.0),
         0.0,
     );
     mover.run();
-    assert_eq!(entities(&mover)[0].transform.center, CanvasPoint::default());
+    assert_eq!(entities(&mover), vec![shape.clone()]);
+    assert_eq!(entities(&watcher), vec![shape]);
 }

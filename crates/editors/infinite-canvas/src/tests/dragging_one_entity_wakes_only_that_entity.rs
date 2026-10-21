@@ -12,7 +12,7 @@ use crate::app::canvas::CanvasStage;
 use crate::app::state::CanvasState;
 
 thread_local! {
-    static WOKEN: RefCell<HashMap<Uuid, (usize, usize)>> = RefCell::new(HashMap::new());
+    static WOKEN: RefCell<HashMap<Uuid, usize>> = RefCell::new(HashMap::new());
 }
 
 #[component]
@@ -22,14 +22,10 @@ fn CountingCanvas(editor: block_editor_beui::Editor, ids: Vec<Uuid>) -> NodeId {
     provide_context(canvas_actions(state));
     for id in ids {
         let signals = state.entities.watch(id);
-        let (shown, stored) = (signals.shown(), signals.stored());
-        create_effect(move || {
-            shown.with(|_| ());
-            WOKEN.with_borrow_mut(|woken| woken.entry(id).or_default().0 += 1);
-        });
+        let stored = signals.stored();
         create_effect(move || {
             stored.with(|_| ());
-            WOKEN.with_borrow_mut(|woken| woken.entry(id).or_default().1 += 1);
+            WOKEN.with_borrow_mut(|woken| *woken.entry(id).or_default() += 1);
         });
     }
     view! {
@@ -90,9 +86,11 @@ fn dragging_one_entity_wakes_only_that_entity() {
         "the drag did not move the entity: {dropped:?}"
     );
     let woken = WOKEN.with_borrow(Clone::clone);
-    let (shown, stored) = woken.get(&moved).copied().unwrap_or_default();
-    assert!(shown >= 2, "the dragged entity was shown {shown} times");
-    assert!(stored >= 1, "the dropped entity was stored {stored} times");
+    let stored = woken.get(&moved).copied().unwrap_or_default();
+    assert!(
+        stored >= 2,
+        "the dragged entity was written {stored} times, not as it moved"
+    );
     for id in ids.iter().filter(|id| **id != moved) {
         assert_eq!(
             woken.get(id),
