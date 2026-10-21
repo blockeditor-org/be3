@@ -1,4 +1,6 @@
-use reactive::{AnyMemo, Get, Memo, ReadSignal, Signal, Stored, check_tracked_read, store, untrack};
+use reactive::{
+    AnyMemo, Get, Memo, ReadSignal, Signal, Stored, check_tracked_read, store, untrack,
+};
 
 pub enum Prop<T> {
     Static(T),
@@ -62,11 +64,14 @@ impl<T: 'static> Getter<T> {
 
     pub fn of_field<S: 'static>(memo: Memo<S>, field: fn(&S) -> T) -> Self {
         fn read<S: 'static, T>(memo: AnyMemo, field: *const ()) -> T {
-            // SAFETY: `of_field` erased this pointer from a `fn(&S) -> T`.
             let field = unsafe { std::mem::transmute::<*const (), fn(&S) -> T>(field) };
             memo.typed::<S>().with(field)
         }
-        Self(Source::Field(memo.erased(), field as *const (), read::<S, T>))
+        Self(Source::Field(
+            memo.erased(),
+            field as *const (),
+            read::<S, T>,
+        ))
     }
 
     pub fn get(&self) -> T {

@@ -153,7 +153,8 @@ pub fn Slider(
     set_component_state(value);
 
     let tab_stop = create_memo(move || !disabled.get());
-    let drag = InteractionState::watch(|state| state.pressed, move |next| on_drag_change.call(next));
+    let drag =
+        InteractionState::watch(|state| state.pressed, move |next| on_drag_change.call(next));
     view! {
         <Interactive
             focusable=true

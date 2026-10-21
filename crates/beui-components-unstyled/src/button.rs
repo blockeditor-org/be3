@@ -109,7 +109,10 @@ pub fn Button(
     let on_state_change = match on_focus_change.is_empty() {
         true => Callback::from(interaction),
         false => {
-            let focus = InteractionState::watch(|state| state.focused, move |next| on_focus_change.call(next));
+            let focus = InteractionState::watch(
+                |state| state.focused,
+                move |next| on_focus_change.call(next),
+            );
             Callback::new(move |next: InteractionState| {
                 interaction.set(next);
                 focus.call(next);

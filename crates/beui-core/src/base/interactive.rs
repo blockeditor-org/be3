@@ -36,7 +36,6 @@ impl InteractionState {
             }
         })
     }
-
 }
 
 pub struct InteractiveNode {
