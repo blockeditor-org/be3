@@ -40,18 +40,23 @@ struct Painted {
     display: Rc<Display>,
     reads: bool,
     below: bool,
+    given: Option<HashMap<NodeId, PainterState>>,
 }
 
-#[derive(Clone, Copy, Default)]
+#[derive(Default)]
 struct Dirt {
     own: bool,
     below: bool,
-    batch: u64,
+    listed: bool,
+    dirty: Vec<NodeId>,
 }
 
 enum Visit {
     Reuse,
-    Descend(Vec<(NodeId, PainterState)>),
+    Descend {
+        children: Vec<(NodeId, PainterState)>,
+        every: bool,
+    },
     Record,
 }
 
@@ -80,7 +85,6 @@ pub struct PaintCache {
     damage: Region,
     stale: Vec<Stale>,
     recorded: bool,
-    batch: u64,
 }
 
 impl PaintCache {
@@ -107,7 +111,6 @@ impl PaintCache {
     }
 
     pub fn mark(&mut self, ids: &[NodeId], arena: &Arena) {
-        self.batch = self.batch.wrapping_add(1);
         for id in ids {
             self.mark_one(*id, arena);
         }
@@ -118,19 +121,31 @@ impl PaintCache {
             return;
         }
         self.dirt.get_or_default(id).own = true;
-        let mut current = arena.parent(id);
+        let mut child = id;
         for _ in 0..ANCESTOR_LIMIT {
-            let Some(node) = current else {
+            let Some(node) = arena.parent(child) else {
                 return;
             };
-            let dirt = self.dirt.get_or_default(node);
-            if dirt.below && dirt.batch == self.batch {
+            let listed = &mut self.dirt.get_or_default(child).listed;
+            if *listed {
                 return;
             }
+            *listed = true;
+            let dirt = self.dirt.get_or_default(node);
             dirt.below = true;
-            dirt.batch = self.batch;
-            current = arena.parent(node);
+            dirt.dirty.push(child);
+            child = node;
         }
+    }
+
+    fn take_dirt(&mut self, id: NodeId) -> Dirt {
+        let dirt = self.dirt.remove(&id).unwrap_or_default();
+        for child in &dirt.dirty {
+            if let Some(held) = self.dirt.get_mut(child) {
+                held.listed = false;
+            }
+        }
+        dirt
     }
 
     pub fn take_due(&mut self, now: Instant) -> Vec<NodeId> {
@@ -240,8 +255,8 @@ impl PaintCache {
             .collect()
     }
 
-    fn visit(&mut self, id: NodeId, placement: Placement, at: Vec2) -> Visit {
-        let dirt = self.dirt.remove(&id).unwrap_or_default();
+    fn visit(&mut self, id: NodeId, placement: Placement, at: Vec2, rects: &Rects) -> Visit {
+        let dirt = self.take_dirt(id);
         let Some(painted) = self.entries.get_mut(&id).filter(|painted| {
             !dirt.own
                 && painted.placement.size == placement.size
@@ -253,10 +268,33 @@ impl PaintCache {
         if painted.reads && !sees {
             return Visit::Record;
         }
+        let same = painted.placement.own == placement.own;
         painted.placement = placement;
         painted.at = at;
+        if !same {
+            painted.given = None;
+        }
         if !dirt.below && (sees || !painted.below) {
             return Visit::Reuse;
+        }
+        if same {
+            let given = painted.given.get_or_insert_with(|| {
+                let mut children = Vec::new();
+                given(&painted.display.parts, placement.own, &mut children);
+                children.into_iter().collect()
+            });
+            let mut children = Vec::with_capacity(dirt.dirty.len());
+            for child in &dirt.dirty {
+                match given.get(child) {
+                    Some(state) => children.push((*child, *state)),
+                    None if rects.contains_key(child) => return Visit::Record,
+                    None => {}
+                }
+            }
+            return Visit::Descend {
+                children,
+                every: false,
+            };
         }
         let mut children = Vec::new();
         given(&painted.display.parts, placement.own, &mut children);
@@ -266,16 +304,45 @@ impl PaintCache {
         {
             return Visit::Record;
         }
-        Visit::Descend(children)
+        Visit::Descend {
+            children,
+            every: true,
+        }
     }
 
-    fn settle_descended(&mut self, id: NodeId) {
+    fn settle_descended(
+        &mut self,
+        id: NodeId,
+        visited: &[(NodeId, Option<Rc<Display>>)],
+        every: bool,
+    ) {
         let Some(painted) = self.entries.get(&id) else {
             return;
         };
         let held = Rc::clone(&painted.display);
-        let rebuilt = held.with_children(&|child| self.display(child));
-        let below = self.reads_below(&held);
+        let changed = visited.iter().any(|(child, before)| {
+            let now = self.entries.get(child).map(|painted| &painted.display);
+            match (before, now) {
+                (Some(before), Some(now)) => !Rc::ptr_eq(before, now),
+                (None, None) => false,
+                _ => true,
+            }
+        });
+        let rebuilt = match every || changed {
+            true => held.with_children(&|child| self.display(child)),
+            false => None,
+        };
+        let below = match every {
+            true => self.reads_below(&held),
+            false => {
+                painted.below
+                    || visited.iter().any(|(child, _)| {
+                        self.entries
+                            .get(child)
+                            .is_some_and(|painted| painted.reads || painted.below)
+                    })
+            }
+        };
         if let Some(painted) = self.entries.get_mut(&id) {
             if let Some(rebuilt) = rebuilt {
                 painted.display = Rc::new(rebuilt);
@@ -330,6 +397,7 @@ impl PaintCache {
                 display,
                 reads: recorded.reads,
                 below,
+                given: None,
             },
         );
         self.recorded = true;
@@ -1013,14 +1081,24 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
         size: rect.size(),
         own: own.state(),
     };
-    let visit = match doc.paint_cache.borrow_mut().visit(id, placement, at) {
-        Visit::Descend(_) if doc.arena.get(id).turns_children() => Visit::Record,
+    let visit = match doc.paint_cache.borrow_mut().visit(id, placement, at, rects) {
+        Visit::Descend { .. } if doc.arena.get(id).turns_children() => Visit::Record,
         visit => visit,
     };
     match visit {
         Visit::Reuse => doc.note_painted(true),
-        Visit::Descend(children) => {
+        Visit::Descend { children, every } => {
             doc.note_painted(true);
+            let visited: Vec<(NodeId, Option<Rc<Display>>)> = match every {
+                true => Vec::new(),
+                false => {
+                    let cache = doc.paint_cache.borrow();
+                    children
+                        .iter()
+                        .map(|(child, _)| (*child, cache.display(*child)))
+                        .collect()
+                }
+            };
             ctx.measure_paint(|| {
                 for (child, state) in children {
                     if rects.contains_key(&child) {
@@ -1028,7 +1106,9 @@ pub fn paint(doc: &Document, painter: &Painter, rects: &Rects, id: NodeId) {
                     }
                 }
             });
-            doc.paint_cache.borrow_mut().settle_descended(id);
+            doc.paint_cache
+                .borrow_mut()
+                .settle_descended(id, &visited, every);
         }
         Visit::Record => {
             doc.note_painted(false);

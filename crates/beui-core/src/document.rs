@@ -1993,6 +1993,9 @@ impl Document {
         {
             self.repaint_painter_of(id);
         }
+        if previous.is_some_and(|previous| previous.rect.size() != rect.size()) {
+            self.arena.note_relaid(id);
+        }
         if culled {
             let mut dropped = Vec::new();
             for child in self
