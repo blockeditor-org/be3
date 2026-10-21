@@ -904,6 +904,17 @@ pub(crate) fn pen_entity(
     entity
 }
 
+pub(crate) fn drawn_seed(shape: CanvasShape, at: CanvasPoint) -> u32 {
+    let mut hash = 0x811c_9dc5 ^ shape as u32;
+    for byte in [at.x, at.y]
+        .into_iter()
+        .flat_map(|number| number.to_bits().to_le_bytes())
+    {
+        hash = (hash ^ u32::from(byte)).wrapping_mul(0x0100_0193);
+    }
+    hash
+}
+
 pub(crate) fn text_box_size(
     text_style: &CanvasTextStyle,
     font_size: f32,

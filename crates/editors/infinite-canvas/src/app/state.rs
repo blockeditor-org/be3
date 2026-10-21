@@ -140,9 +140,9 @@ impl Tool {
     }
 }
 
-fn drafted(mut entity: CanvasEntity, id: Uuid) -> CanvasEntity {
+fn drafted(mut entity: CanvasEntity, id: Uuid, start: CanvasPoint) -> CanvasEntity {
     entity.id = id;
-    entity.style.seed = id.as_u128() as u32;
+    entity.style.seed = drawn_seed(entity.shape, start);
     entity
 }
 
@@ -887,7 +887,7 @@ impl CanvasState {
 
     pub(crate) fn styled(&self, mut entity: CanvasEntity) -> CanvasEntity {
         entity.style = CanvasStyle {
-            seed: entity.style.seed,
+            seed: drawn_seed(entity.shape, entity.transform.center),
             ..self.default_style()
         };
         entity
@@ -2034,7 +2034,7 @@ impl CanvasState {
                 ..
             } => {
                 if let Some(entity) = self.created_entity(tool, start, current, from_center) {
-                    let entity = drafted(entity, id);
+                    let entity = drafted(entity, id, start);
                     let done = matches!(entity.shape, CanvasShape::Text | CanvasShape::Frame);
                     self.add_entity(entity);
                     if done {
@@ -2048,9 +2048,9 @@ impl CanvasState {
                 pressures,
                 ..
             } => {
-                if !points.is_empty() {
+                if let Some(&start) = points.first() {
                     let entity = pen_entity(points, pressures, self.default_style());
-                    self.add_entity(drafted(entity, id));
+                    self.add_entity(drafted(entity, id, start));
                 }
             }
             Gesture::SelectBox {
@@ -2417,7 +2417,7 @@ impl CanvasState {
                 ..
             }) if tool.drafts_a_shape() => {
                 let entity = self.created_entity(tool, start, current, from_center)?;
-                let entity = drafted(entity, id);
+                let entity = drafted(entity, id, start);
                 Some((id, vec![CanvasDraft::Shape(Box::new(entity))]))
             }
             Some(_) => None,
