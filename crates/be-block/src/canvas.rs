@@ -380,10 +380,45 @@ pub enum InfiniteCanvasOperation {
     },
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasGridSpacing {
+    Small,
+    #[default]
+    Medium,
+    Large,
+}
+
+impl CanvasGridSpacing {
+    pub const ALL: [Self; 3] = [Self::Small, Self::Medium, Self::Large];
+
+    pub fn name(self) -> &'static str {
+        match self {
+            Self::Small => "Small",
+            Self::Medium => "Medium",
+            Self::Large => "Large",
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
+#[serde(default)]
+pub struct CanvasGrid {
+    pub hidden: bool,
+    pub spacing: CanvasGridSpacing,
+}
+
+impl CanvasGrid {
+    pub fn shown(self) -> Option<CanvasGridSpacing> {
+        (!self.hidden).then_some(self.spacing)
+    }
+}
+
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 #[model(kind = "canvas")]
 pub struct Canvas {
     pub entities: List<Entity>,
+    pub grid: CanvasGrid,
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -530,6 +565,10 @@ impl Component {
 }
 
 impl Canvas {
+    pub fn set_grid(grid: CanvasGrid) -> Edit {
+        Self::GRID.set(ObjectId::ROOT, &grid).into()
+    }
+
     pub fn with_entities(entities: impl IntoIterator<Item = CanvasEntity>) -> Self {
         let mut seen = HashSet::new();
         Self {
@@ -544,6 +583,7 @@ impl Canvas {
                         )
                     }),
             ),
+            grid: CanvasGrid::default(),
         }
     }
 
