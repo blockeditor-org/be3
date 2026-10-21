@@ -33,15 +33,7 @@ fn placed_on(block: Uuid, block_type: Uuid) -> Instances {
         1.0,
         PASS,
     );
-    instances.place(
-        INSTANCE,
-        REGION,
-        Placement {
-            rect,
-            clip: rect,
-            pass: PASS,
-        },
-    );
+    instances.place(INSTANCE, REGION, Placement { rect, clip: rect });
     instances
 }
 
@@ -141,6 +133,7 @@ mod a_database_view_given_content_references_its_database;
 mod a_frame_takeover_keeps_the_last_painting_where_it_was;
 mod a_host_value_reaches_an_instance_watching_it_again_after_a_restart;
 mod a_key_intercepted_for_a_plugin_reaches_it_with_its_modifiers;
+mod a_listing_the_host_could_not_load_reaches_the_plugin_as_failed;
 mod a_message_waits_for_the_instance_it_names_to_be_opened;
 mod a_plugin_is_told_when_the_pointer_leaves_it;
 mod a_plugin_reaches_only_the_hosts_its_manifest_names;

@@ -69,6 +69,8 @@ mod the_runs_toggle_shows_where_each_side_typed_and_deleted;
 mod the_stale_notice_sample_answers_each_of_its_buttons;
 mod the_tree_sample_opens_on_the_left_of_a_row_and_its_menu_from_its_button;
 mod toasts_on_the_top_edge_stack_in_the_top_corner;
+mod typing_a_fahrenheit_temperature_moves_the_celsius_one;
+mod waiting_for_data_shows_a_spinner_until_it_arrives;
 
 const TODAY: (i32, u8, u8) = (2026, 1, 15);
 const WIDE: Vec2 = Vec2::new(1100.0, 800.0);

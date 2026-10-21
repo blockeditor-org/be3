@@ -48,12 +48,11 @@ pub(super) fn lines() -> Vec<Line> {
 }
 
 fn graph() -> String {
-    if !crate::be::graph_loaded() {
+    if !crate::be::ready(crate::be::Query::Roots) {
         return "Loading".to_owned();
     }
     let roots = crate::be::query(crate::be::Query::Roots).len();
-    let detached = crate::be::query(crate::be::Query::Detached).len();
-    format!("{roots} root(s), {detached} detached")
+    format!("{roots} root(s)")
 }
 
 fn push(lines: &mut Vec<Line>, style: LineStyle, indent: u8, text: impl Into<String>) {

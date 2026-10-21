@@ -85,7 +85,7 @@ pub(crate) fn TextSurface(state: State) -> NodeId {
             drop_caret={drop_caret}
             @test_id={"text.surface"}
             on_widget_press={move |widget: usize| focus_embed(state, widget)}
-            on_focus_change={move |focused: bool| typing.set(focused)}
+            on_focus_change={typing}
             pastes_images=true
             on_image_paste={move |image: PickedFile| paste_image(state, image)}
             block={embed_row}

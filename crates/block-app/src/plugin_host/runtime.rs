@@ -365,7 +365,7 @@ impl Runtime {
         if self.error.is_some() || self.pass + 1 < pass {
             return;
         }
-        let messages = self.instances.drive_web_views(self.pass);
+        let messages = self.instances.drive_web_views();
         self.pacing.needed |= !messages.is_empty();
         self.send(messages);
     }
@@ -1809,15 +1809,9 @@ fn apply_offers(runtime: &mut Runtime, instance: EditorInstanceId, region: Edito
     if let Some(view) = view {
         runtime.instances.set_view(instance, view);
     }
-    runtime.instances.place(
-        instance,
-        region,
-        Placement {
-            rect,
-            clip,
-            pass: runtime.pass,
-        },
-    );
+    runtime
+        .instances
+        .place(instance, region, Placement { rect, clip });
 }
 
 fn region_monitors(screens: &[beui::Screen], rect: Rect, size: Vec2) -> Vec<Monitor> {

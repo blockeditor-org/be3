@@ -246,12 +246,11 @@ fn HexSettings(state: State) -> NodeId {
             <Text @sizing=ItemSize::Percent(100.0) string="Insert instead of overwriting" />
             <Switch
                 label="Insert instead of overwriting"
-                on={insert}
-                @test_id={"text.hex-insert"}
-                on_change={move |pressed: bool| {
+                on={Binding::new(insert, move |pressed: bool| {
                     state.hex_insert_mode.set(pressed);
                     state.inner().hex_pending_nibble.set(None);
-                }}
+                })}
+                @test_id={"text.hex-insert"}
             />
         </List>
     }
@@ -291,7 +290,12 @@ fn TextSettings(state: State) -> NodeId {
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Language"
-                        selected={language_index}
+                        selected={Binding::new(language_index, move |index: Option<usize>| {
+                            let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
+                                return;
+                            };
+                            state.text.execute(EditorCommand::SetLanguage(*choice));
+                        })}
                         @test_id={"text.language"}
                         options={view! {
                             <ForEach
@@ -299,12 +303,6 @@ fn TextSettings(state: State) -> NodeId {
                             >|index: usize|
                                 <ChoiceOption label={TextLanguage::ALL[index].label().to_owned()} />
                             </ForEach>
-                        }}
-                        on_change={move |index: Option<usize>| {
-                            let Some(choice) = index.and_then(|index| TextLanguage::ALL.get(index)) else {
-                                return;
-                            };
-                            state.text.execute(EditorCommand::SetLanguage(*choice));
                         }}
                     />
                 </Frame>
@@ -314,18 +312,17 @@ fn TextSettings(state: State) -> NodeId {
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Indentation"
-                        selected={indentation_index}
-                        @test_id={"text.indentation"}
-                        options={view! {
-                            <ChoiceOption label="Tabs" />
-                            <ChoiceOption label="Spaces" />
-                        }}
-                        on_change={move |index: Option<usize>| {
+                        selected={Binding::new(indentation_index, move |index: Option<usize>| {
                             let indentation = match index {
                                 Some(1) => TextIndentation::Spaces { width: 2 },
                                 _ => TextIndentation::Tabs,
                             };
                             state.text.execute(EditorCommand::SetIndentation(indentation));
+                        })}
+                        @test_id={"text.indentation"}
+                        options={view! {
+                            <ChoiceOption label="Tabs" />
+                            <ChoiceOption label="Spaces" />
                         }}
                     />
                 </Frame>
@@ -336,16 +333,15 @@ fn TextSettings(state: State) -> NodeId {
                     <Frame width=NUMBER_WIDTH>
                         <NumberInput
                             label="Indentation width"
-                            value={width}
-                            min=1.0
-                            max=8.0
-                            @test_id={"text.indentation-width"}
-                            on_change={move |value: f64| {
+                            value={Binding::new(width, move |value: f64| {
                                 let width = value.round().clamp(1.0, 8.0) as u8;
                                 state.text.execute(EditorCommand::SetIndentation(
                                     TextIndentation::Spaces { width },
                                 ));
-                            }}
+                            })}
+                            min=1.0
+                            max=8.0
+                            @test_id={"text.indentation-width"}
                         />
                     </Frame>
                 </List>

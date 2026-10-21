@@ -26,40 +26,20 @@ pub(super) fn Panels(session: Session) -> NodeId {
     view! {
         <List spacing=SPACING>
             <Show condition={challenged}>
-                <Accordion
-                    title="Challenge"
-                    open={challenge_open}
-                    on_toggle={move |open| challenge_open.set(open)}
-                >
+                <Accordion title="Challenge" open={challenge_open}>
                     <ChallengePanel session={session} />
                 </Accordion>
             </Show>
-            <Accordion
-                title="Simulation"
-                open={simulation_open}
-                on_toggle={move |open| simulation_open.set(open)}
-            >
+            <Accordion title="Simulation" open={simulation_open}>
                 <SimulationPanel session={session} />
             </Accordion>
-            <Accordion
-                title="Metrics"
-                open={metrics_open}
-                on_toggle={move |open| metrics_open.set(open)}
-            >
+            <Accordion title="Metrics" open={metrics_open}>
                 <MetricsPanel session={session} />
             </Accordion>
-            <Accordion
-                title="Grid debugger"
-                open={debugger_open}
-                on_toggle={move |open| debugger_open.set(open)}
-            >
+            <Accordion title="Grid debugger" open={debugger_open}>
                 <DebuggerPanel session={session} />
             </Accordion>
-            <Accordion
-                title="Generated graph"
-                open={graph_open}
-                on_toggle={move |open| graph_open.set(open)}
-            >
+            <Accordion title="Generated graph" open={graph_open}>
                 <GraphPanel session={session} />
             </Accordion>
             <StorageDialog session={session} />
@@ -897,7 +877,7 @@ fn EntityPanel(session: Session, row: Memo<Option<EntityRow>>, entity: DebugEnti
     };
     view! {
         <Interactive on_hover_change={hovered}>
-            <Accordion title={title} open={open} on_toggle={move |next| open.set(next)}>
+            <Accordion title={title} open={open}>
                 <Rows rows={details} />
             </Accordion>
         </Interactive>

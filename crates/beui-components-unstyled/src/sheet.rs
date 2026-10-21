@@ -1272,7 +1272,7 @@ pub fn ModalSheet(
                     fade
                     grip
                     panel
-                    on_presence={move |next: f32| presence.set(next)}
+                    on_presence={presence}
                     on_gone={move || gone.set(true)}
                     on_close={on_close}
                 >

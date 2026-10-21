@@ -23,11 +23,7 @@ pub fn Fullscreen(open: Prop<bool>, on_dismiss: ClickCallback, children: Child) 
             scrim={scrim}
             on_dismiss={move |_: Dismiss| on_dismiss.call()}
         >
-            <BackSlide
-                enters=false
-                on_back={on_dismiss}
-                on_presence={move |next: f32| presence.set(next)}
-            >
+            <BackSlide enters=false on_back={on_dismiss} on_presence={presence}>
                 {children}
             </BackSlide>
         </Overlay>

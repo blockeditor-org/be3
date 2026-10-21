@@ -110,6 +110,7 @@ mod a_driver_stops_waiting_for_a_clipboard_the_window_never_answers_with;
 mod a_driver_turns_the_wheel_and_answers_without_settling_when_asked;
 mod a_driver_types_into_a_field_found_by_its_test_id;
 mod a_driver_types_key_by_key_and_sends_what_no_key_makes_as_text;
+mod a_drop_target_built_before_the_one_around_it_still_takes_the_drop;
 mod a_drop_the_dock_would_refuse_draws_no_drop_marker;
 mod a_dynamic_child_can_fill_its_available_height;
 mod a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it;
@@ -666,7 +667,7 @@ mod scrolling_resends_the_rows_that_moved_but_not_what_moved_with_them;
 mod selecting_a_leaf_item_in_a_nested_context_menu_closes_the_whole_menu_stack;
 mod selecting_a_node_lists_its_properties_in_the_inspector;
 mod setting_a_scroll_offset_during_a_fling_stops_the_fling;
-mod setting_the_value_of_a_text_input_reports_the_change;
+mod setting_the_bound_value_of_a_text_input_shows_it;
 mod shared_springs_remain_stable_across_long_frames;
 mod shift_arrow_selects_the_character_that_typing_then_replaces;
 mod shift_scrolling_a_horizontal_scroll_moves_it_sideways;
@@ -1516,15 +1517,12 @@ pub(crate) fn LabelledButton(label: String, on_click: ClickCallback) -> NodeId {
 
 #[component]
 pub(crate) fn PanZoomStage(
-    view: crate::reactive::Prop<unstyled::PanZoomView>,
-    on_change: crate::reactive::Callback<unstyled::PanZoomView>,
+    #[prop(default = unstyled::PanZoomView::IDENTITY)] view: crate::reactive::Binding<
+        unstyled::PanZoomView,
+    >,
 ) -> NodeId {
     view! {
-        <unstyled::PanZoom
-            @test_id="stage"
-            view
-            on_change={on_change}
-        >|handle: unstyled::PanZoomHandle| {
+        <unstyled::PanZoom @test_id="stage" view>|handle: unstyled::PanZoomHandle| {
             let unstyled::PanZoomHandle { view, .. } = handle;
             view! {
                 <Canvas view>

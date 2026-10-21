@@ -186,8 +186,15 @@ view! {
 ```
 
 A callback prop (`Callback<V, R>` or `ClickCallback`) takes either a closure or
-a callback the component already has, so a wrapper passes its own `on_change`
-straight on rather than wrapping it in a closure that calls it.
+a callback the component already has, so a wrapper passes its own callback
+straight on rather than wrapping it in a closure that calls it. A `Callback<T>`
+also takes a `Signal<T>`, which it sets: `on_hover_change={hovered}`.
+
+State a control both shows and changes (`checked`, `value`, `open`,
+`selected`) is one `Binding<T>` prop rather than a value and an `on_change`:
+pass a signal (`<Slider value={volume} />`), leave it out for the control to
+own, or pass `Binding::new(read, write)` for derived state
+(guides/reactive.md, "Bindings").
 
 Do not wrap a prop in a `create_memo` just to read it twice. A memo adds a
 node to the graph, and a `T` that is not `PartialEq` cannot go in one at all.
@@ -661,7 +668,7 @@ caret handle under a touch tap that drags the caret and opens its menu.
 gutter, scrolled sideways to keep the caret in view, where Enter submits and
 Tab leaves; `frame` wraps the field in the caller's chrome inside the area's
 own focus and pointer handling. `TextInput` is that single-line mode over a
-plain-text buffer it owns, driven by a `value` and reporting `on_change`, so a
+plain-text buffer it owns, bound to a `value` it reads and writes, so a
 fix to how text is edited lands in both. `multiline` makes it the multiline area
 instead, with `line_numbers` off, where Enter starts a new line and the field's
 chrome wraps the whole scrolling area rather than one line. `prose` (a `Prose`, on
@@ -710,10 +717,10 @@ page. `then` says what choosing an item does: `MenuThen::Close` (the default),
 `Back` to the page before (a location picked on a page), or `Stay`. `MenuCaption` is a
 row of text nothing can choose, and `MenuGrid` lays its child items out as
 tiles in `columns`, which the arrow keys walk in two dimensions and leave for
-the rows above and below. A page of rows with a `depth` is a tree: `expanded`
-(`None` for a leaf) draws the chevron, Right and Left and the chevron report
-`on_expand`, and the caller shows the rows of open branches (a `ForEach` over
-them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check, and
+the rows above and below. A page of rows with a `depth` is a tree: `expanded`,
+a `Binding<Option<bool>>` (`None` for a leaf), draws the chevron, Right and Left
+and the chevron write `Some(open)` to it, and the caller shows the rows of open
+branches (a `ForEach` over them), as with `Tree`. A row whose `checked` is `Some(true)` shows a check, and
 a page opens with the keyboard on that row. `lead` is a few muted words before
 an item's icon on the same line, read with its label (`New in` before a folder's
 name). The dropdown is never taller than a fixed height
@@ -1086,10 +1093,10 @@ on while the calendar shows the month being typed; closing it puts the focus
 back on the field's own segment. The popover is laid out for what it holds: a
 calendar that grows with the field, a `TimeList` laid out as a grid with an hour
 to a row, the two side by side, or, on a narrow screen, Date and Time tabs where
-picking a day moves on to the time. Its `value` is an `Option<DateTime>`: an
-empty field shows placeholders, a field is reported through `on_change` only
-once every segment is filled, and a field left half filled goes back to its
-value when the focus leaves it. A `Date` field keeps the time of the value it
+picking a day moves on to the time. Its `value` is a `Binding<Option<DateTime>>`: an
+empty field shows placeholders, a field writes its binding only once every
+segment is filled, and a field left half filled goes back to its value when the
+focus leaves it. A `Date` field keeps the time of the value it
 was given, and a `Time` field the date. `styled::Calendar` is the month grid on
 its own, with `min` and `max` limits; its title is a month button and a year
 button, which open a grid of months and a grid of twenty years, and `show`
@@ -1102,8 +1109,8 @@ layout, and says when to page with `paged`.
 sliders, hex, RGB and HSL fields and a row of swatches; `styled::ColorInput` is a
 hex field whose swatch opens one. Both keep the hue while the color passes
 through grey or black, and a drag is reported through `on_preview` while it
-moves and through `on_change` once, when it ends, the way `NumberInput`
-reports a scrub - so an edit lands in the undo history once per gesture.
+moves and written to `value` once, when it ends, the way `NumberInput`
+writes a scrub - so an edit lands in the undo history once per gesture.
 That state is `unstyled::ColorPickerState`, and `unstyled::HexText` keeps a hex
 field in step with a color for both.
 
@@ -1128,7 +1135,9 @@ dims nothing, so its layer passes input through (`LayerPolicy::Pass`): the
 pointer goes on hovering the document around it, and a press outside asks it
 to close and then lands on whatever was pressed - except a press on its own
 trigger, the overlay's `trigger`, which is left to the trigger so a second
-click closes it rather than reopening it. What
+click closes it rather than reopening it. Whether it is open is its `open`
+binding, as with `MenuButton`'s: a caller that opens it, or does something when
+it opens or closes, passes a signal rather than listening for a change. What
 it holds decides where the focus lands when it opens, by binding a `focused`
 prop to the handle's `open`, as the calendar, the time list and the color area
 all take.
@@ -1887,8 +1896,10 @@ its preview sits above the finger instead of under it.
 A `DropTarget` is registered by the rectangle its content was laid out at. The
 target under the pointer that accepts the payload takes the drop - `accepts`
 filters by value, and a target of another payload type never sees the drag at
-all - and when targets nest, the innermost one wins, so a slot inside a column
-inside a sidebar can each take a drop of its own. Its `DropHandle` carries
+all - and of the targets under the pointer the one painted last wins: the
+innermost in the document tree, or the one in the higher layer, whatever order
+they were built in, so a slot inside a column inside a sidebar can each take a
+drop of its own. Only the part of a target that is on screen counts. Its `DropHandle` carries
 `carrying`, true for every target that would accept what is being dragged, and
 `over`, true for the one that would take it now; `on_over` reports the payload
 and the pointer as it moves, which is how a target that works out where inside
@@ -1909,14 +1920,15 @@ still ends; a cancelled touch ends it without a drop.
 ### Pan and zoom
 
 `unstyled::PanZoom` turns wheel, trackpad and middle-button gestures over a
-rectangle into camera movement, and owns none of the camera itself. The caller
-keeps a `PanZoomView` - the world point shown at the middle of the viewport and
-a scale - passes it in, and writes back what `on_change` reports:
+rectangle into camera movement. Its `view` is a `Binding<PanZoomView>` - the
+world point shown at the middle of the viewport and a scale - which gestures
+write; a caller that wants the camera passes its own signal, and one that does
+not leaves the prop out:
 
 ```rust
 let camera = create_signal(PanZoomView::IDENTITY);
 view! {
-    <PanZoom view={camera} on_change={move |next| camera.set(next)}>|handle: PanZoomHandle| {
+    <PanZoom view={camera}>|handle: PanZoomHandle| {
         let PanZoomHandle { view, scale, .. } = handle;
         view! {
             <Canvas view>
@@ -1970,7 +1982,6 @@ moving, is hidden, and reports how far it moved instead of where it is:
 view! {
     <PointerLock
         locked={looking}
-        on_change={move |next| looking.set(next)}
         on_motion={move |motion: Vec2| camera.look(motion)}
         on_key={walk}
     >|handle: PointerLockHandle|
@@ -1979,8 +1990,8 @@ view! {
 }
 ```
 
-The lock is controlled state, like a `Toggle`'s: the control follows the
-`locked` prop and reports what it wants through `on_change`. It lets go on
+The lock is a `Binding<bool>`, like a `Toggle`'s `checked`: the control reads
+`locked` and writes what it wants back to it. It lets go on
 Escape, when it loses focus, and when it is removed, and keys it does not use
 itself go on to `on_key`, which is what a control that also walks with the
 keyboard binds.
@@ -2851,9 +2862,9 @@ without undoing visual decisions.
 State that belongs to the component's own handlers should be captured directly.
 Use `set_component_state` only when tests or host integration need to read the
 state from the component's `NodeId`, and expose a focused helper such as
-`toggle_checked(&Document, NodeId)`. Controlled state must listen to its prop
-and report user changes through its callback; see `unstyled::Toggle` and
-`unstyled::TextInput` for the established pattern.
+`toggle_checked(&Document, NodeId)`. State the user changes is a `Binding<T>`
+prop that the component reads and writes, with no copy of it kept in sync; see
+`unstyled::Toggle` for the pattern.
 
 ## Develop a styled component
 
@@ -2865,9 +2876,9 @@ visual primitives:
 
 ```rust
 #[component]
-pub fn Checkbox(label: Prop<String>, checked: Prop<bool>, on_change: Callback<bool>) -> NodeId {
+pub fn Checkbox(label: Prop<String>, checked: Binding<bool>) -> NodeId {
     view! {
-        <Toggle checked label on_change>|handle: ToggleHandle|
+        <Toggle checked label>|handle: ToggleHandle|
             <CheckboxFace handle />
         </Toggle>
     }

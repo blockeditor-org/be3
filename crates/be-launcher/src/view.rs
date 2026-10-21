@@ -178,8 +178,7 @@ fn Sidebar(model: Model) -> NodeId {
                             <ChoiceOption label="Open" />
                             <ChoiceOption label="Closed" />
                         }}
-                        selected={tab}
-                        on_change={show}
+                        selected={Binding::new(tab, show)}
                     />
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Text color=TextColor::Muted align=TextAlign::Center>
@@ -190,7 +189,6 @@ fn Sidebar(model: Model) -> NodeId {
                             value={query}
                             placeholder="Filter by title, author, branch or number"
                             label="Filter pull requests"
-                            on_change={move |next| query.set(next)}
                         />
                     </List>
                     <Show condition={loading}>

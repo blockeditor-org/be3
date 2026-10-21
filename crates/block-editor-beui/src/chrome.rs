@@ -160,7 +160,6 @@ fn SheetToggle() -> NodeId {
             icon_only=true
             pressed={open}
             @test_id={"chrome.sidebar"}
-            on_change={move |next: bool| open.set(next)}
         />
     }
 }

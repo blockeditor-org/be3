@@ -1,4 +1,5 @@
 use super::*;
+use reactive::Pending;
 
 #[test]
 fn an_edit_before_the_content_arrives_is_dropped() {
@@ -10,7 +11,10 @@ fn an_edit_before_the_content_arrives_is_dropped() {
     projection.operate(add);
 
     assert!(host.take_content_operations().is_empty());
-    assert_eq!(projection.read(|content| content.root().items.len()), None);
+    assert_eq!(
+        projection.read(|content| content.root().items.len()),
+        Err(Pending::Loading)
+    );
 
     let (_, kept) = Checklist::add("milk");
     let mut content = ChecklistContent::default();
@@ -18,8 +22,5 @@ fn an_edit_before_the_content_arrives_is_dropped() {
     host.set_block_content(HostContent::of(&content));
     projection.pump();
 
-    assert_eq!(
-        projection.read(|content| content.root().items.len()),
-        Some(1)
-    );
+    assert_eq!(projection.read(|content| content.root().items.len()), Ok(1));
 }

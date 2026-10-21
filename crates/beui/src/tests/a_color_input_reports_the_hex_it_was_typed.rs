@@ -9,8 +9,7 @@ fn a_color_input_reports_the_hex_it_was_typed() {
     let (document, [_input]) = toolbar_of(|| {
         [view! {
             <ColorInput
-                value={Color32::from_rgba_unmultiplied(0x11, 0x22, 0x33, 0xFF)}
-                on_change={move |color| changes.update(|changes| changes.push(color))}
+                value={Binding::new(Color32::from_rgba_unmultiplied(0x11, 0x22, 0x33, 0xFF), move |next| changes.update(|changes| changes.push(next)))}
             />
         }]
     });

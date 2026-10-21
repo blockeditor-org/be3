@@ -12,11 +12,10 @@ fn arrow_keys_step_a_date_segment_and_keep_the_day_in_its_month() {
         view! {
             <Container>|_size|
                 <DateTimeField
-                    value={Some(DateTime::new(Date::new(2026, 12, 31), Time::new(9, 15)))}
-                    parts=DateTimeParts::Date
-                    on_change={move |value: Option<DateTime>| {
+                    value={Binding::new(Some(DateTime::new(Date::new(2026, 12, 31), Time::new(9, 15))), move |value: Option<DateTime>| {
                         reported.update(|reported| reported.push(value.map(|value| value.date)))
-                    }}
+                    })}
+                    parts=DateTimeParts::Date
                 />
             </Container>
         }

@@ -114,11 +114,7 @@ pub(super) fn ScreenSection(
                             <ChoiceOption label={size_label(size)} />
                         </ForEach>
                     }}
-                    selected={size_selected}
-                    label="Resolution"
-                    disabled={read_only}
-                    @test_id={resolution_id}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(size_selected, move |index: Option<usize>| {
                         let Some(size) = index.and_then(|index| size_list.with_untracked(|sizes| sizes.get(index).copied())) else {
                             return;
                         };
@@ -126,7 +122,10 @@ pub(super) fn ScreenSection(
                         if fastest.is_some() {
                             set.call(fastest);
                         }
-                    }}
+                    })}
+                    label="Resolution"
+                    disabled={read_only}
+                    @test_id={resolution_id}
                 />
             </LayeredSettingsRow>
             <SettingsRow
@@ -153,16 +152,15 @@ pub(super) fn ScreenSection(
                             <ChoiceOption label={rate_label(mode.refresh_millihertz)} />
                         </ForEach>
                     }}
-                    selected={rate_selected}
-                    label="Refresh rate"
-                    disabled={read_only}
-                    @test_id={refresh_id}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(rate_selected, move |index: Option<usize>| {
                         let mode = index.and_then(|index| rate_list.with_untracked(|rates| rates.get(index).copied()));
                         if mode.is_some() {
                             set.call(mode);
                         }
-                    }}
+                    })}
+                    label="Refresh rate"
+                    disabled={read_only}
+                    @test_id={refresh_id}
                 />
             </SettingsRow>
             <LayeredSettingsRow

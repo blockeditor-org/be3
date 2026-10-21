@@ -12,12 +12,11 @@ fn a_twelve_hour_time_field_types_the_afternoon_with_a_p() {
         view! {
             <Container>|_size|
                 <DateTimeField
-                    value=None
+                    value={Binding::new(None, move |value: Option<crate::datetime::DateTime>| {
+                        reported.update(|reported| reported.push(value.map(|value| value.time)))
+                    })}
                     parts=DateTimeParts::Time
                     hour_cycle=HourCycle::H12
-                    on_change={move |value: Option<crate::datetime::DateTime>| {
-                        reported.update(|reported| reported.push(value.map(|value| value.time)))
-                    }}
                 />
             </Container>
         }

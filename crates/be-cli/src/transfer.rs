@@ -1,5 +1,3 @@
-use std::collections::VecDeque;
-
 use be_client::transfer::{Saved, renumber};
 use be_graph::BlockParent;
 use be_store::ObjectStore;
@@ -17,14 +15,21 @@ pub struct Uploaded {
 impl<S: ObjectStore> Tracker<S> {
     pub async fn download(&self, entry: &Entry) -> Result<(Entry, Vec<Saved>), String> {
         let top = self.outermost(entry).await?;
-        let index = self.index().await?;
         let mut order = vec![(top.clone(), None)];
-        let mut queue = VecDeque::from([(top.id, 0)]);
-        while let Some((parent, position)) = queue.pop_front() {
-            for child in index.children(Some(parent)) {
-                queue.push_back((child.id, order.len()));
-                order.push((child.clone(), Some(position)));
+        let mut level = vec![(top.id, 0)];
+        while !level.is_empty() {
+            let below = futures_util::future::try_join_all(
+                level.iter().map(|(parent, _)| self.children(*parent)),
+            )
+            .await?;
+            let mut next = Vec::new();
+            for ((_, position), children) in level.into_iter().zip(below) {
+                for child in children {
+                    next.push((child.id, order.len()));
+                    order.push((child, Some(position)));
+                }
             }
+            level = next;
         }
         let peer = self.peer();
         let wanted: Vec<_> = order

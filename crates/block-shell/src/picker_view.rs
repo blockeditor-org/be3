@@ -14,8 +14,8 @@ use block_editor_beui::{
 };
 
 use super::picker::{
-    Creating, Pick, PickAction, Stage, TreeKey, TreeRow, TypeGroup, common, groups, link_rows,
-    place_rows, slides, tile_key,
+    Creating, Pick, PickAction, PickTree, Stage, TreeKey, TreeRow, TypeGroup, common, groups,
+    link_rows, place_rows, slides, tile_key,
 };
 use super::workspace::Workspace;
 
@@ -368,10 +368,11 @@ fn LocationItem(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> uns
     });
     let rows = create_memo(move || {
         let types = workspace.types();
-        let graph = workspace.graph();
         held.with(|held| {
             held.as_ref()
-                .map(|held| place_rows(&types, held, &graph))
+                .map(|held| {
+                    workspace.tree(PickTree::Place, |graph| place_rows(&types, held, graph))
+                })
                 .unwrap_or_default()
         })
     });
@@ -406,15 +407,23 @@ fn PlaceItem(
     let label = create_memo(move || row.get().map(|row| row.name).unwrap_or_default());
     let glyph = create_memo(move || row.get().map(|row| row.icon).unwrap_or_default());
     let depth = create_memo(move || row.get().map(|row| row.depth));
-    let expanded = create_memo(move || {
-        row.get()
-            .filter(|row| row.expandable)
-            .map(|row| row.expanded)
-    });
+    let unfolded = key.clone();
+    let expanded = Binding::new(
+        Prop::dynamic(move || {
+            row.get()
+                .filter(|row| row.expandable)
+                .map(|row| row.expanded)
+        }),
+        move |open: Option<bool>| {
+            act.call(PickAction::UnfoldPlace(
+                unfolded.clone(),
+                open == Some(true),
+            ))
+        },
+    );
     let checked =
         create_memo(move || Some(id.is_some() && place.get().and_then(BlockParent::block) == id));
     let named = id.map_or_else(String::new, |id| format!("picker.place.{id}"));
-    let unfolded = key.clone();
     view! {
         <unstyled::MenuItem
             label
@@ -429,7 +438,6 @@ fn PlaceItem(
                     act.call(PickAction::Place(BlockParent::Block(id)));
                 }
             }}
-            on_expand={move |open: bool| act.call(PickAction::UnfoldPlace(unfolded.clone(), open))}
         />
     }
 }
@@ -445,14 +453,16 @@ fn CentredSurface(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>) -> 
         built |= open.get();
         built
     });
-    let surface = create_memo(move || {
-        body.get().then(|| {
-            untrack(|| {
+    let surface = create_signal(None);
+    create_binding(move || {
+        if body.get() {
+            let node = untrack(|| {
                 view! {
                     <PickerSurface workspace pick />
                 }
-            })
-        })
+            });
+            surface.set(Some(node));
+        }
     });
     let in_dialog = create_memo(move || wide.get().then(|| surface.get()).flatten());
     let in_sheet = create_memo(move || narrow.get().then(|| surface.get()).flatten());
@@ -547,12 +557,11 @@ fn SurfaceHeader(
                 </List>
                 <TextInput
                     @node_ref={&field}
-                    value={search}
+                    value={Binding::new(search, move |value: String| act.call(PickAction::Search(value)))}
                     placeholder
                     label="Search"
                     glyph={ICON_SEARCH.to_owned()}
                     @test_id={"picker.search"}
-                    on_change={move |value: String| act.call(PickAction::Search(value))}
                 />
             </List>
         </Frame>
@@ -745,10 +754,9 @@ fn LinkBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
     });
     let rows = create_memo(move || {
         let types = workspace.types();
-        let graph = workspace.graph();
         held.with(|held| {
             held.as_ref()
-                .map(|held| link_rows(&types, held, &graph))
+                .map(|held| workspace.tree(PickTree::Link, |graph| link_rows(&types, held, graph)))
                 .unwrap_or_default()
         })
     });

@@ -158,6 +158,10 @@ impl EditorSession {
         self.host.set_blocks(query, blocks);
     }
 
+    pub(crate) fn fail_blocks(&self, query: crate::BlockQuery, error: String) {
+        self.host.fail_blocks(query, error);
+    }
+
     pub(crate) fn set_editable(&self, editable: bool) {
         self.host.set_editable(editable);
     }

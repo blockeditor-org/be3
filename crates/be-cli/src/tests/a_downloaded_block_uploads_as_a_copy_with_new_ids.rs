@@ -28,13 +28,26 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
     let uploaded = run(&tracker, &format!("upload {file}")).await.unwrap();
     assert!(uploaded.contains("uploaded Issues"), "{uploaded}");
 
-    let databases = tracker.databases().await.unwrap();
-    assert_eq!(databases.len(), 2);
-    let copy = databases.iter().find(|entry| entry.id != original).unwrap();
+    tracker.invalidate().await;
+    let views: Vec<Entry> = tracker
+        .children(tracker.find("Tracker", |_| true).await.unwrap().id)
+        .await
+        .unwrap()
+        .into_iter()
+        .filter(|entry| entry.label() == "Issues")
+        .collect();
+    assert_eq!(views.len(), 2);
+    let mut copies = Vec::new();
+    for view in &views {
+        let database = tracker.database_of(view).await.unwrap();
+        if database != original {
+            copies.push(tracker.entry(database).await.unwrap());
+        }
+    }
+    let [copy] = copies.as_slice() else {
+        panic!("one copy of the database: {copies:?}");
+    };
     assert_eq!(copy.prefix.as_deref(), Some("BE"));
-    let index = tracker.index().await.unwrap();
-    let view = index.get(copy.parent.block().unwrap()).unwrap().clone();
-    assert_eq!(tracker.database_of(&view).await.unwrap(), copy.id);
     let rows = tracker.list(copy.id, &[]).await.unwrap();
     assert_eq!(rows.len(), 1);
     assert_eq!(rows[0].title, "Fix the login");
@@ -48,7 +61,7 @@ async fn a_downloaded_block_uploads_as_a_copy_with_new_ids() {
     )
     .await
     .unwrap();
-    let original = index.get(original).unwrap().short.clone();
+    let original = crate::blocks::short_of(original);
     assert_eq!(
         run(&tracker, &format!("{original} row {id} page"))
             .await

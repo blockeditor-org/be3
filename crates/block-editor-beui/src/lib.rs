@@ -39,8 +39,8 @@ pub use instance::BeuiPlugin;
 pub use layered_settings::{
     ChangesToast, LayeredSettings, LayeredSettingsRow, SettingHandle, SettingsChanges,
 };
-pub use loading::{Loaded, Loading};
-pub use related_content::{RelatedContent, content_settled};
+pub use loading::{FailedPane, Loaded, LoadingPane};
+pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
 pub use version_control::{VersionHistory, short_id};
 

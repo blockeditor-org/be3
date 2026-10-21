@@ -139,7 +139,7 @@ impl RootSettings {
     }
 
     pub(crate) fn ensure(&mut self) -> Option<Uuid> {
-        if self.find().is_none() && be::graph_loaded() {
+        if self.find().is_none() && be::ready(be::Query::Roots) {
             let block = Uuid::now_v7();
             be::create(
                 block,
@@ -176,7 +176,7 @@ impl RootSettings {
     }
 
     pub(crate) fn ensure_my_files(&mut self) -> Option<Uuid> {
-        if self.my_files().is_none() && be::graph_loaded() {
+        if self.my_files().is_none() && be::ready(be::Query::Roots) {
             let block = Uuid::now_v7();
             let mut metadata = BlockMetadata::default();
             metadata.insert(&NAME, &"My files".to_owned());

@@ -309,11 +309,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                 on_select={chose}
             >
                 <Tooltip label={label}>
-                    <Interactive
-                        focusable=true
-                        on_activate={clicked}
-                        on_hover_change={move |over: bool| hovered.set(over)}
-                    >
+                    <Interactive focusable=true on_activate={clicked} on_hover_change={hovered}>
                         <Draggable
                             @test_id={element_test_id}
                             payload={payload}
@@ -482,11 +478,10 @@ pub(super) fn ToolSettings(session: Session) -> NodeId {
             </Show>
             <Show condition={labelled}>
                 <TextInput
-                    value={label}
+                    value={Binding::new(label, typed)}
                     label="Label"
                     placeholder="Label"
                     @test_id={"logic-grid.io-label"}
-                    on_change={typed}
                 />
             </Show>
             <Text style=TextStyle::CAPTION string="Middle drag or wheel: pan" />
@@ -536,8 +531,7 @@ fn ScalePicker(session: Session, output: bool) -> NodeId {
                     <ChoiceOption label={format!("{value}x")} />
                 </ForEach>
             }}
-            selected={selected}
-            on_change={chose}
+            selected={Binding::new(selected, chose)}
         />
     }
 }

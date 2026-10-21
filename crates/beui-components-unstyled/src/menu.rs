@@ -71,8 +71,7 @@ pub struct MenuItem {
     danger: Memo<bool>,
     separated: Memo<bool>,
     depth: Memo<Option<usize>>,
-    expanded: Memo<Option<bool>>,
-    on_expand: Callback<bool>,
+    expanded: Binding<Option<bool>>,
     page: bool,
     then: MenuThen,
     test_id: Option<String>,
@@ -105,7 +104,7 @@ impl MenuItem {
 
     fn toggle(&self) {
         if let Some(expanded) = self.expanded.get_untracked() {
-            self.on_expand.call(!expanded);
+            self.expanded.set(Some(!expanded));
         }
     }
 }
@@ -121,13 +120,12 @@ pub fn MenuItem(
     #[prop(default = false)] danger: Prop<bool>,
     #[prop(default = false)] separated: Prop<bool>,
     #[prop(default = None)] depth: Prop<Option<usize>>,
-    #[prop(default = None)] expanded: Prop<Option<bool>>,
+    #[prop(default = None)] expanded: Binding<Option<bool>>,
     #[prop(default = false)] page: bool,
     #[prop(default = MenuThen::Close)] then: MenuThen,
     row_test_id: Option<String>,
     action: Option<Action>,
     on_click: ClickCallback,
-    on_expand: Callback<bool>,
     children: Children<MenuItem>,
 ) -> MenuItem {
     let label = action_label(action.as_ref(), label);
@@ -144,8 +142,7 @@ pub fn MenuItem(
         danger: create_memo(move || danger.get()),
         separated: create_memo(move || separated.get()),
         depth: create_memo(move || depth.get()),
-        expanded: create_memo(move || expanded.get()),
-        on_expand,
+        expanded,
         page,
         then,
         test_id: row_test_id,
@@ -194,8 +191,7 @@ fn plain(label: Prop<String>, children: Run<MenuItem>) -> MenuItem {
         danger: create_memo(|| false),
         separated: create_memo(|| false),
         depth: create_memo(|| None),
-        expanded: create_memo(|| None),
-        on_expand: Callback::default(),
+        expanded: Binding::new(None, Callback::empty()),
         page: false,
         then: MenuThen::Close,
         test_id: None,
@@ -1047,7 +1043,7 @@ fn right(state: State, at: Focus, stops: &Stops) -> Option<Focus> {
     }
     match item.expanded.get_untracked() {
         Some(false) => {
-            item.on_expand.call(true);
+            item.expanded.set(Some(true));
             None
         }
         Some(true) => {
@@ -1068,7 +1064,7 @@ fn left(state: State, at: Focus, stops: &Stops) -> Option<Focus> {
         && let Some(item) = item_at(state, index)
     {
         if item.expanded.get_untracked() == Some(true) {
-            item.on_expand.call(false);
+            item.expanded.set(Some(false));
             return None;
         }
         let depth = item.depth.get_untracked().unwrap_or_default();

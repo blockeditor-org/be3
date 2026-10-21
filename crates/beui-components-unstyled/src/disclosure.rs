@@ -12,11 +12,11 @@ pub struct DisclosureHandle {
     pub hovered: ReadSignal<bool>,
     pub active: ReadSignal<bool>,
     pub focused: ReadSignal<bool>,
-    pub open: ReadSignal<bool>,
+    pub open: Binding<bool>,
 }
 
 struct State {
-    open: ReadSignal<bool>,
+    open: Binding<bool>,
 }
 
 #[component]
@@ -24,19 +24,13 @@ pub fn Disclosure(
     spacing: Prop<f32>,
     header: Render<DisclosureHandle>,
     children: Child,
-    open: Prop<bool>,
-    on_toggle: Callback<bool>,
+    open: Binding<bool>,
 ) -> NodeId {
-    let current = create_signal(open.get_untracked());
-    create_effect(move || current.set(open.get()));
-
-    set_component_state(State {
-        open: current.read_only(),
-    });
+    set_component_state(State { open });
 
     let accessibility = create_memo(move || {
         let mut node = Node::new(Role::DisclosureTriangle);
-        node.set_expanded(current.get());
+        node.set_expanded(open.get());
         node
     });
 
@@ -45,19 +39,17 @@ pub fn Disclosure(
             <unstyled::Button
                 accessibility
                 on_click={move || {
-                    let next = !current.get_untracked();
-                    current.set(next);
-                    on_toggle.call(next);
+                    open.update(|open| *open = !*open);
                 }}
             >|handle: ButtonHandle| {
                 header.call(DisclosureHandle {
                     hovered: handle.hovered,
                     active: handle.active,
                     focused: handle.focused,
-                    open: current.read_only(),
+                    open,
                 })
             }</unstyled::Button>
-            <Frame visible={current}>
+            <Frame visible={open}>
                 <List spacing>
                     <Frame />
                     {children}

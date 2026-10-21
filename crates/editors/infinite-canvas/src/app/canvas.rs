@@ -241,7 +241,10 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
         };
         let reference = reference_of(&entity);
         let label = reference.and_then(|reference| state.label_of(reference));
-        let loading = reference.is_some();
+        let missing = match reference {
+            Some(_) => state.unlabeled(),
+            None => "Broken link".to_owned(),
+        };
         let paint = EntityPaint {
             covered: state.child_state(entity.id).available,
             camera: Camera::of(Some(camera.get()), block_editor_beui::beui::Pos2::ZERO),
@@ -249,10 +252,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             title: label
                 .as_ref()
                 .map(|label| label.name.clone())
-                .unwrap_or_else(|| match loading {
-                    true => "Loading…".to_owned(),
-                    false => "Broken link".to_owned(),
-                }),
+                .unwrap_or(missing),
             glyph: label
                 .as_ref()
                 .and_then(block_editor_beui::label_glyph)

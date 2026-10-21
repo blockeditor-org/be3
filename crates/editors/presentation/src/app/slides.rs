@@ -33,7 +33,7 @@ impl Slides {
         let dependencies = editor
             .blocks()
             .watch(BlockQuery::References(editor.block_id()));
-        create_effect(move || slides.refresh(&dependencies));
+        create_binding(move || slides.refresh(&dependencies));
         slides
     }
 
@@ -111,7 +111,7 @@ impl Slides {
     }
 
     pub fn move_to(&self, id: Uuid, index: usize) {
-        if let Some(edit) = self
+        if let Ok(edit) = self
             .block
             .read(|presentation| presentation.root().move_to(ObjectId::from_uuid(id), index))
         {
@@ -136,7 +136,7 @@ impl Slides {
                     return;
                 };
                 let slide = Uuid::new_v4();
-                if let Some(edit) = block.read(|presentation| {
+                if let Ok(edit) = block.read(|presentation| {
                     presentation
                         .root()
                         .insert(ObjectId::from_uuid(slide), index, picked.id)
@@ -149,7 +149,7 @@ impl Slides {
     }
 
     fn refresh(&self, dependencies: &BlockList) {
-        let Some(entries) = self.block.read(|presentation| {
+        let Ok(entries) = self.block.read(|presentation| {
             presentation
                 .root()
                 .slides
@@ -159,8 +159,13 @@ impl Slides {
         }) else {
             return;
         };
-        let metadata: HashMap<_, _> = dependencies
-            .read()
+        let references = dependencies.read();
+        let pending = match &references {
+            Err(Pending::Failed(error)) => error.clone(),
+            _ => "Loading…".to_owned(),
+        };
+        let metadata: HashMap<_, _> = references
+            .unwrap_or_default()
             .into_iter()
             .map(|reference| (reference.id, reference))
             .collect();
@@ -182,7 +187,7 @@ impl Slides {
                         .unwrap_or_else(|| Slide {
                             target: None,
                             name: match block {
-                                Some(_) => "Loading…".to_owned(),
+                                Some(_) => pending.clone(),
                                 None => "Broken link".to_owned(),
                             },
                         }),

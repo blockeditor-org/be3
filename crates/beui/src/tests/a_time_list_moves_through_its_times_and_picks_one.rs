@@ -14,13 +14,12 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
                 <List @sizing=ItemSize::Fixed(200.0) spacing=0.0>
                     <TimeList
                         @sizing=ItemSize::Percent(100.0)
-                        value={Some(Time::new(10, 7))}
+                        value={Binding::new(Some(Time::new(10, 7)), move |time| picked.update(|picked| picked.push(time)))}
                         step_minutes=30
                         focused=true
                         option={|handle: TimeOptionHandle| view! {
                             <Text string={handle.label} />
                         }}
-                        on_change={move |time| picked.update(|picked| picked.push(time))}
                     />
                 </List>
             </List>
@@ -36,5 +35,8 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
     harness.key(Key::PageDown, Modifiers::NONE);
     harness.key(Key::Enter, Modifiers::NONE);
 
-    assert_eq!(picked.get_untracked(), [Time::new(10, 0), Time::new(12, 0)]);
+    assert_eq!(
+        picked.get_untracked(),
+        [Some(Time::new(10, 0)), Some(Time::new(12, 0))]
+    );
 }

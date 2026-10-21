@@ -1,4 +1,4 @@
-use std::collections::BTreeMap;
+use std::collections::{BTreeMap, HashMap};
 use std::sync::Arc;
 
 use be_block::database::{
@@ -13,12 +13,13 @@ use be_block::text::{TextBlock, TextContent};
 use be_block::{BlockContent, BlockMetadata, LiveEdit, ObjectId};
 use be_client::{Peer, Saved};
 use be_graph::BlockParent;
+use be_protocol::BlockSummary;
 use be_store::ObjectStore;
 use block_ui::database::{ValueLabels, database_value_text, parse_cell_value};
 use tokio::sync::Mutex;
 use uuid::Uuid;
 
-use crate::blocks::{Entry, Index};
+use crate::blocks::{Entry, Found, Index, find_in, is_top, short_of};
 use crate::session::explain;
 
 const ATTEMPTS: usize = 8;
@@ -280,14 +281,14 @@ impl Loaded {
 
 pub struct Tracker<S: ObjectStore> {
     peer: Arc<Peer<S>>,
-    index: Mutex<Option<Index>>,
+    index: Mutex<Index>,
 }
 
 impl<S: ObjectStore> Tracker<S> {
     pub fn new(peer: Peer<S>) -> Self {
         Self {
             peer: Arc::new(peer),
-            index: Mutex::new(None),
+            index: Mutex::new(Index::default()),
         }
     }
 
@@ -295,59 +296,137 @@ impl<S: ObjectStore> Tracker<S> {
         &self.peer
     }
 
-    pub async fn index(&self) -> Result<Index, String> {
-        let mut held = self.index.lock().await;
-        if let Some(index) = held.as_ref() {
-            return Ok(index.clone());
-        }
-        let mut entries = Vec::new();
-        let summaries = self.peer.list_blocks().await.map_err(explain)?;
+    async fn entries(&self, summaries: Vec<BlockSummary>) -> Result<Vec<Entry>, String> {
         self.peer.learn(&summaries).await.map_err(explain)?;
-        for summary in summaries {
-            let Some(parent) = summary.parent else {
-                continue;
-            };
-            let metadata = self.peer.metadata(&summary).unwrap_or_default();
-            entries.push(Entry {
-                id: summary.id,
-                short: String::new(),
-                block_type: summary.content_type,
-                parent,
-                name: metadata.name(),
-                prefix: metadata.get(&be_block::ROW_PREFIX),
-                references: summary.references,
-                access: summary.access,
-                head: summary.head,
-                deleted: false,
-            });
+        Ok(summaries
+            .into_iter()
+            .filter_map(|summary| {
+                let parent = summary.parent?;
+                let metadata = self.peer.metadata(&summary).unwrap_or_default();
+                Some(Entry {
+                    id: summary.id,
+                    short: short_of(summary.id),
+                    block_type: summary.content_type,
+                    parent,
+                    name: metadata.name(),
+                    prefix: metadata.get(&be_block::ROW_PREFIX),
+                    references: summary.references,
+                    access: summary.access,
+                    head: summary.head,
+                    deleted: false,
+                })
+            })
+            .collect())
+    }
+
+    pub async fn top(&self) -> Result<Vec<Entry>, String> {
+        if let Some(listed) = self.index.lock().await.listed(None) {
+            return Ok(listed);
         }
-        let parents: std::collections::HashMap<Uuid, BlockParent> = entries
-            .iter()
-            .map(|entry| (entry.id, entry.parent))
-            .collect();
-        let deleted = |mut parent: BlockParent| {
-            for _ in 0..parents.len() + 1 {
-                match parent {
-                    BlockParent::Detached => return true,
-                    BlockParent::Root => return false,
-                    BlockParent::Block(id) => match parents.get(&id) {
-                        Some(next) => parent = *next,
-                        None => return false,
-                    },
+        let (roots, shared) = futures_util::future::try_join(
+            self.peer.children(BlockParent::Root),
+            self.peer.shared(),
+        )
+        .await
+        .map_err(explain)?;
+        let mut summaries = roots;
+        summaries.extend(shared);
+        let entries = self.entries(summaries).await?;
+        let entries = entries.into_iter().filter(is_top).collect();
+        let mut index = self.index.lock().await;
+        index.list(None, entries);
+        Ok(index.listed(None).unwrap_or_default())
+    }
+
+    pub async fn children(&self, parent: Uuid) -> Result<Vec<Entry>, String> {
+        if let Some(listed) = self.index.lock().await.listed(Some(parent)) {
+            return Ok(listed);
+        }
+        let summaries = self
+            .peer
+            .children(BlockParent::Block(parent))
+            .await
+            .map_err(explain)?;
+        let entries = self.entries(summaries).await?;
+        let mut index = self.index.lock().await;
+        index.list(Some(parent), entries);
+        Ok(index.listed(Some(parent)).unwrap_or_default())
+    }
+
+    pub async fn entry(&self, id: Uuid) -> Result<Entry, String> {
+        if let Some(entry) = self.index.lock().await.get(id) {
+            return Ok(entry.clone());
+        }
+        let summary = self.peer.summary(id).await.map_err(explain)?;
+        let mut entry = self
+            .entries(vec![summary])
+            .await?
+            .pop()
+            .ok_or_else(|| format!("this account cannot see {id}"))?;
+        let mut parent = entry.parent;
+        while let BlockParent::Block(above) = parent {
+            match self.peer.summary(above).await {
+                Ok(summary) if summary.access.can_view() => {
+                    parent = summary.parent.unwrap_or(BlockParent::Root);
                 }
+                _ => break,
             }
-            false
-        };
-        for entry in &mut entries {
-            entry.deleted = deleted(entry.parent);
         }
-        let index = Index::new(entries);
-        *held = Some(index.clone());
-        Ok(index)
+        entry.deleted = parent == BlockParent::Detached;
+        self.index.lock().await.insert(entry.clone());
+        Ok(entry)
+    }
+
+    pub async fn is_hidden(&self, block: Uuid) -> bool {
+        !self
+            .entry(block)
+            .await
+            .is_ok_and(|entry| entry.access.can_view())
+    }
+
+    pub async fn find(&self, text: &str, accept: impl Fn(&Entry) -> bool) -> Result<Entry, String> {
+        let wanted = text.trim();
+        if let Ok(id) = Uuid::parse_str(wanted.rsplit('/').next().unwrap_or(wanted)) {
+            return self.entry(id).await;
+        }
+        let mut level = self.top().await?;
+        while !level.is_empty() {
+            match find_in(&level, wanted, &accept) {
+                Found::One(entry)
+                    if entry.block_type == DatabaseViewContent::CONTENT_TYPE
+                        && entry.label().eq_ignore_ascii_case(wanted) =>
+                {
+                    let inside = self.children(entry.id).await?.into_iter().find(|child| {
+                        child.block_type == DatabaseContent::CONTENT_TYPE
+                            && child.label() == entry.label()
+                    });
+                    return Ok(inside.unwrap_or_else(|| entry.clone()));
+                }
+                Found::One(entry) => return Ok(entry.clone()),
+                Found::Ambiguous(error) => return Err(error),
+                Found::None => {}
+            }
+            let below = futures_util::future::try_join_all(
+                level
+                    .iter()
+                    .filter(|entry| entry.access.can_view())
+                    .map(|entry| self.children(entry.id)),
+            )
+            .await?;
+            level = below.into_iter().flatten().collect();
+        }
+        if looks_like_row(wanted) {
+            return Err(format!(
+                "a row is named within its database: be DATABASE row {wanted}"
+            ));
+        }
+        Err(format!(
+            "nothing is called {wanted}; `be ls` lists the blocks at the top"
+        ))
     }
 
     pub async fn read<C: BlockContent>(&self, block: Uuid) -> Result<Option<C>, String> {
-        let head = self.index().await?.get(block).map(|entry| entry.head);
+        let head = self.index.lock().await.get(block).map(|entry| entry.head);
         match head {
             Some(Some(head)) => Ok(Some(
                 self.peer.open_commit::<C>(head).await.map_err(explain)?,
@@ -358,16 +437,16 @@ impl<S: ObjectStore> Tracker<S> {
     }
 
     pub async fn outermost(&self, entry: &Entry) -> Result<Entry, String> {
-        let index = self.index().await?;
-        let shell = entry
-            .parent
-            .block()
-            .and_then(|parent| index.get(parent))
-            .filter(|parent| {
-                entry.block_type == DatabaseContent::CONTENT_TYPE
-                    && parent.block_type == DatabaseViewContent::CONTENT_TYPE
-            });
-        Ok(shell.unwrap_or(entry).clone())
+        if entry.block_type != DatabaseContent::CONTENT_TYPE {
+            return Ok(entry.clone());
+        }
+        let shell = match entry.parent.block() {
+            Some(parent) => self.entry(parent).await.ok(),
+            None => None,
+        };
+        Ok(shell
+            .filter(|parent| parent.block_type == DatabaseViewContent::CONTENT_TYPE)
+            .unwrap_or_else(|| entry.clone()))
     }
 
     pub async fn delete_block(&self, entry: &Entry) -> Result<String, String> {
@@ -382,17 +461,11 @@ impl<S: ObjectStore> Tracker<S> {
     }
 
     pub async fn invalidate(&self) {
-        *self.index.lock().await = None;
+        *self.index.lock().await = Index::default();
     }
 
     pub async fn resolve(&self, text: &str) -> Result<Entry, String> {
-        let index = self.index().await?;
-        match index.find(text, |_| true) {
-            Err(_) if looks_like_row(text) => Err(format!(
-                "a row is named within its database: be DATABASE row {text}"
-            )),
-            found => found.cloned(),
-        }
+        self.find(text, |_| true).await
     }
 
     pub async fn database_of(&self, entry: &Entry) -> Result<Uuid, String> {
@@ -418,12 +491,12 @@ impl<S: ObjectStore> Tracker<S> {
     }
 
     pub async fn find_database(&self, wanted: &str) -> Result<Uuid, String> {
-        let index = self.index().await?;
-        let entry = index
+        let entry = self
             .find(wanted, |entry| {
                 entry.block_type == DatabaseContent::CONTENT_TYPE
-            })?
-            .clone();
+                    || entry.block_type == DatabaseViewContent::CONTENT_TYPE
+            })
+            .await?;
         self.database_of(&entry).await
     }
 
@@ -457,17 +530,19 @@ impl<S: ObjectStore> Tracker<S> {
     }
 
     async fn load(&self, id: Uuid) -> Result<Loaded, String> {
-        let index = self.index().await?;
-        let name = index
-            .get(id)
-            .map_or_else(|| "Database".to_owned(), Entry::label);
+        let name = self
+            .entry(id)
+            .await
+            .map_or_else(|_| "Database".to_owned(), |entry| entry.label());
         let (database, schema) = self.load_plain(id).await?;
-        let mut sources: Vec<Uuid> = index
-            .entries
-            .iter()
-            .filter(|entry| entry.block_type == DatabaseSchemaContent::CONTENT_TYPE)
-            .filter(|entry| entry.references.contains(&id))
-            .filter_map(|entry| entry.parent.block())
+        let mut sources: Vec<Uuid> = self
+            .peer
+            .backrefs(id)
+            .await
+            .map_err(explain)?
+            .into_iter()
+            .filter(|summary| summary.content_type == DatabaseSchemaContent::CONTENT_TYPE)
+            .filter_map(|summary| summary.parent.and_then(BlockParent::block))
             .collect();
         sources.sort();
         sources.dedup();
@@ -572,17 +647,6 @@ impl<S: ObjectStore> Tracker<S> {
         }
     }
 
-    pub async fn databases(&self) -> Result<Vec<Entry>, String> {
-        let index = self.index().await?;
-        Ok(index
-            .entries
-            .iter()
-            .filter(|entry| entry.block_type == DatabaseContent::CONTENT_TYPE)
-            .filter(|entry| entry.access.can_view())
-            .cloned()
-            .collect())
-    }
-
     pub async fn list(&self, database: Uuid, filters: &[Filter]) -> Result<Vec<RowView>, String> {
         let loaded = self.load(database).await?;
         let labels = self.labels(&loaded).await?;
@@ -657,14 +721,21 @@ impl<S: ObjectStore> Tracker<S> {
 
     pub async fn schema(&self, database: Uuid) -> Result<Vec<String>, String> {
         let loaded = self.load(database).await?;
-        let index = self.index().await?;
         let title = loaded.title_field();
-        let name_of = |id: Uuid| {
-            index.get(id).map_or_else(
-                || id.to_string(),
+        let linked = loaded
+            .fields()
+            .into_iter()
+            .filter_map(|field| field.relation_options.database)
+            .chain(loaded.inverses.iter().map(|inverse| inverse.source));
+        let mut names = HashMap::new();
+        for id in linked {
+            let name = self.entry(id).await.map_or_else(
+                |_| id.to_string(),
                 |entry| format!("{} ({})", entry.label(), entry.short),
-            )
-        };
+            );
+            names.insert(id, name);
+        }
+        let name_of = |id: Uuid| names.get(&id).cloned().unwrap_or_else(|| id.to_string());
         let mut lines = Vec::new();
         for field in loaded.fields() {
             let kind = match field.field_type {

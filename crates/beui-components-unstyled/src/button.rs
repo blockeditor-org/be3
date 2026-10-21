@@ -120,7 +120,7 @@ pub fn Button(
                 focused.set(has_focus);
                 on_focus_change.call(has_focus);
             }}
-            on_activate_change={move |pressed: bool| key_active.set(pressed)}
+            on_activate_change={key_active}
             on_activate={key_click}
             cursor=CursorIcon::PointingHand
             capture_presses
@@ -128,8 +128,8 @@ pub fn Button(
             on_click={click}
             on_click_at={click_at}
             on_press={on_press}
-            on_hover_change={move |next: bool| hovered.set(next)}
-            on_active_change={move |next: bool| active.set(next)}
+            on_hover_change={hovered}
+            on_active_change={active}
             children={content_node}
         />
     }

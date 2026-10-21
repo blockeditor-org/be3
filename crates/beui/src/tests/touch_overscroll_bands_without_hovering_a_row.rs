@@ -12,7 +12,7 @@ fn touch_overscroll_bands_without_hovering_a_row() {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
-                    <Interactive on_hover_change={move |value| hovered.set(value)}>
+                    <Interactive on_hover_change={hovered}>
                         <Frame padding={Sides::symmetric(0.0, 20.0)}>
                             <Spacer />
                         </Frame>

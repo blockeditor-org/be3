@@ -29,16 +29,15 @@ pub struct TimeOptionHandle {
 #[derive(Clone, Copy)]
 struct State {
     times: Memo<Vec<u32>>,
-    selected: Signal<Option<Time>>,
+    selected: Binding<Option<Time>>,
     focus: Signal<Option<u32>>,
     anchor: Memo<u32>,
     columns: usize,
-    on_change: Callback<Time>,
 }
 
 #[component]
 pub fn TimeList(
-    value: Prop<Option<Time>>,
+    #[prop(default = None)] value: Binding<Option<Time>>,
     #[prop(default = 15)] step_minutes: u32,
     #[prop(default = HourCycle::H24)] hour_cycle: HourCycle,
     #[prop(default = false)] focused: Prop<bool>,
@@ -48,12 +47,10 @@ pub fn TimeList(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     option: RenderFn<TimeOptionHandle>,
-    on_change: Callback<Time>,
 ) -> NodeId {
     let step_minutes = step_minutes.clamp(1, MINUTES_PER_DAY);
     let columns = grid_columns(step_minutes, max_columns);
-    let selected = create_signal(value.get_untracked());
-    create_effect(move || selected.set(value.get()));
+    let selected = value;
     let times = create_memo(move || {
         let mut times: Vec<u32> = (0..MINUTES_PER_DAY)
             .step_by(step_minutes as usize)
@@ -93,7 +90,6 @@ pub fn TimeList(
         focus,
         anchor,
         columns,
-        on_change,
     };
     set_component_state(state);
     create_effect(move || {
@@ -222,8 +218,7 @@ pub fn time_list_selected(document: &Document, list: NodeId) -> Option<Time> {
 }
 
 fn choose(state: State, time: Time) {
-    state.selected.set(Some(time));
-    state.on_change.call(time);
+    state.selected.update(|selected| *selected = Some(time));
 }
 
 fn option_key(state: State, minutes: u32, press: KeyPress) -> bool {

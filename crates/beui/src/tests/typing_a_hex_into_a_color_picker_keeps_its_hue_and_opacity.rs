@@ -10,8 +10,7 @@ fn typing_a_hex_into_a_color_picker_keeps_its_hue_and_opacity() {
         view! {
             <List spacing=0.0>
                 <ColorPicker
-                    value={Color32::from_rgba_unmultiplied(0x20, 0x40, 0x80, 0x80)}
-                    on_change={move |color| changes.update(|changes| changes.push(color))}
+                    value={Binding::new(Color32::from_rgba_unmultiplied(0x20, 0x40, 0x80, 0x80), move |next| changes.update(|changes| changes.push(next)))}
                 />
             </List>
         }

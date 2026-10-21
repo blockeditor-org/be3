@@ -60,7 +60,7 @@ for manifest in crates/tabletop-games/rules/*/Cargo.toml; do
 done
 
 # The builds buck2 stands in for, as cargo would be asked for them: the host
-# (block-app with full, without the wasm-only crates), block-app and beui's
+# (without the wasm-only crates), block-app and beui's
 # DOM demo for the web, the plugins and beui's demo, whose tests paint as a
 # plugin's do (a plan of their own: they want a different wgpu), the games and
 # the gpu shim and the remap module, and the host again for each cross target. `cargo test` where
@@ -73,14 +73,14 @@ plan() {
 }
 RUSTC="$nightly/bin/rustc" "$nightly/bin/cargo" metadata --all-features --format-version 1 --locked > "$scratch/metadata.json"
 host_packages="--workspace $excluded --exclude block-editor-plugin --exclude block-editor-beui --exclude block-gpu-shim --exclude beui-web-demo"
-plan test --target x86_64-unknown-linux-gnu $host_packages --features block-app/full > "$scratch/host.json"
-plan build --target wasm32-wasip1-threads -p block-app -p beui-web-demo --lib --features block-app/full > "$scratch/wasi.json"
+plan test --target x86_64-unknown-linux-gnu $host_packages > "$scratch/host.json"
+plan build --target wasm32-wasip1-threads -p block-app -p beui-web-demo --lib > "$scratch/wasi.json"
 plan test --target wasm32-wasip1-threads $plugins -p block-editor-plugin -p block-editor-beui -p beui-demo > "$scratch/wasi-guest.json"
 plan build --target wasm32-unknown-unknown $games -p block-gpu-shim -p be-remap-module > "$scratch/wasm32.json"
 cross=""
 for platform in "$@"; do
     name="${platform%%=*}"
-    plan test --target "${platform#*=}" $host_packages --features block-app/full > "$scratch/$name.json"
+    plan test --target "${platform#*=}" $host_packages > "$scratch/$name.json"
     cross="$cross $name=$scratch/$name.json"
 done
 CARGO_TARGET_DIR="$scratch/target" PATH="$toolchain/bin:$PATH" \

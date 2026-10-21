@@ -13,11 +13,8 @@ pub struct RepositoryApp;
 
 impl block_editor_beui::BeuiApp for RepositoryApp {
     fn view(editor: Editor) -> NodeId {
-        let content = editor.loaded::<block_editor_beui::be_block::RepositoryContent>(&[]);
-        let status = editor.version_known();
-        let loaded = create_memo(move || content.get() && status.get());
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <RepositoryView editor={editor} />
             </Loaded>
         }

@@ -181,9 +181,8 @@ fn ViewTabs(data: Data) -> NodeId {
                 view! {
                     <ToggleButton
                         label={name}
-                        pressed={view == own}
+                        pressed={Binding::new(view == own, open)}
                         @test_id={format!("database-view.view.{view}")}
-                        on_change={open}
                     />
                 }
             }</ForEach>
@@ -205,12 +204,11 @@ fn SearchField(data: Data) -> NodeId {
     let typed = move |text: String| data.set_search(text);
     view! {
         <TextInput
-            value={query}
+            value={Binding::new(query, typed)}
             placeholder="Search"
             glyph={ICON_SEARCH.to_owned()}
             clearable=true
             @test_id={"database-view.search"}
-            on_change={typed}
         />
     }
 }

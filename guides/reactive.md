@@ -127,9 +127,11 @@ it with `move` and nothing clones it.
   (it also derefs to one). Use it for state made outside a scope, such as an
   editor the host keeps.
 
-`Callback`, `ClickCallback` and `NodeRef` are `Copy` the same way. An empty
+`Callback`, `ClickCallback`, `Binding` and `NodeRef` are `Copy` the same way. An empty
 callback needs no scope; `Callback::new`, `ClickCallback::new` and
-`NodeRef::new` create stored values, so they need one. Calling a callback
+`NodeRef::new` create stored values, so they need one. A `Callback<T>` made from
+a `Signal<T>` (`Callback::from(signal)`, or the signal passed where a callback
+is expected) holds just the signal's handle and sets it when called. Calling a callback
 whose scope is gone does nothing, as `set` on a freed signal does. A callback
 runs its handler untracked, so an effect that calls one subscribes to nothing
 the handler reads.
@@ -314,32 +316,65 @@ sees straight away, so a local edit is visible in the frame that made it, and
 queues it for the host. It is already held behind whether the host says the
 block may be edited, and dropped until the host has sent the content once, since
 an edit made against content that has not arrived would land in the wrong place.
-`read` answers the content outside a projection (`None` until the host has sent
-it once), and `loaded()` is a signal that turns true when it has.
+`read` answers the content outside a projection, `Err(Pending::Loading)` until
+the host has sent it once, and `ready()` is that state on its own.
 
 An editor shows nothing it would have to correct a moment later: not an empty
 or editable view before its content arrives, and not a placeholder ("no rows")
 that the next answer replaces. Every `BeuiApp::view` and `preview_view` wraps
-its component in `<Loaded loaded={...}>`, which shows `Loading` (a spinner)
-until the signal first turns true and only then builds what it wraps, and keeps
-it from then on, so a later change updates the view in place instead of
-bringing the spinner back. `editor.loaded::<C>(&[queries])` is the usual
-signal: the editor's own content and the answer to each graph query it draws
-names from, such as `BlockQuery::References(own)`. An editor that needs more
-waits for that too - the version control editors for `editor.version_known()`,
-the workspace shells for their view block, the database view for its database,
-schema, relations and row labels - and one with a placeholder that is already
+its component in `<Loaded label="...">`, the editor's `Loading` boundary (see
+Loading, below): it waits for whatever its content reads. The sources that
+wait are the editor's own: a projection of a block's content
+(`block_content`, `content_of` and everything built on them, for another
+block until its content arrives or the account turns out not to be able to
+read it), a graph query (`editor.blocks().watch(query)`, `watch_blocks`),
+`version_status()`, and the database helpers `watch_inverses` and
+`watch_row_labels`. So the sources must be made inside the boundary's
+content, not in `view` around it. One with a placeholder that is already
 right while loading shows that instead (an image shows its thumbhash).
-`RelatedContent::settled()` and `content_settled` turn true once a block's
-content has arrived or the account cannot read it, so a block that will never
-arrive does not leave an editor loading forever. Something that loads later,
-inside a view that is already shown (a folder in the file tree being expanded),
-says "Loading…" in its own place.
+Something that loads later, inside a view that is already shown (a folder in
+the file tree being expanded), says so in its own place, from its `Ready`.
 
 The graph around a block - its children, what it references, what references
 it - is a query rather than content. `editor.watch_blocks(BlockQuery::Children(id))`
-is a memo of the `BlockInfo`s the host answers that query with, `None` until the
-first answer arrives, and it changes whenever the host's answer does.
+is a memo of the host's answer to that query: `Err(Pending::Loading)` until the
+first answer arrives, `Err(Pending::Failed(..))` when the host could not answer
+it, and it changes whenever the host's answer does. A query nobody watches
+keeps its last answer for a while (the plugin keeps the last 64), so watching
+it again shows that at once while the host answers again.
+
+## Loading
+
+Data that may not have arrived is a `Ready<T>`, `Result<T, Pending>`, where
+`Pending` is `Loading` or `Failed(message)`. A memo derives from one with `?`:
+`create_memo(move || Ok(rows.get()?.len()))`. Nothing in between keeps an
+`Option` or a `loaded: bool` beside the value.
+
+`<Loading fallback={|pending: Pending| ...}>{content}</Loading>` turns that
+state into UI. It builds its content at once but keeps it hidden, and shows
+the fallback while anything the content made waits; once nothing does it
+reveals the content, and never shows the fallback again, so a later reload
+updates the view in place. A source waits on the nearest boundary around the
+scope that makes it: `wait_for(probe)` registers a `Fn() -> Ready<()>` and
+`hold(source)` turns a `Ready<T>` into a memo of the last `T` it was (the
+default before the first) that waits for it. A `Memo<Ready<T>>` handed to a
+`Prop<T>` is held that way, so `<Text string={name} />` takes it directly.
+Inside a memo nothing registers: a memo runs whenever it is read, so it would
+register again each time; make the source in a body or a binding instead. A wait
+lasts as long as the scope that registered it, so a source a binding caches
+across its runs is made in a scope of its own, kept with the cached source,
+rather than in the binding's, which the next run drops. Once a boundary has
+revealed nothing registers with it any more. An
+inner `Loading` keeps what its own content waits for from the one around it.
+
+While the content is hidden its bindings, memos and the controls that build
+the tree (`Show`, `Dynamic`, `ForEach`, `Keyed`) run, so the boundary finds
+everything the content will show. Its effects wait (a scope made with
+`Scope::pausable_effects()`) and run once at reveal, with the data that
+arrived, so an effect that writes outside the graph - an intrinsic size,
+seeding a child block - never acts on data that has not arrived. That makes
+the split matter: an effect that makes a source the view waits for, such as
+one that watches another query when an id changes, is a `create_binding`.
 
 ## Effects, batches, and ownership
 
@@ -451,7 +486,9 @@ paused effects read waits with them. An effect already woken when the scope
 pauses still runs, so the write that hides a subtree reaches it: an overlay
 inside closes rather than staying open. A scope inside a paused scope waits
 for it, whether or not it is paused itself. This is what keeps a hidden
-`ShowKeepAlive` child from doing work nobody can see.
+`ShowKeepAlive` child from doing work nobody can see. `Scope::pausable_effects()` pauses only its effects,
+leaving its bindings running; it is what a `Loading` boundary keeps its hidden
+content in.
 
 ## beui integration
 
@@ -565,7 +602,9 @@ and a component that wants a prop to be optional says so with
 "unset" apart from any value the caller could have passed. `Callback`,
 `ClickCallback`, and `Children` props keep their empty default, since a callback
 nobody listens to and a tag with no children are ordinary states rather than
-omissions.
+omissions. A `Binding<T>` prop is never required either: left unset, the
+component creates its own signal, holding the `#[prop(default = ...)]` value or
+else `T::default()`.
 
 ```rust
 #[component]
@@ -614,17 +653,59 @@ props wraps that in a memo it can read and pass on:
 let text = create_memo(move || content.get());
 ```
 
-When the component also writes that value itself — a toggle whose `checked` prop
-seeds state that clicking then changes — seed a signal from `get_untracked()` and keep it
-in sync with an effect, so writes from the component's own handlers and writes
-from the caller's signal both land in one place. `Prop::map` adjusts the value on
-the way in:
+### Bindings: state a component reads and writes
+
+When the component also writes that value itself — a toggle whose `checked`
+flips when clicked, a slider's `value`, a popover's `open` — the prop is a
+`Binding<T>` rather than a `Prop<T>` plus an `on_change` callback. A binding
+reads through `Get`, tracking like a signal, and writes through `Set`. The
+component writes to it and reads it back; it never keeps a copy in sync with an
+effect.
 
 ```rust
-let value = value.map(|value| value.clamp(0.0, 1.0));
-let current = create_signal(value.get_untracked());
-create_effect(move || current.set(value.get()));
+#[component]
+pub fn Toggle(checked: Binding<bool>, /* ... */) -> NodeId {
+    let flip = move || checked.set(!checked.get_untracked());
+    let toggled = create_memo(move || Toggled::from(checked.get()));
+    // ...
+}
 ```
+
+The caller decides who owns the state, with nothing to choose between on the
+component's side:
+
+- Leave the prop out and the component owns it: the macro creates a signal in
+  the component's scope, seeded from `#[prop(default = ...)]`. This is what
+  "uncontrolled" means here, and it is the default.
+- Pass a `Signal<T>` and the component reads and writes that signal:
+  `<Checkbox checked={done} />`. The binding holds just the signal's handle, so
+  this costs no allocation.
+- Pass a plain value to seed a signal the component then owns:
+  `<Switch on=true />`.
+- Pass `Binding::new(read, write)` for state that is derived or lives
+  elsewhere: `read` is anything `IntoProp<T>` (a memo, a `Prop`), and `write`
+  anything `IntoCallback<T>`, called with the value the component wants. The
+  component shows what `read` says, so a write the callback ignores changes
+  nothing on screen, and `set` skips a write equal to the value read. A
+  plain value as `read` seeds a signal the binding owns, which each write
+  updates before calling `write`: an uncontrolled control that also reports.
+
+```rust
+let selected = create_memo(move || state.tool.get() == tool);
+view! { <ToggleButton pressed={Binding::new(selected, move |_| state.tool.set(tool))} /> }
+```
+
+To react to a change, derive from the signal (a memo, or an effect for side
+effects outside the graph) instead of asking the component for a callback.
+Callbacks that only report what happened (`on_hover_change`, `on_focus_change`,
+`on_drag_change`, `on_preview`) stay callbacks, and take a signal as well as a
+closure: `on_hover_change={hovered}` rather than
+`on_hover_change={move |next| hovered.set(next)}`.
+
+A component hands its binding to the content it renders as it is: a handle
+field typed `Binding<T>` reads the state and could write it too. A binding is
+also `IntoProp<T>` and `IntoCallback<T>`, so it passes straight to a prop or
+callback of an inner component.
 
 A component's child arity is part of its signature. A prop named `children`
 typed `Children` takes however many are written between its tags; typed `Child`

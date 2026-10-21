@@ -169,8 +169,7 @@ async fn write(url: &str, data: &std::path::Path) -> Result<Vec<u8>, String> {
         .published()
         .ok_or("a save was rejected")?;
     tracker.invalidate().await;
-    let index = tracker.index().await?;
-    let entry = index.get(notes).ok_or("the folder is not listed")?.clone();
+    let entry = tracker.entry(notes).await?;
     let (_, blocks) = tracker.download(&entry).await?;
     Ok(be_client::transfer::encode(&blocks))
 }

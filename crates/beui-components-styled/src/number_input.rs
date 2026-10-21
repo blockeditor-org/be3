@@ -21,7 +21,7 @@ struct FaceText(NodeRef);
 
 #[component]
 pub fn NumberInput(
-    value: Prop<f64>,
+    value: Binding<f64>,
     #[prop(default = f64::NEG_INFINITY)] min: f64,
     #[prop(default = f64::INFINITY)] max: f64,
     #[prop(default = String::new())] label: Prop<String>,
@@ -29,7 +29,6 @@ pub fn NumberInput(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(default = NumberDrag::Linear { speed: 1.0 })] drag: NumberDrag,
     #[prop(default = None)] decimals: Prop<Option<u32>>,
-    on_change: Callback<f64>,
     on_preview: Callback<Option<f64>>,
 ) -> NodeId {
     let shown = NodeRef::new();
@@ -52,7 +51,6 @@ pub fn NumberInput(
                 let NumberFieldHandle {
                     text,
                     editing,
-                    on_change,
                     on_submit,
                     on_focus_change,
                 } = handle;
@@ -64,13 +62,11 @@ pub fn NumberInput(
                         disabled={field_disabled}
                         focused={editing}
                         select_on_focus=true
-                        on_change={on_change}
                         on_submit={on_submit}
                         on_focus_change={on_focus_change}
                     />
                 }
             }}
-            on_change={on_change}
             on_preview={on_preview}
         />
     }

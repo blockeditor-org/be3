@@ -14,12 +14,11 @@ fn a_date_segment_reads_and_steps_as_a_spin_button() {
         view! {
             <Container>|_size|
                 <DateTimeField
-                    value={Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT))}
+                    value={Binding::new(Some(DateTime::new(Date::new(2026, 9, 27), Time::MIDNIGHT)), move |value: Option<DateTime>| {
+                        reported.update(|reported| reported.push(value.map(|value| value.date)))
+                    })}
                     parts=DateTimeParts::Date
                     label="Due"
-                    on_change={move |value: Option<DateTime>| {
-                        reported.update(|reported| reported.push(value.map(|value| value.date)))
-                    }}
                 />
             </Container>
         }

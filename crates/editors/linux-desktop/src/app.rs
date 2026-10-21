@@ -52,14 +52,15 @@ impl block_editor_beui::BeuiApp for LinuxDesktopApp {
 #[component]
 fn DesktopShell(editor: Editor) -> NodeId {
     let workspace = Workspace::new(editor, false, true);
-    let layout = editor.view_content().map(|view| view.loaded());
-    let loaded = create_memo(move || layout.is_none_or(|loaded| loaded.get()));
     view! {
-        <Loaded loaded={loaded} label="Loading the desktop">
-            <Container>|_|
-                <DesktopBody workspace />
-            </Container>
-        </Loaded>
+        <Loaded label="Loading the desktop">|| {
+            let _layout = editor.view_content();
+            view! {
+                <Container>|_|
+                    <DesktopBody workspace />
+                </Container>
+            }
+        }</Loaded>
     }
 }
 

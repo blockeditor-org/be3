@@ -4,7 +4,7 @@ use super::*;
 fn an_older_announcement_never_undoes_a_newer_one() {
     let (note, gone) = (Uuid::new_v4(), Uuid::new_v4());
     let mut graph = Graph::default();
-    graph.load(vec![node(gone)], 10);
+    listed(&mut graph, vec![node(gone)], 10);
 
     graph.put(node(note), 12);
     graph.remove(note, 11);
@@ -33,7 +33,8 @@ fn an_older_announcement_never_undoes_a_newer_one() {
         graph.get(unknown).is_none(),
         "a change from before the graph was loaded"
     );
-    graph.load(Vec::new(), 2);
+    graph.relist_all();
+    graph.listed(Listing::Children(BlockParent::Root), Vec::new(), 2);
     graph.put(node(unknown), 3);
     assert!(
         graph.get(unknown).is_some(),

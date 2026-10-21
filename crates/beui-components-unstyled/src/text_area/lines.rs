@@ -753,13 +753,13 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 
 #[component]
 fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
-    let checked = create_memo(move || {
+    let shown = create_memo(move || {
         matches!(
             item.get().map(|item| item.inline),
             Some(Inline::Checkbox { checked: true, .. })
         )
     });
-    let on_change = Callback::new(move |_: bool| {
+    let checked = Binding::new(shown, move |_: bool| {
         let Some(Inline::Checkbox { line_start, .. }) =
             item.get_untracked().map(|item| item.inline)
         else {
@@ -773,11 +773,7 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     });
     let disabled = cx.disabled;
     if let Some(render) = &cx.checkbox {
-        return render.call(TextCheckbox {
-            checked,
-            disabled,
-            on_change,
-        });
+        return render.call(TextCheckbox { checked, disabled });
     }
     view! {
         <Toggle
@@ -786,7 +782,6 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
             capture_presses=true
             tab_stop=false
             press_focus=false
-            on_change={on_change}
         >|handle: ToggleHandle|
             <CheckboxBox cx handle />
         </Toggle>

@@ -7,7 +7,8 @@ fn a_block_under_a_deleted_one_is_deleted_with_it() {
     let kept = Uuid::from_u128(3);
     let shared = Uuid::from_u128(4);
     let mut graph = Graph::default();
-    graph.load(
+    listed(
+        &mut graph,
         vec![
             Node {
                 parent: Some(BlockParent::Detached),

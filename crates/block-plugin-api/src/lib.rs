@@ -1171,6 +1171,11 @@ pub enum EditorMessage {
         query: BlockQuery,
         blocks: Vec<BlockInfo>,
     },
+    BlocksFailed {
+        instance: EditorInstanceId,
+        query: BlockQuery,
+        error: String,
+    },
     CreateBlock {
         instance: EditorInstanceId,
         block_id: [u8; 16],
@@ -1282,6 +1287,7 @@ impl EditorMessage {
             | Self::Performance { instance, .. }
             | Self::WatchBlocks { instance, .. }
             | Self::Blocks { instance, .. }
+            | Self::BlocksFailed { instance, .. }
             | Self::CreateBlock { instance, .. }
             | Self::SetParent { instance, .. }
             | Self::Define { instance, .. }
@@ -1372,7 +1378,6 @@ pub enum BlockLocation {
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum BlockQuery {
-    All,
     Roots,
     Detached,
     Shared,
@@ -1893,6 +1898,7 @@ impl EditorMessage {
             | Self::ChildBar { .. }
             | Self::ChildFocused { .. }
             | Self::Blocks { .. }
+            | Self::BlocksFailed { .. }
             | Self::MenuPick { .. }
             | Self::HostValue { .. }
             | Self::VersionStatus { .. } => Direction::ToPlugin,
@@ -2790,6 +2796,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
         EditorMessage::ContentOperations { operations, .. } => collection(operations.len()),
         EditorMessage::WatchContent { blocks, .. } => collection(blocks.len()),
         EditorMessage::WatchBlocks { queries, .. } => collection(queries.len()),
+        EditorMessage::BlocksFailed { error, .. } => string(error),
         EditorMessage::Blocks { blocks, .. } => {
             if blocks.len() > MAX_LISTED_BLOCKS {
                 return Err(DecodeError::LimitExceeded("block list"));

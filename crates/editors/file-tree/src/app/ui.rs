@@ -758,7 +758,7 @@ fn AddChild(
                     tab_stop={reachable}
                     capture_presses=true
                     accessibility={accessibility}
-                    on_focus_change={move |has_focus: bool| focused.set(has_focus)}
+                    on_focus_change={focused}
                     on_click={on_click}
                     content={move |button: ButtonHandle| view! {
                         <AddChildFace handle={button} shown={shown} label={label} />

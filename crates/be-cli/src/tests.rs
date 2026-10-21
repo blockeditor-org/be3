@@ -11,6 +11,7 @@ use be_store::MemoryStore;
 use tokio::{net::TcpListener, sync::oneshot};
 use uuid::Uuid;
 
+use crate::blocks::Entry;
 use crate::cli::{self, Invocation, Outcome};
 use crate::session::Settings;
 use crate::tracker::{Assignment, Body, RowView, Tracker};

@@ -81,8 +81,8 @@ fn PressCounter() -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Pressable
                 on_click={move || presses.update(|count| *count += 1)}
-                on_hover_change={move |on| hovered.set(on)}
-                on_active_change={move |on| active.set(on)}
+                on_hover_change={hovered}
+                on_active_change={active}
             >
                 <Frame
                     fill={ColorRole::custom(fill)}
@@ -245,10 +245,7 @@ fn VolumeMeter() -> NodeId {
     let volume_text = create_memo(move || format!("Volume {}%", (volume.get() * 100.0).round()));
     view! {
         <List spacing=SECTION_SPACING>
-            <unstyled::Slider
-                value={volume}
-                on_change={move |value| volume.set(value)}
-            >|handle: SliderHandle|
+            <unstyled::Slider value={volume}>|handle: SliderHandle|
                 <MeterFace handle />
             </unstyled::Slider>
             <Text string={volume_text} color=TextColor::Muted />
@@ -468,7 +465,11 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
 #[component]
 fn SizeRadios() -> NodeId {
     let sizes = ["Small", "Medium", "Large"];
-    let chosen = create_signal("Medium".to_owned());
+    let size = create_signal(Some(1));
+    let chosen = create_memo(move || {
+        size.get()
+            .map_or_else(String::new, |index| sizes[index].to_owned())
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <unstyled::Choice
@@ -477,13 +478,8 @@ fn SizeRadios() -> NodeId {
                     <ChoiceOption label="Medium" />
                     <ChoiceOption label="Large" />
                 }}
-                selected=Some(1)
+                selected={size}
                 kind=ChoiceKind::Radio
-                on_change={move |selected: Option<usize>| {
-                    if let Some(index) = selected {
-                        chosen.set(sizes[index].to_owned());
-                    }
-                }}
             >|handle: ChoiceOptionHandle|
                 <RadioFace handle />
             </unstyled::Choice>
@@ -1041,7 +1037,6 @@ fn ScrubbedNumber() -> NodeId {
                     field={move |handle: NumberFieldHandle| view! {
                         <NumberField handle />
                     }}
-                    on_change={move |value: f64| gap.set(value)}
                 />
             </Frame>
             <Text string={shown} color=TextColor::Muted />
@@ -1086,7 +1081,6 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
     let NumberFieldHandle {
         text,
         editing,
-        on_change,
         on_submit,
         on_focus_change,
     } = handle;
@@ -1097,7 +1091,6 @@ fn NumberField(handle: NumberFieldHandle) -> NodeId {
             focused={editing}
             select_on_focus=true
             style={underlined_style()}
-            on_change={on_change}
             on_submit={on_submit}
             on_focus_change={on_focus_change}
         >|handle: TextInputHandle|
@@ -1122,12 +1115,8 @@ fn underlined_style() -> TextInputStyle {
 #[component]
 fn HueAndHex() -> NodeId {
     let color = create_signal(Color32::from_rgb(0x30, 0xA4, 0x6C));
-    let picker: ColorPickerState = ColorPickerState::new(
-        color.into_prop(),
-        Prop::Static(false),
-        Callback::new(move |next: Color32| color.set(next)),
-        Callback::default(),
-    );
+    let picker: ColorPickerState =
+        ColorPickerState::new(color.into(), Prop::Static(false), Callback::default());
     let shown = picker.shown();
     let hex = HexText::new(
         shown,
@@ -1157,7 +1146,6 @@ fn HueAndHex() -> NodeId {
                     value={hex.text()}
                     placeholder={hex.placeholder()}
                     style={underlined_style()}
-                    on_change={move |typed: String| hex.edit(typed)}
                     on_submit={move |typed: String| hex.submit(typed)}
                 >|handle: TextInputHandle|
                     <UnderlinedField handle />
@@ -1589,7 +1577,6 @@ fn DeadlinePicker() -> NodeId {
                     panel={move |handle: DateTimePanelHandle| view! {
                         <DatePresets handle />
                     }}
-                    on_change={move |next: Option<DateTime>| deadline.set(next)}
                 />
             </List>
             <Text string={shown} color=TextColor::Muted />

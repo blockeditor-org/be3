@@ -15,7 +15,7 @@ pub fn Counter(editor: Editor) -> NodeId {
     let decrement = move || counter.operate(CounterModel::add(-1));
     let increment = move || counter.operate(CounterModel::add(1));
     let reset = move || {
-        if let Some(edit) = counter.read(|content| content.root().reset()) {
+        if let Ok(edit) = counter.read(|content| content.root().reset()) {
             counter.operate(edit);
         }
     };

@@ -66,14 +66,10 @@ const FRUITS: [&str; 6] = ["Apple", "Banana", "Cherry", "Date", "Grape", "Mango"
 
 #[sample]
 #[component]
-pub(crate) fn LabelledSwitch(
-    label: &'static str,
-    on: Prop<bool>,
-    on_change: Callback<bool>,
-) -> NodeId {
+pub(crate) fn LabelledSwitch(label: &'static str, on: Binding<bool>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <Switch label on on_change={on_change} />
+            <Switch label on />
             <Text string={label} />
         </List>
     }
@@ -332,12 +328,11 @@ fn ContentDrag() -> NodeId {
                 <Switch
                     @test_id="demo.drag_modifier"
                     label="Alt moves and resizes windows"
-                    on
-                    on_change={move |on: bool| {
+                    on={Binding::new(on, move |on: bool| {
                         if let Some(modifier) = modifier.as_ref() {
                             modifier.held.set(on.then_some(Modifiers::ALT));
                         }
-                    }}
+                    })}
                 />
                 <Text string="Alt moves and resizes windows" />
             </List>
@@ -779,21 +774,15 @@ fn IconButtons() -> NodeId {
 #[sample]
 #[component]
 fn PinToggle() -> NodeId {
-    let pinned = create_signal("Selection is unpinned".to_owned());
+    let pressed = create_signal(false);
+    let pinned = create_memo(move || match pressed.get() {
+        true => "Selection is pinned".to_owned(),
+        false => "Selection is unpinned".to_owned(),
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <ToggleButton
-                    label="Pin selection"
-                    pressed=false
-                    on_change={move |pressed| {
-                        let text = match pressed {
-                            true => "Selection is pinned",
-                            false => "Selection is unpinned",
-                        };
-                        pinned.set(text.to_owned());
-                    }}
-                />
+                <ToggleButton label="Pin selection" pressed />
             </List>
             <Text style=TextStyle::CAPTION string={pinned} />
         </List>
@@ -825,8 +814,14 @@ pub(crate) fn InputsPage() -> NodeId {
             <Sample title="Number input" code={vec![SeatsInput::SOURCE]}>
                 <SeatsInput />
             </Sample>
+            <Sample title="One value, two bindings" code={vec![Temperatures::SOURCE]}>
+                <Temperatures />
+            </Sample>
             <Sample title="Sliders and progress" code={vec![LoadSliders::SOURCE]}>
                 <LoadSliders />
+            </Sample>
+            <Sample title="Waiting for data" code={vec![SlowGreeting::SOURCE]}>
+                <SlowGreeting />
             </Sample>
             <Sample
                 title="Disabled controls"
@@ -841,14 +836,11 @@ pub(crate) fn InputsPage() -> NodeId {
 #[sample]
 #[component]
 fn NameInput() -> NodeId {
-    let greeting = create_signal(greeting_label(""));
+    let name = create_signal(String::new());
+    let greeting = create_memo(move || name.with(|name| greeting_label(name)));
     view! {
         <List spacing=SECTION_SPACING>
-            <TextInput
-                value=String::new()
-                placeholder="Type a name"
-                on_change={move |value: String| greeting.set(greeting_label(&value))}
-            />
+            <TextInput value={name} placeholder="Type a name" />
             <Text style=TextStyle::CAPTION string={greeting} />
             <Text
                 style=TextStyle::CAPTION
@@ -902,18 +894,34 @@ fn greeting_label(name: &str) -> String {
 
 #[sample]
 #[component]
+fn Temperatures() -> NodeId {
+    let celsius = create_signal(20.0f64);
+    let fahrenheit = Binding::new(
+        create_memo(move || celsius.get() * 9.0 / 5.0 + 32.0),
+        move |fahrenheit: f64| celsius.set((fahrenheit - 32.0) * 5.0 / 9.0),
+    );
+    view! {
+        <List spacing=ROW_SPACING>
+            <Text style=TextStyle::CAPTION string="Celsius, a signal" />
+            <NumberInput value={celsius} label="Celsius" @test_id="demo.temperature.celsius" />
+            <Text style=TextStyle::CAPTION string="Fahrenheit, derived from it both ways" />
+            <NumberInput
+                value={fahrenheit}
+                label="Fahrenheit"
+                @test_id="demo.temperature.fahrenheit"
+            />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
 fn SeatsInput() -> NodeId {
     let seats = create_signal(4.0f64);
     let seats_text = create_memo(move || format!("{} seats", seats.get()));
     view! {
         <List spacing=SECTION_SPACING>
-            <NumberInput
-                value={seats}
-                min=1.0
-                max=12.0
-                label="Seats"
-                on_change={move |value| seats.set(value)}
-            />
+            <NumberInput value={seats} min=1.0 max=12.0 label="Seats" />
             <Text style=TextStyle::CAPTION string={seats_text} />
         </List>
     }
@@ -937,7 +945,7 @@ fn LoadSliders() -> NodeId {
                     align=TextAlign::End
                 />
             </List>
-            <Slider value=0.4 label="Load" on_change={move |value| load.set(value)} />
+            <Slider value={load} label="Load" />
             <Progress value={load} />
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
                 <Text style=TextStyle::CAPTION string="Zoom, with 1x in the middle" />
@@ -954,10 +962,44 @@ fn LoadSliders() -> NodeId {
                 max=ZOOM_MAX
                 scale={SliderScale::Midpoint(ZOOM_MIDPOINT)}
                 label="Zoom"
-                on_change={move |value| zoom.set(value)}
             />
             <Text style=TextStyle::CAPTION string="Something that takes as long as it takes" />
             <Spinner width=SPINNER_WIDTH label="Working" />
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn SlowGreeting() -> NodeId {
+    let answer = create_signal::<Ready<String>>(Err(Pending::Loading));
+    let arrive = move || answer.set(Ok("Hello, the data is here".to_owned()));
+    let fail = move || answer.set(Err(Pending::Failed("The server said no".to_owned())));
+    let fallback = |pending: Pending| match pending {
+        Pending::Loading => view! {
+            <Spinner width=SPINNER_WIDTH label="Waiting" />
+        },
+        Pending::Failed(error) => view! {
+            <Text style=TextStyle::CAPTION string={error} />
+        },
+    };
+    view! {
+        <List spacing=SECTION_SPACING>
+            <List direction=Direction::Horizontal spacing=ROW_SPACING>
+                <Button
+                    label="Arrive"
+                    variant=ButtonVariant::Primary
+                    on_click={arrive}
+                    @test_id="demo.loading.arrive"
+                />
+                <Button label="Fail" variant=ButtonVariant::Secondary on_click={fail} />
+            </List>
+            <Loading fallback>|| {
+                let greeting = create_memo(move || answer.get());
+                view! {
+                    <Text string={greeting} @test_id="demo.loading.content" />
+                }
+            }</Loading>
         </List>
     }
 }
@@ -968,7 +1010,7 @@ fn LockedControls() -> NodeId {
     let locked = create_signal(true);
     view! {
         <List spacing=SECTION_SPACING>
-            <LabelledSwitch label="Locked" on={locked} on_change={move |on| locked.set(on)} />
+            <LabelledSwitch label="Locked" on={locked} />
             <TextInput value="Read only while locked" disabled={locked} />
             <Select
                 options={view! {
@@ -997,17 +1039,16 @@ fn LightSwitches() -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Switch
                     label="Every light"
-                    on={every}
-                    indeterminate={mixed}
-                    on_change={move |on: bool| {
+                    on={Binding::new(every, move |on: bool| {
                         kitchen.set(on);
                         hall.set(on);
-                    }}
+                    })}
+                    indeterminate={mixed}
                 />
                 <Text string="Every light" />
             </List>
-            <LabelledSwitch label="Kitchen" on={kitchen} on_change={move |on| kitchen.set(on)} />
-            <LabelledSwitch label="Hall" on={hall} on_change={move |on| hall.set(on)} />
+            <LabelledSwitch label="Kitchen" on={kitchen} />
+            <LabelledSwitch label="Hall" on={hall} />
         </List>
     }
 }
@@ -1042,7 +1083,11 @@ pub(crate) fn ChoicesPage() -> NodeId {
 #[component]
 fn UpdateModes() -> NodeId {
     let modes = ["Automatic", "Manual", "Scheduled"];
-    let mode_text = create_signal("Automatic updates".to_owned());
+    let mode = create_signal(Some(0));
+    let mode_text = create_memo(move || {
+        mode.get()
+            .map_or_else(String::new, |index| format!("{} updates", modes[index]))
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <RadioGroup
@@ -1051,12 +1096,7 @@ fn UpdateModes() -> NodeId {
                     <ChoiceOption label="Manual" />
                     <ChoiceOption label="Scheduled" />
                 }}
-                selected=Some(0)
-                on_change={move |selected: Option<usize>| {
-                    if let Some(index) = selected {
-                        mode_text.set(format!("{} updates", modes[index]));
-                    }
-                }}
+                selected={mode}
             />
             <Text style=TextStyle::CAPTION string={mode_text} />
         </List>
@@ -1067,7 +1107,12 @@ fn UpdateModes() -> NodeId {
 #[component]
 fn ColorListbox() -> NodeId {
     let colors = ["Amber", "Blue", "Green", "Purple"];
-    let color_text = create_signal("Blue selected".to_owned());
+    let color = create_signal(Some(1));
+    let color_text = create_memo(move || {
+        color
+            .get()
+            .map_or_else(String::new, |index| format!("{} selected", colors[index]))
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION string="Type to search" />
@@ -1078,12 +1123,7 @@ fn ColorListbox() -> NodeId {
                     <ChoiceOption label="Green" />
                     <ChoiceOption label="Purple" />
                 }}
-                selected=Some(1)
-                on_change={move |selected: Option<usize>| {
-                    if let Some(index) = selected {
-                        color_text.set(format!("{} selected", colors[index]));
-                    }
-                }}
+                selected={color}
             />
             <Text style=TextStyle::CAPTION string={color_text} />
         </List>
@@ -1093,7 +1133,13 @@ fn ColorListbox() -> NodeId {
 #[sample]
 #[component]
 fn FruitSelect() -> NodeId {
-    let fruit_text = create_signal("Apple selected".to_owned());
+    let fruit = create_signal(Some(0));
+    let fruit_text = create_memo(move || {
+        fruit.get().and_then(|index| FRUITS.get(index)).map_or_else(
+            || "Nothing selected".to_owned(),
+            |label| format!("{label} selected"),
+        )
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <Select
@@ -1102,17 +1148,8 @@ fn FruitSelect() -> NodeId {
                         <ChoiceOption label />
                     </ForEach>
                 }}
-                selected=Some(0)
+                selected={fruit}
                 label="Favorite fruit"
-                on_change={move |selected: Option<usize>| {
-                    let text = selected
-                        .and_then(|index| FRUITS.get(index))
-                        .map_or_else(
-                            || "Nothing selected".to_owned(),
-                            |label| format!("{label} selected"),
-                        );
-                    fruit_text.set(text);
-                }}
             />
             <Text style=TextStyle::CAPTION string={fruit_text} />
             <Select
@@ -1143,7 +1180,6 @@ fn ScaleTabs() -> NodeId {
                     <ChoiceOption label="3x" />
                 }}
                 selected={scale}
-                on_change={move |selected| scale.set(selected)}
             />
             <Text style=TextStyle::CAPTION string={scale_text} />
         </List>
@@ -1174,9 +1210,8 @@ fn PeriodTabs() -> NodeId {
                     <ChoiceOption label="Month" />
                     <ChoiceOption label="Year" />
                 }}
-                selected=0
+                selected={period}
                 breakpoint=TABS_NARROW_WIDTH
-                on_change={move |selected| period.set(selected)}
             />
             <Text style=TextStyle::CAPTION string={period_text} />
         </List>
@@ -1238,13 +1273,7 @@ fn DayField() -> NodeId {
     });
     view! {
         <List spacing=SECTION_SPACING>
-            <DateTimeField
-                value={day}
-                parts=DateTimeParts::Date
-                label="Day"
-                today={Some(today)}
-                on_change={move |next| day.set(next)}
-            />
+            <DateTimeField value={day} parts=DateTimeParts::Date label="Day" today={Some(today)} />
             <Text style=TextStyle::CAPTION string={day_text} />
         </List>
     }
@@ -1267,7 +1296,6 @@ fn AlarmField() -> NodeId {
                 hour_cycle=HourCycle::H12
                 label="Alarm"
                 today={Some(today)}
-                on_change={move |next| alarm.set(next)}
             />
             <Text style=TextStyle::CAPTION string={alarm_text} />
         </List>
@@ -1295,7 +1323,6 @@ fn MeetingField() -> NodeId {
                 today={Some(today)}
                 clearable=true
                 step_minutes=30
-                on_change={move |next| meeting.set(next)}
             />
             <Text style=TextStyle::CAPTION string={meeting_text} wrap=true />
         </List>
@@ -1319,7 +1346,6 @@ fn BookingCalendar() -> NodeId {
                 min={Some(today)}
                 max={Some(today.add_days(60))}
                 today={Some(today)}
-                on_change={move |date| booked.set(Some(date))}
             />
             <Text style=TextStyle::CAPTION string={booked_text} />
         </List>
@@ -1333,7 +1359,7 @@ fn AccentInput() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION string="Click the swatch to pick" />
-            <ColorInput value={accent} label="Accent" on_change={move |color| accent.set(color)} />
+            <ColorInput value={accent} label="Accent" />
         </List>
     }
 }
@@ -1348,12 +1374,7 @@ fn PaintPicker() -> NodeId {
         create_memo(move || format!("Painting in {}", beui::format_hex(shown_paint.get(), false)));
     view! {
         <List spacing=SECTION_SPACING>
-            <ColorPicker
-                value={paint}
-                alpha=false
-                on_change={move |color| paint.set(color)}
-                on_preview={move |color| preview.set(color)}
-            />
+            <ColorPicker value={paint} alpha=false on_preview={preview} />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
@@ -1370,11 +1391,7 @@ fn HueWheel() -> NodeId {
         create_memo(move || format!("Painting in {}", beui::format_hex(shown_paint.get(), false)));
     view! {
         <List spacing=SECTION_SPACING>
-            <ColorWheel
-                value={paint}
-                on_change={move |color| paint.set(color)}
-                on_preview={move |color| preview.set(color)}
-            />
+            <ColorWheel value={paint} on_preview={preview} />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
@@ -1399,11 +1416,7 @@ fn PerceptualWheel() -> NodeId {
     view! {
         <List spacing=SECTION_SPACING>
             <Text style=TextStyle::CAPTION string="Turning the hue keeps lightness and chroma" />
-            <OklchColorWheel
-                value={paint}
-                on_change={move |color| paint.set(color)}
-                on_preview={move |color| preview.set(color)}
-            />
+            <OklchColorWheel value={paint} on_preview={preview} />
             <Frame height=SWATCH_HEIGHT fill={ColorRole::custom(shown_paint)} radius=Radius::Md />
             <Text style=TextStyle::CAPTION string={paint_text} />
         </List>
@@ -1488,7 +1501,7 @@ fn GlobalActions() -> NodeId {
                 <Button action={palette} variant=ButtonVariant::Secondary />
             </List>
             <Text style=TextStyle::CAPTION string={locked} />
-            <CommandPalette open on_close={move || open.set(false)} />
+            <CommandPalette open />
         </List>
     }
 }
@@ -1581,6 +1594,13 @@ fn badge(color: Color32) -> Image {
 #[component]
 fn TrayIcons() -> NodeId {
     let outcome = create_signal("Nothing done yet".to_owned());
+    let sync_open = create_signal(false);
+    let sync_open = Binding::new(sync_open, move |open: bool| {
+        sync_open.set(open);
+        if open {
+            outcome.set("Opened the Sync menu".to_owned());
+        }
+    });
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
@@ -1605,15 +1625,11 @@ fn TrayIcons() -> NodeId {
                 />
                 <PictureMenuButton
                     label="Sync"
+                    open={sync_open}
                     image={None}
                     glyph=ICON_WIDGETS
                     items={view! {
                         <unstyled::MenuItem label="Pause syncing" />
-                    }}
-                    on_open_change={move |open: bool| {
-                        if open {
-                            outcome.set("Opened the Sync menu".to_owned());
-                        }
                     }}
                 />
             </List>
@@ -1736,7 +1752,15 @@ fn FolderRow(
 ) -> unstyled::MenuItem {
     let (name, depth, _) = FOLDERS[folder];
     let branch = FOLDERS.iter().any(|(_, _, parent)| *parent == Some(folder));
-    let open = create_memo(move || branch.then(|| expanded.get().contains(&folder)));
+    let open = Binding::new(
+        Prop::dynamic(move || branch.then(|| expanded.get().contains(&folder))),
+        move |open: Option<bool>| {
+            expanded.update(|expanded| match open {
+                Some(true) => expanded.push(folder),
+                _ => expanded.retain(|other| *other != folder),
+            })
+        },
+    );
     let checked = create_memo(move || Some(location.get() == folder));
     view! {
         <unstyled::MenuItem
@@ -1748,12 +1772,6 @@ fn FolderRow(
             then=MenuThen::Back
             row_test_id={format!("demo.new.folder.{folder}")}
             on_click={move || location.set(folder)}
-            on_expand={move |open: bool| {
-                expanded.update(|expanded| match open {
-                    true => expanded.push(folder),
-                    false => expanded.retain(|other| *other != folder),
-                })
-            }}
         />
     }
 }
@@ -2165,7 +2183,6 @@ fn RenameDialog() -> NodeId {
                     label="Name"
                     clearable=true
                     @test_id={"demo.rename.field"}
-                    on_change={move |value: String| typed.set(value)}
                 />
             </Dialog>
         </List>
@@ -2740,16 +2757,8 @@ fn ThousandsOfRows() -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
-                <Checkbox
-                    label="Show timings"
-                    checked=true
-                    on_change={move |checked| timings.set(checked)}
-                />
-                <LabelledSwitch
-                    label="Compact rows"
-                    on=false
-                    on_change={move |on| compact.set(on)}
-                />
+                <Checkbox label="Show timings" checked={timings} />
+                <LabelledSwitch label="Compact rows" on={compact} />
                 <Text
                     style=TextStyle::CAPTION
                     @sizing=ItemSize::Percent(100.0)
@@ -2901,7 +2910,6 @@ fn ProjectTree() -> NodeId {
                 @test_id="demo.tree.comfortable"
                 label="Comfortable rows"
                 on={comfortable}
-                on_change={move |on: bool| comfortable.set(on)}
             />
             <Tree
                 @sizing=ItemSize::Fixed(TREE_HEIGHT)
@@ -3230,7 +3238,7 @@ fn SettingsSections() -> NodeId {
                     description="Play a sound when something finishes."
                     compact=true
                 >
-                    <Switch label="Sounds" on={sounds} on_change={move |on| sounds.set(on)} />
+                    <Switch label="Sounds" on={sounds} />
                 </SettingsRow>
                 <SettingsRow
                     label="Volume"
@@ -3250,7 +3258,6 @@ fn SettingsSections() -> NodeId {
                         min=0.0
                         max=1.0
                         label="Volume"
-                        on_change={move |value| volume.set(value)}
                     />
                 </SettingsRow>
                 <SettingsRow
@@ -3275,7 +3282,6 @@ fn SettingsSections() -> NodeId {
                         }}
                         selected={size}
                         label="Text size"
-                        on_change={move |index| size.set(index)}
                     />
                 </SettingsRow>
                 <SettingsRow
@@ -3298,7 +3304,7 @@ fn SettingsSections() -> NodeId {
                         />
                     }}
                 >
-                    <Switch label="Vibrate" on={haptics} on_change={move |on| haptics.set(on)} />
+                    <Switch label="Vibrate" on={haptics} />
                 </SettingsRow>
                 <SettingsLink
                     label="Sound effects"
@@ -3464,11 +3470,7 @@ fn ZoomableStage() -> NodeId {
                     on_click={move || stage_view.set(STAGE_VIEW)}
                 />
             </List>
-            <CanvasStage
-                @sizing=ItemSize::Fixed(STAGE_HEIGHT)
-                view={stage_view.read_only()}
-                on_change={move |view| stage_view.set(view)}
-            />
+            <CanvasStage @sizing=ItemSize::Fixed(STAGE_HEIGHT) view={stage_view} />
             <Text
                 style=TextStyle::CAPTION
                 wrap=true
@@ -3491,9 +3493,9 @@ fn scale_in(view: &mut PanZoomView) {
 
 #[sample]
 #[component]
-fn CanvasStage(view: ReadSignal<PanZoomView>, on_change: Callback<PanZoomView>) -> NodeId {
+fn CanvasStage(#[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomView>) -> NodeId {
     view! {
-        <PanZoom view on_change={on_change}>|handle: PanZoomHandle| {
+        <PanZoom view>|handle: PanZoomHandle| {
             let PanZoomHandle { view, scale, focused, .. } = handle;
             view! {
                 <CanvasBoard view scale focused />

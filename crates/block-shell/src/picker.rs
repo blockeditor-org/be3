@@ -7,8 +7,8 @@ use block_editor_beui::beui::unstyled::TabId;
 use block_editor_beui::block_ui::{BlockCatalog, BlockTypes, TemplateCategory, TemplateEntry};
 use block_editor_beui::sections::{is_workspace, shared_with_me, workspaces};
 use block_editor_beui::{
-    BlockFilter, BlockInfo, BlockParent, BlockPick, ChildId, CreationProgress, PickRequest,
-    label_glyph,
+    BlockFilter, BlockInfo, BlockParent, BlockPick, BlockQuery, ChildId, CreationProgress,
+    PickRequest, label_glyph,
 };
 use uuid::Uuid;
 
@@ -356,6 +356,7 @@ pub(crate) struct Graph {
     pub(crate) roots: Vec<BlockInfo>,
     pub(crate) shared: Vec<BlockInfo>,
     pub(crate) blocks: HashMap<Uuid, BlockInfo>,
+    pub(crate) listed: HashSet<Uuid>,
 }
 
 impl Graph {
@@ -398,6 +399,17 @@ impl Graph {
     }
 }
 
+#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
+pub(crate) enum PickTree {
+    Link,
+    Place,
+}
+
+pub(crate) struct Tree {
+    pub(crate) rows: Vec<TreeRow>,
+    pub(crate) wants: Vec<BlockQuery>,
+}
+
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct TreeRow {
     pub(crate) key: TreeKey,
@@ -418,6 +430,7 @@ struct Walk<'a> {
     graph: &'a Graph,
     query: String,
     rows: Vec<TreeRow>,
+    unfolded: Vec<Uuid>,
     shown: &'a dyn Fn(&BlockInfo) -> bool,
     enabled: &'a dyn Fn(&BlockInfo) -> bool,
     detail: &'a dyn Fn(&BlockInfo) -> String,
@@ -445,11 +458,19 @@ impl Walk<'_> {
         path.push(block.id);
         let key = TreeKey(path.clone());
         let searching = !self.query.is_empty();
-        let expanded = searching || (self.open)(&key, depth);
+        let unfolded = (self.open)(&key, depth);
+        if unfolded {
+            self.unfolded.push(block.id);
+        }
+        let expanded = searching || unfolded;
         let at = self.rows.len();
-        let mut expandable = false;
+        let listed = self.graph.listed.contains(&block.id);
+        let mut expandable = !listed && !block.references.is_empty();
         let mut kept_child = false;
-        let children: Vec<BlockInfo> = self.graph.children(block).cloned().collect();
+        let children: Vec<BlockInfo> = match listed {
+            true => self.graph.children(block).cloned().collect(),
+            false => Vec::new(),
+        };
         for child in &children {
             if path.contains(&child.id) || !(self.shown)(child) {
                 continue;
@@ -527,7 +548,25 @@ fn section_icon(row: &mut TreeRow) {
     }
 }
 
-pub(crate) fn link_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> Vec<TreeRow> {
+fn tree(walk: Walk, anchor: Option<Uuid>) -> Tree {
+    let mut rows = walk.rows;
+    rows.iter_mut()
+        .filter(|row| row.section)
+        .for_each(section_icon);
+    let mut wants: Vec<BlockQuery> = walk
+        .unfolded
+        .into_iter()
+        .map(BlockQuery::Children)
+        .collect();
+    if let Some(anchor) = anchor {
+        wants.extend([BlockQuery::Block(anchor), BlockQuery::Parents(anchor)]);
+    }
+    wants.sort();
+    wants.dedup();
+    Tree { rows, wants }
+}
+
+pub(crate) fn link_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> Tree {
     let excluded = pick.excluded();
     let this = pick.parent.block();
     let ancestors = this.map(|this| graph.ancestors(this)).unwrap_or_default();
@@ -555,6 +594,7 @@ pub(crate) fn link_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> V
         graph,
         query: pick.search.trim().to_lowercase(),
         rows: Vec::new(),
+        unfolded: Vec::new(),
         shown: &shown,
         enabled: &enabled,
         detail: &detail,
@@ -564,16 +604,15 @@ pub(crate) fn link_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> V
         walk.block(&section, &mut Vec::new(), 0, "");
     }
     walk.shared(&graph.loose());
-    let mut rows = walk.rows;
-    rows.iter_mut()
-        .filter(|row| row.section)
-        .for_each(section_icon);
-    rows
+    tree(walk, this)
 }
 
-pub(crate) fn place_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> Vec<TreeRow> {
+pub(crate) fn place_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> Tree {
     let Some(place) = pick.place else {
-        return Vec::new();
+        return Tree {
+            rows: Vec::new(),
+            wants: Vec::new(),
+        };
     };
     let excluded = pick.excluded();
     let folder = FolderContent::CONTENT_TYPE;
@@ -600,6 +639,7 @@ pub(crate) fn place_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> 
         graph,
         query: String::new(),
         rows: Vec::new(),
+        unfolded: Vec::new(),
         shown: &shown,
         enabled: &enabled,
         detail: &detail,
@@ -611,11 +651,7 @@ pub(crate) fn place_rows(catalog: &BlockCatalog, pick: &Pick, graph: &Graph) -> 
     for block in graph.loose() {
         walk.block(&block, &mut Vec::new(), 0, "");
     }
-    let mut rows = walk.rows;
-    rows.iter_mut()
-        .filter(|row| row.section)
-        .for_each(section_icon);
-    rows
+    tree(walk, current)
 }
 
 pub(crate) fn place_path(graph: &Graph, place: BlockParent) -> Vec<Uuid> {

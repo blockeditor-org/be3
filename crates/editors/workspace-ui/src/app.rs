@@ -35,14 +35,15 @@ impl block_editor_beui::BeuiApp for WorkspaceUiApp {
 #[component]
 fn WorkspaceShell(editor: Editor) -> NodeId {
     let workspace = Workspace::new(editor, true, false);
-    let layout = editor.view_content().map(|view| view.loaded());
-    let loaded = create_memo(move || layout.is_none_or(|loaded| loaded.get()));
     view! {
-        <Loaded loaded={loaded} label="Loading the workspace">
-            <Container>|_|
-                <WorkspaceBody workspace />
-            </Container>
-        </Loaded>
+        <Loaded label="Loading the workspace">|| {
+            let _layout = editor.view_content();
+            view! {
+                <Container>|_|
+                    <WorkspaceBody workspace />
+                </Container>
+            }
+        }</Loaded>
     }
 }
 

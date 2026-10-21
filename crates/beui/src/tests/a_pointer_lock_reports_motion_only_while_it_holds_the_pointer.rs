@@ -12,8 +12,7 @@ fn a_pointer_lock_reports_motion_only_while_it_holds_the_pointer() {
         let locked = create_signal(false);
         view! {
             <PointerLock
-                locked
-                on_change={move |next: bool| locked.set(next)}
+                locked={locked}
                 on_motion={move |motion: Vec2| moved.update(|moved| *moved += motion)}
             >|_: PointerLockHandle|
                 <Frame width=100.0 height=100.0 />

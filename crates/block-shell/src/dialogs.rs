@@ -90,13 +90,7 @@ fn RenameDialog(workspace: Workspace) -> NodeId {
             on_confirm={submit}
             on_dismiss={move || workspace.close_dialog()}
         >
-            <TextInput
-                value={name}
-                label="Name"
-                focused=true
-                @test_id={"rename.name"}
-                on_change={move |value: String| name.set(value)}
-            />
+            <TextInput value={name} label="Name" focused=true @test_id={"rename.name"} />
             <Show condition={invalid}>
                 <Text style=TextStyle::CAPTION string={error} />
             </Show>
@@ -204,7 +198,7 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
                     placed={placed}
                     mode=ChildMode::Live
                     @test_id={"artifact-settings.editor"}
-                    on_state={move |next: ChildState| state.set(next)}
+                    on_state={state}
                 />
             </Frame>
             <Show condition={has_summary}>
@@ -232,10 +226,19 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             .unwrap_or_default()
     });
     let loading = create_memo(move || {
-        state.with(|share| share.as_ref().is_some_and(|share| share.loading()))
+        state.with(|share| {
+            share
+                .as_ref()
+                .is_some_and(|share| share.members == Err(Pending::Loading))
+        })
     });
     let error = create_memo(move || {
-        state.with(|share| share.as_ref().and_then(|share| share.error.clone()))
+        state.with(|share| {
+            share.as_ref().and_then(|share| match &share.members {
+                Err(Pending::Failed(error)) => Some(error.clone()),
+                _ => share.error.clone(),
+            })
+        })
     });
     let has_error = create_memo(move || error.get().is_some());
     let error_text = create_memo(move || error.get().unwrap_or_default());
@@ -305,7 +308,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
             .collect::<Vec<_>>()
     });
     let nobody = create_memo(move || {
-        state.with(|share| share.as_ref().is_some_and(|share| share.loaded))
+        state.with(|share| share.as_ref().is_some_and(|share| share.members.is_ok()))
             && members.get().is_empty()
     });
     let inviting = create_memo(move || {
@@ -340,11 +343,10 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     </List>
                 </Show>
                 <TextInput
-                    value={query}
+                    value={Binding::new(query, move |value: String| act.call(ShareAction::Query(value)))}
                     placeholder="Add contacts by name or email"
                     label="Add contacts"
                     @test_id={"share.query"}
-                    on_change={move |value: String| act.call(ShareAction::Query(value))}
                     on_submit={move |_value: String| act.call(ShareAction::Submit)}
                 />
                 <Show condition={searching}>
@@ -399,13 +401,12 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         </List>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Select
-                                selected={pending_access}
-                                label="Access to grant"
-                                on_change={move |index: Option<usize>| {
+                                selected={Binding::new(pending_access, move |index: Option<usize>| {
                                     if let Some(access) = index.and_then(|index| GRANTABLE.get(index)) {
                                         act.call(ShareAction::PendingAccess(*access));
                                     }
-                                }}
+                                })}
+                                label="Access to grant"
                                 options={view! {
                                     <ChoiceOption label={AccessLevel::Edit.label()} />
                                     <ChoiceOption label={AccessLevel::View.label()} />
@@ -445,7 +446,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                             wrap=true
                         />
                         <TextInput
-                            value={invite_link}
+                            value={Binding::new(invite_link, Callback::empty())}
                             label="Contact link"
                             copyable=true
                             @test_id={"share.invite.link"}
@@ -561,9 +562,7 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                     </Show>
                     <Show condition={editable}>
                         <Select
-                            selected={selected}
-                            label="Access"
-                            on_change={move |index: Option<usize>| {
+                            selected={Binding::new(selected, move |index: Option<usize>| {
                                 let Some(member) = member.get_untracked() else {
                                     return;
                                 };
@@ -573,7 +572,8 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                                 if access != member.access {
                                     act.call(ShareAction::SetAccess(member.id, access));
                                 }
-                            }}
+                            })}
+                            label="Access"
                             options={view! {
                                 <ChoiceOption label={AccessLevel::Edit.label()} />
                                 <ChoiceOption label={AccessLevel::View.label()} />

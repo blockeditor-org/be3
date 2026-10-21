@@ -105,10 +105,9 @@ pub(crate) fn Scene3DView() -> NodeId {
         <PointerLock
             @node_ref=&anchor
             @test_id={"scene.viewport"}
-            locked={looking}
+            locked={Binding::new(looking, released)}
             cursor=CursorIcon::PointingHand
             accessibility={described}
-            on_change={released}
             on_motion={look}
             on_key={walked}
         >|_: PointerLockHandle|

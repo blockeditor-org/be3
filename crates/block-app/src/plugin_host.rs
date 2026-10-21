@@ -24,7 +24,6 @@ mod surface;
 mod wasm;
 #[cfg(target_arch = "wasm32")]
 mod web;
-mod web_view;
 mod worker;
 
 pub(crate) use description::describe;
@@ -55,12 +54,6 @@ pub(crate) use runtime::{
     region_damage, region_drawing, region_placed, region_view, take_block_drags, take_changed,
     take_focus_request, take_region_actions, unmount_region, unplace_region,
 };
-#[cfg(all(
-    feature = "web-view",
-    not(target_os = "android"),
-    not(target_arch = "wasm32")
-))]
-pub(crate) use web_view::install as install_web_view;
 
 #[cfg(not(target_arch = "wasm32"))]
 pub(crate) fn cache_in(directory: std::path::PathBuf) {

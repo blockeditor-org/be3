@@ -112,7 +112,7 @@ pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<boo
                 @test_id={"pixel-art.fit"}
                 on_click={fit}
             />
-            <Checkbox label="Grid" checked={grid} on_change={toggle_grid} />
+            <Checkbox label="Grid" checked={Binding::new(grid, toggle_grid)} />
             <Show condition={failed}>
                 <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
             </Show>
@@ -178,27 +178,24 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
             }</ForEach>
             <Text string="Tool options" />
             <NumberInput
-                value={size_value}
+                value={Binding::new(size_value, move |value: f64| brush_size.set(value as u16))}
                 min=1.0
                 max={f64::from(MAX_BRUSH_SIZE)}
                 label="Brush size"
                 @test_id={"pixel-art.brush-size"}
-                on_change={move |value: f64| brush_size.set(value as u16)}
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <ToggleButton
                     glyph={ICON_SQUARE.to_owned()}
                     label="Square brush"
                     icon_only=true
-                    pressed={square}
-                    on_change={move |_| shape.set(BrushShape::Square)}
+                    pressed={Binding::new(square, move |_| shape.set(BrushShape::Square))}
                 />
                 <ToggleButton
                     glyph={ICON_CIRCLE.to_owned()}
                     label="Circle brush"
                     icon_only=true
-                    pressed={circle}
-                    on_change={move |_| shape.set(BrushShape::Circle)}
+                    pressed={Binding::new(circle, move |_| shape.set(BrushShape::Circle))}
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
@@ -207,19 +204,10 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 label="Fill rectangles and ellipses"
                 pressed={filled}
                 disabled={shapes}
-                on_change={move |on| filled.set(on)}
             />
             <Text string="Symmetry" />
-            <Checkbox
-                label="Mirror horizontally"
-                checked={horizontal}
-                on_change={move |on| horizontal.set(on)}
-            />
-            <Checkbox
-                label="Mirror vertically"
-                checked={vertical}
-                on_change={move |on| vertical.set(on)}
-            />
+            <Checkbox label="Mirror horizontally" checked={horizontal} />
+            <Checkbox label="Mirror vertically" checked={vertical} />
         </List>
     }
 }
@@ -235,9 +223,8 @@ fn ToolButton(tools: Tools, entry: (PixelTool, &'static str, &'static str)) -> N
             glyph={glyph.to_owned()}
             label={format!("{} ({shortcut})", tool.label())}
             icon_only=true
-            pressed={pressed}
+            pressed={Binding::new(pressed, select)}
             @test_id={format!("pixel-art.tool.{}", tool.label())}
-            on_change={select}
         />
     }
 }
@@ -288,11 +275,10 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                 <Swatch color={color} selected=false on_click={move || {}} />
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
-                    value={hex}
+                    value={Binding::new(hex, typing)}
                     label="Colour"
                     placeholder="#RRGGBBAA"
                     @test_id={"pixel-art.hex"}
-                    on_change={typing}
                 />
             </List>
             <ForEach keys={channels}>|channel: &'static str|
@@ -351,7 +337,7 @@ fn Channel(tools: Tools, channel: &'static str) -> NodeId {
         tools.set_active_color(PixelColor::new(rgba[0], rgba[1], rgba[2], rgba[3]), false);
     };
     view! {
-        <NumberInput value={value} min=0.0 max=255.0 label={channel} on_change={edit} />
+        <NumberInput value={Binding::new(value, edit)} min=0.0 max=255.0 label={channel} />
     }
 }
 
@@ -421,21 +407,19 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <NumberInput
                             @sizing=ItemSize::Percent(100.0)
-                            value={width_value}
+                            value={Binding::new(width_value, move |value: f64| width.set(value as u16))}
                             min=1.0
                             max={f64::from(MAX_PIXEL_ART_SIZE)}
                             label="Width"
                             @test_id={"pixel-art.resize-width"}
-                            on_change={move |value: f64| width.set(value as u16)}
                         />
                         <NumberInput
                             @sizing=ItemSize::Percent(100.0)
-                            value={height_value}
+                            value={Binding::new(height_value, move |value: f64| height.set(value as u16))}
                             min=1.0
                             max={f64::from(MAX_PIXEL_ART_SIZE)}
                             label="Height"
                             @test_id={"pixel-art.resize-height"}
-                            on_change={move |value: f64| height.set(value as u16)}
                         />
                     </List>
                     <Text style=TextStyle::CAPTION string="Anchor" />
@@ -515,8 +499,7 @@ fn AnchorRow(tools: Tools, row: usize) -> NodeId {
                         glyph={glyph.to_owned()}
                         label={label}
                         icon_only=true
-                        pressed={pressed}
-                        on_change={move |_| set.set(anchor)}
+                        pressed={Binding::new(pressed, move |_| set.set(anchor))}
                     />
                 }
             }</ForEach>

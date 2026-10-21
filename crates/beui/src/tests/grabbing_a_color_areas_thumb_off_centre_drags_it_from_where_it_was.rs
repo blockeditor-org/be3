@@ -13,8 +13,7 @@ fn grabbing_a_color_areas_thumb_off_centre_drags_it_from_where_it_was() {
             <List spacing=0.0>
                 <ColorPicker
                     @node_ref=&picker
-                    value={Hsva::new(0.0, 0.5, 0.5, 1.0).to_color()}
-                    on_change={move |color| changes.update(|changes| changes.push(color))}
+                    value={Binding::new(Hsva::new(0.0, 0.5, 0.5, 1.0).to_color(), move |next| changes.update(|changes| changes.push(next)))}
                 />
             </List>
         }

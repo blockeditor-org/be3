@@ -20,9 +20,8 @@ pub struct InputRemapsApp;
 
 impl block_editor_beui::BeuiApp for InputRemapsApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::InputRemapperContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <InputRemapsView editor={editor} />
             </Loaded>
         }

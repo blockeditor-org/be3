@@ -99,12 +99,11 @@ fn RegionInspector(state: MapState) -> NodeId {
             <Text string="Preview region" />
             <Checkbox
                 label="Show a fixed region"
-                checked={fixed}
-                @test_id={"map.preview-region"}
-                on_change={move |on: bool| {
+                checked={Binding::new(fixed, move |on: bool| {
                     let region = on.then(|| state.visible_region.get_untracked());
                     state.record(Map::set_preview_region(region));
-                }}
+                })}
+                @test_id={"map.preview-region"}
             />
             <Show condition={loose}>
                 <Text
@@ -249,11 +248,10 @@ fn Coordinate(
 ) -> NodeId {
     view! {
         <NumberInput
-            value={value}
+            value={Binding::new(value, move |next: f64| on_change.call(next))}
             min={-limit}
             max={limit}
             label={label.to_owned()}
-            on_change={move |next: f64| on_change.call(next)}
         />
     }
 }
@@ -340,7 +338,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
     let label = create_memo(move || point_name(&state, point.get()));
     let block = create_memo(move || {
         let point = point.get()?;
-        let label = state.label_of(point.block_id)?;
+        let label = state.label_of(point.block_id).ok()?;
         Some(ChildTarget::new(point.block_id, label.block_type))
     });
     let openable = create_memo(move || block.get().is_none());
@@ -405,30 +403,28 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
             </List>
             <Text string="Position" />
             <NumberInput
-                value={latitude}
-                min={-MAX_LATITUDE}
-                max=MAX_LATITUDE
-                label="Latitude"
-                on_change={move |value: f64| {
+                value={Binding::new(latitude, move |value: f64| {
                     let Some(mut point) = point.get_untracked() else {
                         return;
                     };
                     point.position.latitude = value;
                     state.record(Map::update(&[point]));
-                }}
+                })}
+                min={-MAX_LATITUDE}
+                max=MAX_LATITUDE
+                label="Latitude"
             />
             <NumberInput
-                value={longitude}
-                min=-180.0
-                max=180.0
-                label="Longitude"
-                on_change={move |value: f64| {
+                value={Binding::new(longitude, move |value: f64| {
                     let Some(mut point) = point.get_untracked() else {
                         return;
                     };
                     point.position.longitude = value;
                     state.record(Map::update(&[point]));
-                }}
+                })}
+                min=-180.0
+                max=180.0
+                label="Longitude"
             />
             <Text string="Colour" />
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
@@ -439,16 +435,15 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
                 </ForEach>
             </List>
             <ColorInput
-                value={custom}
-                label="Custom colour"
-                on_change={move |color: Color32| {
+                value={Binding::new(custom, move |color: Color32| {
                     let Some(mut point) = point.get_untracked() else {
                         return;
                     };
                     let [red, green, blue, _] = color.to_array();
                     point.color = MapColor::Rgb { red, green, blue };
                     state.record(Map::update(&[point]));
-                }}
+                })}
+                label="Custom colour"
             />
         </List>
     }
@@ -488,11 +483,5 @@ fn preset_role(name: &str) -> Prop<Node> {
 }
 
 fn point_name(state: &MapState, point: Option<MapPoint>) -> String {
-    let Some(point) = point else {
-        return String::new();
-    };
-    match state.label_of(point.block_id) {
-        Some(label) => label.name,
-        None => "Loading…".to_owned(),
-    }
+    point.map_or_else(String::new, |point| state.name_of(point.block_id))
 }

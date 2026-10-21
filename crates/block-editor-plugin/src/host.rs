@@ -1671,6 +1671,11 @@ impl EditorHost {
         self.waker.wake();
     }
 
+    pub fn fail_blocks(&self, query: crate::BlockQuery, error: String) {
+        self.graph.set_failure(query, error);
+        self.waker.wake();
+    }
+
     pub fn watched_blocks(&self) -> Vec<crate::BlockQuery> {
         self.graph.watched()
     }

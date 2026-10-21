@@ -51,6 +51,7 @@ fn an_imported_tree_shows_at_once_and_moves_once_it_is_uploaded() {
     let destination = folder(be_graph::BlockParent::Root);
 
     let (copy, _) = import(&bytes, be_graph::BlockParent::Detached).expect("the file imports");
+    ask_for(vec![Query::Subtree(copy)]);
     let inner = query(Query::Children(copy));
     let deepest = query(Query::Children(inner[0].id))[0].id;
     open(deepest, CounterContent::CONTENT_TYPE);

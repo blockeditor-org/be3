@@ -13,10 +13,7 @@ fn clicking_a_tab_selects_the_panel_it_names() {
                     <unstyled::ChoiceOption label="List" />
                     <unstyled::ChoiceOption label="Load" />
                 }}
-                selected=0
-                on_change={move |selected| {
-                    reported.set(selected);
-                }}
+                selected={reported}
             />
         }]
     });

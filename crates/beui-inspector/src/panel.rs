@@ -176,6 +176,7 @@ pub fn build(state: Stored<State>) -> Panel {
     let renderer = create_signal(RendererRows::new());
     let renderers = create_signal(RendererChoices::default());
     let tab = create_signal(InspectorTab::default());
+    let tab_index = create_signal(0usize);
     let selection = create_signal(Vec::<Key>::new());
     let compact = create_signal(false);
     let tree = NodeRef::new();
@@ -249,11 +250,11 @@ pub fn build(state: Stored<State>) -> Panel {
                                         <ChoiceOption label="Perf" />
                                         <ChoiceOption label="Sim" />
                                     }}
-                                    selected=0
-                                    on_change={move |index| {
+                                    selected={Binding::new(tab_index, move |index| {
+                                        tab_index.set(index);
                                         state.value().set_tab(index);
                                         tab.set(InspectorTab::from_index(index));
-                                    }}
+                                    })}
                                 />
                             </List>
                         </Frame>
@@ -393,8 +394,10 @@ pub fn build_bar(state: Stored<State>) -> Bar {
                                     <ChoiceOption label="App" />
                                     <ChoiceOption label="Inspector" />
                                 }}
-                                selected
-                                on_change={move |index| state.value().show_app(index == 0)}
+                                selected={Binding::new(selected, move |index| {
+                                    selected.set(index);
+                                    state.value().show_app(index == 0);
+                                })}
                             />
                             <CloseButton @test_id={"inspector.bar.close"} state={state} />
                         </List>
@@ -422,11 +425,13 @@ fn SimulationPanel(
         .iter()
         .position(|(_, ratio)| *ratio == simulated)
         .unwrap_or(0);
+    let ratio = create_signal(Some(selected));
     let theme = state.value().theme.get();
     let selected_theme = Theme::BUILT_IN
         .iter()
         .position(|(_, candidate)| *candidate == theme)
         .unwrap_or(0);
+    let theme = create_signal(Some(selected_theme));
     view! {
         <Scroll>
             <Frame padding=BODY_PADDING>
@@ -434,14 +439,12 @@ fn SimulationPanel(
                     <Checkbox
                         @test_id={"inspector.simulation.touch_emulation"}
                         label="Emulate touch with mouse"
-                        checked={state.value().touch_emulation.get()}
-                        on_change={move |enabled| state.value().touch_emulation.set(enabled)}
+                        checked={Binding::new(state.value().touch_emulation.get(), move |enabled| state.value().touch_emulation.set(enabled))}
                     />
                     <Checkbox
                         @test_id={"inspector.simulation.mouse_simulation"}
                         label="Simulate mouse with touch"
-                        checked={state.value().mouse_simulation.get()}
-                        on_change={move |enabled| state.value().mouse_simulation.set(enabled)}
+                        checked={Binding::new(state.value().mouse_simulation.get(), move |enabled| state.value().mouse_simulation.set(enabled))}
                     />
                     <Button
                         @test_id={"inspector.simulation.keyboard"}
@@ -452,11 +455,10 @@ fn SimulationPanel(
                     <Checkbox
                         @test_id={"inspector.simulation.disable_animations"}
                         label="Disable animations"
-                        checked={state.value().disable_animations.get()}
-                        on_change={move |enabled| {
+                        checked={Binding::new(state.value().disable_animations.get(), move |enabled| {
                             state.value().disable_animations.set(enabled);
                             state.value().requested_motion.set(Some(if enabled { beui_core::animation::Motion::Instant } else { beui_core::animation::Motion::Animated }));
-                        }}
+                        })}
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
@@ -468,19 +470,18 @@ fn SimulationPanel(
                                     <ChoiceOption label />
                                 </ForEach>
                             }}
-                            selected={Some(selected)}
-                            on_change={move |index: Option<usize>| {
+                            selected={Binding::new(ratio, move |index: Option<usize>| {
+                                ratio.set(index);
                                 let ratio = index.and_then(|index| PIXEL_RATIOS.get(index));
                                 state.value().simulate_pixels_per_point(ratio.and_then(|(_, ratio)| *ratio));
-                            }}
+                            })}
                         />
                     </List>
                     <Separator />
                     <Checkbox
                         @test_id={"inspector.simulation.responsive"}
                         label="Responsive design mode"
-                        checked={responsive}
-                        on_change={move |_| state.value().toggle_responsive()}
+                        checked={Binding::new(responsive, move |_| state.value().toggle_responsive())}
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
@@ -492,12 +493,12 @@ fn SimulationPanel(
                                     <ChoiceOption label />
                                 </ForEach>
                             }}
-                            selected={Some(selected_theme)}
-                            on_change={move |index: Option<usize>| {
+                            selected={Binding::new(theme, move |index: Option<usize>| {
+                                theme.set(index);
                                 if let Some((_, theme)) = index.and_then(|index| Theme::BUILT_IN.get(index)) {
                                     state.value().choose_theme(*theme);
                                 }
-                            }}
+                            })}
                         />
                     </List>
                     <Separator />
@@ -575,15 +576,13 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
             <Slider
                 @test_id={"inspector.simulation.back"}
                 label="Back gesture progress"
-                value={progress}
-                on_change={moved}
+                value={Binding::new(progress, moved)}
                 on_drag_change={released}
             />
             <Checkbox
                 @test_id={"inspector.simulation.back_from_right"}
                 label="Swipe from the right edge"
                 checked={from_right}
-                on_change={move |right| from_right.set(right)}
             />
         </List>
     }
@@ -591,13 +590,16 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
 
 #[component]
 fn FilterSection(state: Stored<State>) -> NodeId {
-    let blur_text = create_signal(blur_label(state.value().blur.get()));
-    let contrast_text = create_signal(contrast_label(state.value().contrast_reduction.get()));
+    let blur = create_signal(state.value().blur.get());
+    let contrast = create_signal(state.value().contrast_reduction.get());
+    let blur_text = create_memo(move || blur_label(blur.get()));
+    let contrast_text = create_memo(move || contrast_label(contrast.get()));
     let vision = state.value().color_vision.get();
     let selected_vision = ColorVision::ALL
         .iter()
         .position(|(_, candidate)| *candidate == vision)
         .unwrap_or(0);
+    let vision = create_signal(Some(selected_vision));
     let vision_labels = labels(&ColorVision::ALL);
     view! {
         <List spacing=TIMING_SPACING>
@@ -606,24 +608,22 @@ fn FilterSection(state: Stored<State>) -> NodeId {
             <Slider
                 @test_id={"inspector.simulation.blur"}
                 label="Blur"
-                value={state.value().blur.get()}
+                value={Binding::new(blur, move |value| {
+                    blur.set(value);
+                    state.value().set_blur(value);
+                })}
                 min=0.0
                 max=MAX_BLUR
                 scale={SliderScale::Midpoint(BLUR_MIDPOINT)}
-                on_change={move |value| {
-                    state.value().set_blur(value);
-                    blur_text.set(blur_label(value));
-                }}
             />
             <Text style=TextStyle::CAPTION string={contrast_text} />
             <Slider
                 @test_id={"inspector.simulation.contrast"}
                 label="Reduce contrast"
-                value={state.value().contrast_reduction.get()}
-                on_change={move |value| {
+                value={Binding::new(contrast, move |value| {
+                    contrast.set(value);
                     state.value().set_contrast_reduction(value);
-                    contrast_text.set(contrast_label(value));
-                }}
+                })}
             />
             <Text style=TextStyle::CAPTION string="Colour vision" />
             <RadioGroup
@@ -633,12 +633,12 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                         <ChoiceOption label />
                     </ForEach>
                 }}
-                selected={Some(selected_vision)}
-                on_change={move |index: Option<usize>| {
+                selected={Binding::new(vision, move |index: Option<usize>| {
+                    vision.set(index);
                     if let Some((_, vision)) = index.and_then(|index| ColorVision::ALL.get(index)) {
                         state.value().choose_color_vision(*vision);
                     }
-                }}
+                })}
             />
         </List>
     }
@@ -664,14 +664,12 @@ fn ScreenReaderSection(state: Stored<State>) -> NodeId {
             <Checkbox
                 @test_id={"inspector.accessibility.enabled"}
                 label="Expose the accessibility tree"
-                checked={state.value().accessibility.get()}
-                on_change={move |enabled| state.value().enable_accessibility(enabled)}
+                checked={Binding::new(state.value().accessibility.get(), move |enabled| state.value().enable_accessibility(enabled))}
             />
             <Checkbox
                 @test_id={"inspector.screen_reader.enabled"}
                 label="Simulate a screen reader"
-                checked={state.value().screen_reader.get()}
-                on_change={move |enabled| state.value().enable_screen_reader(enabled)}
+                checked={Binding::new(state.value().screen_reader.get(), move |enabled| state.value().enable_screen_reader(enabled))}
             />
             <CommandRow row=0 state />
             <CommandRow row=1 state={state} />
@@ -783,14 +781,12 @@ fn PerformancePanel(
                         <Checkbox
                             @test_id={"inspector.performance.flash_changes"}
                             label="Flash changed elements"
-                            checked={state.value().flash_changes.get()}
-                            on_change={move |enabled| state.value().flash_changes.set(enabled)}
+                            checked={Binding::new(state.value().flash_changes.get(), move |enabled| state.value().flash_changes.set(enabled))}
                         />
                         <Checkbox
                             @test_id={"inspector.performance.flash_damage"}
                             label="Flash repainted regions"
-                            checked={state.value().flash_damage.get()}
-                            on_change={move |enabled| state.value().flash_damage.set(enabled)}
+                            checked={Binding::new(state.value().flash_damage.get(), move |enabled| state.value().flash_damage.set(enabled))}
                         />
                     </List>
                     <Separator />
@@ -827,12 +823,11 @@ fn RendererSection(
                             <ChoiceOption label />
                         </ForEach>
                     }}
-                    selected={active}
-                    on_change={move |index: Option<usize>| {
+                    selected={Binding::new(active, move |index: Option<usize>| {
                         if let Some(index) = index {
                             state.value().choose_renderer(index);
                         }
-                    }}
+                    })}
                 />
             </Show>
             <Show condition={missing}>
@@ -976,8 +971,7 @@ fn PickToggle(state: Stored<State>, picking: Memo<bool>) -> NodeId {
             label="Pick"
             glyph={ICON_ARROW_SELECTOR_TOOL.to_owned()}
             icon_only=true
-            pressed={picking}
-            on_change={move |_| state.value().toggle_picking()}
+            pressed={Binding::new(picking, move |_| state.value().toggle_picking())}
         />
     }
 }

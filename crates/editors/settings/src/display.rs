@@ -21,23 +21,25 @@ pub struct DisplaySettingsApp;
 
 impl block_editor_beui::BeuiApp for DisplaySettingsApp {
     fn view(editor: Editor) -> NodeId {
-        let settings = LayeredSettings::<DisplaySettings>::page(editor);
-        let content = editor.loaded::<block_editor_beui::be_block::DisplaySettingsContent>(&[]);
-        let ready = settings.ready();
-        let loaded = create_memo(move || content.get() && ready.get());
-        let device = settings.on_this_device();
         view! {
-            <Loaded loaded={loaded}>
-                <List spacing=0.0>
-                    <Keyed value={device} key={|device: bool| device}>|_device: ReadSignal<bool>|
-                        <DisplaySettingsView
-                            editor={editor}
-                            settings={settings}
-                            @sizing=ItemSize::Percent(100.0)
-                        />
-                    </Keyed>
-                </List>
-            </Loaded>
+            <Loaded>|| {
+                let settings = LayeredSettings::<DisplaySettings>::page(editor);
+                let device = settings.on_this_device();
+                view! {
+                    <List spacing=0.0>
+                        <Keyed
+                            value={device}
+                            key={|device: bool| device}
+                        >|_device: ReadSignal<bool>|
+                            <DisplaySettingsView
+                                editor={editor}
+                                settings={settings}
+                                @sizing=ItemSize::Percent(100.0)
+                            />
+                        </Keyed>
+                    </List>
+                }
+            }</Loaded>
         }
     }
 

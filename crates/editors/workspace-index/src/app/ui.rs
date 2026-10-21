@@ -145,15 +145,14 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                             <ChoiceOption label={FolderView::SmallGrid.label()} />
                             <ChoiceOption label={FolderView::List.label()} />
                         }}
-                        selected={mode_index}
-                        label="Layout"
-                        @test_id={"folder.view"}
-                        on_change={move |chosen: Option<usize>| {
+                        selected={Binding::new(mode_index, move |chosen: Option<usize>| {
                             if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
                             {
                                 mode.set(*shown);
                             }
-                        }}
+                        })}
+                        label="Layout"
+                        @test_id={"folder.view"}
                     />
                     <Select
                         options={view! {
@@ -161,15 +160,14 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                             <ChoiceOption label={FolderSort::Name.label()} />
                             <ChoiceOption label={FolderSort::Type.label()} />
                         }}
-                        selected={sort_index}
-                        label="Sort"
-                        @test_id={"folder.sort"}
-                        on_change={move |chosen: Option<usize>| {
+                        selected={Binding::new(sort_index, move |chosen: Option<usize>| {
                             if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
                             {
                                 sort.set(*order);
                             }
-                        }}
+                        })}
+                        label="Sort"
+                        @test_id={"folder.sort"}
                     />
                     <IconButton
                         glyph={direction_glyph}

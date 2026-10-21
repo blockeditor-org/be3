@@ -22,6 +22,26 @@ fn searching_the_link_tree_keeps_matches_and_the_folders_above_them() {
     fixture.test.click("picker.search");
     fixture.test.text("minu");
     fixture.settle();
+    assert!(
+        !fixture
+            .test
+            .shown(&format!("picker.link.{}.row", places.minutes)),
+        "search reaches only folders that have been opened"
+    );
+
+    for _ in 0.."minu".len() {
+        fixture
+            .test
+            .key_press(block_editor_beui::beui::Key::Backspace);
+    }
+    fixture.settle();
+    fixture
+        .test
+        .click(&format!("picker.link.{}.chevron", places.work));
+    fixture.settle();
+    fixture.test.click("picker.search");
+    fixture.test.text("minu");
+    fixture.settle();
     for kept in [places.space, places.work, places.minutes] {
         assert!(
             fixture.test.shown(&format!("picker.link.{kept}.row")),

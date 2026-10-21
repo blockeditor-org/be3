@@ -304,11 +304,10 @@ fn ListMarker(
             <Show condition={check}>
                 <Checkbox
                     @test_id={format!("demo.rich.checkbox.{}", line.get_untracked())}
-                    checked
+                    checked={Binding::new(checked, toggle)}
                     capture_presses=true
                     tab_stop=false
                     press_focus=false
-                    on_change={toggle}
                 />
             </Show>
         </List>

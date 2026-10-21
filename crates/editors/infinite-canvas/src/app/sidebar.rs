@@ -166,14 +166,13 @@ fn ArtboardSection(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Accordion title="Artboard" open={open} on_toggle={move |next| open.set(next)}>
+                <Accordion title="Artboard" open={open}>
                     <List spacing=6.0>
                         <TextInput
                             label="Name"
-                            value={name}
+                            value={Binding::new(name, renamed)}
                             disabled={locked}
                             @test_id={"infinite-canvas.artboard.name"}
-                            on_change={renamed}
                         />
                         <Show condition={first}>
                             <Text
@@ -256,10 +255,9 @@ fn ArtboardBackground(
                 <ToggleButton
                     label="Theme background"
                     glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
-                    pressed={following}
+                    pressed={Binding::new(following, move |_: bool| set(None))}
                     disabled={locked}
                     @test_id={"infinite-canvas.background.theme"}
-                    on_change={move |_: bool| set(None)}
                 />
                 <ForEach keys={(0..count).collect::<Vec<usize>>()}>|index: usize| {
                     let (name, color) = swatches[index];
@@ -276,10 +274,9 @@ fn ArtboardBackground(
             </List>
             <ColorInput
                 label="Background color"
-                value={custom}
+                value={Binding::new(custom, typed)}
                 disabled={locked}
                 @test_id={"infinite-canvas.background"}
-                on_change={typed}
             />
         </List>
     }
@@ -322,7 +319,7 @@ fn TransformSection(state: CanvasState) -> NodeId {
     let single = create_memo(move || state.selected_entities().len() == 1);
     let many = create_memo(move || !single.get());
     view! {
-        <Accordion title="Transform" open={open} on_toggle={move |next| open.set(next)}>
+        <Accordion title="Transform" open={open}>
             <List spacing=6.0>
                 <Show condition={many}>
                     <Text
@@ -396,11 +393,10 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 </Frame>
                 <NumberInput
                     label="X"
-                    value={center_x}
+                    value={Binding::new(center_x, x)}
                     disabled={locked}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.x"}
-                    on_change={x}
                     on_preview={x_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
@@ -408,11 +404,10 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 </Frame>
                 <NumberInput
                     label="Y"
-                    value={center_y}
+                    value={Binding::new(center_y, y)}
                     disabled={locked}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.y"}
-                    on_change={y}
                     on_preview={y_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
@@ -421,11 +416,10 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 <NumberInput
                     label="W"
                     min={MIN_SIZE as f64}
-                    value={size_x}
+                    value={Binding::new(size_x, width)}
                     disabled={no_width}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.width"}
-                    on_change={width}
                     on_preview={width_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
@@ -434,11 +428,10 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 <NumberInput
                     label="H"
                     min={MIN_SIZE as f64}
-                    value={size_y}
+                    value={Binding::new(size_y, height)}
                     disabled={no_height}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.height"}
-                    on_change={height}
                     on_preview={height_preview}
                 />
             </Grid>
@@ -447,11 +440,10 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 <NumberInput
                     @sizing=ItemSize::Percent(100.0)
                     label="Rotation"
-                    value={angle}
+                    value={Binding::new(angle, rotation)}
                     disabled={no_rotation}
                     decimals={Some(2)}
                     @test_id={"infinite-canvas.transform.rotation"}
-                    on_change={rotation}
                     on_preview={rotation_preview}
                 />
             </List>
@@ -493,7 +485,7 @@ fn BlockSection(state: CanvasState) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Accordion title="Block" open={open} on_toggle={move |next| open.set(next)}>
+                <Accordion title="Block" open={open}>
                     <List spacing=6.0>
                         <Button
                             label={label}
@@ -549,11 +541,10 @@ fn EditorScale(state: CanvasState) -> NodeId {
                 label="Scale"
                 min=10.0
                 max=800.0
-                value={scale}
+                value={Binding::new(scale, changed)}
                 disabled={locked}
                 drag={NumberDrag::Linear { speed: 1.0 }}
                 @test_id={"infinite-canvas.editor-scale"}
-                on_change={changed}
             />
         </List>
     }
@@ -587,7 +578,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
     let lock = move || state.run(CanvasCommand::Lock);
     let unlock = move || state.run(CanvasCommand::Unlock);
     view! {
-        <Accordion title="Arrange" open={open} on_toggle={move |next| open.set(next)}>
+        <Accordion title="Arrange" open={open}>
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                     <ForEach keys={(0..ALIGNMENTS.len()).collect::<Vec<usize>>()}>|index: usize| {
@@ -675,7 +666,7 @@ fn ArrangeSection(state: CanvasState) -> NodeId {
 fn AppearanceSection(state: CanvasState) -> NodeId {
     let open = create_signal(true);
     view! {
-        <Accordion title="Appearance" open={open} on_toggle={move |next| open.set(next)}>
+        <Accordion title="Appearance" open={open}>
             <List spacing=SPACING>
                 <ForegroundRow state={state} />
                 <LineWidthRow state={state} />
@@ -733,9 +724,8 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION string="Color" />
                     <ColorInput
                         label="Custom color"
-                        value={custom}
+                        value={Binding::new(custom, typed)}
                         @test_id={"infinite-canvas.color"}
-                        on_change={typed}
                     />
                 </List>
             </Show>
@@ -801,9 +791,8 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
                         label="Line width"
                         min=0.5
                         max=20.0
-                        value={width}
+                        value={Binding::new(width, changed)}
                         @test_id={"infinite-canvas.line-width"}
-                        on_change={changed}
                     />
                 </List>
             </Show>
@@ -863,21 +852,18 @@ fn LineOptions(state: CanvasState) -> NodeId {
                     <Text style=TextStyle::CAPTION string="Line" />
                     <Checkbox
                         label="Dashed"
-                        checked={dashed}
+                        checked={Binding::new(dashed, dash)}
                         @test_id={"infinite-canvas.dashed"}
-                        on_change={dash}
                     />
                     <Checkbox
                         label="Start arrow"
-                        checked={start}
+                        checked={Binding::new(start, arrow_start)}
                         @test_id={"infinite-canvas.arrow-start"}
-                        on_change={arrow_start}
                     />
                     <Checkbox
                         label="End arrow"
-                        checked={end}
+                        checked={Binding::new(end, arrow_end)}
                         @test_id={"infinite-canvas.arrow-end"}
-                        on_change={arrow_end}
                     />
                 </List>
             </Show>
@@ -950,9 +936,8 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                         <ToggleButton
                             label="No fill"
                             glyph={ICON_FORMAT_COLOR_RESET.to_owned()}
-                            pressed={none}
+                            pressed={Binding::new(none, clearing)}
                             @test_id={"infinite-canvas.fill.none"}
-                            on_change={clearing}
                         />
                         <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>|index: usize| {
                             let (name, color) = PRESETS[index];
@@ -976,18 +961,16 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                     </List>
                     <ColorInput
                         label="Fill color"
-                        value={custom}
+                        value={Binding::new(custom, typed)}
                         @test_id={"infinite-canvas.fill"}
-                        on_change={typed}
                     />
                     <MixedLabel label="Corner radius" mixed={mixed} />
                     <Slider
                         label="Corner radius"
                         min=0.0
                         max=100.0
-                        value={corner}
+                        value={Binding::new(corner, rounded)}
                         @test_id={"infinite-canvas.corner-radius"}
-                        on_change={rounded}
                     />
                 </List>
             </Show>
@@ -1026,9 +1009,8 @@ fn OpacityRow(state: CanvasState) -> NodeId {
                 label="Opacity"
                 min=0.0
                 max=1.0
-                value={opacity}
+                value={Binding::new(opacity, changed)}
                 @test_id={"infinite-canvas.opacity"}
-                on_change={changed}
             />
         </List>
     }
@@ -1140,10 +1122,9 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             label="Font size"
                             min=4.0
                             max=256.0
-                            value={font_size}
+                            value={Binding::new(font_size, sized)}
                             decimals={Some(2)}
                             @test_id={"infinite-canvas.font-size"}
-                            on_change={sized}
                         />
                     </List>
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
@@ -1153,18 +1134,16 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             label="Line height"
                             min=0.5
                             max=4.0
-                            value={line_height}
+                            value={Binding::new(line_height, spaced)}
                             decimals={Some(2)}
                             drag={NumberDrag::Linear { speed: 0.05 }}
                             @test_id={"infinite-canvas.line-height"}
-                            on_change={spaced}
                         />
                     </List>
                     <Checkbox
                         label="Bold"
-                        checked={bold}
+                        checked={Binding::new(bold, weighted)}
                         @test_id={"infinite-canvas.bold"}
-                        on_change={weighted}
                     />
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                         <ForEach
@@ -1177,13 +1156,12 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             view! {
                                 <ToggleButton
                                     label={label}
-                                    pressed={pressed}
-                                    @test_id={format!("infinite-canvas.align-text.{label}")}
-                                    on_change={move |_: bool| {
+                                    pressed={Binding::new(pressed, move |_: bool| {
                                         state.update_selected_text(move |style| {
                                             style.alignment = wanted;
                                         });
-                                    }}
+                                    })}
+                                    @test_id={format!("infinite-canvas.align-text.{label}")}
                                 />
                             }
                         }</ForEach>
@@ -1199,22 +1177,20 @@ fn TextOptions(state: CanvasState) -> NodeId {
                             view! {
                                 <ToggleButton
                                     label={label}
-                                    pressed={pressed}
-                                    @test_id={format!("infinite-canvas.align-text.{label}")}
-                                    on_change={move |_: bool| {
+                                    pressed={Binding::new(pressed, move |_: bool| {
                                         state.update_selected_text(move |style| {
                                             style.vertical_alignment = wanted;
                                         });
-                                    }}
+                                    })}
+                                    @test_id={format!("infinite-canvas.align-text.{label}")}
                                 />
                             }
                         }</ForEach>
                     </List>
                     <Checkbox
                         label="Wrap text"
-                        checked={wrap}
+                        checked={Binding::new(wrap, wrapped)}
                         @test_id={"infinite-canvas.wrap"}
-                        on_change={wrapped}
                     />
                     <Text
                         style=TextStyle::CAPTION
@@ -1244,7 +1220,7 @@ const SHORTCUTS: [(&str, &str); 10] = [
 fn ShortcutsSection() -> NodeId {
     let open = create_signal(false);
     view! {
-        <Accordion title="Shortcuts" open={open} on_toggle={move |next| open.set(next)}>
+        <Accordion title="Shortcuts" open={open}>
             <List spacing=4.0>
                 <ForEach keys={(0..SHORTCUTS.len()).collect::<Vec<usize>>()}>|index: usize| {
                     let (action, keys) = SHORTCUTS[index];

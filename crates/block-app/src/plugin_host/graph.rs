@@ -5,7 +5,6 @@ use crate::be::{Node, Query};
 
 pub(crate) fn query_of(query: BlockQuery) -> Query {
     match query {
-        BlockQuery::All => Query::All,
         BlockQuery::Roots => Query::Roots,
         BlockQuery::Detached => Query::Detached,
         BlockQuery::Shared => Query::Shared,

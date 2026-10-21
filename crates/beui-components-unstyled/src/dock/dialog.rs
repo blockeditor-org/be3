@@ -297,7 +297,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
     let scope = dock.open_scope();
     let control = DockTabControl {
         tab,
-        state: dock.state.read_only(),
+        state: dock.state,
         dock,
     };
     let body = scope.context().run(|| {

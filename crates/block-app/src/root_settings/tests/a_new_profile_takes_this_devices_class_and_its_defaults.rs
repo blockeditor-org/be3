@@ -26,8 +26,10 @@ fn new_profile(class: DeviceClass) -> (RootSettings, Uuid) {
 fn a_new_profile_takes_this_devices_class_and_its_defaults() {
     let harness = be::Harness::start();
     harness.connect();
-    be::wait_for(PATIENCE, |shared| shared.graph.loaded.then_some(()))
-        .expect("the graph never loaded");
+    be::wait_for(PATIENCE, |shared| {
+        shared.graph.ready(be::Query::Roots).then_some(())
+    })
+    .expect("the graph never loaded");
 
     let (mut settings, profile) = new_profile(DeviceClass::EpaperTablet);
     let held = decode::<SettingsProfileContent>(profile)

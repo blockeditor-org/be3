@@ -22,11 +22,10 @@ const FOCUS_RING_OFFSET: f32 = 4.0;
 
 #[component]
 pub fn Switch(
-    on: Prop<bool>,
+    on: Binding<bool>,
     #[prop(default = false)] indeterminate: Prop<bool>,
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = false)] disabled: Prop<bool>,
-    on_change: Callback<bool>,
 ) -> NodeId {
     view! {
         <Toggle
@@ -35,7 +34,6 @@ pub fn Switch(
             label
             disabled
             role=Role::Switch
-            on_change={on_change}
         >|handle: ToggleHandle|
             <SwitchTrack handle />
         </Toggle>

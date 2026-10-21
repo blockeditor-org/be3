@@ -46,20 +46,18 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Slider
                     @sizing=ItemSize::Percent(100.0)
-                    value={volume}
+                    value={Binding::new(volume, move |level: f32| editor.act(MediaRequest::SetVolume(level)))}
                     label="Volume"
                     @test_id={"desktop.volume.level"}
-                    on_change={move |level: f32| editor.act(MediaRequest::SetVolume(level))}
                 />
                 <Text @sizing=ItemSize::Fixed(PERCENT_WIDTH) string={shown} />
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text @sizing=ItemSize::Percent(100.0) string="Mute" />
                 <Switch
-                    on={muted}
+                    on={Binding::new(muted, move |mute: bool| editor.act(MediaRequest::SetMute(mute)))}
                     label="Mute"
                     @test_id={"desktop.volume.mute"}
-                    on_change={move |mute: bool| editor.act(MediaRequest::SetMute(mute))}
                 />
             </List>
             <Show condition={listed}>
@@ -112,10 +110,9 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                         }
                     }</ForEach>
                 }}
-                selected={selected}
+                selected={Binding::new(selected, choose)}
                 label="Output"
                 @test_id={"desktop.volume.output"}
-                on_change={choose}
             />
         </List>
     }

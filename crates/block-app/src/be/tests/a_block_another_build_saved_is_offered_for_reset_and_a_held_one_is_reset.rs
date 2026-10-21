@@ -38,7 +38,9 @@ fn a_block_another_build_saved_is_offered_for_reset_and_a_held_one_is_reset() {
     });
 
     harness.connect();
-    wait_until("loaded the graph", |shared| shared.graph.loaded);
+    wait_until("loaded the graph", |shared| {
+        shared.graph.ready(crate::be::Query::Roots)
+    });
     open(shown, CounterContent::CONTENT_TYPE);
     wait_until("found the block unreadable", |shared| {
         shared.unreadable.contains_key(&shown)

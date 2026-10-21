@@ -4,7 +4,7 @@ use beui::icons::{ICON_BUILD, ICON_FIT_SCREEN, ICON_ZOOM_IN, ICON_ZOOM_OUT};
 use beui::reactive::*;
 use beui::styled::*;
 use beui::{CursorIcon, KeyPress, NodeId, PointerPress, Rect};
-use block_editor_beui::{Editor, Loading, Side, Sidebar, Toolbar};
+use block_editor_beui::{Editor, LoadingPane, Side, Sidebar, Toolbar};
 
 use super::hotbar_ui::{HOTBAR_WIDTH, Hotbar, ToolSettings};
 use super::panels::Panels;
@@ -24,7 +24,7 @@ pub(super) fn LogicGridView(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={waiting}>
-                <Loading @sizing=ItemSize::Percent(100.0) label="Loading the grid" />
+                <LoadingPane @sizing=ItemSize::Percent(100.0) label="Loading the grid" />
             </Show>
             <Show condition={loaded}>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>

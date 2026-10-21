@@ -34,7 +34,7 @@ pub fn watch_block_label(
     let opened = RefCell::new(None::<(ChildTarget, BlockList)>);
     let blocks = editor.blocks();
     let catalog = editor.host();
-    create_effect(move || {
+    create_binding(move || {
         let Some(next) = target.get() else {
             opened.borrow_mut().take();
             shown.set(BlockDisplay::default());
@@ -46,7 +46,7 @@ pub fn watch_block_label(
         }
         let info = list
             .as_ref()
-            .and_then(|(_, list)| list.read().into_iter().next());
+            .and_then(|(_, list)| list.read().ok()?.into_iter().next());
         drop(list);
         let types = catalog.block_types();
         let resolved = info.is_some();

@@ -231,6 +231,7 @@ impl EditorMessage {
                     self::query(query, &mut existing);
                 }
             }
+            Self::BlocksFailed { query, .. } => self::query(query, &mut existing),
             Self::Blocks { query, blocks, .. } => {
                 self::query(query, &mut existing);
                 for block in blocks {
@@ -331,6 +332,6 @@ fn query(query: &mut BlockQuery, visit: &mut impl FnMut(&mut [u8; 16])) {
         | BlockQuery::Backrefs(block_id)
         | BlockQuery::Parents(block_id)
         | BlockQuery::Block(block_id) => visit(block_id),
-        BlockQuery::All | BlockQuery::Roots | BlockQuery::Detached | BlockQuery::Shared => {}
+        BlockQuery::Roots | BlockQuery::Detached | BlockQuery::Shared => {}
     }
 }

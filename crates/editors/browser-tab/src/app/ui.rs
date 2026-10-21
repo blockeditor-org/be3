@@ -69,11 +69,10 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                     />
                     <TextInput
                         @sizing=ItemSize::Percent(100.0)
-                        value={address}
+                        value={Binding::new(address, typed)}
                         label="Address"
                         placeholder="Search or enter address"
                         @test_id={"browser.address"}
-                        on_change={typed}
                         on_submit={submit}
                         on_focus_change={focus_app}
                     />

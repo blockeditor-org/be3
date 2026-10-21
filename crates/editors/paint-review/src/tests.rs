@@ -5,7 +5,7 @@ use std::sync::{Arc, Mutex};
 use block_editor_beui::be_block::paint::PaintReview;
 use block_editor_beui::be_block::{PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 use block_editor_beui::{BlockInfo, BlockParent};
-use block_editor_beui::{EditorHost, OwnedEditor};
+use block_editor_beui::{EditorHost, Loaded, OwnedEditor};
 use block_ui_test::{BeuiTest, ContentStore};
 use paint_snapshot::{Content, Frame, Primitive, Snapshot, Texture, Triangle, Vertex};
 use uuid::Uuid;
@@ -51,7 +51,9 @@ impl Review {
         let source = Source::Fixed(Arc::clone(&branch));
         let test = BeuiTest::<PaintReviewApp>::with_view(owner, move || {
             view! {
-                <PaintReviewEditor editor={editor} source={source} />
+                <Loaded>
+                    <PaintReviewEditor editor={editor} source={source} />
+                </Loaded>
             }
         })
         .in_viewport();

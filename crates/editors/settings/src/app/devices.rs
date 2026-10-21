@@ -242,6 +242,7 @@ fn values(editor: Editor, kinds: impl Fn(uuid::Uuid) -> Option<Uuid>) -> Values 
             editor
                 .content_of::<DisplaySettingsContent>(block)
                 .read(|content| content.root())
+                .ok()
         })
         .unwrap_or_default();
     let input = kinds(InputSettingsContent::CONTENT_TYPE)
@@ -249,6 +250,7 @@ fn values(editor: Editor, kinds: impl Fn(uuid::Uuid) -> Option<Uuid>) -> Values 
             editor
                 .content_of::<InputSettingsContent>(block)
                 .read(|content| content.root())
+                .ok()
         })
         .unwrap_or_default();
     Values {
@@ -262,7 +264,7 @@ fn values(editor: Editor, kinds: impl Fn(uuid::Uuid) -> Option<Uuid>) -> Values 
 pub(super) fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsContent>) -> NodeId {
     let children = editor.watch_blocks(BlockQuery::Children(editor.block_id()));
     let model = create_memo(move || {
-        let Some(root) = settings.read(|settings| settings.root()) else {
+        let Ok(root) = settings.read(|settings| settings.root()) else {
             return Model::default();
         };
         let every = values(editor, |kind| root.kind(kind));

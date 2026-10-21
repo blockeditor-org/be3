@@ -944,6 +944,7 @@ fn end(doc: &mut Document, frame: &Frame, mut session: Session, cancelled: bool)
                 doc.pressed_outside(frame.rects, &outside, session.origin - session.shift, true);
             }
             if doc.dragging() {
+                doc.drag_board().order(doc);
                 match cancelled {
                     true => doc.drag_board().end(None),
                     false => doc.drag_board().finish(),
@@ -1504,6 +1505,7 @@ fn track(doc: &mut Document, frame: &Frame) {
         return;
     };
     doc.last_pointer = Some(PointerSample { pos, touch });
-    doc.drag_board()
-        .track(crate::drag_board::DragPoint::at(pos, modifiers));
+    let board = doc.drag_board();
+    board.order(doc);
+    board.track(crate::drag_board::DragPoint::at(pos, modifiers));
 }
