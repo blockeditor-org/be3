@@ -1,12 +1,13 @@
 use std::collections::HashMap;
 
-use block_plugin_api::{HostImage, HostTrayItem, TrayMenuEntry, TrayStatus, TrayToggle};
+use block_plugin_api::{
+    HostImage, HostTrayItem, MAX_MENU_DEPTH, TrayMenuEntry, TrayStatus, TrayToggle,
+};
 use image::imageops::FilterType;
 use zbus::zvariant::{OwnedValue, Value};
 
 pub(super) const ITEM_PATH: &str = "/StatusNotifierItem";
 pub(super) const MAX_ITEMS: usize = 64;
-const MAX_DEPTH: usize = 8;
 const MAX_ENTRIES: usize = 256;
 const MAX_TEXT: usize = 1024;
 const MAX_PIXMAP_SIDE: i32 = 1024;
@@ -271,7 +272,7 @@ pub(super) fn raw_entry<'a>(
             _ => {}
         }
     }
-    if depth < MAX_DEPTH {
+    if depth < MAX_MENU_DEPTH {
         entry.children = children
             .take(MAX_ENTRIES)
             .filter_map(|child| raw_child(child, depth + 1))
