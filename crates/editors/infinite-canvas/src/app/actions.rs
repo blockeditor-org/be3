@@ -18,6 +18,8 @@ use super::touch::TouchChoice;
 #[derive(Clone)]
 pub(crate) struct CanvasActions {
     pub(crate) select: Action,
+    pub(crate) lasso: Action,
+    pub(crate) select_mode: Action,
     pub(crate) frame: Action,
     pub(crate) line: Action,
     pub(crate) arrow: Action,
@@ -65,6 +67,7 @@ impl CanvasActions {
     pub(crate) fn tool(&self, tool: Tool) -> Action {
         match tool {
             Tool::Select => self.select.clone(),
+            Tool::Lasso => self.lasso.clone(),
             Tool::Frame => self.frame.clone(),
             Tool::Line => self.line.clone(),
             Tool::Arrow => self.arrow.clone(),
@@ -262,6 +265,15 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let select = tool("canvas.tool.select", "Select", Tool::Select)
         .shortcut(Chord::key(Key::V))
         .register();
+    let lasso = tool("canvas.tool.lasso", "Lasso select", Tool::Lasso)
+        .in_menu()
+        .register();
+    let select_mode = Action::new("canvas.tool.select-mode", "Select", move || {
+        state.switch_select_tool()
+    })
+    .checked(create_memo(move || state.tool.get().selects()))
+    .enabled(free)
+    .detached();
     let frame = tool("canvas.tool.frame", "Draw a frame", Tool::Frame)
         .shortcut(Chord::key(Key::F))
         .in_menu()
@@ -399,6 +411,8 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     let grid = grid_actions(state);
     CanvasActions {
         select,
+        lasso,
+        select_mode,
         frame,
         line,
         arrow,

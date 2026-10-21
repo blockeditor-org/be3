@@ -83,7 +83,7 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
             <ForEach keys={tool_keys}>|index: usize| {
                 let actions = tools.clone();
                 view! {
-                    <ToolChoice actions index />
+                    <ToolChoice state actions index />
                 }
             }</ForEach>
             <IconButton
@@ -158,15 +158,33 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
 }
 
 #[component]
-fn ToolChoice(actions: CanvasActions, index: usize) -> NodeId {
-    let (tool, label) = TOOLS[index];
+fn ToolChoice(state: CanvasState, actions: CanvasActions, index: usize) -> NodeId {
+    let (tool, name) = TOOLS[index];
+    let (label, glyph, action) = match tool {
+        Tool::Select => {
+            let mode = create_memo(move || state.select_tool());
+            (
+                Prop::dynamic(move || match mode.get() {
+                    Tool::Lasso => "Lasso select".to_owned(),
+                    _ => name.to_owned(),
+                }),
+                Prop::dynamic(move || mode.get().glyph().to_owned()),
+                actions.select_mode,
+            )
+        }
+        _ => (
+            Prop::Static(name.to_owned()),
+            Prop::Static(tool.glyph().to_owned()),
+            actions.tool(tool),
+        ),
+    };
     view! {
         <ToggleButton
             label={label}
-            glyph={tool.glyph().to_owned()}
+            glyph={glyph}
             icon_only=true
-            action={actions.tool(tool)}
-            @test_id={format!("infinite-canvas.dock.tool.{label}")}
+            action={action}
+            @test_id={format!("infinite-canvas.dock.tool.{name}")}
         />
     }
 }

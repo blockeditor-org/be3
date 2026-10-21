@@ -15,8 +15,8 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::beui::icons::{
-    ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DIAMOND, ICON_DRAW, ICON_NORTH_EAST,
-    ICON_PANORAMA_FISH_EYE, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS,
+    ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DIAMOND, ICON_DRAW, ICON_LASSO_SELECT,
+    ICON_NORTH_EAST, ICON_PANORAMA_FISH_EYE, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS,
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
@@ -83,6 +83,7 @@ pub(crate) fn common_value<T: Copy + PartialEq>(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Tool {
     Select,
+    Lasso,
     Frame,
     Line,
     Arrow,
@@ -97,6 +98,7 @@ impl Tool {
     pub(crate) fn glyph(self) -> &'static str {
         match self {
             Tool::Select => ICON_SELECT,
+            Tool::Lasso => ICON_LASSO_SELECT,
             Tool::Frame => ICON_CROP_FREE,
             Tool::Line => ICON_DIAGONAL_LINE,
             Tool::Arrow => ICON_NORTH_EAST,
@@ -106,6 +108,10 @@ impl Tool {
             Tool::Text => ICON_TEXT_FIELDS,
             Tool::Pen => ICON_DRAW,
         }
+    }
+
+    pub(crate) fn selects(self) -> bool {
+        matches!(self, Tool::Select | Tool::Lasso)
     }
 
     pub(crate) fn draws_a_box(self) -> bool {
@@ -189,6 +195,10 @@ pub(crate) enum Gesture {
         from_center: bool,
         additive: bool,
     },
+    Lasso {
+        points: Vec<CanvasPoint>,
+        additive: bool,
+    },
     Move {
         start: CanvasPoint,
         current: CanvasPoint,
@@ -213,6 +223,12 @@ pub(crate) enum Gesture {
         current: CanvasPoint,
         grab: CanvasPoint,
         snap: bool,
+    },
+    Bend {
+        original: Box<CanvasEntity>,
+        index: usize,
+        current: CanvasPoint,
+        grab: CanvasPoint,
     },
     Rotate {
         frame: SelectionFrame,
@@ -283,16 +299,28 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             snap,
             ..
         } => {
-            let ends = path_ends(original);
             let at = match snap {
-                true => constrain_point_angle(ends[1 - end], *current, std::f32::consts::FRAC_PI_4),
+                true => constrain_point_angle(
+                    path_neighbour(original, *end),
+                    *current,
+                    std::f32::consts::FRAC_PI_4,
+                ),
                 false => *current,
             };
             let mut moved = with_end(original.as_ref().clone(), *end, at);
             moved.bindings[*end] = None;
             vec![moved]
         }
-        Gesture::Create { .. } | Gesture::Pen { .. } | Gesture::SelectBox { .. } => Vec::new(),
+        Gesture::Bend {
+            original,
+            index,
+            current,
+            ..
+        } => vec![with_point(original.as_ref().clone(), *index, *current)],
+        Gesture::Create { .. }
+        | Gesture::Pen { .. }
+        | Gesture::SelectBox { .. }
+        | Gesture::Lasso { .. } => Vec::new(),
     }
 }
 
@@ -351,6 +379,7 @@ struct CanvasCells {
     retapped: Cell<Option<(Uuid, Pos2)>>,
     text_entry: Cell<Option<TextEntry>>,
     surface: NodeRef,
+    select_tool: Cell<Tool>,
     children: RefCell<HashMap<Uuid, ChildState>>,
     placeholders: RefCell<HashMap<Uuid, Placeholder>>,
     confirmed_editor: Cell<Option<Uuid>>,
@@ -370,6 +399,7 @@ pub(crate) struct CanvasState {
     pub(crate) profile: Signal<CanvasProfile>,
     styles: Signal<HashMap<CanvasProfile, CanvasStyle>>,
     pub(crate) selection: Signal<HashSet<Uuid>>,
+    pub(crate) entered_group: Signal<Option<Uuid>>,
     pub(crate) gesture: Signal<Option<Gesture>>,
     typed: Signal<Option<CanvasEntity>>,
     pub(crate) focused_editor: Signal<Option<Uuid>>,
@@ -401,6 +431,7 @@ impl CanvasState {
         });
         let styles = create_signal(HashMap::new());
         let selection = create_signal(HashSet::new());
+        let entered_group = create_signal(None);
         let gesture = create_signal(None);
         let typed = create_signal(None::<CanvasEntity>);
         create_binding(move || {
@@ -475,6 +506,7 @@ impl CanvasState {
             retapped: Cell::new(None),
             text_entry: Cell::new(None),
             surface: NodeRef::new(),
+            select_tool: Cell::new(Tool::Select),
             children: RefCell::new(HashMap::new()),
             placeholders: RefCell::new(HashMap::new()),
             confirmed_editor: Cell::new(None),
@@ -492,6 +524,7 @@ impl CanvasState {
             profile,
             styles,
             selection,
+            entered_group,
             gesture,
             typed,
             focused_editor,
@@ -837,13 +870,31 @@ impl CanvasState {
     }
 
     pub(crate) fn set_tool(&self, tool: Tool) {
+        if tool.selects() {
+            self.cells.value().select_tool.set(tool);
+        }
         self.tool.set(tool);
         self.gesture.set(None);
     }
 
+    pub(crate) fn select_tool(&self) -> Tool {
+        match self.tool.get() {
+            tool if tool.selects() => tool,
+            _ => self.cells.value().select_tool.get(),
+        }
+    }
+
+    pub(crate) fn switch_select_tool(&self) {
+        self.set_tool(match self.tool.get_untracked() {
+            Tool::Select => Tool::Lasso,
+            Tool::Lasso => Tool::Select,
+            _ => self.cells.value().select_tool.get(),
+        });
+    }
+
     pub(crate) fn put_down_tool(&self) {
-        if self.tool.get_untracked() != Tool::Select {
-            self.set_tool(Tool::Select);
+        if !self.tool.get_untracked().selects() {
+            self.set_tool(self.cells.value().select_tool.get());
         }
     }
 
@@ -1036,11 +1087,13 @@ impl CanvasState {
         self.selected_entities().iter().any(|entity| !entity.locked)
     }
 
-    fn selection_ids(entities: &[CanvasEntity], id: Uuid) -> HashSet<Uuid> {
+    fn selection_ids(&self, entities: &[CanvasEntity], id: Uuid) -> HashSet<Uuid> {
+        let entered = self.entered_group.get_untracked();
         let group_id = entities
             .iter()
             .find(|entity| entity.id == id)
-            .and_then(|entity| entity.group_id);
+            .and_then(|entity| entity.group_id)
+            .filter(|group| Some(*group) != entered);
         entities
             .iter()
             .filter(|entity| match group_id {
@@ -1053,7 +1106,7 @@ impl CanvasState {
 
     pub(crate) fn select(&self, id: Uuid, additive: bool) {
         let entities = self.entities.all_untracked();
-        let ids = Self::selection_ids(&entities, id);
+        let ids = self.selection_ids(&entities, id);
         let mut selection = self.selection.get_untracked();
         if additive {
             if ids.iter().all(|id| selection.contains(id)) {
@@ -1068,6 +1121,34 @@ impl CanvasState {
             selection.extend(ids);
         }
         self.selection.set(selection);
+    }
+
+    pub(crate) fn enter_group(&self, member: Uuid) {
+        let group = self
+            .entities
+            .get_untracked(member)
+            .and_then(|entity| entity.group_id);
+        if self.entered_group.get_untracked() != group {
+            self.entered_group.set(group);
+        }
+        self.selection.set(HashSet::from([member]));
+    }
+
+    pub(crate) fn leave_group(&self) -> Option<Uuid> {
+        let left = self.entered_group.get_untracked()?;
+        self.entered_group.set(None);
+        Some(left)
+    }
+
+    pub(crate) fn select_group(&self, group: Uuid) {
+        let members = self
+            .entities
+            .all_untracked()
+            .iter()
+            .filter(|entity| entity.group_id == Some(group))
+            .map(|entity| entity.id)
+            .collect();
+        self.selection.set(members);
     }
 
     pub(crate) fn clear_selection(&self) {
@@ -1964,8 +2045,24 @@ impl CanvasState {
                         .map(|entity| entity.id)
                         .collect::<Vec<_>>();
                     for id in hits {
-                        selection.extend(Self::selection_ids(&entities, id));
+                        selection.extend(self.selection_ids(&entities, id));
                     }
+                }
+                self.selection.set(selection);
+            }
+            Gesture::Lasso { points, additive } => {
+                let mut selection = match additive {
+                    true => self.selection.get_untracked(),
+                    false => HashSet::new(),
+                };
+                let entities = self.entities.all_untracked();
+                let hits = entities
+                    .iter()
+                    .filter(|entity| !entity.hidden && lasso_encloses(&points, entity))
+                    .map(|entity| entity.id)
+                    .collect::<Vec<_>>();
+                for id in hits {
+                    selection.extend(self.selection_ids(&entities, id));
                 }
                 self.selection.set(selection);
             }
@@ -1999,6 +2096,10 @@ impl CanvasState {
                     let at = path_ends(path)[end];
                     path.bindings[end] = self.binding_at(at, path.id);
                 }
+                self.record_update(vec![original.as_ref().clone()], updates, false);
+            }
+            Gesture::Bend { ref original, .. } => {
+                let updates = preview_entities(&gesture);
                 self.record_update(vec![original.as_ref().clone()], updates, false);
             }
         }
@@ -2073,7 +2174,7 @@ impl CanvasState {
                 frame.text = format!("Frame {}", count + 1);
                 Some(frame)
             }
-            Tool::Line | Tool::Arrow | Tool::Select | Tool::Pen => None,
+            Tool::Line | Tool::Arrow | Tool::Select | Tool::Lasso | Tool::Pen => None,
         }
     }
 }

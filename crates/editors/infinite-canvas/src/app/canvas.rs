@@ -13,7 +13,7 @@ use crate::geometry::*;
 
 use super::grid::{GridLook, GridTile, GridTileItem};
 use super::menu::CanvasMenu;
-use super::overlay::{Backdrop, FrameBackdrop, Overlay};
+use super::overlay::{Backdrop, FrameBackdrop, Overlay, PathGrips};
 use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, path_middle, resolve_color};
 use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::CanvasState;
@@ -157,9 +157,11 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>
             gesture: state.gesture.get(),
             outlines: super::state::selected_outlines(&selected, &selection),
             frame: super::state::selection_frame(&selected, &selection),
-            line: state
+            path: state
                 .selected_path()
-                .and_then(|path| Some(path_ends(&state.entities.shown(path.id)?))),
+                .and_then(|path| state.entities.shown(path.id))
+                .map(|path| path_grips(&path, camera.get().scale)),
+            group: entered_group_bounds(state),
             resize: state.selection_handles().0,
             rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),
             presence: state.presence.get(),
@@ -395,6 +397,35 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
             </Layers>
         </CanvasItem>
     }
+}
+
+fn path_grips(path: &CanvasEntity, scale: f32) -> PathGrips {
+    let world = path.world_points();
+    PathGrips {
+        outline: flattened(&world),
+        points: world.iter().map(|point| point.at()).collect(),
+        middles: path_middles(path, scale)
+            .into_iter()
+            .map(|(_, at)| at)
+            .collect(),
+    }
+}
+
+fn entered_group_bounds(state: CanvasState) -> Option<WorldRect> {
+    let group = state.entered_group.get()?;
+    let members = state
+        .entities
+        .all_untracked()
+        .into_iter()
+        .filter(|entity| entity.group_id == Some(group))
+        .map(|entity| entity.id)
+        .collect();
+    state
+        .entities
+        .shown_among(&members)
+        .iter()
+        .map(entity_bounds)
+        .reduce(WorldRect::union)
 }
 
 fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {

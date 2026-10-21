@@ -246,18 +246,170 @@ pub(crate) fn path_ends(entity: &CanvasEntity) -> [CanvasPoint; 2] {
     }
 }
 
-pub(crate) fn with_end(mut entity: CanvasEntity, end: usize, at: CanvasPoint) -> CanvasEntity {
-    let mut world = entity.world_points();
+pub(crate) fn with_end(entity: CanvasEntity, end: usize, at: CanvasPoint) -> CanvasEntity {
     let index = match end {
         0 => 0,
-        _ => world.len().saturating_sub(1),
+        _ => entity.points.len().saturating_sub(1),
     };
+    with_point(entity, index, at)
+}
+
+pub(crate) fn with_point(mut entity: CanvasEntity, index: usize, at: CanvasPoint) -> CanvasEntity {
+    let mut world = entity.world_points();
     if let Some(point) = world.get_mut(index) {
         let shift = CanvasPoint::new(at.x - point.x, at.y - point.y);
         *point = point.map(|held| CanvasPoint::new(held.x + shift.x, held.y + shift.y));
     }
     entity.set_world_points(world);
     entity
+}
+
+pub(crate) fn path_neighbour(entity: &CanvasEntity, end: usize) -> CanvasPoint {
+    let world = entity.world_points();
+    let index = match end {
+        0 => 1,
+        _ => world.len().saturating_sub(2),
+    };
+    world
+        .get(index)
+        .map_or(entity.transform.center, |point| point.at())
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub(crate) enum PathGrip {
+    Point(usize),
+    Middle(usize),
+}
+
+pub(crate) const MIDDLE_MIN_LENGTH: f32 = 4.0 * HANDLE_REACH;
+
+fn mix(a: CanvasPoint, b: CanvasPoint) -> CanvasPoint {
+    CanvasPoint::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5)
+}
+
+pub(crate) fn segment_middle(from: CanvasPathPoint, to: CanvasPathPoint) -> CanvasPoint {
+    let (a, d) = (from.at(), to.at());
+    let b = from.handle_out.unwrap_or(a);
+    let c = to.handle_in.unwrap_or(d);
+    mix(mix(mix(a, b), mix(b, c)), mix(mix(b, c), mix(c, d)))
+}
+
+pub(crate) fn path_middles(entity: &CanvasEntity, scale: f32) -> Vec<(usize, CanvasPoint)> {
+    let least = MIDDLE_MIN_LENGTH / scale.max(f32::EPSILON);
+    entity
+        .world_points()
+        .windows(2)
+        .enumerate()
+        .filter(|(_, pair)| distance(pair[0].at(), pair[1].at()) >= least)
+        .map(|(index, pair)| (index, segment_middle(pair[0], pair[1])))
+        .collect()
+}
+
+pub(crate) fn path_grip_at(
+    entity: &CanvasEntity,
+    world: CanvasPoint,
+    scale: f32,
+    reach: f32,
+) -> Option<PathGrip> {
+    let reach = reach / scale.max(f32::EPSILON);
+    let nearest = |grips: Vec<(PathGrip, CanvasPoint)>| {
+        grips
+            .into_iter()
+            .map(|(grip, at)| (grip, distance(at, world)))
+            .filter(|(_, away)| *away <= reach)
+            .min_by(|a, b| a.1.total_cmp(&b.1))
+            .map(|(grip, _)| grip)
+    };
+    let points = entity
+        .world_points()
+        .iter()
+        .enumerate()
+        .map(|(index, point)| (PathGrip::Point(index), point.at()))
+        .collect();
+    nearest(points).or_else(|| {
+        nearest(
+            path_middles(entity, scale)
+                .into_iter()
+                .map(|(index, at)| (PathGrip::Middle(index), at))
+                .collect(),
+        )
+    })
+}
+
+pub(crate) fn split_segment(mut entity: CanvasEntity, index: usize) -> CanvasEntity {
+    let mut world = entity.world_points();
+    let (Some(from), Some(to)) = (world.get(index).copied(), world.get(index + 1).copied()) else {
+        return entity;
+    };
+    let middle = match from.handle_out.is_none() && to.handle_in.is_none() {
+        true => CanvasPathPoint::new(segment_middle(from, to)),
+        false => {
+            let (a, d) = (from.at(), to.at());
+            let b = from.handle_out.unwrap_or(a);
+            let c = to.handle_in.unwrap_or(d);
+            let (ab, bc, cd) = (mix(a, b), mix(b, c), mix(c, d));
+            let (abc, bcd) = (mix(ab, bc), mix(bc, cd));
+            world[index].handle_out = from.handle_out.map(|_| ab);
+            world[index + 1].handle_in = to.handle_in.map(|_| cd);
+            CanvasPathPoint {
+                handle_in: Some(abc),
+                handle_out: Some(bcd),
+                ..CanvasPathPoint::new(mix(abc, bcd))
+            }
+        }
+    };
+    world.insert(index + 1, middle);
+    entity.set_world_points(world);
+    entity
+}
+
+fn polygon_contains(polygon: &[CanvasPoint], point: CanvasPoint) -> bool {
+    let mut inside = false;
+    for (index, a) in polygon.iter().enumerate() {
+        let b = polygon[(index + 1) % polygon.len()];
+        if (a.y > point.y) != (b.y > point.y)
+            && point.x < a.x + (point.y - a.y) / (b.y - a.y) * (b.x - a.x)
+        {
+            inside = !inside;
+        }
+    }
+    inside
+}
+
+fn segments_cross(a: CanvasPoint, b: CanvasPoint, c: CanvasPoint, d: CanvasPoint) -> bool {
+    let side = |p: CanvasPoint, q: CanvasPoint, r: CanvasPoint| {
+        (q.x - p.x) * (r.y - p.y) - (q.y - p.y) * (r.x - p.x)
+    };
+    let (d1, d2) = (side(c, d, a), side(c, d, b));
+    let (d3, d4) = (side(a, b, c), side(a, b, d));
+    (d1 > 0.0) != (d2 > 0.0) && (d3 > 0.0) != (d4 > 0.0)
+}
+
+pub(crate) fn lasso_encloses(lasso: &[CanvasPoint], entity: &CanvasEntity) -> bool {
+    if lasso.len() < 3 {
+        return false;
+    }
+    let bounds = lasso
+        .iter()
+        .map(|point| WorldRect::from_points(*point, *point))
+        .reduce(WorldRect::union)
+        .expect("a lasso has points");
+    if !bounds.contains_rect(entity_bounds(entity)) {
+        return false;
+    }
+    let (outline, closed) = match entity.shape {
+        CanvasShape::Path | CanvasShape::Freehand => (flattened(&entity.world_points()), false),
+        _ => (outline_points(entity), true),
+    };
+    if outline.is_empty() || !outline.iter().all(|point| polygon_contains(lasso, *point)) {
+        return false;
+    }
+    let edges = outline.len() - usize::from(!closed);
+    (0..edges).all(|index| {
+        let (a, b) = (outline[index], outline[(index + 1) % outline.len()]);
+        (0..lasso.len())
+            .all(|edge| !segments_cross(a, b, lasso[edge], lasso[(edge + 1) % lasso.len()]))
+    })
 }
 
 pub(crate) fn flattened(world: &[CanvasPathPoint]) -> Vec<CanvasPoint> {
@@ -286,20 +438,6 @@ pub(crate) fn flattened(world: &[CanvasPathPoint]) -> Vec<CanvasPoint> {
 }
 
 const CURVE_STEPS: usize = 16;
-
-pub(crate) fn line_end_at(
-    ends: [CanvasPoint; 2],
-    world: CanvasPoint,
-    scale: f32,
-    reach: f32,
-) -> Option<usize> {
-    let reach = reach / scale.max(f32::EPSILON);
-    (0..2)
-        .map(|end| (end, distance(ends[end], world)))
-        .filter(|(_, away)| *away <= reach)
-        .min_by(|a, b| a.1.total_cmp(&b.1))
-        .map(|(end, _)| end)
-}
 
 pub(crate) fn entity_corners(entity: &CanvasEntity) -> [CanvasPoint; 4] {
     [
