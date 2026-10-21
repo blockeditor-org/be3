@@ -45,38 +45,36 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
         })
     });
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
-                <Tree
-                    @sizing=ItemSize::Percent(100.0)
-                    keys={keys}
-                    item={item}
-                    selected={None}
-                    spacing=ROW_SPACING
-                    padding=PADDING
-                    row_test_id={Func::new(|path: String| format!("block-debug.{path}"))}
-                    on_select={move |_: String| {}}
-                    on_expand={move |(path, _): (String, bool)| {
-                        toggled.update(|toggled| {
-                            if !toggled.insert(path.clone()) {
-                                toggled.remove(&path);
-                            }
-                        });
-                    }}
-                >|face: TreeRowFace<String>| {
-                    let path = face.key;
-                    let label = create_memo(move || {
-                        rows.with(|rows| {
-                            rows.iter()
-                                .find(|row| row.path == path)
-                                .map_or_else(String::new, |row| row.label.clone())
-                        })
+        <List spacing=0.0>
+            <Tree
+                @sizing=ItemSize::Percent(100.0)
+                keys={keys}
+                item={item}
+                selected={None}
+                spacing=ROW_SPACING
+                padding=PADDING
+                row_test_id={Func::new(|path: String| format!("block-debug.{path}"))}
+                on_select={move |_: String| {}}
+                on_expand={move |(path, _): (String, bool)| {
+                    toggled.update(|toggled| {
+                        if !toggled.insert(path.clone()) {
+                            toggled.remove(&path);
+                        }
                     });
-                    view! {
-                        <Text style=TextStyle::CODE>{label}</Text>
-                    }
-                }</Tree>
-            </List>
-        </Frame>
+                }}
+            >|face: TreeRowFace<String>| {
+                let path = face.key;
+                let label = create_memo(move || {
+                    rows.with(|rows| {
+                        rows.iter()
+                            .find(|row| row.path == path)
+                            .map_or_else(String::new, |row| row.label.clone())
+                    })
+                });
+                view! {
+                    <Text style=TextStyle::CODE>{label}</Text>
+                }
+            }</Tree>
+        </List>
     }
 }

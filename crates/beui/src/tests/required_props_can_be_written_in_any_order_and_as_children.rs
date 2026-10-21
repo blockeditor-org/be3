@@ -18,7 +18,7 @@ fn required_props_can_be_written_in_any_order_and_as_children() {
     let _root = crate::reactive::RootScope::new();
     let declared = NodeRef::new();
     let reversed = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Joined prefix="left" suffix="right">

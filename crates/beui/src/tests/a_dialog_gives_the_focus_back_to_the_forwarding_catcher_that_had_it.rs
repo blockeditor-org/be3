@@ -11,7 +11,7 @@ fn a_dialog_gives_the_focus_back_to_the_forwarding_catcher_that_had_it() {
     let catcher = NodeRef::new();
     let field = NodeRef::new();
     let heard = create_signal(Vec::<(bool, Vec<Event>)>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Canvas>

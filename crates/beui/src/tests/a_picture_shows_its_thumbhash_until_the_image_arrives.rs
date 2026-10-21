@@ -32,7 +32,7 @@ fn a_picture_shows_its_thumbhash_until_the_image_arrives() {
     let placeholder = thumbhash.decode().expect("a fresh thumbhash decodes");
 
     let shown = create_signal(None::<Image>);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame width=40.0 height=40.0>
                 <Picture

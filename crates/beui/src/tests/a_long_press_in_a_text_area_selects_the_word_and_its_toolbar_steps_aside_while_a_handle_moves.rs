@@ -10,7 +10,7 @@ fn a_long_press_in_a_text_area_selects_the_word_and_its_toolbar_steps_aside_whil
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let document =
             Arc::new(TextBuffer::new(b"Hello brave world")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

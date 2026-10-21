@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_frame_pads_each_side_on_its_own() {
     let _root = crate::reactive::RootScope::new();
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal align=Align::Start spacing=0.0>
                 <Frame

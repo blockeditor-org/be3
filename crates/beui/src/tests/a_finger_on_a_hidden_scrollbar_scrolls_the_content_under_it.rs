@@ -10,7 +10,7 @@ const DRAGGED: f32 = 100.0;
 fn a_finger_on_a_hidden_scrollbar_scrolls_the_content_under_it() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>

@@ -1,4 +1,5 @@
 use crate::clipboard::PasteKind;
+use crate::color::Color32;
 use crate::input::{CursorIcon, ImeArea, KeyChord};
 
 #[derive(Clone, Debug, Default, PartialEq)]
@@ -12,12 +13,38 @@ pub struct WindowState {
     pub ime: Option<ImeArea>,
     pub typed: u64,
     pub keyboard_toggles: u32,
+    pub appearance: Appearance,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Default)]
+pub enum SystemBars {
+    Light,
+    #[default]
+    Dark,
+}
+
+#[derive(Clone, Debug, PartialEq)]
+pub struct Appearance {
+    pub clear_color: Color32,
+    pub title: Option<String>,
+    pub system_bars: SystemBars,
+}
+
+impl Default for Appearance {
+    fn default() -> Self {
+        Self {
+            clear_color: Color32::BLACK,
+            title: None,
+            system_bars: SystemBars::default(),
+        }
+    }
 }
 
 impl WindowState {
     pub(crate) fn begin_frame(&mut self, typed: bool) {
         *self = Self {
             pointer_locked: self.pointer_locked,
+            appearance: std::mem::take(&mut self.appearance),
             typed: self.typed.wrapping_add(u64::from(typed)),
             ..Self::default()
         };

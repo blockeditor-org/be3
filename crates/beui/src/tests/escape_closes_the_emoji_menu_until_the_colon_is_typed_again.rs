@@ -9,7 +9,7 @@ use text_editor_core::TextBuffer;
 fn escape_closes_the_emoji_menu_until_the_colon_is_typed_again() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));

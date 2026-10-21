@@ -11,18 +11,20 @@ fn a_scrolled_document_moves_the_rows_it_already_encoded() {
     beui_core::document::verify_paint(true);
     let mut document = build(|| {
         view! {
-            <Scroll @test_id="scroll">
-                <ForEach keys={(0..12).collect::<Vec<usize>>()}>|row: usize|
-                    <Frame
-                        height=16.0
-                        radius=0.0
-                        fill={match row % 2 {
-                            0 => RED,
-                            _ => BLUE,
-                        }}
-                    />
-                </ForEach>
-            </Scroll>
+            <Root clear_color={beui_core::color::Color32::BLACK}>
+                <Scroll @test_id="scroll">
+                    <ForEach keys={(0..12).collect::<Vec<usize>>()}>|row: usize|
+                        <Frame
+                            height=16.0
+                            radius=0.0
+                            fill={match row % 2 {
+                                0 => RED,
+                                _ => BLUE,
+                            }}
+                        />
+                    </ForEach>
+                </Scroll>
+            </Root>
         }
     });
     let scroll = document

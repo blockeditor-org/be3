@@ -19,7 +19,7 @@ fn a_capturing_catcher_over_a_forwarding_one_keeps_the_press_from_it() {
     let _root = crate::reactive::RootScope::new();
     let forwarded = create_signal(Vec::<ForwardedInput>::new());
     let pressed = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=200.0 height=200.0>

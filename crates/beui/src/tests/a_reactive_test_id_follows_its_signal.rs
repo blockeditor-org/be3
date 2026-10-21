@@ -7,7 +7,7 @@ use crate::unstyled::Button;
 fn a_reactive_test_id_follows_its_signal() {
     let _root = crate::reactive::RootScope::new();
     let rename = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let row = create_signal(0usize);
         let test_id = create_memo(move || format!("cell.{}", row.get()));
         view! {

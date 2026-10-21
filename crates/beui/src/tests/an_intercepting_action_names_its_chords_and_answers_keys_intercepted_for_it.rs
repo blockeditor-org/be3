@@ -9,7 +9,7 @@ fn an_intercepting_action_names_its_chords_and_answers_keys_intercepted_for_it()
     let _root = crate::reactive::RootScope::new();
     let runs = create_signal(0);
     let open = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.switch", "Switch", move || {
             runs.update(|runs| *runs += 1)
         })

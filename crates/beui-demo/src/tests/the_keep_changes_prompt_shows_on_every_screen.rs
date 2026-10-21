@@ -8,14 +8,14 @@ fn the_keep_changes_prompt_shows_on_every_screen() {
     let right = Rect::from_min_size(pos2(640.0, 0.0), Vec2::new(460.0, 320.0));
     let document = build(move || {
         view! {
-            <Frame fill=ColorRole::Background>
+            <Root>
                 <KeepChanges
                     open=true
                     title="Keep these display settings?"
                     on_keep={|| {}}
                     on_revert={|| {}}
                 />
-            </Frame>
+            </Root>
         }
     });
     let mut test = DocumentTest::new(document, Vec2::new(1100.0, 480.0));

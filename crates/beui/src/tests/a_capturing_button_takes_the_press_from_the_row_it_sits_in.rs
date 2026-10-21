@@ -9,7 +9,7 @@ fn a_capturing_button_takes_the_press_from_the_row_it_sits_in() {
     let inner_clicks = create_signal(0u32);
     let inner = NodeRef::new();
     let row = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <unstyled::Button

@@ -48,7 +48,7 @@ pub fn HotbarView(editor: Editor) -> NodeId {
     let read_only = editor.read_only();
 
     view! {
-        <Frame fill=ColorRole::Background padding=PADDING>
+        <Frame padding=PADDING>
             <List spacing=ROW_SPACING>
                 <Show condition={empty}>
                     <Text style=TextStyle::CAPTION>

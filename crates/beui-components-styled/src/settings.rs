@@ -42,20 +42,18 @@ const MENU_INSET: f32 = 8.0;
 #[component]
 pub fn SettingsPage(#[prop(children)] sections: Render<(), Children<ListChild>>) -> NodeId {
     view! {
-        <Frame fill=ColorRole::Background>
-            <Scroll>
-                <Frame
-                    padding={Sides::vertical(PAGE_PADDING_VERTICAL)}
-                    align={Align2::new(Align::Center, Align::Start)}
-                >
-                    <Frame width={Extent::at_most(PAGE_MAX_WIDTH + 2.0 * SECTION_INSET)}>
-                        <unstyled::Container>|_size|
-                            <List spacing=PAGE_SPACING children={sections.call(())} />
-                        </unstyled::Container>
-                    </Frame>
+        <Scroll>
+            <Frame
+                padding={Sides::vertical(PAGE_PADDING_VERTICAL)}
+                align={Align2::new(Align::Center, Align::Start)}
+            >
+                <Frame width={Extent::at_most(PAGE_MAX_WIDTH + 2.0 * SECTION_INSET)}>
+                    <unstyled::Container>|_size|
+                        <List spacing=PAGE_SPACING children={sections.call(())} />
+                    </unstyled::Container>
                 </Frame>
-            </Scroll>
-        </Frame>
+            </Frame>
+        </Scroll>
     }
 }
 

@@ -6,7 +6,7 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn the_right_arrow_scrolls_a_horizontal_scroll_the_focus_is_in() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll

@@ -12,7 +12,7 @@ const TEXT: &str = "intro\nfn main() {}";
 fn a_click_below_a_rich_text_areas_last_line_opens_a_plain_line_under_a_code_block() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let seeds = [basic::block(6..TEXT.len(), CODE_BLOCK, Value::text("rust"))];
         let document = Arc::new(TextBuffer::rich(TEXT, &seeds)) as Arc<dyn Document>;
         let state = TextAreaState::with_schema(document, Arc::new(Basic));

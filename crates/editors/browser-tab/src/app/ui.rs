@@ -44,62 +44,60 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
-                <Toolbar shown={chrome}>
-                    <IconButton
-                        glyph={ICON_ARROW_BACK.to_owned()}
-                        label="Back"
-                        disabled={no_back}
-                        @test_id={"browser.back"}
-                        on_click={go_back}
-                    />
-                    <IconButton
-                        glyph={ICON_ARROW_FORWARD.to_owned()}
-                        label="Forward"
-                        disabled={no_forward}
-                        @test_id={"browser.forward"}
-                        on_click={go_forward}
-                    />
-                    <IconButton
-                        glyph={ICON_REFRESH.to_owned()}
-                        label="Reload"
-                        @test_id={"browser.reload"}
-                        on_click={reload}
-                    />
-                    <TextInput
-                        @sizing=ItemSize::Percent(100.0)
-                        value={Binding::new(address, typed)}
-                        label="Address"
-                        placeholder="Search or enter address"
-                        @test_id={"browser.address"}
-                        on_submit={submit}
-                        on_focus_change={focus_app}
-                    />
-                    <Button
-                        label="Go"
-                        variant=ButtonVariant::Primary
-                        @test_id={"browser.go"}
-                        on_click={navigate}
-                    />
-                </Toolbar>
-                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <Layers>
-                        <Subregion editor={editor} placed={page} punch=false />
-                        <List align=Align::Center justify=Justify::Center spacing=0.0>
-                            <Show condition={failed}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    color=TextColor::Danger
-                                    @test_id={"browser.error"}
-                                >
-                                    {reason}
-                                </Text>
-                            </Show>
-                        </List>
-                    </Layers>
-                </Frame>
-            </List>
-        </Frame>
+        <List spacing=0.0>
+            <Toolbar shown={chrome}>
+                <IconButton
+                    glyph={ICON_ARROW_BACK.to_owned()}
+                    label="Back"
+                    disabled={no_back}
+                    @test_id={"browser.back"}
+                    on_click={go_back}
+                />
+                <IconButton
+                    glyph={ICON_ARROW_FORWARD.to_owned()}
+                    label="Forward"
+                    disabled={no_forward}
+                    @test_id={"browser.forward"}
+                    on_click={go_forward}
+                />
+                <IconButton
+                    glyph={ICON_REFRESH.to_owned()}
+                    label="Reload"
+                    @test_id={"browser.reload"}
+                    on_click={reload}
+                />
+                <TextInput
+                    @sizing=ItemSize::Percent(100.0)
+                    value={Binding::new(address, typed)}
+                    label="Address"
+                    placeholder="Search or enter address"
+                    @test_id={"browser.address"}
+                    on_submit={submit}
+                    on_focus_change={focus_app}
+                />
+                <Button
+                    label="Go"
+                    variant=ButtonVariant::Primary
+                    @test_id={"browser.go"}
+                    on_click={navigate}
+                />
+            </Toolbar>
+            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
+                <Layers>
+                    <Subregion editor={editor} placed={page} punch=false />
+                    <List align=Align::Center justify=Justify::Center spacing=0.0>
+                        <Show condition={failed}>
+                            <Text
+                                style=TextStyle::CAPTION
+                                color=TextColor::Danger
+                                @test_id={"browser.error"}
+                            >
+                                {reason}
+                            </Text>
+                        </Show>
+                    </List>
+                </Layers>
+            </Frame>
+        </List>
     }
 }

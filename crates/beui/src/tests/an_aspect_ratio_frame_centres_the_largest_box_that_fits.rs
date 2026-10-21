@@ -7,7 +7,7 @@ fn an_aspect_ratio_frame_centres_the_largest_box_that_fits() {
     let _root = crate::reactive::RootScope::new();
     let stage = NodeRef::new();
     let slide = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&stage} aspect_ratio=2.0>

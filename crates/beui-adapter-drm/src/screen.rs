@@ -196,7 +196,7 @@ impl Screen {
             };
             let load = match effective {
                 Repaint::Region { .. } => wgpu::LoadOp::Load,
-                Repaint::Everything => wgpu::LoadOp::Clear(beui::clear_color(frame.clear)),
+                Repaint::Everything => wgpu::LoadOp::Clear(beui::wgpu_color(frame.clear)),
             };
             let view = self
                 .retained

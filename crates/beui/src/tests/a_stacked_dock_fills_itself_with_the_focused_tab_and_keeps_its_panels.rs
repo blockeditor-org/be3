@@ -6,7 +6,7 @@ use crate::unstyled::{DockMode, DockPane, DockSplit, DockTab, DockingLayout};
 fn a_stacked_dock_fills_itself_with_the_focused_tab_and_keeps_its_panels() {
     let _root = crate::reactive::RootScope::new();
     let mode = create_signal(DockMode::Stacked);
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
             <styled::Docking layout mode={mode} focus=3u64>

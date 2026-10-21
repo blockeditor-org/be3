@@ -761,6 +761,7 @@ mod the_simulated_cursor_takes_the_shape_the_document_asks_for;
 mod the_simulated_input_bars_take_their_room_out_of_the_document;
 mod the_simulated_mouse_opens_the_on_screen_keyboard_and_fingers_type_on_it;
 mod the_top_layer_takes_a_click_over_the_layer_below;
+mod the_window_follows_the_title_and_clear_color_of_its_root;
 mod the_window_is_asked_for_fullscreen_and_says_when_it_is;
 mod the_window_is_shown_the_ime_again_after_typing_into_it;
 mod the_window_is_told_where_the_caret_is_in_its_own_units;
@@ -861,6 +862,17 @@ fn touch_event(finger: u64, phase: TouchPhase, pos: Pos2) -> Event {
         pos,
         force: None,
     }
+}
+
+pub(crate) fn build_node(view: impl FnOnce() -> NodeId) -> Document {
+    build(|| {
+        let content = view();
+        view! {
+            <beui_view::primitives::Root clear_color={Color32::BLACK}>
+                {content}
+            </beui_view::primitives::Root>
+        }
+    })
 }
 
 pub(crate) struct Harness {
@@ -1553,7 +1565,7 @@ pub(crate) struct VirtualScroll {
 
 pub(crate) fn virtual_list(built: Signal<Vec<usize>>) -> VirtualScroll {
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
@@ -1595,7 +1607,7 @@ pub(crate) fn keyed_virtual_list(built: Signal<Vec<usize>>) -> KeyedVirtualScrol
     let owned_keys = crate::reactive::OwnedSignal::new(indices(VIRTUAL_ITEM_COUNT));
     let keys = owned_keys.handle();
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>
@@ -1635,7 +1647,7 @@ pub(crate) struct HelloColumn {
 
 pub(crate) fn hello_column() -> HelloColumn {
     let (padding, text) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @node_ref=&padding padding=4.0>
@@ -1668,7 +1680,7 @@ pub(crate) struct ThreePanels {
 pub(crate) fn three_panels() -> ThreePanels {
     let list = NodeRef::new();
     let (top, middle, bottom) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List @node_ref=&list spacing=0.0>
                 <Frame @node_ref=&top height=100.0 fill=Color32::WHITE radius=0.0 />
@@ -1688,7 +1700,7 @@ pub(crate) fn three_panels() -> ThreePanels {
 
 pub(crate) fn stacked_panels() -> StackedPanels {
     let (upper, lower) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @node_ref=&upper height=100.0 fill=Color32::WHITE radius=0.0 />
@@ -1762,7 +1774,7 @@ pub(crate) const SHEET_ROWS: usize = 20;
 pub(crate) const SHEET_ROW_HEIGHT: f32 = 60.0;
 
 pub(crate) fn sheet_of_rows(rest: f32, sheet: NodeRef, closed: Signal<usize>) -> Document {
-    build(move || {
+    build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />
@@ -1800,7 +1812,7 @@ pub(crate) fn text_of(document: &Document, id: NodeId) -> &str {
 
 pub(crate) fn dock_of(tabs: usize) -> (Document, NodeId) {
     let dock = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = unstyled::DockingLayout::new();
         let open = create_signal((1..=tabs as u64).collect::<Vec<_>>());
         view! {
@@ -1831,7 +1843,7 @@ pub(crate) struct SplitDock {
 pub(crate) fn split_dock(drag_modifier: Option<Modifiers>) -> SplitDock {
     let dock = NodeRef::new();
     let presses = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = unstyled::DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout drag_modifier>
@@ -1965,7 +1977,7 @@ pub(crate) fn toolbar_of<const N: usize>(
 ) -> (Document, [NodeId; N]) {
     let built = crate::reactive::OwnedSignal::new(None);
     let handle = built.handle();
-    let document = build(move || {
+    let document = build_node(move || {
         let nodes = controls();
         handle.set(Some(nodes));
         view! {
@@ -2100,7 +2112,7 @@ use crate::interact::WHEEL_LATCH_TIMEOUT;
 use crate::unstyled::Scroll;
 
 fn nested() -> Document {
-    build(move || {
+    build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">
@@ -2132,7 +2144,7 @@ fn reopens_after(close: impl Fn(&mut Harness)) {
     let _root = crate::reactive::RootScope::new();
     let open = create_signal(true);
     let heard = create_signal(Vec::<String>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Button
@@ -2242,8 +2254,10 @@ impl Driven {
 
     pub(crate) fn with_app(app: impl App + 'static, headless: bool) -> Self {
         let inbox = beui_core::app::automation::Inbox::default();
-        let mut options = beui_core::runner::RunOptions::new("Driven");
-        options.automation = Some(inbox.clone());
+        let options = beui_core::runner::RunOptions {
+            automation: Some(inbox.clone()),
+            ..Default::default()
+        };
         let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
             options,
             context: context(),
@@ -2344,7 +2358,7 @@ pub(crate) fn dialog_dock(tabs: Vec<u64>, dialogs: Dialogs) -> DialogDock {
     let layout = unstyled::DockingLayout::new();
     let owned_dialogs = crate::reactive::OwnedSignal::new(dialogs);
     let listed = owned_dialogs.handle();
-    let document = build(move || {
+    let document = build_node(move || {
         let keys = crate::reactive::create_memo(move || {
             listed.with(|listed| {
                 listed
@@ -2500,7 +2514,7 @@ impl Intaken {
         let seen = Rc::new(RefCell::new(Vec::new()));
         let ask = PasteAsk::default();
         let mut runner = beui_core::runner::Runner::new(beui_core::runner::Launch {
-            options: beui_core::runner::RunOptions::new("Intaken"),
+            options: beui_core::runner::RunOptions::default(),
             context: context(),
             app: Box::new(Seeing(Rc::clone(&seen), Rc::clone(&ask))),
         });
@@ -2637,7 +2651,7 @@ fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool) -> CardDock {
     let open = create_signal(open_now);
     let anchor = create_signal(None::<Rect>);
     let layout = unstyled::DockingLayout::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let cards = crate::reactive::create_memo(move || match open.get() {
             true => vec![CARD],
             false => Vec::new(),

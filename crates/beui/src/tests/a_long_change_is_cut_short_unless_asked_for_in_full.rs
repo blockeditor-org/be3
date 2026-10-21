@@ -5,7 +5,7 @@ use crate::styled::*;
 
 #[test]
 fn a_long_change_is_cut_short_unless_asked_for_in_full() {
-    let document = build(|| {
+    let document = build_node(|| {
         let shown = create_signal(false);
         view! {
             <List spacing=0.0>

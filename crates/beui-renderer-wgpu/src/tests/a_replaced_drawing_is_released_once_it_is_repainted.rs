@@ -38,7 +38,9 @@ fn a_replaced_drawing_is_released_once_it_is_repainted() {
             let drawing = create_signal(Some(initial));
             *setter.borrow_mut() = Some(drawing);
             view! {
-                <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                <Root clear_color={beui_core::color::Color32::BLACK}>
+                    <Drawing draw={Prop::dynamic(move || draw_gpu(drawing.get()))} />
+                </Root>
             }
         }
     });

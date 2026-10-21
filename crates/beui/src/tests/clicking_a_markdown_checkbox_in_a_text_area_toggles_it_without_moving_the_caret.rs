@@ -36,7 +36,7 @@ fn checkbox_toggled(harness: &Harness) -> Vec<Option<Toggled>> {
 fn clicking_a_markdown_checkbox_in_a_text_area_toggles_it_without_moving_the_caret() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let document =
             Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

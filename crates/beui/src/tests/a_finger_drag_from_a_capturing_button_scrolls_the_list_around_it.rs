@@ -10,7 +10,7 @@ fn a_finger_drag_from_a_capturing_button_scrolls_the_list_around_it() {
     let clicks = create_signal(0);
     let cancels = create_signal(0);
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

@@ -4,7 +4,7 @@ use crate::styled::Spinner;
 
 #[test]
 fn an_instant_spinner_stops_and_resumes_with_the_preference() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Spinner />
         }

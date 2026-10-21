@@ -23,7 +23,7 @@ fn a_long_text_area_only_builds_the_lines_in_view() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let text = (0..LINES)
             .map(|line| format!("line {line}"))
             .collect::<Vec<_>>()

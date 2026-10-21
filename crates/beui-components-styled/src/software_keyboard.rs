@@ -375,11 +375,14 @@ impl KeyboardHost for KeyboardWindow {
 
     fn show(&mut self, ctx: &Context, rect: Rect, app: &Document) {
         let document = self.document.get_or_insert_with(|| {
-            build(|| {
+            let mut document = Document::new();
+            let root = enter(&mut document, || {
                 view! {
                     <SoftwareKeyboard />
                 }
-            })
+            });
+            document.set_root(root);
+            document
         });
         let theme = app.theme();
         if self.theme != Some(theme) {

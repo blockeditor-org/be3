@@ -9,7 +9,7 @@ fn a_shifted_child_in_a_scrolled_view_still_paints() {
     let _root = crate::reactive::RootScope::new();
     const MARK: Color32 = Color32::from_rgb(200, 30, 90);
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <unstyled::Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

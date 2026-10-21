@@ -8,7 +8,7 @@ fn a_pointer_lock_reports_motion_only_while_it_holds_the_pointer() {
     let _root = crate::reactive::RootScope::new();
     let moved = create_signal(Vec2::ZERO);
 
-    let document = build(move || {
+    let document = build_node(move || {
         let locked = create_signal(false);
         view! {
             <PointerLock

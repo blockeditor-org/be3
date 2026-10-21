@@ -4,7 +4,7 @@ use crate::reactive::*;
 
 #[test]
 fn a_driver_stops_waiting_for_a_clipboard_the_window_never_answers_with() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List spacing=0.0>
                 <Text>"Hello"</Text>

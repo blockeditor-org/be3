@@ -11,7 +11,7 @@ fn a_for_each_row_picks_and_changes_its_own_size() {
     let _root = crate::reactive::RootScope::new();
     let (toggle, header, body) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
 
-    let document = build(move || {
+    let document = build_node(move || {
         let tall = create_signal(false);
         let sizing = create_memo(move || match tall.get() {
             true => ItemSize::Fixed(TALL_HEIGHT),

@@ -13,7 +13,7 @@ fn a_nested_overlay_closes_with_its_parent_whatever_the_parents_policy() {
     let dismissed = create_signal(0);
     let nested_dismissed = create_signal(0);
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame>
                 <Overlay

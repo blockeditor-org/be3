@@ -13,7 +13,6 @@ use crate::app::accessibility_dump::AccessibilityDump;
 use crate::app::automation::{Automation, Inbox, Resize, Settled, View, World};
 use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use crate::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
-use crate::color::Color32;
 use crate::context::{ActionGroup, Context, FrameOutput};
 use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::geometry::Vec2;
@@ -29,17 +28,15 @@ pub use intake::{Input, Keystroke, PINCH_SPEED, SCROLL_LINE, SCROLL_PAGE, Scroll
 type Answered = (FilePickId, FilePick);
 
 pub struct RunOptions {
-    pub title: String,
     pub app_id: Option<String>,
     pub size: Vec2,
     pub accessibility_tree: bool,
     pub automation: Option<Inbox>,
 }
 
-impl RunOptions {
-    pub fn new(title: impl Into<String>) -> Self {
+impl Default for RunOptions {
+    fn default() -> Self {
         Self {
-            title: title.into(),
             app_id: None,
             size: Vec2::new(1280.0, 800.0),
             accessibility_tree: false,
@@ -131,7 +128,6 @@ impl App for Exited {
 pub struct Runner {
     app: Box<dyn App>,
     context: Context,
-    title: String,
     renderers: Option<Renderers>,
     waker: Option<Waker>,
     events: Vec<Event>,
@@ -179,7 +175,6 @@ impl Runner {
         Self {
             app,
             context,
-            title: options.title,
             renderers: None,
             waker: None,
             events: Vec::new(),
@@ -207,10 +202,6 @@ impl Runner {
 
     pub fn context(&self) -> &Context {
         &self.context
-    }
-
-    pub fn title(&self) -> &str {
-        &self.title
     }
 
     pub fn start(&mut self, loaded: Vec<Loaded>, mut setup: Setup) -> Result<(), Box<dyn Error>> {
@@ -266,10 +257,6 @@ impl Runner {
 
     pub fn reports(&self) -> &WindowReports {
         &self.reports
-    }
-
-    pub fn clear_color(&self) -> Color32 {
-        self.app.clear_color()
     }
 
     pub fn window(&self) -> &WindowState {
@@ -486,13 +473,18 @@ impl Runner {
                 .as_ref()
                 .is_some_and(Automation::wants_sight);
         self.context.set_seen(seen);
-        self.context.set_accessibility_window(&self.title, screen);
+        self.context.set_accessibility_viewport(screen);
         let app = &mut self.app;
         let mut output = self.context.run(raw, |context| {
             app.update(context, safe_rect(screen, safe_area, scale));
         });
-        let title = &self.title;
         if self.publishing_accessibility {
+            let title = output
+                .window
+                .appearance
+                .title
+                .as_deref()
+                .unwrap_or_default();
             platform.publish_accessibility(&mut || output.accessibility_tree(title, screen));
         }
 
@@ -543,10 +535,11 @@ impl Runner {
             platform.set_fullscreen(fullscreen);
         }
 
+        let background = output.window.appearance.clear_color;
         let pending = match seen {
-            true => renderers.prepare(&output, scale, self.app.clear_color()),
+            true => renderers.prepare(&output, scale, background),
             false => {
-                renderers.note(&output, scale, self.app.clear_color());
+                renderers.note(&output, scale, background);
                 false
             }
         };
@@ -601,7 +594,7 @@ impl Runner {
                     &output,
                     screen,
                     scale,
-                    self.app.clear_color(),
+                    background,
                     crate::painting::Punches::Erase,
                 ));
             }
@@ -628,7 +621,7 @@ impl Runner {
         if self.occluded && !self.unpresented {
             return false;
         }
-        let background = self.app.clear_color();
+        let background = self.asked.appearance.clear_color;
         let Some(renderers) = self.renderers.as_mut() else {
             return false;
         };

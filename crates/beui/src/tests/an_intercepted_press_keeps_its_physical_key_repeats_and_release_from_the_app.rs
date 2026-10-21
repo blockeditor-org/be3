@@ -37,7 +37,7 @@ fn an_intercepted_press_keeps_its_physical_key_repeats_and_release_from_the_app(
     let _root = crate::reactive::RootScope::new();
     let ran = create_signal(0);
     let forwarded = create_signal(Vec::<Event>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.fullscreen", "Fullscreen", move || {
             ran.update(|ran| *ran += 1)
         })

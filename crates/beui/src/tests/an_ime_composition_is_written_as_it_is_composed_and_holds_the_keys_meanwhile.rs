@@ -9,7 +9,7 @@ use text_editor_core::TextBuffer;
 fn an_ime_composition_is_written_as_it_is_composed_and_holds_the_keys_meanwhile() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"ab")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));

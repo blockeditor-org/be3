@@ -4,7 +4,7 @@ use crate::unstyled::{PanZoomView, pan_zoom_view};
 
 #[test]
 fn dragging_a_pan_zoom_with_the_middle_button_pans_it() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <PanZoomStage />
         }

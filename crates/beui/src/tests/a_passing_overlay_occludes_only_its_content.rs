@@ -6,7 +6,7 @@ use crate::{Dismiss, LayerPolicy};
 
 #[test]
 fn a_passing_overlay_occludes_only_its_content() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <Frame>
                 <Overlay

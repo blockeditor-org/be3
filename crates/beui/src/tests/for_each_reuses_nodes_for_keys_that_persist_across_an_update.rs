@@ -7,7 +7,7 @@ use crate::unstyled::Button;
 fn for_each_reuses_nodes_for_keys_that_persist_across_an_update() {
     let _root = crate::reactive::RootScope::new();
     let (list, shuffle) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let items = create_signal(vec![1i64, 2, 3]);
         view! {
             <List spacing=0.0>

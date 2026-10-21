@@ -8,7 +8,7 @@ fn a_sheet_pulled_past_its_top_stretches_and_springs_back() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let open = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />

@@ -11,7 +11,7 @@ const ITEM_HEIGHT: f32 = 20.0;
 fn a_stack_becomes_a_column_when_its_container_gets_narrow() {
     let _root = crate::reactive::RootScope::new();
     let (left, right) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_|
                 <Stack spacing=0.0 breakpoint=BREAKPOINT>

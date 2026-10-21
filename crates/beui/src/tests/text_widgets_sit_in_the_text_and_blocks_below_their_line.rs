@@ -14,7 +14,7 @@ fn text_widgets_sit_in_the_text_and_blocks_below_their_line() {
     let held = create_signal::<Option<TextAreaState>>(None);
     let block = NodeRef::new();
     let popup = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let document =
             Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

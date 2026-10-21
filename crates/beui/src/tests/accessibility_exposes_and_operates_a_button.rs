@@ -2,13 +2,13 @@ use accesskit::{Action, ActionRequest, Role, TreeId};
 use beui_view::reactive::Get;
 use beui_view::reactive::Set;
 
-use super::{Harness, VIEWPORT, build, create_signal, styled, view};
+use super::{Harness, VIEWPORT, build_node, create_signal, styled, view};
 
 #[test]
 fn accessibility_exposes_and_operates_a_button() {
     let _root = crate::reactive::RootScope::new();
     let clicks = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <styled::Button
                 label="Save"

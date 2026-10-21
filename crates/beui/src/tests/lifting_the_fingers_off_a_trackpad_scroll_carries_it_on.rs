@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 fn lifting_the_fingers_off_a_trackpad_scroll_carries_it_on() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

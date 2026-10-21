@@ -8,7 +8,7 @@ use crate::styled::*;
 fn dragging_across_an_icon_and_its_label_copies_only_the_label() {
     let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <SelectableText>
                 <Text @node_ref=&text>

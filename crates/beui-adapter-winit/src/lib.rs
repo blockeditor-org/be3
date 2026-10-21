@@ -184,6 +184,11 @@ impl Platform for WinitPlatform<'_> {
         if let Some(request) = ime_request(window, shown) {
             let _ = surface.window.request_ime_update(request);
         }
+        if let Some(title) = &window.appearance.title
+            && window.appearance.title != shown.appearance.title
+        {
+            surface.window.set_title(title);
+        }
     }
 
     fn set_fullscreen(&mut self, fullscreen: bool) {
@@ -463,7 +468,14 @@ impl ApplicationHandler for Runner {
             return;
         }
         let attributes = WindowAttributes::default()
-            .with_title(self.runner.title().to_owned())
+            .with_title(
+                self.runner
+                    .window()
+                    .appearance
+                    .title
+                    .clone()
+                    .unwrap_or_default(),
+            )
             .with_visible(false)
             .with_surface_size(LogicalSize::new(self.size.x, self.size.y));
         #[cfg(all(unix, not(target_os = "macos")))]

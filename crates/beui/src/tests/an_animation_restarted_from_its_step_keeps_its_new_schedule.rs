@@ -9,7 +9,7 @@ fn an_animation_restarted_from_its_step_keeps_its_new_schedule() {
     let finished = create_signal(0);
     let held = Rc::new(Cell::new(None::<Animation>));
     let saved = held.clone();
-    let document = build(move || {
+    let document = build_node(move || {
         let animation = create_animation(
             move |_| {
                 runs.update(|n| *n += 1);

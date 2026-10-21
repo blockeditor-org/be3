@@ -7,7 +7,7 @@ fn a_disabled_action_ignores_its_shortcut_and_disables_its_button() {
     let _root = crate::reactive::RootScope::new();
     let runs = create_signal(0);
     let enabled = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         let enabled = create_memo(move || enabled.get());
         let group = Action::new("test.group", "Group", move || {
             runs.update(|runs| *runs += 1)

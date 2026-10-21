@@ -8,7 +8,7 @@ fn view_children_can_pick_fixed_and_percent_sizing() {
     let left = create_signal(None);
     let right = create_signal(None);
 
-    let document = build(move || {
+    let document = build_node(move || {
         let tree = view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <List @sizing=ItemSize::Fixed(30.0) spacing=0.0></List>

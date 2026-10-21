@@ -9,7 +9,7 @@ fn an_embed_reports_the_rect_and_the_clip_it_was_laid_out_in() {
     let inside = EmbedSlot::new();
     let outside = EmbedSlot::new();
 
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Fixed(120.0)>

@@ -23,14 +23,13 @@ use crate::paint::{Item, Recorded, Recording};
 use crate::painter::{Painter, Scope, Shape};
 use crate::screen_simulation::ScreenSimulation;
 use crate::screens::Screen;
-use crate::window::WindowState;
+use crate::window::{Appearance, WindowState};
 
 type CopyWatcher = Rc<dyn Fn(&str)>;
 
 #[derive(Default)]
 struct Kept {
     dump: AccessibilityDump,
-    title: String,
     viewport: Option<Vec2>,
 }
 
@@ -480,11 +479,8 @@ impl Context {
         }
     }
 
-    pub fn set_accessibility_window(&self, title: &str, viewport: Vec2) {
+    pub fn set_accessibility_viewport(&self, viewport: Vec2) {
         if let Some(kept) = &mut *self.inner.kept.borrow_mut() {
-            if kept.title != title {
-                kept.title = title.to_owned();
-            }
             kept.viewport = Some(viewport);
         }
     }
@@ -619,8 +615,9 @@ impl Context {
         let accessibility = std::mem::take(&mut *self.inner.accessibility.borrow_mut());
         let test_ids = match &mut *self.inner.kept.borrow_mut() {
             Some(kept) => {
+                let window = self.inner.window.borrow();
                 kept.dump.update(accessibility::tree_update(
-                    &kept.title,
+                    window.appearance.title.as_deref().unwrap_or_default(),
                     kept.viewport.unwrap_or(Vec2::splat(f32::MAX)),
                     scale,
                     accessibility.clone(),
@@ -780,6 +777,13 @@ impl Context {
 
     pub fn set_cursor_icon(&self, cursor_icon: CursorIcon) {
         self.inner.window.borrow_mut().cursor = cursor_icon;
+    }
+
+    pub fn set_appearance(&self, appearance: &Appearance) {
+        let mut window = self.inner.window.borrow_mut();
+        if window.appearance != *appearance {
+            window.appearance.clone_from(appearance);
+        }
     }
 
     pub fn cursor_icon(&self) -> CursorIcon {

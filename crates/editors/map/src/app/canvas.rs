@@ -94,40 +94,38 @@ pub(crate) fn MapCanvas(state: MapState) -> NodeId {
     state.editor().content(&content);
 
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
-                <MapSurface state={state} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <Canvas view={camera} @test_id={"map.canvas"}>
-                        <ForEach keys={covering}>|tile: TileId| {
-                            let world = world;
-                            let scale = scale;
-                            view! {
-                                <Tile state tile world scale underlay=true />
-                            }
-                        }</ForEach>
-                        <ForEach keys={covering}>|tile: TileId| {
-                            let scale = scale;
-                            view! {
-                                <Tile state tile world scale />
-                            }
-                        }</ForEach>
-                        <ForEach keys={label_keys}>|key: labels::LabelKey|
-                            <MapLabel key shown={by_key} scale />
-                        </ForEach>
-                        <RegionOutline shown={has_region} rect={region_rect} />
-                        <ForEach keys={ids}>|id: Uuid| {
-                            let selected = selection.memo(Some(id));
-                            let world = world;
-                            let scale = scale;
-                            view! {
-                                <PointMarker state id selected world scale />
-                            }
-                        }</ForEach>
-                    </Canvas>
-                </MapSurface>
-                <Attribution />
-            </List>
-        </Frame>
+        <List spacing=0.0>
+            <MapSurface state={state} @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
+                <Canvas view={camera} @test_id={"map.canvas"}>
+                    <ForEach keys={covering}>|tile: TileId| {
+                        let world = world;
+                        let scale = scale;
+                        view! {
+                            <Tile state tile world scale underlay=true />
+                        }
+                    }</ForEach>
+                    <ForEach keys={covering}>|tile: TileId| {
+                        let scale = scale;
+                        view! {
+                            <Tile state tile world scale />
+                        }
+                    }</ForEach>
+                    <ForEach keys={label_keys}>|key: labels::LabelKey|
+                        <MapLabel key shown={by_key} scale />
+                    </ForEach>
+                    <RegionOutline shown={has_region} rect={region_rect} />
+                    <ForEach keys={ids}>|id: Uuid| {
+                        let selected = selection.memo(Some(id));
+                        let world = world;
+                        let scale = scale;
+                        view! {
+                            <PointMarker state id selected world scale />
+                        }
+                    }</ForEach>
+                </Canvas>
+            </MapSurface>
+            <Attribution />
+        </List>
     }
 }
 

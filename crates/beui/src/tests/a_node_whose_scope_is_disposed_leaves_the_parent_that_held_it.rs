@@ -7,7 +7,7 @@ fn a_node_whose_scope_is_disposed_leaves_the_parent_that_held_it() {
     let held = create_signal(None);
     let list = NodeRef::new();
     let frame = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let scope = Scope::new();
         let (listed, framed) = scope.run(|| {
             (

@@ -14,7 +14,7 @@ fn flipping_a_switch_can_replace_the_items_of_a_scroll() {
 fn check_compact_rows(inset: f32) {
     let built = create_signal(Vec::new());
     let (switch, scroll, list) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let compact = create_signal(false);
         let item_height = create_memo(move || {
             if compact.get() {

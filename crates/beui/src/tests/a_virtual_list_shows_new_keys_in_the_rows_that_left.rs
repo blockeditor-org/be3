@@ -7,7 +7,7 @@ fn a_virtual_list_shows_new_keys_in_the_rows_that_left() {
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(0usize);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

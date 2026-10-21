@@ -15,7 +15,7 @@ fn a_wrapping_caption_grows_taller_than_the_single_line_it_would_be() {
 
 fn caption_height(wrap: bool) -> f32 {
     let frame = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @node_ref=&frame width=FRAME_WIDTH>

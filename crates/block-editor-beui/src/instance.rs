@@ -81,10 +81,6 @@ impl<A: BeuiApp> beui::App for RegionApp<A> {
             }
         }
     }
-
-    fn clear_color(&self) -> beui::Color32 {
-        beui::Color32::TRANSPARENT
-    }
 }
 
 struct Views<A: BeuiApp> {
@@ -119,9 +115,15 @@ impl<A: BeuiApp> Views<A> {
         let Some(editor) = self.preview.as_deref().copied() else {
             return;
         };
-        let document = self
-            .preview_document
-            .get_or_insert_with(|| beui::reactive::build(move || A::preview_view(editor)));
+        let document = self.preview_document.get_or_insert_with(|| {
+            beui::reactive::build(move || {
+                beui::reactive::view! {
+                    <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                        {A::preview_view(editor)}
+                    </beui::styled::Root>
+                }
+            })
+        });
         editor.begin_frame();
         follow_host_theme(document);
         document.show(context, rect);
@@ -154,7 +156,13 @@ impl<A: BeuiApp> Views<A> {
         };
         let document = self.settings.get_or_insert_with(|| {
             let built = artifacts.clone();
-            beui::reactive::build(move || A::artifact_settings_view(built))
+            beui::reactive::build(move || {
+                beui::reactive::view! {
+                    <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                        {A::artifact_settings_view(built)}
+                    </beui::styled::Root>
+                }
+            })
         });
         artifacts.receive_settings(&std::mem::take(draft));
         follow_host_theme(document);
@@ -343,7 +351,13 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             .take()
             .unwrap_or_else(|| Creation::for_template(self.host.clone(), template));
         let built = creation.clone();
-        self.views.dialog = Some(beui::reactive::build(move || A::creation_view(built)));
+        self.views.dialog = Some(beui::reactive::build(move || {
+            beui::reactive::view! {
+                <beui::styled::Root clear_color=beui::styled::ColorRole::None>
+                    {A::creation_view(built)}
+                </beui::styled::Root>
+            }
+        }));
         self.views.creation = Some(creation);
     }
 

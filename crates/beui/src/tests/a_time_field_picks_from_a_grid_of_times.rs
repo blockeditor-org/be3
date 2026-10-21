@@ -8,7 +8,7 @@ use crate::unstyled::{Container, DateTimeParts};
 fn a_time_field_picks_from_a_grid_of_times() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_size|
                 <DateTimeField

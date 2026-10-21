@@ -12,7 +12,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
     let button = NodeRef::new();
     let rows = create_signal(0u32);
     let hovered = create_signal(0usize);
-    let document = build(move || {
+    let document = build_node(move || {
         let over = create_signal(0usize);
         create_effect(move || hovered.set(over.get()));
         view! {

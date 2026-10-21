@@ -535,7 +535,7 @@ fn App() -> beui::NodeId {
     }
 }
 
-let document = build(|| view! { <App /> });
+let document = build(|| view! { <Root><App /></Root> });
 ```
 
 `#[component]` turns a function named `Name` into a `<Name>` usable from `view!`.

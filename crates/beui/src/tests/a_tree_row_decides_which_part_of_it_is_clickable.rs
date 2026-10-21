@@ -10,7 +10,7 @@ fn a_tree_row_decides_which_part_of_it_is_clickable() {
     let _root = crate::reactive::RootScope::new();
     let chosen = create_signal::<Vec<usize>>(Vec::new());
     let tree = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let item = |key: usize| TreeItem {
             label: format!("row {key}"),
             depth: 0,

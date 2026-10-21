@@ -22,30 +22,32 @@ fn a_toast_shows_over_an_open_dialog_and_takes_a_press() {
             ..Toast::default()
         }];
         view! {
-            <Frame @node_ref=&area fill=ColorRole::Background>
-                <List spacing=0.0>
-                    <Dialog
-                        open=true
-                        title="Share"
-                        width=720.0
-                        on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
-                    >
-                        <Text style=TextStyle::PARAGRAPH wrap=true>
-                            "The toast stays bright over the scrim of this dialog."
-                        </Text>
-                    </Dialog>
-                    <Toasts
-                        anchor={area}
-                        edge=Edge::TopEnd
-                        toasts={toasts}
-                        on_dismiss={|_: u64| {}}
-                        on_action={move |(id, key): (u64, String)| {
-                            heard.update(|heard| heard.push(format!("{id} {key}")))
-                        }}
-                        on_activate={|_: u64| {}}
-                    />
-                </List>
-            </Frame>
+            <Root>
+                <Frame @node_ref=&area>
+                    <List spacing=0.0>
+                        <Dialog
+                            open=true
+                            title="Share"
+                            width=720.0
+                            on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
+                        >
+                            <Text style=TextStyle::PARAGRAPH wrap=true>
+                                "The toast stays bright over the scrim of this dialog."
+                            </Text>
+                        </Dialog>
+                        <Toasts
+                            anchor={area}
+                            edge=Edge::TopEnd
+                            toasts={toasts}
+                            on_dismiss={|_: u64| {}}
+                            on_action={move |(id, key): (u64, String)| {
+                                heard.update(|heard| heard.push(format!("{id} {key}")))
+                            }}
+                            on_activate={|_: u64| {}}
+                        />
+                    </List>
+                </Frame>
+            </Root>
         }
     });
     let mut test = DocumentTest::new(document, size);

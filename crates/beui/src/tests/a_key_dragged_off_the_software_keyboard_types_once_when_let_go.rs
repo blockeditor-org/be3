@@ -8,7 +8,7 @@ use crate::unstyled::software_keyboard::{Layer, Value};
 fn a_key_dragged_off_the_software_keyboard_types_once_when_let_go() {
     let _root = crate::reactive::RootScope::new();
     let typed = create_signal(String::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <TextInput @test_id="field" value={typed} />
         }

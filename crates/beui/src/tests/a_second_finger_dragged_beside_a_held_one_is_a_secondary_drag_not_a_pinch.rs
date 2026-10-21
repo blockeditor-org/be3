@@ -8,7 +8,7 @@ fn a_second_finger_dragged_beside_a_held_one_is_a_secondary_drag_not_a_pinch() {
     let _root = crate::reactive::RootScope::new();
     let drags = create_signal::<Vec<SecondaryDrag>>(Vec::new());
     let zoomed = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Interactive
                 on_secondary_drag={move |drag| drags.update(|drags| drags.push(drag))}

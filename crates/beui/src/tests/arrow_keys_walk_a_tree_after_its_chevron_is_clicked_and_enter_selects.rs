@@ -9,7 +9,7 @@ fn arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects() {
     let _root = crate::reactive::RootScope::new();
     let chosen = create_signal::<Vec<usize>>(Vec::new());
     let tree = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let expanded = create_signal(true);
         let keys = create_memo(move || match expanded.get() {
             true => vec![0usize, 1, 2],

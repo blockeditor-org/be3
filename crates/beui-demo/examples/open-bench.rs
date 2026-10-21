@@ -111,7 +111,7 @@ mod bench {
             let took = started.elapsed();
             let (mut prepare, mut present) = (Duration::ZERO, Duration::ZERO);
             if let Some(gpu) = &mut self.gpu {
-                let background = self.app.clear_color();
+                let background = output.window.appearance.clear_color;
                 let started = Instant::now();
                 gpu.prepare(&output, 1.0, background);
                 prepare = started.elapsed();

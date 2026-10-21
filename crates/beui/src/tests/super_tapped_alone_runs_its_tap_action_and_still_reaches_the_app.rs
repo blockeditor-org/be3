@@ -18,7 +18,7 @@ fn super_tapped_alone_runs_its_tap_action_and_still_reaches_the_app() {
     let _root = crate::reactive::RootScope::new();
     let taps = create_signal(0);
     let forwarded = create_signal(Vec::<Event>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.tap", "Tap", move || taps.update(|taps| *taps += 1))
             .shortcut(Chord::tap(Key::Logo))
             .at(KeyAt::Window)

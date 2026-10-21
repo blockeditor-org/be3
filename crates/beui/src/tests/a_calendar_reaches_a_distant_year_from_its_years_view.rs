@@ -7,7 +7,7 @@ use crate::styled::*;
 fn a_calendar_reaches_a_distant_year_from_its_years_view() {
     let _root = crate::reactive::RootScope::new();
     let picked = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Calendar
                 selected={Binding::new(Some(Date::new(2026, 1, 15)), move |date| picked.update(|picked| picked.push(date)))}

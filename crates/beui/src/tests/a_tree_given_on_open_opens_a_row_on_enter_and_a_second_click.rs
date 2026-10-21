@@ -9,7 +9,7 @@ fn a_tree_given_on_open_opens_a_row_on_enter_and_a_second_click() {
     let _root = crate::reactive::RootScope::new();
     let chosen = create_signal::<Vec<usize>>(Vec::new());
     let opened = create_signal::<Vec<usize>>(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let item = move |key: usize| TreeItem {
             label: format!("row {key}"),
             depth: 0,

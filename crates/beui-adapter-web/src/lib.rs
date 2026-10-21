@@ -26,7 +26,7 @@ use beui_core::input::{
 };
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
-use beui_core::window::{WindowReports, WindowState};
+use beui_core::window::{Appearance, WindowReports, WindowState};
 
 type Loading = Pin<Box<dyn Future<Output = Result<Vec<Loaded>, Box<dyn Error>>>>>;
 type Load = Box<dyn FnOnce(web_sys::HtmlElement) -> Loading>;
@@ -255,6 +255,9 @@ impl Platform for WebPlatform {
         if window.keyboard_toggles != shown.keyboard_toggles {
             self.toggle_keyboard();
         }
+        if window.appearance != shown.appearance {
+            show_appearance(&window.appearance);
+        }
     }
 
     fn set_fullscreen(&mut self, fullscreen: bool) {
@@ -438,6 +441,20 @@ pub fn accessibility_tree() -> Option<String> {
     runner.runner.accessibility_text()
 }
 
+fn show_appearance(appearance: &Appearance) {
+    let Some(document) = web_sys::window().and_then(|window| window.document()) else {
+        return;
+    };
+    if let Some(title) = &appearance.title {
+        document.set_title(title);
+    }
+    if let Some(body) = document.body() {
+        let [red, green, blue, alpha] = appearance.clear_color.to_array();
+        let color = format!("rgba({red},{green},{blue},{})", f32::from(alpha) / 255.0);
+        let _ = body.style().set_property("background", &color);
+    }
+}
+
 pub fn request_frame() {
     schedule();
 }
@@ -452,7 +469,7 @@ async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn
         .ok_or_else(|| format!("no element has the id {element_id}"))?
         .dyn_into::<web_sys::HtmlElement>()
         .map_err(|_| format!("the element {element_id} is not an html element"))?;
-    document.set_title(&launch.options.title);
+    show_appearance(&Appearance::default());
     let _ = surface.style().set_property("touch-action", "none");
     let agent = text_agent(&document)?;
     let loaded = load(surface.clone()).await?;

@@ -102,7 +102,7 @@ fn assert_selection(harness: &Harness, state: &TextAreaState, range: Range<usize
 fn clicking_and_dragging_in_a_text_area_moves_the_caret_and_selects() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let document =
             Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

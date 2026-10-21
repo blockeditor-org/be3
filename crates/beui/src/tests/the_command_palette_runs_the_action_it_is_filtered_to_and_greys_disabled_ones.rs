@@ -9,7 +9,7 @@ fn the_command_palette_runs_the_action_it_is_filtered_to_and_greys_disabled_ones
     let _root = crate::reactive::RootScope::new();
     let ran = create_signal(Vec::new());
     let palette = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.lock", "Lock selection", move || {
             ran.update(|ran| ran.push("lock"))
         })

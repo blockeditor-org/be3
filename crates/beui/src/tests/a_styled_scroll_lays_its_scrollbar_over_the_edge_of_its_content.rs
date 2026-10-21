@@ -11,7 +11,7 @@ const CONTENT_HEIGHT: f32 = 2000.0;
 fn a_styled_scroll_lays_its_scrollbar_over_the_edge_of_its_content() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>

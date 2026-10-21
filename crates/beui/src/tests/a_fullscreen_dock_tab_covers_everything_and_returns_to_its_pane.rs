@@ -16,7 +16,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
     let tab = create_signal(Heard::default());
     let layout = DockingLayout::<u64>::new();
     let document = {
-        build(move || {
+        build_node(move || {
             view! {
                 <List spacing=0.0>
                     <Frame height=40.0>

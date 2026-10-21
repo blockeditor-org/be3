@@ -9,7 +9,7 @@ fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(Vec::new());
     let field = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <DateTimeField
                 @node_ref=&field

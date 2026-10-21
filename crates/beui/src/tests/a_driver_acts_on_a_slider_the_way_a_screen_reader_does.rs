@@ -4,7 +4,7 @@ use crate::styled::*;
 
 #[test]
 fn a_driver_acts_on_a_slider_the_way_a_screen_reader_does() {
-    let document = build(|| {
+    let document = build_node(|| {
         let value = create_signal(0.5_f32);
         view! {
             <Slider value={value} label="Volume" />

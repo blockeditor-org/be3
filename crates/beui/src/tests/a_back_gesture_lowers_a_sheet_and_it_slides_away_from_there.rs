@@ -9,7 +9,7 @@ fn a_back_gesture_lowers_a_sheet_and_it_slides_away_from_there() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let open = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />

@@ -65,7 +65,7 @@ fn an_exiting_runner_lets_its_app_go_while_its_renderers_are_still_there() {
     let _root = crate::reactive::RootScope::new();
     let log = create_signal(Vec::new());
     let mut runner = Runner::new(Launch {
-        options: RunOptions::new("runner"),
+        options: RunOptions::default(),
         context: context(),
         app: Box::new(Holding(log)),
     });

@@ -12,30 +12,32 @@ const SHADES: [Color32; 3] = [
 fn scrolling() -> Document {
     build(|| {
         view! {
-            <Frame fill={Color32::from_rgb(20, 20, 20)} radius=0.0>
-                <List spacing=0.0>
-                    <Frame height=12.0 fill=Color32::WHITE radius=0.0 />
-                    <Frame
-                        height=40.0
-                        fill={Color32::from_rgb(20, 20, 20)}
-                        radius=0.0
-                        outline={Outline::new(Color32::from_rgb(250, 250, 120), 1.0)}
-                    >
-                        <Scroll @test_id="scroll">
-                            <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
-                                <Frame height=10.0>
-                                    <Frame
-                                        width=30.0
-                                        height=6.0
-                                        radius=0.0
-                                        fill={SHADES[row % SHADES.len()]}
-                                    />
-                                </Frame>
-                            </ForEach>
-                        </Scroll>
-                    </Frame>
-                </List>
-            </Frame>
+            <Root clear_color={beui_core::color::Color32::BLACK}>
+                <Frame fill={Color32::from_rgb(20, 20, 20)} radius=0.0>
+                    <List spacing=0.0>
+                        <Frame height=12.0 fill=Color32::WHITE radius=0.0 />
+                        <Frame
+                            height=40.0
+                            fill={Color32::from_rgb(20, 20, 20)}
+                            radius=0.0
+                            outline={Outline::new(Color32::from_rgb(250, 250, 120), 1.0)}
+                        >
+                            <Scroll @test_id="scroll">
+                                <ForEach keys={(0..20).collect::<Vec<usize>>()}>|row: usize|
+                                    <Frame height=10.0>
+                                        <Frame
+                                            width=30.0
+                                            height=6.0
+                                            radius=0.0
+                                            fill={SHADES[row % SHADES.len()]}
+                                        />
+                                    </Frame>
+                                </ForEach>
+                            </Scroll>
+                        </Frame>
+                    </List>
+                </Frame>
+            </Root>
         }
     })
 }

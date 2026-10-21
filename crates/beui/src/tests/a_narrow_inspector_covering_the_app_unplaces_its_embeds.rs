@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_narrow_inspector_covering_the_app_unplaces_its_embeds() {
     let _root = crate::reactive::RootScope::new();
     let slot = EmbedSlot::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Embed slot={slot} />
         }

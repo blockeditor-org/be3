@@ -49,7 +49,7 @@ fn a_simulated_window_tells_the_app_it_went_fullscreen_in_the_next_frame() {
     let _root = crate::reactive::RootScope::new();
     let seen = create_signal(false);
     let mut runner = Runner::new(Launch {
-        options: RunOptions::new("runner"),
+        options: RunOptions::default(),
         context: context(),
         app: Box::new(Asking { asked: false, seen }),
     });

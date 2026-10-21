@@ -4,7 +4,7 @@ use crate::reactive::*;
 
 #[test]
 fn a_driver_lists_and_runs_an_action() {
-    let document = build(|| {
+    let document = build_node(|| {
         let grouped = create_signal(String::from("apart"));
         Action::new("test.group", "Group", move || {
             grouped.set("grouped".to_owned())

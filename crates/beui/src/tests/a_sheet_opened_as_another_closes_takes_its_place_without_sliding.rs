@@ -9,7 +9,7 @@ fn a_sheet_opened_as_another_closes_takes_its_place_without_sliding() {
     let (first_content, second_content) = (NodeRef::new(), NodeRef::new());
     let first = create_signal(false);
     let second = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />

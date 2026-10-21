@@ -20,7 +20,7 @@ struct Setters {
 fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
     let _root = crate::reactive::RootScope::new();
     let taken = create_signal::<Option<Setters>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let title = create_signal("Inbox".to_owned());
         let rows = create_signal(vec![1u32, 2, 3]);
         let panel = create_signal(true);

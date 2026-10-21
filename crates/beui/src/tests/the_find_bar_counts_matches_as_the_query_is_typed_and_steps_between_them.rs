@@ -9,7 +9,7 @@ use text_editor_core::TextBuffer;
 fn the_find_bar_counts_matches_as_the_query_is_typed_and_steps_between_them() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"one two one two one"))
             as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

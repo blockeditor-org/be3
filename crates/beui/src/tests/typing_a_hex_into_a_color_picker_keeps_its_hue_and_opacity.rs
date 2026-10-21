@@ -6,7 +6,7 @@ use crate::styled::*;
 fn typing_a_hex_into_a_color_picker_keeps_its_hue_and_opacity() {
     let _root = crate::reactive::RootScope::new();
     let changes = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <ColorPicker

@@ -5,12 +5,14 @@ use std::time::Duration;
 fn instant_indicators_hold_still_and_resume() {
     let document = build(move || {
         view! {
-            <Frame fill=ColorRole::Background padding=16.0>
-                <List spacing=12.0>
-                    <Spinner label="Loading" />
-                    <TextInput @test_id="instant.input" value="A visible caret" />
-                </List>
-            </Frame>
+            <Root>
+                <Frame fill=ColorRole::Background padding=16.0>
+                    <List spacing=12.0>
+                        <Spinner label="Loading" />
+                        <TextInput @test_id="instant.input" value="A visible caret" />
+                    </List>
+                </Frame>
+            </Root>
         }
     });
     let mut test = DocumentTest::new(document, Vec2::new(400.0, 200.0));

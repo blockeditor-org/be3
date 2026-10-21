@@ -2123,10 +2123,10 @@ wgpu renderer. A standalone app builds its document once and implements
 ```rust
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{App, Color32, Context, Document, NodeId, Rect};
+use beui::{App, Context, Document, NodeId, Rect};
 
 fn main() -> Result<(), Box<dyn std::error::Error>> {
-    beui::run("Counter", CounterApp::new())
+    beui::run(CounterApp::new())
 }
 
 #[component]
@@ -2135,21 +2135,19 @@ fn Counter() -> NodeId {
     let label = create_memo(move || count.get().to_string());
 
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=8.0>
-                <Text style=TextStyle::DISPLAY>{label}</Text>
-                <Button
-                    label="Decrease"
-                    variant=ButtonVariant::Secondary
-                    on_click={move || count.update(|value| *value -= 1)}
-                />
-                <Button
-                    label="Increase"
-                    variant=ButtonVariant::Primary
-                    on_click={move || count.update(|value| *value += 1)}
-                />
-            </List>
-        </Frame>
+        <List spacing=8.0>
+            <Text style=TextStyle::DISPLAY>{label}</Text>
+            <Button
+                label="Decrease"
+                variant=ButtonVariant::Secondary
+                on_click={move || count.update(|value| *value -= 1)}
+            />
+            <Button
+                label="Increase"
+                variant=ButtonVariant::Primary
+                on_click={move || count.update(|value| *value += 1)}
+            />
+        </List>
     }
 }
 
@@ -2160,7 +2158,7 @@ struct CounterApp {
 impl CounterApp {
     fn new() -> Self {
         Self {
-            document: build(|| view! { <Counter /> }),
+            document: build(|| view! { <Root title="Counter"><Counter /></Root> }),
         }
     }
 }
@@ -2169,12 +2167,29 @@ impl App for CounterApp {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.document.show(context, rect);
     }
-
-    fn clear_color(&self) -> Color32 {
-        self.document.theme().background
-    }
 }
 ```
+
+`build` takes a closure returning a `Root`, which is not a node: every document
+built with it has exactly one `Root` at the top, holding one child, and a node
+in its place does not compile. `primitives::Root` takes `clear_color` (what the
+window is cleared to wherever nothing paints, so an app needs no frame filling
+the window), an optional `title` and `system_bars` (`SystemBars::Light` or
+`Dark`: what is behind Android's status and navigation bars, whose icons turn
+dark over `Light`). `styled::Root` takes a `ColorRole` for `clear_color`,
+defaulting to `Background`, and picks `system_bars` from the theme's kind unless
+it is given. Every prop is reactive: the document hands its appearance
+(`beui_core::window::Appearance`) to the context each time it is shown, it
+travels in `WindowState`, and the runner clears with its colour, labels the
+accessibility tree with its title and passes it to `Platform::show_window`.
+winit retitles the window and the web adapter retitles the browser tab and
+colours the page's body to match; Android follows `system_bars`; DRM, headless
+and plugins ignore the title. A plugin pane has no title of its own and the
+plugin protocol carries none: block-editor-beui roots each pane's document in a
+transparent `primitives::Root`, so the host shows behind wherever the editor
+does not paint. Documents drawn over another one (the inspector's panels, the
+software keyboard) are built with `Document::new`, `enter` and `set_root` and
+have no `Root`, so they leave the window's appearance alone.
 
 Run the demo with:
 
@@ -2200,7 +2215,7 @@ Beui's features:
   calls on a thread of its own, and which calls `beui::run_with`.
   The activity draws edge to edge under transparent status and navigation
   bars: the app fills the safe area inside them, the bars show its clear color,
-  and their icons turn dark when that color is light.
+  and their icons turn dark when its `Root`'s `system_bars` is `Light`.
 
 The soft keyboard takes its room out of the window rather than covering it: on
 Android its inset joins the safe area, and on the web the pages' viewport meta
@@ -2227,8 +2242,8 @@ focused field into what is left, through every scroll it sits in.
   `./scripts/buck run //crates/beui-web-demo:web` serves it on
   http://127.0.0.1:8070.
 
-`beui::run_with` takes `RunOptions` (title, app id, starting size) where
-`beui::run` takes only a title; both load wgpu, and
+`beui::run_with` takes `RunOptions` (app id, starting size) where
+`beui::run` takes only the app; both load wgpu, and
 `beui::run_with_renderers` takes the `beui::WindowRenderer`s to load instead
 (block-app's opens its device itself, to import Wayland clients' buffers), and
 `beui::run_on` runs on an adapter of the caller's choosing, such as

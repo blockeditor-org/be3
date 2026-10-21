@@ -12,7 +12,7 @@ const MARKER: usize = 5;
 fn the_caret_steps_evenly_across_a_markdown_checkbox() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let document =
             Arc::new(TextBuffer::new(TEXT.as_bytes())) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

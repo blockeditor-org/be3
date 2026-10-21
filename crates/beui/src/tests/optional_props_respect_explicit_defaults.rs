@@ -14,7 +14,7 @@ fn optional_props_respect_explicit_defaults() {
     let default = NodeRef::new();
     let none = NodeRef::new();
     let custom = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <OptionalLabel @node_ref=&default />

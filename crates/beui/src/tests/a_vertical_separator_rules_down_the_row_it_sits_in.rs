@@ -4,7 +4,7 @@ use crate::styled::*;
 
 #[test]
 fn a_vertical_separator_rules_down_the_row_it_sits_in() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Separator direction=Direction::Vertical />

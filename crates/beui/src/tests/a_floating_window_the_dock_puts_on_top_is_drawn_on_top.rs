@@ -47,7 +47,7 @@ fn window_of(harness: &Harness, program: u64) -> NodeId {
 fn a_floating_window_the_dock_puts_on_top_is_drawn_on_top() {
     let _root = crate::reactive::RootScope::new();
     let layout = unstyled::DockingLayout::<u64>::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <styled::Docking layout>
                 <unstyled::DockPane

@@ -39,7 +39,7 @@ fn an_icon_is_as_tall_as_the_text_it_sits_with() {
 
 fn height(content: impl FnOnce() -> NodeId + 'static) -> f32 {
     let frame = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @node_ref=&frame>{content()}</Frame>

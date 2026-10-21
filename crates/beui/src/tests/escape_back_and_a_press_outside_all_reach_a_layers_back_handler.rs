@@ -10,7 +10,7 @@ fn escape_back_and_a_press_outside_all_reach_a_layers_back_handler() {
     let _root = crate::reactive::RootScope::new();
     let backs = create_signal(0);
     let dismissed = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame>
                 <Overlay

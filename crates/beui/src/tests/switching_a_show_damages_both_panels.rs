@@ -9,7 +9,7 @@ const SECOND: f32 = 90.0;
 fn switching_a_show_damages_both_panels() {
     let _root = crate::reactive::RootScope::new();
     let taken = create_signal::<Option<Signal<bool>>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let second = create_signal(false);
         taken.update(|taken| *taken = Some(second));
         let first = create_memo(move || !second.get());

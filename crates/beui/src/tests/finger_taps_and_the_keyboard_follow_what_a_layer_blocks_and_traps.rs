@@ -10,7 +10,7 @@ fn finger_taps_and_the_keyboard_follow_what_a_layer_blocks_and_traps() {
     let taps = create_signal(0);
     let policy = create_signal(LayerPolicy::Pass);
     let traps = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         on_finger_tap(move |_: usize| {
             taps.update(|taps| *taps += 1);
             true

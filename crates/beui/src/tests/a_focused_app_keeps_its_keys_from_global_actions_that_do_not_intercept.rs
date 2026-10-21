@@ -9,7 +9,7 @@ fn a_focused_app_keeps_its_keys_from_global_actions_that_do_not_intercept() {
     let _root = crate::reactive::RootScope::new();
     let forwarded = create_signal(Vec::<Key>::new());
     let ran = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.global", "Global", move || {
             ran.update(|ran| ran.push("global"))
         })

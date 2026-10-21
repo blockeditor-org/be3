@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn an_offset_leaves_the_wheel_to_the_scroll_around_it() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @test_id="scroll">

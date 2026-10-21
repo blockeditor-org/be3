@@ -8,7 +8,7 @@ fn a_rebuilt_panel_that_paints_the_same_is_reported_as_an_over_repaint() {
     crate::detect_over_repaint(true);
     let key = create_signal(0u32);
     let color = create_signal(Color32::WHITE);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame width=20.0 height=20.0 fill=color />

@@ -7,7 +7,7 @@ use crate::styled::*;
 fn the_more_button_of_a_selection_toolbar_opens_the_full_menu() {
     let _root = crate::reactive::RootScope::new();
     let (text, region) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <SelectableText @node_ref=&region>
                 <List spacing=4.0>

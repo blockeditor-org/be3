@@ -11,7 +11,7 @@ const DRAGGED: f32 = 100.0;
 fn dragging_the_scrollbar_thumb_scrolls_the_content_beside_it() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>

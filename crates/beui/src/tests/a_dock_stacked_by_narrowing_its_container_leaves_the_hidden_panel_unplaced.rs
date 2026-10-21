@@ -10,7 +10,7 @@ const BREAKPOINT: f32 = 600.0;
 fn a_dock_stacked_by_narrowing_its_container_leaves_the_hidden_panel_unplaced() {
     let _root = crate::reactive::RootScope::new();
     let home = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_| {
                 let narrow = narrower_than(BREAKPOINT);

@@ -41,10 +41,10 @@ pub fn node_ref<T: BuildsNode>(built: T, reference: &NodeRef) -> T {
     built
 }
 
-pub fn build(f: impl FnOnce() -> NodeId) -> Document {
+pub fn build(f: impl FnOnce() -> crate::primitives::Root) -> Document {
     let mut document = Document::new();
     let root = enter(&mut document, f);
-    document.set_root(root);
+    document.set_root(root.child());
     document
 }
 

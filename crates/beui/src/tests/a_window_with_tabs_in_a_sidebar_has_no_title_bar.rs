@@ -6,7 +6,7 @@ use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout, dock_state};
 fn a_window_with_tabs_in_a_sidebar_has_no_title_bar() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout>

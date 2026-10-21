@@ -10,7 +10,7 @@ fn typing_past_the_end_of_a_narrow_single_line_text_area_keeps_the_caret_in_view
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));

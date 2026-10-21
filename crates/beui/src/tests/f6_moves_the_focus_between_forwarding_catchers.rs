@@ -12,7 +12,7 @@ fn f6_moves_the_focus_between_forwarding_catchers() {
             heard.update(|heard| heard.push((index, input.focused, flattened(input))))
         }
     };
-    let document = build(move || {
+    let document = build_node(move || {
         let first = catcher(0, heard);
         let last = catcher(1, heard);
         view! {

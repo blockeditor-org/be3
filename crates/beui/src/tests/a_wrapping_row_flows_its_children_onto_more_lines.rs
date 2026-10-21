@@ -7,7 +7,7 @@ fn a_wrapping_row_flows_its_children_onto_more_lines() {
     let _root = crate::reactive::RootScope::new();
     let tiles = create_signal(Vec::new());
 
-    let document = build(move || {
+    let document = build_node(move || {
         let row = view! {
             <List direction=Direction::Horizontal wrap=true spacing=10.0>
                 <Frame @sizing=ItemSize::Fixed(40.0) height=20.0 />

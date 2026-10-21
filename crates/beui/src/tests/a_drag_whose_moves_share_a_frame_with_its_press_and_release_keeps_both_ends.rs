@@ -8,7 +8,7 @@ fn a_drag_whose_moves_share_a_frame_with_its_press_and_release_keeps_both_ends()
     let _root = crate::reactive::RootScope::new();
     let presses = create_signal::<Vec<Pos2>>(Vec::new());
     let drags = create_signal::<Vec<Pos2>>(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Interactive
                 touch_drags=true

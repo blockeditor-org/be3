@@ -6,7 +6,7 @@ fn a_sheet_is_never_taller_than_what_it_holds() {
     let _root = crate::reactive::RootScope::new();
     let sheet = NodeRef::new();
     let rows = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />

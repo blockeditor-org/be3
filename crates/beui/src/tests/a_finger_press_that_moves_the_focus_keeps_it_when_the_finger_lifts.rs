@@ -8,7 +8,7 @@ fn a_finger_press_that_moves_the_focus_keeps_it_when_the_finger_lifts() {
     let wanted = create_signal(false);
     let pressed = NodeRef::new();
     let field = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Interactive

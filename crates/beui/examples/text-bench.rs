@@ -129,15 +129,17 @@ fn resize_paragraphs(frames: usize) -> Report {
             *width.borrow_mut() = Some(read);
             let text = PARAGRAPH.repeat(4);
             view! {
-                <Frame width={create_memo(move || Some(read.get()))}>
-                    <List spacing=8.0>
-                        <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize| {
-                            let text = text.clone(); view! {
-                                <Text wrap=true>{text}</Text>
-                            }
-                        }</ForEach>
-                    </List>
-                </Frame>
+                <Root>
+                    <Frame width={create_memo(move || Some(read.get()))}>
+                        <List spacing=8.0>
+                            <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize| {
+                                let text = text.clone(); view! {
+                                    <Text wrap=true>{text}</Text>
+                                }
+                            }</ForEach>
+                        </List>
+                    </Frame>
+                </Root>
             }
         }
     });
@@ -163,13 +165,15 @@ fn resize_labels(frames: usize) -> Report {
             let read = create_signal(VIEWPORT.x);
             *width.borrow_mut() = Some(read);
             view! {
-                <Frame width={create_memo(move || Some(read.get()))}>
-                    <List spacing=0.0>
-                        <ForEach keys={(0..2000).collect::<Vec<usize>>()}>|index: usize|
-                            <Text ellipsis=true>{format!("label number {index}")}</Text>
-                        </ForEach>
-                    </List>
-                </Frame>
+                <Root>
+                    <Frame width={create_memo(move || Some(read.get()))}>
+                        <List spacing=0.0>
+                            <ForEach keys={(0..2000).collect::<Vec<usize>>()}>|index: usize|
+                                <Text ellipsis=true>{format!("label number {index}")}</Text>
+                            </ForEach>
+                        </List>
+                    </Frame>
+                </Root>
             }
         }
     });
@@ -195,7 +199,9 @@ fn edit_plain_paragraph(frames: usize) -> Report {
             let read = create_signal(PARAGRAPH.repeat(40));
             *content.borrow_mut() = Some(read);
             view! {
-                <Text wrap=true>{read}</Text>
+                <Root>
+                    <Text wrap=true>{read}</Text>
+                </Root>
             }
         }
     });
@@ -235,16 +241,18 @@ fn edit_one_span(frames: usize) -> Report {
             *words.borrow_mut() = Some(read);
             let keys = (0..initial.len()).collect::<Vec<usize>>();
             view! {
-                <Text wrap=true>
-                    <ForEach keys={keys}>|index: usize| {
-                        let word = create_memo(move || {
-                            read.get().get(index).cloned().unwrap_or_default()
-                        });
-                        view! {
-                            <Span>{word}</Span>
-                        }
-                    }</ForEach>
-                </Text>
+                <Root>
+                    <Text wrap=true>
+                        <ForEach keys={keys}>|index: usize| {
+                            let word = create_memo(move || {
+                                read.get().get(index).cloned().unwrap_or_default()
+                            });
+                            view! {
+                                <Span>{word}</Span>
+                            }
+                        }</ForEach>
+                    </Text>
+                </Root>
             }
         }
     });
@@ -292,7 +300,9 @@ fn type_in_text_area(frames: usize) -> Report {
             let state = TextAreaState::new(buffer);
             *held.borrow_mut() = Some(state);
             view! {
-                <TextArea state={state} />
+                <Root>
+                    <TextArea state={state} />
+                </Root>
             }
         }
     });

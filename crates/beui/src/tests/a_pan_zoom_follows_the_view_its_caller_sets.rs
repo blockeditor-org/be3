@@ -6,7 +6,7 @@ use crate::unstyled::PanZoomView;
 fn a_pan_zoom_follows_the_view_its_caller_sets() {
     let _root = crate::reactive::RootScope::new();
     let signal = create_signal(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let view = create_signal(PanZoomView::IDENTITY);
         signal.update(|signal| *signal = Some(view));
         view! {

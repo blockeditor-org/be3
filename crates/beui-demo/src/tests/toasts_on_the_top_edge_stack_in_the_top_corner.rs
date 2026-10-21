@@ -27,16 +27,18 @@ fn toasts_on_the_top_edge_stack_in_the_top_corner() {
             },
         ];
         view! {
-            <Frame @node_ref=&area fill=ColorRole::Background>
-                <Toasts
-                    anchor={area}
-                    edge=Edge::TopEnd
-                    toasts={toasts}
-                    on_dismiss={|_: u64| {}}
-                    on_action={|_: (u64, String)| {}}
-                    on_activate={|_: u64| {}}
-                />
-            </Frame>
+            <Root>
+                <Frame @node_ref=&area fill=ColorRole::Background>
+                    <Toasts
+                        anchor={area}
+                        edge=Edge::TopEnd
+                        toasts={toasts}
+                        on_dismiss={|_: u64| {}}
+                        on_action={|_: (u64, String)| {}}
+                        on_activate={|_: u64| {}}
+                    />
+                </Frame>
+            </Root>
         }
     });
     let mut test = DocumentTest::new(document, size);

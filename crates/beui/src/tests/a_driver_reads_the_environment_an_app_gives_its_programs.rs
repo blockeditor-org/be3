@@ -19,7 +19,7 @@ impl App for Hosting {
 
 #[test]
 fn a_driver_reads_the_environment_an_app_gives_its_programs() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <Text>"Desktop"</Text>
         }
@@ -33,7 +33,7 @@ fn a_driver_reads_the_environment_an_app_gives_its_programs() {
         "a program started with these variables shows its windows inside the app"
     );
 
-    let plain = build(|| {
+    let plain = build_node(|| {
         view! {
             <Text>"Plain"</Text>
         }

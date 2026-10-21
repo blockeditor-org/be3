@@ -11,7 +11,7 @@ fn Widget() -> NodeId {
 
 #[test]
 fn a_component_function_returns_its_base_node() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List spacing=0.0>
                 <Widget />

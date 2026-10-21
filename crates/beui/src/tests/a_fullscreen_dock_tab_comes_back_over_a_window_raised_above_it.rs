@@ -25,7 +25,7 @@ fn a_fullscreen_dock_tab_comes_back_over_a_window_raised_above_it() {
     let layout = DockingLayout::<u64>::new();
     let document = {
         let (program, other, layout) = (program.clone(), other.clone(), layout);
-        build(move || {
+        build_node(move || {
             let (program, other) = (program.clone(), other.clone());
             view! {
                 <styled::Docking layout>

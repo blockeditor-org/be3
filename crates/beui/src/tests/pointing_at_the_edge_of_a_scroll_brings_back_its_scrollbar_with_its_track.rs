@@ -9,7 +9,7 @@ use crate::unstyled::{SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER};
 fn pointing_at_the_edge_of_a_scroll_brings_back_its_scrollbar_with_its_track() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>

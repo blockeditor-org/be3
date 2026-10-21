@@ -22,7 +22,7 @@ fn holding_a_finger_down_opens_a_context_menu() {
     let menu = NodeRef::new();
     let clicked = create_signal(0);
     let cancelled = create_signal(0);
-    let document = crate::reactive::build(move || {
+    let document = build_node(move || {
         view! {
             <ContextMenu
                 @node_ref=&menu

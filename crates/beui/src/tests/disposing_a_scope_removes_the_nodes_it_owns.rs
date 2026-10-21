@@ -9,7 +9,7 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
     let label = create_signal("one".to_owned());
     let shown = create_signal(true);
     let text = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Show condition={shown}>|| {

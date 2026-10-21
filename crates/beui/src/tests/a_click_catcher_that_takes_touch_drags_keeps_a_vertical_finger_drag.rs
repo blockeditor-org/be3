@@ -8,7 +8,7 @@ fn a_click_catcher_that_takes_touch_drags_keeps_a_vertical_finger_drag() {
     let _root = crate::reactive::RootScope::new();
     let drags = create_signal::<Vec<Pos2>>(Vec::new());
     let cancelled = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Interactive
                 touch_drags=true

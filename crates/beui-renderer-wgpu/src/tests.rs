@@ -207,7 +207,7 @@ impl Target {
                 }
                 wgpu::LoadOp::Load
             }
-            Repaint::Everything => wgpu::LoadOp::Clear(clear_color_in(self.format, background)),
+            Repaint::Everything => wgpu::LoadOp::Clear(wgpu_color_in(self.format, background)),
         };
         self.renderer.render(
             &self.device,
@@ -241,7 +241,7 @@ impl Target {
         let load = match (self.cleared, effective) {
             (true, Repaint::Region { .. }) => wgpu::LoadOp::Load,
             (true, _) if self.bounded => wgpu::LoadOp::Load,
-            _ => wgpu::LoadOp::Clear(clear_color_in(self.format, background)),
+            _ => wgpu::LoadOp::Clear(wgpu_color_in(self.format, background)),
         };
         self.cleared = true;
         let mut encoder = self

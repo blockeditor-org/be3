@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_component_can_return_a_show_for_its_parent_to_lay_out() {
     let _root = crate::reactive::RootScope::new();
     let shown = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame height=40.0 fill=Color32::WHITE />

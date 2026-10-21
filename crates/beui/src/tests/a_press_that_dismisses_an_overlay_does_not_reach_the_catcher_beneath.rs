@@ -21,7 +21,7 @@ fn a_press_that_dismisses_an_overlay_does_not_reach_the_catcher_beneath() {
     let _root = crate::reactive::RootScope::new();
     let open = create_signal(true);
     let heard = create_signal(Vec::<Event>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Canvas @sizing=ItemSize::Percent(100.0)>

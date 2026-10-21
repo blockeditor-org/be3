@@ -11,7 +11,7 @@ fn closing_a_fullscreen_tab_leaves_the_tab_beside_it_in_its_window() {
     let setter = Rc::new(RefCell::new(None::<Signal<Vec<u64>>>));
     let document = {
         let (layout, setter) = (layout, setter.clone());
-        build(move || {
+        build_node(move || {
             let keys = create_signal(vec![1u64, 2]);
             *setter.borrow_mut() = Some(keys);
             view! {

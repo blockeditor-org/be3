@@ -18,7 +18,7 @@ fn a_drawing_paints_what_its_callback_puts_in_the_rectangle_it_is_given() {
         })
     };
     let draw = create_signal(drawn(Color32::WHITE));
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Drawing draw={draw} />
         }

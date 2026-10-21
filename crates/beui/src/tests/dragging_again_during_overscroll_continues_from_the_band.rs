@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 fn dragging_again_during_overscroll_continues_from_the_band() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

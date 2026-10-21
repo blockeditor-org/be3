@@ -8,7 +8,7 @@ fn focus_asked_for_beneath_an_open_dialog_never_lands_there() {
     let _root = crate::reactive::RootScope::new();
     let changes = create_signal(Vec::new());
     let (outside, field) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=8.0>
                 <Interactive

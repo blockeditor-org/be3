@@ -5,7 +5,7 @@ use crate::styled::*;
 
 #[test]
 fn closing_a_panes_last_tab_keeps_its_bar_tall_and_darkens_it_without_a_border() {
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = unstyled::DockingLayout::new();
         let open = create_signal(true);
         view! {

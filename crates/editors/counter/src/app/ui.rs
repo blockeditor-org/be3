@@ -20,7 +20,7 @@ pub fn Counter(editor: Editor) -> NodeId {
         }
     };
     view! {
-        <Frame fill=ColorRole::Background padding=PADDING>
+        <Frame padding=PADDING>
             <List spacing=16.0>
                 <Text style=TextStyle::DISPLAY @test_id={"counter.value"}>{shown}</Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=10.0>

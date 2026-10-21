@@ -7,7 +7,7 @@ fn ctrl_v_taken_by_a_listener_asks_for_no_paste_unless_it_asks_itself() {
     let _root = crate::reactive::RootScope::new();
     let asks = create_signal(false);
     let field = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.paste", "Paste", move || {
             if asks.get_untracked() {
                 request_paste();

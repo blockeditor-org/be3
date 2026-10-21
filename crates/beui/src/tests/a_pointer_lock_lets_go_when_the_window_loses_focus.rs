@@ -8,7 +8,7 @@ fn a_pointer_lock_lets_go_when_the_window_loses_focus() {
     let _root = crate::reactive::RootScope::new();
     let changes = create_signal(Vec::new());
 
-    let document = build(move || {
+    let document = build_node(move || {
         let locked = create_signal(false);
         view! {
             <PointerLock

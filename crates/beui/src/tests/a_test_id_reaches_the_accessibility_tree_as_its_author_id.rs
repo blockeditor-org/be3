@@ -7,7 +7,7 @@ use crate::styled::*;
 
 #[test]
 fn a_test_id_reaches_the_accessibility_tree_as_its_author_id() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List spacing=0.0>
                 <Frame @test_id="panel" height=20.0 />

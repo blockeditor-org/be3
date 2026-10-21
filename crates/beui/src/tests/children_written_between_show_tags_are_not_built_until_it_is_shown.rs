@@ -17,7 +17,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
     let builds = create_signal::<usize>(0);
     let (toggle, panel) = (NodeRef::new(), NodeRef::new());
 
-    let document = build(move || {
+    let document = build_node(move || {
         let visible = create_signal(false);
         view! {
             <List @node_ref=&panel spacing=0.0>

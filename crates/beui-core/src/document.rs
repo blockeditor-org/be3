@@ -17,6 +17,7 @@ use crate::flash::FlashLog;
 use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
 use crate::input::{Key, KeyChord, Modifiers};
+use crate::window::Appearance;
 
 use crate::display::Display;
 use crate::interact;
@@ -56,6 +57,7 @@ pub enum Acted {
 pub struct Document {
     pub arena: Arena,
     pub root: Option<NodeId>,
+    appearance: Option<Appearance>,
     pub focused: Option<NodeId>,
     pub(crate) focus_before: Option<NodeId>,
     pub composed: String,
@@ -266,6 +268,7 @@ impl Document {
         Self {
             arena: Arena::default(),
             root: None,
+            appearance: None,
             focused: None,
             focus_before: None,
             composed: String::new(),
@@ -382,6 +385,17 @@ impl Document {
 
     pub fn root(&self) -> Option<NodeId> {
         self.root
+    }
+
+    pub fn appearance(&self) -> Option<&Appearance> {
+        self.appearance.as_ref()
+    }
+
+    pub fn update_appearance(&mut self, change: impl FnOnce(&mut Appearance)) {
+        change(self.appearance.get_or_insert_default());
+        if let Some((ctx, _, _)) = &self.viewport {
+            ctx.request_repaint();
+        }
     }
 
     fn relay_for_viewport(&mut self) {
@@ -1018,6 +1032,13 @@ impl Document {
     }
 
     pub fn show(&mut self, ctx: &Context, rect: Rect) {
+        self.show_with_tools(ctx, rect);
+        if let Some(appearance) = &self.appearance {
+            ctx.set_appearance(appearance);
+        }
+    }
+
+    fn show_with_tools(&mut self, ctx: &Context, rect: Rect) {
         if let Some(mut tools) = self.tools.take() {
             tools.show(self, ctx, rect);
             if self.tools.is_none() {

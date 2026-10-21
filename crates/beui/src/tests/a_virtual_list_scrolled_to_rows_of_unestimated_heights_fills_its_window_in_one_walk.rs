@@ -14,7 +14,7 @@ fn a_virtual_list_scrolled_to_rows_of_unestimated_heights_fills_its_window_in_on
     let _root = crate::reactive::RootScope::new();
     let built = create_signal(Vec::new());
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

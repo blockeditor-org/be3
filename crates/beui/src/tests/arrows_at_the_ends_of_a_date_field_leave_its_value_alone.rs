@@ -8,7 +8,7 @@ use crate::unstyled::{Container, DateTimeParts};
 fn arrows_at_the_ends_of_a_date_field_leave_its_value_alone() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_size|
                 <DateTimeField

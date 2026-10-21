@@ -70,48 +70,46 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let here = create_memo(move || !devices.get());
     let away = create_memo(move || devices.get());
     view! {
-        <Frame fill=ColorRole::Background>
-            <Scroll>
-                <Frame padding=PADDING>
-                    <List spacing=SECTION_SPACING>
-                        <Show condition={others}>
-                            <Text style=TextStyle::CAPTION wrap=true>{NOT_OURS}</Text>
-                        </Show>
-                        <Show condition={here}>
-                            <Section
-                                title="This device"
-                                caption="A change applies on every device, unless you keep it on this one."
-                            >
-                                <List spacing=ROW_SPACING>
-                                    <Kinds
-                                        editor={editor}
-                                        layer={settings}
-                                        blocked={blocked}
-                                        shown={shown}
-                                    />
-                                    <SettingRow
-                                        label="Devices and profiles"
-                                        detail="What each device keeps for itself"
-                                        glyph={ICON_DEVICES.to_owned()}
-                                        @test_id={"settings.devices"}
-                                        on_click={move || devices.set(true)}
-                                    />
-                                </List>
-                            </Section>
-                        </Show>
-                        <Show condition={away}>
-                            <DevicesAndProfiles
-                                editor={editor}
-                                settings={settings}
-                                blocked={blocked}
-                                shown={shown}
-                                on_back={move || devices.set(false)}
-                            />
-                        </Show>
-                    </List>
-                </Frame>
-            </Scroll>
-        </Frame>
+        <Scroll>
+            <Frame padding=PADDING>
+                <List spacing=SECTION_SPACING>
+                    <Show condition={others}>
+                        <Text style=TextStyle::CAPTION wrap=true>{NOT_OURS}</Text>
+                    </Show>
+                    <Show condition={here}>
+                        <Section
+                            title="This device"
+                            caption="A change applies on every device, unless you keep it on this one."
+                        >
+                            <List spacing=ROW_SPACING>
+                                <Kinds
+                                    editor={editor}
+                                    layer={settings}
+                                    blocked={blocked}
+                                    shown={shown}
+                                />
+                                <SettingRow
+                                    label="Devices and profiles"
+                                    detail="What each device keeps for itself"
+                                    glyph={ICON_DEVICES.to_owned()}
+                                    @test_id={"settings.devices"}
+                                    on_click={move || devices.set(true)}
+                                />
+                            </List>
+                        </Section>
+                    </Show>
+                    <Show condition={away}>
+                        <DevicesAndProfiles
+                            editor={editor}
+                            settings={settings}
+                            blocked={blocked}
+                            shown={shown}
+                            on_back={move || devices.set(false)}
+                        />
+                    </Show>
+                </List>
+            </Frame>
+        </Scroll>
     }
 }
 

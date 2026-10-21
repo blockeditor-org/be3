@@ -10,7 +10,7 @@ use text_editor_core::TextBuffer;
 fn back_and_a_press_outside_close_the_emoji_menu_and_back_the_find_bar() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));

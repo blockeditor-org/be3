@@ -9,7 +9,7 @@ fn a_reactive_tree_can_nest_builder_calls_without_threading_the_document() {
     let value = create_signal(None);
     let increment = create_signal(None);
 
-    let document = build(move || {
+    let document = build_node(move || {
         let count = create_signal(0i64);
         let value_node = view! {
             <Text>{create_memo(move || count.get().to_string())}</Text>

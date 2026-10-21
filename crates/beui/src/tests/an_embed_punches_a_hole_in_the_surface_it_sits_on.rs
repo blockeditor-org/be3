@@ -9,7 +9,7 @@ fn an_embed_punches_a_hole_in_the_surface_it_sits_on() {
     let slot = EmbedSlot::new();
     let solid = EmbedSlot::new();
 
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame fill=Color32::WHITE>
                 <List spacing=0.0>

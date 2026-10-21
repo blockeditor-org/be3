@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn scrolling_a_nested_scroll_leaves_the_one_around_it_alone() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @test_id="outer">

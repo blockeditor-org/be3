@@ -11,7 +11,7 @@ fn clicking_a_date_field_shows_its_calendar_and_keeps_taking_typing() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(Vec::new());
     let field = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_size|
                 <List spacing=0.0>

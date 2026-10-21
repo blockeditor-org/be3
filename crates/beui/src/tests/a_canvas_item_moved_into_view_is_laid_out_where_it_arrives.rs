@@ -7,7 +7,7 @@ fn a_canvas_item_moved_into_view_is_laid_out_where_it_arrives() {
     let item = NodeRef::new();
     let x = create_signal(VIEWPORT.x * 2.0);
     let document = {
-        build(move || {
+        build_node(move || {
             view! {
                 <Canvas>
                     <CanvasItem x={x} y=10.0 width=40.0 height=20.0>

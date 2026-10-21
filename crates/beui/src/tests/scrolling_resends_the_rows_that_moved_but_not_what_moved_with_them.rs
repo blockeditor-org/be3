@@ -12,7 +12,7 @@ const ROWS: u32 = 30;
 
 #[test]
 fn scrolling_resends_the_rows_that_moved_but_not_what_moved_with_them() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List spacing=0.0>
                 <Frame height=200.0>

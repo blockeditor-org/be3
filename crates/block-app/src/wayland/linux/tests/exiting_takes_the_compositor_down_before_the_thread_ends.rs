@@ -18,7 +18,9 @@ fn exiting_takes_the_compositor_down_before_the_thread_ends() {
     let document = beui::reactive::build(|| {
         create();
         view! {
-            <Frame />
+            <beui::styled::Root>
+                <Frame />
+            </beui::styled::Root>
         }
     });
     let mut setup = Setup::new(beui::Waker::new(|| {}));

@@ -9,7 +9,7 @@ fn a_global_action_runs_from_a_text_field_inside_an_open_palette() {
     let _root = crate::reactive::RootScope::new();
     let ran = create_signal(Vec::new());
     let palette = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.lock", "Lock screen", move || {
             ran.update(|ran| ran.push("lock"))
         })

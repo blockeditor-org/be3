@@ -19,7 +19,7 @@ fn TwoTabs(layout: DockingLayout<u64>) -> NodeId {
 
 fn docked(layout: DockingLayout<u64>) -> (Harness, NodeId) {
     let dock = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <TwoTabs @node_ref=&dock layout={layout} />
         }

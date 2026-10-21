@@ -14,7 +14,7 @@ fn Wrapper() -> NodeId {
 
 #[test]
 fn a_driver_shows_what_a_press_would_reach() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=200.0 height=100.0>

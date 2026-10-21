@@ -28,7 +28,6 @@ use raw_window_handle as rwh;
 
 use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
-use beui_core::color::{Color32, Oklch};
 use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Vec2, pos2, vec2};
 use beui_core::input::{
@@ -37,7 +36,7 @@ use beui_core::input::{
 };
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Keystroke, Launch, Platform, Running, ScrollDelta};
-use beui_core::window::WindowState;
+use beui_core::window::{SystemBars, WindowState};
 use clipboard::Clipboard;
 
 const SURFACE_RELEASE_TIMEOUT: Duration = Duration::from_secs(2);
@@ -335,8 +334,8 @@ impl AndroidPlatform {
             });
     }
 
-    fn sync_bars(&mut self, background: Color32) {
-        let light = Oklch::from_color(background).lightness > 0.5;
+    fn sync_bars(&mut self, bars: SystemBars) {
+        let light = bars == SystemBars::Light;
         if self.light_bars == Some(light) {
             return;
         }
@@ -662,7 +661,8 @@ impl Runner {
         self.next_update = frame
             .wait()
             .and_then(|wait| Instant::now().checked_add(wait));
-        self.platform.sync_bars(self.runner.clear_color());
+        self.platform
+            .sync_bars(self.runner.window().appearance.system_bars);
         frame.pending
     }
 }

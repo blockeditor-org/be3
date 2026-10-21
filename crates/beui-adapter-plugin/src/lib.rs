@@ -67,7 +67,7 @@ impl PluginSurface {
             launched: Rc::clone(&launched),
         });
         let launch = Launch {
-            options: RunOptions::new("plugin"),
+            options: RunOptions::default(),
             context,
             app: Box::new(app),
         };

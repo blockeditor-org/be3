@@ -5,7 +5,7 @@ use crate::unstyled::{PanZoomView, pan_zoom_view};
 
 #[test]
 fn shift_scrolling_a_pan_zoom_pans_it_sideways() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <PanZoomStage />
         }

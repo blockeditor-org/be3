@@ -5,7 +5,7 @@ use crate::reactive::*;
 fn a_scope_disposed_with_no_document_installed_still_removes_its_nodes() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let scope = Scope::new();
         let node = scope.run(|| {
             view! {

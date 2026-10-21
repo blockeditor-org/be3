@@ -9,7 +9,7 @@ fn dragging_a_color_picker_previews_the_color_and_reports_it_once() {
     let changes = create_signal(Vec::new());
     let previews = create_signal(Vec::new());
     let picker = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <ColorPicker

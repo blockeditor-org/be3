@@ -8,7 +8,7 @@ fn a_press_inside_a_color_wheels_triangle_picks_saturation_and_value() {
     let _root = crate::reactive::RootScope::new();
     let changes = create_signal(Vec::new());
     let wheel = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <ColorWheel

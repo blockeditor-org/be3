@@ -7,7 +7,7 @@ use crate::styled::*;
 fn a_tap_outside_selectable_text_puts_its_toolbar_away() {
     let _root = crate::reactive::RootScope::new();
     let (text, region, elsewhere) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=40.0>
                 <SelectableText @node_ref=&region>

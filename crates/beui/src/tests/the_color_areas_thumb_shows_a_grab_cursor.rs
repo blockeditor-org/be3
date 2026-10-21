@@ -8,7 +8,7 @@ use crate::styled::*;
 fn the_color_areas_thumb_shows_a_grab_cursor() {
     let _root = crate::reactive::RootScope::new();
     let picker = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <ColorPicker @node_ref=&picker value={Hsva::new(0.0, 0.5, 0.5, 1.0).to_color()} />

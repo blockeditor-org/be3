@@ -9,7 +9,7 @@ use crate::styled::*;
 fn a_calendar_keeps_its_focus_between_its_limits() {
     let _root = crate::reactive::RootScope::new();
     let picked = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Calendar
                 selected={Binding::new(None, move |date| picked.update(|picked| picked.push(date)))}

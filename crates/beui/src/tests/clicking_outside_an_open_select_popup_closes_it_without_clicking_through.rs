@@ -7,7 +7,7 @@ fn clicking_outside_an_open_select_popup_closes_it_without_clicking_through() {
     let _root = crate::reactive::RootScope::new();
     let other_clicks = create_signal(0);
     let (select, other) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let options = view! {
             <unstyled::ChoiceOption label="Apple" />
             <unstyled::ChoiceOption label="Banana" />

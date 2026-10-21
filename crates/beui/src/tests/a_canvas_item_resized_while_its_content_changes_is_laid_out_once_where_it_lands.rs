@@ -7,7 +7,7 @@ fn a_canvas_item_resized_while_its_content_changes_is_laid_out_once_where_it_lan
     let item = NodeRef::new();
     let size = create_signal(vec2(200.0, 100.0));
     let inset = create_signal(0.0f32);
-    let mut document = build(move || {
+    let mut document = build_node(move || {
         let width = create_memo(move || size.get().x);
         let height = create_memo(move || size.get().y);
         view! {

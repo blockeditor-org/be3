@@ -6,7 +6,7 @@ use crate::reactive::*;
 
 #[test]
 fn two_nodes_on_screen_with_one_test_id_are_an_error() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List spacing=0.0>
                 <Frame @test_id="twin" height=10.0 />

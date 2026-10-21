@@ -12,7 +12,7 @@ fn button(pos: Pos2, pressed: bool) -> Event {
 
 #[test]
 fn a_click_on_the_inspector_grip_does_not_leave_it_grabbed() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <Frame />
         }

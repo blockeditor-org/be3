@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_virtual_list_estimates_unmeasured_rows_from_the_ones_it_measured() {
     let _root = crate::reactive::RootScope::new();
     let list = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0)>

@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
     let _root = crate::reactive::RootScope::new();
     let text = NodeRef::new();
-    let mut document = build(move || {
+    let mut document = build_node(move || {
         view! {
             <Text @node_ref=&text color=Color32::WHITE>"hello"</Text>
         }

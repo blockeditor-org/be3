@@ -54,7 +54,7 @@ impl App for Field {
 #[test]
 fn the_window_is_told_where_the_caret_is_in_its_own_units() {
     let mut runner = Runner::new(Launch {
-        options: RunOptions::new("runner"),
+        options: RunOptions::default(),
         context: context(),
         app: Box::new(Field),
     });

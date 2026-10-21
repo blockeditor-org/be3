@@ -78,21 +78,23 @@ impl BeuiFrame {
                 escaped
             });
             view! {
-                <List spacing=0.0>
-                    <FrameMenu
-                        editor
-                        bar={bar.read_only()}
-                        palette={opener}
-                        published
-                        on_exit={move || exit_writer.set(true)}
-                    />
-                    <CommandPalette open={palette} />
-                    <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
-                        let content = view();
-                        content_slot_writer.set(Some(content));
-                        content
-                    }</ChromeRoot>
-                </List>
+                <Root clear_color=ColorRole::None>
+                    <List spacing=0.0>
+                        <FrameMenu
+                            editor
+                            bar={bar.read_only()}
+                            palette={opener}
+                            published
+                            on_exit={move || exit_writer.set(true)}
+                        />
+                        <CommandPalette open={palette} />
+                        <ChromeRoot @sizing=ItemSize::Percent(100.0) phone>|| {
+                            let content = view();
+                            content_slot_writer.set(Some(content));
+                            content
+                        }</ChromeRoot>
+                    </List>
+                </Root>
             }
         });
         Self {

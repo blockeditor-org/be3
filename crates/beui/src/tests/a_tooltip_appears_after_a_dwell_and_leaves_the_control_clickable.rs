@@ -11,7 +11,7 @@ fn a_tooltip_appears_after_a_dwell_and_leaves_the_control_clickable() {
     let _root = crate::reactive::RootScope::new();
     let clicked = create_signal(0u32);
     let button = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Tooltip

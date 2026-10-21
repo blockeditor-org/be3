@@ -9,7 +9,7 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
     let document = build(move || {
         let open = create_signal(false);
         view! {
-            <Frame fill=ColorRole::Background>
+            <Root>
                 <List direction=beui::Direction::Horizontal justify=Justify::End spacing=0.0>
                     <Button
                         label="About"
@@ -28,7 +28,7 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
                         </Text>
                     </Dialog>
                 </List>
-            </Frame>
+            </Root>
         }
     });
     let mut test = DocumentTest::new(document, Vec2::new(1100.0, 480.0));

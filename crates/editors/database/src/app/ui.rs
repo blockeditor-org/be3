@@ -39,34 +39,32 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <Frame fill=ColorRole::Background>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
-                    <List spacing=SECTION_SPACING>
-                        <Text style=TextStyle::HEADING>"Views"</Text>
-                        <Show condition={none_yet}>
-                            <Text style=TextStyle::CAPTION>"This database has no views yet."</Text>
-                        </Show>
-                        <Scroll @sizing=ItemSize::Percent(100.0)>
-                            <ViewLinks editor={editor} rows={rows} />
-                        </Scroll>
-                        <List direction=Direction::Horizontal spacing=0.0>
-                            <Button
-                                label="New view"
-                                variant=ButtonVariant::Primary
-                                disabled={read_only}
-                                @test_id={"database.new-view"}
-                                on_click={new_view}
-                            />
-                            <Spacer @sizing=ItemSize::Percent(100.0) />
-                        </List>
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
+                <List spacing=SECTION_SPACING>
+                    <Text style=TextStyle::HEADING>"Views"</Text>
+                    <Show condition={none_yet}>
+                        <Text style=TextStyle::CAPTION>"This database has no views yet."</Text>
+                    </Show>
+                    <Scroll @sizing=ItemSize::Percent(100.0)>
+                        <ViewLinks editor={editor} rows={rows} />
+                    </Scroll>
+                    <List direction=Direction::Horizontal spacing=0.0>
+                        <Button
+                            label="New view"
+                            variant=ButtonVariant::Primary
+                            disabled={read_only}
+                            @test_id={"database.new-view"}
+                            on_click={new_view}
+                        />
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
                     </List>
-                </Frame>
-                <Sidebar shown={chrome}>
-                    <SchemaPanel @sizing=ItemSize::Percent(100.0) editor={editor} schema={schema} />
-                </Sidebar>
-            </List>
-        </Frame>
+                </List>
+            </Frame>
+            <Sidebar shown={chrome}>
+                <SchemaPanel @sizing=ItemSize::Percent(100.0) editor={editor} schema={schema} />
+            </Sidebar>
+        </List>
     }
 }
 

@@ -17,33 +17,35 @@ fn escape_stops_a_presentation_rather_than_reaching_the_editor() {
             let overlay = NodeRef::new();
             stop_on_escape(overlay);
             view! {
-                <Overlay
-                    @node_ref=&overlay
-                    anchor=OverlayAnchor::Point(Pos2::ZERO)
-                    placement=Placement::Fill
-                    open=true
-                    on_dismiss={move |_: Dismiss| stopped.set(stopped.get() + 1)}
-                >
-                    <List spacing=0.0>
-                        <Interactive
-                            @node_ref={&catcher}
-                            focusable=true
-                            on_forward={move |input: ForwardedInput| heard.borrow_mut().extend(input.inputs().cloned())}
-                        >
-                            <Frame width=100.0 height=100.0 />
-                        </Interactive>
-                        <Overlay
-                            anchor=OverlayAnchor::Point(Pos2::new(120.0, 10.0))
-                            placement=Placement::At
-                            open={menu}
-                            on_dismiss={move |_: Dismiss| menu.set(false)}
-                        >
-                            <Interactive @node_ref={&item} focusable=true>
-                                <Frame width=40.0 height=20.0 />
+                <beui::styled::Root>
+                    <Overlay
+                        @node_ref=&overlay
+                        anchor=OverlayAnchor::Point(Pos2::ZERO)
+                        placement=Placement::Fill
+                        open=true
+                        on_dismiss={move |_: Dismiss| stopped.set(stopped.get() + 1)}
+                    >
+                        <List spacing=0.0>
+                            <Interactive
+                                @node_ref={&catcher}
+                                focusable=true
+                                on_forward={move |input: ForwardedInput| heard.borrow_mut().extend(input.inputs().cloned())}
+                            >
+                                <Frame width=100.0 height=100.0 />
                             </Interactive>
-                        </Overlay>
-                    </List>
-                </Overlay>
+                            <Overlay
+                                anchor=OverlayAnchor::Point(Pos2::new(120.0, 10.0))
+                                placement=Placement::At
+                                open={menu}
+                                on_dismiss={move |_: Dismiss| menu.set(false)}
+                            >
+                                <Interactive @node_ref={&item} focusable=true>
+                                    <Frame width=40.0 height=20.0 />
+                                </Interactive>
+                            </Overlay>
+                        </List>
+                    </Overlay>
+                </beui::styled::Root>
             }
         }
     });

@@ -63,46 +63,44 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <Frame fill=ColorRole::Background>
-            <Frame @node_ref={&content} padding=PADDING>
-                <List spacing=ROW_SPACING>
-                    <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                        <Text style=TextStyle::HEADING>"Levels"</Text>
-                        <Show condition={has_hotbar}>
-                            <IconButton
-                                glyph={ICON_WIDGETS.to_owned()}
-                                label="Hotbar"
-                                @test_id={"logic-game.hotbar"}
-                                on_click={open_hotbar}
-                            />
-                        </Show>
-                        <Spacer @sizing=ItemSize::Percent(100.0) />
-                    </List>
-                    <Scroll @sizing=ItemSize::Percent(100.0)>
-                        <List spacing=4.0>
-                            <ForEach keys={keys}>|challenge: ChallengeId| {
-                                let level = level_of(levels, challenge);
-                                let here = open.memo(Some(challenge));
-                                let toggle = move || {
-                                    let shown = expanded.get_untracked() == Some(challenge);
-                                    expanded.set((!shown).then_some(challenge));
-                                };
-                                view! {
-                                    <LevelRow
-                                        editor={editor}
-                                        block={block}
-                                        game={game}
-                                        challenge={challenge}
-                                        level={level}
-                                        expanded={here}
-                                        on_toggle={toggle}
-                                    />
-                                }
-                            }</ForEach>
-                        </List>
-                    </Scroll>
+        <Frame @node_ref={&content} padding=PADDING>
+            <List spacing=ROW_SPACING>
+                <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
+                    <Text style=TextStyle::HEADING>"Levels"</Text>
+                    <Show condition={has_hotbar}>
+                        <IconButton
+                            glyph={ICON_WIDGETS.to_owned()}
+                            label="Hotbar"
+                            @test_id={"logic-game.hotbar"}
+                            on_click={open_hotbar}
+                        />
+                    </Show>
+                    <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
-            </Frame>
+                <Scroll @sizing=ItemSize::Percent(100.0)>
+                    <List spacing=4.0>
+                        <ForEach keys={keys}>|challenge: ChallengeId| {
+                            let level = level_of(levels, challenge);
+                            let here = open.memo(Some(challenge));
+                            let toggle = move || {
+                                let shown = expanded.get_untracked() == Some(challenge);
+                                expanded.set((!shown).then_some(challenge));
+                            };
+                            view! {
+                                <LevelRow
+                                    editor={editor}
+                                    block={block}
+                                    game={game}
+                                    challenge={challenge}
+                                    level={level}
+                                    expanded={here}
+                                    on_toggle={toggle}
+                                />
+                            }
+                        }</ForEach>
+                    </List>
+                </Scroll>
+            </List>
         </Frame>
     }
 }

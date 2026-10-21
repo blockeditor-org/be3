@@ -13,7 +13,7 @@ fn an_overlay_reports_a_dismiss_only_when_the_user_closes_it() {
     let dismissed = create_signal(Vec::new());
     let nested_dismissed = create_signal(Vec::new());
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame>
                 <Overlay

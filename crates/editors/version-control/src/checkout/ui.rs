@@ -154,7 +154,7 @@ pub fn CheckoutView(editor: Editor) -> NodeId {
     };
 
     view! {
-        <Frame fill=ColorRole::Background padding=PADDING>
+        <Frame padding=PADDING>
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>

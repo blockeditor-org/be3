@@ -13,7 +13,7 @@ const ROW_HEIGHT: f32 = 20.0;
 fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
     let _root = crate::reactive::RootScope::new();
     let thumb = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let position = create_signal(ScrollPosition::ZERO);
         view! {
             <List spacing=0.0>
