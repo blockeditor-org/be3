@@ -77,10 +77,7 @@ pub(crate) fn Stage(review: Review) -> NodeId {
     view! {
         <Frame fill=ColorRole::Surface @test_id={"paint_review.stage"}>
             <Layers>
-                <PanZoom
-                    view={camera}
-                    on_change={move |next| camera.set(next)}
-                >|handle: PanZoomHandle| {
+                <PanZoom view={camera}>|handle: PanZoomHandle| {
                     let PanZoomHandle { view, focused, .. } = handle;
                     view! {
                         <Frame border={focus_border(focused, Border::FOCUS)}>
@@ -123,10 +120,9 @@ pub(crate) fn Stage(review: Review) -> NodeId {
                 }</PanZoom>
                 <Frame visible={side_by_side} align={Align2::new(Align::Center, Align::Start)}>
                     <Frame padding={Sides::all(MESSAGE_PADDING / 2.0)}>
-                        <Text
-                            style=TextStyle::CAPTION
-                            string="Before on the left, after on the right"
-                        />
+                        <Text style=TextStyle::CAPTION>
+                            "Before on the left, after on the right"
+                        </Text>
                     </Frame>
                 </Frame>
                 <Frame align=Align::Center padding={Sides::all(MESSAGE_PADDING)}>
@@ -138,23 +134,22 @@ pub(crate) fn Stage(review: Review) -> NodeId {
                                 @test_id={"paint_review.image.loading"}
                             >
                                 <Spinner label="Loading the image" />
-                                <Text style=TextStyle::CAPTION string="Loading the image" />
+                                <Text style=TextStyle::CAPTION>"Loading the image"</Text>
                             </List>
                         </Show>
                         <Show condition={empty}>
-                            <Text
-                                style=TextStyle::PARAGRAPH
-                                string="There is no image of this painting to show"
-                                @test_id={"paint_review.image.none"}
-                            />
+                            <Text style=TextStyle::PARAGRAPH @test_id={"paint_review.image.none"}>
+                                "There is no image of this painting to show"
+                            </Text>
                         </Show>
                         <Show condition={failed}>
                             <Text
-                                string={reason}
                                 color=TextColor::Danger
                                 wrap=true
                                 @test_id={"paint_review.image.failed"}
-                            />
+                            >
+                                {reason}
+                            </Text>
                         </Show>
                     </List>
                 </Frame>

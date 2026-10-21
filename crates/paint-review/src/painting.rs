@@ -27,11 +27,9 @@ pub(crate) fn PaintingView(review: Review) -> NodeId {
         <List spacing=0.0>
             <Show condition={nothing}>
                 <Frame @sizing=ItemSize::Percent(100.0) align=Align::Center>
-                    <Text
-                        style=TextStyle::PARAGRAPH
-                        string="No paintings changed"
-                        @test_id={"paint_review.nothing"}
-                    />
+                    <Text style=TextStyle::PARAGRAPH @test_id={"paint_review.nothing"}>
+                        "No paintings changed"
+                    </Text>
                 </Frame>
             </Show>
             <Show condition={chosen}>
@@ -78,21 +76,19 @@ fn Header(review: Review) -> NodeId {
                         @sizing={ItemSize::Intrinsic.shrink(1.0)}
                         style=TextStyle::HEADING
                         family=Family::Mono
-                        string={name}
                         ellipsis=true
                         @test_id={"paint_review.name"}
-                    />
+                    >
+                        {name}
+                    </Text>
                     <Dynamic value={status}>|status: Status|
                         <StatusBadge status />
                     </Dynamic>
                 </List>
                 <Show condition={detailed}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string={detail}
-                        wrap=true
-                        @test_id={"paint_review.detail"}
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true @test_id={"paint_review.detail"}>
+                        {detail}
+                    </Text>
                 </Show>
             </List>
         </Frame>
@@ -109,7 +105,7 @@ fn StatusBadge(status: Status) -> NodeId {
             padding={Sides::symmetric(horizontal, vertical)}
             @test_id={"paint_review.status"}
         >
-            <Text size=TextSize::Sm color={color(status)} align={Some(TextAlign::Center)}>
+            <Text size=TextSize::Sm color={color(status)} align=TextAlign::Center>
                 <Icon glyph={glyph(status).to_owned()} />
                 {label(status).to_owned()}
             </Text>
@@ -151,11 +147,7 @@ fn Controls(review: Review) -> NodeId {
                 <ModeButton review mode=Mode::Changes />
                 <ModeButton review mode=Mode::SideBySide />
                 <Show condition={counted}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string={pixels}
-                        @test_id={"paint_review.pixels"}
-                    />
+                    <Text style=TextStyle::CAPTION @test_id={"paint_review.pixels"}>{pixels}</Text>
                 </Show>
                 <Frame visible={many}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
@@ -166,11 +158,9 @@ fn Controls(review: Review) -> NodeId {
                             @test_id={"paint_review.frame.previous"}
                             on_click={move || review.step_frame(-1)}
                         />
-                        <Text
-                            style=TextStyle::CAPTION
-                            string={position}
-                            @test_id={"paint_review.frame"}
-                        />
+                        <Text style=TextStyle::CAPTION @test_id={"paint_review.frame"}>
+                            {position}
+                        </Text>
                         <IconButton
                             glyph={ICON_CHEVRON_RIGHT.to_owned()}
                             label="The frame after"
@@ -196,10 +186,9 @@ fn ModeButton(review: Review, mode: Mode) -> NodeId {
     view! {
         <ToggleButton
             label={mode.label().to_owned()}
-            pressed={pressed}
+            pressed={Binding::new(pressed, move |_: bool| review.choose(mode))}
             disabled={unavailable}
             @test_id={format!("paint_review.mode.{}", mode.id())}
-            on_change={move |_: bool| review.choose(mode)}
         />
     }
 }
@@ -231,7 +220,7 @@ fn ShortcutHint(hint: (&'static str, &'static str)) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=HINT_SPACING>
             <Chip label={keys.to_owned()} />
-            <Text style=TextStyle::CAPTION string={description.to_owned()} />
+            <Text style=TextStyle::CAPTION>{description.to_owned()}</Text>
         </List>
     }
 }

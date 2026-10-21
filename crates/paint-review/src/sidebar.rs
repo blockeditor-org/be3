@@ -66,13 +66,10 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
         <List spacing=0.0>
             <Frame padding={Sides::all(PADDING)}>
                 <List spacing=ROW_SPACING>
-                    <Text style=TextStyle::HEADING string="Paintings" />
-                    <Text
-                        style=TextStyle::CAPTION
-                        string={summary}
-                        wrap=true
-                        @test_id={"paint_review.summary"}
-                    />
+                    <Text style=TextStyle::HEADING>"Paintings"</Text>
+                    <Text style=TextStyle::CAPTION wrap=true @test_id={"paint_review.summary"}>
+                        {summary}
+                    </Text>
                 </List>
             </Frame>
             <Separator />
@@ -113,15 +110,16 @@ fn StatusGroup(review: Review, status: Status) -> NodeId {
                         align=Align::Center
                         spacing=HEADING_SPACING
                     >
-                        <Text color={color(status)} align={Some(TextAlign::Center)}>
+                        <Text color={color(status)} align=TextAlign::Center>
                             <Icon glyph={glyph(status).to_owned()} />
                         </Text>
                         <Text
-                            string={heading}
                             weight=Weight::Bold
                             color={color(status)}
                             @test_id={format!("paint_review.group.{}", label(status).to_lowercase())}
-                        />
+                        >
+                            {heading}
+                        </Text>
                     </List>
                 </Frame>
                 <ForEach keys={keys}>|index: usize| {
@@ -153,7 +151,7 @@ fn PaintingRow(review: Review, index: usize, name: Memo<String>, selected: Memo<
             on_click={move || review.select(index)}
             on_activate={move || review.select(index)}
         >
-            <Text string={name} ellipsis=true family=Family::Mono size=TextSize::Sm />
+            <Text ellipsis=true family=Family::Mono size=TextSize::Sm>{name}</Text>
         </ListRow>
     }
 }

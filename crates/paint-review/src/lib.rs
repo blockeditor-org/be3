@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use beui::reactive::*;
 use beui::styled::*;
-use beui::{Color32, Context, Document, Key, KeyPress, NodeId, Rect};
+use beui::{Context, Document, Key, KeyPress, NodeId, Rect};
 
 mod images;
 mod painting;
@@ -43,7 +43,9 @@ impl PaintReviewApp {
         Self {
             document: build(move || {
                 view! {
-                    <PaintReview manifest={shown} images={table} painting={painting} />
+                    <Root title="Paintings" clear_color=ColorRole::Background>
+                        <PaintReview manifest={shown} images={table} painting={painting} />
+                    </Root>
                 }
             }),
             manifest,
@@ -63,10 +65,6 @@ impl PaintReviewApp {
 impl beui::App for PaintReviewApp {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.document.show(context, rect);
-    }
-
-    fn clear_color(&self) -> Color32 {
-        self.document.theme().background
     }
 }
 
@@ -97,7 +95,7 @@ fn PaintReview(
                             @test_id={"paint_review.loading"}
                         >
                             <Spinner label="Loading the paintings" />
-                            <Text style=TextStyle::CAPTION string="Loading the paintings" />
+                            <Text style=TextStyle::CAPTION>"Loading the paintings"</Text>
                         </List>
                     </Frame>
                 </Show>
@@ -110,16 +108,14 @@ fn PaintReview(
                         <List spacing=MESSAGE_SPACING @test_id={"paint_review.failed"}>
                             <Text
                                 style=TextStyle::HEADING
-                                string="The paintings could not be loaded"
                                 color=TextColor::Danger
-                                align={Some(beui::TextAlign::Center)}
-                            />
-                            <Text
-                                style=TextStyle::CAPTION
-                                string={reason}
-                                wrap=true
-                                align={Some(beui::TextAlign::Center)}
-                            />
+                                align=beui::TextAlign::Center
+                            >
+                                "The paintings could not be loaded"
+                            </Text>
+                            <Text style=TextStyle::CAPTION wrap=true align=beui::TextAlign::Center>
+                                {reason}
+                            </Text>
                         </List>
                     </Frame>
                 </Show>

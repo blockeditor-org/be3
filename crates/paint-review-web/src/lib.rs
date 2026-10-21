@@ -3,8 +3,8 @@
 use std::rc::Rc;
 
 use beui::reactive::Set;
-use paint_review_manifest::Manifest;
 use paint_review::{Fetch, PaintReviewApp};
+use paint_review_manifest::Manifest;
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{JsCast, JsValue};
 use wasm_bindgen_futures::JsFuture;
@@ -54,7 +54,7 @@ pub async fn run_review(root_id: String, icons_font: String) -> Result<(), JsVal
         });
     });
 
-    let options = beui::RunOptions::new("Paintings");
+    let options = beui::RunOptions::default();
     let renderers = vec![
         beui::WebRenderer::Dom {
             icons_font: Some(icons_font),

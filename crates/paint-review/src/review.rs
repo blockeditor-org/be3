@@ -178,10 +178,8 @@ impl Review {
             _ => None,
         });
         if let Some(name) = name {
-            batch(|| {
-                self.wanted.set(Some(name));
-                self.frame_wanted.set(0);
-            });
+            self.wanted.set(Some(name));
+            self.frame_wanted.set(0);
         }
     }
 
