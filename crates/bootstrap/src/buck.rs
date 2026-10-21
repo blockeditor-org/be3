@@ -45,7 +45,7 @@ pub fn prepare() -> Result<PathBuf> {
     let target = repository().join("target");
     std::fs::create_dir_all(&target)
         .map_err(|error| format!("could not create {}: {error}", target.display()))?;
-    server::configure(&buck2, false)?;
+    server::configure(&buck2)?;
     Ok(buck2)
 }
 
@@ -168,7 +168,7 @@ pub fn retrying(
             "buck2 failed with an infrastructure error; trying again ({attempt} of {attempts}). \
              guides/build_server.md says what to do when this keeps happening."
         );
-        server::configure(buck2, true)?;
+        server::configure(buck2)?;
     }
 }
 

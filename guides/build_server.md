@@ -74,12 +74,11 @@ hosts then answer 404. So no host is checked in: `./scripts/buck` asks
 `https://api.be3.pfg.pw/build/namespace` (`NAMESPACE_URL` in
 `crates/bootstrap/src/server.rs`) through the API gateway, and gets back
 the buck2 configuration that names the executor, the storage and the
-`x-nsc-ingress-auth` header that authenticates to them. It keeps that answer in
-`target/namespace/`, writes it into `.buckconfig.local`, and asks again when
-the executor stops answering, when the answer is three and a half hours old
-(an answer lasts about four), or when the gateway's header changes. The answer's age counts
-from its setup, which the waker sends as an `age` header. Builds never run
-`nsc`.
+`x-nsc-ingress-auth` header that authenticates to them. It asks on every
+run, keeps nothing, and writes the answer into `.buckconfig.local`. The waker
+answers quickly from its own cache, so the only slow request is one that
+finds the cluster asleep, and after two seconds of waiting `./scripts/buck`
+says it is waking it. Builds never run `nsc`.
 
 Behind that URL, `namespace-waker` (`crates/namespace-waker`) runs
 `nsc reapi setup buck2 --token FILE --key buildserver`, which starts the
