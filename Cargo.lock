@@ -1049,6 +1049,7 @@ dependencies = [
  "bytemuck",
  "rustix 1.1.4",
  "smithay",
+ "ui-types",
  "wgpu",
  "xcursor",
 ]

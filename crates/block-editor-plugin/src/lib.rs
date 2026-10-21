@@ -27,22 +27,25 @@ pub use block_plugin_api::{
     AudioOutput, AudioStatus, BarAction, BlockCommand, BlockFilter, BlockImport, BlockLocation,
     BlockPick, BlockTypeDescriptor, Catalog, ChildContent, ChildId, ChildLayer, ChildMode,
     ChildOperations, ChildPlacement, ChildRect, ChildStatus, ConflictSide, ContactLinkResult,
-    Contacts, CreationProgress, CursorIcon, DataListing, DescribedAction, Description, Displays,
-    EditorCapabilities, EditorDescriptor, EditorInstanceId, EditorRegion, Epaper, EpaperRequest,
-    FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostContact, HostDisplay,
-    HostDisplayMode, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
-    HostReply, HostRequest, HostRotation, HostTrayItem, HostValue, HostWindow, HostWindowId,
-    HostWindows, IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord,
-    LinkBase, Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers,
-    NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
-    NotificationSignal, NotificationUrgency, Notifications, Occluder, PenPhase, PlayerCommand,
-    PointerButton, Power, PowerAction, PowerAvailability, ProgramAction, Programs, RemapState,
-    Remaps, ResizeMode, Revision, ScreenLocked, ScreenPlacement, SettingsProgress, ShellDialog,
-    Size, Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor, TopBar, TouchPhase, Tray,
+    Contacts, CreationProgress, CursorIcon, DataListing, DescribedAction, Description, DisplayMode,
+    Displays, EditorCapabilities, EditorDescriptor, EditorInstanceId, EditorRegion, Epaper,
+    EpaperRequest, FetchResult, FileSave, FrameChrome, FrameSpec, HostAction, HostContact,
+    HostDisplay, HostImage, HostInputDevice, HostNotificationAction, HostPanel, HostProgram,
+    HostReply, HostRequest, HostTrayItem, HostValue, HostWindow, HostWindowId, HostWindows,
+    IncomingNotification, InputDevices, InputEvent, InteractionMode, Key, KeyChord, LinkBase,
+    Media, MediaLevel, MediaLevels, MediaRequest, MenuEntry, Modifiers, NotificationCloseReason,
+    NotificationInbox, NotificationReport, NotificationRequest, NotificationSignal,
+    NotificationUrgency, Notifications, Occluder, PenPhase, PlayerCommand, PointerButton, Power,
+    PowerAction, PowerAvailability, ProgramAction, Programs, RemapState, Remaps, ResizeMode,
+    Revision, Rotation, ScreenLocked, ScreenPlacement, SettingsProgress, ShellDialog, Size,
+    Stopped, SurfaceRect, TemplateCategory, TemplateDescriptor, TopBar, TouchPhase, Tray,
     TrayMenuEntry, TrayRequest, TrayStatus, TrayToggle, VersionBranch, VersionChange,
     VersionChangeKind, VersionCommand, VersionCommit, VersionStatus, ViewChange, WebViewCommand,
     WebViewEvent, WebViewId, WheelUnit, Wifi, WifiLink, WifiNetwork, WifiRequest, WifiSecurity,
     WifiStatus, WindowAction, WindowOrigin,
+};
+pub use block_plugin_api::{
+    HostPreferenceSources, Motion, PreferenceLayer, PreferenceSources, Preferences, ThemeKind,
 };
 pub use block_ui;
 pub use clock::{frame_time, pin_wall_clock, utc_offset, wall_clock};
@@ -59,9 +62,6 @@ pub use host::{
 pub use plugin::{Claim, Frame, Ime, Instance, Plugin, Region, RegionMonitor, WindowRequests};
 #[cfg(target_arch = "wasm32")]
 pub use plugin::{PaintTarget, SurfaceGpu, surface_gpu};
-pub use block_plugin_api::{
-    HostPreferenceSources, Motion, PreferenceLayer, PreferenceSources, Preferences, ThemeKind,
-};
 pub use preferences::host_preferences;
 #[cfg(target_arch = "wasm32")]
 pub use wgpu;

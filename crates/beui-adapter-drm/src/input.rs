@@ -4,34 +4,12 @@ use std::time::Duration;
 
 use beui::Waker;
 
-#[derive(Clone, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DeviceId {
-    pub name: String,
-    pub vendor: u32,
-    pub product: u32,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq)]
-pub struct PointerConfig {
-    pub speed: Option<f64>,
-    pub tap_to_click: Option<bool>,
-    pub natural_scroll: Option<bool>,
-}
-
-impl PointerConfig {
-    pub(crate) fn or(self, fallback: Self) -> Self {
-        Self {
-            speed: self.speed.or(fallback.speed),
-            tap_to_click: self.tap_to_click.or(fallback.tap_to_click),
-            natural_scroll: self.natural_scroll.or(fallback.natural_scroll),
-        }
-    }
-}
+pub use ui_types::{InputDevice, PointerSettings, PointerSpeed};
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct PointerDevice {
-    pub id: DeviceId,
-    pub defaults: PointerConfig,
+    pub id: InputDevice,
+    pub defaults: PointerSettings,
 }
 
 #[derive(Clone, Debug, PartialEq)]
@@ -41,8 +19,8 @@ pub struct InputConfig {
     pub options: String,
     pub repeat_delay: Duration,
     pub repeat_interval: Duration,
-    pub every_pointer: PointerConfig,
-    pub pointers: Vec<(DeviceId, PointerConfig)>,
+    pub every_pointer: PointerSettings,
+    pub pointers: Vec<(InputDevice, PointerSettings)>,
 }
 
 impl Default for InputConfig {
@@ -53,7 +31,7 @@ impl Default for InputConfig {
             options: String::new(),
             repeat_delay: Duration::from_millis(600),
             repeat_interval: Duration::from_millis(40),
-            every_pointer: PointerConfig::default(),
+            every_pointer: PointerSettings::default(),
             pointers: Vec::new(),
         }
     }
@@ -66,7 +44,7 @@ impl InputConfig {
             && self.options == other.options
     }
 
-    pub(crate) fn pointer(&self, id: &DeviceId) -> PointerConfig {
+    pub(crate) fn pointer(&self, id: &InputDevice) -> PointerSettings {
         self.pointers
             .iter()
             .find(|(device, _)| device == id)

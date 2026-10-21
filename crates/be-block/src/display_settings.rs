@@ -7,14 +7,7 @@ use uuid::Uuid;
 use crate::Root;
 use crate::setting::Setting;
 use crate::settings::Layered;
-pub use ui_types::{Motion, PreferenceLayer, ThemeKind};
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct DisplayMode {
-    pub width: u32,
-    pub height: u32,
-    pub refresh_millihertz: u32,
-}
+pub use ui_types::{DisplayMode, Motion, PreferenceLayer, Rotation, ThemeKind};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum ScreenOff {
@@ -48,33 +41,6 @@ impl LockAfter {
             Self::WithScreens => screen_off.after(),
             Self::After { minutes } => ScreenOff::After { minutes }.after(),
             Self::Never => None,
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub enum Rotation {
-    #[default]
-    Normal,
-    Clockwise90,
-    Clockwise180,
-    Clockwise270,
-}
-
-impl Rotation {
-    pub const ALL: [Self; 4] = [
-        Self::Normal,
-        Self::Clockwise90,
-        Self::Clockwise180,
-        Self::Clockwise270,
-    ];
-
-    pub fn degrees(self) -> u32 {
-        match self {
-            Self::Normal => 0,
-            Self::Clockwise90 => 90,
-            Self::Clockwise180 => 180,
-            Self::Clockwise270 => 270,
         }
     }
 }

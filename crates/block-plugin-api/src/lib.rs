@@ -15,9 +15,9 @@ pub use host_value::{
     LinkBase, PreferenceSources, decode_host, encode_host,
 };
 pub use linux::{
-    AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostDisplayMode, HostInputDevice,
-    HostNotificationAction, HostProgram, HostRotation, HostTrayItem, HostWindow, HostWindowId,
-    HostWindows, IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
+    AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostInputDevice,
+    HostNotificationAction, HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows,
+    IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction,
     PowerAvailability, ProgramAction, Programs, RemapState, Remaps, ScreenLocked, Tray,
@@ -32,7 +32,10 @@ pub use ui_types::{
     BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, ImeEvent, ImeText, Key, KeyChord,
     Keyboard, Modifiers, PasteKind, Pasted, PenPhase, PickedFile, PointerButton, TouchPhase,
 };
-pub use ui_types::{Motion, PreferenceLayer, Preferences, ThemeKind};
+pub use ui_types::{
+    DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer, Preferences,
+    Rotation, ThemeKind,
+};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
@@ -2531,9 +2534,7 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         HostReply::RevisionPreviewed(Ok(_))
         | HostReply::RevisionRestored(Ok(()))
         | HostReply::RevisionReleased => Ok(()),
-        HostReply::FilePicked(Ok(Some(file))) => {
-            string(&file.name).and_then(|()| blob(&file.data))
-        }
+        HostReply::FilePicked(Ok(Some(file))) => string(&file.name).and_then(|()| blob(&file.data)),
         HostReply::Fetched(FetchResult::Body(body))
         | HostReply::DataRead(FetchResult::Body(body)) => blob(body),
         HostReply::DataListed(DataListing::Files(files)) => {

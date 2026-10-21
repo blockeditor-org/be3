@@ -254,7 +254,7 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
-| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde: `Key`, `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile` |
+| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde: `Key`, `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile`; the preferences (`ThemeKind`, `Motion`, `Preferences`, `PreferenceLayer`); and the display and pointer settings `beui-adapter-drm` applies and block settings store (`DisplayMode`, `Rotation`, `InputDevice`, `PointerSettings`) |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |

@@ -6,22 +6,13 @@ use beui::unstyled;
 use beui::unstyled::ButtonHandle;
 use beui::{NodeId, TextAlign};
 
-use crate::{HostDisplay, HostRotation};
+use crate::HostDisplay;
 
 const ITEM_WIDTH: f32 = 64.0;
 const TILE: f32 = 56.0;
 const SCREEN: f32 = 42.0;
 const TITLE_BAR: f32 = 7.0;
 const ITEM_SPACING: f32 = 4.0;
-
-fn current_rotation(rotation: HostRotation) -> Rotation {
-    match rotation {
-        HostRotation::Normal => Rotation::Normal,
-        HostRotation::Clockwise90 => Rotation::Clockwise90,
-        HostRotation::Clockwise180 => Rotation::Clockwise180,
-        HostRotation::Clockwise270 => Rotation::Clockwise270,
-    }
-}
 
 fn quarters(rotation: Rotation) -> u8 {
     (rotation.degrees() / 90) as u8
@@ -49,7 +40,7 @@ fn screen_size(display: &HostDisplay) -> (f32, f32) {
         display.current.width.max(1) as f32,
         display.current.height.max(1) as f32,
     );
-    let (width, height) = match current_rotation(display.rotation) {
+    let (width, height) = match display.rotation {
         Rotation::Clockwise90 | Rotation::Clockwise270 => (height, width),
         Rotation::Normal | Rotation::Clockwise180 => (width, height),
     };
@@ -71,9 +62,9 @@ pub fn RotationPicker(
 ) -> NodeId {
     let current = create_memo(move || {
         display.with(|display| {
-            display.as_ref().map_or(Rotation::Normal, |display| {
-                current_rotation(display.rotation)
-            })
+            display
+                .as_ref()
+                .map_or(Rotation::Normal, |display| display.rotation)
         })
     });
     let landscape = create_memo(move || {

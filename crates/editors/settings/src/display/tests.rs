@@ -5,8 +5,8 @@ use block_editor_beui::be_block::{
 };
 use block_editor_beui::beui::{Document, Key, NodeId, TurnNode, Vec2};
 use block_editor_beui::{
-    BlockInfo, BlockParent, Displays, EditorHost, HostDisplay, HostDisplayMode, HostRotation,
-    OwnedEditor, Power, PowerAvailability,
+    BlockInfo, BlockParent, Displays, EditorHost, HostDisplay, OwnedEditor, Power,
+    PowerAvailability,
 };
 use block_ui_test::BeuiTest;
 use uuid::Uuid;
@@ -214,7 +214,7 @@ impl Harness {
     }
 }
 
-fn turned(rotation: HostRotation) -> HostDisplay {
+fn turned(rotation: Rotation) -> HostDisplay {
     HostDisplay {
         rotation,
         ..gaming_monitor()
@@ -248,8 +248,8 @@ fn text_within(document: &Document, id: NodeId, words: &str) -> bool {
             .any(|child| text_within(document, child, words))
 }
 
-fn mode(width: u32, height: u32, refresh_millihertz: u32) -> HostDisplayMode {
-    HostDisplayMode {
+fn mode(width: u32, height: u32, refresh_millihertz: u32) -> DisplayMode {
+    DisplayMode {
         width,
         height,
         refresh_millihertz,
@@ -278,6 +278,6 @@ fn gaming_monitor() -> HostDisplay {
         ],
         default: mode(2560, 1440, 239_970),
         current: mode(2560, 1440, 59_951),
-        rotation: HostRotation::Normal,
+        rotation: Rotation::Normal,
     }
 }
