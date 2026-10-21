@@ -39,14 +39,23 @@ The target for opening a page is under 2 ms warm. The canvas bench measured, in 
 | pan at scale 0.1, p50 wall | 0.08 ms | 0.48 ms (layout 0.30 ms) |
 | zoom, p50 wall | 0.16 ms | 0.43 ms (layout 0.24 ms) |
 | pen move, p50 wall | 0.05 ms | 0.06 ms |
-| pen lift, p50 wall | 0.59 ms | 30 ms (interaction 26 ms) |
+| pen lift, p50 wall | 0.6 ms | 1.3 ms (interaction 0.9 ms) |
 | frames from pen event to ink | 0 | 0 |
 
 A pan, zoom or pen move places and paints the same few nodes whatever the count. A canvas
 finds the items near its view through a grid of world cells, so only what is in view costs
-anything: at scale 0.1 all 10,000 shapes are in view. Still linear in the count: building
-an entity's items when the canvas opens, and on a pen lift the editor's effects that read
-every entity (the intrinsic size, frame backdrops, a press) and the canvas's lists of ids.
+anything: at scale 0.1 all 10,000 shapes are in view. A pen lift reads only the new stroke:
+the editor keeps its frames, embedded blocks and content bounds in a catalog fed by the
+entities each change touched, a keyed mapping that grows at its end builds only the new
+rows, and the canvas files only the items that changed into its grid. What is left of a
+lift on 10,000 shapes is building the stroke's item and copying the lists of ids, which
+is linear but cheap.
+
+Opening still builds an item for every shape. Building them only once they come near the
+view would need each item's reach (stroke, hand-drawn wobble, labels and text) before the
+item exists, and would move the cost into the first pans over a dense canvas; it would at
+best halve opening 10,000 shapes, since loading the document and the test host's store
+take as long as building the items.
 
 The test host fits a canvas to its content until the viewer moves it, and `set_view` does
 not count as moving it, so the bench sets its view again before each stroke.
@@ -68,9 +77,12 @@ Time on a shared VM drifts by 10% or more between runs, which hides most single 
 
 Release builds keep frame pointers, so perf walks stacks cheaply and completely. Set up:
 
-    apt-get install -y linux-tools-generic   # perf is /usr/lib/linux-tools-*/perf
+    apt-get install -y linux-tools-generic
     echo -1 > /proc/sys/kernel/perf_event_paranoid
     cargo install rustfilt
+
+The `perf` on the path is a wrapper that refuses a kernel it has no package for ("perf not
+found for kernel"); run the binary it wraps, `/usr/lib/linux-tools-*/perf`, instead.
 
 Record the binary `buck build --out` gave you. VMs have no hardware counters, so perf
 samples the CPU clock:
@@ -78,7 +90,8 @@ samples the CPU clock:
     perf record -F 10000 -g -o perf.data DIR/change [PAGE]
 
 Then either report, matching the mangled name of the function the measured work runs
-under (the open bench's is `release`, kept out of line for this):
+under (the open bench's is `release` and the canvas bench's pen lift is `lift`, kept out of
+line for this):
 
     perf report -i perf.data --no-inline --children --sort symbol --stdio -g none \
         -p 'Bench7release' -x --percent-limit 1 | rustfilt
