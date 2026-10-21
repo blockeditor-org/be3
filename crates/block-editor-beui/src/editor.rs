@@ -1001,8 +1001,12 @@ impl Editor {
     }
 
     pub fn show<P: PresenceKind>(&self, value: Option<&P>) {
+        self.show_in(0, value);
+    }
+
+    pub fn show_in<P: PresenceKind>(&self, slot: u16, value: Option<&P>) {
         let value = value.and_then(|value| serde_json::to_vec(value).ok());
-        self.state().host.show_presence(None, P::ID, value);
+        self.state().host.show_presence(None, P::slot(slot), value);
     }
 
     pub fn peers<P>(&self) -> ReadSignal<Vec<(u64, P)>>
@@ -1021,7 +1025,7 @@ impl Editor {
             seen.set(latest);
             let decoded: Vec<(u64, P)> = held
                 .iter()
-                .filter(|peer| peer.kind == P::ID)
+                .filter(|peer| P::holds(peer.kind))
                 .filter_map(|peer| {
                     serde_json::from_slice(&peer.value)
                         .ok()

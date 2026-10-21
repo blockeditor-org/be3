@@ -1574,7 +1574,11 @@ as `EditorMessage::PeerPresence`. A plugin shows presence with
 `EditorMessage::ShowPresence`, which the host takes from any instance that holds
 the block and may view it, and takes away again when the instance closes. On the
 plugin side that is `editor.show(Some(&value))` and `editor.peers::<P>()`, a
-signal of every peer's value of one `PresenceKind` (`be_block::presence`). The
+signal of every peer's value of one `PresenceKind` (`be_block::presence`). A
+kind that shows something too big to resend whole every frame declares `SLOTS`,
+a run of kind ids after its `ID`; `editor.show_in(slot, value)` shows one of them
+and `peers::<P>()` holds every slot's value, so the canvas sends a stroke being
+drawn in parts and resends only the one that grew. The
 framework shows a `UserActive` value of its own, with a colour picked by
 `pick_free_color` against the colours already showing, whenever the host says the
 block is visible. The text editor's cursors and the canvas's pointers and
