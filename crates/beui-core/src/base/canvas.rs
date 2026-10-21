@@ -563,9 +563,6 @@ impl Document {
     pub fn set_canvas_item_scales(&mut self, item: NodeOf<CanvasItemNode>, scales: bool) {
         if self.arena.get_as::<CanvasItemNode>(item).scales != scales {
             self.arena.get_mut_as::<CanvasItemNode>(item).scales = scales;
-            if let Some(canvas) = self.arena.parent(item.id()) {
-                self.arena.invalidate_node(canvas);
-            }
         }
     }
 
