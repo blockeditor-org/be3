@@ -8,7 +8,7 @@ use text_editor_core::TextBuffer;
 #[test]
 fn a_new_line_typed_into_an_empty_text_area_paints_one_caret() {
     let _root = crate::reactive::RootScope::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {

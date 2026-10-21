@@ -9,7 +9,7 @@ use text_editor_core::{EditorCommand, TextBuffer};
 fn moving_the_caret_builds_no_rows_again() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let text = (0..20)
             .map(|line| format!("line {line} with  spaces"))
             .collect::<Vec<_>>()

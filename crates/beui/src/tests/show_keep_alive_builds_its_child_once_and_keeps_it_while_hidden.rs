@@ -8,7 +8,7 @@ fn show_keep_alive_builds_its_child_once_and_keeps_it_while_hidden() {
     let _root = crate::reactive::RootScope::new();
     let (column, toggle) = (NodeRef::new(), NodeRef::new());
     let builds = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         let visible = create_signal(false);
         view! {
             <List @node_ref=&column spacing=0.0>

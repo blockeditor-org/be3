@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn the_scroll_position_is_reported_to_its_listener() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(None);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset

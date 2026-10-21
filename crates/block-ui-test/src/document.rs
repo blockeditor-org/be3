@@ -164,9 +164,12 @@ impl DocumentTest {
             .output
             .as_ref()
             .expect("the document has not drawn a frame yet");
-        let painting =
-            capture::capture(output, self.size, output.pixels_per_point(), Color32::BLACK)
-                .expect("the painting could not be rendered");
+        let background = self
+            .document
+            .appearance()
+            .map_or(Color32::BLACK, |appearance| appearance.clear_color);
+        let painting = capture::capture(output, self.size, output.pixels_per_point(), background)
+            .expect("the painting could not be rendered");
         snapshot::assert_snapshot(name, &painting);
         overflow::assert_fits(name, overflow::overflows(&self.document));
     }

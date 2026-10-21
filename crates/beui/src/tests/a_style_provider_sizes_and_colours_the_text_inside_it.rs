@@ -8,7 +8,7 @@ use crate::styled::*;
 fn a_style_provider_sizes_and_colours_the_text_inside_it() {
     let _root = crate::reactive::RootScope::new();
     let (inherited, overridden, outside) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=4.0>
                 <TextStyleProvider

@@ -11,7 +11,7 @@ fn holding_the_caret_handle_below_a_short_text_area_keeps_scrolling() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let lines = (1..=40)
             .map(|line| format!("line {line}"))
             .collect::<Vec<_>>()

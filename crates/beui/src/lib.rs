@@ -68,8 +68,8 @@ pub use beui_inspector::install as install_inspector;
 pub use beui_renderer_wgpu::present::{GpuSetup, OpenDevice};
 #[cfg(feature = "render")]
 pub use beui_renderer_wgpu::{
-    Draw, DrawAt, Renderer, Repaint, Repainting, clear_color, drawing, painted_drawing,
-    renderer_info,
+    Draw, DrawAt, Renderer, Repaint, Repainting, drawing, painted_drawing, renderer_info,
+    wgpu_color,
 };
 pub use beui_view::primitives;
 pub use beui_view::{child_type, value_child_type};
@@ -104,9 +104,8 @@ pub mod reactive {
     pub use beui_view::reactive::*;
 
     use beui_core::document::Document;
-    use beui_core::node::NodeId;
 
-    pub fn build(f: impl FnOnce() -> NodeId) -> Document {
+    pub fn build(f: impl FnOnce() -> beui_view::primitives::Root) -> Document {
         let mut document = beui_view::reactive::build(f);
         beui_inspector::install(&mut document);
         beui_components_styled::install_keyboard(&mut document);
@@ -130,8 +129,8 @@ pub fn system_context() -> Context {
 }
 
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
-pub fn run(title: impl Into<String>, app: impl App + 'static) -> Result<(), Box<dyn Error>> {
-    run_with(RunOptions::new(title), app)
+pub fn run(app: impl App + 'static) -> Result<(), Box<dyn Error>> {
+    run_with(RunOptions::default(), app)
 }
 
 #[cfg(test)]

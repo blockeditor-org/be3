@@ -9,7 +9,7 @@ use crate::unstyled::{PanZoomView, Scroll, pan_zoom_view};
 fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(None);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll

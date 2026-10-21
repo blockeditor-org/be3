@@ -7,7 +7,7 @@ fn an_embed_taken_out_of_the_tree_forgets_where_it_was() {
     let _root = crate::reactive::RootScope::new();
     let slot = EmbedSlot::new();
     let shown = create_signal(true);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Dynamic value={shown}>|shown: bool| {

@@ -10,7 +10,7 @@ fn a_turned_child_paints_turned_about_the_middle_of_its_box() {
     const MARK: Color32 = Color32::from_rgb(200, 30, 90);
     let turn = NodeRef::new();
     let quarters = create_signal(1u8);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0 align=Align::Start>
                 <Turn @node_ref=&turn quarter_turns={quarters}>

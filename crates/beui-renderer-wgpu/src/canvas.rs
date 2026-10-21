@@ -7,7 +7,7 @@ use beui_core::geometry::Vec2;
 use beui_core::renderer;
 
 use crate::present::{GpuSetup, surface_format};
-use crate::{Renderer, Repaint, clear_color_in, renderer_info};
+use crate::{Renderer, Repaint, renderer_info, wgpu_color_in};
 
 #[derive(Clone, Debug)]
 struct Display;
@@ -127,7 +127,7 @@ impl CanvasSurface {
             .create_command_encoder(&wgpu::CommandEncoderDescriptor {
                 label: Some("beui encoder"),
             });
-        let clear = clear_color_in(self.config.format, background);
+        let clear = wgpu_color_in(self.config.format, background);
         self.renderer.render(
             &self.device,
             &self.queue,

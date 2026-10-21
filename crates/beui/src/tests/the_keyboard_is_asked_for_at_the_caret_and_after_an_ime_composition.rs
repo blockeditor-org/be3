@@ -7,7 +7,7 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn the_keyboard_is_asked_for_at_the_caret_and_after_an_ime_composition() {
-    let document = build(move || {
+    let document = build_node(move || {
         let document =
             Arc::new(TextBuffer::new(b"hello world")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

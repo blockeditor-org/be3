@@ -7,7 +7,7 @@ use crate::styled::*;
 fn the_menu_of_a_selectable_text_copies_what_is_selected() {
     let _root = crate::reactive::RootScope::new();
     let (first, second, region) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <SelectableText @node_ref=&region>
                 <List spacing=4.0>

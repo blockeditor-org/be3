@@ -10,7 +10,7 @@ fn a_portal_shows_a_subtree_it_does_not_own() {
     let second = create_signal(None);
     let kept = create_signal(true);
     let document = {
-        build(move || {
+        build_node(move || {
             let node = view! {
                 <Frame @node_ref=&held @test_id="held" height=20.0 />
             };

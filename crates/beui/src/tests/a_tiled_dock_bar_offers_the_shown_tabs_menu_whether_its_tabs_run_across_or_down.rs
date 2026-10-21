@@ -26,7 +26,7 @@ fn a_tiled_dock_bar_offers_the_shown_tabs_menu_whether_its_tabs_run_across_or_do
     let _root = crate::reactive::RootScope::new();
     let ran = create_signal(0);
     let dock = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout focus=2u64>

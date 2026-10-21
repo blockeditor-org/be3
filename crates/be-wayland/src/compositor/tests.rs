@@ -206,7 +206,10 @@ impl Harness {
         let document = build(|| {
             let store = Windows::new();
             windows = Some(store);
-            view(store)
+            let content = view(store);
+            view! {
+                <Root>{content}</Root>
+            }
         });
         let mut app = Compositor::new(
             Server::headless().expect("a headless display starts"),

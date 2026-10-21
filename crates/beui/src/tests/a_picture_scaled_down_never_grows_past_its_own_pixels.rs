@@ -6,7 +6,7 @@ use crate::unstyled::Picture;
 
 fn drawn(width: f32, height: f32) -> Rect {
     let image = Image::from_rgba(20, 10, vec![128; 800]);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame width=width height=height>
                 <Picture image={Some(image)} fit=ImageFit::ScaleDown />

@@ -5,7 +5,7 @@ use crate::reactive::*;
 
 #[test]
 fn painting_never_has_to_move_a_rect_onto_the_pixel_grid() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal spacing=3.0>
                 <Frame @sizing=ItemSize::Percent(100.0) fill=Color32::WHITE padding=5.0>

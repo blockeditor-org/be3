@@ -7,7 +7,7 @@ use crate::reactive::*;
 fn a_focused_forwarding_catcher_takes_the_keys_from_the_document() {
     let _root = crate::reactive::RootScope::new();
     let keys = create_signal(Vec::<Event>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>

@@ -9,7 +9,7 @@ use text_editor_core::TextBuffer;
 fn an_ime_composition_pushes_the_text_after_the_caret_along() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let document =
             Arc::new(TextBuffer::new(b"hello world")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);

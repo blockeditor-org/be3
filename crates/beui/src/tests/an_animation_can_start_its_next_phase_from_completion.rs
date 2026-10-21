@@ -5,7 +5,7 @@ use crate::reactive::*;
 fn an_animation_can_start_its_next_phase_from_completion() {
     let _root = RootScope::new();
     let finished = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         let next = create_animation(|_| false, move || finished.update(|n| *n += 1));
         let first = create_animation(
             |_| false,

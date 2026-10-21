@@ -1,6 +1,6 @@
 use beui::{
-    Color32, Document, Event, Key, KeyChord, KeyPress, Modifiers, Pen, PenPhase, PointerButton,
-    Pos2, Rect, TouchId, TouchPhase, Vec2,
+    Document, Event, Key, KeyChord, KeyPress, Modifiers, Pen, PenPhase, PointerButton, Pos2, Rect,
+    TouchId, TouchPhase, Vec2,
 };
 use block_editor_beui::be_block::LiveEdit;
 use block_editor_beui::headless::{Adopted, HeadlessPlugin};
@@ -1379,11 +1379,12 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     fn painted(&mut self) -> snapshot::Snapshot {
+        let behind = beui::styled::DocumentTheme::theme(self.document()).background;
         let output = self
             .output
             .as_ref()
             .expect("the editor has not drawn a frame yet");
-        capture::capture(output, self.size, output.pixels_per_point(), Color32::BLACK)
+        capture::capture(output, self.size, output.pixels_per_point(), behind)
             .expect("the painting could not be rendered")
     }
 }

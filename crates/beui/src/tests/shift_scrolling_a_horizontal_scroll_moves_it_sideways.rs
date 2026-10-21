@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn shift_scrolling_a_horizontal_scroll_moves_it_sideways() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll

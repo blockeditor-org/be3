@@ -7,7 +7,7 @@ use crate::unstyled::ChoiceOption;
 fn a_select_following_its_prop_does_not_report_a_change() {
     let _root = crate::reactive::RootScope::new();
     let changes = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let selected = create_signal(None::<usize>);
         selected.set(Some(1));
         view! {

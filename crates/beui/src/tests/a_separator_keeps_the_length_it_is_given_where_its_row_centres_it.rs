@@ -7,7 +7,7 @@ const LENGTH: f32 = 20.0;
 
 #[test]
 fn a_separator_keeps_the_length_it_is_given_where_its_row_centres_it() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <Separator direction=Direction::Vertical length=LENGTH />

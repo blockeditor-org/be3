@@ -15,9 +15,9 @@ fn the_level_display_shows_on_every_screen() {
             muted: true,
         });
         view! {
-            <Frame fill=ColorRole::Background>
+            <Root>
                 <LevelOsd level={level} shown=1_u64 />
-            </Frame>
+            </Root>
         }
     });
     let mut test = DocumentTest::new(document, Vec2::new(1100.0, 480.0));

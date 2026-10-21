@@ -16,7 +16,7 @@ impl Draw for Blank {
 fn a_redrawn_drawing_damages_only_the_part_it_names() {
     let _root = crate::reactive::RootScope::new();
     let viewport = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame height=50.0 />

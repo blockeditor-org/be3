@@ -5,7 +5,7 @@ use crate::styled::*;
 
 #[test]
 fn a_driver_clicks_a_button_by_its_label_and_hears_what_changed() {
-    let document = build(|| {
+    let document = build_node(|| {
         let added = create_signal(false);
         view! {
             <List spacing=8.0>

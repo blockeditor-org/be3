@@ -12,15 +12,17 @@ fn the_image_viewer_keeps_its_close_button_on_a_narrow_screen() {
         let first = create_memo(|| false);
         let last = create_memo(|| false);
         view! {
-            <ViewerBar
-                position
-                first
-                last
-                on_previous={|| {}}
-                on_next={|| {}}
-                on_browse={|| {}}
-                on_close={|| {}}
-            />
+            <beui::styled::Root>
+                <ViewerBar
+                    position
+                    first
+                    last
+                    on_previous={|| {}}
+                    on_next={|| {}}
+                    on_browse={|| {}}
+                    on_close={|| {}}
+                />
+            </beui::styled::Root>
         }
     });
     let context = Context::new(FreetypeFonts::default());

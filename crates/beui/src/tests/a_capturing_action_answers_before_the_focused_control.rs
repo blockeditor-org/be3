@@ -6,7 +6,7 @@ fn a_capturing_action_answers_before_the_focused_control() {
     let _root = crate::reactive::RootScope::new();
     let heard = create_signal(Vec::new());
     let (control, scoped) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.root.capture", "Root capture", move || {
             heard.update(|heard| heard.push("root capture"))
         })

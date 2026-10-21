@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_frame_keeps_its_size_between_its_min_and_max() {
     let _root = crate::reactive::RootScope::new();
     let (widened, capped) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal align=Align::Start spacing=0.0>
                 <Frame @node_ref=&widened width={Extent::at_least(80.0)}>

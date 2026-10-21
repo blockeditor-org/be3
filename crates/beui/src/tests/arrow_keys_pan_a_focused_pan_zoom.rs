@@ -4,7 +4,7 @@ use crate::unstyled::{PanZoomView, pan_zoom_view};
 
 #[test]
 fn arrow_keys_pan_a_focused_pan_zoom() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <PanZoomStage />
         }

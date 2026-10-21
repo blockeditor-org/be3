@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

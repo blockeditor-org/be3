@@ -8,7 +8,7 @@ fn a_modal_sheet_slides_in_and_out() {
     let _root = crate::reactive::RootScope::new();
     let content = NodeRef::new();
     let open = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />

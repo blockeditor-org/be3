@@ -6,7 +6,7 @@ use crate::unstyled::Scroll;
 
 #[test]
 fn scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <Frame fill=Color32::BLACK radius=0.0>
                 <List spacing=0.0>

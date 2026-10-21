@@ -8,7 +8,7 @@ fn a_dialog_taller_than_the_screen_stays_on_it_and_scrolls() {
     let _root = crate::reactive::RootScope::new();
     let first = NodeRef::new();
     let last = NodeRef::new();
-    let document = build({
+    let document = build_node({
         move || {
             view! {
                 <List spacing=0.0>

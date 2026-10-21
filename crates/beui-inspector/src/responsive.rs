@@ -63,11 +63,13 @@ pub fn build(state: Stored<State>) -> Toolbar {
     let owner = RootScope::new();
     let screen = create_signal(state.value().screen_simulation.get().unwrap_or(DEFAULT));
     let (device, zoom) = (NodeRef::new(), NodeRef::new());
-    let document = beui_view::reactive::build(move || {
+    let mut document = Document::new();
+    let root = enter(&mut document, move || {
         view! {
             <ResponsiveToolbar state screen={screen.read_only()} device zoom />
         }
     });
+    document.set_root(root);
     Toolbar {
         document,
         screen,

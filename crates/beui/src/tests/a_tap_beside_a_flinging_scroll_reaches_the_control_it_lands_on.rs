@@ -8,7 +8,7 @@ fn a_tap_beside_a_flinging_scroll_reaches_the_control_it_lands_on() {
     let _root = crate::reactive::RootScope::new();
     let clicks = create_signal(0);
     let (scroll, beside) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(50.0) @node_ref=&scroll>

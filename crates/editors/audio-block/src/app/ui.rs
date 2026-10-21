@@ -88,42 +88,40 @@ pub fn AudioView(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <Frame fill=ColorRole::Background>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
-                    <List spacing=SPACING>
-                        <Text size=TextSize::Xl4 align=TextAlign::Center>
-                            <Icon glyph={ICON_AUDIO_FILE.to_owned()} />
-                        </Text>
-                        <Text string={source} align=TextAlign::Center />
-                        <IconButton
-                            @sizing={ItemSize::Intrinsic.align(Align::Center)}
-                            glyph={glyph}
-                            label={action}
-                            @test_id={"audio.play"}
-                            on_click={toggle}
-                        />
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
+                <List spacing=SPACING>
+                    <Text size=TextSize::Xl4 align=TextAlign::Center>
+                        <Icon glyph={ICON_AUDIO_FILE.to_owned()} />
+                    </Text>
+                    <Text string={source} align=TextAlign::Center />
+                    <IconButton
+                        @sizing={ItemSize::Intrinsic.align(Align::Center)}
+                        glyph={glyph}
+                        label={action}
+                        @test_id={"audio.play"}
+                        on_click={toggle}
+                    />
+                    <Text
+                        style=TextStyle::CAPTION
+                        string={elapsed}
+                        align=TextAlign::Center
+                        @test_id={"audio.position"}
+                    />
+                    <Show condition={failed}>
                         <Text
                             style=TextStyle::CAPTION
-                            string={elapsed}
+                            string={reason}
                             align=TextAlign::Center
-                            @test_id={"audio.position"}
+                            color=TextColor::Danger
                         />
-                        <Show condition={failed}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string={reason}
-                                align=TextAlign::Center
-                                color=TextColor::Danger
-                            />
-                        </Show>
-                    </List>
-                </Frame>
-                <Sidebar shown={chrome}>
-                    <AudioPanel editor={editor} />
-                </Sidebar>
-            </List>
-        </Frame>
+                    </Show>
+                </List>
+            </Frame>
+            <Sidebar shown={chrome}>
+                <AudioPanel editor={editor} />
+            </Sidebar>
+        </List>
     }
 }
 

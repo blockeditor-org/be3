@@ -106,7 +106,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
     };
 
     view! {
-        <Frame fill=ColorRole::Background padding=PADDING>
+        <Frame padding=PADDING>
             <List spacing=SECTION_SPACING>
                 <Text style=TextStyle::HEADING string="Fields" />
                 <Scroll @sizing=ItemSize::Percent(100.0)>

@@ -7,7 +7,7 @@ fn an_action_placed_at_a_node_answers_only_while_the_focus_is_inside_it() {
     let _root = crate::reactive::RootScope::new();
     let runs = create_signal(0);
     let (inside, outside, area) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.placed", "Placed", move || {
             runs.update(|runs| *runs += 1)
         })

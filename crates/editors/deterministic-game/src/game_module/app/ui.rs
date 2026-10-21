@@ -50,44 +50,38 @@ pub fn ModuleView(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <Frame fill=ColorRole::Background>
-            <List direction=Direction::Horizontal spacing=0.0>
-                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
-                    <List spacing=SPACING>
-                        <Show condition={named}>
-                            <Text
-                                style=TextStyle::HEADING
-                                string={name}
-                                align=TextAlign::Center
-                                @test_id={"game-module.name"}
-                            />
-                        </Show>
-                        <Show condition={failed}>
-                            <Text
-                                style=TextStyle::PARAGRAPH
-                                string={reason}
-                                align=TextAlign::Center
-                                color=TextColor::Danger
-                                @test_id={"game-module.error"}
-                                wrap=true
-                            />
-                        </Show>
-                        <Show condition={waiting}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="Loading…"
-                                align=TextAlign::Center
-                            />
-                        </Show>
-                        <Text string={source} align=TextAlign::Center />
-                        <Text style=TextStyle::CAPTION string={bytes} align=TextAlign::Center />
-                    </List>
-                </Frame>
-                <Sidebar shown={chrome}>
-                    <ModulePanel editor={editor} />
-                </Sidebar>
-            </List>
-        </Frame>
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
+                <List spacing=SPACING>
+                    <Show condition={named}>
+                        <Text
+                            style=TextStyle::HEADING
+                            string={name}
+                            align=TextAlign::Center
+                            @test_id={"game-module.name"}
+                        />
+                    </Show>
+                    <Show condition={failed}>
+                        <Text
+                            style=TextStyle::PARAGRAPH
+                            string={reason}
+                            align=TextAlign::Center
+                            color=TextColor::Danger
+                            @test_id={"game-module.error"}
+                            wrap=true
+                        />
+                    </Show>
+                    <Show condition={waiting}>
+                        <Text style=TextStyle::CAPTION string="Loading…" align=TextAlign::Center />
+                    </Show>
+                    <Text string={source} align=TextAlign::Center />
+                    <Text style=TextStyle::CAPTION string={bytes} align=TextAlign::Center />
+                </List>
+            </Frame>
+            <Sidebar shown={chrome}>
+                <ModulePanel editor={editor} />
+            </Sidebar>
+        </List>
     }
 }
 

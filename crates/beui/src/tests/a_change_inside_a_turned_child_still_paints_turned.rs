@@ -9,7 +9,7 @@ fn a_change_inside_a_turned_child_still_paints_turned() {
     let _root = crate::reactive::RootScope::new();
     const MARK: Color32 = Color32::from_rgb(200, 30, 90);
     let width = create_signal(10.0f32);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0 align=Align::Start>
                 <Turn quarter_turns=1u8>

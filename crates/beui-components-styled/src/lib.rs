@@ -32,6 +32,7 @@ pub mod number_input;
 pub mod popover;
 pub mod progress;
 pub mod responsive_tabs;
+pub mod root;
 pub mod scroll;
 pub mod scrollbar;
 pub mod select;
@@ -64,7 +65,7 @@ pub use beui_components_unstyled::{emoji_completer, search_emoji};
 pub use beui_view::primitives::{
     BackHandler, Canvas, CanvasItem, Drawing, Embed, Fade, Gap, Grid, GridCell, Interactive, Layer,
     Layers, LayoutBuilder, List, Offset, Overlay, PlacementBuilder, Portal, Shift, Spacer,
-    TextItem, Turn, VirtualList,
+    SystemBars, TextItem, Turn, VirtualList,
 };
 pub use border::{Bordered, Separator};
 pub use button::{Button, ButtonVariant};
@@ -97,6 +98,7 @@ pub use number_input::{NumberInput, number_input_field, number_input_text};
 pub use popover::Popover;
 pub use progress::Progress;
 pub use responsive_tabs::{ResponsiveTabs, responsive_tabs_selected};
+pub use root::Root;
 pub use scroll::{Bleed, Scroll};
 pub use scrollbar::Scrollbar;
 pub use select::{Select, select_open, select_selected};

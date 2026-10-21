@@ -74,7 +74,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
     };
 
     view! {
-        <Frame fill=ColorRole::Background padding=PAGE_PADDING>
+        <Frame padding=PAGE_PADDING>
             <List spacing=SECTION_SPACING>
                 <List spacing=6.0>
                     <Text style=TextStyle::HEADING string="Checklist" />

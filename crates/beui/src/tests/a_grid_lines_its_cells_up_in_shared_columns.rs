@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_grid_lines_its_cells_up_in_shared_columns() {
     let _root = crate::reactive::RootScope::new();
     let cells: Vec<NodeRef> = (0..5).map(|_| NodeRef::new()).collect();
-    let document = build({
+    let document = build_node({
         let [label, value, longer, other, wide] =
             <[NodeRef; 5]>::try_from(cells.clone()).unwrap_or_else(|_| unreachable!());
         move || {

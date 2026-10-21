@@ -32,7 +32,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{Receiver, channel};
 
 use beui::reactive::*;
-use beui::{App, Color32, Context, Document, Rect, Setup};
+use beui::{App, Context, Document, Rect, Setup};
 
 use model::Model;
 #[cfg(not(target_os = "android"))]
@@ -45,7 +45,7 @@ use view::Launcher;
 #[cfg(not(target_os = "android"))]
 pub fn run() -> Result<(), Box<dyn Error>> {
     let root = tasks::repository_root()?;
-    beui::run("be3 launcher", LauncherApp::new(root)?)
+    beui::run(LauncherApp::new(root)?)
 }
 
 struct LauncherApp {
@@ -81,9 +81,9 @@ impl LauncherApp {
             let model = model(tasks.clone());
             exported = Some(model);
             view! {
-                <Frame fill=ColorRole::Background>
+                <Root title="be3 launcher">
                     <Launcher model />
-                </Frame>
+                </Root>
             }
         });
         let model = exported.expect("build ran the view");
@@ -118,10 +118,6 @@ impl App for LauncherApp {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.receive();
         self.document.show(context, rect);
-    }
-
-    fn clear_color(&self) -> Color32 {
-        self.document.theme().background
     }
 
     fn exiting(&mut self) {

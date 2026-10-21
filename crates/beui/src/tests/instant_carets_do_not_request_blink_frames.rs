@@ -6,7 +6,7 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn instant_carets_do_not_request_blink_frames() {
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"one")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {

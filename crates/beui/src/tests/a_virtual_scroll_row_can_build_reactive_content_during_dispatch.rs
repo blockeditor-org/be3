@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
     let _root = crate::reactive::RootScope::new();
     let list = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0)>

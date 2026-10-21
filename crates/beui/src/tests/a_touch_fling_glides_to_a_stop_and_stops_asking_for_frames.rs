@@ -7,7 +7,7 @@ use crate::unstyled::Scroll;
 fn a_touch_fling_glides_to_a_stop_and_stops_asking_for_frames() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

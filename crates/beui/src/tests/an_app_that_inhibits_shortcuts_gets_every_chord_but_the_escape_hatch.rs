@@ -10,7 +10,7 @@ fn an_app_that_inhibits_shortcuts_gets_every_chord_but_the_escape_hatch() {
     let forwarded = create_signal(Vec::<Key>::new());
     let ran = create_signal(Vec::new());
     let setter = create_signal::<Option<Signal<bool>>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.intercepting", "Intercepting", move || {
             ran.update(|ran| ran.push("intercepting"))
         })

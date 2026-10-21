@@ -10,7 +10,7 @@ fn a_scroll_keeps_the_pointer_off_the_part_of_a_row_it_clips() {
     let hovers = create_signal::<Vec<bool>>(Vec::new());
     let clicks = create_signal(0);
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame height=100.0 />

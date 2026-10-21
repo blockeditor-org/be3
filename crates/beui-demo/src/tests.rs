@@ -253,7 +253,7 @@ fn level_display() -> DocumentTest {
             muted: false,
         });
         view! {
-            <Frame fill=ColorRole::Background>
+            <Root>
                 <List spacing=0.0>
                     <Button
                         @test_id={"test.show"}
@@ -263,7 +263,7 @@ fn level_display() -> DocumentTest {
                     />
                     <LevelOsd level={level} shown={shown} />
                 </List>
-            </Frame>
+            </Root>
         }
     });
     DocumentTest::new(document, Vec2::new(1100.0, 480.0))

@@ -8,7 +8,7 @@ use crate::unstyled::Scroll;
 fn a_placement_built_inside_a_scroll_follows_it_without_laying_its_content_out_again() {
     let _root = crate::reactive::RootScope::new();
     let seen = create_signal(Rect::NOTHING);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame height=200.0>

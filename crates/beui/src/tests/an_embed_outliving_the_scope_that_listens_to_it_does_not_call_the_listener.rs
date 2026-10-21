@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn an_embed_outliving_the_scope_that_listens_to_it_does_not_call_the_listener() {
     let _root = crate::reactive::RootScope::new();
     let shown = create_signal(true);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Dynamic value={shown}>|shown: bool| {

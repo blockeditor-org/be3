@@ -9,7 +9,7 @@ use crate::unstyled::PopoverHandle;
 fn a_popover_panel_stops_at_its_max_width_rather_than_spanning_the_window() {
     let _root = crate::reactive::RootScope::new();
     let content = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Popover label="Filters">|_: PopoverHandle|

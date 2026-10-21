@@ -8,7 +8,7 @@ use crate::reactive::*;
 fn an_overlay_too_tall_for_either_side_of_its_anchor_fills_the_roomier_side() {
     let _root = crate::reactive::RootScope::new();
     let overlay = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame>
                 <Overlay

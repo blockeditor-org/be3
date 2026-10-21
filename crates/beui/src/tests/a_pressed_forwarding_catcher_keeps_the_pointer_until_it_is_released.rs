@@ -7,7 +7,7 @@ use crate::reactive::*;
 fn a_pressed_forwarding_catcher_keeps_the_pointer_until_it_is_released() {
     let _root = crate::reactive::RootScope::new();
     let log = create_signal(Vec::<Event>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>

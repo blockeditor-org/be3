@@ -13,7 +13,7 @@ struct Held {
 fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<Held>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let shown = create_signal(true);
         held.update(|held| {
             *held = Some(Held {

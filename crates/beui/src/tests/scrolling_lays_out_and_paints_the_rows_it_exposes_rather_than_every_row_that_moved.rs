@@ -9,7 +9,7 @@ const LABELS: usize = 6;
 
 #[test]
 fn scrolling_lays_out_and_paints_the_rows_it_exposes_rather_than_every_row_that_moved() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List spacing=0.0>
                 <Frame height=200.0>

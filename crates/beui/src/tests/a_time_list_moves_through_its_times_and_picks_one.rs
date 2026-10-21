@@ -8,7 +8,7 @@ use crate::unstyled::{TimeList, TimeOptionHandle};
 fn a_time_list_moves_through_its_times_and_picks_one() {
     let _root = crate::reactive::RootScope::new();
     let picked = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <List @sizing=ItemSize::Fixed(200.0) spacing=0.0>

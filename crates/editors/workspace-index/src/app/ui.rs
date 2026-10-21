@@ -136,89 +136,87 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
         _ => theme.danger.get(),
     });
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
-                <Toolbar shown={chrome}>
-                    <Select
-                        options={view! {
-                            <ChoiceOption label={FolderView::LargeGrid.label()} />
-                            <ChoiceOption label={FolderView::SmallGrid.label()} />
-                            <ChoiceOption label={FolderView::List.label()} />
-                        }}
-                        selected={Binding::new(mode_index, move |chosen: Option<usize>| {
-                            if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
-                            {
-                                mode.set(*shown);
+        <List spacing=0.0>
+            <Toolbar shown={chrome}>
+                <Select
+                    options={view! {
+                        <ChoiceOption label={FolderView::LargeGrid.label()} />
+                        <ChoiceOption label={FolderView::SmallGrid.label()} />
+                        <ChoiceOption label={FolderView::List.label()} />
+                    }}
+                    selected={Binding::new(mode_index, move |chosen: Option<usize>| {
+                        if let Some(shown) = chosen.and_then(|index| FolderView::ALL.get(index))
+                        {
+                            mode.set(*shown);
+                        }
+                    })}
+                    label="Layout"
+                    @test_id={"folder.view"}
+                />
+                <Select
+                    options={view! {
+                        <ChoiceOption label={FolderSort::Intrinsic.label()} />
+                        <ChoiceOption label={FolderSort::Name.label()} />
+                        <ChoiceOption label={FolderSort::Type.label()} />
+                    }}
+                    selected={Binding::new(sort_index, move |chosen: Option<usize>| {
+                        if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
+                        {
+                            sort.set(*order);
+                        }
+                    })}
+                    label="Sort"
+                    @test_id={"folder.sort"}
+                />
+                <IconButton
+                    glyph={direction_glyph}
+                    label={direction_label}
+                    disabled={unordered}
+                    @test_id={"folder.direction"}
+                    on_click={flip}
+                />
+            </Toolbar>
+            <Frame
+                @sizing=ItemSize::Percent(100.0)
+                @node_ref={&content}
+                border={create_memo(move || hovering.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(DROP_OUTLINE)))}
+                padding=PADDING
+            >
+                <List spacing=0.0>
+                    <Show condition={empty}>
+                        <Text
+                            style=TextStyle::CAPTION
+                            string="This folder is empty."
+                            align=TextAlign::Center
+                            @test_id={"folder.empty"}
+                        />
+                    </Show>
+                    <Scroll @sizing=ItemSize::Percent(100.0)>
+                        <Dynamic value={mode}>|shown: FolderView| {
+                            match shown {
+                                FolderView::List => view! {
+                                    <EntryRows cells={cells} />
+                                },
+                                FolderView::LargeGrid => view! {
+                                    <EntryTiles
+                                        cells={cells}
+                                        tile=LARGE_TILE
+                                        icon_size=LARGE_ICON
+                                    />
+                                },
+                                FolderView::SmallGrid => view! {
+                                    <EntryTiles
+                                        cells={cells}
+                                        tile=SMALL_TILE
+                                        icon_size=SMALL_ICON
+                                    />
+                                },
                             }
-                        })}
-                        label="Layout"
-                        @test_id={"folder.view"}
-                    />
-                    <Select
-                        options={view! {
-                            <ChoiceOption label={FolderSort::Intrinsic.label()} />
-                            <ChoiceOption label={FolderSort::Name.label()} />
-                            <ChoiceOption label={FolderSort::Type.label()} />
-                        }}
-                        selected={Binding::new(sort_index, move |chosen: Option<usize>| {
-                            if let Some(order) = chosen.and_then(|index| FolderSort::ALL.get(index))
-                            {
-                                sort.set(*order);
-                            }
-                        })}
-                        label="Sort"
-                        @test_id={"folder.sort"}
-                    />
-                    <IconButton
-                        glyph={direction_glyph}
-                        label={direction_label}
-                        disabled={unordered}
-                        @test_id={"folder.direction"}
-                        on_click={flip}
-                    />
-                </Toolbar>
-                <Frame
-                    @sizing=ItemSize::Percent(100.0)
-                    @node_ref={&content}
-                    border={create_memo(move || hovering.get().then(|| Border::new(ColorRole::Custom(outline.get())).width(DROP_OUTLINE)))}
-                    padding=PADDING
-                >
-                    <List spacing=0.0>
-                        <Show condition={empty}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="This folder is empty."
-                                align=TextAlign::Center
-                                @test_id={"folder.empty"}
-                            />
-                        </Show>
-                        <Scroll @sizing=ItemSize::Percent(100.0)>
-                            <Dynamic value={mode}>|shown: FolderView| {
-                                match shown {
-                                    FolderView::List => view! {
-                                        <EntryRows cells={cells} />
-                                    },
-                                    FolderView::LargeGrid => view! {
-                                        <EntryTiles
-                                            cells={cells}
-                                            tile=LARGE_TILE
-                                            icon_size=LARGE_ICON
-                                        />
-                                    },
-                                    FolderView::SmallGrid => view! {
-                                        <EntryTiles
-                                            cells={cells}
-                                            tile=SMALL_TILE
-                                            icon_size=SMALL_ICON
-                                        />
-                                    },
-                                }
-                            }</Dynamic>
-                        </Scroll>
-                    </List>
-                </Frame>
-            </List>
-        </Frame>
+                        }</Dynamic>
+                    </Scroll>
+                </List>
+            </Frame>
+        </List>
     }
 }
 

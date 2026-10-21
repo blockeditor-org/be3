@@ -12,7 +12,7 @@ fn a_centred_dialog_opens_on_the_screen_it_was_opened_from() {
     let right = Rect::from_min_size(pos2(700.0, 0.0), vec2(500.0, 400.0));
     let open = create_signal(false);
     let body = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <List direction=Direction::Horizontal justify=Justify::SpaceBetween spacing=0.0>

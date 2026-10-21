@@ -9,7 +9,7 @@ use crate::unstyled::Scroll;
 fn touch_dragging_a_horizontal_scroll_moves_it_sideways() {
     let _root = crate::reactive::RootScope::new();
     let clicks = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll

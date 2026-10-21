@@ -10,7 +10,7 @@ fn an_embed_in_a_tab_no_longer_shown_forgets_where_it_was() {
     let second = EmbedSlot::new();
     let slots = (first, second);
     let layout = DockingLayout::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let (first, second) = slots;
         view! {
             <styled::Docking layout focus=1u64>

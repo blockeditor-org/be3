@@ -292,6 +292,34 @@ pub struct DemoApp {
 #[derive(Clone, Copy)]
 struct Today(Date);
 
+const WINDOW_BACKGROUNDS: [ColorRole; 3] = [
+    ColorRole::Background,
+    ColorRole::Surface,
+    ColorRole::SurfaceRaised,
+];
+
+#[derive(Clone, Copy)]
+struct DemoWindow {
+    title: Signal<String>,
+    background: Signal<Option<usize>>,
+}
+
+impl DemoWindow {
+    fn provide() -> Self {
+        let window = Self {
+            title: create_signal("beui demo".to_owned()),
+            background: create_signal(Some(0)),
+        };
+        provide_context(window);
+        window
+    }
+
+    fn clear_color(self) -> Memo<ColorRole> {
+        let background = self.background;
+        create_memo(move || WINDOW_BACKGROUNDS[background.get().unwrap_or_default()])
+    }
+}
+
 impl Default for DemoApp {
     fn default() -> Self {
         Self::new()
@@ -307,8 +335,11 @@ impl DemoApp {
         Self {
             document: build(move || {
                 provide_context(Today(today));
+                let window = DemoWindow::provide();
                 view! {
-                    <Demo />
+                    <Root title={window.title} clear_color={window.clear_color()}>
+                        <Demo />
+                    </Root>
                 }
             }),
         }
@@ -330,10 +361,13 @@ impl DemoApp {
         Self {
             document: build(move || {
                 provide_context(Today(today));
+                let window = DemoWindow::provide();
                 view! {
-                    <Container>|_|
-                        <LonePage page />
-                    </Container>
+                    <Root title={window.title} clear_color={window.clear_color()}>
+                        <Container>|_|
+                            <LonePage page />
+                        </Container>
+                    </Root>
                 }
             }),
         }
@@ -344,19 +378,13 @@ impl DemoApp {
 #[component]
 fn LonePage(page: Page) -> NodeId {
     view! {
-        <Frame fill=ColorRole::Background>
-            <PageView page />
-        </Frame>
+        <PageView page />
     }
 }
 
 impl beui::App for DemoApp {
     fn update(&mut self, context: &Context, rect: Rect) {
         self.document.show(context, rect);
-    }
-
-    fn clear_color(&self) -> Color32 {
-        self.document.theme().background
     }
 }
 
@@ -600,58 +628,56 @@ fn DemoShell() -> NodeId {
     provide_context(dialogs);
     let attached = dialogs.open;
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
-                <Frame padding=SHELL_PADDING>
-                    <DemoToolbar pages mobile />
-                </Frame>
-                <Separator />
-                <Docking @sizing=ItemSize::Percent(100.0) layout mode drag_modifier>
-                    <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
-                        <DockPane id="catalog">
-                            <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>
-                                <CatalogPanel pages active={active} />
+        <List spacing=0.0>
+            <Frame padding=SHELL_PADDING>
+                <DemoToolbar pages mobile />
+            </Frame>
+            <Separator />
+            <Docking @sizing=ItemSize::Percent(100.0) layout mode drag_modifier>
+                <DockSplit id="shell" fraction={1.0 - PAGE_SHARE}>
+                    <DockPane id="catalog">
+                        <DockTab id=CATALOG title="Components" icon=ICON_WIDGETS>
+                            <CatalogPanel pages active={active} />
+                        </DockTab>
+                    </DockPane>
+                    <DockPane
+                        id="pages"
+                        empty={move || view! {
+                            <EmptyPanel />
+                        }}
+                    >
+                        <ForEach keys={open}>|page: Page|
+                            <DockTab
+                                id={page.tab()}
+                                title={page.title()}
+                                icon={page.icon()}
+                                on_close={move || pages.close(page)}
+                            >
+                                <Container>|_|
+                                    <PageView page />
+                                </Container>
                             </DockTab>
-                        </DockPane>
-                        <DockPane
-                            id="pages"
-                            empty={move || view! {
-                                <EmptyPanel />
-                            }}
-                        >
-                            <ForEach keys={open}>|page: Page|
-                                <DockTab
-                                    id={page.tab()}
-                                    title={page.title()}
-                                    icon={page.icon()}
-                                    on_close={move || pages.close(page)}
-                                >
-                                    <Container>|_|
-                                        <PageView page />
-                                    </Container>
-                                </DockTab>
-                            </ForEach>
-                        </DockPane>
-                    </DockSplit>
-                    <ForEach keys={attached}>|dialog: DemoDialog|
-                        <DockDialog
-                            id={dialog.id}
-                            parent={dialog.parent}
-                            modal={dialog.modal}
-                            presentation={dialog.presentation()}
-                            anchor={dialog.anchor()}
-                            dismiss_on_outside_press={dialog.card}
-                            title={dialog.title()}
-                            icon=ICON_OPEN_IN_NEW
-                            size={dialog.size()}
-                            on_close={move || dialogs.close(dialog.id)}
-                        >
-                            <DemoDialogBody dialog />
-                        </DockDialog>
-                    </ForEach>
-                </Docking>
-            </List>
-        </Frame>
+                        </ForEach>
+                    </DockPane>
+                </DockSplit>
+                <ForEach keys={attached}>|dialog: DemoDialog|
+                    <DockDialog
+                        id={dialog.id}
+                        parent={dialog.parent}
+                        modal={dialog.modal}
+                        presentation={dialog.presentation()}
+                        anchor={dialog.anchor()}
+                        dismiss_on_outside_press={dialog.card}
+                        title={dialog.title()}
+                        icon=ICON_OPEN_IN_NEW
+                        size={dialog.size()}
+                        on_close={move || dialogs.close(dialog.id)}
+                    >
+                        <DemoDialogBody dialog />
+                    </DockDialog>
+                </ForEach>
+            </Docking>
+        </List>
     }
 }
 

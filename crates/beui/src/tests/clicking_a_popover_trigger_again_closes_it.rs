@@ -8,7 +8,7 @@ use crate::unstyled::PopoverHandle;
 fn clicking_a_popover_trigger_again_closes_it() {
     let _root = crate::reactive::RootScope::new();
     let popover = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Popover @node_ref=&popover label="Filters">|_: PopoverHandle|
                 <Text string="inside" />

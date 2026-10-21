@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn recolouring_a_nested_frame_repaints_it_alone() {
     let _root = crate::reactive::RootScope::new();
     let (outer, inner) = (NodeRef::new(), NodeRef::new());
-    let mut document = build(move || {
+    let mut document = build_node(move || {
         view! {
             <Frame @node_ref=&outer fill=Color32::WHITE radius=0.0 padding=20.0>
                 <Frame @node_ref=&inner height=40.0 fill={Color32::from_gray(40)} radius=0.0 />

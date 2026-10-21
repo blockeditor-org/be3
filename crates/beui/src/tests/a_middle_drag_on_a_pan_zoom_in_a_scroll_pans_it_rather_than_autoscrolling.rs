@@ -6,7 +6,7 @@ use crate::unstyled::{PanZoomView, Scroll, pan_zoom_view};
 
 #[test]
 fn a_middle_drag_on_a_pan_zoom_in_a_scroll_pans_it_rather_than_autoscrolling() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0)>

@@ -16,7 +16,7 @@ fn lefts(heard: ReadSignal<Vec<Forwarded>>) -> usize {
 fn a_forwarding_catcher_hears_the_pointer_leave_once_no_press_holds_it() {
     let _root = crate::reactive::RootScope::new();
     let heard = create_signal(Vec::<Forwarded>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=100.0 height=100.0>

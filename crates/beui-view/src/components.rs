@@ -12,6 +12,7 @@ pub mod list;
 pub mod offset;
 pub mod overlay;
 pub mod portal;
+pub mod root;
 pub mod shift;
 pub mod text;
 pub mod turn;

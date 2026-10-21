@@ -9,7 +9,7 @@ fn view_attributes_can_pun_a_bare_name_as_its_own_value() {
     let _root = crate::reactive::RootScope::new();
     let column = NodeRef::new();
     let label = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let string = PUNNED.to_string();
         let font_size = 18.0f32;
         let spacing = 0.0f32;

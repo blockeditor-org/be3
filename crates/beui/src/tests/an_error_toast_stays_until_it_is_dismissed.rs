@@ -10,7 +10,7 @@ fn an_error_toast_stays_until_it_is_dismissed() {
         danger,
         ..Toast::default()
     };
-    let document = build(move || {
+    let document = build_node(move || {
         let area = NodeRef::new();
         let toasts = create_signal(vec![toast(1, true), toast(2, false)]);
         view! {

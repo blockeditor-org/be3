@@ -1,3 +1,4 @@
+use super::build_node;
 use crate::reactive::*;
 use crate::styled::*;
 use crate::unstyled::narrower_than;
@@ -8,7 +9,7 @@ use crate::unstyled::narrower_than;
 )]
 fn narrower_than_with_no_container_above_it_panics() {
     let _root = crate::reactive::RootScope::new();
-    build(move || {
+    build_node(move || {
         let _narrow = narrower_than(300.0);
         view! {
             <Spacer />

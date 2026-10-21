@@ -54,7 +54,7 @@ impl App for Rejecting {
 #[test]
 fn the_window_is_shown_the_ime_again_after_typing_into_it() {
     let mut runner = Runner::new(Launch {
-        options: RunOptions::new("runner"),
+        options: RunOptions::default(),
         context: context(),
         app: Box::new(Rejecting),
     });

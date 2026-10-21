@@ -7,7 +7,7 @@ use crate::unstyled::{Scroll, scroll_animating};
 fn releasing_a_middle_drag_ends_autoscroll() {
     let _root = crate::reactive::RootScope::new();
     let scroll = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

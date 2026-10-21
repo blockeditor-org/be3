@@ -187,106 +187,104 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         landing.set(landed);
     });
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
-                <Toolbar shown={toolbar}>
-                    <IconButton
-                        glyph={ICON_WORKSPACES.to_owned()}
-                        label="New workspace"
-                        @test_id={"file-tree.new-workspace"}
-                        on_click={new_workspace}
-                    />
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <IconButton
-                        @node_ref={&desktop_menu}
-                        glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
-                        label="Account and settings"
-                        @test_id={"file-tree.desktop-app-menu"}
-                        on_click={app_menu(desktop_menu)}
-                    />
-                </Toolbar>
-                <Show condition={titled}>
-                    <PhoneTitle
-                        on_new_workspace={new_workspace}
-                        menu_button={phone_menu}
-                        on_menu={app_menu(phone_menu)}
-                    />
-                </Show>
-                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <BackSlide enabled={swipes} on_back={move || zoom.up()}>
-                        <Frame fill=ColorRole::Background>
-                            <List spacing=0.0>
-                                <Show condition={zoomed}>
-                                    <ZoomBar zoom addable new_button on_new={adding} />
-                                </Show>
-                                <Show condition={failed}>
-                                    <Frame padding=PADDING>
-                                        <Text
-                                            style=TextStyle::CAPTION
-                                            string={reason}
-                                            color=TextColor::Danger
-                                        />
-                                    </Frame>
-                                </Show>
-                                <Show condition={empty}>
-                                    <Frame padding=PADDING @test_id={"file-tree.empty"}>
-                                        <Text style=TextStyle::CAPTION string="Nothing here yet" />
-                                    </Frame>
-                                </Show>
-                                <Tree
-                                    @sizing=ItemSize::Percent(100.0)
-                                    @node_ref={&tree_ref}
-                                    keys={keys}
-                                    item={item}
-                                    selected={focused}
-                                    ancestors={move |key: RowKey| ancestors(&key)}
-                                    spacing=2.0
-                                    padding=PADDING
-                                    row_test_id={move |key: RowKey| row_test_id(&key)}
-                                    reveal_test_id={"file-tree.reveal".to_owned()}
-                                    outline={outline}
-                                    menu={move |key: RowKey| view! {
-                                        <RowMenu tools key />
-                                    }}
-                                    editing={renaming.editing()}
-                                    on_select={open}
-                                    on_expand={expand}
-                                    on_reveal={reveal}
-                                    on_drag_start={start}
-                                    on_edit={move |key: RowKey| renaming.start(key)}
-                                    on_rename={move |(key, name): (RowKey, String)| renaming.rename(&key, &name)}
-                                    on_cancel_edit={move |key: RowKey| renaming.finish(&key)}
-                                >|face: TreeRowFace<RowKey>| {
-                                    let row = tree.row(face.key.clone());
-                                    let workspace = row.get_untracked().is_some_and(|row| {
-                                        row.section && is_workspace(row.block_type)
-                                    });
-                                    if workspace {
-                                        return view! {
-                                            <SectionRow
-                                                editor={editor}
-                                                picker={picker}
-                                                row={row}
-                                                face={face}
-                                            />
-                                        };
-                                    }
-                                    view! {
-                                        <TreeRow
+        <List spacing=0.0>
+            <Toolbar shown={toolbar}>
+                <IconButton
+                    glyph={ICON_WORKSPACES.to_owned()}
+                    label="New workspace"
+                    @test_id={"file-tree.new-workspace"}
+                    on_click={new_workspace}
+                />
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <IconButton
+                    @node_ref={&desktop_menu}
+                    glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
+                    label="Account and settings"
+                    @test_id={"file-tree.desktop-app-menu"}
+                    on_click={app_menu(desktop_menu)}
+                />
+            </Toolbar>
+            <Show condition={titled}>
+                <PhoneTitle
+                    on_new_workspace={new_workspace}
+                    menu_button={phone_menu}
+                    on_menu={app_menu(phone_menu)}
+                />
+            </Show>
+            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
+                <BackSlide enabled={swipes} on_back={move || zoom.up()}>
+                    <Frame fill=ColorRole::Background>
+                        <List spacing=0.0>
+                            <Show condition={zoomed}>
+                                <ZoomBar zoom addable new_button on_new={adding} />
+                            </Show>
+                            <Show condition={failed}>
+                                <Frame padding=PADDING>
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        string={reason}
+                                        color=TextColor::Danger
+                                    />
+                                </Frame>
+                            </Show>
+                            <Show condition={empty}>
+                                <Frame padding=PADDING @test_id={"file-tree.empty"}>
+                                    <Text style=TextStyle::CAPTION string="Nothing here yet" />
+                                </Frame>
+                            </Show>
+                            <Tree
+                                @sizing=ItemSize::Percent(100.0)
+                                @node_ref={&tree_ref}
+                                keys={keys}
+                                item={item}
+                                selected={focused}
+                                ancestors={move |key: RowKey| ancestors(&key)}
+                                spacing=2.0
+                                padding=PADDING
+                                row_test_id={move |key: RowKey| row_test_id(&key)}
+                                reveal_test_id={"file-tree.reveal".to_owned()}
+                                outline={outline}
+                                menu={move |key: RowKey| view! {
+                                    <RowMenu tools key />
+                                }}
+                                editing={renaming.editing()}
+                                on_select={open}
+                                on_expand={expand}
+                                on_reveal={reveal}
+                                on_drag_start={start}
+                                on_edit={move |key: RowKey| renaming.start(key)}
+                                on_rename={move |(key, name): (RowKey, String)| renaming.rename(&key, &name)}
+                                on_cancel_edit={move |key: RowKey| renaming.finish(&key)}
+                            >|face: TreeRowFace<RowKey>| {
+                                let row = tree.row(face.key.clone());
+                                let workspace = row.get_untracked().is_some_and(|row| {
+                                    row.section && is_workspace(row.block_type)
+                                });
+                                if workspace {
+                                    return view! {
+                                        <SectionRow
                                             editor={editor}
                                             picker={picker}
                                             row={row}
                                             face={face}
                                         />
-                                    }
-                                }</Tree>
-                            </List>
-                        </Frame>
-                    </BackSlide>
-                </Frame>
-                <Inspector inspecting={inspecting} />
-            </List>
-        </Frame>
+                                    };
+                                }
+                                view! {
+                                    <TreeRow
+                                        editor={editor}
+                                        picker={picker}
+                                        row={row}
+                                        face={face}
+                                    />
+                                }
+                            }</Tree>
+                        </List>
+                    </Frame>
+                </BackSlide>
+            </Frame>
+            <Inspector inspecting={inspecting} />
+        </List>
     }
 }
 

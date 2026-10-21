@@ -4,7 +4,7 @@ use crate::styled::*;
 
 #[test]
 fn a_driver_pastes_the_headless_clipboard_with_ctrl_v() {
-    let document = build(|| {
+    let document = build_node(|| {
         let text = create_signal(String::new());
         view! {
             <TextInput @test_id={"field"} value={text} />

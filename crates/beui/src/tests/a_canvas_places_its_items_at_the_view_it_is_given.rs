@@ -7,7 +7,7 @@ fn a_canvas_places_its_items_at_the_view_it_is_given() {
     let _root = crate::reactive::RootScope::new();
     let items = create_signal(Vec::new());
 
-    let document = build(move || {
+    let document = build_node(move || {
         let canvas = view! {
             <Canvas view={Some(CanvasView::new(pos2(50.0, 20.0), 2.0))}>
                 <CanvasItem x=0.0 y=0.0 width=10.0 height=10.0 />

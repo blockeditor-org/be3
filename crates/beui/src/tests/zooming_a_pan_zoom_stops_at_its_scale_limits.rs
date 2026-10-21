@@ -4,7 +4,7 @@ use crate::unstyled::{MAX_SCALE, MIN_SCALE, pan_zoom_view};
 
 #[test]
 fn zooming_a_pan_zoom_stops_at_its_scale_limits() {
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <PanZoomStage />
         }

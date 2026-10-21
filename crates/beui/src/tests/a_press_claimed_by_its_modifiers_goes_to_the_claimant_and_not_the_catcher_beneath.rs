@@ -16,7 +16,7 @@ fn a_press_claimed_by_its_modifiers_goes_to_the_claimant_and_not_the_catcher_ben
     let _root = crate::reactive::RootScope::new();
     let child = create_signal(Vec::<Event>::new());
     let parent = create_signal(Vec::<Event>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Canvas>
                 <CanvasItem x=0.0 y=0.0 width=100.0 height=200.0>

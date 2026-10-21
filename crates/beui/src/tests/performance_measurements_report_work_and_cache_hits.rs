@@ -4,7 +4,7 @@ use crate::reactive::*;
 
 #[test]
 fn performance_measurements_report_work_and_cache_hits() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <Frame fill=Color32::WHITE radius=0.0 />
         }

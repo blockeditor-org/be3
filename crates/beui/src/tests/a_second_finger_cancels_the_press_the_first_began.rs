@@ -7,7 +7,7 @@ fn a_second_finger_cancels_the_press_the_first_began() {
     let _root = crate::reactive::RootScope::new();
     let cancelled = create_signal(0);
     let clicked = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Interactive
                 on_cancel={move || cancelled.update(|cancelled| *cancelled += 1)}

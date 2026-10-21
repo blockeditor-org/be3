@@ -72,7 +72,7 @@ impl App for Showing {
 #[test]
 fn an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn() {
     let _root = crate::reactive::RootScope::new();
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <Text string="Shown" color=Color32::WHITE />
         }
@@ -81,8 +81,10 @@ fn an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn() {
     let seen = Rc::new(Cell::new(Vec::new()));
     let drawing = Rc::new(Cell::new(3));
     let inbox = beui_core::app::automation::Inbox::default();
-    let mut options = RunOptions::new("runner");
-    options.automation = Some(inbox.clone());
+    let options = RunOptions {
+        automation: Some(inbox.clone()),
+        ..Default::default()
+    };
     let mut runner = Runner::new(Launch {
         options,
         context: context(),

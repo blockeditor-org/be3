@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_click_handler_can_mutate_the_tree_in_the_current_frame() {
     let _root = crate::reactive::RootScope::new();
     let button = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <LabelledButton
                 @node_ref=&button

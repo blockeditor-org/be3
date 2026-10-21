@@ -97,7 +97,7 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
         edited.edit_settings(artifact.encode());
     };
     view! {
-        <Frame fill=ColorRole::Background padding=SETTINGS_PADDING>
+        <Frame padding=SETTINGS_PADDING>
             <List spacing=SETTINGS_SPACING>
                 <Show condition={readable}>
                     <Checkbox

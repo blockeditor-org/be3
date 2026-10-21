@@ -8,7 +8,7 @@ use crate::styled::*;
 fn a_wheel_turned_before_the_pointer_moves_on_scrolls_what_it_was_over() {
     let _root = crate::reactive::RootScope::new();
     let (left, right) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Scroll @sizing=ItemSize::Percent(50.0)>

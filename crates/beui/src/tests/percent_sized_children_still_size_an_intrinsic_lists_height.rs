@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn percent_sized_children_still_size_an_intrinsic_lists_height() {
     let _root = crate::reactive::RootScope::new();
     let row = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <List @node_ref=&row direction=Direction::Horizontal spacing=0.0>

@@ -59,7 +59,7 @@ fn a_runner_whose_app_panics_lets_the_app_exit_and_reports_why() {
     let _root = crate::reactive::RootScope::new();
     let log = create_signal(Vec::new());
     let mut runner = Runner::new(Launch {
-        options: RunOptions::new("runner"),
+        options: RunOptions::default(),
         context: context(),
         app: Box::new(Failing { log, frames: 0 }),
     });

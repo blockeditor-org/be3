@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_touch_beside_a_control_reaches_the_nearest_one() {
     let _root = crate::reactive::RootScope::new();
     let clicks = create_signal::<Vec<&'static str>>(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Frame padding=40.0>
                 <List direction=Direction::Horizontal spacing=10.0>

@@ -8,7 +8,7 @@ use crate::unstyled::{Tooltip, TooltipHandle};
 
 #[test]
 fn removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint() {
-    let document = build(|| {
+    let document = build_node(|| {
         let rows = create_signal(vec![1i64]);
         view! {
             <List spacing=0.0>

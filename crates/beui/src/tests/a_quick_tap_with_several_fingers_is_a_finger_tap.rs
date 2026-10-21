@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn a_quick_tap_with_several_fingers_is_a_finger_tap() {
     let _root = crate::reactive::RootScope::new();
     let taps = create_signal::<Vec<usize>>(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         on_finger_tap(move |fingers: usize| {
             taps.update(|taps| taps.push(fingers));
             true

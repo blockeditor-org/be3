@@ -7,7 +7,7 @@ use crate::unstyled::BackSlide;
 fn instant_back_slides_complete_without_waiting_for_frames() {
     let _root = RootScope::new();
     let backs = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <BackSlide on_back={move || backs.update(|n| *n += 1)}>
                 <Frame height=20.0 />

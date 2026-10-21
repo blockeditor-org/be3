@@ -7,7 +7,7 @@ fn a_scrolled_sheet_can_be_lowered_by_its_handle_or_backdrop() {
     let _root = RootScope::new();
     let sheet = NodeRef::new();
     let closed = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <ModalSheet
                 @node_ref=&sheet

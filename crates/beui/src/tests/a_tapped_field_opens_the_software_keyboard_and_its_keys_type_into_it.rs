@@ -8,7 +8,7 @@ use crate::unstyled::software_keyboard::{Layer, Value};
 fn a_tapped_field_opens_the_software_keyboard_and_its_keys_type_into_it() {
     let typed = Rc::new(RefCell::new(String::new()));
     let seen = Rc::clone(&typed);
-    let document = build(move || {
+    let document = build_node(move || {
         let name = create_signal(String::new());
         view! {
             <TextInput

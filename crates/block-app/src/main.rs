@@ -87,13 +87,12 @@ pub(crate) fn build() -> &'static str {
 }
 
 fn run_options() -> beui::RunOptions {
-    let mut options = beui::RunOptions::new("Block");
-    #[cfg(not(target_arch = "wasm32"))]
-    {
-        options.app_id = Some(app_id().to_owned());
+    beui::RunOptions {
+        #[cfg(not(target_arch = "wasm32"))]
+        app_id: Some(app_id().to_owned()),
+        size: beui::vec2(1100.0, 720.0),
+        ..Default::default()
     }
-    options.size = beui::vec2(1100.0, 720.0);
-    options
 }
 
 #[cfg(not(target_arch = "wasm32"))]
@@ -282,7 +281,9 @@ impl Shell {
             let store = AppViewStore::new(AppView::default());
             view = Some(store);
             beui::reactive::view! {
-                <ui::Root view={store} />
+                <beui::styled::Root title="Block">
+                    <ui::Root view={store} />
+                </beui::styled::Root>
             }
         });
         document.on_interacted(plugin_host::start_frames);
@@ -383,10 +384,6 @@ impl beui::App for Shell {
         host::end(context);
         performance::record_update(started, &self.document.performance().latest.timings);
         plugin_host::record_pacing();
-    }
-
-    fn clear_color(&self) -> beui::Color32 {
-        self.document.theme().background
     }
 
     fn busy(&self) -> bool {

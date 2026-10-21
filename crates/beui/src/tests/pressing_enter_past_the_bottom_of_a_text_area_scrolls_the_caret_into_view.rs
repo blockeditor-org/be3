@@ -11,7 +11,7 @@ fn pressing_enter_past_the_bottom_of_a_text_area_scrolls_the_caret_into_view() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
     let area = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"top")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));

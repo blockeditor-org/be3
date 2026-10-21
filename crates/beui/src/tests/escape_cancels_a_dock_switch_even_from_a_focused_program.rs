@@ -10,7 +10,7 @@ fn escape_cancels_a_dock_switch_even_from_a_focused_program() {
     let layout = DockingLayout::<u64>::new();
     let program = NodeRef::new();
     let heard = create_signal(Vec::<ForwardedInput>::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <styled::Docking layout={layout}>
                 <DockPane id="tabs">

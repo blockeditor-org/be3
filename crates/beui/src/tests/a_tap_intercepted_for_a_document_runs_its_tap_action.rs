@@ -7,7 +7,7 @@ use crate::reactive::*;
 fn a_tap_intercepted_for_a_document_runs_its_tap_action() {
     let _root = crate::reactive::RootScope::new();
     let runs = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         Action::new("test.launcher", "Programs", move || {
             runs.update(|runs| *runs += 1)
         })

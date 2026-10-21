@@ -11,7 +11,7 @@ fn a_dialog_gives_the_focus_back_to_the_control_that_opened_it() {
         NodeRef::new(),
         NodeRef::new(),
     );
-    let document = build(move || {
+    let document = build_node(move || {
         let open = create_signal(false);
         let aimed = create_signal(false);
         view! {

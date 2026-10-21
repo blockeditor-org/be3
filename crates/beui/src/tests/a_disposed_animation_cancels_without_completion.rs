@@ -9,7 +9,7 @@ fn a_disposed_animation_cancels_without_completion() {
     let finished = create_signal(false);
     let held = Rc::new(Cell::new(None::<Animation>));
     let saved = held.clone();
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Show condition={shown}>|| {

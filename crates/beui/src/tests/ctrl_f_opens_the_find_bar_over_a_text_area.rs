@@ -9,7 +9,7 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn ctrl_f_opens_the_find_bar_over_a_text_area() {
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"find me")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         view! {

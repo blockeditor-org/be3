@@ -8,7 +8,7 @@ fn a_fitted_sheet_taller_than_the_screen_stops_short_of_the_top_and_scrolls() {
     let _root = crate::reactive::RootScope::new();
     let rows = NodeRef::new();
     let open = create_signal(false);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) />

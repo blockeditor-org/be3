@@ -7,7 +7,7 @@ use crate::unstyled::Button;
 fn a_keyed_view_rebuilds_only_when_its_key_changes() {
     let _root = crate::reactive::RootScope::new();
     let (holder, retitle, reshape) = (NodeRef::new(), NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let state = create_signal((0u32, "first".to_owned()));
         view! {
             <List spacing=0.0>

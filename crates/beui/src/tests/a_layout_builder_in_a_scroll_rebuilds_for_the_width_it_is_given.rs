@@ -7,7 +7,7 @@ use crate::styled::*;
 
 #[test]
 fn a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <Scroll>
                 <Frame height=900.0>

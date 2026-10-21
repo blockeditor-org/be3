@@ -7,7 +7,7 @@ fn closing_a_dock_tab_asks_its_owner_to_remove_it() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
     let closed = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout>

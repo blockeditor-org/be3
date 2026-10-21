@@ -4,7 +4,7 @@ use crate::styled::*;
 
 #[test]
 fn a_bare_separator_rules_across_the_column_it_sits_in() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List spacing=0.0>
                 <Separator />

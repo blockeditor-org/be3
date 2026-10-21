@@ -7,7 +7,7 @@ const SHORT: &str = "Checked out";
 
 #[test]
 fn text_that_does_not_fit_ends_in_an_ellipsis() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame width=100.0 height=20.0 />

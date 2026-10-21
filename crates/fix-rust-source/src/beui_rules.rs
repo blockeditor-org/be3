@@ -119,6 +119,7 @@ fn component_uses(tree: &SourceFile, source: &str, relative: &str) -> Vec<String
                         && (calls(&renderer, "render")
                             || calls(&renderer, "render_fragment")
                             || calls(&renderer, "build")
+                            || calls(&renderer, "enter")
                             || deferred_renderer(&renderer)
                             || (deferred && calls(&renderer, "store")))
                     {

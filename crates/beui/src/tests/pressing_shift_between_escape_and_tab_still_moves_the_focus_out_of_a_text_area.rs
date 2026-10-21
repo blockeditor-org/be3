@@ -7,7 +7,7 @@ use text_editor_core::TextBuffer;
 
 #[test]
 fn pressing_shift_between_escape_and_tab_still_moves_the_focus_out_of_a_text_area() {
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"line")) as Arc<dyn text_editor_core::Document>;
         let state = crate::unstyled::TextAreaState::new(document);
         view! {

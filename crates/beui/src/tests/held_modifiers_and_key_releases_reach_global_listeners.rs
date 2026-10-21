@@ -8,7 +8,7 @@ fn held_modifiers_and_key_releases_reach_global_listeners() {
     let _root = crate::reactive::RootScope::new();
     let seen = create_signal(Vec::new());
     let holds = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         on_global_key(move |event: KeyEvent| {
             if let Some(press) = event.press() {
                 seen.update(|seen| seen.push((press.key, press.pressed)));

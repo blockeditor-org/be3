@@ -51,35 +51,37 @@ fn expand_internals(test: &mut DocumentTest, component: &str, test_id: &str) {
 fn the_inspector_paints_the_component_shadow_tree() {
     let document = build(|| {
         view! {
-            <styled::Frame padding={Sides::all(24.0)}>
-                <styled::List spacing=16.0>
-                    <styled::Text
-                        @test_id="example.heading"
-                        string="Release checklist"
-                        size=TextSize::Xl
-                        weight=Weight::Bold
-                    />
-                    <styled::Card @test_id="example.card">
-                        <styled::List spacing=12.0>
-                            <styled::Text string="Ready for review" weight=Weight::Bold />
-                            <styled::Text
-                                string="Check the build, then publish the release."
-                                color=TextColor::Muted
-                            />
-                            <styled::Checkbox label="All tests pass" checked=true />
-                            <styled::Button
-                                @test_id="example.publish"
-                                label="Publish release"
-                                variant=ButtonVariant::Primary
-                            />
-                        </styled::List>
-                    </styled::Card>
-                    <styled::Text
-                        string="Draft changes are saved automatically."
-                        color=TextColor::Muted
-                    />
-                </styled::List>
-            </styled::Frame>
+            <Root>
+                <styled::Frame padding={Sides::all(24.0)}>
+                    <styled::List spacing=16.0>
+                        <styled::Text
+                            @test_id="example.heading"
+                            string="Release checklist"
+                            size=TextSize::Xl
+                            weight=Weight::Bold
+                        />
+                        <styled::Card @test_id="example.card">
+                            <styled::List spacing=12.0>
+                                <styled::Text string="Ready for review" weight=Weight::Bold />
+                                <styled::Text
+                                    string="Check the build, then publish the release."
+                                    color=TextColor::Muted
+                                />
+                                <styled::Checkbox label="All tests pass" checked=true />
+                                <styled::Button
+                                    @test_id="example.publish"
+                                    label="Publish release"
+                                    variant=ButtonVariant::Primary
+                                />
+                            </styled::List>
+                        </styled::Card>
+                        <styled::Text
+                            string="Draft changes are saved automatically."
+                            color=TextColor::Muted
+                        />
+                    </styled::List>
+                </styled::Frame>
+            </Root>
         }
     });
     let mut test = DocumentTest::new(document, Vec2::new(1200.0, 1100.0));

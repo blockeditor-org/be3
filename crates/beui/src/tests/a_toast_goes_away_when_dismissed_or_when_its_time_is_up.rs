@@ -10,7 +10,7 @@ fn a_toast_goes_away_when_dismissed_or_when_its_time_is_up() {
         danger: id == 1,
         ..Toast::default()
     };
-    let document = build(move || {
+    let document = build_node(move || {
         let area = NodeRef::new();
         let toasts = create_signal(vec![toast(1), toast(2)]);
         view! {

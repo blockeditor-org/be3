@@ -14,7 +14,7 @@ fn Input(id: u64) -> NodeId {
 fn pressing_a_floating_windows_bar_gives_the_keyboard_to_what_it_shows() {
     let _root = crate::reactive::RootScope::new();
     let dock = NodeRef::new();
-    let document = build(move || {
+    let document = build_node(move || {
         let layout = DockingLayout::new();
         view! {
             <styled::Docking @node_ref=&dock layout>

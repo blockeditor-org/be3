@@ -8,7 +8,7 @@ fn a_drawing_repaints_on_its_deadline_without_repeating_layout() {
     let _root = crate::reactive::RootScope::new();
     let drawing = NodeRef::new();
     let asking = create_signal(None);
-    let mut document = build(move || {
+    let mut document = build_node(move || {
         let on = create_signal(true);
         asking.update(|asking| *asking = Some(on));
         let draw: Prop<Draw> = Prop::dynamic(move || match on.get() {

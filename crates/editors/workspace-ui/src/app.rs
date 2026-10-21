@@ -74,7 +74,7 @@ pub(crate) fn WorkspaceBody(workspace: Workspace) -> NodeId {
     let picker_dialogs = workspace.picker_dialogs();
     let panels = workspace.panels();
     view! {
-        <Frame @node_ref={&surface} fill=ColorRole::Background>
+        <Frame @node_ref={&surface}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking @sizing=ItemSize::Percent(100.0) layout mode>

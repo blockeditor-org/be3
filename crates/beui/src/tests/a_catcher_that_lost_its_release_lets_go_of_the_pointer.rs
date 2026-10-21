@@ -14,7 +14,7 @@ fn a_catcher_that_lost_its_release_lets_go_of_the_pointer() {
             })
         }
     };
-    let document = build(move || {
+    let document = build_node(move || {
         let first = catcher(0, heard);
         let second = catcher(1, heard);
         view! {

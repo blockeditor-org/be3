@@ -8,7 +8,7 @@ use crate::unstyled::{Container, DateTimeParts};
 fn arrow_keys_step_a_date_segment_and_keep_the_day_in_its_month() {
     let _root = crate::reactive::RootScope::new();
     let reported = create_signal(Vec::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Container>|_size|
                 <DateTimeField

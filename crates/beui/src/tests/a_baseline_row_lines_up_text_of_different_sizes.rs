@@ -5,7 +5,7 @@ use crate::reactive::*;
 
 #[test]
 fn a_baseline_row_lines_up_text_of_different_sizes() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <List direction=Direction::Horizontal align=Align::Baseline spacing=8.0>
                 <Text string="Small" font={FontId::proportional(12.0)} />

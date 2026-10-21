@@ -7,7 +7,7 @@ fn evicting_a_virtual_scroll_row_disposes_its_effects() {
     let _root = crate::reactive::RootScope::new();
     let shown = create_signal(true);
     let (scroll, list) = (NodeRef::new(), NodeRef::new());
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Offset @sizing=ItemSize::Percent(100.0) @node_ref=&scroll>

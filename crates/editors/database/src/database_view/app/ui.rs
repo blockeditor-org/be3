@@ -23,11 +23,9 @@ const CELL_EDITOR_HEIGHT: f32 = 40.0;
 #[component]
 pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
     view! {
-        <Frame fill=ColorRole::Background>
-            <Loaded label="Loading the database">
-                <ViewEditor editor={editor} />
-            </Loaded>
-        </Frame>
+        <Loaded label="Loading the database">
+            <ViewEditor editor={editor} />
+        </Loaded>
     }
 }
 
@@ -73,11 +71,9 @@ fn ViewEditor(editor: Editor) -> NodeId {
 #[component]
 pub fn DatabaseViewPreview(editor: Editor) -> NodeId {
     view! {
-        <Frame fill=ColorRole::Background>
-            <Loaded label="Loading the database">
-                <PreviewContent editor={editor} />
-            </Loaded>
-        </Frame>
+        <Loaded label="Loading the database">
+            <PreviewContent editor={editor} />
+        </Loaded>
     }
 }
 

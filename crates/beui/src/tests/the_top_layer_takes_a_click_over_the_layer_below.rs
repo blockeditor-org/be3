@@ -7,7 +7,7 @@ fn the_top_layer_takes_a_click_over_the_layer_below() {
     let _root = crate::reactive::RootScope::new();
     let below = create_signal(0);
     let above = create_signal(0);
-    let document = build(move || {
+    let document = build_node(move || {
         view! {
             <Layers>
                 <Interactive

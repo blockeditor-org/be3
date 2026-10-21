@@ -13,7 +13,7 @@ fn Shell(children: Children<ListChild>) -> NodeId {
 
 #[test]
 fn the_component_tree_separates_callers_children_from_body_internals() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <Shell>
                 <styled::Text string="Outside" />

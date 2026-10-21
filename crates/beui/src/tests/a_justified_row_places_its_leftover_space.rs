@@ -15,7 +15,7 @@ fn a_justified_row_places_its_leftover_space() {
 
 fn lefts(justify: Justify) -> [f32; 3] {
     let tiles = [NodeRef::new(), NodeRef::new(), NodeRef::new()];
-    let document = build({
+    let document = build_node({
         let [first, second, third] = tiles;
         move || {
             view! {

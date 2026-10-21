@@ -9,7 +9,7 @@ fn animations_finish_once_and_keep_functional_timers() {
     let expired = create_signal(false);
     let held = Rc::new(Cell::new(None::<Animation>));
     let saved = held.clone();
-    let document = build(move || {
+    let document = build_node(move || {
         let animation = create_animation(|_| true, move || finished.update(|n| *n += 1));
         saved.set(Some(animation));
         animation.start();

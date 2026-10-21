@@ -3,7 +3,7 @@ use crate::reactive::*;
 
 #[test]
 fn a_driver_lists_components_and_their_internals() {
-    let document = build(|| {
+    let document = build_node(|| {
         view! {
             <styled::Frame @test_id="frame">
                 <styled::Text @test_id="greeting" string="Hi" />

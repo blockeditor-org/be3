@@ -3578,6 +3578,9 @@ pub(crate) fn ThemesPage() -> NodeId {
             >
                 <ThemedSamples />
             </Sample>
+            <Sample title="Window" code={vec![WindowSample::SOURCE]}>
+                <WindowSample />
+            </Sample>
         </ScrollPage>
     }
 }
@@ -3609,6 +3612,31 @@ fn ThemedSamples() -> NodeId {
                     <ThemeSample name="E-ink" />
                 </ThemeProvider>
             </Stack>
+        </List>
+    }
+}
+
+#[sample]
+#[component]
+fn WindowSample() -> NodeId {
+    let window = use_context::<DemoWindow>().expect("the demo provides its window");
+    view! {
+        <List spacing=SECTION_SPACING>
+            <Text
+                style=TextStyle::PARAGRAPH
+                string="The Root at the top of the document sets the window's title and the \
+                 colour it is cleared to, which shows wherever nothing paints over it."
+                wrap=true
+            />
+            <TextInput @test_id="demo.window.title" value={window.title} label="Window title" />
+            <RadioGroup
+                options={view! {
+                    <ChoiceOption label="Background" />
+                    <ChoiceOption label="Surface" />
+                    <ChoiceOption label="Raised surface" />
+                }}
+                selected={window.background}
+            />
         </List>
     }
 }

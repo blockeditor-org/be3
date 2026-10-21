@@ -93,7 +93,7 @@ fn DesktopBody(workspace: Workspace) -> NodeId {
     let notifications = DesktopNotifications::new(editor);
     let bar_node = NodeRef::new();
     view! {
-        <Frame @node_ref={&surface} fill=ColorRole::Background>
+        <Frame @node_ref={&surface}>
             <List spacing=0.0>
                 <Failure failed={failed} reason={reason} />
                 <Docking

@@ -405,7 +405,7 @@ pub(crate) fn Root(view: AppViewStore) -> NodeId {
     let round = create_memo(move || keep_display.get().unwrap_or_default());
     let area = NodeRef::new();
     view! {
-        <Frame @node_ref=&area fill=ColorRole::Background>
+        <Frame @node_ref=&area>
             <List spacing=0.0>
                 <Dynamic value={screen}>|screen: Screen| {
                     match screen {

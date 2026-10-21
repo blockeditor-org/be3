@@ -16,7 +16,7 @@ pub fn LoadingPane(#[prop(default = "Loading".to_owned())] label: Prop<String>) 
     });
     timer.start(GRACE);
     view! {
-        <Frame @test_id={"editor.loading"} fill=ColorRole::Background>
+        <Frame @test_id={"editor.loading"}>
             <List spacing=0.0 align=Align::Center>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={late}>
@@ -31,7 +31,7 @@ pub fn LoadingPane(#[prop(default = "Loading".to_owned())] label: Prop<String>) 
 #[component]
 pub fn FailedPane(error: String) -> NodeId {
     view! {
-        <Frame @test_id={"editor.failed"} fill=ColorRole::Background>
+        <Frame @test_id={"editor.failed"}>
             <List spacing=0.0 align=Align::Center>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Text string={error} color=TextColor::Muted wrap=true />

@@ -8,7 +8,7 @@ use text_editor_core::TextBuffer;
 fn up_and_down_in_a_single_line_text_area_move_to_its_ends() {
     let _root = crate::reactive::RootScope::new();
     let held = create_signal::<Option<TextAreaState>>(None);
-    let document = build(move || {
+    let document = build_node(move || {
         let document = Arc::new(TextBuffer::new(b"one two")) as Arc<dyn text_editor_core::Document>;
         let state = TextAreaState::new(document);
         held.update(|held| *held = Some(state));

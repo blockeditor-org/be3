@@ -5,7 +5,7 @@ use crate::reactive::*;
 fn a_clean_sibling_keeps_its_measurement_when_the_one_beside_it_changes() {
     let _root = crate::reactive::RootScope::new();
     let (steady, edited) = (NodeRef::new(), NodeRef::new());
-    let mut document = build(move || {
+    let mut document = build_node(move || {
         view! {
             <List spacing=0.0>
                 <Text @node_ref=&steady string="steady" color=Color32::WHITE />

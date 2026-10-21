@@ -12,9 +12,9 @@ fn an_expired_session_signs_in_through_the_browser() {
             ..Default::default()
         });
         view! {
-            <Frame fill=ColorRole::Background>
+            <beui::styled::Root>
                 <ReauthDialog view />
-            </Frame>
+            </beui::styled::Root>
         }
     });
     painting_of(

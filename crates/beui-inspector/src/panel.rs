@@ -181,7 +181,8 @@ pub fn build(state: Stored<State>) -> Panel {
     let compact = create_signal(false);
     let tree = NodeRef::new();
 
-    let document = beui_view::reactive::build(|| {
+    let mut document = Document::new();
+    let root = enter(&mut document, || {
         let count_text = create_memo(move || match tab.get() {
             InspectorTab::Performance => {
                 performance.with(|performance| performance.samples.clone())
@@ -349,6 +350,7 @@ pub fn build(state: Stored<State>) -> Panel {
             </List>
         }
     });
+    document.set_root(root);
 
     Panel {
         document,
@@ -374,7 +376,8 @@ pub struct Bar {
 pub fn build_bar(state: Stored<State>) -> Bar {
     let owner = RootScope::new();
     let selected = create_signal(1);
-    let document = beui_view::reactive::build(|| {
+    let mut document = Document::new();
+    let root = enter(&mut document, || {
         view! {
             <Frame fill=ColorRole::Surface>
                 <List spacing=0.0>
@@ -407,6 +410,7 @@ pub fn build_bar(state: Stored<State>) -> Bar {
             </Frame>
         }
     });
+    document.set_root(root);
     Bar {
         document,
         _scope: owner.into_scope(),
