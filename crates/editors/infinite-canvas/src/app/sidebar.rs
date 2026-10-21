@@ -191,7 +191,7 @@ fn FrameBackground(
         };
         let mut updated = held.clone();
         filled(&mut updated.style, fill);
-        state.record_update(vec![held], vec![updated], true);
+        state.record_update(vec![held], vec![updated]);
     };
     let typed = move |color: Color32| {
         let [red, green, blue, alpha] = color.to_array();
@@ -308,7 +308,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
             };
             let mut updated = held.clone();
             apply(&mut updated, value);
-            state.record_update(vec![held], vec![updated], true);
+            state.record_update(vec![held], vec![updated]);
         };
         let preview = move |value: Option<f64>| {
             let typed = value.zip(entity.get_untracked()).map(|(value, mut held)| {
@@ -475,7 +475,7 @@ fn EditorScale(state: CanvasState) -> NodeId {
         updated.scale = wanted;
         updated.transform.size.x *= factor;
         updated.transform.size.y *= factor;
-        state.record_update(vec![held], vec![updated], true);
+        state.record_update(vec![held], vec![updated]);
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>

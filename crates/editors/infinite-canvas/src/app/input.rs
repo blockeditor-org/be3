@@ -464,7 +464,6 @@ impl CanvasState {
             self.hover(None);
         }
         self.hold_pointer(false);
-        self.finish_grouped_edit();
         let gesture = self.gesture.get_untracked();
         let retapped = self.take_retap();
         self.land_draft(gesture.as_ref());
@@ -528,7 +527,7 @@ impl CanvasState {
                     entity
                 })
                 .collect();
-            self.record_update(before, after, true);
+            self.record_update(before, after);
             return true;
         }
         if press.key == Key::Enter && self.selection.get_untracked().len() == 1 {

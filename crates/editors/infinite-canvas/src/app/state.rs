@@ -414,7 +414,6 @@ struct CanvasCells {
     pending_image_center: Cell<Option<CanvasPoint>>,
     pending_file_drop: Cell<Option<CanvasPoint>>,
     context_position: Cell<Option<CanvasPoint>>,
-    grouped_edit: Cell<bool>,
     pointer_down: Cell<bool>,
     touch: Cell<bool>,
     pen_seen: Cell<bool>,
@@ -538,7 +537,6 @@ impl CanvasState {
             pending_image_center: Cell::new(None),
             pending_file_drop: Cell::new(None),
             context_position: Cell::new(None),
-            grouped_edit: Cell::new(false),
             pointer_down: Cell::new(false),
             touch: Cell::new(false),
             pen_seen: Cell::new(false),
@@ -876,31 +874,14 @@ impl CanvasState {
     }
 
     pub(crate) fn record(&self, operation: InfiniteCanvasOperation) {
-        self.cells.value().grouped_edit.set(false);
         self.operate(&operation);
     }
 
-    pub(crate) fn record_update(
-        &self,
-        before: Vec<CanvasEntity>,
-        after: Vec<CanvasEntity>,
-        group: bool,
-    ) {
+    pub(crate) fn record_update(&self, before: Vec<CanvasEntity>, after: Vec<CanvasEntity>) {
         if before == after || after.is_empty() {
             return;
         }
-        let operation = InfiniteCanvasOperation::Update { entities: after };
-        match group {
-            true => {
-                self.cells.value().grouped_edit.set(true);
-                self.operate(&operation);
-            }
-            false => self.record(operation),
-        }
-    }
-
-    pub(crate) fn finish_grouped_edit(&self) {
-        self.cells.value().grouped_edit.set(false);
+        self.record(InfiniteCanvasOperation::Update { entities: after });
     }
 
     pub(crate) fn next_style(&self) -> CanvasStyle {
@@ -1046,7 +1027,6 @@ impl CanvasState {
         let content = self.content();
         let client = self.cells.value().client;
         if let Ok(Some(edit)) = content.read(|canvas| Canvas::retext(canvas, client, id, text)) {
-            self.cells.value().grouped_edit.set(false);
             content.operate(edit);
         }
     }
@@ -1057,7 +1037,7 @@ impl CanvasState {
         };
         let fitted = self.fit_text(held.clone());
         if fitted.transform != held.transform {
-            self.record_update(vec![held], vec![fitted], true);
+            self.record_update(vec![held], vec![fitted]);
         }
     }
 
@@ -1071,7 +1051,6 @@ impl CanvasState {
     }
 
     pub(crate) fn finish_text(&self) {
-        self.finish_grouped_edit();
         self.edit_text(None);
     }
 
@@ -1480,7 +1459,7 @@ impl CanvasState {
         };
         let mut updated = held.clone();
         updated.hidden = hidden;
-        self.record_update(vec![held], vec![updated], false);
+        self.record_update(vec![held], vec![updated]);
     }
 
     pub(crate) fn move_layer(&self, moved: Uuid, onto: Uuid, in_front: bool) {
@@ -1524,7 +1503,7 @@ impl CanvasState {
                 entity
             })
             .collect();
-        self.record_update(before, after, false);
+        self.record_update(before, after);
     }
 
     pub(crate) fn ungroup_selection(&self) {
@@ -1547,7 +1526,7 @@ impl CanvasState {
                 entity
             })
             .collect();
-        self.record_update(before, after, false);
+        self.record_update(before, after);
     }
 
     pub(crate) fn set_selection_locked(&self, locked: bool) {
@@ -1564,7 +1543,7 @@ impl CanvasState {
                 entity
             })
             .collect();
-        self.record_update(before, after, false);
+        self.record_update(before, after);
     }
 
     pub(crate) fn align_selection(&self, alignment: Alignment) {
@@ -1596,7 +1575,7 @@ impl CanvasState {
                 entity
             })
             .collect();
-        self.record_update(before, after, false);
+        self.record_update(before, after);
     }
 
     pub(crate) fn distribute_selection(&self, horizontal: bool) {
@@ -1638,7 +1617,7 @@ impl CanvasState {
                 entity
             })
             .collect();
-        self.record_update(ordered, after, false);
+        self.record_update(ordered, after);
     }
 
     pub(crate) fn can_reorder(&self, movement: CanvasLayerMove) -> bool {
@@ -1867,7 +1846,7 @@ impl CanvasState {
         let before = self.entities_among(selected);
         let mut after = before.clone();
         attach_component(&mut after, selected, reference);
-        self.record_update(before, after, false);
+        self.record_update(before, after);
     }
 
     pub(crate) fn open_value_picker(self, schema_id: Uuid, request: DatabaseBlockPickRequest) {
@@ -1913,7 +1892,7 @@ impl CanvasState {
             field_id,
             Some(DatabaseValue::Block(reference)),
         );
-        self.record_update(before, after, false);
+        self.record_update(before, after);
     }
 
     fn entities_among(&self, selected: &HashSet<Uuid>) -> Vec<CanvasEntity> {
@@ -1939,7 +1918,7 @@ impl CanvasState {
                 entity
             })
             .collect();
-        self.record_update(before, after, true);
+        self.record_update(before, after);
     }
 
     pub(crate) fn update_selected_text(
@@ -1962,7 +1941,7 @@ impl CanvasState {
         if let Some(text_size) = after.first().map(|entity| entity.style.text_size) {
             self.remember_style(|style| style.text_size = text_size);
         }
-        self.record_update(before, after, true);
+        self.record_update(before, after);
     }
 
     pub(crate) fn replace_referenced_block(&self, old: Uuid, new: Uuid) -> bool {
@@ -2093,7 +2072,7 @@ impl CanvasState {
         let before = self.selected_entities();
         let mut after = before.clone();
         edit(&mut after, &selection);
-        self.record_update(before, after, false);
+        self.record_update(before, after);
     }
 
     pub(crate) fn selection_defaults_to_proportional(&self) -> bool {
@@ -2203,7 +2182,7 @@ impl CanvasState {
             _ => None,
         };
         if let Some(updated) = updated {
-            self.record_update(vec![entity.clone()], vec![updated], false);
+            self.record_update(vec![entity.clone()], vec![updated]);
         }
     }
 
@@ -2330,7 +2309,7 @@ impl CanvasState {
             | Gesture::Rotate { ref originals, .. } => {
                 let updates = preview_entities(&gesture);
                 if !updates.is_empty() {
-                    self.record_update(originals.clone(), updates, false);
+                    self.record_update(originals.clone(), updates);
                 }
             }
             Gesture::Erase { erased, .. } => {
@@ -2350,11 +2329,11 @@ impl CanvasState {
                     let at = path_ends(path)[end];
                     path.bindings[end] = self.binding_at(at, path.id);
                 }
-                self.record_update(vec![original.as_ref().clone()], updates, false);
+                self.record_update(vec![original.as_ref().clone()], updates);
             }
             Gesture::Bend { ref original, .. } => {
                 let updates = preview_entities(&gesture);
-                self.record_update(vec![original.as_ref().clone()], updates, false);
+                self.record_update(vec![original.as_ref().clone()], updates);
             }
         }
     }
@@ -2755,7 +2734,7 @@ impl CanvasState {
         }
         let mut resized = frame.clone();
         resized.transform.size = wanted;
-        self.record_update(vec![frame], vec![resized], false);
+        self.record_update(vec![frame], vec![resized]);
     }
 
     fn reveal_peer(&self, client_id: u64) {
@@ -2895,7 +2874,7 @@ impl CanvasState {
             before.push(entity);
             after.push(updated);
         }
-        self.record_update(before, after, true);
+        self.record_update(before, after);
     }
 
     fn is_placeholder(&self, entity: &CanvasEntity) -> bool {
