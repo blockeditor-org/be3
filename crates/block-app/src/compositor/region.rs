@@ -106,11 +106,17 @@ impl Steering {
                 PointerPhase::Down(PointerButton::Primary) if self.pressed.is_none() => {
                     self.pressed = Some(event);
                 }
-                PointerPhase::Move if self.pressed.is_some_and(|pressed| pressed.pointer == event.pointer) => {
+                PointerPhase::Move
+                    if self
+                        .pressed
+                        .is_some_and(|pressed| pressed.pointer == event.pointer) =>
+                {
                     self.pressed = Some(event);
                 }
                 PointerPhase::Up(_) | PointerPhase::Cancel | PointerPhase::Gone
-                    if self.pressed.is_some_and(|pressed| pressed.pointer == event.pointer) =>
+                    if self
+                        .pressed
+                        .is_some_and(|pressed| pressed.pointer == event.pointer) =>
                 {
                     self.pressed = None;
                 }

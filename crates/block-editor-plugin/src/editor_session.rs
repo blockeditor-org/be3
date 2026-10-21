@@ -71,6 +71,8 @@ impl ArtifactState {
     }
 }
 
+type ReportedChildren = (Size, Vec<ChildPlacement>, Vec<Occluder>, Option<Camera>);
+
 #[derive(Default)]
 struct RegionState {
     placement: Option<ScreenPlacement>,
@@ -90,7 +92,7 @@ struct RegionState {
     occluders: Vec<Occluder>,
     camera: Option<Camera>,
     laid_out: Size,
-    reported_children: Option<(Size, Vec<ChildPlacement>, Vec<Occluder>, Option<Camera>)>,
+    reported_children: Option<ReportedChildren>,
     age: u32,
 }
 

@@ -1662,7 +1662,6 @@ pub(crate) fn crash(plugin_id: &str, error: String) {
     with(plugin_id, |runtime| runtime.crashed(error));
 }
 
-
 pub(super) fn mark(plugin_id: &str) {
     CHANGED.with(|changed| {
         if !changed.borrow().contains(plugin_id) {

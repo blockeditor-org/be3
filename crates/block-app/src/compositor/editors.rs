@@ -12,8 +12,7 @@ use beui::{
 };
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
-    FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar,
-    ViewChange,
+    FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar, ViewChange,
 };
 use uuid::Uuid;
 
@@ -1101,7 +1100,9 @@ fn BlockFrameView(
             let owner = use_context::<CameraOwner>();
             let command = move |command: Command| {
                     if !pan_and_zoom {
-                        if let (Some(owner), Command::Pan(_) | Command::Zoom { .. }) = (owner, command) {
+                        if let (Some(owner), Command::Pan(_) | Command::Zoom { .. }, true) =
+                            (owner, command, handle.pan_and_zoom)
+                        {
                             owner.0.call(command);
                             return;
                         }

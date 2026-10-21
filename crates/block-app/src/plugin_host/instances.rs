@@ -2,12 +2,13 @@ use be_block::BlockContent as _;
 use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, Camera, ChildContent, ChildId,
-    ChildMode, ChildPlacement, ChildPlacements, ChildRect, ChildStatus, CreationOutcome, CursorIcon,
-    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
-    FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
-    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, Camera, ChildContent,
+    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildRect, ChildStatus, CreationOutcome,
+    CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick,
+    FileSave, FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor,
+    Occluder, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
+    ScreenRequest, ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewCommand,
+    WebViewEvent, WebViewId,
 };
 use block_plugin_api::{DescribedAction, WindowRequests};
 use std::{
@@ -3377,6 +3378,9 @@ impl Instances {
 }
 
 fn through(rect: ChildRect, camera: Camera, view: EditorView) -> ChildRect {
+    if (camera.x, camera.y, camera.scale) == (view.rect.min.x, view.rect.min.y, view.scale) {
+        return rect;
+    }
     let scale = ratio(view.scale, camera.scale);
     ChildRect {
         x: view.rect.min.x + (rect.x - camera.x) * scale,

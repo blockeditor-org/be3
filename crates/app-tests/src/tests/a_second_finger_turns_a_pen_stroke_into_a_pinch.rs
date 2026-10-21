@@ -22,10 +22,19 @@ fn a_second_finger_turns_a_pen_stroke_into_a_pinch() {
     app.run(&["touch", "down", &format!("0={}", at(0.4, 0.5))]);
     app.run(&["touch", "move", &format!("0={}", at(0.45, 0.5))]);
     app.run(&["touch", "down", &format!("1={}", at(0.6, 0.5))]);
-    app.run(&["touch", "move", &format!("0={}", at(0.3, 0.5)), &format!("1={}", at(0.75, 0.5))]);
+    app.run(&[
+        "touch",
+        "move",
+        &format!("0={}", at(0.3, 0.5)),
+        &format!("1={}", at(0.75, 0.5)),
+    ]);
     app.run(&["touch", "up"]);
     app.run(&["settle"]);
-    assert_eq!(app.count(STROKE), 1, "a stroke that became a pinch draws nothing");
+    assert_eq!(
+        app.count(STROKE),
+        1,
+        "a stroke that became a pinch draws nothing"
+    );
     let zoomed = app.place(STROKE);
     assert!(
         zoomed.2 > drawn.2 * 2.0,
