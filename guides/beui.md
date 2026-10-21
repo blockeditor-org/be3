@@ -2128,6 +2128,9 @@ Beui's features:
   NativeActivity's input queue never delivers. The library defines
   `#[unsafe(no_mangle)] fn android_main(app: beui::AndroidApp)`, which beui
   calls on a thread of its own, and which calls `beui::run_with`.
+  The activity draws edge to edge under transparent status and navigation
+  bars: the app fills the safe area inside them, the bars show its clear color,
+  and their icons turn dark when that color is light.
 
 The soft keyboard takes its room out of the window rather than covering it: on
 Android its inset joins the safe area, and on the web the pages' viewport meta

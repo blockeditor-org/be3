@@ -28,6 +28,7 @@ use raw_window_handle as rwh;
 
 use beui_core::app::{SafeArea, Setup, Waker};
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
+use beui_core::color::{Color32, Oklch};
 use beui_core::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest, PickedFile};
 use beui_core::geometry::{Vec2, pos2, vec2};
 use beui_core::input::{
@@ -186,6 +187,7 @@ fn run(launch: Launch, load: Load) -> Result<(), Box<dyn Error>> {
             ime_serial: 0,
             sent_ime: None,
             keyboard_shown: std::cell::Cell::new(false),
+            light_bars: None,
         },
         load: Some(load),
         window: None,
@@ -220,6 +222,7 @@ struct AndroidPlatform {
     ime_serial: u64,
     sent_ime: Option<(Option<ImeText>, u64)>,
     keyboard_shown: std::cell::Cell<bool>,
+    light_bars: Option<bool>,
 }
 
 impl Platform for AndroidPlatform {
@@ -327,6 +330,28 @@ impl AndroidPlatform {
                         JValue::Long(composing.1),
                         JValue::Long(jlong::try_from(serial).unwrap_or(jlong::MAX)),
                     ],
+                )?;
+                Ok(())
+            });
+    }
+
+    fn sync_bars(&mut self, background: Color32) {
+        let light = Oklch::from_color(background).lightness > 0.5;
+        if self.light_bars == Some(light) {
+            return;
+        }
+        let Some(view) = &self.view else {
+            return;
+        };
+        self.light_bars = Some(light);
+        let _ = self
+            .vm
+            .attach_current_thread(|env| -> Result<(), JniError> {
+                env.call_method(
+                    view.as_obj(),
+                    jni_str!("setLightBars"),
+                    jni_sig!("(Z)V"),
+                    &[JValue::Bool(light)],
                 )?;
                 Ok(())
             });
@@ -479,6 +504,7 @@ impl Runner {
                 platform.attach_accessibility();
                 platform.ime_serial = 0;
                 platform.sent_ime = None;
+                platform.light_bars = None;
                 let window = self.runner.window();
                 platform.sync_ime(window.ime.as_ref());
                 if window
@@ -636,6 +662,7 @@ impl Runner {
         self.next_update = frame
             .wait()
             .and_then(|wait| Instant::now().checked_add(wait));
+        self.platform.sync_bars(self.runner.clear_color());
         frame.pending
     }
 }
