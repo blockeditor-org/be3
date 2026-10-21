@@ -19,8 +19,31 @@ Benchmarks run in release, on this machine, with `./scripts/buck run -m release`
 - `//crates/beui:example-text-bench -- [NAME]` times resizing and editing text.
 - `//crates/be-graph:example-access-bench` times the server's access queries (one block,
   what one account sees, a block's audience) on an organization of 100,000 blocks.
+- `//crates/editors/infinite-canvas:example-canvas-bench -- [open|pan|zoom|ink]` opens the
+  canvas editor through block-ui-test, the way its tests do, on 100 and on 10,000 shapes. It
+  pans and zooms by the host's view, and draws pen strokes, and prints each frame's wall
+  time (the whole host round trip), beui's layout, paint and interaction, and the most
+  nodes one frame measured, placed and painted. For ink it also counts the frames between
+  a pen event's delivery and the first frame whose damage covers the pen, which should
+  always be 0. `shape()` is the one place it names the canvas model. An editor with an
+  `examples/` folder is built for the host as well (`editor()` in buck/wasm/defs.bzl), which
+  is how an editor gets a benchmark.
 
-The target for opening a page is under 2 ms warm.
+The target for opening a page is under 2 ms warm. The canvas bench measured, in October
+2026:
+
+| | 100 shapes | 10,000 shapes |
+|---|---|---|
+| pan, p50 wall | 0.06 ms | 1.7 ms (layout 0.47 ms) |
+| zoom, p50 wall | 0.19 ms | 1.9 ms (layout 0.49 ms) |
+| pen move, p50 wall | 0.08 ms | 5.2 ms (paint 2.2 ms) |
+| pen lift, p50 wall | 2.6 ms | 390 ms (interaction 340 ms) |
+| frames from pen event to ink | 0 | 0 |
+
+A pan or zoom places 14 to 23 nodes and paints 5 or 6 whatever the count, so no entity is
+painted again. Still linear in the count: a pan's layout; a pen move, which paints every
+entity again (22,505 nodes) though only the overlay changed; and adding the stroke when
+the pen lifts.
 
 2. Comparing two builds
 
