@@ -508,7 +508,10 @@ arrangement of nodes that says the same thing: a row of labels is a `List` of
 `Text`, not a `Drawing`. It measures to nothing, so it takes its size from
 whatever places it - a `Frame` with a width and a height, or a `CanvasItem` -
 unless it is given a `size`, which it measures to, scaled down to the width it
-is offered and keeping its shape, as an image does.
+is offered and keeping its shape, as an image does. A sized `Drawing` clips its
+callback to the rectangle it gets, so a callback that draws in the units of its
+`size` scales itself into that rectangle (`painter.transformed(offset, scale)`,
+as the demo's Paths page does) rather than spilling past it.
 
 Text is never one of those. A base `Text` takes concrete values and knows
 nothing about the theme: a `font` (a `FontId`, 14 points proportional unless

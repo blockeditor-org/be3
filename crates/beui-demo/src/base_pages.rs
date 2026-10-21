@@ -809,8 +809,16 @@ fn PathTiles(tiles: Vec<PaintTile>) -> NodeId {
                 let paint = tiles[index];
                 let draw: Prop<Draw> = Prop::dynamic(move || {
                     let colors = colors.get();
-                    Rc::new(move |painter: &Painter, rect: Rect| paint(painter, rect.min, colors))
-                        as Draw
+                    Rc::new(move |painter: &Painter, rect: Rect| {
+                        let scale = rect.width() / PATH_TILE;
+                        match scale < 1.0 {
+                            true => {
+                                let offset = rect.min.to_vec2() * (1.0 - scale);
+                                paint(&painter.transformed(offset, scale), rect.min, colors);
+                            }
+                            false => paint(painter, rect.min, colors),
+                        }
+                    }) as Draw
                 });
                 view! {
                     <Drawing draw={draw} size={Some(Vec2::splat(PATH_TILE))} />

@@ -399,6 +399,10 @@ impl Painter {
         })
     }
 
+    pub fn transformed(&self, offset: Vec2, scale: f32) -> Self {
+        self.grouped(Group::Transform { offset, scale })
+    }
+
     pub fn in_document(&self) -> Self {
         self.context.note_space_read();
         let scale = self.state.scale.recip();
