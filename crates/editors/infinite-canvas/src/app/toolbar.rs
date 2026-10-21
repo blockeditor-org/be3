@@ -5,7 +5,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{Edge, Floating};
-use block_editor_beui::{BottomDock, sheet_open};
+use block_editor_beui::{BottomDock, node_anchor, sheet_open};
 
 use super::actions::CanvasActions;
 use super::selection_bar::SelectionTools;
@@ -59,6 +59,11 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
         let editor = state.editor();
         editor.host().undo(editor.block_id());
     };
+    let block_button = NodeRef::new();
+    let add_block = move || match node_anchor(&block_button) {
+        Some(button) => state.open_block_picker_at(button),
+        None => state.open_block_picker(None),
+    };
     let redo = move || {
         let editor = state.editor();
         editor.host().redo(editor.block_id());
@@ -86,9 +91,12 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 }
             }</ForEach>
             <IconButton
+                @node_ref={&block_button}
                 label="Block"
+                glyph={actions.add_block.glyph().to_owned()}
+                disabled={actions.add_block.disabled()}
                 @test_id={"infinite-canvas.dock.block"}
-                action={actions.add_block}
+                on_click={add_block}
             />
             <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
             <IconButton

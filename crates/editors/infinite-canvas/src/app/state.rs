@@ -1781,11 +1781,22 @@ impl CanvasState {
     }
 
     pub(crate) fn open_block_picker(self, center: Option<CanvasPoint>) {
-        let state = self;
         let at = center.unwrap_or_else(|| self.viewport_center());
         let on_screen = self.camera().to_screen(pos2(at.x, at.y));
+        self.pick_block_from(
+            center,
+            child_rect(Rect::from_min_size(on_screen, Vec2::ZERO)),
+        );
+    }
+
+    pub(crate) fn open_block_picker_at(self, button: ChildRect) {
+        self.pick_block_from(None, button);
+    }
+
+    fn pick_block_from(self, center: Option<CanvasPoint>, anchor: ChildRect) {
+        let state = self;
         let filter = BlockFilter {
-            anchor: Some(child_rect(Rect::from_min_size(on_screen, Vec2::ZERO))),
+            anchor: Some(anchor),
             ..BlockFilter::default()
         };
         self.editor.pick_block(filter, move |picked| {
