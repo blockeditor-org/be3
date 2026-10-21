@@ -1270,6 +1270,13 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn drag(&mut self, from: Pos2, to: Pos2) {
+        self.drag_along(&[from, to]);
+    }
+
+    pub fn drag_along(&mut self, points: &[Pos2]) {
+        let (Some(&from), Some(&to)) = (points.first(), points.last()) else {
+            return;
+        };
         let modifiers = self.input.held();
         self.hover_at(from);
         self.push(Event::PointerButton {
@@ -1278,8 +1285,10 @@ impl<A: BeuiApp> BeuiTest<A> {
             pressed: true,
             modifiers,
         });
-        self.next_frame();
-        self.push(Event::PointerMoved(to));
+        for &at in &points[1..] {
+            self.next_frame();
+            self.push(Event::PointerMoved(at));
+        }
         self.next_frame();
         self.push(Event::PointerMoved(to + Vec2::new(0.0, 0.5)));
         self.push(Event::PointerButton {

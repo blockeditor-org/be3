@@ -100,7 +100,8 @@ run() hands the editor what was queued since the last one in the frames a person
 produce it in, as the app batches input between frames: a click (the move to it, the press
 and the release), a key press or typed text arrives in a single frame, and a drag spans three
 - the press, the move, and the last move with the release - since beui folds a frame's
-pointer events into one position. next_frame() ends the frame being queued, and
+pointer events into one position; drag_along(points) spends a frame on each point between
+the first and the last, for a gesture whose path matters, like a lasso. next_frame() ends the frame being queued, and
 step(events) paints one frame with exactly the events it is handed.
 
 An editor that hands work to another thread paints a spinner until the work lands, so which
