@@ -743,6 +743,7 @@ fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
         }
         with_session(doc, index, |doc, session| {
             let pos = event.pos + session.shift;
+            session.modifiers = event.modifiers;
             session.pressure = event.force;
             session.pen = event.pen;
             session.predicted = event.predicted.map(|predicted| predicted + session.shift);
