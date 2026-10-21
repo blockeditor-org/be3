@@ -60,6 +60,13 @@ changes. A freehand stroke is filled as a perfect-freehand outline
 (`freehand.rs`) that follows its pressures, or simulates them from speed when
 it has none; the stroke being drawn uses the same outline.
 
+Peers see a stroke, shape, line or arrow while it is drawn: the canvas shows
+it as `CanvasDraft` presence (`src/presence.rs`) under the id the entity will
+get, a stroke split into parts of 32 points across the kind's slots so each
+frame resends only the part that grew. The drawer keeps it up until the
+entity exists and its next gesture starts; a peer stops drawing a draft as
+soon as an entity with its id arrives, and never draws that one again.
+
 What holds it back:
 
 - Labels are drawn but not yet edited.

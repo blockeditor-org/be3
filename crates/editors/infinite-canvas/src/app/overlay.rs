@@ -8,8 +8,15 @@ use block_editor_beui::beui::{
 use crate::freehand;
 use crate::geometry::*;
 
-use super::paint::{Camera, Palette, SELECTION, arrowhead, handle, outline};
+use std::rc::Rc;
+
+use super::paint::{
+    Camera, EntityPaint, Palette, SELECTION, arrowhead, handle, outline, resolve_color,
+    with_opacity,
+};
+use super::sketch::Sketch;
 use super::state::{Gesture, Presence, Tool};
+use crate::presence::Draft;
 
 const HINT: &str = "Scroll or use two fingers to move around  ·  Pick a tool to draw\nDrop or paste images, or use Block to add content";
 const HINT_MARGIN: f32 = 16.0;
@@ -98,7 +105,7 @@ pub(crate) struct Overlay {
 
 impl Overlay {
     pub(crate) fn draw(&self, painter: &Painter) {
-        if self.empty && self.gesture.is_none() {
+        if self.empty && self.gesture.is_none() && self.presence.drafts.is_empty() {
             let galley = painter.layout_text(
                 HINT,
                 FontId::proportional(16.0),
@@ -158,23 +165,21 @@ impl Overlay {
                 points,
                 pressures,
                 predicted,
+                ..
             }) => {
                 let mut pressures = pressures.clone();
-                let points: Vec<Pos2> = points
-                    .iter()
-                    .chain(predicted)
-                    .map(|point| pos2(point.x, point.y))
-                    .collect();
+                let points: Vec<CanvasPoint> = points.iter().chain(predicted).copied().collect();
                 if let Some(last) = pressures.last().copied().filter(|_| predicted.is_some()) {
                     pressures.push(last);
                 }
-                let outline = freehand::outline(&points, &pressures, self.pen_width, false);
-                if outline.len() > 2 {
-                    let outline = outline
-                        .into_iter()
-                        .map(|at| self.camera.at(CanvasPoint::new(at.x, at.y)));
-                    painter.fill_path(&Path::polygon(outline), FillRule::NonZero, color);
-                }
+                live_stroke(
+                    painter,
+                    self.camera,
+                    &points,
+                    &pressures,
+                    self.pen_width,
+                    color,
+                );
             }
             Some(Gesture::SelectBox {
                 start,
@@ -252,6 +257,9 @@ impl Overlay {
     }
 
     fn draw_presence(&self, painter: &Painter) {
+        for draft in &self.presence.drafts {
+            self.draw_draft(painter, draft);
+        }
         for selection in &self.presence.selections {
             let color = block_editor_beui::presence_color(selection.color);
             let corners = selection
@@ -276,6 +284,42 @@ impl Overlay {
                 2.0,
                 color,
             );
+        }
+    }
+
+    fn draw_draft(&self, painter: &Painter, draft: &Draft) {
+        match draft {
+            Draft::Stroke {
+                points,
+                pressures,
+                style,
+                ..
+            } => {
+                let color = with_opacity(
+                    resolve_color(style.stroke_color, self.palette.auto),
+                    style.opacity,
+                );
+                live_stroke(
+                    painter,
+                    self.camera,
+                    points,
+                    pressures,
+                    style.stroke_width,
+                    color,
+                );
+            }
+            Draft::Shape(entity) => EntityPaint {
+                entity: entity.clone(),
+                camera: self.camera,
+                palette: self.palette.clone(),
+                title: String::new(),
+                glyph: None,
+                automatic: false,
+                covered: false,
+                placeholder: None,
+                sketch: Rc::new(Sketch::of(entity)),
+            }
+            .draw(painter),
         }
     }
 
@@ -305,5 +349,23 @@ impl Overlay {
             icon,
             self.palette.auto,
         );
+    }
+}
+
+fn live_stroke(
+    painter: &Painter,
+    camera: Camera,
+    points: &[CanvasPoint],
+    pressures: &[f32],
+    width: f32,
+    color: Color32,
+) {
+    let points: Vec<Pos2> = points.iter().map(|point| pos2(point.x, point.y)).collect();
+    let outline = freehand::outline(&points, pressures, width, false);
+    if outline.len() > 2 {
+        let outline = outline
+            .into_iter()
+            .map(|at| camera.at(CanvasPoint::new(at.x, at.y)));
+        painter.fill_path(&Path::polygon(outline), FillRule::NonZero, color);
     }
 }

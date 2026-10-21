@@ -2,7 +2,7 @@ use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::presence::CanvasCursor;
+use crate::presence::{CanvasCursor, CanvasDraft, Draft, assemble, stroke_parts, unlanded};
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::Edit;
@@ -125,12 +125,25 @@ impl Tool {
         matches!(self, Tool::Line | Tool::Arrow)
     }
 
+    pub(crate) fn drafts_a_shape(self) -> bool {
+        matches!(
+            self,
+            Tool::Rectangle | Tool::Ellipse | Tool::Diamond | Tool::Line | Tool::Arrow
+        )
+    }
+
     pub(crate) fn belongs_to(self, profile: CanvasProfile) -> bool {
         match self {
             Tool::Frame => profile == CanvasProfile::Vector,
             _ => true,
         }
     }
+}
+
+fn drafted(mut entity: CanvasEntity, id: Uuid) -> CanvasEntity {
+    entity.id = id;
+    entity.style.seed = id.as_u128() as u32;
+    entity
 }
 
 pub(crate) fn profile_style(profile: CanvasProfile) -> CanvasStyle {
@@ -177,6 +190,7 @@ pub(crate) enum CanvasCommand {
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) enum Gesture {
     Create {
+        id: Uuid,
         tool: Tool,
         start: CanvasPoint,
         current: CanvasPoint,
@@ -184,6 +198,7 @@ pub(crate) enum Gesture {
         from_center: bool,
     },
     Pen {
+        id: Uuid,
         points: Vec<CanvasPoint>,
         pressures: Vec<f32>,
         predicted: Option<CanvasPoint>,
@@ -358,6 +373,7 @@ pub(crate) struct RemoteSelection {
 pub(crate) struct Presence {
     pub(crate) cursors: Vec<RemoteCursor>,
     pub(crate) selections: Vec<RemoteSelection>,
+    pub(crate) drafts: Vec<Draft>,
 }
 
 #[derive(Clone)]
@@ -384,6 +400,9 @@ struct CanvasCells {
     placeholders: RefCell<HashMap<Uuid, Placeholder>>,
     confirmed_editor: Cell<Option<Uuid>>,
     shown: RefCell<Option<CanvasCursor>>,
+    drafted: RefCell<Option<(Uuid, Vec<CanvasDraft>)>>,
+    landing: Cell<Option<Uuid>>,
+    landed: RefCell<HashSet<Uuid>>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
 }
@@ -411,6 +430,7 @@ pub(crate) struct CanvasState {
     pub(crate) child_states: Signal<HashMap<Uuid, ChildState>>,
     pub(crate) presence: Signal<Presence>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
+    drafts: ReadSignal<Vec<(u64, CanvasDraft)>>,
 }
 
 impl CanvasState {
@@ -511,6 +531,9 @@ impl CanvasState {
             placeholders: RefCell::new(HashMap::new()),
             confirmed_editor: Cell::new(None),
             shown: RefCell::new(None),
+            drafted: RefCell::new(None),
+            landing: Cell::new(None),
+            landed: RefCell::new(HashSet::new()),
             color: Cell::new(None),
             stage: Cell::new(Rect::ZERO),
         });
@@ -536,6 +559,7 @@ impl CanvasState {
             child_states,
             presence,
             peers: editor.peers::<CanvasCursor>(),
+            drafts: editor.peers::<CanvasDraft>(),
         }
     }
 
@@ -2002,6 +2026,7 @@ impl CanvasState {
     pub(crate) fn finish_gesture(&self, gesture: Gesture) {
         match gesture {
             Gesture::Create {
+                id,
                 tool,
                 start,
                 current,
@@ -2009,6 +2034,7 @@ impl CanvasState {
                 ..
             } => {
                 if let Some(entity) = self.created_entity(tool, start, current, from_center) {
+                    let entity = drafted(entity, id);
                     let done = matches!(entity.shape, CanvasShape::Text | CanvasShape::Frame);
                     self.add_entity(entity);
                     if done {
@@ -2017,10 +2043,14 @@ impl CanvasState {
                 }
             }
             Gesture::Pen {
-                points, pressures, ..
+                id,
+                points,
+                pressures,
+                ..
             } => {
                 if !points.is_empty() {
-                    self.add_entity(pen_entity(points, pressures, self.default_style()));
+                    let entity = pen_entity(points, pressures, self.default_style());
+                    self.add_entity(drafted(entity, id));
                 }
             }
             Gesture::SelectBox {
@@ -2212,8 +2242,16 @@ impl CanvasState {
         });
         let state = self;
         create_effect(move || {
+            visible.with(|_| ());
+            state.gesture.with(|_| ());
+            state.entities.ids().with(|_| ());
+            untrack(|| state.publish_draft());
+        });
+        let state = self;
+        create_effect(move || {
             state.entities.track_edits();
             state.peers.with(|_| ());
+            state.drafts.with(|_| ());
             untrack(|| state.read_presence());
         });
         let state = self;
@@ -2335,9 +2373,88 @@ impl CanvasState {
         self.cells.value().shown.replace(cursor);
     }
 
+    pub(crate) fn land_draft(&self, gesture: Option<&Gesture>) {
+        let landing = match gesture {
+            Some(Gesture::Pen { id, .. } | Gesture::Create { id, .. }) => Some(*id),
+            _ => None,
+        };
+        self.cells.value().landing.set(landing);
+        if landing.is_none() {
+            self.publish_draft();
+        }
+    }
+
+    fn draft(&self) -> Option<(Uuid, Vec<CanvasDraft>)> {
+        let held = self.cells.value().drafted.borrow().clone();
+        match self.gesture.get_untracked() {
+            Some(Gesture::Pen {
+                id,
+                points,
+                pressures,
+                ..
+            }) => {
+                let mut parts = held
+                    .filter(|(drafted, _)| *drafted == id)
+                    .map(|(_, parts)| parts)
+                    .unwrap_or_default();
+                let from = parts.len().saturating_sub(1);
+                parts.truncate(from);
+                parts.extend(stroke_parts(
+                    id,
+                    self.default_style(),
+                    &points,
+                    &pressures,
+                    from,
+                ));
+                Some((id, parts))
+            }
+            Some(Gesture::Create {
+                id,
+                tool,
+                start,
+                current,
+                from_center,
+                ..
+            }) if tool.drafts_a_shape() => {
+                let entity = self.created_entity(tool, start, current, from_center)?;
+                let entity = drafted(entity, id);
+                Some((id, vec![CanvasDraft::Shape(Box::new(entity))]))
+            }
+            Some(_) => None,
+            None => held.filter(|(id, _)| {
+                self.cells.value().landing.get() == Some(*id)
+                    || self.entities.get_untracked(*id).is_some()
+            }),
+        }
+    }
+
+    fn publish_draft(&self) {
+        let draft = match self.editor.presence_visible().get_untracked() {
+            true => self.draft(),
+            false => None,
+        };
+        let held = self.cells.value().drafted.take();
+        let before = held.as_ref().map_or(&[][..], |(_, parts)| parts);
+        let after = draft.as_ref().map_or(&[][..], |(_, parts)| parts);
+        for slot in 0..before.len().max(after.len()) {
+            if before.get(slot) != after.get(slot) {
+                self.editor.show_in(slot as u16, after.get(slot));
+            }
+        }
+        self.cells.value().drafted.replace(draft);
+    }
+
     fn read_presence(&self) {
         let entities = self.entities.all_untracked();
-        let mut presence = Presence::default();
+        let drafts = unlanded(
+            assemble(&self.drafts.get_untracked()),
+            |id| self.entities.get_untracked(id).is_some(),
+            &mut self.cells.value().landed.borrow_mut(),
+        );
+        let mut presence = Presence {
+            drafts: drafts.into_iter().map(|(_, draft)| draft).collect(),
+            ..Presence::default()
+        };
         for (_, cursor) in self.peers.get_untracked() {
             let color = cursor.color;
             if !cursor.selection.is_empty() {

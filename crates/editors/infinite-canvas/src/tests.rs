@@ -7,6 +7,7 @@ use block_editor_beui::be_block::canvas::{
     CanvasTransform, InfiniteCanvasOperation,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
+use block_editor_beui::be_block::presence::PresenceKind;
 use block_editor_beui::be_block::{
     CanvasContent, DisplaySettings, Root, Settings, SettingsContent, SettingsProfile,
     SettingsProfileContent,
@@ -34,6 +35,8 @@ mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_multiple_selection_outlines_each_selected_entity;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
 mod a_new_shape_takes_the_last_style_used;
+mod a_peer_sees_a_shape_while_it_is_dragged;
+mod a_peer_sees_a_stroke_while_it_is_drawn;
 mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
 mod a_preview_with_no_camera_fits_its_frame;
 mod a_resize_handle_follows_the_drag_rather_than_jumping_to_the_pointer;
@@ -320,4 +323,33 @@ fn apply(editor: &mut BeuiTest<CanvasApp>, operation: InfiniteCanvasOperation) {
 
 fn entities(editor: &BeuiTest<CanvasApp>) -> Vec<CanvasEntity> {
     editor.content::<CanvasContent>(None).root().entities()
+}
+
+fn forward_presence(
+    from: &mut BeuiTest<CanvasApp>,
+    to: &mut BeuiTest<CanvasApp>,
+    held: &mut BTreeMap<Uuid, Vec<u8>>,
+) -> usize {
+    let mut drafts = std::collections::HashSet::new();
+    for shown in from.take_shown_presence() {
+        if crate::presence::CanvasDraft::holds(shown.kind) {
+            drafts.insert(shown.kind);
+        }
+        match shown.value {
+            Some(value) => held.insert(shown.kind, value),
+            None => held.remove(&shown.kind),
+        };
+    }
+    to.set_peers(
+        None,
+        held.iter()
+            .map(|(kind, value)| block_editor_beui::PeerPresence {
+                client: 7,
+                kind: *kind,
+                value: value.clone(),
+            })
+            .collect(),
+    );
+    to.run();
+    drafts.len()
 }

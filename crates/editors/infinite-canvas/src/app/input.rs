@@ -119,6 +119,7 @@ impl CanvasState {
             | Tool::Text
             | Tool::Frame => {
                 self.begin_gesture(Some(Gesture::Create {
+                    id: Uuid::new_v4(),
                     tool,
                     start: world,
                     current: world,
@@ -127,6 +128,7 @@ impl CanvasState {
                 }));
             }
             Tool::Pen => self.begin_gesture(Some(Gesture::Pen {
+                id: Uuid::new_v4(),
                 points: vec![world],
                 pressures: pen_pressure(press).into_iter().collect(),
                 predicted: None,
@@ -365,6 +367,7 @@ impl CanvasState {
                 current,
                 pointer,
                 from_center,
+                ..
             } => {
                 if tool.draws_a_box() {
                     let delta = CanvasPoint::new(world.x - pointer.x, world.y - pointer.y);
@@ -450,6 +453,7 @@ impl CanvasState {
                 points,
                 pressures,
                 predicted: tail,
+                ..
             } => {
                 *tail = predicted;
                 if points
@@ -474,6 +478,7 @@ impl CanvasState {
         self.finish_grouped_edit();
         let gesture = self.gesture.get_untracked();
         let retapped = self.take_retap();
+        self.land_draft(gesture.as_ref());
         self.begin_gesture(None);
         if let (Some((id, at)), Some(Gesture::Move { start, current, .. })) = (retapped, &gesture)
             && start == current
@@ -484,6 +489,7 @@ impl CanvasState {
         if let Some(gesture) = gesture {
             self.finish_gesture(gesture);
         }
+        self.land_draft(None);
     }
 
     pub(crate) fn cancel(&self) {
