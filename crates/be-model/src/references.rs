@@ -118,6 +118,11 @@ fn walk_object(tree: &Tree, id: ObjectId, kind: &Kind, found: &mut Vec<Uuid>) {
 }
 
 fn walk_bytes(bytes: &[u8], found: &mut Vec<Uuid>) {
+    let [_, _, _, _, a, b, c, d] = stored::BLOCK_REF.to_be_bytes();
+    let tagged = [0xda, a, b, c, d];
+    if !bytes.windows(tagged.len()).any(|window| window == tagged) {
+        return;
+    }
     if let Some(value) = stored::decode::<Stored>(bytes) {
         walk(&value, found);
     }

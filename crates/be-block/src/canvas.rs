@@ -981,6 +981,16 @@ fn exactly_ordered(order: &[Uuid], ids: &[Uuid]) -> Vec<Uuid> {
 impl Root for Canvas {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x696e_6669_6e69_7465_2d63_616e_7661_7301);
 
+    fn name_in(_: &be_model::Document<Self>) -> Option<String> {
+        None
+    }
+
+    fn references_of(_: &be_model::Document<Self>, _: Uuid) -> Vec<Uuid> {
+        Vec::new()
+    }
+
+    fn describe_in(_: &be_model::Document<Self>, _: &mut crate::BlockMetadata) {}
+
     fn undoable(change: &Change) -> bool {
         !matches!(
             change,

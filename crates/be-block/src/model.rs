@@ -43,6 +43,13 @@ pub trait Root: Model + Send + Sync + 'static {
         document.root().name()
     }
 
+    fn references_of(document: &Document<Self>, organization: Uuid) -> Vec<Uuid>
+    where
+        Self: Sized,
+    {
+        document.root().references_in(organization)
+    }
+
     fn describe_in(document: &Document<Self>, metadata: &mut crate::BlockMetadata)
     where
         Self: Sized,
@@ -77,7 +84,7 @@ impl<R: Root> BlockContent for Document<R> {
     }
 
     fn references_in(&self, organization: Uuid) -> Vec<Uuid> {
-        joined(self.root().references_in(organization), self.block_refs())
+        joined(R::references_of(self, organization), self.block_refs())
     }
 
     fn describe(&self, metadata: &mut crate::BlockMetadata) {
@@ -172,6 +179,10 @@ impl<R: Root> Undo for Document<R> {
 
     fn absorb(previous: &mut Self::Step, next: Self::Step) -> Result<(), Self::Step> {
         previous.absorb(next)
+    }
+
+    fn then(previous: &mut Self::Step, next: Self::Step) {
+        previous.then(next);
     }
 
     fn revert(&self, step: &Self::Step) -> Vec<Self::Op> {
