@@ -519,6 +519,10 @@ impl Element for ListNode {
         self.items.nodes()
     }
 
+    fn children_revision(&self) -> Option<u64> {
+        Some(self.items.revision())
+    }
+
     fn for_each_child(&self, visit: &mut dyn FnMut(NodeId)) {
         for child in self.items.iter().filter_map(ChildItem::node) {
             visit(child);

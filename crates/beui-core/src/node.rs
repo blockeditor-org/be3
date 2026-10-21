@@ -159,6 +159,10 @@ pub trait Element: Any {
         self.for_each_child(visit);
     }
 
+    fn children_revision(&self) -> Option<u64> {
+        None
+    }
+
     fn remove_child(&mut self, child: NodeId);
 
     fn focus_children(&self) -> Option<Vec<FocusChild>> {
@@ -630,6 +634,7 @@ pub struct Arena {
     fence: Option<NodeId>,
     adopting: RefCell<Vec<NodeId>>,
     adoption: RefCell<Vec<Adoption>>,
+    adopted: RefCell<Vec<Option<u64>>>,
     stale: Vec<bool>,
     unplaced: Vec<bool>,
     free: Vec<u32>,
@@ -671,6 +676,7 @@ impl Arena {
                 self.unplaced[slot] = true;
                 self.marks[slot] = 0;
                 self.adoption.get_mut()[slot] = Adoption::Settled;
+                self.adopted.get_mut()[slot] = None;
                 NodeId {
                     index,
                     generation: self.generations[slot],
@@ -688,6 +694,7 @@ impl Arena {
                 self.unplaced.push(true);
                 self.marks.push(0);
                 self.adoption.get_mut().push(Adoption::Settled);
+                self.adopted.get_mut().push(None);
                 NodeId {
                     index,
                     generation: 0,
@@ -1010,6 +1017,7 @@ impl Arena {
         let mut moved = false;
         let mut parents = self.parents.borrow_mut();
         let mut adoption = self.adoption.borrow_mut();
+        let mut adopted = self.adopted.borrow_mut();
         for parent in pending.drain(..) {
             let Some(slot) = self.slot(parent) else {
                 continue;
@@ -1028,6 +1036,11 @@ impl Arena {
                 adoption[slot] = Adoption::Taken;
                 continue;
             };
+            let revision = element.children_revision();
+            if revision.is_some() && adopted[slot] == revision {
+                continue;
+            }
+            adopted[slot] = revision;
             element.for_each_child(&mut |child| {
                 let Some(held) = self.slot(child).map(|slot| &mut parents[slot]) else {
                     return;
@@ -1039,6 +1052,7 @@ impl Arena {
             });
         }
         drop(parents);
+        drop(adopted);
         let mut adopting = self.adopting.borrow_mut();
         if adopting.is_empty() {
             *adopting = pending;

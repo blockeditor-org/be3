@@ -317,6 +317,10 @@ impl Element for CanvasNode {
         self.items.nodes()
     }
 
+    fn children_revision(&self) -> Option<u64> {
+        Some(self.items.revision())
+    }
+
     fn pointer_children(&self) -> Vec<NodeId> {
         self.laid.clone()
     }
