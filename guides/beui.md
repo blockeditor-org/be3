@@ -2784,12 +2784,16 @@ an `InteractionState` only when one of its flags changes: `hovered`,
 while it has the focus), `focused` and `panning`. A catcher with an
 `on_state_change` holds the presses that reach it, as one that tracks being
 pressed must. Hand it a `Signal<InteractionState>` and give the content one
-`state: Memo<FooState>` of the component's flags, built from that signal and
+`state: Prop<FooState>` of the component's flags, read from that signal and
 the component's own values (`ToggleState { checked, mixed, hovered, active,
-focused, disabled }` in `unstyled::Toggle`), rather than a signal per flag:
-a face reading `state.get().hovered` in its own memo stops there when another
-flag changes, and `Prop::field(state, |state| state.focused)` passes one flag
-on as a prop without boxing a closure. Logic that wants the edge of one flag, such as a commit on blur,
+focused, disabled }` in `unstyled::Toggle`), rather than a signal per flag.
+Build it with `Prop::dynamic`: a memo costs several allocations and a run when
+it is created, and the faces reading the state are memos that already stop
+propagation. Make it a memo (passed on with `.into_prop()`) only when
+computing it is costly or it reads something that changes for many controls
+at once, as `DockTabState` reads the dock's drag. `Prop::field(state, |state|
+state.focused)` passes one flag on as a prop without boxing a closure. Logic
+that wants the edge of one flag, such as a commit on blur,
 wraps its callback in `InteractionState::watch(|state| state.focused, ...)`.
 
 A catcher takes the wheel with `on_scroll` and a touch drag with

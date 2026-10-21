@@ -1,6 +1,4 @@
-use reactive::{
-    AnyKey, Get, Memo, ReadSignal, Signal, Stored, check_tracked_read, store, untrack,
-};
+use reactive::{AnyKey, Get, Memo, ReadSignal, Signal, Stored, check_tracked_read, store, untrack};
 
 pub enum Prop<T> {
     Static(T),
