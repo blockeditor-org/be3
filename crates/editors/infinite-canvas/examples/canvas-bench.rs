@@ -214,6 +214,9 @@ fn ink(count: usize) -> Ink {
         lifts: Vec::new(),
     };
     for stroke in 0..STROKES {
+        camera(&mut test, Pos2::new(world.x * 0.5, world.y * 0.5), 1.0);
+        test.run();
+        test.settle();
         let from = canvas.center() + Vec2::new(-150.0, (stroke as f32 - 4.0) * 25.0);
         let at = |step: usize| {
             let along = step as f32 / STROKE_MOVES as f32;
