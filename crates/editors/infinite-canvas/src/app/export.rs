@@ -23,7 +23,9 @@ use crate::geometry::{TEXT_INSET, entity_bounds};
 use super::paint::{Camera, EntityPaint, Palette, resolve_color, with_opacity};
 use super::sketch::{Ink, Mark, Sketch};
 use super::state::CanvasState;
-use super::text::{font_px, prose, rich_state, text_box, text_region, text_style, writes};
+use super::text::{
+    font_px, prose, rich_state, text_box, text_region, text_style, text_turn, writes,
+};
 
 pub(crate) const PADDING: f32 = 16.0;
 pub(crate) const SCALES: [f32; 3] = [1.0, 2.0, 3.0];
@@ -424,11 +426,8 @@ fn draw(
         resolve_color(entity.style.stroke_color, scene.palette.auto),
         opacity,
     );
+    let turned = painter.rotated(camera.at(entity.transform.center), text_turn(entity));
     if entity.shape == CanvasShape::Text {
-        let turned = painter.rotated(
-            camera.at(entity.transform.center),
-            entity.transform.rotation,
-        );
         paint_written(&turned, entity, ink, camera);
         return;
     }
@@ -462,7 +461,7 @@ fn draw(
         sketch: Rc::new(Sketch::of(entity).translated(Vec2::new(camera.origin.x, camera.origin.y))),
     }
     .draw(painter);
-    paint_written(painter, entity, ink, camera);
+    paint_written(&turned, entity, ink, camera);
 }
 
 fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camera) {
@@ -660,7 +659,13 @@ fn svg_entity(
             )),
         }
     }
-    svg_written(out, painter, entity, ink, "");
+    svg_written(
+        out,
+        painter,
+        entity,
+        ink,
+        &turn_by(entity, text_turn(entity)),
+    );
 }
 
 fn svg_written(
@@ -748,7 +753,10 @@ fn weight_of(bold: bool) -> &'static str {
 }
 
 fn turn(entity: &CanvasEntity) -> String {
-    let rotation = entity.transform.rotation;
+    turn_by(entity, entity.transform.rotation)
+}
+
+fn turn_by(entity: &CanvasEntity, rotation: f32) -> String {
     match rotation == 0.0 {
         true => String::new(),
         false => format!(

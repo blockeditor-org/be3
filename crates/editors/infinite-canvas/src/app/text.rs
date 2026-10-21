@@ -99,6 +99,13 @@ pub(crate) fn measure(entity: &CanvasEntity, scale: f32) -> Option<Vec2> {
     Some(Vec2::new(measured.x / scale, measured.y / scale))
 }
 
+pub(crate) fn text_turn(entity: &CanvasEntity) -> f32 {
+    match entity.shape {
+        CanvasShape::Path | CanvasShape::Freehand => 0.0,
+        _ => entity.transform.rotation,
+    }
+}
+
 pub(crate) fn text_box(entity: &CanvasEntity) -> Rect {
     let center = entity.transform.center;
     let size = entity.transform.size;
@@ -146,6 +153,7 @@ struct Shown {
     color: Color32,
     locked: bool,
     region: Rect,
+    turn: f32,
 }
 
 #[component]
@@ -174,6 +182,7 @@ pub(crate) fn EntityText(
             ),
             locked: entity.locked,
             region: text_region(&entity),
+            turn: text_turn(&entity),
         })
     });
     let placeholder = create_memo(move || {
@@ -200,6 +209,10 @@ pub(crate) fn EntityText(
     });
     let disabled =
         create_memo(move || !editing.get() || shown.get().is_none_or(|shown| shown.locked));
+    let turn = create_memo(move || match editing.get() {
+        true => 0.0,
+        false => shown.get().map_or(0.0, |shown| shown.turn),
+    });
     let padding = create_memo(move || {
         let (outer, inner, unit) = (
             outer.get(),
@@ -256,21 +269,23 @@ pub(crate) fn EntityText(
     };
     view! {
         <Frame padding={padding}>
-            <TextArea
-                @node_ref=&field
-                @test_id={format!("infinite-canvas.text.{id}")}
-                state={area}
-                line_numbers=false
-                colors
-                placeholder
-                disabled
-                focused={editing}
-                font_size
-                padding={inset}
-                prose
-                remote_cursors
-                on_focus_change={left}
-            />
+            <Turn angle={turn}>
+                <TextArea
+                    @node_ref=&field
+                    @test_id={format!("infinite-canvas.text.{id}")}
+                    state={area}
+                    line_numbers=false
+                    colors
+                    placeholder
+                    disabled
+                    focused={editing}
+                    font_size
+                    padding={inset}
+                    prose
+                    remote_cursors
+                    on_focus_change={left}
+                />
+            </Turn>
         </Frame>
     }
 }

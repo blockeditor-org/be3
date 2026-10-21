@@ -65,7 +65,10 @@ or the whole canvas. SVG writes each sketch's paths, text and labels as SVG text
 `<tspan>` per formatted run, and images embedded; PNG paints the entities into an offscreen beui context and
 rasterizes that painting on the CPU (`paint_format::rasterize`), since a
 plugin cannot read pixels back from the GPU. Both lay text out as the
-canvas's text area does (`TextAreaState::lay_out_prose`). A freehand stroke is filled as a perfect-freehand outline
+canvas's text area does (`TextAreaState::lay_out_prose`), and turn a text
+shape, and the label of a box shape, by its rotation as the canvas does
+(`text::text_turn`; the canvas draws it upright only while it is edited,
+since beui's `Turn` does not turn pointer input). A freehand stroke is filled as a perfect-freehand outline
 (`freehand.rs`) that follows its pressures, or simulates them from speed when
 it has none; the stroke being drawn uses the same outline.
 
@@ -76,9 +79,15 @@ frame resends only the part that grew. The drawer keeps it up until the
 entity exists and its next gesture starts; a peer stops drawing a draft as
 soon as an entity with its id arrives, and never draws that one again. A
 move, resize, rotation or bend of shapes that exist is drafted as
-`CanvasDraft::Change` until it is written. A peer shows a drafted shape or
+`CanvasDraft::Change`, with a fingerprint (`presence::fingerprint`) of the
+entity it changes; the mover keeps it up after the write, until its next
+gesture or until the entity goes back to that fingerprint, and a peer draws
+it only while its own copy still has that fingerprint, so the shape does not
+jump back when presence outruns the edit. A peer shows a drafted shape or
 change as a preview of that entity, so it is drawn with its label exactly as
-the drawer sees it. Peers also see each other's carets and selections in a
+the drawer sees it. Previews reach only the shown entities, which only
+drawing reads (`Entities::shown_*`); everything that counts shapes (layers,
+selection, export, the intrinsic size) reads the stored ones. Peers also see each other's carets and selections in a
 text or label, whether or not they edit it themselves.
 
 What holds it back:
