@@ -675,17 +675,15 @@ impl Canvas {
             .collect()
     }
 
-    fn holding(&self, id: Uuid) -> impl Iterator<Item = &be_model::Item<Entity>> {
-        self.entities
-            .iter()
-            .filter(move |held| held.id == ObjectId::from_uuid(id))
-    }
-
     pub fn edit_in(content: &CanvasContent, operation: &InfiniteCanvasOperation) -> Edit {
-        let unbound = |id: Uuid| {
+        let held = |id: Uuid| {
             let object = ObjectId::from_uuid(id);
-            content.read::<Entity>(object)?.view(object)
+            Some(be_model::Item {
+                id: object,
+                value: content.read::<Entity>(object)?,
+            })
         };
+        let unbound = |id: Uuid| held(id)?.view(ObjectId::from_uuid(id));
         match operation {
             InfiniteCanvasOperation::Add { entity } => {
                 if entity.id.is_nil() || content.tree().contains(ObjectId::from_uuid(entity.id)) {
@@ -704,94 +702,71 @@ impl Canvas {
                 .iter()
                 .flat_map(|update| {
                     let update = normalized_entity(update.clone());
-                    let object = ObjectId::from_uuid(update.id);
-                    let Some(value) = content.read::<Entity>(object) else {
+                    let Some(held) = held(update.id) else {
                         return Vec::new();
                     };
-                    let held = be_model::Item { id: object, value };
-                    let Some(mut shown) = held.view(object) else {
+                    let Some(mut shown) = held.view(held.id) else {
                         return Vec::new();
                     };
                     shown.follow(unbound);
                     update_entity(&held, &shown, &update)
                 })
                 .collect(),
-            operation => content.root().edit_for(operation),
-        }
-    }
-
-    pub fn edit_for(&self, operation: &InfiniteCanvasOperation) -> Edit {
-        match operation {
-            InfiniteCanvasOperation::Add { entity } => {
-                if entity.id.is_nil() || self.holding(entity.id).next().is_some() {
-                    return Edit::default();
-                }
-                Self::ENTITIES
-                    .insert_as(
-                        ObjectId::from_uuid(entity.id),
-                        ObjectId::ROOT,
-                        Anchor::End,
-                        &Entity::of(&normalized_entity(entity.as_ref().clone())),
-                    )
-                    .into()
-            }
-            InfiniteCanvasOperation::Update { entities } => {
-                let shown: HashMap<Uuid, CanvasEntity> = self
-                    .entities()
-                    .into_iter()
-                    .map(|entity| (entity.id, entity))
-                    .collect();
-                entities
-                    .iter()
-                    .flat_map(|update| {
-                        let update = normalized_entity(update.clone());
-                        self.holding(update.id)
-                            .flat_map(|held| match shown.get(&update.id) {
-                                Some(shown) => update_entity(held, shown, &update),
-                                None => Vec::new(),
-                            })
-                            .collect::<Vec<_>>()
-                    })
-                    .collect()
-            }
             InfiniteCanvasOperation::Remove { ids } => {
-                let unbound = self.unbound();
-                let by_id: HashMap<Uuid, &CanvasEntity> =
-                    unbound.iter().map(|entity| (entity.id, entity)).collect();
-                let mut changes: Vec<Change> = self
-                    .entities
+                let removed: HashSet<Uuid> = ids
                     .iter()
-                    .filter(|held| ids.contains(&held.id.as_uuid()))
-                    .map(|held| Change::remove(held.id))
+                    .copied()
+                    .filter(|id| content.tree().contains(ObjectId::from_uuid(*id)))
                     .collect();
-                for entity in &unbound {
-                    let bound_to_removed = |binding: &Option<CanvasBinding>| {
-                        binding.is_some_and(|binding| ids.contains(&binding.entity))
-                    };
-                    if ids.contains(&entity.id) || !entity.bindings.iter().any(bound_to_removed) {
+                let mut changes: Vec<Change> = removed
+                    .iter()
+                    .map(|id| Change::remove(ObjectId::from_uuid(*id)))
+                    .collect();
+                let bound_to_removed = |binding: &Option<CanvasBinding>| {
+                    binding.is_some_and(|binding| removed.contains(&binding.entity))
+                };
+                for object in content.ids(ObjectId::ROOT, Self::ENTITIES) {
+                    let ends = [
+                        content.field(object, Entity::START_BINDING),
+                        content.field(object, Entity::END_BINDING),
+                    ];
+                    if removed.contains(&object.as_uuid()) || !ends.iter().any(bound_to_removed) {
                         continue;
                     }
-                    let mut kept = entity.followed(|id| by_id.get(&id).copied());
+                    let Some(held) = held(object.as_uuid()) else {
+                        continue;
+                    };
+                    let Some(entity) = held.view(object) else {
+                        continue;
+                    };
+                    let mut kept = entity.clone();
+                    kept.follow(unbound);
                     for binding in &mut kept.bindings {
                         if bound_to_removed(binding) {
                             *binding = None;
                         }
                     }
-                    if let Some(held) = self.holding(entity.id).next() {
-                        changes.extend(update_entity(held, entity, &kept));
-                    }
+                    changes.extend(update_entity(&held, &entity, &kept));
                 }
                 Edit(changes)
             }
             InfiniteCanvasOperation::Reorder { ids, movement } => {
-                let order: Vec<Uuid> = self.entities.iter().map(|held| held.id.as_uuid()).collect();
-                self.reorder_to(&reordered(&order, ids, *movement), ids)
+                let order = Self::order(content);
+                Self::reorder_to(&order, &reordered(&order, ids, *movement), ids)
             }
             InfiniteCanvasOperation::ExactOrder { ids } => {
-                let order: Vec<Uuid> = self.entities.iter().map(|held| held.id.as_uuid()).collect();
-                self.reorder_to(&exactly_ordered(&order, ids), ids)
+                let order = Self::order(content);
+                Self::reorder_to(&order, &exactly_ordered(&order, ids), ids)
             }
         }
+    }
+
+    fn order(content: &CanvasContent) -> Vec<Uuid> {
+        content
+            .ids(ObjectId::ROOT, Self::ENTITIES)
+            .into_iter()
+            .map(ObjectId::as_uuid)
+            .collect()
     }
 
     pub fn rich_text(content: &CanvasContent, entity: Uuid) -> Option<&Rich> {
@@ -820,22 +795,13 @@ impl Canvas {
         Some(Entity::TEXT.edit(ObjectId::from_uuid(entity), op).into())
     }
 
-    fn reorder_to(&self, target: &[Uuid], moved: &[Uuid]) -> Edit {
-        let objects: Vec<(Uuid, ObjectId)> = self
-            .entities
-            .iter()
-            .map(|held| (held.id.as_uuid(), held.id))
-            .collect();
-        let current: Vec<Uuid> = objects.iter().map(|(entity, _)| *entity).collect();
+    fn reorder_to(current: &[Uuid], target: &[Uuid], moved: &[Uuid]) -> Edit {
         if current == target {
             return Edit::default();
         }
-        let object_of = |entity: Uuid| {
-            objects
-                .iter()
-                .find(|(held, _)| *held == entity)
-                .map(|(_, object)| *object)
-        };
+        let held: HashSet<Uuid> = current.iter().copied().collect();
+        let moved: HashSet<Uuid> = moved.iter().copied().collect();
+        let object_of = |entity: Uuid| held.contains(&entity).then(|| ObjectId::from_uuid(entity));
         let mut changes = Vec::new();
         for (index, entity) in target.iter().enumerate() {
             if !moved.contains(entity) {
@@ -992,16 +958,20 @@ fn reordered(order: &[Uuid], ids: &[Uuid], movement: CanvasLayerMove) -> Vec<Uui
 }
 
 fn exactly_ordered(order: &[Uuid], ids: &[Uuid]) -> Vec<Uuid> {
+    let mut rank: HashMap<Uuid, usize> = HashMap::new();
+    for (index, id) in ids.iter().enumerate() {
+        rank.entry(*id).or_insert(index);
+    }
     let mut ranked: Vec<Uuid> = order
         .iter()
-        .filter(|id| ids.contains(id))
+        .filter(|id| rank.contains_key(id))
         .copied()
         .collect();
-    ranked.sort_by_key(|entity| ids.iter().position(|id| id == entity).unwrap_or(usize::MAX));
+    ranked.sort_by_key(|entity| rank.get(entity).copied().unwrap_or(usize::MAX));
     let mut ranked = ranked.into_iter();
     order
         .iter()
-        .map(|id| match ids.contains(id) {
+        .map(|id| match rank.contains_key(id) {
             true => ranked.next().unwrap_or(*id),
             false => *id,
         })

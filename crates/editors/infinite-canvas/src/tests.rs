@@ -338,10 +338,7 @@ fn vector_phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
 }
 
 fn apply(editor: &mut BeuiTest<CanvasApp>, operation: InfiniteCanvasOperation) {
-    let edit = editor
-        .content::<CanvasContent>(None)
-        .root()
-        .edit_for(&operation);
+    let edit = Canvas::edit_in(&editor.content::<CanvasContent>(None), &operation);
     editor.edit::<CanvasContent>(None, &edit);
 }
 

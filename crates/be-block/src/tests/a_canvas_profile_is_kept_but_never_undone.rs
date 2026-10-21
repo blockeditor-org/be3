@@ -13,9 +13,12 @@ fn a_canvas_profile_is_kept_but_never_undone() {
     assert_eq!(CanvasContent::decode(&canvas.encode()), Ok(canvas.clone()));
 
     let shape = CanvasEntity::new(CanvasShape::Rectangle, CanvasTransform::default());
-    let add = canvas.root().edit_for(&InfiniteCanvasOperation::Add {
-        entity: Box::new(shape),
-    });
+    let add = crate::canvas::Canvas::edit_in(
+        &canvas,
+        &InfiniteCanvasOperation::Add {
+            entity: Box::new(shape),
+        },
+    );
     let both = Edit(
         add.0
             .iter()

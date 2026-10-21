@@ -7,7 +7,7 @@ use be_commit::MergeResult;
 
 fn run(content: &CanvasContent, operation: InfiniteCanvasOperation) -> CanvasContent {
     let mut changed = content.clone();
-    let edit = content.root().edit_for(&operation);
+    let edit = crate::canvas::Canvas::edit_in(content, &operation);
     changed.apply(&edit);
     changed
 }

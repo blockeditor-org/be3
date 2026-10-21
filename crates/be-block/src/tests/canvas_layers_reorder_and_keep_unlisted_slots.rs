@@ -15,7 +15,7 @@ fn entity(id: Uuid) -> CanvasEntity {
 }
 
 fn run(content: &mut CanvasContent, operation: InfiniteCanvasOperation) {
-    let edit = content.root().edit_for(&operation);
+    let edit = crate::canvas::Canvas::edit_in(content, &operation);
     content.apply(&edit);
 }
 

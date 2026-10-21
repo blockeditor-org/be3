@@ -1,6 +1,7 @@
 use super::*;
 use crate::canvas::{
-    CanvasContent, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform, InfiniteCanvasOperation,
+    Canvas, CanvasContent, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
+    InfiniteCanvasOperation,
 };
 use crate::{
     browser_tab::{BrowserTabContent, HistoryItem},
@@ -226,5 +227,5 @@ fn rectangle() -> CanvasEntity {
 }
 
 fn canvas_run(content: &CanvasContent, operation: InfiniteCanvasOperation) -> CanvasContent {
-    edited(content, [content.root().edit_for(&operation)])
+    edited(content, [Canvas::edit_in(content, &operation)])
 }
