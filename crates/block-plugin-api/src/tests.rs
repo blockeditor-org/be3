@@ -85,7 +85,6 @@ mod block_content_and_operations_round_trip;
 mod block_types_round_trip;
 mod child_placements_round_trip;
 mod child_statuses_round_trip;
-mod child_view_changes_round_trip;
 mod clipboard_messages_round_trip;
 mod copied_text_round_trips;
 mod creation_messages_round_trip;

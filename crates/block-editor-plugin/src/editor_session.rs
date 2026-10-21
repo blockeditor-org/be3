@@ -4,7 +4,7 @@ use block_plugin_api::{
     ArtifactDescription, BarAction, Camera, ChildId, ChildPlacement, ChildPlacements, ChildRect,
     ChildStatus, CreationOutcome, EditorInstanceId, EditorMessage, EditorRegion, FrameChrome,
     FrameReport, HostPanel, HostReply, ImeArea, InputEvent, MAX_CHILDREN, MAX_COLLECTION_ITEMS,
-    MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size, ViewChange,
+    MenuEntry, Message, Occluder, RegionSize, ScreenPlacement, ScreenRequest, Size,
     ViewportMetrics, WebViewEvent, WebViewId,
 };
 use block_ui::BlockCatalog;
@@ -792,10 +792,6 @@ impl EditorSession {
 
     pub(crate) fn web_view_event(&self, web_view: WebViewId, event: WebViewEvent) {
         self.host.push_web_view_event(web_view, event);
-    }
-
-    pub(crate) fn child_view_change(&self, child: ChildId, change: ViewChange) {
-        self.host.push_child_view_change(child, change);
     }
 
     pub(crate) fn child_bar_action(&self, child: ChildId, action: BarAction) {

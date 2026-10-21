@@ -447,7 +447,6 @@ pub struct EditorHost {
     web_view_events: Rc<RefCell<Vec<(WebViewId, WebViewEvent)>>>,
     presenting: Rc<Cell<bool>>,
     present_requests: Rc<RefCell<Vec<bool>>>,
-    child_views: Rc<RefCell<HashMap<ChildId, Vec<ViewChange>>>>,
     child_bars: Rc<RefCell<HashMap<ChildId, Vec<BarAction>>>>,
     child_focuses: Rc<RefCell<HashSet<ChildId>>>,
     bar_actions: Rc<RefCell<Vec<BarAction>>>,
@@ -1778,13 +1777,6 @@ impl EditorHost {
         self.changed();
     }
 
-    pub fn take_child_view_changes(&self, child: ChildId) -> Vec<ViewChange> {
-        self.child_views
-            .borrow_mut()
-            .remove(&child)
-            .unwrap_or_default()
-    }
-
     pub fn take_child_bar_actions(&self, child: ChildId) -> Vec<BarAction> {
         self.child_bars
             .borrow_mut()
@@ -1807,15 +1799,6 @@ impl EditorHost {
             .entry(child)
             .or_default()
             .push(action);
-        self.changed();
-    }
-
-    pub(crate) fn push_child_view_change(&self, child: ChildId, change: ViewChange) {
-        self.child_views
-            .borrow_mut()
-            .entry(child)
-            .or_default()
-            .push(change);
         self.changed();
     }
 

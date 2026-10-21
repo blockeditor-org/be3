@@ -493,7 +493,6 @@ struct TabContext {
 
 #[derive(Clone, Copy, Default)]
 pub(crate) struct ChildReporter {
-    view: Callback<ViewChange>,
     bar: Callback<BarAction>,
     focus: Callback<()>,
 }
@@ -791,6 +790,8 @@ fn fit(viewport: &mut Viewport, size: Vec2, content: Vec2) {
     viewport.pan = Vec2::ZERO;
 }
 
+const FIT_MARGIN: f32 = 20.0;
+
 #[derive(Clone, Copy)]
 struct CameraOwner(Callback<Command>);
 
@@ -799,6 +800,7 @@ enum Command {
     Pan(Vec2),
     Zoom { factor: f32, anchor: Option<Pos2> },
     Fit,
+    FitRect(Rect),
     ResumeAutoFit,
 }
 
@@ -823,6 +825,28 @@ fn settle(viewport: &mut Viewport, command: Command, rect: Rect, content: Vec2, 
         Command::Fit => {
             fit(viewport, size, content);
             viewport.auto_fit = viewport.auto_fit.map(|_| false);
+        }
+        Command::FitRect(target) => {
+            let room = (size - Vec2::splat(FIT_MARGIN * 2.0)).max(Vec2::splat(1.0));
+            let factor = (room.x / target.width().max(1.0)).min(room.y / target.height().max(1.0));
+            let anchor = target.center();
+            settle(
+                viewport,
+                Command::Zoom {
+                    factor,
+                    anchor: Some(anchor),
+                },
+                rect,
+                content,
+                max_zoom,
+            );
+            settle(
+                viewport,
+                Command::Pan(rect.center() - anchor),
+                rect,
+                content,
+                max_zoom,
+            );
         }
         Command::ResumeAutoFit => {
             if viewport.auto_fit.is_some() {
@@ -1052,7 +1076,6 @@ fn BlockFrameView(
     reporter: ChildReporter,
 ) -> NodeId {
     let ChildReporter {
-        view: on_view_change,
         bar: on_bar_action,
         focus: on_focus,
     } = reporter;
@@ -1100,21 +1123,12 @@ fn BlockFrameView(
             let owner = use_context::<CameraOwner>();
             let command = move |command: Command| {
                     if !pan_and_zoom {
-                        if let (Some(owner), Command::Pan(_) | Command::Zoom { .. }, true) =
-                            (owner, command, handle.pan_and_zoom)
-                        {
-                            owner.0.call(command);
-                            return;
-                        }
-                        if !on_view_change.is_empty() {
-                            on_view_change.call(match command {
-                                Command::Pan(delta) => ViewChange::Pan { x: delta.x, y: delta.y },
-                                Command::Zoom { factor, anchor } => ViewChange::Zoom {
-                                    factor,
-                                    anchor: anchor.map(|anchor| (anchor.x, anchor.y)),
-                                },
-                                Command::Fit => ViewChange::Fit,
-                                Command::ResumeAutoFit => ViewChange::ResumeAutoFit,
+                        if let (Some(owner), true) = (owner, handle.pan_and_zoom) {
+                            owner.0.call(match command {
+                                Command::Fit => Command::FitRect(
+                                    content.get_untracked().unwrap_or(rect.get_untracked()),
+                                ),
+                                command => command,
                             });
                         }
                         return;
@@ -1237,7 +1251,7 @@ fn BlockFrameView(
                 })
             });
             let gestures = handle.pan != PanMode::None
-                && (pan_and_zoom || !on_view_change.is_empty() && handle.pan_and_zoom);
+                && (pan_and_zoom || owner.is_some() && handle.pan_and_zoom);
             let pan_drag = (gestures && handle.pan == PanMode::OneFinger).then(|| PanDrag {
                 asked: pan_drags.read_only(),
                 pan: Callback::new(move |delta: Vec2| command(Command::Pan(delta))),
@@ -1700,17 +1714,6 @@ fn reporter_for(
     within: Callback<()>,
 ) -> ChildReporter {
     let report_to = editors().handle(parent);
-    let on_view_change = report_to.clone().and_then(|parent| {
-        let plugin_id = parent.plugin_id()?.to_owned();
-        Some(Callback::new(move |change: ViewChange| {
-            plugin_host::report_child_views(
-                &plugin_id,
-                parent.instance,
-                region,
-                vec![(key, change)],
-            );
-        }))
-    });
     let on_bar_action = report_to.clone().and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
         Some(Callback::new(move |action: BarAction| {
@@ -1733,7 +1736,6 @@ fn reporter_for(
         within.call(());
     });
     ChildReporter {
-        view: on_view_change.unwrap_or_default(),
         bar: on_bar_action.unwrap_or_default(),
         focus: on_focus,
     }

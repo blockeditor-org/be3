@@ -1143,12 +1143,6 @@ pub enum EditorMessage {
         request_id: u64,
         replaced: bool,
     },
-    ChildView {
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        child: ChildId,
-        change: ViewChange,
-    },
     ChildBar {
         instance: EditorInstanceId,
         region: EditorRegion,
@@ -1296,7 +1290,6 @@ impl EditorMessage {
             | Self::Presence { instance, .. }
             | Self::ReplaceChild { instance, .. }
             | Self::ChildReplaced { instance, .. }
-            | Self::ChildView { instance, .. }
             | Self::ChildBar { instance, .. }
             | Self::ChildFocused { instance, .. }
             | Self::CopyText { instance, .. }
@@ -1913,7 +1906,6 @@ impl EditorMessage {
             | Self::ArtifactStates { .. }
             | Self::HistoryStates { .. }
             | Self::ReplaceChild { .. }
-            | Self::ChildView { .. }
             | Self::ChildBar { .. }
             | Self::ChildFocused { .. }
             | Self::Blocks { .. }

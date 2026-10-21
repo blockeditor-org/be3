@@ -2239,25 +2239,6 @@ impl Instances {
         })]
     }
 
-    pub(super) fn child_view_changes(
-        &mut self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        changes: Vec<(ChildId, ViewChange)>,
-    ) -> Vec<Message> {
-        changes
-            .into_iter()
-            .map(|(child, change)| {
-                Message::Editor(EditorMessage::ChildView {
-                    instance,
-                    region,
-                    child,
-                    change,
-                })
-            })
-            .collect()
-    }
-
     pub(super) fn child_bar_actions(
         &mut self,
         instance: EditorInstanceId,

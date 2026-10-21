@@ -427,16 +427,6 @@ impl Screens {
                     session.presence_visible(*visible);
                 }
             }
-            Message::Editor(EditorMessage::ChildView {
-                instance,
-                child,
-                change,
-                ..
-            }) => {
-                if let Some(session) = self.sessions.get(instance) {
-                    session.child_view_change(*child, *change);
-                }
-            }
             Message::Editor(EditorMessage::ChildBar {
                 instance,
                 child,
