@@ -9,7 +9,8 @@ fn a_binding_runs_at_once_and_again_only_for_what_it_read() {
     let doubled = create_memo(move || tracked.get() * 2);
     let seen = Rc::new(RefCell::new(Vec::new()));
 
-    batch({
+    let scope = Scope::new();
+    scope.run({
         let seen = seen.clone();
         move || {
             let pushed = seen.clone();
@@ -20,17 +21,19 @@ fn a_binding_runs_at_once_and_again_only_for_what_it_read() {
             assert_eq!(
                 *seen.borrow(),
                 vec![(0, 0)],
-                "a binding runs before the batch around it ends"
+                "a binding runs before the entry around it ends"
             );
         }
     });
 
     ignored.set(1);
+    flush();
     assert_eq!(
         *seen.borrow(),
         vec![(0, 0)],
         "what it read untracked does not wake it"
     );
     tracked.set(1);
+    flush();
     assert_eq!(*seen.borrow(), vec![(0, 0), (2, 1)]);
 }

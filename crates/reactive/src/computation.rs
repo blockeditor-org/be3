@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
 use crate::runtime::{
-    Context, RUNTIME, Read, Reset, batch, current_zone, enqueue, flush, leave_component_body, probe,
+    Context, RUNTIME, Read, Reset, batch, current_zone, enqueue, leave_component_body, probe, settle,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
 use crate::signal::Tracked;
@@ -112,7 +112,7 @@ impl Computation {
         self.state.set(State::Clean);
         if stale {
             self.invalidate(State::Dirty);
-            flush();
+            settle();
         }
     }
 
@@ -315,7 +315,7 @@ pub fn create_effect(mut effect: impl FnMut() + 'static) -> Effect {
         false
     });
     enqueue(&computation);
-    flush();
+    settle();
     Effect { computation }
 }
 

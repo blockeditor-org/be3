@@ -555,9 +555,11 @@ impl Context {
         self.inner.overflows.borrow_mut().clear();
         let published = std::mem::take(&mut *self.inner.accessibility_published.borrow_mut());
         *self.inner.accessibility_known.borrow_mut() = published;
+        ::reactive::flush();
     }
 
     pub fn end_frame(&self) -> FrameOutput {
+        ::reactive::flush();
         self.inner.in_frame.set(false);
         let woken = std::mem::take(&mut *self.inner.zones_woken_in_frame.borrow_mut());
         if woken.into_iter().any(::reactive::zone_pending) {
@@ -917,6 +919,19 @@ impl Context {
 
     pub fn set_waker(&self, waker: Waker) {
         *self.inner.waker.borrow_mut() = Some(waker);
+        let inner = Rc::downgrade(&self.inner);
+        ::reactive::wake_with(move || {
+            let Some(inner) = inner.upgrade() else {
+                return;
+            };
+            if inner.in_frame.get() {
+                return;
+            }
+            let waker = inner.waker.borrow().clone();
+            if let Some(waker) = waker {
+                waker.wake();
+            }
+        });
     }
 
     pub(crate) fn zone_waker(&self, zone: u64) -> impl Fn() + 'static {

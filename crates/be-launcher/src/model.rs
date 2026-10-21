@@ -259,7 +259,7 @@ impl Model {
             return;
         }
         let shown = untrack(|| shown_pull_request(self.layout)).filter(|_| !beside);
-        batch(|| match shown {
+        match shown {
             Some(shown)
                 if self
                     .layout
@@ -272,7 +272,7 @@ impl Model {
                 });
             }
             _ => self.opened.update(|opened| opened.push(pull_request)),
-        });
+        }
     }
 
     #[cfg(target_os = "android")]

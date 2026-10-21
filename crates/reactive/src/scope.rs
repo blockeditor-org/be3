@@ -6,7 +6,7 @@ use std::rc::{Rc, Weak};
 use crate::arena::{self, Key};
 use crate::computation::{Computation, no_computation};
 use crate::runtime::{
-    Context, RUNTIME, batch, flush, flush_within, leave_component_body, next_sequence,
+    Context, RUNTIME, batch, flush_within, leave_component_body, next_sequence,
 };
 
 pub(crate) struct Gate {
@@ -220,7 +220,7 @@ impl Scope {
                 }
             }
         });
-        flush();
+        crate::runtime::settle();
     }
 
     pub fn run<T>(&self, f: impl FnOnce() -> T) -> T {

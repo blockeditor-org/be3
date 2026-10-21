@@ -16,14 +16,14 @@ fn flushing_a_scope_runs_only_the_effects_it_owns() {
         });
         child
     });
-    batch(|| {
+    root.run(|| {
         value.set(1);
         child.flush_owned();
         assert_eq!(inside.get(), 1, "an effect under the scope runs");
         assert_eq!(
             outside.get(),
             0,
-            "an effect outside the scope waits for the batch"
+            "an effect outside the scope waits for the entry to end"
         );
     });
     assert_eq!(outside.get(), 1);

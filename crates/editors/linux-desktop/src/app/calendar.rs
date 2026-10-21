@@ -68,10 +68,8 @@ fn calendar_block(editor: Editor) -> Memo<Option<Uuid>> {
         }
         untrack(|| {
             let calendar = editor.create_child(&CalendarContent::default());
-            batch(|| {
-                created.set(Some(calendar));
-                editor.set_view_state(CALENDAR_STATE, Some(&ViewState::new(&(), vec![calendar])));
-            });
+            created.set(Some(calendar));
+            editor.set_view_state(CALENDAR_STATE, Some(&ViewState::new(&(), vec![calendar])));
         });
     });
     held

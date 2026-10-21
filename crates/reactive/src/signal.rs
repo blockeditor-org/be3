@@ -5,7 +5,7 @@ use std::rc::{Rc, Weak};
 use crate::arena::{self, Key};
 
 use crate::computation::{Computation, State, no_computation};
-use crate::runtime::{RUNTIME, batch, check_tracked_read, untrack};
+use crate::runtime::{RUNTIME, check_tracked_read, untrack, written};
 
 pub(crate) struct Source {
     pub(crate) version: Cell<u64>,
@@ -127,6 +127,7 @@ impl Source {
         for subscriber in subscribers {
             subscriber.invalidate(State::Dirty);
         }
+        written();
     }
 }
 
@@ -285,29 +286,25 @@ impl<T: 'static> Set<T> for Signal<T> {
         let Some(inner) = arena::get::<Value<T>>(self.key) else {
             return;
         };
-        batch(|| {
-            let mut current = inner.value.borrow_mut();
-            if *current != value {
-                *current = value;
-                drop(current);
-                inner.source.changed();
-            }
-        });
+        let mut current = inner.value.borrow_mut();
+        if *current != value {
+            *current = value;
+            drop(current);
+            inner.source.changed();
+        }
     }
 
     fn update<R>(&self, f: impl FnOnce(&mut T) -> R) -> R {
         assert_writable();
         let inner = stored::<T>(self.key);
-        batch(|| {
-            let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
-                f(&mut inner.value.borrow_mut())
-            }));
-            inner.source.changed();
-            match result {
-                Ok(value) => value,
-                Err(error) => std::panic::resume_unwind(error),
-            }
-        })
+        let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
+            f(&mut inner.value.borrow_mut())
+        }));
+        inner.source.changed();
+        match result {
+            Ok(value) => value,
+            Err(error) => std::panic::resume_unwind(error),
+        }
     }
 }
 

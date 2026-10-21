@@ -812,13 +812,11 @@ impl Workspace {
                 .keys()
                 .filter_map(|tab| tab_panel(*tab))
                 .collect();
-            batch(|| {
-                self.tabs.set(tabs);
-                self.views.set(views);
-                self.panels.set(panels);
-                self.keep(restored.windows);
-                inner.layout.restore(restored.dock);
-            });
+            self.tabs.set(tabs);
+            self.views.set(views);
+            self.panels.set(panels);
+            self.keep(restored.windows);
+            inner.layout.restore(restored.dock);
         }
         if !self.kept.with_untracked(|kept| kept.restored) {
             self.keep(Vec::new());

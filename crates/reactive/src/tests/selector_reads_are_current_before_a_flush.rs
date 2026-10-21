@@ -1,7 +1,7 @@
 use super::*;
 
 #[test]
-fn selector_reads_are_current_inside_a_batch() {
+fn selector_reads_are_current_before_a_flush() {
     let _root = RootScope::new();
     let scope = Scope::new();
     let selected = create_signal(0usize);
@@ -12,12 +12,11 @@ fn selector_reads_are_current_inside_a_batch() {
         move || create_effect(move || seen.borrow_mut().push(selector.is_selected(&2)))
     });
     assert_eq!(*seen.borrow(), [false]);
-    batch(|| {
-        selected.set(1);
-        assert!(!selector.is_selected(&2));
-        selected.set(2);
-        assert!(selector.is_selected(&2));
-        assert_eq!(seen.borrow().len(), 1);
-    });
+    selected.set(1);
+    assert!(!selector.is_selected(&2));
+    selected.set(2);
+    assert!(selector.is_selected(&2));
+    assert_eq!(seen.borrow().len(), 1);
+    flush();
     assert_eq!(*seen.borrow(), [false, true]);
 }

@@ -41,7 +41,7 @@ function that writes a `view!` builds into its caller's scope.
 Nodes and effects live and die together whether or not a function is a
 component: a node belongs to the reactive scope it was created in, and
 disposing that scope removes the nodes it still owns along with its effects
-(see "Effects, batches, and ownership" in guides/reactive.md). A subtree that
+(see "Effects, entries, and ownership" in guides/reactive.md). A subtree that
 must outlive the code that placed it, such as one shown through a `Portal`, is
 built in a scope that lives as long as it should.
 
@@ -1564,12 +1564,13 @@ code adds is placed beside its declared sibling when the saved layout lacks it.
 it builds) and derefs to it.
 
 `DockingLayout::snapshot` is the `DockingSnapshot` to save, and `restore` puts
-one back; restore it in the same `batch` that declares its tabs, since a tab not
+one back; restore it before the effects of the write that declares its tabs run (any
+writes made together do, with no `flush()` between), since a tab not
 declared when the dock reconciles is closed. `reset` goes back to the layout the
 children describe. The handle also shows a tab (`show`) and reads which is
 focused (`focused`, `shown` for a stacked dock). `replace(key, with)` puts a new
 tab in the place of an open one - the same pane or window, at the same index -
-and shows it; declare `with` instead of `key` in the same `batch`. A list that
+and shows it; declare `with` instead of `key` along with it. A list that
 opens what it names into one tab, as the demo's catalog and be-launcher's pull
 requests do with a plain click, replaces the tab shown last; Ctrl (or Cmd) and
 a click opens another. A tab that stops being declared
@@ -2629,7 +2630,7 @@ nodes, and `Document::on_laid_out`, the callback block-app waits for its plugins
 in. A node with something to report queues it with
 `Document::report_after_layout`, and one whose own size changed while it was
 laid out with `Document::invalidate_after_layout`. The reports run together in
-one batch; whatever they changed is laid out again, which only walks the
+one entry; whatever they changed is laid out again, which only walks the
 nodes that changed and their ancestors, until nothing changes, so a frame is
 never painted from a layout the tree no longer has. A frame lays out at most
 four times: when the reports after the third still change something, the
