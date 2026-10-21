@@ -22,7 +22,7 @@ fn the_transform_fields_edit_the_selected_entity() {
             rectangle
         })
         .collect();
-    let mut editor = editor(&rectangles);
+    let mut editor = vector_editor(&rectangles);
 
     editor.click(&format!("infinite-canvas.entity.{}", rectangles[0].id));
     editor.run();

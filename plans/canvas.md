@@ -33,7 +33,12 @@ shared live state.
 It has select, frame, line, arrow, rectangle, ellipse, diamond, text and
 pressure-aware pen tools; resize, rotate, group, lock, layers, align and
 distribute; peers' cursors and selections; child blocks edited in place; and a
-phone dock and selection bar.
+phone dock and selection bar. A viewer picks a profile from the frame's menu or
+the context menu: Prototyping (the default: a style popover in the selection
+bar, hand-drawn shapes, no frame tool) or Vector (the accordion inspector).
+The profile lives in the editor's `CanvasState`; `Canvas::profile` only keeps
+the last one used, and `Root::undoable` keeps that write out of undo. New
+shapes take the viewer's last style, kept per profile.
 
 The model (`be-block/src/canvas.rs`, step 2) is one `Entity` per shape. Its
 `shape` names what it is (`CanvasShape`: rectangle, ellipse, diamond, path,
@@ -61,8 +66,6 @@ What holds it back:
 - Text entities are text fields shaped at the camera's scale, so every zoom
   frame lays them out and paints them again; shapes are scaled by the renderer.
 - Text and labels are plain strings in the `text` field, not rich text yet.
-- The chrome is built for precise work: an accordion inspector with X/Y/W/H,
-  and frames among the main tools.
 - On web, opening a canvas needs a server sign-in first.
 
 The canvas is not a frozen format yet (guides/frozen_formats.md), so its model

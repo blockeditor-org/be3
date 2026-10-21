@@ -7,7 +7,7 @@ fn a_frame_background_is_picked_in_the_sidebar() {
     let board = frame(3, CanvasPoint::default(), CanvasPoint::new(320.0, 200.0));
     let id = board.id;
     let mut editor = open_sized(
-        &Canvas::with_entities([board, card()]),
+        &vector([board, card()]),
         false,
         &[],
         Some(Vec2::new(900.0, 1400.0)),

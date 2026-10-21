@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, HashSet};
 use block_editor_beui::be_block::canvas::Canvas;
 use block_editor_beui::be_block::canvas::{
     CanvasArrowhead, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill, CanvasLook,
-    CanvasPathPoint, CanvasPoint, CanvasShape, CanvasStrokeStyle, CanvasTextSize, CanvasTransform,
-    InfiniteCanvasOperation,
+    CanvasPathPoint, CanvasPoint, CanvasProfile, CanvasShape, CanvasStrokeStyle, CanvasTextSize,
+    CanvasTransform, InfiniteCanvasOperation,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::{
@@ -33,6 +33,7 @@ mod a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_cli
 mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_multiple_selection_outlines_each_selected_entity;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
+mod a_new_shape_takes_the_last_style_used;
 mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
 mod a_preview_with_no_camera_fits_its_frame;
 mod a_resize_handle_follows_the_drag_rather_than_jumping_to_the_pointer;
@@ -64,6 +65,7 @@ mod resizing_an_editor_that_cannot_resize_scales_it;
 mod rotating_with_the_handle_is_drawn;
 mod selections_are_shared_with_peers_and_theirs_are_drawn;
 mod setting_component_value_writes_the_same_value_to_all_selected_entities;
+mod switching_the_profile_changes_this_viewers_chrome_and_the_default;
 mod tapping_selected_text_on_a_phone_edits_it;
 mod text_is_edited_where_it_is_drawn;
 mod text_sits_against_the_edges_it_is_aligned_to;
@@ -81,6 +83,8 @@ mod the_pen_tool_draws_a_stylus_stroke_as_wide_as_it_is_pressed;
 mod the_pen_tool_keeps_every_coalesced_sample_and_draws_the_predicted_tail;
 mod the_preview_fills_the_frame_with_its_background;
 mod the_preview_shows_the_first_frame;
+mod the_style_popover_fits_a_phone_above_the_dock;
+mod the_style_popover_restyles_the_selection;
 mod the_transform_fields_edit_the_selected_entity;
 mod turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas;
 mod typed_text_grows_away_from_the_edges_it_is_aligned_to;
@@ -282,6 +286,25 @@ fn display_settings_here(editor: &mut BeuiTest<CanvasApp>) -> Uuid {
     );
     editor.run();
     display
+}
+
+fn vector(entities: impl IntoIterator<Item = CanvasEntity>) -> Canvas {
+    let mut canvas = Canvas::with_entities(entities);
+    canvas.profile = CanvasProfile::Vector;
+    canvas
+}
+
+fn vector_editor(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
+    open(&vector(entities.to_vec()), false, &[])
+}
+
+fn vector_phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
+    open_sized(
+        &vector(entities.to_vec()),
+        false,
+        &[],
+        Some(Vec2::new(390.0, 760.0)),
+    )
 }
 
 fn apply(editor: &mut BeuiTest<CanvasApp>, operation: InfiniteCanvasOperation) {

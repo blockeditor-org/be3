@@ -59,6 +59,18 @@ pub(crate) fn CanvasMenu(disabled: bool, children: Child) -> NodeId {
                 </MenuItem>
                 <MenuItem action={actions.select_all} />
                 <MenuItem action={actions.invert} />
+                <MenuItem label="Profile">
+                    <MenuItem
+                        label="Prototyping"
+                        action={actions.prototyping.clone()}
+                        checked={ticked(&actions.prototyping)}
+                    />
+                    <MenuItem
+                        label="Vector"
+                        action={actions.vector.clone()}
+                        checked={ticked(&actions.vector)}
+                    />
+                </MenuItem>
             }}
             child_size=ItemSize::Percent(100.0)
             disabled={disabled}

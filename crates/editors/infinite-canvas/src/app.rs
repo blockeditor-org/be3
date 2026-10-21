@@ -22,6 +22,7 @@ pub(crate) mod selection_bar;
 pub(crate) mod sidebar;
 pub(crate) mod sketch;
 pub(crate) mod state;
+pub(crate) mod style;
 pub(crate) mod text;
 pub(crate) mod toolbar;
 pub(crate) mod touch;
@@ -73,6 +74,10 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let content = NodeRef::new();
     editor.content(&content);
     let chrome = editor.chrome_shown();
+    let inspected = create_memo(move || {
+        chrome.get()
+            && state.profile.get() == block_editor_beui::be_block::canvas::CanvasProfile::Vector
+    });
     let scope = NodeRef::new();
     action_scope(&scope);
     let actions = canvas_actions(state);
@@ -84,7 +89,7 @@ fn CanvasEditor(editor: Editor) -> NodeId {
             <ImportError state={state} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={state} />
-                <CanvasSidebar state={state} shown={chrome} />
+                <CanvasSidebar state={state} shown={inspected} />
             </List>
             <ToolDock state={state} anchor={content} shown={chrome} />
             <ZoomPill state={state} anchor={content} shown={chrome} />

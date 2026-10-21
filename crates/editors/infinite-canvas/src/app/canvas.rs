@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasPoint, CanvasShape};
+use block_editor_beui::be_block::canvas::{CanvasColor, CanvasEntity, CanvasPoint, CanvasShape};
 use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::*;
@@ -201,10 +201,10 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
             .map(|entity| FrameBackdrop {
                 bounds: entity_bounds(&entity),
                 name: entity.text.clone(),
-                fill: resolve_color(
-                    entity.style.filled().unwrap_or_default(),
-                    theme.background.get(),
-                ),
+                fill: match entity.style.filled().unwrap_or_default() {
+                    CanvasColor::Auto => theme.background.get(),
+                    color => resolve_color(color, theme.text.get()),
+                },
             })
             .collect();
         let backdrop = Backdrop {

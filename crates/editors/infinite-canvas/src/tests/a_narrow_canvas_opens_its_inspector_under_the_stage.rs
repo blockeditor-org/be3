@@ -3,7 +3,7 @@ use super::*;
 #[test]
 fn a_narrow_canvas_opens_its_inspector_under_the_stage() {
     let rectangle = card();
-    let mut editor = phone(std::slice::from_ref(&rectangle));
+    let mut editor = vector_phone(std::slice::from_ref(&rectangle));
 
     assert!(
         !editor.shown("infinite-canvas.selection"),

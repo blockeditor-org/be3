@@ -72,6 +72,7 @@ pub(crate) fn resolve_color(color: CanvasColor, auto: Color32) -> Color32 {
             blue,
             alpha,
         } => Color32::from_rgba_unmultiplied(red, green, blue, alpha),
+        CanvasColor::Palette { hue, tone } => super::style::shade(hue, tone, auto),
     }
 }
 

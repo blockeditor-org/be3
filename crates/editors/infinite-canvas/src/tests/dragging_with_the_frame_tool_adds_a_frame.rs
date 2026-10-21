@@ -3,7 +3,7 @@ use block_editor_beui::beui::Vec2;
 
 #[test]
 fn dragging_with_the_frame_tool_adds_a_frame() {
-    let mut editor = editor(&[card()]).with_top_bar(false);
+    let mut editor = vector_editor(&[card()]).with_top_bar(false);
     assert!(
         entities(&editor).iter().all(|entity| !entity.is_frame()),
         "a canvas has no frame until one is drawn"

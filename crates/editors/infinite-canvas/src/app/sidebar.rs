@@ -17,48 +17,9 @@ use super::layers::LayersSection;
 use super::paint::resolve_color;
 use super::selection_bar::Swatch;
 use super::state::{Alignment, CanvasCommand, CanvasState, CommonValue, common_value};
+use super::style::{BACKGROUNDS as SOFT, STROKES};
 
 const SPACING: f32 = 10.0;
-
-pub(crate) const PRESETS: [(&str, CanvasColor); 5] = [
-    ("Default", CanvasColor::Auto),
-    (
-        "Red",
-        CanvasColor::Rgba {
-            red: 224,
-            green: 49,
-            blue: 49,
-            alpha: 255,
-        },
-    ),
-    (
-        "Orange",
-        CanvasColor::Rgba {
-            red: 240,
-            green: 140,
-            blue: 0,
-            alpha: 255,
-        },
-    ),
-    (
-        "Green",
-        CanvasColor::Rgba {
-            red: 47,
-            green: 158,
-            blue: 68,
-            alpha: 255,
-        },
-    ),
-    (
-        "Blue",
-        CanvasColor::Rgba {
-            red: 25,
-            green: 113,
-            blue: 194,
-            alpha: 255,
-        },
-    ),
-];
 
 const ALIGNMENTS: [(&str, Alignment); 6] = [
     ("Left", Alignment::Left),
@@ -212,8 +173,10 @@ fn FrameBackground(
 ) -> NodeId {
     let fill = create_memo(move || frame.get().and_then(|entity| entity.style.filled()));
     let theme = use_theme();
-    let custom =
-        create_memo(move || resolve_color(fill.get().unwrap_or_default(), theme.background.get()));
+    let custom = create_memo(move || match fill.get().unwrap_or_default() {
+        CanvasColor::Auto => theme.background.get(),
+        color => resolve_color(color, theme.text.get()),
+    });
     let following = create_memo(move || fill.get().is_none());
     let value = create_memo(move || match fill.get() {
         Some(color) => CommonValue::Uniform(color),
@@ -236,11 +199,7 @@ fn FrameBackground(
             alpha,
         }));
     };
-    let swatches = BACKGROUNDS
-        .iter()
-        .chain(&PRESETS[1..])
-        .copied()
-        .collect::<Vec<_>>();
+    let swatches = BACKGROUNDS.iter().chain(&SOFT).copied().collect::<Vec<_>>();
     let count = swatches.len();
     view! {
         <List spacing=6.0>
@@ -669,11 +628,11 @@ pub(crate) fn styled_entities(state: CanvasState) -> Vec<CanvasEntity> {
         .collect()
 }
 
-fn colored(entity: &CanvasEntity) -> bool {
+pub(crate) fn colored(entity: &CanvasEntity) -> bool {
     !entity.shape.embeds_block() && !entity.is_frame()
 }
 
-fn stroked(entity: &CanvasEntity) -> bool {
+pub(crate) fn stroked(entity: &CanvasEntity) -> bool {
     matches!(
         entity.shape,
         CanvasShape::Path
@@ -684,7 +643,7 @@ fn stroked(entity: &CanvasEntity) -> bool {
     )
 }
 
-fn closed(entity: &CanvasEntity) -> bool {
+pub(crate) fn closed(entity: &CanvasEntity) -> bool {
     matches!(
         entity.shape,
         CanvasShape::Rectangle | CanvasShape::Ellipse | CanvasShape::Diamond
@@ -741,7 +700,6 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
 }
 
 pub(crate) fn set_foreground(state: CanvasState, color: CanvasColor) {
-    state.remember_foreground(color);
     state.update_selected(colored, |style| style.stroke_color = color);
 }
 
@@ -946,8 +904,8 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
                             pressed={Binding::new(none, clearing)}
                             @test_id={"infinite-canvas.fill.none"}
                         />
-                        <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>|index: usize| {
-                            let (name, color) = PRESETS[index];
+                        <ForEach keys={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
+                            let (name, color) = STROKES[index];
                             let value = create_memo(move || match fill.get() {
                                 CommonValue::Uniform(Some(color)) => CommonValue::Uniform(color),
                                 CommonValue::Uniform(None) | CommonValue::None => {
@@ -986,7 +944,6 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
 }
 
 fn set_fill(state: CanvasState, fill: Option<CanvasColor>) {
-    state.remember_fill(fill);
     state.update_selected(closed, |style| filled(style, fill));
 }
 

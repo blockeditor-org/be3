@@ -14,7 +14,7 @@ fn a_typed_transform_value_is_one_edit() {
         blue: 90,
         alpha: 255,
     };
-    let mut editor = editor(std::slice::from_ref(&rectangle));
+    let mut editor = vector_editor(std::slice::from_ref(&rectangle));
 
     let drawn = format!("infinite-canvas.entity.{}", rectangle.id);
     editor.click(&drawn);

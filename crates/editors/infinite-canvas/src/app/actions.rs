@@ -1,12 +1,12 @@
-use block_editor_beui::be_block::canvas::CanvasLayerMove;
+use block_editor_beui::be_block::canvas::{CanvasLayerMove, CanvasProfile};
 use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CONTENT_COPY, ICON_CONTENT_CUT,
     ICON_CONTENT_PASTE, ICON_DATA_OBJECT, ICON_DELETE, ICON_DESELECT, ICON_DIAGONAL_LINE,
     ICON_EDIT, ICON_FILTER_CENTER_FOCUS, ICON_FIT_SCREEN, ICON_FLIP_TO_BACK, ICON_FLIP_TO_FRONT,
-    ICON_GROUP_WORK, ICON_IMAGE, ICON_LIBRARY_ADD, ICON_LOCK, ICON_LOCK_OPEN, ICON_OPEN_IN_NEW,
-    ICON_RECTANGLE, ICON_SELECT_ALL, ICON_SWAP_HORIZ, ICON_TEXT_FIELDS, ICON_WORKSPACES,
-    ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_GESTURE, ICON_GROUP_WORK, ICON_IMAGE, ICON_LIBRARY_ADD, ICON_LOCK, ICON_LOCK_OPEN,
+    ICON_OPEN_IN_NEW, ICON_POLYLINE, ICON_RECTANGLE, ICON_SELECT_ALL, ICON_SWAP_HORIZ,
+    ICON_TEXT_FIELDS, ICON_WORKSPACES, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
 use uuid::Uuid;
@@ -57,6 +57,8 @@ pub(crate) struct CanvasActions {
     pub(crate) ignore_touch: Action,
     pub(crate) touch: TouchChoice,
     pub(crate) grid: GridActions,
+    pub(crate) prototyping: Action,
+    pub(crate) vector: Action,
 }
 
 impl CanvasActions {
@@ -237,6 +239,26 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     .enabled(framed)
     .in_menu()
     .register();
+    let profile = |id: &str, label: &'static str, glyph: &str, profile: CanvasProfile| {
+        Action::new(id, label, move || state.switch_profile(profile))
+            .glyph(glyph)
+            .checked(create_memo(move || state.profile.get() == profile))
+            .enabled(live)
+            .in_menu()
+            .register()
+    };
+    let prototyping = profile(
+        "canvas.profile.prototyping",
+        "Prototyping profile",
+        ICON_GESTURE,
+        CanvasProfile::Prototyping,
+    );
+    let vector = profile(
+        "canvas.profile.vector",
+        "Vector profile",
+        ICON_POLYLINE,
+        CanvasProfile::Vector,
+    );
     let select = tool("canvas.tool.select", "Select", Tool::Select)
         .shortcut(Chord::key(Key::V))
         .register();
@@ -416,6 +438,8 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         ignore_touch,
         touch,
         grid,
+        prototyping,
+        vector,
     }
 }
 

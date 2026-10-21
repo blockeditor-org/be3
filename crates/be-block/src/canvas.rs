@@ -250,11 +250,33 @@ impl CanvasProfile {
     pub const ALL: [Self; 2] = [Self::Prototyping, Self::Vector];
 }
 
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasHue {
+    Red,
+    Orange,
+    Yellow,
+    Green,
+    Blue,
+    Violet,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasTone {
+    Strong,
+    Soft,
+}
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CanvasColor {
     #[default]
     Auto,
+    Palette {
+        hue: CanvasHue,
+        tone: CanvasTone,
+    },
     Rgba {
         #[serde(default)]
         red: u8,

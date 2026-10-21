@@ -1,8 +1,9 @@
 use super::actions::{CanvasActions, embedded_block};
 use super::paint::resolve_color;
-use super::sidebar::{PRESETS, set_foreground, styled_entities};
+use super::sidebar::{set_foreground, styled_entities};
 use super::state::{CanvasState, CommonValue, common_value};
-use block_editor_beui::be_block::canvas::CanvasColor;
+use super::style::{STROKES, StylePopover};
+use block_editor_beui::be_block::canvas::{CanvasColor, CanvasProfile};
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::accesskit::{Node as AccessNode, Role};
 use block_editor_beui::beui::icons::ICON_TUNE;
@@ -18,7 +19,11 @@ const SWATCH_RING: f32 = 3.0;
 #[component]
 pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
     let narrow = narrow_chrome();
-    let colored = create_memo(move || !styled_entities(state).is_empty());
+    let prototyping = create_memo(move || state.profile.get() == CanvasProfile::Prototyping);
+    let vector = create_memo(move || !prototyping.get());
+    let chosen = create_memo(move || !state.selection.get().is_empty());
+    let inspectable = create_memo(move || vector.get() && narrow.get());
+    let colored = create_memo(move || vector.get() && !styled_entities(state).is_empty());
     let value = create_memo(move || {
         common_value(
             styled_entities(state)
@@ -44,10 +49,13 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
             @test_id={"infinite-canvas.selection-bar"}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                <Show condition={prototyping}>
+                    <StylePopover state={state} />
+                </Show>
                 <Show condition={colored}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=2.0>
-                        <ForEach keys={(0..PRESETS.len()).collect::<Vec<usize>>()}>|index: usize| {
-                            let (name, color) = PRESETS[index];
+                        <ForEach keys={(0..STROKES.len()).collect::<Vec<usize>>()}>|index: usize| {
+                            let (name, color) = STROKES[index];
                             view! {
                                 <Swatch
                                     kind="color"
@@ -60,14 +68,23 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
                         }</ForEach>
                     </List>
                 </Show>
-                <IconButton @test_id={"infinite-canvas.front"} action={actions.front} />
-                <IconButton @test_id={"infinite-canvas.delete"} action={actions.delete} />
+                <Show condition={chosen}>|| {
+                    let actions = actions.clone(); view! {
+                        <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
+                            <IconButton @test_id={"infinite-canvas.front"} action={actions.front} />
+                            <IconButton
+                                @test_id={"infinite-canvas.delete"}
+                                action={actions.delete}
+                            />
+                        </List>
+                    }
+                }</Show>
                 <Show condition={embedded}>|| {
                     let open = open.clone(); view! {
                         <IconButton label="Open" @test_id={"infinite-canvas.open"} action={open} />
                     }
                 }</Show>
-                <Show condition={narrow}>
+                <Show condition={inspectable}>
                     <IconButton
                         glyph={ICON_TUNE.to_owned()}
                         label="Inspector"

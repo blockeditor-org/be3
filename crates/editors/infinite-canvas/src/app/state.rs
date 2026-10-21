@@ -8,8 +8,8 @@ use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::canvas::{
-    CanvasArrowhead, CanvasBinding, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill,
-    CanvasLayerMove, CanvasPoint, CanvasShape, CanvasStyle, CanvasTextStyle, CanvasTransform,
+    CanvasArrowhead, CanvasBinding, CanvasComponent, CanvasEntity, CanvasLayerMove, CanvasLook,
+    CanvasPoint, CanvasProfile, CanvasShape, CanvasStyle, CanvasTextStyle, CanvasTransform,
     InfiniteCanvasOperation,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
@@ -117,6 +117,23 @@ impl Tool {
 
     pub(crate) fn draws_a_line(self) -> bool {
         matches!(self, Tool::Line | Tool::Arrow)
+    }
+
+    pub(crate) fn belongs_to(self, profile: CanvasProfile) -> bool {
+        match self {
+            Tool::Frame => profile == CanvasProfile::Vector,
+            _ => true,
+        }
+    }
+}
+
+pub(crate) fn profile_style(profile: CanvasProfile) -> CanvasStyle {
+    match profile {
+        CanvasProfile::Prototyping => CanvasStyle {
+            look: CanvasLook::HandDrawn,
+            ..CanvasStyle::default()
+        },
+        CanvasProfile::Vector => CanvasStyle::default(),
     }
 }
 
@@ -327,8 +344,6 @@ struct CanvasCells {
     retapped: Cell<Option<(Uuid, Pos2)>>,
     text_entry: Cell<Option<TextEntry>>,
     surface: NodeRef,
-    last_foreground: Cell<CanvasColor>,
-    last_fill: Cell<Option<CanvasColor>>,
     children: RefCell<HashMap<Uuid, ChildState>>,
     placeholders: RefCell<HashMap<Uuid, Placeholder>>,
     confirmed_editor: Cell<Option<Uuid>>,
@@ -345,6 +360,8 @@ pub(crate) struct CanvasState {
     pub(crate) pointer: Signal<Option<CanvasPoint>>,
     pub(crate) entities: Entities,
     pub(crate) tool: Signal<Tool>,
+    pub(crate) profile: Signal<CanvasProfile>,
+    styles: Signal<HashMap<CanvasProfile, CanvasStyle>>,
     pub(crate) selection: Signal<HashSet<Uuid>>,
     pub(crate) gesture: Signal<Option<Gesture>>,
     typed: Signal<Option<CanvasEntity>>,
@@ -364,6 +381,18 @@ impl CanvasState {
         let content = editor.block_content::<CanvasContent>();
         let entities = Entities::new(content);
         let tool = create_signal(Tool::Select);
+        let profile = create_signal(CanvasProfile::default());
+        let read_profile = create_signal(false);
+        create_effect(move || {
+            if read_profile.get_untracked() {
+                return;
+            }
+            if let Ok(stored) = content.read(|canvas| canvas.root().profile) {
+                read_profile.set(true);
+                profile.set(stored);
+            }
+        });
+        let styles = create_signal(HashMap::new());
         let selection = create_signal(HashSet::new());
         let gesture = create_signal(None);
         let typed = create_signal(None::<CanvasEntity>);
@@ -439,8 +468,6 @@ impl CanvasState {
             retapped: Cell::new(None),
             text_entry: Cell::new(None),
             surface: NodeRef::new(),
-            last_foreground: Cell::new(CanvasStyle::default().stroke_color),
-            last_fill: Cell::new(None),
             children: RefCell::new(HashMap::new()),
             placeholders: RefCell::new(HashMap::new()),
             confirmed_editor: Cell::new(None),
@@ -455,6 +482,8 @@ impl CanvasState {
             pointer,
             entities,
             tool,
+            profile,
+            styles,
             selection,
             gesture,
             typed,
@@ -746,16 +775,49 @@ impl CanvasState {
         self.cells.value().grouped_edit.set(false);
     }
 
+    pub(crate) fn next_style(&self) -> CanvasStyle {
+        let profile = self.profile.get();
+        self.styles.with(|styles| {
+            styles
+                .get(&profile)
+                .copied()
+                .unwrap_or_else(|| profile_style(profile))
+        })
+    }
+
     pub(crate) fn default_style(&self) -> CanvasStyle {
-        let fill = self.cells.value().last_fill.get();
         CanvasStyle {
-            stroke_color: self.cells.value().last_foreground.get(),
-            fill: match fill {
-                Some(_) => CanvasFill::Solid,
-                None => CanvasFill::None,
-            },
-            fill_color: fill.unwrap_or_default(),
-            ..CanvasStyle::default()
+            start_arrowhead: CanvasArrowhead::None,
+            end_arrowhead: CanvasArrowhead::None,
+            seed: 0,
+            ..untrack(|| self.next_style())
+        }
+    }
+
+    pub(crate) fn remember_style(&self, update: impl FnOnce(&mut CanvasStyle)) {
+        let profile = self.profile.get_untracked();
+        self.styles.update(|styles| {
+            update(
+                styles
+                    .entry(profile)
+                    .or_insert_with(|| profile_style(profile)),
+            )
+        });
+    }
+
+    pub(crate) fn switch_profile(&self, profile: CanvasProfile) {
+        self.profile.set(profile);
+        if !self.tool.get_untracked().belongs_to(profile) {
+            self.set_tool(Tool::Select);
+        }
+        if let Ok(edit) = self
+            .cells
+            .value()
+            .content
+            .read(|canvas| canvas.root().set_profile(profile))
+            && !edit.0.is_empty()
+        {
+            self.cells.value().content.operate(edit);
         }
     }
 
@@ -765,14 +827,6 @@ impl CanvasState {
             ..self.default_style()
         };
         entity
-    }
-
-    pub(crate) fn remember_foreground(&self, color: CanvasColor) {
-        self.cells.value().last_foreground.set(color);
-    }
-
-    pub(crate) fn remember_fill(&self, fill: Option<CanvasColor>) {
-        self.cells.value().last_fill.set(fill);
     }
 
     pub(crate) fn set_tool(&self, tool: Tool) {
@@ -1545,6 +1599,7 @@ impl CanvasState {
         compatible: impl Fn(&CanvasEntity) -> bool,
         mut update: impl FnMut(&mut CanvasStyle),
     ) {
+        self.remember_style(&mut update);
         let before = self
             .selected_entities()
             .into_iter()
@@ -1577,7 +1632,10 @@ impl CanvasState {
                 update(&mut entity.text_style, &mut entity.style);
                 entity
             })
-            .collect();
+            .collect::<Vec<_>>();
+        if let Some(text_size) = after.first().map(|entity| entity.style.text_size) {
+            self.remember_style(|style| style.text_size = text_size);
+        }
         self.record_update(before, after, true);
     }
 

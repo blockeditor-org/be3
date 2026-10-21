@@ -16,7 +16,7 @@ fn every_transform_field_previews_what_is_typed() {
     };
     let drawn = format!("infinite-canvas.entity.{}", rectangle.id);
     let mut editor = open_sized(
-        &Canvas::with_entities(vec![rectangle.clone()]),
+        &vector(vec![rectangle.clone()]),
         false,
         &[],
         Some(Vec2::new(800.0, 900.0)),

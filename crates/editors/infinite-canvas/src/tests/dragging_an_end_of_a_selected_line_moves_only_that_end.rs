@@ -12,7 +12,7 @@ fn dragging_an_end_of_a_selected_line_moves_only_that_end() {
     marker.id = Uuid::from_u128(2);
     marker.style.stroke_width = 0.0;
     marker.transform.center = CanvasPoint::new(0.0, 200.0);
-    let mut editor = editor(&[line.clone(), marker.clone()]);
+    let mut editor = vector_editor(&[line.clone(), marker.clone()]);
     let anchor = editor.rect_of(&format!("infinite-canvas.entity.{}", marker.id));
     let scale = anchor.width() / 184.0;
     let at = |x: f32, y: f32| -> Pos2 { anchor.center() + Vec2::new(x, y - 200.0) * scale };

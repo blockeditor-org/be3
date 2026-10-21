@@ -14,7 +14,7 @@ fn dragging_a_transform_field_twice_keeps_the_first_drag() {
         blue: 90,
         alpha: 255,
     };
-    let mut editor = editor(std::slice::from_ref(&rectangle));
+    let mut editor = vector_editor(std::slice::from_ref(&rectangle));
 
     editor.click(&format!("infinite-canvas.entity.{}", rectangle.id));
     editor.run();

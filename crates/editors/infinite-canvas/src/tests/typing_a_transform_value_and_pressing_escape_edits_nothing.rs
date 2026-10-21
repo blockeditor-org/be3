@@ -15,7 +15,7 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
         alpha: 255,
     };
     let drawn = format!("infinite-canvas.entity.{}", rectangle.id);
-    let mut editor = editor(std::slice::from_ref(&rectangle));
+    let mut editor = vector_editor(std::slice::from_ref(&rectangle));
 
     editor.click(&drawn);
     editor.run();

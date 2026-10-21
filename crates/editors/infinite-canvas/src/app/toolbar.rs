@@ -1,3 +1,4 @@
+use block_editor_beui::be_block::canvas::CanvasProfile;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{ICON_REDO, ICON_UNDO};
 use block_editor_beui::beui::reactive::*;
@@ -32,7 +33,17 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
     let open = create_memo(move || shown.get() && !previewing);
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
     let tools = actions.clone();
-    let chosen = create_memo(move || !state.selection.get().is_empty());
+    let chosen = create_memo(move || {
+        !state.selection.get().is_empty()
+            || (state.profile.get() == CanvasProfile::Prototyping
+                && !matches!(state.tool.get(), Tool::Select))
+    });
+    let tool_keys = create_memo(move || {
+        let profile = state.profile.get();
+        (0..TOOLS.len())
+            .filter(|index| TOOLS[*index].0.belongs_to(profile))
+            .collect::<Vec<usize>>()
+    });
     let selection = move || {
         view! {
             <List align=Align::Center spacing=0.0>
@@ -69,7 +80,7 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 @test_id={"infinite-canvas.dock.ignore-touch"}
             />
             <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
-            <ForEach keys={(0..TOOLS.len()).collect::<Vec<usize>>()}>|index: usize| {
+            <ForEach keys={tool_keys}>|index: usize| {
                 let actions = tools.clone();
                 view! {
                     <ToolChoice actions index />
