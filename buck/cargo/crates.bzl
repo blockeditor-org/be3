@@ -6729,6 +6729,7 @@ crates = {
                 "deps": [
                     "//crates/beui-core:beui-core",
                     "//crates/beui-font-browser:beui-font-browser",
+                    "//third-party/rust:js-sys-0.3.99",
                     "//third-party/rust:wasm-bindgen-0.2.122",
                     "//third-party/rust:web-sys-0.3.99",
                 ],
@@ -10595,38 +10596,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/editors/paint-review": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "paint_review",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "paint_review",
-        "platforms": {
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-editor-beui:block-editor-beui",
-                    "//crates/paint-snapshot:paint-snapshot",
-                    "//third-party/rust:serde_json-1.0.150",
-                    "//third-party/rust:sha2-0.10.9",
-                    "//third-party/rust:uuid-1.23.2",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [
-                    "//crates/block-ui-test:block-ui-test",
-                ],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/editors/pan-zoom": {
         "binaries": [],
         "edition": "2024",
@@ -12028,6 +11997,169 @@ crates = {
                 "deps": [
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/paint-review": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "paint_review",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "paint-review",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//third-party/rust:serde-1.0.228",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/paint-review-web": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "paint_review_web",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "paint-review-web",
+        "platforms": {
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/paint-review:paint-review",
+                    "//crates/wasi-threads:wasi-threads",
+                    "//third-party/rust:image-0.25.10",
+                    "//third-party/rust:js-sys-0.3.99",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:wasm-bindgen-0.2.122",
+                    "//third-party/rust:wasm-bindgen-futures-0.4.72",
+                    "//third-party/rust:web-sys-0.3.99",
                 ],
                 "examples": {},
                 "features": [],
@@ -65941,6 +66073,7 @@ third_party = {
                     "InputEvent",
                     "KeyboardEvent",
                     "Location",
+                    "MediaQueryList",
                     "MessageEvent",
                     "MouseEvent",
                     "Navigator",

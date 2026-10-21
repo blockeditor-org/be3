@@ -1,0 +1,53 @@
+load("@root//buck/app:defs.bzl", "app")
+load("@root//buck/cargo:defs.bzl", "cargo_library")
+load("@root//buck/wasm:defs.bzl", "wasi_app_flags", "wasi_app_module")
+
+# The paintings a pull request changed (crates/paint-review) in a browser,
+# drawn with DOM elements or with wgpu like beui's web demo. The page lives at
+# ROOT/site/HASH/index.html and reads ROOT/CHANGES.json, where CHANGES is its
+# `changes` query parameter, and each image as ROOT/IMAGE.png.
+# `./scripts/buck run //crates/paint-review-web:web` serves the bundle with
+# Caddy on http://127.0.0.1:8075, or on the address after `--`.
+cargo_library(
+    rustc_flags = wasi_app_flags,
+    target_compatible_with = ["prelude//cpu/constraints:cpu[wasm32]"],
+)
+
+wasi_app_module(
+    name = "web-module",
+    library = ":paint-review-web",
+    module = "paint_review_web",
+)
+
+app(
+    name = "web",
+    bindgen = [":web-module"],
+    files = [
+        "//crates/local-tools:paint-review-index",
+        "//crates/beui-font-freetype:icons.ttf",
+        "//crates/block-app:wasi.js",
+        "//crates/block-app:threads.js",
+        "//crates/block-app:thread.js",
+        "//crates/block-app:dylink.js",
+        "//crates/block-app:env.js",
+    ],
+    manifests = [],
+    modules = [],
+    run_with = [
+        "sh",
+        "$(location :serve.sh)",
+        "$(location //buck/tools:caddy)",
+        "$(location :Caddyfile)",
+    ],
+    wasm_bindgen = "//buck/cargo:wasm-bindgen",
+)
+
+export_file(
+    name = "serve.sh",
+    src = "web/serve.sh",
+)
+
+export_file(
+    name = "Caddyfile",
+    src = "web/Caddyfile",
+)

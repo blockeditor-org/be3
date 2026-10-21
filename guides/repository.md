@@ -12,8 +12,8 @@ that build on it. VISION.md says why each part exists.
 
 ## Tooling
 
-- `paint-review`: an editor that reviews the paintings tests make on a pull
-  request.
+- `paint-review` and `paint-review-web`: the web page a pull request's summary
+  comment links to for reviewing the paintings it changed.
 - `be-launcher`: installs CI builds on Android and lists pull requests.
 - `be-cli` (`be`): reads and changes the tracker (guides/tracker.md).
 - `ghostty-vt`: the terminal core be-launcher shows build output with, kept

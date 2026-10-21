@@ -1218,6 +1218,7 @@ version = "0.1.0"
 dependencies = [
  "beui-core",
  "beui-font-browser",
+ "js-sys",
  "wasm-bindgen",
  "web-sys",
 ]
@@ -5075,6 +5076,30 @@ dependencies = [
 ]
 
 [[package]]
+name = "paint-review"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "block-ui-test",
+ "serde",
+]
+
+[[package]]
+name = "paint-review-web"
+version = "0.1.0"
+dependencies = [
+ "beui",
+ "image",
+ "js-sys",
+ "paint-review",
+ "serde_json",
+ "wasi-threads",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "web-sys",
+]
+
+[[package]]
 name = "paint-snapshot"
 version = "0.1.0"
 dependencies = [
@@ -5085,19 +5110,6 @@ dependencies = [
  "serde",
  "serde_json",
  "sha2 0.10.9",
-]
-
-[[package]]
-name = "paint_review"
-version = "0.1.0"
-dependencies = [
- "beui",
- "block-editor-beui",
- "block-ui-test",
- "paint-snapshot",
- "serde_json",
- "sha2 0.10.9",
- "uuid",
 ]
 
 [[package]]

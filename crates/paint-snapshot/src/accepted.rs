@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::Snapshot;
 
 const REVIEW: &str =
-    "push it to the dev branch and review it in a Paint review block, which reads them from there";
+    "commit it, and review it among the paintings on the pull request's summary comment";
 
 pub fn assert_accepted(name: &str, snapshot: &Snapshot, how_to_accept: &str) {
     let bytes = snapshot

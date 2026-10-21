@@ -1,0 +1,17 @@
+# PAINT_REVIEW_ROOT at PAINT_REVIEW_ADDRESS, laid out as CI uploads it: the
+# bundle under site/, beside the lists of paintings and their images. The
+# module's memory is shared, which a browser only hands to a cross-origin
+# isolated page.
+{
+	admin off
+}
+
+{$PAINT_REVIEW_ADDRESS} {
+	header {
+		Cross-Origin-Opener-Policy same-origin
+		Cross-Origin-Embedder-Policy require-corp
+	}
+	file_server {
+		root {$PAINT_REVIEW_ROOT}
+	}
+}

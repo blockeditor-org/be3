@@ -1,0 +1,29 @@
+[package]
+name = "paint-review-web"
+description = "crates/paint-review in a browser: the page a pull request's summary comment links to"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[target.'cfg(target_arch = "wasm32")'.dependencies]
+beui = { path = "../beui", default-features = false, features = ["dom", "web"] }
+image = { version = "0.25", default-features = false, features = ["png"] }
+js-sys = "0.3"
+paint-review = { path = "../paint-review" }
+serde_json = "1"
+wasi-threads = { path = "../wasi-threads" }
+wasm-bindgen = "0.2"
+wasm-bindgen-futures = "0.4"
+web-sys = { version = "0.3", features = [
+    "Location",
+    "Response",
+    "Url",
+    "UrlSearchParams",
+    "Window",
+] }
+
+[lints]
+workspace = true

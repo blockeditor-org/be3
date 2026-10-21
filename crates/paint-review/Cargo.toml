@@ -1,0 +1,16 @@
+[package]
+name = "paint-review"
+description = "A page for reviewing the paintings a pull request changed, flipping each between before and after"
+edition.workspace = true
+version.workspace = true
+license.workspace = true
+
+[dependencies]
+beui = { path = "../beui", default-features = false }
+serde = { version = "1", features = ["derive"] }
+
+[dev-dependencies]
+block-ui-test = { path = "../block-ui-test" }
+
+[lints]
+workspace = true

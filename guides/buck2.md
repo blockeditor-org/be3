@@ -31,6 +31,7 @@ dependency is declared, and buck2 reads it through cargo's own plans.
 | `./scripts/buck run -m release //crates/beui:example-text-bench -- [NAME] [--frames N]` | beui's text benchmarks: per-frame times for resizing wrapped text and labels, editing a paragraph or one span, and typing into a text area; NAME picks the scenarios whose names contain it. Compare a change by running it on the change and on its base |
 | `./scripts/buck run -m release //crates/beui-demo:example-open-bench -- [PAGE]` | times opening each beui-demo page from its catalog row and counts its allocations (guides/performance.md) |
 | `./scripts/buck run //crates/beui-web-demo:web` | beui's demo in a browser, drawn with DOM elements, on http://127.0.0.1:8070 |
+| `./scripts/buck run //crates/paint-review-web:web -- 127.0.0.1:8075 DIR` | the page reviewing a pull request's paintings, serving the `HASH.json` lists and `HASH.png` images in DIR beside it on http://127.0.0.1:8075/site/dev/index.html?changes=HASH |
 | `./scripts/buck run //:fuzz` | every fuzz target, taking turns with every core (`BE3_FUZZ_SLICE` seconds each, 600 by default), until it is stopped |
 | `./scripts/buck run //crates/sequence:fuzz-sequence -- FILE` | one fuzz target; with an input file, runs it once |
 | `./scripts/buck run //:buckify` | regenerates `buck/cargo/crates.bzl` and `Cargo.lock` from the manifests |
