@@ -25,6 +25,13 @@ impl Camera {
         }
     }
 
+    pub(crate) fn item(corner: Pos2) -> Self {
+        Self {
+            origin: pos2(-corner.x, -corner.y),
+            scale: 1.0,
+        }
+    }
+
     pub(crate) fn at(self, at: CanvasPoint) -> Pos2 {
         pos2(
             self.origin.x + at.x * self.scale,

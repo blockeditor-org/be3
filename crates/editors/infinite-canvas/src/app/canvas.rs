@@ -223,6 +223,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             false => item_bounds(&entity),
         }
     });
+    let scales = create_memo(move || !live.get());
     let thumbhash = create_memo(move || state.thumbhash_of(reference_of(&entity.get()?)?));
     let placeholder = create_memo(move || thumbhash.get().and_then(|thumbhash| thumbhash.decode()));
     let theme = use_theme();
@@ -238,9 +239,10 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             Some(_) => state.unlabeled(),
             None => "Broken link".to_owned(),
         };
+        let corner = bounds.get().min;
         let paint = EntityPaint {
             covered: state.child_state(entity.id).available,
-            camera: Camera::of(Some(camera.get()), block_editor_beui::beui::Pos2::ZERO),
+            camera: Camera::item(corner),
             palette: palette(&theme),
             title: label
                 .as_ref()
@@ -258,9 +260,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             return;
         }
         *shown.borrow_mut() = Some(paint.clone());
-        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
-            paint.draw(&painter.in_document())
-        }));
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| paint.draw(painter)));
     });
     view! {
         <CanvasItem
@@ -268,6 +268,7 @@ fn EntityShape(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> Canvas
             y={create_memo(move || bounds.get().top())}
             width={create_memo(move || bounds.get().width().max(1.0))}
             height={create_memo(move || bounds.get().height().max(1.0))}
+            scales={scales}
             pointer={editing}
             @test_id={format!("infinite-canvas.entity.{id}")}
         >
@@ -319,23 +320,36 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
     });
     let punch = create_memo(move || state.child_state(id).available);
     let editor = state.editor();
+    let linked = create_memo(move || entity.get().as_ref().and_then(reference_of).is_some());
+    let shown = create_memo(move || match linked.get() {
+        true => bounds.get(),
+        false => Rect::ZERO,
+    });
+    let least = create_memo(move || match linked.get() {
+        true => 1.0,
+        false => 0.0,
+    });
     view! {
         <CanvasItem
-            x={create_memo(move || bounds.get().left())}
-            y={create_memo(move || bounds.get().top())}
-            width={create_memo(move || bounds.get().width().max(1.0))}
-            height={create_memo(move || bounds.get().height().max(1.0))}
+            x={create_memo(move || shown.get().left())}
+            y={create_memo(move || shown.get().top())}
+            width={create_memo(move || shown.get().width().max(least.get()))}
+            height={create_memo(move || shown.get().height().max(least.get()))}
         >
-            <ChildBlock
-                editor={editor}
-                block={target}
-                mode={mode}
-                punch={punch}
-                rotation={rotation}
-                opacity={opacity}
-                intrinsic={intrinsic}
-                on_state={move |child: ChildState| state.report_child(id, child)}
-            />
+            <Layers>
+                <Show condition={linked}>
+                    <ChildBlock
+                        editor={editor}
+                        block={target}
+                        mode={mode}
+                        punch={punch}
+                        rotation={rotation}
+                        opacity={opacity}
+                        intrinsic={intrinsic}
+                        on_state={move |child: ChildState| state.report_child(id, child)}
+                    />
+                </Show>
+            </Layers>
         </CanvasItem>
     }
 }
