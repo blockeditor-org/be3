@@ -673,7 +673,10 @@ impl Agents {
 }
 
 fn web_entry_point(build: &str) -> String {
-    crate::web_page::page(false, Some(format!("/data/{build}/web/")))
+    crate::web_page::page(
+        crate::web_page::Page::Block,
+        Some(format!("/data/{build}/web/")),
+    )
 }
 
 fn upload_web(

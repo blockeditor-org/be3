@@ -1,18 +1,26 @@
 use beui_html::{Children, Node, Script, render, view};
 use beui_html::{elements as html, tw};
 
+#[derive(Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Page {
+    Block,
+    Demo,
+    PaintReview,
+}
+
 pub fn main(args: Vec<String>) -> std::process::ExitCode {
-    let demo = match args.first().map(String::as_str) {
-        Some("demo") => true,
-        Some("block") => false,
-        _ => panic!("usage: web-page block|demo OUTPUT"),
+    let kind = match args.first().map(String::as_str) {
+        Some("block") => Page::Block,
+        Some("demo") => Page::Demo,
+        Some("paint-review") => Page::PaintReview,
+        _ => panic!("usage: web-page block|demo|paint-review OUTPUT"),
     };
-    let html = page(demo, None);
+    let html = page(kind, None);
     std::fs::write(args.get(1).expect("output path"), html).expect("write HTML");
     std::process::ExitCode::SUCCESS
 }
 
-pub(crate) fn page(demo: bool, base: Option<String>) -> String {
+pub(crate) fn page(kind: Page, base: Option<String>) -> String {
     render(|| {
         let base: Children<Node> = match base {
             Some(href) => view! {
@@ -21,8 +29,8 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
             .into(),
             None => view! {},
         };
-        let (title, imports, js, content) = if demo {
-            (
+        let (title, imports, js, content) = match kind {
+            Page::Demo => (
                 "beui demo",
                 include_str!("web_page/demo.json"),
                 include_str!("web_page/demo.js"),
@@ -35,9 +43,22 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
                         </>
                     />
                 }),
-            )
-        } else {
-            (
+            ),
+            Page::PaintReview => (
+                "Paintings",
+                include_str!("web_page/paint_review.json"),
+                include_str!("web_page/paint_review.js"),
+                Children::<Node>::from(view! {
+                    <html::Div
+                        id="review"
+                        css=<>
+                            <tw::WFull />
+                            <tw::HFull />
+                        </>
+                    />
+                }),
+            ),
+            Page::Block => (
                 "Block",
                 include_str!("web_page/block.json"),
                 include_str!("web_page/block.js"),
@@ -68,9 +89,9 @@ pub(crate) fn page(demo: bool, base: Option<String>) -> String {
                         </>
                     />
                 },
-            )
+            ),
         };
-        let status = if demo {
+        let status = if kind != Page::Block {
             view! {
                 <html::Div
                     id="status"

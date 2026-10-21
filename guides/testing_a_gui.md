@@ -190,12 +190,10 @@ way for the test to fail.
 - Once every plugin test passes, ./scripts/verify deletes each painting in snapshots/ that no test
   compared, so renaming or removing a snapshot takes its old file with it; with --check it
   fails on them instead. A single editor's test run leaves the folder alone.
-- A changed painting is for a person to review, not for you. They review it in a Paint
-  review block, which reads the folder from the repository's dev branch, so a painting is
-  reviewed once it has been pushed rather than from the machine that made it. Approving is
-  not git and a reviewer is not the tests: a painting nobody approved is new again the next
-  time the block is opened, and one nobody had approved before it vanished is not reported
-  at all.
+- A changed painting is for a person to review, not for you. They review it on the pull
+  request: its summary comment links to a page (crates/paint-review, served on the web by
+  crates/paint-review-web) that lists every painting the pull request added, removed or
+  changed, and flips each frame between before and after.
 - snapshot(name), and every record() before it, also fails on what the frame shows out of
   bounds (beui-core's `Document::overflows`): a node cut off by a clip that no scroll,
   pannable canvas or canvas its owner scrolls across (`Canvas scrolls_across`, as a single-line
@@ -265,8 +263,7 @@ BUCK. The portal's tests in `crates/be-server/src/portal/tests/` demonstrate thi
 Tests compare the encoded bytes without starting a browser. Browser paintings share the
 native acceptance and cleanup pipeline, but Git shows their text diffs and prevents line
 merging. GitHub's painting comment and `local-tools rasterize` render them on demand through
-`crates/browser-rasterizer`, a separate binary. Paint review blocks list native paintings;
-browser paintings are reviewed in the pull request's comment and text diff.
+`crates/browser-rasterizer`, a separate binary.
 
 For local browser rasterization, install the optional runtime once:
 

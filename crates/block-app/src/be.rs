@@ -274,8 +274,6 @@ const KINDS: &[Kind] = &[
     kind_with_history::<be_block::LogicGameContent>(),
     kind_with_history::<be_block::LogicGridContent>(),
     kind_with_history::<be_block::MapContent>(),
-    kind_with_history::<be_block::PaintReviewContent>(),
-    kind::<be_block::PaintSnapshotContent>(),
     kind::<be_block::PdfContent>(),
     kind_with_history::<be_block::PixelArtContent>(),
     kind_with_history::<be_block::PresentationContent>(),

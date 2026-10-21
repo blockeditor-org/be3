@@ -597,7 +597,7 @@ store, so renaming a field or an option changes nothing that points at it.
 A file is the other shape that does not fit a document: a small header and a
 payload that can be megabytes. `Blob<K>` is that shape once, for any `BlobKind`
 that names a content type and a header: `ImageContent`, `AudioContent`,
-`PdfContent`, `GameModuleContent` and `PaintSnapshotContent` are each a `Blob`
+`PdfContent` and `GameModuleContent` are each a `Blob`
 of their own kind. It encodes as a `Streamed`
 type, its only live edit is `BlobOp::SetHeader` (the image editor records what
 it decoded that way), and an offline merge takes whichever side changed it.

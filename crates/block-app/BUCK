@@ -91,13 +91,13 @@ wasi_app_module(
 
 web_files = glob(["web/*.js"]) + ["//crates/local-tools:block-index"] + ["//buck/app:build-info.json"]
 
-# The WASI and wasi-threads shims, which beui-web-demo needs too, with what
-# thread.js imports.
+# The WASI and wasi-threads shims, which beui-web-demo and paint-review-web
+# need too, with what thread.js imports.
 [
     export_file(
         name = shim,
         src = "web/" + shim,
-        visibility = ["//crates/beui-web-demo:"],
+        visibility = ["//crates/beui-web-demo:", "//crates/paint-review-web:"],
     )
     for shim in ["wasi.js", "threads.js", "thread.js", "dylink.js", "env.js"]
 ]

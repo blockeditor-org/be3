@@ -55,7 +55,8 @@ jobs:
   # them has nowhere to go.
   #
   # Accepting a painting that changed, or one that is new, is on purpose:
-  # the commit that carries it is what a reviewer looks at in Paint review.
+  # the commit that carries it is what a reviewer looks at in the paintings on
+  # the pull request's summary comment.
   #
   # The Android builds are signed on this runner with CI's keystore, the secret
   # ANDROID_CI_KEYSTORE_BASE64, so successive CI builds install as updates

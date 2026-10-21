@@ -1,0 +1,11 @@
+load("@root//buck/cargo:defs.bzl", "cargo_library")
+load("@root//buck/wasm:defs.bzl", "plugin_tests")
+
+# The page that reviews a pull request's paintings, knowing nothing about how
+# they are fetched: crates/paint-review-web runs it in a browser.
+cargo_library()
+
+# Its tests paint each of its views the way a plugin's tests do: compiled to
+# wasm with the fonts beui carries, and run here so they can read and write
+# snapshots/.
+plugin_tests()
