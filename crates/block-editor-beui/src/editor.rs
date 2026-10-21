@@ -494,9 +494,9 @@ impl Editor {
         self.state().block
     }
 
-    pub fn watch_blocks(&self, query: BlockQuery) -> Memo<Option<Vec<crate::BlockInfo>>> {
+    pub fn watch_blocks(&self, query: BlockQuery) -> Memo<Ready<Vec<crate::BlockInfo>>> {
         let list = self.blocks().watch(query);
-        create_memo(move || list.is_loaded().then(|| list.read()))
+        create_memo(move || list.read())
     }
 
     pub fn editable(&self) -> ReadSignal<bool> {
@@ -515,16 +515,6 @@ impl Editor {
         self.projection(None)
     }
 
-    pub fn loaded<C>(&self, queries: &[BlockQuery]) -> Memo<bool>
-    where
-        C: be_block::LiveEdit + Clone + Default,
-    {
-        let content = self.block_content::<C>().loaded();
-        let blocks = self.blocks();
-        let lists: Vec<BlockList> = queries.iter().map(|query| blocks.watch(*query)).collect();
-        create_memo(move || content.get() && lists.iter().all(BlockList::is_loaded))
-    }
-
     pub fn content_of<C>(&self, block: Uuid) -> ContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
@@ -533,7 +523,19 @@ impl Editor {
             return self.block_content();
         }
         self.state().host.watch_content(block, C::CONTENT_TYPE);
-        self.projection(Some(block))
+        let projection = self.projection_of(Some(block));
+        if Boundary::current().is_none() {
+            return projection;
+        }
+        let found = self.blocks().watch(BlockQuery::Block(block));
+        wait_for(move || {
+            if !projection.is_alive() || projection.ready().is_ok() {
+                return Ok(());
+            }
+            let viewable = found.read()?.first().is_some_and(|info| info.access.can_view());
+            if viewable { Err(Pending::Loading) } else { Ok(()) }
+        });
+        projection
     }
 
     pub fn view_block(&self) -> Option<Uuid> {
@@ -548,6 +550,7 @@ impl Editor {
     pub fn view_state(&self, key: &str) -> Option<be_block::ViewState> {
         self.view_content()?
             .read(|view| view.root().state(key).cloned())
+            .ok()
             .flatten()
     }
 
@@ -563,7 +566,7 @@ impl Editor {
                 (root.state(key) != state).then(|| root.set_state(key, state, now, client))
             })
         });
-        if let Some(edit) = edit.flatten() {
+        if let Some(edit) = edit.ok().flatten() {
             view.operate_anyway(edit);
         }
     }
@@ -627,6 +630,21 @@ impl Editor {
     }
 
     fn projection<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
+    where
+        C: be_block::LiveEdit + Clone + Default,
+    {
+        let projection = self.projection_of(block);
+        wait_for(move || {
+            if projection.is_alive() {
+                projection.ready()
+            } else {
+                Ok(())
+            }
+        });
+        projection
+    }
+
+    fn projection_of<C>(&self, block: Option<Uuid>) -> ContentProjection<C>
     where
         C: be_block::LiveEdit + Clone + Default,
     {
@@ -716,18 +734,17 @@ impl Editor {
     pub fn version_status(&self) -> Memo<block_editor_plugin::VersionStatus> {
         let host = self.state().host.clone();
         let revision = self.pushed(Pushed::Version);
+        let known = create_memo({
+            let host = host.clone();
+            move || {
+                revision.get();
+                host.version_known()
+            }
+        });
+        wait_for(move || if known.get() { Ok(()) } else { Err(Pending::Loading) });
         create_memo(move || {
             revision.get();
             host.version_status()
-        })
-    }
-
-    pub fn version_known(&self) -> Memo<bool> {
-        let host = self.state().host.clone();
-        let revision = self.pushed(Pushed::Version);
-        create_memo(move || {
-            revision.get();
-            host.version_known()
         })
     }
 
@@ -1374,6 +1391,7 @@ impl Editor {
                 editor
                     .content_of::<be_block::be_model::Document<R>>(block)
                     .read(|content| content.root())
+                    .ok()
             }))
         })
     }
@@ -1401,6 +1419,7 @@ impl Editor {
                 editor
                     .content_of::<be_block::be_model::Document<R>>(block)
                     .read(|content| content.root())
+                    .ok()
             }))
         })
     }
@@ -1411,9 +1430,8 @@ impl crate::root_settings::SettingsGraph for Editor {
         let state = self.state();
         let mut roots = state.roots.borrow_mut();
         let list = roots.get_or_insert_with(|| self.blocks().watch(BlockQuery::Roots));
-        list.is_loaded().then(|| {
-            list.read()
-                .into_iter()
+        list.read().ok().map(|list| {
+            list.into_iter()
                 .filter_map(|info| Some((info.id, info.block_type, info.author?)))
                 .collect()
         })
@@ -1426,6 +1444,7 @@ impl crate::root_settings::SettingsGraph for Editor {
     fn settings(&self, block: Uuid) -> Option<be_block::Settings> {
         self.content_of::<be_block::SettingsContent>(block)
             .read(|settings| settings.root())
+            .ok()
     }
 
     fn create(&self, block_type: Uuid, content: Vec<u8>, parent: BlockParent) -> Uuid {
@@ -1440,6 +1459,7 @@ impl crate::root_settings::SettingsGraph for Editor {
     fn settings_profile(&self, block: Uuid) -> Option<be_block::SettingsProfile> {
         self.content_of::<be_block::SettingsProfileContent>(block)
             .read(|profile| profile.root())
+            .ok()
     }
 
     fn edit_settings(&self, block: Uuid, edit: be_block::Edit) {

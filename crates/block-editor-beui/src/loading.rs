@@ -1,14 +1,40 @@
+use std::time::Duration;
+
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
 
+const GRACE: Duration = Duration::from_millis(300);
+
 #[component]
-pub fn Loading(#[prop(default = "Loading".to_owned())] label: Prop<String>) -> NodeId {
+pub fn LoadingPane(#[prop(default = "Loading".to_owned())] label: Prop<String>) -> NodeId {
+    let label = create_memo(move || label.get());
+    let late = create_signal(false);
+    let timer = create_timer(move || {
+        late.set(true);
+        None
+    });
+    timer.start(GRACE);
     view! {
         <Frame @test_id={"editor.loading"} fill=ColorRole::Background>
             <List spacing=0.0 align=Align::Center>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Spinner label={label} />
+                <Show condition={late}>
+                    <Spinner label={label} />
+                </Show>
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+            </List>
+        </Frame>
+    }
+}
+
+#[component]
+pub fn FailedPane(error: String) -> NodeId {
+    view! {
+        <Frame @test_id={"editor.failed"} fill=ColorRole::Background>
+            <List spacing=0.0 align=Align::Center>
+                <Spacer @sizing=ItemSize::Percent(100.0) />
+                <Text string={error} color=TextColor::Muted wrap=true />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
         </Frame>
@@ -17,25 +43,17 @@ pub fn Loading(#[prop(default = "Loading".to_owned())] label: Prop<String>) -> N
 
 #[component]
 pub fn Loaded(
-    loaded: Prop<bool>,
     #[prop(default = "Loading".to_owned())] label: Prop<String>,
     #[prop(children)] content: Render<()>,
 ) -> NodeId {
-    let ready = create_signal(false);
-    create_effect(move || {
-        if loaded.get() {
-            ready.set(true);
-        }
-    });
-    let waiting = create_memo(move || !ready.get());
-    let shown = create_memo(move || ready.get());
     let label = create_memo(move || label.get());
+    let fallback = move |pending: Pending| match pending {
+        Pending::Loading => view! { <LoadingPane label={label} /> },
+        Pending::Failed(error) => view! { <FailedPane error /> },
+    };
     view! {
         <Layers>
-            <Show condition={waiting}>
-                <Loading label={label} />
-            </Show>
-            <ShowKeepAlive condition={shown}>|| { content.call(()) }</ShowKeepAlive>
+            <Loading fallback>|| { content.call(()) }</Loading>
         </Layers>
     }
 }

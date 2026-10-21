@@ -1,7 +1,8 @@
 use reactive::Get;
 use reactive::Set;
+use reactive::{Pending, Ready, wait_for};
 use std::cell::{Cell, RefCell};
-use std::collections::{BTreeMap, HashMap};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 use std::rc::Rc;
 
 use be_block::{ArtifactSource, BlockMetadata, Definition, Entries};
@@ -10,6 +11,8 @@ use reactive::OwnedSignal;
 use uuid::Uuid;
 
 use crate::host::Waker;
+
+const RETIRED: usize = 64;
 
 #[derive(Clone, Copy, Debug, Eq, Hash, PartialEq)]
 pub enum BlockParent {
@@ -241,7 +244,8 @@ pub enum GraphCommand {
 pub(crate) struct GraphState {
     watched: RefCell<BTreeMap<BlockQuery, usize>>,
     watch_changed: Cell<bool>,
-    results: RefCell<HashMap<BlockQuery, Vec<BlockInfo>>>,
+    results: RefCell<HashMap<BlockQuery, Ready<Vec<BlockInfo>>>>,
+    retired: RefCell<VecDeque<(BlockQuery, Vec<BlockInfo>)>>,
     known: RefCell<HashMap<Uuid, BlockInfo>>,
     revision: OwnedSignal<u64>,
     dirty: Cell<bool>,
@@ -256,6 +260,7 @@ impl Default for GraphState {
             watched: RefCell::default(),
             watch_changed: Cell::default(),
             results: RefCell::default(),
+            retired: RefCell::default(),
             known: RefCell::default(),
             revision: OwnedSignal::new(0),
             dirty: Cell::default(),
@@ -298,6 +303,12 @@ impl GraphState {
         *count += 1;
         if *count == 1 {
             self.watch_changed.set(true);
+            let mut retired = self.retired.borrow_mut();
+            if let Some(at) = retired.iter().position(|(held, _)| *held == query)
+                && let Some((_, blocks)) = retired.remove(at)
+            {
+                self.results.borrow_mut().insert(query, Ok(blocks));
+            }
         }
     }
 
@@ -309,7 +320,13 @@ impl GraphState {
         *count -= 1;
         if *count == 0 {
             watched.remove(&query);
-            self.results.borrow_mut().remove(&query);
+            if let Some(Ok(blocks)) = self.results.borrow_mut().remove(&query) {
+                let mut retired = self.retired.borrow_mut();
+                retired.push_back((query, blocks));
+                if retired.len() > RETIRED {
+                    retired.pop_front();
+                }
+            }
             self.watch_changed.set(true);
         }
     }
@@ -336,13 +353,24 @@ impl GraphState {
                 known.remove(&id);
             }
         }
-        self.results.borrow_mut().insert(query, blocks);
+        self.results.borrow_mut().insert(query, Ok(blocks));
         self.changed();
     }
 
-    pub(crate) fn result(&self, query: BlockQuery) -> Option<Vec<BlockInfo>> {
+    pub(crate) fn set_failure(&self, query: BlockQuery, error: String) {
+        self.results
+            .borrow_mut()
+            .insert(query, Err(Pending::Failed(error)));
+        self.changed();
+    }
+
+    pub(crate) fn result(&self, query: BlockQuery) -> Ready<Vec<BlockInfo>> {
         self.revision.get();
-        self.results.borrow().get(&query).cloned()
+        self.results
+            .borrow()
+            .get(&query)
+            .cloned()
+            .unwrap_or(Err(Pending::Loading))
     }
 
     pub(crate) fn known(&self, id: Uuid) -> Option<BlockInfo> {
@@ -460,9 +488,17 @@ impl Blocks {
     pub fn watch(&self, query: BlockQuery) -> BlockList {
         self.graph.watch(query);
         self.waker.wake();
+        let alive = Rc::new(());
+        let held = Rc::downgrade(&alive);
+        let graph = Rc::downgrade(&self.graph);
+        wait_for(move || match (held.upgrade(), graph.upgrade()) {
+            (Some(_), Some(graph)) => graph.result(query).map(drop),
+            _ => Ok(()),
+        });
         BlockList {
             graph: Rc::clone(&self.graph),
             query,
+            _alive: alive,
         }
     }
 
@@ -482,15 +518,12 @@ impl Blocks {
 pub struct BlockList {
     graph: Rc<GraphState>,
     query: BlockQuery,
+    _alive: Rc<()>,
 }
 
 impl BlockList {
-    pub fn read(&self) -> Vec<BlockInfo> {
-        self.graph.result(self.query).unwrap_or_default()
-    }
-
-    pub fn is_loaded(&self) -> bool {
-        self.graph.result(self.query).is_some()
+    pub fn read(&self) -> Ready<Vec<BlockInfo>> {
+        self.graph.result(self.query)
     }
 
     pub fn query(&self) -> BlockQuery {

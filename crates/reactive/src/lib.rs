@@ -3,6 +3,7 @@ extern crate self as reactive;
 mod arena;
 mod computation;
 mod keyed;
+mod loading;
 mod memo;
 mod runtime;
 mod scope;
@@ -12,6 +13,7 @@ mod stored;
 
 pub use computation::{Effect, create_binding, create_effect};
 pub use keyed::{KeyedItems, KeyedStore, Mapping, OwnedKeyedStore, numbered};
+pub use loading::{Boundary, Pending, Ready, hold, wait_for};
 pub use memo::{Memo, create_memo};
 pub use reactive_macros::Store;
 pub use runtime::{

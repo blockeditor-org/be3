@@ -734,7 +734,7 @@ pub fn watch_inverses(
     let found = create_signal(None::<Vec<Inverse>>);
     let watched: std::cell::RefCell<Option<(Uuid, crate::BlockList)>> =
         std::cell::RefCell::new(None);
-    create_effect(move || {
+    create_binding(move || {
         let Some(target) = database.get() else {
             return;
         };
@@ -745,11 +745,12 @@ pub fn watch_inverses(
                 editor.blocks().watch(crate::BlockQuery::Backrefs(target)),
             ));
         }
-        let Some((_, backrefs)) = held.as_ref().filter(|(_, list)| list.is_loaded()) else {
+        let Some((_, backrefs)) = held.as_ref().filter(|(_, list)| list.read().is_ok()) else {
             return;
         };
         let mut sources: Vec<Uuid> = backrefs
             .read()
+            .unwrap_or_default()
             .into_iter()
             .filter(|info| {
                 info.block_type == <DatabaseSchemaContent as be_block::BlockContent>::CONTENT_TYPE
@@ -767,7 +768,7 @@ pub fn watch_inverses(
             .into_iter()
             .map(|source| source_inverses(editor, target, source))
             .collect();
-        create_effect(move || {
+        create_binding(move || {
             let mut all = Vec::new();
             for inverses in &watched_sources {
                 let Some(inverses) = inverses.get() else {
@@ -778,7 +779,27 @@ pub fn watch_inverses(
             found.set(Some(all));
         });
     });
+    wait_for(move || {
+        if database.get().is_some() && found.with(Option::is_none) {
+            Err(Pending::Loading)
+        } else {
+            Ok(())
+        }
+    });
     create_memo(move || found.get())
+}
+
+fn settled<C>(editor: crate::Editor, block: Uuid, content: crate::ContentProjection<C>) -> Memo<bool>
+where
+    C: be_block::LiveEdit + Clone + Default,
+{
+    let found = editor.blocks().watch(crate::BlockQuery::Block(block));
+    create_memo(move || {
+        content.ready().is_ok()
+            || found
+                .read()
+                .is_ok_and(|found| found.first().is_none_or(|info| !info.access.can_view()))
+    })
 }
 
 fn source_inverses(
@@ -787,10 +808,10 @@ fn source_inverses(
     source: Uuid,
 ) -> ReadSignal<Option<Vec<Inverse>>> {
     let content = editor.content_of::<DatabaseContent>(source);
-    let content_settled = crate::content_settled(editor, source, content.loaded());
+    let content_settled = settled(editor, source, content);
     let schema_id = content.field(be_block::ObjectId::ROOT, Database::SCHEMA);
     let found = create_signal(None);
-    create_effect(move || {
+    create_binding(move || {
         if !content_settled.get() {
             return;
         }
@@ -799,10 +820,10 @@ fn source_inverses(
             return;
         };
         let schema_content = editor.content_of::<DatabaseSchemaContent>(schema);
-        let schema_settled = crate::content_settled(editor, schema, schema_content.loaded());
+        let schema_settled = settled(editor, schema, schema_content);
         let schema = schema_content.project(|schema| schema.root());
         let rows = content.objects(be_block::ObjectId::ROOT, Database::ROWS);
-        create_effect(move || {
+        create_binding(move || {
             if schema_settled.get() {
                 let all = rows.with(|rows| {
                     schema.with(|schema| {
@@ -843,13 +864,13 @@ pub struct RowLabels {
 
 pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> RowLabels {
     let found = create_signal(None::<(Vec<Uuid>, BTreeMap<RowRef, String>)>);
-    create_effect(move || {
+    create_binding(move || {
         let wanted = databases.get();
         let watched: Vec<ReadSignal<Option<RowTitles>>> = wanted
             .iter()
             .map(|database| row_titles(editor, *database))
             .collect();
-        create_effect(move || {
+        create_binding(move || {
             let mut all = BTreeMap::new();
             for titles in &watched {
                 let Some(titles) = titles.get() else {
@@ -870,6 +891,15 @@ pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> Ro
                 .collect()
         })
     });
+    let loaded = create_memo(move || {
+        let wanted = databases.get();
+        found.with(|found| {
+            found
+                .as_ref()
+                .is_some_and(|(covered, _)| *covered == wanted)
+        })
+    });
+    wait_for(move || if loaded.get() { Ok(()) } else { Err(Pending::Loading) });
     RowLabels {
         unreachable,
         labels: create_memo(move || {
@@ -880,33 +910,26 @@ pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> Ro
                     .unwrap_or_default()
             })
         }),
-        loaded: create_memo(move || {
-            let wanted = databases.get();
-            found.with(|found| {
-                found
-                    .as_ref()
-                    .is_some_and(|(covered, _)| *covered == wanted)
-            })
-        }),
+        loaded,
     }
 }
 
 fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Option<RowTitles>> {
     let content = editor.content_of::<DatabaseContent>(database);
-    let content_settled = crate::content_settled(editor, database, content.loaded());
+    let content_settled = settled(editor, database, content);
     let schema_id = content.field(be_block::ObjectId::ROOT, Database::SCHEMA);
     let titles = create_signal(None);
-    create_effect(move || {
+    create_binding(move || {
         if !content_settled.get() {
             return;
         }
         let title_field = schema_id.get().map(|schema| {
             let schema_content = editor.content_of::<DatabaseSchemaContent>(schema);
-            let settled = crate::content_settled(editor, schema, schema_content.loaded());
+            let settled = settled(editor, schema, schema_content);
             let title = schema_content.project(|schema| schema.root().title_field());
             (settled, title)
         });
-        create_effect(move || {
+        create_binding(move || {
             let title = match &title_field {
                 Some((settled, _)) if !settled.get() => return,
                 Some((_, title)) => title.get(),
@@ -914,7 +937,7 @@ fn row_titles(editor: crate::Editor, database: Uuid) -> ReadSignal<Option<RowTit
             };
             let prefix = content.field(be_block::ObjectId::ROOT, Database::PREFIX);
             let rows = content.objects(be_block::ObjectId::ROOT, Database::ROWS);
-            create_effect(move || {
+            create_binding(move || {
                 let prefix = prefix.get();
                 let projected = rows.with(|rows| {
                     rows.iter()

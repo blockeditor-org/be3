@@ -108,6 +108,7 @@ where
                     editor
                         .content_of::<Document<R>>(block)
                         .read(|content| content.root())
+                        .ok()
                 })
                 .unwrap_or_default()
         };
@@ -131,7 +132,7 @@ where
                     editor
                         .content_of::<Document<R>>(block)
                         .read(|_| ())
-                        .is_some()
+                        .is_ok()
                 })
             };
             let layers = layers.get();

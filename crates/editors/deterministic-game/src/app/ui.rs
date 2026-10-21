@@ -5,7 +5,7 @@ use block_editor_beui::beui::icons::{ICON_CHECK, ICON_CLOSE, ICON_FLAG};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{self, ChoiceOption};
-use block_editor_beui::{Editor, Loading};
+use block_editor_beui::{Editor, LoadingPane};
 use game_api::{Board, Control, GameActionOption, GameScreen, Gesture};
 
 mod annotations;
@@ -215,7 +215,7 @@ fn GameShape(
     view! {
         <List spacing=0.0>
             <Show condition=loading>
-                <Loading @sizing=ItemSize::Percent(100.0) label="Loading the game" />
+                <LoadingPane @sizing=ItemSize::Percent(100.0) label="Loading the game" />
             </Show>
             <Show condition=failed>
                 <GameError snapshot={snapshot} />

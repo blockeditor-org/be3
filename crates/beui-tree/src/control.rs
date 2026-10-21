@@ -3,7 +3,8 @@ use std::hash::Hash;
 
 use beui_macros::component;
 use reactive::{
-    Get, KeyedItems, ReadSignal, Scope, Set, Stored, create_effect, create_signal, store,
+    Boundary, Get, KeyedItems, Pending, ReadSignal, Scope, Set, Stored, create_binding,
+    create_signal, store,
 };
 
 use crate::children::{ChildSlot, Children, DynamicSegment, NestedHost, SlotChild};
@@ -33,7 +34,7 @@ where
 {
     DynamicSegment::new(move |slot: ChildSlot<C>| {
         let held = store(RefCell::new(None::<Scope>));
-        create_effect(move || {
+        create_binding(move || {
             let visible = condition.get();
             let held = held.value();
             let mut held = held.borrow_mut();
@@ -60,7 +61,7 @@ where
     DynamicSegment::new(move |slot: ChildSlot<C>| {
         let held = store(RefCell::new(None::<(std::rc::Rc<NestedHost<C>>, Scope)>));
         let mut then = Some(then);
-        create_effect(move || {
+        create_binding(move || {
             let visible = condition.get();
             let held = held.value();
             let mut held = held.borrow_mut();
@@ -89,6 +90,51 @@ where
 }
 
 #[component]
+pub fn Loading<C>(
+    fallback: RenderFn<Pending, C>,
+    #[prop(children)] content: Render<(), Children<C>>,
+) -> DynamicSegment<C>
+where
+    C: SlotChild,
+{
+    DynamicSegment::new(move |slot: ChildSlot<C>| {
+        let scope = Scope::detached().pausable_effects();
+        scope.pause();
+        let (boundary, host) = scope.context().run(|| {
+            let boundary = Boundary::provide();
+            (boundary, content.call(()).mount_hidden(slot.clone()))
+        });
+        let content = store((host, scope));
+        let shown = store(RefCell::new(None::<(Pending, C::Stored, Scope)>));
+        let revealed = store(std::cell::Cell::new(false));
+        create_binding(move || {
+            if revealed.value().get() {
+                return;
+            }
+            let state = boundary.state();
+            let shown = shown.value();
+            let mut shown = shown.borrow_mut();
+            match state {
+                Ok(()) => {
+                    revealed.value().set(true);
+                    drop(shown.take());
+                    let content = content.value();
+                    content.0.set_visible(true);
+                    content.1.resume();
+                }
+                Err(pending) => {
+                    if shown.as_ref().is_some_and(|(held, _, _)| *held == pending) {
+                        return;
+                    }
+                    let (stored, scope) = build_in_slot(&slot, || fallback.call(pending.clone()));
+                    drop(shown.replace((pending, stored, scope)));
+                }
+            }
+        });
+    })
+}
+
+#[component]
 pub fn Dynamic<T, C>(value: Prop<T>, #[prop(children)] view: RenderFn<T, C>) -> DynamicSegment<C>
 where
     T: Clone + 'static,
@@ -96,7 +142,7 @@ where
 {
     DynamicSegment::new(move |slot: ChildSlot<C>| {
         let held: HeldChild<C> = store(RefCell::new(None));
-        create_effect(move || {
+        create_binding(move || {
             let value = value.get();
             let held = held.value();
             let mut held = held.borrow_mut();
@@ -118,7 +164,7 @@ where
     DynamicSegment::new(move |slot: ChildSlot<C>| {
         let built = slot.clone();
         let rows = store(KeyedItems::new(move |key: K| built.store(view.call(key))));
-        create_effect(move || {
+        create_binding(move || {
             let keys = keys.get();
             rows.value().map(keys).commit(|items, _| slot.fill(items));
         });
@@ -139,7 +185,7 @@ where
     DynamicSegment::new(move |slot: ChildSlot<C>| {
         let current = create_signal(value.get_untracked());
         let held: KeyedChild<K, C> = store(RefCell::new(None));
-        create_effect(move || {
+        create_binding(move || {
             let value = value.get();
             let next = key.call(value.clone());
             current.set(value);

@@ -240,6 +240,10 @@ pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
     })
 }
 
+pub(crate) fn in_memo() -> bool {
+    RUNTIME.with(|runtime| runtime.memo_depth.get() > 0)
+}
+
 pub(crate) fn tracking() -> bool {
     RUNTIME.with(|runtime| {
         runtime.probe.borrow().is_some()
