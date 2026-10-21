@@ -52,7 +52,7 @@ What holds it back:
 - On web, opening a canvas needs a server sign-in first.
 
 The canvas is not a frozen format yet (guides/frozen_formats.md), so its model
-can change freely until step 7.
+can change freely until step 8.
 
 ## 1. Foundations in beui
 
@@ -79,6 +79,10 @@ can change freely until step 7.
   simulates pressure.
 - Geometry general enough for the vector profile's bezier paths, so that
   profile adds tools, not a second model.
+- Text is rich text. A be-model type stores rich text, so block-app can hold
+  the rich text beui's editor already edits, and text shapes and labels use
+  it. One document provider serves both the text editor and the canvas, so
+  the canvas does not reimplement it (as the first attempt, PR #519, had to).
 
 ## 3. The prototyping profile
 
@@ -89,19 +93,25 @@ can change freely until step 7.
 - Hand-drawn by default. New shapes take the last style used.
 - One-letter and number shortcuts for every tool, and a tool lock.
 - Double-clicking empty canvas types text; Enter on a selected shape edits its
-  label.
+  label. Text and labels are edited live as rich text in place, through the
+  shared document provider, and peers see the edits as they are typed.
 - An eraser.
-- Snapping to other shapes' edges and centres, with guides and equal-spacing
-  hints. Today only angles snap.
+- A dot grid behind the canvas, which a viewer can turn off or space
+  differently.
+- No snapping: in a quick sketch nobody should have to worry about lines
+  being perfectly straight or boxes perfectly aligned. This departs from
+  Excalidraw. Snapping comes in step 6.
 - Lasso selection, double-click into a group, drag a line's midpoints to bend
   it.
 - Copy and export a selection or frame as PNG and SVG.
-- A library of reusable shapes. **(ask)** whether a library is a block.
 
 ## 4. Input on every device
 
-- Pen: palm rejection while a pen is down; in the pen tool, the pen draws and
-  a finger selects or pans; the eraser end and barrel button.
+- Pen: in the pen tool, the pen draws and a finger selects or pans; the eraser
+  end and barrel button.
+- Touch: a toggle that turns touch input off entirely, so a resting hand never
+  draws, selects or zooms. No palm rejection: heuristics misfire, which is why
+  people draw in gloves even on devices known for good palm rejection.
 - Web: read coalesced and predicted pointer events (`getCoalescedEvents`,
   `getPredictedEvents`) in `beui-adapter-web`, for smoother strokes and less
   latency.
@@ -122,12 +132,21 @@ can change freely until step 7.
 - A cold-start target on a mid-range phone, measured in CI. **(ask)** the
   target.
 
-## 6. The other profiles
+## 6. Precision and reuse
+
+- Snapping to other shapes' edges and centres, with guides and equal-spacing
+  hints. Off in the prototyping profile unless a viewer turns it on; on in the
+  more precise profiles. Today only angles snap.
+- A library of reusable shapes. First build what makes it easy: per-workspace
+  settings, and a good way for an editor to provide data. **(ask)** whether a
+  library is a block.
+
+## 7. The other profiles
 
 Vector, then raster (with the pixel-art merge), then interactivity. Each gets
 its own plan when it starts.
 
-## 7. Freeze the format
+## 8. Freeze the format
 
 Once steps 2 and 3 have settled, add the canvas to guides/frozen_formats.md
 with its tests.
