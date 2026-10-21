@@ -49,8 +49,8 @@ pub(crate) fn DeletedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) -
                 <Text size=TextSize::Xs align=TextAlign::Center>
                     <Icon glyph={ICON_DELETE.to_owned()} />
                 </Text>
-                <Text string="Deleted block" />
-                <Text style=TextStyle::CAPTION string={caption} />
+                <Text>"Deleted block"</Text>
+                <Text style=TextStyle::CAPTION>{caption}</Text>
                 <Button
                     @test_id={"workspace.deleted.restore"}
                     label="Restore"

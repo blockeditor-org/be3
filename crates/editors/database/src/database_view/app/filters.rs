@@ -228,7 +228,7 @@ fn FilterChip(data: Data, id: ObjectId) -> NodeId {
                     trigger={move |handle: PopoverTriggerHandle| {
                         view! {
                             <ControlFace handle={handle.button}>
-                                <Text style=TextStyle::CAPTION string={text} />
+                                <Text style=TextStyle::CAPTION>{text}</Text>
                             </ControlFace>
                         }
                     }}
@@ -277,7 +277,7 @@ fn AddFilter(data: Data) -> NodeId {
                         <Text size=TextSize::Xs color=TextColor::Muted align=TextAlign::Center>
                             <Icon glyph={ICON_FILTER_LIST.to_owned()} />
                         </Text>
-                        <Text style=TextStyle::CAPTION string="Filter" />
+                        <Text style=TextStyle::CAPTION>"Filter"</Text>
                     </List>
                 </ControlFace>
             }}
@@ -323,7 +323,7 @@ fn FieldChoices(
     });
     view! {
         <List spacing=2.0>
-            <Text style=TextStyle::CAPTION string="Filter by" />
+            <Text style=TextStyle::CAPTION>"Filter by"</Text>
             <ForEach keys={keys}>|field: Uuid| {
                 let name = create_memo(move || {
                     data.fields.with(|fields| {
@@ -351,7 +351,7 @@ fn FieldChoices(
                         on_click={pick}
                     >|handle|
                         <ControlFace handle={handle}>
-                            <Text string={name} />
+                            <Text>{name}</Text>
                         </ControlFace>
                     </unstyled::Button>
                 }
@@ -447,7 +447,7 @@ pub fn FilterEditor(data: Data, id: ObjectId) -> NodeId {
         <Frame width=EDITOR_WIDTH>
             <List spacing={SPACING * 1.5}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Text string={name} />
+                    <Text>{name}</Text>
                     <Frame @sizing=ItemSize::Percent(100.0)>
                         <Select
                             options={view! {
@@ -649,7 +649,7 @@ fn ValueChoices(
                                     disabled={read_only}
                                     @test_id={element_test_id}
                                 />
-                                <Text style=TextStyle::CAPTION string={count} />
+                                <Text style=TextStyle::CAPTION>{count}</Text>
                             </List>
                         }
                     }</ForEach>
@@ -682,7 +682,7 @@ pub fn FilterList(data: Data) -> NodeId {
     view! {
         <List spacing={SPACING * 2.0}>
             <Show condition={none}>
-                <Text style=TextStyle::CAPTION string="Every row is shown." />
+                <Text style=TextStyle::CAPTION>"Every row is shown."</Text>
             </Show>
             <ForEach keys={keys}>|id: ObjectId| {
                 let remove = move || data.operate_view(DatabaseView::remove_filter(id));

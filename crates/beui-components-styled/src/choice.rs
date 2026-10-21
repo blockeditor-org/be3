@@ -63,7 +63,7 @@ fn ChoiceLabel(
             <Show condition={kind == Kind::Radio}>
                 <RadioMark checked={checked} />
             </Show>
-            <Text @sizing=ItemSize::Percent(100.0) string={label} color align />
+            <Text @sizing=ItemSize::Percent(100.0) color align>{label}</Text>
         </List>
     }
 }

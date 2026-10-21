@@ -7,7 +7,7 @@ fn format_views_shifts_a_multi_line_expression_to_its_new_indent() {
             <Button label="Reset" on_click={move || {
                     reset_count.set(0);
                 }}>
-            <Text string="reset" />
+            <Text>"reset"</Text>
         </Button>
     }
 }
@@ -23,7 +23,7 @@ fn format_views_shifts_a_multi_line_expression_to_its_new_indent() {
                 reset_count.set(0);
             }}
         >
-            <Text string="reset" />
+            <Text>"reset"</Text>
         </Button>
     }
 }

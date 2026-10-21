@@ -113,7 +113,7 @@ fn DatabaseValueRow(
         <List spacing=SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Show condition={headings}>
-                    <Text style=TextStyle::CAPTION string={heading} />
+                    <Text style=TextStyle::CAPTION>{heading}</Text>
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Show condition={set}>
@@ -585,11 +585,9 @@ fn RelationValue(
     view! {
         <List spacing=SPACING>
             <Show condition={unlinked}>
-                <Text
-                    style=TextStyle::CAPTION
-                    string="Choose the database this column links to."
-                    wrap=true
-                />
+                <Text style=TextStyle::CAPTION wrap=true>
+                    "Choose the database this column links to."
+                </Text>
             </Show>
             <Select
                 options={view! {
@@ -692,7 +690,7 @@ fn LinksValue(
                 };
                 view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text @sizing=ItemSize::Percent(100.0) string={label} />
+                        <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
                         <IconButton
                             glyph={ICON_CLEAR.to_owned()}
                             label="Remove link"
@@ -986,7 +984,7 @@ pub fn DatabaseValueSummary(text: Prop<String>, aligned: Prop<bool>) -> NodeId {
     });
     view! {
         <Frame padding={Sides::horizontal(SPACING)}>
-            <Text string={text} align={align} />
+            <Text align={align}>{text}</Text>
         </Frame>
     }
 }

@@ -43,12 +43,9 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content} padding=PADDING>
                     <List spacing=SECTION_SPACING>
-                        <Text style=TextStyle::HEADING string="Views" />
+                        <Text style=TextStyle::HEADING>"Views"</Text>
                         <Show condition={none_yet}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="This database has no views yet."
-                            />
+                            <Text style=TextStyle::CAPTION>"This database has no views yet."</Text>
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <ViewLinks editor={editor} rows={rows} />
@@ -104,7 +101,7 @@ fn SchemaPanel(editor: Editor, schema: Memo<Option<Uuid>>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={missing}>
-                <Text style=TextStyle::CAPTION string="This database has no schema." />
+                <Text style=TextStyle::CAPTION>"This database has no schema."</Text>
             </Show>
             <ChildBlock
                 @sizing=ItemSize::Percent(100.0)

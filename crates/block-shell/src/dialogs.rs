@@ -92,7 +92,7 @@ fn RenameDialog(workspace: Workspace) -> NodeId {
         >
             <TextInput value={name} label="Name" focused=true @test_id={"rename.name"} />
             <Show condition={invalid}>
-                <Text style=TextStyle::CAPTION string={error} />
+                <Text style=TextStyle::CAPTION>{error}</Text>
             </Show>
         </Dialog>
     }
@@ -122,16 +122,12 @@ fn UnlinkDialog(workspace: Workspace) -> NodeId {
             }}
             on_dismiss={move || workspace.close_dialog()}
         >
-            <Text
-                style=TextStyle::PARAGRAPH
-                string="This block keeps what was generated for it, but stops being rebuilt from its source and becomes editable."
-                wrap=true
-            />
-            <Text
-                style=TextStyle::PARAGRAPH
-                string="The link and its settings cannot be restored."
-                wrap=true
-            />
+            <Text style=TextStyle::PARAGRAPH wrap=true>
+                "This block keeps what was generated for it, but stops being rebuilt from its source and becomes editable."
+            </Text>
+            <Text style=TextStyle::PARAGRAPH wrap=true>
+                "The link and its settings cannot be restored."
+            </Text>
         </Dialog>
     }
 }
@@ -202,7 +198,7 @@ fn ArtifactSettingsDialog(workspace: Workspace) -> NodeId {
                 />
             </Frame>
             <Show condition={has_summary}>
-                <Text style=TextStyle::CAPTION string={summary_text} />
+                <Text style=TextStyle::CAPTION>{summary_text}</Text>
             </Show>
         </Dialog>
     }
@@ -334,12 +330,12 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
         >
             <List spacing=10.0>
                 <Show condition={has_error}>
-                    <Text style=TextStyle::CAPTION string={error_text} />
+                    <Text style=TextStyle::CAPTION>{error_text}</Text>
                 </Show>
                 <Show condition={loading}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Spinner />
-                        <Text style=TextStyle::CAPTION string="Loading members…" />
+                        <Text style=TextStyle::CAPTION>"Loading members…"</Text>
                     </List>
                 </Show>
                 <TextInput
@@ -353,7 +349,7 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                     <Card>
                         <List spacing=4.0>
                             <Show condition={unmatched}>
-                                <Text style=TextStyle::CAPTION string="No matching contacts." />
+                                <Text style=TextStyle::CAPTION>"No matching contacts."</Text>
                             </Show>
                             <ForEach keys={suggestion_keys}>|id: Uuid| {
                                 let person = create_memo(move || {
@@ -439,12 +435,9 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                 </List>
                 <Show condition={invited}>
                     <List spacing=6.0>
-                        <Text
-                            style=TextStyle::CAPTION
-                            @test_id={"share.invite.help"}
-                            string="Send this link yourself, through an app you trust. Whoever opens it first becomes your contact and can open this block. It works once, and it is shown only once."
-                            wrap=true
-                        />
+                        <Text style=TextStyle::CAPTION @test_id={"share.invite.help"} wrap=true>
+                            "Send this link yourself, through an app you trust. Whoever opens it first becomes your contact and can open this block. It works once, and it is shown only once."
+                        </Text>
                         <TextInput
                             value={Binding::new(invite_link, Callback::empty())}
                             label="Contact link"
@@ -453,14 +446,11 @@ fn ShareDialog(workspace: Workspace) -> NodeId {
                         />
                     </List>
                 </Show>
-                <Text style=TextStyle::HEADING string="People with access" />
+                <Text style=TextStyle::HEADING>"People with access"</Text>
                 <Frame height=MEMBERS_HEIGHT>
                     <Scroll>
                         <Show condition={nobody}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="Nobody can open this block yet."
-                            />
+                            <Text style=TextStyle::CAPTION>"Nobody can open this block yet."</Text>
                         </Show>
                         <ForEach keys={member_keys}>|id: Uuid| {
                             let member = create_memo(move || {
@@ -537,19 +527,19 @@ fn MemberRow(member: Memo<Option<Member>>, act: ShareAct) -> NodeId {
                             <Text align=TextAlign::Center>
                                 <Icon glyph={ICON_PERSON.to_owned()} />
                             </Text>
-                            <Text style=TextStyle::HEADING string={name} />
+                            <Text style=TextStyle::HEADING>{name}</Text>
                         </List>
-                        <Text style=TextStyle::CAPTION string={email} />
+                        <Text style=TextStyle::CAPTION>{email}</Text>
                         <Show condition={is_fixed}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                                 <Text size=TextSize::Sm align=TextAlign::Center>
                                     <Icon glyph={ICON_LOCK.to_owned()} />
                                 </Text>
-                                <Text style=TextStyle::CAPTION string={fixed_text} />
+                                <Text style=TextStyle::CAPTION>{fixed_text}</Text>
                             </List>
                         </Show>
                         <Show condition={has_note}>
-                            <Text style=TextStyle::CAPTION string={note_text} />
+                            <Text style=TextStyle::CAPTION>{note_text}</Text>
                         </Show>
                     </List>
                     <Show condition={is_fixed}>

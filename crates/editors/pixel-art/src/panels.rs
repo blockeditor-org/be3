@@ -86,8 +86,8 @@ pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<boo
     let reason = create_memo(move || failure.get().unwrap_or_default());
     view! {
         <Toolbar shown={shown}>
-            <Text string={label} />
-            <Text style=TextStyle::CAPTION string={dimensions} />
+            <Text>{label}</Text>
+            <Text style=TextStyle::CAPTION>{dimensions}</Text>
             <IconButton
                 glyph={ICON_ZOOM_OUT.to_owned()}
                 label="Zoom out"
@@ -114,7 +114,7 @@ pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<boo
             />
             <Checkbox label="Grid" checked={Binding::new(grid, toggle_grid)} />
             <Show condition={failed}>
-                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
+                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton
@@ -158,7 +158,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
     let vertical = tools.mirror_vertical;
     view! {
         <List spacing=SPACING>
-            <Text style=TextStyle::HEADING string="Tools" />
+            <Text style=TextStyle::HEADING>"Tools"</Text>
             <ForEach keys={rows}>|row: usize| {
                 let (left, right) = (TOOLS[row * 2], TOOLS[row * 2 + 1]);
                 view! {
@@ -176,7 +176,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                     </List>
                 }
             }</ForEach>
-            <Text string="Tool options" />
+            <Text>"Tool options"</Text>
             <NumberInput
                 value={Binding::new(size_value, move |value: f64| brush_size.set(value as u16))}
                 min=1.0
@@ -205,7 +205,7 @@ pub(crate) fn ToolsPanel(tools: Tools) -> NodeId {
                 pressed={filled}
                 disabled={shapes}
             />
-            <Text string="Symmetry" />
+            <Text>"Symmetry"</Text>
             <Checkbox label="Mirror horizontally" checked={horizontal} />
             <Checkbox label="Mirror vertically" checked={vertical} />
         </List>
@@ -270,7 +270,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
     };
     view! {
         <List spacing=SPACING>
-            <Text style=TextStyle::HEADING string="Color" />
+            <Text style=TextStyle::HEADING>"Color"</Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Swatch color={color} selected=false on_click={move || {}} />
                 <TextInput
@@ -284,7 +284,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
             <ForEach keys={channels}>|channel: &'static str|
                 <Channel tools={tools} channel={channel} />
             </ForEach>
-            <Text string="Palette" />
+            <Text>"Palette"</Text>
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
                 <ForEach keys={palette}>|swatch: PixelColor| {
                     let chosen = create_memo(move || color.get() == swatch);
@@ -311,7 +311,7 @@ pub(crate) fn ColorsPanel(tools: Tools, palette: Memo<Vec<PixelColor>>) -> NodeI
                 />
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
-            <Text string="Recent" />
+            <Text>"Recent"</Text>
             <List direction=Direction::Horizontal wrap=true spacing=4.0>
                 <ForEach keys={recent_colors}>|swatch: PixelColor|
                     <Swatch color={swatch} selected=false on_click={move || {}} />
@@ -422,17 +422,14 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                             @test_id={"pixel-art.resize-height"}
                         />
                     </List>
-                    <Text style=TextStyle::CAPTION string="Anchor" />
+                    <Text style=TextStyle::CAPTION>"Anchor"</Text>
                     <ForEach keys={anchors}>|row: usize|
                         <AnchorRow tools={tools} row={row} />
                     </ForEach>
                     <Show condition={cropping}>
-                        <Text
-                            style=TextStyle::CAPTION
-                            string="Shrinking crops pixels outside the anchored region."
-                            color=TextColor::Warning
-                            wrap=true
-                        />
+                        <Text style=TextStyle::CAPTION color=TextColor::Warning wrap=true>
+                            "Shrinking crops pixels outside the anchored region."
+                        </Text>
                     </Show>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Button
@@ -458,11 +455,9 @@ pub(crate) fn Dialogs(tools: Tools, size: Memo<(u16, u16)>) -> NodeId {
                 on_dismiss={dismiss_clear}
             >
                 <List spacing=SPACING>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="This makes every pixel transparent."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true>
+                        "This makes every pixel transparent."
+                    </Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <Button
                             label="Clear"

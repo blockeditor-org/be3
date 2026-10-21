@@ -48,9 +48,9 @@ pub(crate) fn StatusBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
     let nothing_contains = create_memo(|| None);
     view! {
         <Toolbar spacing=SPACING>
-            <Text style=TextStyle::CAPTION string={type_label} />
+            <Text style=TextStyle::CAPTION>{type_label}</Text>
             <Show condition={loading}>
-                <Text style=TextStyle::CAPTION string={pending} />
+                <Text style=TextStyle::CAPTION>{pending}</Text>
             </Show>
             <Show condition={loaded}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>

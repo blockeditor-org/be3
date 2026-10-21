@@ -6,7 +6,7 @@ use crate::reactive::*;
 fn removing_a_node_forgets_which_layout_pass_placed_it() {
     let (document, [label]) = toolbar_of(|| {
         [view! {
-            <Text string="hi" />
+            <Text>"hi"</Text>
         }]
     });
     let list = kind_of::<ListNode>(&document, document.root().expect("the toolbar is the root"));

@@ -142,7 +142,7 @@ fn ResponsiveToolbar(
                             label="Width"
                         />
                     </Frame>
-                    <Text style=TextStyle::CAPTION string="x" />
+                    <Text style=TextStyle::CAPTION>"x"</Text>
                     <Frame width=DIMENSION_WIDTH>
                         <NumberInput
                             @test_id={"inspector.responsive.height"}

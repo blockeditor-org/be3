@@ -23,7 +23,7 @@ fn Tidy(editor: Editor) -> NodeId {
         .in_menu()
         .register();
     view! {
-        <Text string={tidied} @test_id={"tidy.state"} />
+        <Text @test_id={"tidy.state"}>{tidied}</Text>
     }
 }
 

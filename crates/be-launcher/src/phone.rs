@@ -442,7 +442,7 @@ pub(crate) fn Notes(
     });
     view! {
         <List spacing=8.0>
-            <Text style=TextStyle::CAPTION string={status} wrap=true />
+            <Text style=TextStyle::CAPTION wrap=true>{status}</Text>
             <SlotNotes model slot />
         </List>
     }
@@ -505,12 +505,9 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
     view! {
         <List spacing=8.0>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text
-                    style=TextStyle::CAPTION
-                    @sizing=ItemSize::Percent(100.0)
-                    string={summary}
-                    wrap=true
-                />
+                <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) wrap=true>
+                    {summary}
+                </Text>
                 <SplitButton
                     label="Run main"
                     glyph=ICON_PLAY_ARROW
@@ -525,7 +522,7 @@ pub(crate) fn MainActions(model: Model) -> NodeId {
                     on_select={pick}
                 />
             </List>
-            <Text style=TextStyle::CAPTION string={launcher} wrap=true />
+            <Text style=TextStyle::CAPTION wrap=true>{launcher}</Text>
             <SlotNotes model slot={Slot::Main} />
         </List>
     }
@@ -613,11 +610,11 @@ fn SlotNotes(model: Model, slot: Slot) -> NodeId {
             <Show condition={working}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                     <Spinner width=18.0 label="Working on the build" />
-                    <Text style=TextStyle::CAPTION string={progress} />
+                    <Text style=TextStyle::CAPTION>{progress}</Text>
                 </List>
             </Show>
             <Show condition={failed}>
-                <Text string={problem} color=TextColor::Danger wrap=true />
+                <Text color=TextColor::Danger wrap=true>{problem}</Text>
             </Show>
         </List>
     }

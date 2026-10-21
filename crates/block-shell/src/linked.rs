@@ -79,10 +79,10 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                 <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
                     <Icon glyph={ICON_LINK.to_owned()} />
                 </Text>
-                <Text string="Linked block" />
+                <Text>"Linked block"</Text>
                 <Show condition={via_reference}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text style=TextStyle::CAPTION string={elsewhere} />
+                        <Text style=TextStyle::CAPTION>{elsewhere}</Text>
                         <Button
                             @test_id={"workspace.linked.original"}
                             label="Go to original"
@@ -115,7 +115,7 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
                 </Show>
                 <Show condition={original}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text style=TextStyle::CAPTION string={everywhere} />
+                        <Text style=TextStyle::CAPTION>{everywhere}</Text>
                         <ReferenceMenu
                             workspace={workspace}
                             name="Show references"

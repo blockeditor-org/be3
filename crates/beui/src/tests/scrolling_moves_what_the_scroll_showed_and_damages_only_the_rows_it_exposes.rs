@@ -14,7 +14,7 @@ fn scrolling_moves_what_the_scroll_showed_and_damages_only_the_rows_it_exposes()
                         <Scroll @test_id="scroll">
                             <ForEach keys={(0..30).collect::<Vec<usize>>()}>|row: usize|
                                 <Frame height=40.0>
-                                    <Text string={format!("row {row}")} />
+                                    <Text>{format!("row {row}")}</Text>
                                 </Frame>
                             </ForEach>
                         </Scroll>

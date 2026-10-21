@@ -184,7 +184,7 @@ fn PlaybackBar(state: VideoState) -> NodeId {
                     label="Go to the end"
                     on_click={move || state.seek(state.duration.get_untracked())}
                 />
-                <Text style=TextStyle::CAPTION string={position} />
+                <Text style=TextStyle::CAPTION>{position}</Text>
             </List>
         </Frame>
     }

@@ -9,7 +9,7 @@ fn a_signal_written_during_a_frame_asks_for_another_only_if_its_document_was_alr
     let count = create_signal(0i64);
     let (document, [value]) = toolbar_of(|| {
         [view! {
-            <Text string={create_memo(move || count.get().to_string())} />
+            <Text>{create_memo(move || count.get().to_string())}</Text>
         }]
     });
     let mut harness = Harness::new(document);

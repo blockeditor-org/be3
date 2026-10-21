@@ -12,8 +12,8 @@ fn a_touch_selection_grows_by_its_handle_and_a_tap_outside_clears_it() {
         view! {
             <SelectableText @node_ref=&region>
                 <List spacing=30.0>
-                    <Text @node_ref=&first string="hello world" />
-                    <Text @node_ref=&second string="second line" />
+                    <Text @node_ref=&first>"hello world"</Text>
+                    <Text @node_ref=&second>"second line"</Text>
                 </List>
             </SelectableText>
         }

@@ -158,7 +158,7 @@ fn SlideStatus(state: ReadSignal<ChildState>) -> NodeId {
     });
     view! {
         <Frame visible={hidden}>
-            <Text string={message} size=TextSize::Sm color=TextColor::Muted wrap=true />
+            <Text size=TextSize::Sm color=TextColor::Muted wrap=true>{message}</Text>
         </Frame>
     }
 }
@@ -183,11 +183,7 @@ fn Toolbar(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     view! {
         <Frame visible={shown} fill=ColorRole::Surface padding=PANEL_PADDING>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text
-                    style=TextStyle::CAPTION
-                    string={position}
-                    @test_id={"presentation.position"}
-                />
+                <Text style=TextStyle::CAPTION @test_id={"presentation.position"}>{position}</Text>
                 <Button
                     @sizing=ItemSize::Percent(100.0)
                     @node_ref={&add_button}
@@ -248,10 +244,11 @@ fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
                             @test_id={"presentation.previous"}
                         />
                         <Text
-                            string={position}
                             color={TextColor::Custom(Color32::WHITE)}
                             @test_id={"presentation.playback.position"}
-                        />
+                        >
+                            {position}
+                        </Text>
                         <IconButton
                             glyph={ICON_ARROW_FORWARD.to_owned()}
                             label="Next slide"
@@ -297,7 +294,7 @@ fn Filmstrip(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
         >
             <List spacing=TILE_SPACING>
                 <Show condition={empty}>
-                    <Text style=TextStyle::CAPTION string="Add a slide to start this deck." />
+                    <Text style=TextStyle::CAPTION>"Add a slide to start this deck."</Text>
                 </Show>
                 <Scroll @sizing=ItemSize::Percent(100.0) @test_id={"presentation.filmstrip"}>
                     <ForEach keys={keys} view={tiles} />
@@ -367,7 +364,7 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                 padding=8.0
                 @test_id="presentation.slide-ghost"
             >
-                <Text style=TextStyle::CAPTION string={label} />
+                <Text style=TextStyle::CAPTION>{label}</Text>
             </Frame>
         }
     };
@@ -405,12 +402,10 @@ fn SlideTile(editor: Editor, slides: Slides, selected: Prop<bool>, id: Uuid) -> 
                         </Draggable>
                     </DropTarget>
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                        <Text style=TextStyle::CAPTION string={number} />
-                        <Text
-                            style=TextStyle::CAPTION
-                            @sizing=ItemSize::Percent(100.0)
-                            string={name}
-                        />
+                        <Text style=TextStyle::CAPTION>{number}</Text>
+                        <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>
+                            {name}
+                        </Text>
                         <IconButton
                             glyph={ICON_DELETE.to_owned()}
                             label="Detach slide"

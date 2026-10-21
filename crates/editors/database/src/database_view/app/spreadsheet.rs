@@ -36,7 +36,7 @@ pub fn Spreadsheet(data: Data) -> NodeId {
             <List spacing=0.0>
                 <Show condition={empty}>
                     <Frame padding=12.0>
-                        <Text style=TextStyle::CAPTION string="This database has no columns yet." />
+                        <Text style=TextStyle::CAPTION>"This database has no columns yet."</Text>
                     </Frame>
                 </Show>
                 <Show condition={filled}>
@@ -176,7 +176,7 @@ fn HeaderCell(
             <Interactive on_click={on_click}>
                 <Frame padding={Sides::horizontal(CELL_PADDING)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <Text string={label} />
+                        <Text>{label}</Text>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Show condition={marked}>
                             <Text color=TextColor::Muted align=TextAlign::Center>
@@ -230,7 +230,7 @@ fn Row(
                 fill={ColorRole::custom(header_fill)}
                 border={Border::new(ColorRole::Border).width(BORDER)}
             >
-                <Text style=TextStyle::CAPTION string={number} align=TextAlign::Center />
+                <Text style=TextStyle::CAPTION align=TextAlign::Center>{number}</Text>
             </Frame>
             <ForEach keys={keys}>|id: Uuid| {
                 let field = create_memo(move || {
@@ -359,12 +359,9 @@ fn Cell(
                                 radius=Radius::Xs
                             />
                         </Show>
-                        <Text
-                            @sizing=ItemSize::Percent(100.0)
-                            string={text}
-                            align={align}
-                            ellipsis=true
-                        />
+                        <Text @sizing=ItemSize::Percent(100.0) align={align} ellipsis=true>
+                            {text}
+                        </Text>
                     </List>
                 </Frame>
             </Interactive>

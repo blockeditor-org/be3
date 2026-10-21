@@ -21,7 +21,7 @@ impl App for Hosting {
 fn a_driver_reads_the_environment_an_app_gives_its_programs() {
     let document = build(|| {
         view! {
-            <Text string="Desktop" />
+            <Text>"Desktop"</Text>
         }
     });
     let mut driven = Driven::with_app(Hosting(document), false);
@@ -35,7 +35,7 @@ fn a_driver_reads_the_environment_an_app_gives_its_programs() {
 
     let plain = build(|| {
         view! {
-            <Text string="Plain" />
+            <Text>"Plain"</Text>
         }
     });
     let mut driven = Driven::new(plain);

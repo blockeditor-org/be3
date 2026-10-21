@@ -148,8 +148,8 @@ fn DetailsBody(workspace: Workspace, tab: TabId) -> NodeId {
                             <Icon glyph={glyph} />
                         </Text>
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                            <Text style=TextStyle::HEADING string={name} />
-                            <Text style=TextStyle::CAPTION string={kind} />
+                            <Text style=TextStyle::HEADING>{name}</Text>
+                            <Text style=TextStyle::CAPTION>{kind}</Text>
                         </List>
                     </List>
                 </Frame>
@@ -224,7 +224,7 @@ fn RelatedBlocks(workspace: Workspace, title: String, refs: Memo<Refs>, named: S
             <Show condition={some}>|| {
                 let title = title.clone(); view! {
                     <Frame padding={Sides::symmetric(SHEET_PADDING, SECTION_PADDING)}>
-                        <Text style=TextStyle::CAPTION string={title} />
+                        <Text style=TextStyle::CAPTION>{title}</Text>
                     </Frame>
                 }
             }</Show>

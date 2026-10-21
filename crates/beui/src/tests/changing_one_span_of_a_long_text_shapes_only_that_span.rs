@@ -26,7 +26,7 @@ fn changing_one_span_of_a_long_text_shapes_only_that_span() {
                             words.get().get(index).cloned().unwrap_or_default()
                         });
                         view! {
-                            <Span text={word} />
+                            <Span>{word}</Span>
                         }
                     }</ForEach>
                 </Text>

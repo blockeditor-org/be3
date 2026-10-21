@@ -112,11 +112,9 @@ fn FrameSizes() -> NodeId {
                 radius={Radius::Md.px()}
                 padding={Sides::symmetric(12.0, 8.0)}
             >
-                <Text
-                    string="This frame stops growing at 320 points wide."
-                    color={theme.text}
-                    wrap=true
-                />
+                <Text color={theme.text} wrap=true>
+                    "This frame stops growing at 320 points wide."
+                </Text>
             </Frame>
             <Frame
                 width=160.0
@@ -154,24 +152,14 @@ fn TextStyles() -> NodeId {
     let theme = use_theme();
     view! {
         <List spacing=SECTION_SPACING>
-            <Text string="Plain text" color={theme.text} />
-            <Text
-                string="Bold text"
-                color={theme.text}
-                font={FontId::proportional(14.0).bold(true)}
-            />
-            <Text
-                string="Italic text"
-                color={theme.text}
-                font={FontId::proportional(14.0).italic(true)}
-            />
-            <Text string="Underlined text" color={theme.text} underline=true />
-            <Text string="Monospace text" color={theme.text} font={FontId::monospace(14.0)} />
-            <Text
-                string="Large accent text"
-                color={theme.accent}
-                font={FontId::proportional(24.0)}
-            />
+            <Text color={theme.text}>"Plain text"</Text>
+            <Text color={theme.text} font={FontId::proportional(14.0).bold(true)}>"Bold text"</Text>
+            <Text color={theme.text} font={FontId::proportional(14.0).italic(true)}>
+                "Italic text"
+            </Text>
+            <Text color={theme.text} underline=true>"Underlined text"</Text>
+            <Text color={theme.text} font={FontId::monospace(14.0)}>"Monospace text"</Text>
+            <Text color={theme.accent} font={FontId::proportional(24.0)}>"Large accent text"</Text>
             <Text color={theme.warning} font={FontId::proportional(24.0)}>
                 <Icon glyph={ICON_STAR.to_owned()} />
             </Text>
@@ -206,10 +194,10 @@ fn TextWrapping() -> NodeId {
                 fit can end in an ellipsis instead of spilling out of its frame.";
     view! {
         <List spacing=SECTION_SPACING>
-            <Text string={long.to_owned()} color={theme.text} wrap=true />
-            <Text string={long.to_owned()} color={theme.text_muted} ellipsis=true />
-            <Text string="Centered" color={theme.text} align=TextAlign::Center />
-            <Text string="At the end" color={theme.text} align=TextAlign::End />
+            <Text color={theme.text} wrap=true>{long.to_owned()}</Text>
+            <Text color={theme.text_muted} ellipsis=true>{long.to_owned()}</Text>
+            <Text color={theme.text} align=TextAlign::Center>"Centered"</Text>
+            <Text color={theme.text} align=TextAlign::End>"At the end"</Text>
         </List>
     }
 }
@@ -272,7 +260,7 @@ fn Tile(label: Prop<String>) -> NodeId {
             padding={Sides::horizontal(12.0)}
             align={Align2::vertical(Align::Center)}
         >
-            <Text string={label} color={theme.text} wrap=true />
+            <Text color={theme.text} wrap=true>{label}</Text>
         </Frame>
     }
 }
@@ -438,7 +426,7 @@ fn DynamicShape() -> NodeId {
                         <Frame width=SWATCH height=SWATCH radius=36.0 fill={theme.accent} />
                     },
                     false => view! {
-                        <Text string="Rebuilt whenever its value changes" color={theme.text} />
+                        <Text color={theme.text}>"Rebuilt whenever its value changes"</Text>
                     },
                 }
             }</Dynamic>
@@ -503,15 +491,10 @@ fn InteractiveCard() -> NodeId {
                     radius={Radius::Lg.px()}
                     align=Align::Center
                 >
-                    <Text string={log} color={theme.text} />
+                    <Text color={theme.text}>{log}</Text>
                 </Frame>
             </Interactive>
-            <Text
-                string={state}
-                color={theme.text_muted}
-                wrap=true
-                font={FontId::monospace(14.0)}
-            />
+            <Text color={theme.text_muted} wrap=true font={FontId::monospace(14.0)}>{state}</Text>
         </List>
     }
 }
@@ -553,7 +536,7 @@ fn BadgedCard() -> NodeId {
                     radius={Radius::Lg.px()}
                     padding=12.0
                 >
-                    <Text string="Inbox" color={theme.text} />
+                    <Text color={theme.text}>"Inbox"</Text>
                 </Frame>
                 <Frame align={Align2::new(Align::End, Align::Start)} padding=8.0>
                     <Frame
@@ -563,11 +546,9 @@ fn BadgedCard() -> NodeId {
                         fill={theme.danger}
                         align=Align::Center
                     >
-                        <Text
-                            string="3"
-                            color={theme.on_accent}
-                            font={FontId::proportional(12.0).bold(true)}
-                        />
+                        <Text color={theme.on_accent} font={FontId::proportional(12.0).bold(true)}>
+                            "3"
+                        </Text>
                     </Frame>
                 </Frame>
             </Layers>
@@ -590,7 +571,7 @@ fn NudgedTile() -> NodeId {
         <List direction=Direction::Horizontal align=Align::Center spacing=16.0>
             <Interactive on_click={move || nudged.update(|nudged| *nudged = !*nudged)}>
                 <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
-                    <Text string="Nudge" color={ink} />
+                    <Text color={ink}>"Nudge"</Text>
                 </Frame>
             </Interactive>
             <Shift by={by}>
@@ -613,7 +594,7 @@ fn TurnedLabel() -> NodeId {
                 on_click={move || quarters.update(|quarters| *quarters = (*quarters + 1) % 4)}
             >
                 <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
-                    <Text string="Turn" color={ink} />
+                    <Text color={ink}>"Turn"</Text>
                 </Frame>
             </Interactive>
             <Turn quarter_turns={quarters}>
@@ -622,7 +603,7 @@ fn TurnedLabel() -> NodeId {
                     radius={Radius::Md.px()}
                     padding={Sides::symmetric(16.0, 10.0)}
                 >
-                    <Text string="Upright at no turns" color={theme.on_accent} />
+                    <Text color={theme.on_accent}>"Upright at no turns"</Text>
                 </Frame>
             </Turn>
         </List>
@@ -666,7 +647,7 @@ fn AnchoredOverlay() -> NodeId {
                     radius={Radius::Md.px()}
                     padding={Sides::symmetric(16.0, 10.0)}
                 >
-                    <Text string="Open the overlay" color={ink} />
+                    <Text color={ink}>"Open the overlay"</Text>
                 </Frame>
             </Interactive>
             <Overlay
@@ -684,11 +665,9 @@ fn AnchoredOverlay() -> NodeId {
                         radius={Radius::Lg.px()}
                         padding=12.0
                     >
-                        <Text
-                            string="An overlay floats above the document, placed against its anchor. Escape or a click outside dismisses it."
-                            color={theme.text}
-                            wrap=true
-                        />
+                        <Text color={theme.text} wrap=true>
+                            "An overlay floats above the document, placed against its anchor. Escape or a click outside dismisses it."
+                        </Text>
                     </Frame>
                 </Frame>
             </Overlay>
@@ -761,13 +740,13 @@ fn AnimationSample() -> NodeId {
                 variant=ButtonVariant::Secondary
                 on_click={move || { transition.stop(); spring.stop(); }}
             />
-            <Text string="Tween" color={theme.text} />
+            <Text color={theme.text}>"Tween"</Text>
             <Frame
                 width={create_memo(move || position.get() + 20.0)}
                 height=12.0
                 fill={theme.accent}
             />
-            <Text string="Spring" color={theme.text} />
+            <Text color={theme.text}>"Spring"</Text>
             <Frame
                 width={create_memo(move || spring_position.get() + 20.0)}
                 height=12.0

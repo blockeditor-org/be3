@@ -16,14 +16,14 @@ fn show_builds_its_child_each_time_it_is_shown_and_disposes_it_when_hidden() {
                     @node_ref=&toggle
                     on_click={move || visible.update(|visible| *visible = !*visible)}
                 >
-                    <Text string="toggle" />
+                    <Text>"toggle"</Text>
                 </Button>
                 <Show
                     condition={visible}
                     then={move || {
                         builds.update(|builds| *builds += 1);
                         view! {
-                            <Text string="panel" />
+                            <Text>"panel"</Text>
                         }
                     }}
                 />

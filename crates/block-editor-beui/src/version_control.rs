@@ -23,7 +23,7 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
     view! {
         <List spacing=6.0>
             <beui::reactive::Show condition={empty}>
-                <Text style=TextStyle::CAPTION string="Nothing has been committed yet." />
+                <Text style=TextStyle::CAPTION>"Nothing has been committed yet."</Text>
             </beui::reactive::Show>
             <ForEach keys={rows}>|(id, message): ([u8; 32], String)| {
                 let short = short_id(&id);
@@ -34,8 +34,8 @@ pub fn VersionHistory(log: Memo<Vec<VersionCommit>>) -> NodeId {
                 };
                 view! {
                     <List direction=Direction::Horizontal spacing=8.0 @test_id={commit_test_id}>
-                        <Text style=TextStyle::CAPTION string={short} />
-                        <Text string={message} />
+                        <Text style=TextStyle::CAPTION>{short}</Text>
+                        <Text>{message}</Text>
                     </List>
                 }
             }</ForEach>

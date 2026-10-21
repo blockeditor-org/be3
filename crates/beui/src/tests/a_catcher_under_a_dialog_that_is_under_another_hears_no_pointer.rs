@@ -26,7 +26,7 @@ fn a_catcher_under_a_dialog_that_is_under_another_hears_no_pointer() {
                     </Interactive>
                 </Dialog>
                 <Dialog open={above} title="Above" width=200.0 on_dismiss={|| {}}>
-                    <Text string="Body" color=Color32::WHITE />
+                    <Text color=Color32::WHITE>"Body"</Text>
                 </Dialog>
             </List>
         }

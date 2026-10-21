@@ -8,9 +8,9 @@ fn a_baseline_row_lines_up_text_of_different_sizes() {
     let document = build(|| {
         view! {
             <List direction=Direction::Horizontal align=Align::Baseline spacing=8.0>
-                <Text string="Small" font={FontId::proportional(12.0)} />
+                <Text font={FontId::proportional(12.0)}>"Small"</Text>
                 <Frame padding={Sides::new(0.0, 6.0, 0.0, 0.0)}>
-                    <Text string="Large" font={FontId::proportional(28.0)} />
+                    <Text font={FontId::proportional(28.0)}>"Large"</Text>
                 </Frame>
             </List>
         }

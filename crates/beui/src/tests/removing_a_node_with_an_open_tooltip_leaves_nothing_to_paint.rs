@@ -13,7 +13,7 @@ fn removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint() {
         view! {
             <List spacing=0.0>
                 <Button on_click={move || rows.set(Vec::new())}>
-                    <Text string="remove" />
+                    <Text>"remove"</Text>
                 </Button>
                 <ForEach keys={rows}>|row: i64|
                     <Tooltip
@@ -21,11 +21,11 @@ fn removing_a_node_with_an_open_tooltip_leaves_nothing_to_paint() {
                         delay={Duration::ZERO}
                         content={move |handle: TooltipHandle| {
                             view! {
-                                <Text @test_id={format!("tip.{row}")} string={handle.label} />
+                                <Text @test_id={format!("tip.{row}")}>{handle.label}</Text>
                             }
                         }}
                     >
-                        <Text @test_id={format!("row.{row}")} string="described" />
+                        <Text @test_id={format!("row.{row}")}>"described"</Text>
                     </Tooltip>
                 </ForEach>
             </List>

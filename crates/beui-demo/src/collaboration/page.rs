@@ -223,16 +223,14 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
 
     view! {
         <List spacing=SECTION_SPACING>
-            <Text
-                style=TextStyle::CAPTION
-                string="The left side orders every edit, as a session's owner does. The right \
+            <Text style=TextStyle::CAPTION wrap=true>
+                "The left side orders every edit, as a session's owner does. The right \
                 side shows its own edits at once and holds them until the left has ordered \
                 them. Pause the network to type on both sides, then send each side's edits \
                 when you like. Runs shows where each run of text starts, named by the client \
                 that typed it and its offset, in that side's color, with deleted runs struck \
                 through."
-                wrap=true
-            />
+            </Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING wrap=true>
                 <ToggleButton
                     @test_id="demo.collaboration.pause"
@@ -241,7 +239,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
                     pressed={paused}
                 />
                 <ToggleButton @test_id="demo.collaboration.runs" label="Runs" pressed={runs} />
-                <Text style=TextStyle::CAPTION string={latency_label} />
+                <Text style=TextStyle::CAPTION>{latency_label}</Text>
             </List>
             <Slider value={latency} max=MAX_LATENCY label="Latency" />
             <unstyled::Stack spacing=ROW_SPACING narrow={narrow}>
@@ -270,7 +268,7 @@ pub(crate) fn ConcurrentEditing(rich: bool) -> NodeId {
                     rich
                 />
             </unstyled::Stack>
-            <Text style=TextStyle::CAPTION string={status} wrap=true />
+            <Text style=TextStyle::CAPTION wrap=true>{status}</Text>
         </List>
     }
 }
@@ -377,7 +375,7 @@ fn EditorPane(
 ) -> NodeId {
     view! {
         <List spacing=ROW_SPACING>
-            <Text style=TextStyle::CAPTION string={title} />
+            <Text style=TextStyle::CAPTION>{title}</Text>
             <Show condition={rich}>
                 <FormatBar state={state} glyphs={GLYPHS.to_vec()} test_prefix={id} />
             </Show>

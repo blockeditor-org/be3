@@ -23,12 +23,9 @@ fn a_dialog_opens_on_the_screen_it_was_asked_for_from() {
                         width=320.0
                         on_dismiss={move || open.set(false)}
                     >
-                        <Text
-                            style=TextStyle::PARAGRAPH
-                            string="Shown on the screen it was asked for from."
-                            @test_id={"test.body"}
-                            wrap=true
-                        />
+                        <Text style=TextStyle::PARAGRAPH @test_id={"test.body"} wrap=true>
+                            "Shown on the screen it was asked for from."
+                        </Text>
                     </Dialog>
                 </List>
             </Frame>

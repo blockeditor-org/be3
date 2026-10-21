@@ -18,7 +18,7 @@ fn Tidy(editor: Editor) -> NodeId {
     let tidied = create_signal(String::from("messy"));
     Action::new("tidy.up", "Tidy up", move || tidied.set("tidy".to_owned())).register();
     view! {
-        <Text string={tidied} @test_id={"tidy.state"} />
+        <Text @test_id={"tidy.state"}>{tidied}</Text>
     }
 }
 

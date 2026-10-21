@@ -33,7 +33,7 @@ pub(crate) fn LayersSection(state: CanvasState) -> NodeId {
         <Accordion title="Layers" open={open}>
             <List spacing=2.0 @test_id={"infinite-canvas.layers"}>
                 <Show condition={empty}>
-                    <Text style=TextStyle::CAPTION string="Nothing on the canvas yet." wrap=true />
+                    <Text style=TextStyle::CAPTION wrap=true>"Nothing on the canvas yet."</Text>
                 </Show>
                 <ForEach keys={ids}>|id: Uuid|
                     <LayerRow state id />
@@ -115,7 +115,7 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
                             @test_id={format!("infinite-canvas.layer.{id}")}
                         >|_: DragHandle|
                             <Frame padding={Sides::vertical(ROW_PADDING)}>
-                                <Text string={label} color={text} />
+                                <Text color={text}>{label}</Text>
                             </Frame>
                         </Draggable>
                     </List>
@@ -133,7 +133,7 @@ fn LayerGhost(label: block_editor_beui::beui::reactive::Memo<String>) -> NodeId 
             radius={Radius::custom(ROW_RADIUS)}
             padding={Sides::symmetric(8.0, ROW_PADDING)}
         >
-            <Text string={label} />
+            <Text>{label}</Text>
         </Frame>
     }
 }

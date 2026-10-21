@@ -165,7 +165,7 @@ pub(crate) fn ImportError(state: CanvasState) -> NodeId {
         <List spacing=0.0>
             <Show condition={failed}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text string={message} color=TextColor::Danger />
+                    <Text color=TextColor::Danger>{message}</Text>
                     <Button
                         label="Dismiss"
                         variant=ButtonVariant::Secondary

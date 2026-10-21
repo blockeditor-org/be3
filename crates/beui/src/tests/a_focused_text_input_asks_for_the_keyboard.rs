@@ -13,7 +13,7 @@ fn a_focused_text_input_asks_for_the_keyboard() {
             },
             view! {
                 <Button>
-                    <Text string="Go" />
+                    <Text>"Go"</Text>
                 </Button>
             },
         ]

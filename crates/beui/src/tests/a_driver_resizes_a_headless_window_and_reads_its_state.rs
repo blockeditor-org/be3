@@ -7,7 +7,7 @@ fn a_driver_resizes_a_headless_window_and_reads_its_state() {
     let document = build(|| {
         view! {
             <List spacing=0.0>
-                <Text string="Hello" />
+                <Text>"Hello"</Text>
             </List>
         }
     });

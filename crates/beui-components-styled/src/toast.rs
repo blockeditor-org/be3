@@ -157,22 +157,16 @@ fn ToastCard(
                 </Text>
             </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=TEXT_SPACING>
-                <Show condition={titled}>
-                    <Text
-                        string={title.clone()}
-                        color={title_color}
-                        weight=Weight::Bold
-                        wrap=true
-                    />
-                </Show>
-                <Show condition={said}>
-                    <Text
-                        string={message.clone()}
-                        size={message_size}
-                        color={message_color}
-                        wrap=true
-                    />
-                </Show>
+                <Show condition={titled}>|| {
+                    let title = title.clone(); view! {
+                        <Text color={title_color} weight=Weight::Bold wrap=true>{title}</Text>
+                    }
+                }</Show>
+                <Show condition={said}>|| {
+                    let message = message.clone(); view! {
+                        <Text size={message_size} color={message_color} wrap=true>{message}</Text>
+                    }
+                }</Show>
             </List>
         </List>
     };

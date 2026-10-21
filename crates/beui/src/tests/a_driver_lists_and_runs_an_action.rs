@@ -13,7 +13,7 @@ fn a_driver_lists_and_runs_an_action() {
         .register();
         view! {
             <List spacing=0.0>
-                <Text string={grouped} />
+                <Text>{grouped}</Text>
             </List>
         }
     });

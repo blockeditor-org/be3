@@ -64,7 +64,7 @@ pub fn DisplayOptions(data: Data) -> NodeId {
             <Separator />
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                    <Text style=TextStyle::CAPTION string="Row id prefix" />
+                    <Text style=TextStyle::CAPTION>"Row id prefix"</Text>
                 </Frame>
                 <TextInput
                     @sizing=ItemSize::Percent(100.0)
@@ -293,7 +293,7 @@ fn EmptyGroups(data: Data) -> NodeId {
     let toggle = move |on: bool| data.operate_view(DatabaseView::set_show_empty_groups(on));
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-            <Text @sizing=ItemSize::Percent(100.0) string="Show empty groups" />
+            <Text @sizing=ItemSize::Percent(100.0)>"Show empty groups"</Text>
             <Switch
                 on={Binding::new(on, toggle)}
                 label="Show empty groups"
@@ -317,7 +317,7 @@ fn ShownFields(data: Data) -> NodeId {
     });
     view! {
         <List spacing=6.0>
-            <Text style=TextStyle::CAPTION string="Shown on each row" />
+            <Text style=TextStyle::CAPTION>"Shown on each row"</Text>
             <List direction=Direction::Horizontal spacing=6.0 wrap=true>
                 <ForEach keys={keys}>|field: Uuid| {
                     let name = create_memo(move || {
@@ -357,7 +357,7 @@ fn Labelled(
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
             <Frame @sizing=ItemSize::Fixed(LABEL_WIDTH)>
-                <Text style=TextStyle::CAPTION string={label} />
+                <Text style=TextStyle::CAPTION>{label}</Text>
             </Frame>
             <Frame @sizing=ItemSize::Percent(100.0)>{children}</Frame>
         </List>

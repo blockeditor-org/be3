@@ -438,7 +438,7 @@ pub(crate) fn HoverLabel(tools: Tools, hovered: ReadSignal<Option<(u16, u16)>>) 
     });
     view! {
         <Frame height=HOVER_LABEL_HEIGHT padding=HOVER_LABEL_PADDING>
-            <Text style=TextStyle::CODE @test_id={"pixel-art.hover"} string={label} />
+            <Text style=TextStyle::CODE @test_id={"pixel-art.hover"}>{label}</Text>
         </Frame>
     }
 }

@@ -318,9 +318,9 @@ fn AccessDenied(info: ReadSignal<Option<Info>>) -> NodeId {
     view! {
         <Frame padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Text style=TextStyle::HEADING string={heading} />
-                <Text style=TextStyle::CAPTION string={first} />
-                <Text style=TextStyle::CAPTION string={second} />
+                <Text style=TextStyle::HEADING>{heading}</Text>
+                <Text style=TextStyle::CAPTION>{first}</Text>
+                <Text style=TextStyle::CAPTION>{second}</Text>
             </List>
         </Frame>
     }

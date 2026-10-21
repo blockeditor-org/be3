@@ -112,22 +112,23 @@ fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> NodeId {
                 on_click={compile}
             />
             <Show condition={challenged}>
-                <Text string={challenge} />
+                <Text>{challenge}</Text>
             </Show>
             <Show condition={misplaced}>
-                <Text style=TextStyle::CAPTION string={problem_text} color={problem_color} />
+                <Text style=TextStyle::CAPTION color={problem_color}>{problem_text}</Text>
             </Show>
             <Show condition={failed}>
                 <Text
                     style=TextStyle::CAPTION
-                    string={compile_error}
                     color={error_color}
                     @test_id={"logic-grid.compile-error"}
-                />
+                >
+                    {compile_error}
+                </Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <IconButton glyph={ICON_ZOOM_OUT.to_owned()} label="Zoom out" on_click={zoom_out} />
-            <Text style=TextStyle::CAPTION string={percent} />
+            <Text style=TextStyle::CAPTION>{percent}</Text>
             <IconButton glyph={ICON_ZOOM_IN.to_owned()} label="Zoom in" on_click={zoom_in} />
             <IconButton
                 glyph={ICON_FIT_SCREEN.to_owned()}
@@ -287,7 +288,7 @@ fn GridLabel(label: Memo<Option<ComponentLabel>>, zoom: Memo<f32>) -> CanvasItem
     });
     view! {
         <CanvasItem x={x} y={y} width={width} height={height}>
-            <Text string={text} size color={color} align={align} vertical_align={vertical_align} />
+            <Text size color={color} align={align} vertical_align={vertical_align}>{text}</Text>
         </CanvasItem>
     }
 }

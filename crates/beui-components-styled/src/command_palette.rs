@@ -113,18 +113,12 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
                         <Icon glyph={glyph} />
                     </Text>
                 </Frame>
-                <Text
-                    @sizing=ItemSize::Percent(100.0)
-                    string={label}
-                    color={text_color}
-                    align=TextAlign::Start
-                />
-                <Text
-                    string={shortcut}
-                    size=TextSize::Sm
-                    color=TextColor::Muted
-                    align=TextAlign::End
-                />
+                <Text @sizing=ItemSize::Percent(100.0) color={text_color} align=TextAlign::Start>
+                    {label}
+                </Text>
+                <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
+                    {shortcut}
+                </Text>
             </List>
         </Frame>
     }

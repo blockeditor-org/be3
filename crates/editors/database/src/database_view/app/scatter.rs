@@ -34,10 +34,9 @@ pub fn Scatter(data: Data) -> NodeId {
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding=12.0>
-                        <Text
-                            style=TextStyle::CAPTION
-                            string="Choose X and Y fields to use the scatter view."
-                        />
+                        <Text style=TextStyle::CAPTION>
+                            "Choose X and Y fields to use the scatter view."
+                        </Text>
                     </Frame>
                 </Show>
                 <Show condition={ready}>
@@ -117,36 +116,29 @@ fn Plot(data: Data, axes: Memo<Option<(DatabaseField, DatabaseField)>>) -> NodeI
                             <Frame fill={ColorRole::custom(rule_color)} />
                         </CanvasItem>
                         <CanvasItem x=AXIS_LEFT y={value_y} width=60.0 height=LABEL_HEIGHT>
-                            <Text style=TextStyle::CAPTION string={x_low} />
+                            <Text style=TextStyle::CAPTION>{x_low}</Text>
                         </CanvasItem>
                         <CanvasItem x={x_high_x} y={value_y} width=60.0 height=LABEL_HEIGHT>
-                            <Text style=TextStyle::CAPTION string={x_high} align=TextAlign::End />
+                            <Text style=TextStyle::CAPTION align=TextAlign::End>{x_high}</Text>
                         </CanvasItem>
                         <CanvasItem x={x_label_x} y={x_label_y} width=120.0 height=LABEL_HEIGHT>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string={x_name}
-                                align=TextAlign::Center
-                            />
+                            <Text style=TextStyle::CAPTION align=TextAlign::Center>{x_name}</Text>
                         </CanvasItem>
                         <CanvasItem x=0.0 y={y_low_y} width={AXIS_LEFT - 4.0} height=LABEL_HEIGHT>
-                            <Text style=TextStyle::CAPTION string={y_low} align=TextAlign::End />
+                            <Text style=TextStyle::CAPTION align=TextAlign::End>{y_low}</Text>
                         </CanvasItem>
                         <CanvasItem x=0.0 y=AXIS_TOP width={AXIS_LEFT - 4.0} height=LABEL_HEIGHT>
-                            <Text style=TextStyle::CAPTION string={y_high} align=TextAlign::End />
+                            <Text style=TextStyle::CAPTION align=TextAlign::End>{y_high}</Text>
                         </CanvasItem>
                         <CanvasItem x=0.0 y=0.0 width={AXIS_LEFT * 2.0} height=LABEL_HEIGHT>
-                            <Text style=TextStyle::CAPTION string={y_name} />
+                            <Text style=TextStyle::CAPTION>{y_name}</Text>
                         </CanvasItem>
                         <ForEach keys={keys}>|row: usize|
                             <Dot placed={placed} data={data} row={row} />
                         </ForEach>
                         <Show condition={empty}>
                             <CanvasItem x=AXIS_LEFT y=AXIS_TOP width=260.0 height=LABEL_HEIGHT>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    string="No rows have both fields set"
-                                />
+                                <Text style=TextStyle::CAPTION>"No rows have both fields set"</Text>
                             </CanvasItem>
                         </Show>
                     </Canvas>

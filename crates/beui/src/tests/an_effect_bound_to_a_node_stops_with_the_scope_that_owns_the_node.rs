@@ -13,7 +13,7 @@ fn an_effect_bound_to_a_node_stops_with_the_scope_that_owns_the_node() {
         let scope = Scope::new();
         let caption = scope.run(|| {
             view! {
-                <Text style=TextStyle::CAPTION string="Caption" />
+                <Text style=TextStyle::CAPTION>"Caption"</Text>
             }
         });
         owner.update(|owner| *owner = Some(scope));

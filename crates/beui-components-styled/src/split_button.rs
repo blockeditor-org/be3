@@ -90,7 +90,7 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
                         <Icon glyph={glyph} />
                     </Text>
                 </Show>
-                <Text string={label} color={ink} align=TextAlign::Center />
+                <Text color={ink} align=TextAlign::Center>{label}</Text>
             </List>
         </HalfFace>
     }

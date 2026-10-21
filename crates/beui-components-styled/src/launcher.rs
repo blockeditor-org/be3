@@ -428,9 +428,9 @@ fn LauncherRowFace(
                     </List>
                 </Frame>
                 <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                    <Text string={title} align=TextAlign::Start ellipsis=true />
+                    <Text align=TextAlign::Start ellipsis=true>{title}</Text>
                     <Show condition={described}>
-                        <Text style=TextStyle::CAPTION string={detail} ellipsis=true />
+                        <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
                     </Show>
                 </List>
             </List>

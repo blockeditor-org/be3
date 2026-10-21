@@ -29,9 +29,9 @@ fn a_driver_closes_the_window_once_the_app_lets_it() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Text string="Editing" />
+                <Text>"Editing"</Text>
                 <Show condition={asked}>
-                    <Text string="Save changes?" />
+                    <Text>"Save changes?"</Text>
                 </Show>
             </List>
         }

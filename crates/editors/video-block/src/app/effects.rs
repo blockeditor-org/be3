@@ -18,10 +18,10 @@ pub(crate) fn EffectsPanel(state: VideoState) -> NodeId {
     let none = create_memo(move || !chosen.get());
     view! {
         <List spacing=8.0>
-            <Text style=TextStyle::HEADING string="Effects" />
+            <Text style=TextStyle::HEADING>"Effects"</Text>
             <Separator />
             <Show condition={none}>
-                <Text style=TextStyle::CAPTION string="Select a clip to see its effects." />
+                <Text style=TextStyle::CAPTION>"Select a clip to see its effects."</Text>
             </Show>
             <Show condition={chosen}>
                 <ClipInspector state={state} clip={clip} />
@@ -88,7 +88,7 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
 
     view! {
         <List spacing=8.0>
-            <Text string={name} />
+            <Text>{name}</Text>
             <NumberInput
                 value={Binding::new(length, move |value: f64| {
                     let Some(mut clip) = clip.get_untracked() else {
@@ -102,14 +102,14 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                 label="Length"
                 @test_id={"video.clip-length"}
             />
-            <Text style=TextStyle::CAPTION string={seconds} color={seconds_color} />
+            <Text style=TextStyle::CAPTION color={seconds_color}>{seconds}</Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Text string="Starts at" />
-                <Text style=TextStyle::CAPTION string={starts} color={start_color} />
+                <Text>"Starts at"</Text>
+                <Text style=TextStyle::CAPTION color={start_color}>{starts}</Text>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Text string="Attached to" />
-                <Text style=TextStyle::CAPTION string={parent_name} color={parent_color} />
+                <Text>"Attached to"</Text>
+                <Text style=TextStyle::CAPTION color={parent_color}>{parent_name}</Text>
                 <Show condition={hanging}>
                     <IconButton
                         glyph={ICON_LINK_OFF.to_owned()}
@@ -141,9 +141,9 @@ fn ClipInspector(state: VideoState, clip: Memo<Option<VideoClip>>) -> NodeId {
                     label="Offset"
                 />
             </Show>
-            <Text string="Effect stack" />
+            <Text>"Effect stack"</Text>
             <Show condition={bare}>
-                <Text style=TextStyle::CAPTION string="No effects yet." color={bare_color} />
+                <Text style=TextStyle::CAPTION color={bare_color}>"No effects yet."</Text>
             </Show>
             <ForEach keys={effect_ids}>|id: Uuid|
                 <EffectRow effects id />
@@ -164,8 +164,8 @@ fn EffectRow(effects: Memo<Vec<VideoEffect>>, id: Uuid) -> NodeId {
     let name = create_memo(move || held.get().map(|effect| effect.name).unwrap_or_default());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-            <Text style=TextStyle::CAPTION string={state} />
-            <Text string={name} />
+            <Text style=TextStyle::CAPTION>{state}</Text>
+            <Text>{name}</Text>
         </List>
     }
 }

@@ -73,7 +73,7 @@ fn FindBarRows(state: TextAreaState) -> NodeId {
                             pressed={Binding::new(case_sensitive, move |pressed: bool| state.set_find_case_sensitive(pressed))}
                             @test_id={"text.find.match-case"}
                         />
-                        <Text style=TextStyle::CAPTION string={summary} />
+                        <Text style=TextStyle::CAPTION>{summary}</Text>
                         <IconButton
                             glyph=ICON_KEYBOARD_ARROW_UP
                             label="Previous match"

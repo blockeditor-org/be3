@@ -66,7 +66,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                 </Layers>
             </Frame>
             <Sidebar shown={chrome}>
-                <Text style=TextStyle::HEADING string="Image" />
+                <Text style=TextStyle::HEADING>"Image"</Text>
                 <Button
                     label="Replace image…"
                     variant=ButtonVariant::Secondary
@@ -75,7 +75,7 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                     on_click={choose}
                 />
                 <Show condition={refused}>
-                    <Text style=TextStyle::CAPTION string={refusal} color=TextColor::Danger />
+                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
                 </Show>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </Sidebar>
@@ -101,7 +101,7 @@ fn ImageArea(
                 thumbhash={thumbhash}
             />
             <Show condition={failed}>
-                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
+                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </List>
     }

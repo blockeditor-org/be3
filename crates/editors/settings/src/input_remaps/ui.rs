@@ -78,7 +78,7 @@ pub fn InputRemapsView(editor: Editor) -> NodeId {
                 </SettingsRow>
                 <Show condition={offered}>
                     <SettingsRow label="This device" separated=true>
-                        <Text style=TextStyle::CAPTION string={status} wrap=true />
+                        <Text style=TextStyle::CAPTION wrap=true>{status}</Text>
                     </SettingsRow>
                 </Show>
             </SettingsSection>

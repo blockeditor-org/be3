@@ -14,7 +14,7 @@ fn enter_activates_a_list_row_and_space_selects_it() {
                 on_click={move || clicks.update(|clicks| *clicks += 1)}
                 on_activate={move || activations.update(|activations| *activations += 1)}
             >
-                <Text string="Row" color=Color32::WHITE />
+                <Text color=Color32::WHITE>"Row"</Text>
             </ListRow>
         }]
     });

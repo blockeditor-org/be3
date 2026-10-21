@@ -41,7 +41,7 @@ pub(crate) fn Player(state: VideoState) -> NodeId {
         <Frame fill={ColorRole::Custom(STAGE)} padding=8.0>
             <List spacing=0.0>
                 <Show condition={empty}>
-                    <Text style=TextStyle::CAPTION string="No clip at the playhead" />
+                    <Text style=TextStyle::CAPTION>"No clip at the playhead"</Text>
                 </Show>
                 <Show condition={any}>
                     <Frame aspect_ratio={ratio} fill={ColorRole::Custom(Color32::BLACK)}>

@@ -4,7 +4,7 @@ use crate::reactive::*;
 #[component]
 fn OptionalLabel(#[prop(default = Some("Hosted"))] label: Option<&'static str>) -> NodeId {
     view! {
-        <Text string={label.unwrap_or("None")} />
+        <Text>{label.unwrap_or("None")}</Text>
     }
 }
 

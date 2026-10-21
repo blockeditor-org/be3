@@ -24,15 +24,15 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
                 <StatusGroup review entries status />
             </ForEach>
             <Show condition={searching}>
-                <Text
-                    style=TextStyle::CAPTION
-                    string={format!("Looking at the {BRANCH} branch")}
-                    color={looking}
-                />
+                <Text style=TextStyle::CAPTION color={looking}>
+                    {format!("Looking at the {BRANCH} branch")}
+                </Text>
             </Show>
-            <Show condition={barren}>
-                <Text style=TextStyle::CAPTION string={nothing.clone()} />
-            </Show>
+            <Show condition={barren}>|| {
+                let nothing = nothing.clone(); view! {
+                    <Text style=TextStyle::CAPTION>{nothing}</Text>
+                }
+            }</Show>
         </List>
     }
 }
@@ -63,7 +63,7 @@ fn StatusGroup(
                     <Text color=TextColor::Muted align=TextAlign::Center>
                         <Icon glyph={glyph(status).to_owned()} />
                     </Text>
-                    <Text string={heading} />
+                    <Text>{heading}</Text>
                 </List>
                 <ForEach keys={paths}>|path: String| {
                     let chosen = here.memo(Some(path.clone()));
@@ -92,7 +92,7 @@ fn PaintingRow(
             on_click={move || review.select(&chosen)}
             on_activate={move || {}}
         >
-            <Text string={label} />
+            <Text>{label}</Text>
         </ListRow>
     }
 }

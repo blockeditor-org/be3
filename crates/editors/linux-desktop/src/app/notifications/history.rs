@@ -64,7 +64,7 @@ fn NotificationList(
     view! {
         <List spacing=SPACING @test_id={"desktop.notifications.list"}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text style=TextStyle::HEADING string="Notifications" />
+                <Text style=TextStyle::HEADING>"Notifications"</Text>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Button
                     label="Clear all"
@@ -75,7 +75,7 @@ fn NotificationList(
                 />
             </List>
             <Show condition={empty}>
-                <Text style=TextStyle::CAPTION string="Nothing new." />
+                <Text style=TextStyle::CAPTION>"Nothing new."</Text>
             </Show>
             <Show condition={some}>
                 <NotificationRows notifications={notifications} listed={listed} popover={popover} />
@@ -134,16 +134,13 @@ fn NotificationRow(
                 on_click={activate}
             >
                 <List spacing=ROW_SPACING>
-                    <Text style=TextStyle::CAPTION string={source} />
-                    <Text string={summary} color={summary_color} weight=Weight::Bold wrap=true />
-                    <Show condition={said}>
-                        <Text
-                            string={body.clone()}
-                            size=TextSize::Sm
-                            color={body_color}
-                            wrap=true
-                        />
-                    </Show>
+                    <Text style=TextStyle::CAPTION>{source}</Text>
+                    <Text color={summary_color} weight=Weight::Bold wrap=true>{summary}</Text>
+                    <Show condition={said}>|| {
+                        let body = body.clone(); view! {
+                            <Text size=TextSize::Sm color={body_color} wrap=true>{body}</Text>
+                        }
+                    }</Show>
                 </List>
             </ListRow>
             <IconButton

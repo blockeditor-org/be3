@@ -550,12 +550,9 @@ fn SurfaceHeader(
                         variant=ButtonVariant::Ghost
                         on_click={move || act.call(PickAction::Stage(Stage::Menu))}
                     />
-                    <Text
-                        @sizing=ItemSize::Percent(100.0)
-                        style=TextStyle::TITLE
-                        string={title}
-                        wrap=true
-                    />
+                    <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::TITLE wrap=true>
+                        {title}
+                    </Text>
                 </List>
                 <TextInput
                     @node_ref={&field}
@@ -630,7 +627,7 @@ fn MoreBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
                 <Frame padding=SHEET_PADDING>
                     <List spacing=ROW_SPACING>
                         <Show condition={empty}>
-                            <Text style=TextStyle::CAPTION string="No block types match." />
+                            <Text style=TextStyle::CAPTION>"No block types match."</Text>
                         </Show>
                         <ForEach keys={titles}>|title: String| {
                             let group = create_memo({ let title = title.clone(); move || {
@@ -663,7 +660,7 @@ fn TypeGroupView(act: Act, group: Memo<Option<TypeGroup>>) -> NodeId {
     let keys = create_memo(move || types.get().iter().map(tile_key).collect::<Vec<_>>());
     view! {
         <List spacing=GROUP_SPACING>
-            <Text style=TextStyle::CAPTION string={title} />
+            <Text style=TextStyle::CAPTION>{title}</Text>
             <ForEach keys>|key: String| {
                 let entry = create_memo({ let key = key.clone(); move || {
                     types.get().into_iter().find(|entry| tile_key(entry) == key)
@@ -738,8 +735,8 @@ fn ChoiceFace(
                 <Text color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
-                <Text @sizing=ItemSize::Percent(100.0) string={label} color ellipsis=true />
-                <Text string={detail} size=TextSize::Sm color=TextColor::Muted />
+                <Text @sizing=ItemSize::Percent(100.0) color ellipsis=true>{label}</Text>
+                <Text size=TextSize::Sm color=TextColor::Muted>{detail}</Text>
             </List>
         </Frame>
     }
@@ -820,7 +817,7 @@ fn LinkBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
             />
             <Show condition={empty}>
                 <Frame padding=SHEET_PADDING>
-                    <Text style=TextStyle::CAPTION string={empty_text} />
+                    <Text style=TextStyle::CAPTION>{empty_text}</Text>
                 </Frame>
             </Show>
             <Tree
@@ -850,12 +847,12 @@ fn LinkBody(workspace: Workspace, held: Memo<Option<Pick>>, act: Act) -> NodeId 
             }</Tree>
             <SurfaceFooter>
                 <Show condition={has_above}>
-                    <Text string={above} size=TextSize::Sm color=TextColor::Muted ellipsis=true />
+                    <Text size=TextSize::Sm color=TextColor::Muted ellipsis=true>{above}</Text>
                     <Text size=TextSize::Sm color=TextColor::Muted>
                         <Icon glyph={ICON_CHEVRON_RIGHT.to_owned()} />
                     </Text>
                 </Show>
-                <Text string={name} size=TextSize::Sm ellipsis=true />
+                <Text size=TextSize::Sm ellipsis=true>{name}</Text>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
                 <Button
                     label="Cancel"
@@ -901,8 +898,8 @@ fn LinkRowFace(row: Memo<Option<TreeRow>>) -> NodeId {
             <Text color=TextColor::Muted size=TextSize::Sm align=TextAlign::Center>
                 <Icon glyph={glyph} />
             </Text>
-            <Text @sizing=ItemSize::Percent(100.0) string={label} color weight ellipsis=true />
-            <Text string={detail} size=TextSize::Sm color=TextColor::Muted />
+            <Text @sizing=ItemSize::Percent(100.0) color weight ellipsis=true>{label}</Text>
+            <Text size=TextSize::Sm color=TextColor::Muted>{detail}</Text>
         </List>
     }
 }
@@ -990,7 +987,7 @@ fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>, act: Ac
     view! {
         <Frame padding=SHEET_PADDING>
             <List spacing=HEADER_SPACING>
-                <Text style=TextStyle::TITLE string={title} />
+                <Text style=TextStyle::TITLE>{title}</Text>
                 <Frame height=height>
                     <Subregion
                         editor={editor}
@@ -1008,7 +1005,7 @@ fn CreateBody(workspace: Workspace, pick: u64, held: Memo<Option<Pick>>, act: Ac
                     <Show condition={working}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Spinner />
-                            <Text style=TextStyle::CAPTION string={waiting_label} />
+                            <Text style=TextStyle::CAPTION>{waiting_label}</Text>
                         </List>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
@@ -1045,7 +1042,7 @@ fn PickerError(error: Memo<Option<String>>, act: Act) -> NodeId {
             cancel="Dismiss"
             on_dismiss={move || act.call(PickAction::DismissError)}
         >
-            <Text style=TextStyle::CAPTION string={text} color=TextColor::Danger />
+            <Text style=TextStyle::CAPTION color=TextColor::Danger>{text}</Text>
         </Dialog>
     }
 }

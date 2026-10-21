@@ -77,8 +77,8 @@ pub fn Checklist(editor: Editor) -> NodeId {
         <Frame fill=ColorRole::Background padding=PAGE_PADDING>
             <List spacing=SECTION_SPACING>
                 <List spacing=6.0>
-                    <Text style=TextStyle::HEADING string="Checklist" />
-                    <Text style=TextStyle::CAPTION string={summary} />
+                    <Text style=TextStyle::HEADING>"Checklist"</Text>
+                    <Text style=TextStyle::CAPTION>{summary}</Text>
                     <Progress value={progress} label="Checklist completion" />
                 </List>
                 <Card>
@@ -143,7 +143,7 @@ pub fn Checklist(editor: Editor) -> NodeId {
                 <Card @sizing=ItemSize::Percent(100.0)>
                     <List spacing=10.0>
                         <Show condition={empty}>
-                            <Text string="No tasks match this view." align=TextAlign::Center />
+                            <Text align=TextAlign::Center>"No tasks match this view."</Text>
                         </Show>
                         <Scroll @sizing=ItemSize::Percent(100.0)>
                             <List spacing=8.0>

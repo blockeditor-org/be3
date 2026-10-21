@@ -111,12 +111,13 @@ fn SelectTrigger(
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ARROW_SPACING>
                     <Text
-                        string={label_text}
                         color={text_color}
                         align=TextAlign::Start
                         ellipsis=true
                         @sizing=ItemSize::Percent(100.0)
-                    />
+                    >
+                        {label_text}
+                    </Text>
                     <Text color={arrow_color} align=TextAlign::Center>
                         <Icon glyph={ICON_ARROW_DROP_DOWN.to_owned()} />
                     </Text>
@@ -165,7 +166,7 @@ fn SelectOption(handle: SelectOptionHandle) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(PADDING_HORIZONTAL, OPTION_PADDING_VERTICAL)}
         >
-            <Text string={label} align=TextAlign::Start />
+            <Text align=TextAlign::Start>{label}</Text>
         </Frame>
     }
 }

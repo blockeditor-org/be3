@@ -13,7 +13,7 @@ fn a_back_handler_that_takes_the_gesture_hears_each_phase_and_stays_put() {
             <BackHandler
                 on_gesture={move |gesture: BackGesture| heard.update(|heard| heard.push(gesture))}
             >
-                <Text string="Page" color=Color32::WHITE @node_ref={&page} />
+                <Text color=Color32::WHITE @node_ref={&page}>"Page"</Text>
             </BackHandler>
         }
     });

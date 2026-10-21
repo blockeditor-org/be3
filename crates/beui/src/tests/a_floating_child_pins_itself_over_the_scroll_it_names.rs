@@ -28,7 +28,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                             }}
                         >
                             <Button on_click={move || rows.update(|rows| *rows += 1)}>
-                                <Text string={format!("row {row}")} />
+                                <Text>{format!("row {row}")}</Text>
                             </Button>
                         </Interactive>
                     </ForEach>
@@ -38,7 +38,7 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                         @node_ref=&button
                         on_click={move || pressed.update(|pressed| *pressed += 1)}
                     >
-                        <Text string="reveal" />
+                        <Text>"reveal"</Text>
                     </Button>
                 </Floating>
             </List>
