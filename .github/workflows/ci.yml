@@ -391,13 +391,21 @@ jobs:
   # named by the SHA-256 of their bytes, and the comment links them through the
   # zone's CDN. A name that is its content's hash never changes what it points
   # at, so an upload never has to replace anything a comment already links,
-  # and an image two runs both drew is stored once. The storage key is given to
-  # the upload step alone. What the artifact holds was made by the pull
+  # and an image two runs both drew is stored once. The same goes for the
+  # review page's data, paint-previews/<hash>.json, and for the review page
+  # itself (crates/paint-review-web), paint-previews/site/<hash>/, named by
+  # the hash of all of its files; a site already there is not uploaded again.
+  # The page uses shared wasm memory, so the zone must send
+  # Cross-Origin-Opener-Policy: same-origin and Cross-Origin-Embedder-Policy:
+  # require-corp on /paint-previews/site/*, an edge rule in the pull zone's
+  # settings rather than anything an upload can set. The storage key is given
+  # to the upload step alone. What the artifact holds was made by the pull
   # request's code, so it is only ever data here: files to upload and text to
-  # post.
+  # post. A run of an older pull request uploads only what it made, images.
   #
-  # Every pull request gets the one comment, which each run edits: the lines of
-  # Rust it adds and removes outside its tests, and the paintings it changes, if any.
+  # Every pull request gets the one comment, which each run edits: the lines it
+  # adds and removes by kind, and the paintings it changes, if any, with a link
+  # to the review page.
   # The comment is found again by the marker this job puts at its top, rather
   # than one the pull request's code writes.
   publish-summary:
@@ -419,13 +427,41 @@ jobs:
         run: |
           set -euo pipefail
           shopt -s nullglob
-          for image in "$RUNNER_TEMP"/previews/*.png; do
+          store='https://storage.bunnycdn.com/be3-ci/paint-previews'
+          previews="$RUNNER_TEMP/previews"
+
+          upload() {
+            case "$1" in
+              *.png) type='image/png' ;;
+              *.json) type='application/json' ;;
+              *.html) type='text/html' ;;
+              *.js) type='text/javascript' ;;
+              *.wasm) type='application/wasm' ;;
+              *.ttf) type='font/ttf' ;;
+              *) type='application/octet-stream' ;;
+            esac
             curl --fail --silent --show-error --retry 3 --output /dev/null \
               --request PUT \
               --header "AccessKey: $BUNNY_STORAGE_KEY" \
-              --header 'Content-Type: image/png' \
-              --upload-file "$image" \
-              "https://storage.bunnycdn.com/be3-ci/paint-previews/$(basename "$image")"
+              --header "Content-Type: $type" \
+              --upload-file "$previews/$1" \
+              "$store/$1"
+          }
+
+          for file in "$previews"/*.png "$previews"/*.json; do
+            upload "$(basename "$file")"
+          done
+
+          for site in "$previews"/site/*/; do
+            site="site/$(basename "$site")"
+            if curl --fail --silent --output /dev/null \
+              --header "AccessKey: $BUNNY_STORAGE_KEY" "$store/$site/index.html"; then
+              continue
+            fi
+            (cd "$previews" && find "$site" -type f ! -name index.html) | while read -r file; do
+              upload "$file"
+            done
+            upload "$site/index.html"
           done
 
       - name: Comment
