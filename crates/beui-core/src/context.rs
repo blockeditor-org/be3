@@ -50,6 +50,7 @@ struct Inner {
     damage: RefCell<Vec<Rect>>,
     moves: RefCell<Vec<(Moved, Vec<Rc<Display>>)>>,
     copied_text: RefCell<Option<String>>,
+    copied_image: RefCell<Option<Vec<u8>>>,
     paste: Cell<Option<PasteRequest>>,
     copy_watchers: RefCell<Vec<CopyWatcher>>,
     file_pick_requests: RefCell<Vec<FilePickRequest>>,
@@ -190,6 +191,7 @@ pub struct FrameOutput {
     pub fullscreen: Option<bool>,
     pub close_requested: bool,
     pub copied_text: Option<String>,
+    pub copied_image: Option<Vec<u8>>,
     pub paste: Option<PasteRequest>,
     pub file_picks: Vec<FilePickRequest>,
     pub repaint: bool,
@@ -278,6 +280,7 @@ impl Context {
                 damage: RefCell::new(Vec::new()),
                 moves: RefCell::new(Vec::new()),
                 copied_text: RefCell::new(None),
+                copied_image: RefCell::new(None),
                 paste: Cell::new(None),
                 copy_watchers: RefCell::new(Vec::new()),
                 file_pick_requests: RefCell::new(Vec::new()),
@@ -561,6 +564,7 @@ impl Context {
         self.inner.damage.borrow_mut().clear();
         self.inner.moves.borrow_mut().clear();
         self.inner.copied_text.borrow_mut().take();
+        self.inner.copied_image.borrow_mut().take();
         self.inner.paste.set(None);
         self.inner.fullscreen.set(None);
         self.inner.close_requested.set(false);
@@ -635,6 +639,7 @@ impl Context {
             moved,
             test_ids,
             copied_text,
+            copied_image: self.inner.copied_image.borrow_mut().take(),
             paste: self.inner.paste.take(),
             file_picks: std::mem::take(&mut *self.inner.file_pick_requests.borrow_mut()),
             changed,
@@ -721,7 +726,13 @@ impl Context {
     }
 
     pub fn copy_text(&self, text: String) {
+        *self.inner.copied_image.borrow_mut() = None;
         *self.inner.copied_text.borrow_mut() = Some(text);
+    }
+
+    pub fn copy_image(&self, png: Vec<u8>) {
+        *self.inner.copied_text.borrow_mut() = None;
+        *self.inner.copied_image.borrow_mut() = Some(png);
     }
 
     pub fn request_paste(&self) {

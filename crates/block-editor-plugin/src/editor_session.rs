@@ -578,6 +578,9 @@ impl EditorSession {
         for text in self.host.take_copied_text() {
             messages.push(Message::Editor(EditorMessage::CopyText { instance, text }));
         }
+        for png in self.host.take_copied_images() {
+            messages.push(Message::Editor(EditorMessage::CopyImage { instance, png }));
+        }
         if self.host.take_paste_request() {
             messages.push(Message::Editor(EditorMessage::Paste { instance }));
         }

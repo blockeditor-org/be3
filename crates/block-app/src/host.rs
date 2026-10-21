@@ -56,6 +56,7 @@ pub(crate) enum HostCommand {
 struct Output {
     fullscreen: Option<bool>,
     copied: Option<String>,
+    copied_image: Option<Vec<u8>>,
     file_picks: Vec<(FileFilter, PickSlot)>,
     paste: bool,
     grab: Option<bool>,
@@ -178,6 +179,9 @@ pub(crate) fn end(context: &beui::Context) {
     if let Some(text) = output.copied {
         context.copy_text(text);
     }
+    if let Some(png) = output.copied_image {
+        context.copy_image(png);
+    }
     for (filter, slot) in output.file_picks {
         let id = context.pick_file(filter);
         with(|host| host.waiting_picks.push((id, slot)));
@@ -232,7 +236,17 @@ pub(crate) fn set_grab(grab: bool) {
 }
 
 pub(crate) fn copy_text(text: String) {
-    with(|host| host.output.copied = Some(text));
+    with(|host| {
+        host.output.copied_image = None;
+        host.output.copied = Some(text);
+    });
+}
+
+pub(crate) fn copy_image(png: Vec<u8>) {
+    with(|host| {
+        host.output.copied = None;
+        host.output.copied_image = Some(png);
+    });
 }
 
 type PickSlot = Option<Box<dyn FnOnce(FilePick)>>;

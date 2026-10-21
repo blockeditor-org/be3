@@ -189,6 +189,24 @@ struct Runner {
     ratio: f32,
 }
 
+fn copy_png(png: &[u8]) -> Result<(), wasm_bindgen::JsValue> {
+    use js_sys::{Array, Function, Object, Reflect, Uint8Array};
+    let window = web_sys::window().ok_or("no window")?;
+    let options = Object::new();
+    Reflect::set(&options, &"type".into(), &"image/png".into())?;
+    let blob: Function = Reflect::get(&window, &"Blob".into())?.dyn_into()?;
+    let parts = Array::of1(&Uint8Array::from(png));
+    let blob = Reflect::construct(&blob, &Array::of2(&parts, &options))?;
+    let record = Object::new();
+    Reflect::set(&record, &"image/png".into(), &blob)?;
+    let item: Function = Reflect::get(&window, &"ClipboardItem".into())?.dyn_into()?;
+    let item = Reflect::construct(&item, &Array::of1(&record))?;
+    let clipboard = window.navigator().clipboard();
+    let write: Function = Reflect::get(&clipboard, &"write".into())?.dyn_into()?;
+    write.call1(&clipboard, &Array::of1(&item))?;
+    Ok(())
+}
+
 struct WebPlatform {
     surface: web_sys::HtmlElement,
     agent: web_sys::HtmlTextAreaElement,
@@ -198,6 +216,12 @@ impl Platform for WebPlatform {
     fn copy(&mut self, text: String) {
         if let Some(window) = web_sys::window() {
             let _ = window.navigator().clipboard().write_text(&text);
+        }
+    }
+
+    fn copy_image(&mut self, png: Vec<u8>) {
+        if let Err(error) = copy_png(&png) {
+            web_sys::console::warn_1(&error);
         }
     }
 

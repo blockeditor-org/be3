@@ -76,6 +76,10 @@ pub fn copy_text(text: impl Into<String>) {
     with_document(|document| document.copy_text(text));
 }
 
+pub fn copy_image(png: Vec<u8>) {
+    with_document(|document| document.copy_image(png));
+}
+
 pub use beui_core::clipboard::{PasteKind, Pasted};
 
 pub fn request_paste() {

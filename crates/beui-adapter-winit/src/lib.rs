@@ -160,6 +160,10 @@ impl Platform for WinitPlatform<'_> {
         self.clipboard.set(text);
     }
 
+    fn copy_image(&mut self, png: Vec<u8>) {
+        self.clipboard.set_image(&png);
+    }
+
     fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
         answer.send(kinds.iter().find_map(|kind| {
             match kind {

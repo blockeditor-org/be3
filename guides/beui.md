@@ -337,8 +337,12 @@ hooks the higher crates fill in:
   did, whether the app asked or not, which the app reads as
   `Context::fullscreen` and a component as `use_fullscreen()`. The DRM
   adapter is always fullscreen; Android and plugins say nothing.
-  The clipboard is the platform's: `Context::copy_text` writes it,
-  `Context::watch_copies` hears every copy (which is how be-wayland hands the
+  The clipboard is the platform's: `Context::copy_text` writes it, and
+  `Context::copy_image` (`reactive::copy_image`) writes a PNG in its place
+  (`Platform::copy_image`: winit through arboard, the web as a `ClipboardItem`,
+  a plugin through its host's `EditorMessage::CopyImage`, the headless
+  `Simulation`, which pastes it back as `Pasted::Image`; Android and DRM drop
+  it). `Context::watch_copies` hears every text copy (which is how be-wayland hands the
   app's copies to Wayland programs), and a paste is the only way to read it.
   The focus says what it takes: an `Interactive`'s `pastes` lists the
   `PasteKind`s (text, image) in the order it prefers them, and one with only

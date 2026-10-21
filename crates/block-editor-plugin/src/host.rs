@@ -457,6 +457,7 @@ pub struct EditorHost {
     placed_content: Rc<Cell<Option<Rect>>>,
     content: Rc<Cell<Option<Rect>>>,
     copied: Rc<RefCell<Vec<String>>>,
+    copied_images: Rc<RefCell<Vec<Vec<u8>>>>,
     paste_requested: Rc<Cell<bool>>,
     leaving: Rc<Cell<bool>>,
     next_frame: Rc<Cell<Option<Duration>>>,
@@ -1501,6 +1502,14 @@ impl EditorHost {
 
     pub fn take_copied_text(&self) -> Vec<String> {
         std::mem::take(&mut self.copied.borrow_mut())
+    }
+
+    pub fn copy_image(&self, png: Vec<u8>) {
+        self.copied_images.borrow_mut().push(png);
+    }
+
+    pub fn take_copied_images(&self) -> Vec<Vec<u8>> {
+        std::mem::take(&mut self.copied_images.borrow_mut())
     }
 
     pub fn request_paste(&self) {

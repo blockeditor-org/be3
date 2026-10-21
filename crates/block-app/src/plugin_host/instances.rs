@@ -2586,6 +2586,7 @@ impl Instances {
                     | EditorMessage::ChangeView { .. }
                     | EditorMessage::Stopped { .. }
                     | EditorMessage::CopyText { .. }
+                    | EditorMessage::CopyImage { .. }
                     | EditorMessage::WebViewCommand { .. }
                     | EditorMessage::Request {
                         request: HostRequest::Fetch(_)
@@ -2996,6 +2997,13 @@ impl Instances {
                     return false;
                 }
                 host::copy_text(text);
+                false
+            }
+            EditorMessage::CopyImage { instance, png } => {
+                if !self.entries.contains_key(&instance) {
+                    return false;
+                }
+                host::copy_image(png);
                 false
             }
             EditorMessage::Paste { instance } => {

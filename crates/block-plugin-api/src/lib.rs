@@ -1146,6 +1146,10 @@ pub enum EditorMessage {
         instance: EditorInstanceId,
         text: String,
     },
+    CopyImage {
+        instance: EditorInstanceId,
+        png: Vec<u8>,
+    },
     Paste {
         instance: EditorInstanceId,
     },
@@ -1281,6 +1285,7 @@ impl EditorMessage {
             | Self::ChildBar { instance, .. }
             | Self::ChildFocused { instance, .. }
             | Self::CopyText { instance, .. }
+            | Self::CopyImage { instance, .. }
             | Self::Paste { instance }
             | Self::AspectRatio { instance, .. }
             | Self::IntrinsicSize { instance, .. }
@@ -1872,6 +1877,7 @@ impl EditorMessage {
             | Self::Window { .. }
             | Self::ChildReplaced { .. }
             | Self::CopyText { .. }
+            | Self::CopyImage { .. }
             | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }
@@ -2474,6 +2480,7 @@ fn validate_editor(message: &EditorMessage) -> Result<(), DecodeError> {
             Ok(())
         }
         EditorMessage::CopyText { text: value, .. } => text(value),
+        EditorMessage::CopyImage { png, .. } => blob(png),
         EditorMessage::WatchHostValue { key, .. } => string(key),
         EditorMessage::HostValue {
             key, value: bytes, ..

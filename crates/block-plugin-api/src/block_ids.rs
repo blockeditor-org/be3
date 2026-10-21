@@ -306,6 +306,7 @@ impl EditorMessage {
             | Self::ChildBar { .. }
             | Self::ChildFocused { .. }
             | Self::CopyText { .. }
+            | Self::CopyImage { .. }
             | Self::Paste { .. }
             | Self::AspectRatio { .. }
             | Self::IntrinsicSize { .. }

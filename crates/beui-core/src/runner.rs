@@ -87,6 +87,8 @@ pub trait Adapter {
 pub trait Platform {
     fn copy(&mut self, _text: String) {}
 
+    fn copy_image(&mut self, _png: Vec<u8>) {}
+
     fn paste(&mut self, kinds: &[PasteKind], answer: PasteAnswer) {
         let _ = kinds;
         answer.send(None);
@@ -519,6 +521,9 @@ impl Runner {
 
         if let Some(text) = &output.copied_text {
             platform.copy(text.clone());
+        }
+        if let Some(png) = output.copied_image.take() {
+            platform.copy_image(png);
         }
         for request in std::mem::take(&mut output.file_picks) {
             let answer = FilePickAnswer::new(request.id, self.picks.0.clone(), self.waker.clone());

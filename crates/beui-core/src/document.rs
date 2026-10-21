@@ -138,6 +138,7 @@ pub struct Document {
     painting: Vec<(Rc<Display>, Vec2)>,
     pub paint_cache: RefCell<PaintCache>,
     pub copied_text: Option<String>,
+    pub copied_image: Option<Vec<u8>>,
     next_paint: Option<Instant>,
     now: Instant,
     reactive_scope: ::reactive::Scope,
@@ -353,6 +354,7 @@ impl Document {
             painting: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
             copied_text: None,
+            copied_image: None,
             next_paint: None,
             now: Instant::now(),
             reactive_scope: ::reactive::Scope::new(),
@@ -869,7 +871,13 @@ impl Document {
     }
 
     pub fn copy_text(&mut self, text: impl Into<String>) {
+        self.copied_image = None;
         self.copied_text = Some(text.into());
+    }
+
+    pub fn copy_image(&mut self, png: Vec<u8>) {
+        self.copied_text = None;
+        self.copied_image = Some(png);
     }
 
     pub fn request_paste(&mut self) {
@@ -1315,6 +1323,9 @@ impl Document {
 
         if let Some(text) = self.copied_text.take() {
             ctx.copy_text(text);
+        }
+        if let Some(png) = self.copied_image.take() {
+            ctx.copy_image(png);
         }
         if std::mem::take(&mut self.paste_requested) {
             ctx.request_paste();
