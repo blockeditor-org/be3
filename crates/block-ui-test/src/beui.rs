@@ -49,6 +49,7 @@ pub struct BeuiTest<A: BeuiApp> {
     sent: Vec<EditorMessage>,
     menu: Vec<MenuEntry>,
     output: Option<beui::FrameOutput>,
+    drew: bool,
     recording: Option<snapshot::Snapshot>,
     overflows: Vec<String>,
     viewport: Option<Viewport>,
@@ -213,6 +214,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             sent: Vec::new(),
             menu: Vec::new(),
             output: None,
+            drew: false,
             recording: None,
             overflows: Vec::new(),
             viewport: None,
@@ -490,6 +492,10 @@ impl<A: BeuiApp> BeuiTest<A> {
         self.output
             .as_ref()
             .is_some_and(|output| output.changed || output.repaint_after < std::time::Duration::MAX)
+    }
+
+    pub fn drawn(&self) -> Option<&beui::FrameOutput> {
+        self.output.as_ref().filter(|_| self.drew)
     }
 
     pub fn document(&self) -> &Document {
@@ -786,6 +792,7 @@ impl<A: BeuiApp> BeuiTest<A> {
             .into_iter()
             .find(|(placement, _)| placement.screen == SCREEN)
             .map(|(_, output)| output);
+        self.drew = output.is_some();
         if output.is_some() {
             self.output = output;
         }

@@ -1,6 +1,8 @@
 load("@prelude//test/inject_test_run_info.bzl", "inject_test_run_info")
 load("@root//buck/app:defs.bzl", "plugin_data")
-load("@root//buck/cargo:defs.bzl", "cargo_library_sources", "cargo_manifest_sources", "cargo_test_sources", "cargo_wasm_facts")
+load(
+    "@root//buck/cargo:defs.bzl", "cargo_example", "cargo_library", "cargo_library_sources", "cargo_manifest_sources", "cargo_test_sources", "cargo_wasm_facts"
+)
 load("@root//buck/platforms:cross.bzl", "per_cross_platform")
 load("@root//buck/platforms:profile.bzl", "PROFILE_REFS", "dev_only", "keep_profile")
 
@@ -151,6 +153,11 @@ def plugin_sdk():
 # compiling at 2 and 270 at 0. The modules are about two and a half times the
 # size and take half as long again to precompile, and the app tests ran no
 # slower.
+#
+# An editor with examples/ is built for the host too (buck/cargo/buckify.sh
+# plans it there), as the library named after its package, and each
+# examples/NAME.rs is :example-NAME on the host, such as a benchmark that
+# drives the editor through block-ui-test.
 def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps = [], shared_sdk = True):
     facts = cargo_wasm_facts()
     native.rust_library(
@@ -190,6 +197,11 @@ def editor(module, visibility = ["PUBLIC"], test_env = {}, data = {}, extra_deps
         exports = plugin_exports,
         extra_deps = extra_deps,
     )
+    examples = native.glob(["examples/*.rs"])
+    if examples:
+        cargo_library(extra_srcs = ["manifest.json"])
+        for root in examples:
+            cargo_example(root.removeprefix("examples/").removesuffix(".rs"))
 
 # A crate's tests compiled to wasm and run by plugin-test-runner, which gives
 # the module a plugin's imports; an editor's, block-editor-plugin's and

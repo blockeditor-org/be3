@@ -10426,7 +10426,12 @@ crates = {
     "crates/editors/infinite-canvas": {
         "binaries": [],
         "edition": "2024",
-        "examples": [],
+        "examples": [
+            {
+                "crate_root": "examples/canvas-bench.rs",
+                "name": "canvas-bench",
+            },
+        ],
         "library": {
             "crate": "infinite_canvas",
             "crate_root": "src/lib.rs",
@@ -10434,6 +10439,146 @@ crates = {
         },
         "name": "infinite_canvas",
         "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
@@ -10443,7 +10588,75 @@ crates = {
                     "//third-party/rust:serde_json-1.0.150",
                     "//third-party/rust:uuid-1.23.2",
                 ],
-                "examples": {},
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
+                "features": [],
+                "test_deps": [
+                    "//crates/block-ui-test:block-ui-test",
+                ],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//crates/beui:beui",
+                    "//crates/block-editor-beui:block-editor-beui",
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_json-1.0.150",
+                    "//third-party/rust:uuid-1.23.2",
+                ],
+                "examples": {
+                    "canvas-bench": {
+                        "deps": [
+                            "//crates/beui:beui",
+                            "//crates/block-editor-beui:block-editor-beui",
+                            "//crates/block-ui-test:block-ui-test",
+                            "//third-party/rust:serde-1.0.228",
+                            "//third-party/rust:serde_json-1.0.150",
+                            "//third-party/rust:uuid-1.23.2",
+                        ],
+                        "features": [],
+                    },
+                },
                 "features": [],
                 "test_deps": [
                     "//crates/block-ui-test:block-ui-test",
