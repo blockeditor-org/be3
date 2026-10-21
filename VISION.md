@@ -171,13 +171,15 @@ including text input on the web.
 ### Infinite canvas
 
 A core app for the first release. Slides are canvases, so it is also the base
-of presentations.
+of presentations. It is headed to be a general 2D vector and raster image
+editor with profiles for different tasks, like Affinity's: prototyping (like
+Excalidraw, and first), vector, raster and interactivity. A profile is how you
+view a canvas, not part of it. `plans/canvas.md` has the plan.
 
 ### Files, folders and the workspace
 
 Where you find and organize everything. The file tree is today's only entry
-point (see Extension). The phone layout (`plans/mobile.md`) and search,
-history, trash and export (`plans/daily_driver.md`, phase 7) come next.
+point (see Extension). Search, history, trash and export (`plans/daily_driver.md`, phase 7) come next.
 
 ### Version control
 
@@ -218,9 +220,10 @@ as speaker notes and following the presenter live.
 
 ### Pixel art and video
 
-Candidates for apps done well. Pixel art might grow to be nearly as good as
-Aseprite, or be dropped in favour of storing Aseprite's own files as foreign
-files. Light video editing is in the same position.
+Candidates for apps done well. Pixel art merges into the canvas's raster
+profile, which might grow to be nearly as good as Aseprite. Light video editing
+might be done well, or be dropped in favour of storing other tools' files as
+foreign files.
 
 ### Image, audio and PDF
 
