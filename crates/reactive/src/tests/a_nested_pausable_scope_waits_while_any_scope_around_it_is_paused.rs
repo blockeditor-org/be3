@@ -21,8 +21,10 @@ fn a_nested_pausable_scope_waits_while_any_scope_around_it_is_paused() {
     inner.pause();
     count.set(1);
     inner.resume();
+    flush();
     assert_eq!(*seen.borrow(), vec![0], "the outer scope is still paused");
 
     outer.resume();
+    flush();
     assert_eq!(*seen.borrow(), vec![0, 1]);
 }

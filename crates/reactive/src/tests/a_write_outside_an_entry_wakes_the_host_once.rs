@@ -22,6 +22,9 @@ fn a_write_outside_an_entry_wakes_the_host_once() {
     value.set(3);
     assert_eq!(wakes.get(), 1, "a burst of writes wakes once");
     assert_eq!(seen.get(), 1);
+    Scope::new().dispose();
+    assert_eq!(create_memo(move || value.get()).get_untracked(), 3);
+    assert_eq!(seen.get(), 1, "making, reading or disposing runs no effect");
     flush();
     assert_eq!(seen.get(), 3);
     value.set(4);

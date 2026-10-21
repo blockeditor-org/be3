@@ -21,6 +21,7 @@ fn a_binding_inside_an_effect_tracks_for_itself() {
             });
         }
     });
+    flush();
     inner.set(1);
     flush();
 

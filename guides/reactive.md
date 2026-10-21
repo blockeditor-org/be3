@@ -346,25 +346,26 @@ first answer arrives, and it changes whenever the host's answer does.
 ## Effects, entries, and ownership
 
 Create signals, memos, effects, and cleanup callbacks inside `Scope::run` or
-another computation. `create_effect(|| ...)` schedules an initial execution, then runs
+another computation. `create_effect(|| ...)` queues an initial execution, then runs
 again when its tracked inputs change.
 
 A write never runs effects itself. The value changes at once, so a read right
 after it, of the signal or of a memo over it, sees the new value; the effects
-it wakes are queued. An entry runs them when it ends: `Scope::run`,
-`ScopeContext::run`, a computation's run, disposing a scope or an effect,
-creating an effect outside any entry, and entering or leaving a zone (so a
-document entered after a write runs that write's effects before its events). Nested entries flush only when the
-outermost one ends, so every event, timer, accessibility action and frame
-step beui handles, which each run inside one, sees its effects run once at its
-end. A write outside any entry, from a future or a callback the host runs,
-leaves its effects queued and calls the waker registered with
-`wake_with(wake)`, once until the next flush, so a burst of writes asks for
-one frame; beui's `Context::set_waker` registers it, and `Context` flushes as
-each frame begins and ends. `flush()` runs everything queued there and then,
-for the rare caller that needs effects to have run, such as a test that
-writes and then checks what an effect did; it does nothing inside an effect,
-whose flush is already running. Multiple writes coalesce into one pending
+it wakes are queued. Queued effects run in exactly three places: when the
+outermost `Scope::run` or `ScopeContext::run` ends, when a frame begins or
+ends, and at `flush()`. Every event, timer, accessibility action and frame
+step beui handles runs inside a `ScopeContext::run`, so its effects run once
+at its end. Nothing else runs them: creating an effect or a binding, reading
+a memo, disposing a scope and resuming a paused one all leave them queued.
+(Effects parked for a zone are the one addition: they run when that zone is
+entered, see "Zones".) Whenever effects are left queued outside any entry, from
+a write in a future or a callback the host runs, or from creating an effect,
+the runtime calls the waker registered with `wake_with(wake)`, once until the
+next flush, so a burst of them asks for one frame; beui's `Context::set_waker`
+registers it. `flush()` runs everything queued there and then, for the rare
+caller that needs effects to have run, such as a test that writes and then
+checks what an effect did; it does nothing inside an effect, whose flush is
+already running. Multiple writes coalesce into one pending
 execution. Effects created inside effects run after their parent finishes.
 
 An effect that finishes its first execution without reading a signal, opening a
@@ -428,8 +429,8 @@ tracking reads. All cleanup callbacks are attempted even if one panics; the firs
 panic is propagated unless disposal is already unwinding.
 
 Tracking, ownership, and scheduler state are restored when user code panics.
-An entry that panics does not flush effects while unwinding; pending work runs at
-the next entry that ends or the next `flush()`. A panicking `update` invalidates its
+A `Scope::run` that panics does not flush effects while unwinding; pending work
+runs at the next flush. A panicking `update` invalidates its
 value because it may already have mutated it. There is no transaction rollback.
 
 ## Zones
@@ -462,8 +463,8 @@ runs them itself.
 `Scope::detached().pausable()` (or `Scope::new().pausable()`, before anything
 is created in it) is a scope that can be paused. While `pause()` holds, an
 effect created under it that is woken waits instead of running, and
-`resume()` runs each one that waited once, with the values as they are by
-then. Memos are not paused, but they only compute when read, so a memo only
+`resume()` queues each one that waited to run once at the next flush, with the
+values as they are by then. Memos are not paused, but they only compute when read, so a memo only
 paused effects read waits with them. An effect already woken when the scope
 pauses still runs, so the write that hides a subtree reaches it: an overlay
 inside closes rather than staying open. A scope inside a paused scope waits

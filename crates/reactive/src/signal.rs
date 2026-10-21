@@ -5,7 +5,7 @@ use std::rc::{Rc, Weak};
 use crate::arena::{self, Key};
 
 use crate::computation::{Computation, State, no_computation};
-use crate::runtime::{RUNTIME, check_tracked_read, untrack, written};
+use crate::runtime::{RUNTIME, check_tracked_read, untrack};
 
 pub(crate) struct Source {
     pub(crate) version: Cell<u64>,
@@ -127,7 +127,6 @@ impl Source {
         for subscriber in subscribers {
             subscriber.invalidate(State::Dirty);
         }
-        written();
     }
 }
 

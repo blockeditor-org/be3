@@ -35,6 +35,7 @@ fn a_paused_scope_defers_its_effects_until_it_resumes() {
     );
 
     scope.resume();
+    flush();
     assert_eq!(
         *seen.borrow(),
         vec![0, 6],

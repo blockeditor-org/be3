@@ -10,6 +10,7 @@ fn an_effect_made_outside_every_zone_waits_until_the_zone_entered_is_left() {
         let seen = seen.clone();
         create_effect(move || seen.set(count.get()));
     }
+    flush();
     assert_eq!(seen.get(), 1);
 
     count.set(2);

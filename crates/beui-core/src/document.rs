@@ -782,9 +782,6 @@ impl Document {
     }
 
     fn set_motion(&mut self, motion: crate::animation::Motion) {
-        if self.motion() == motion {
-            return;
-        }
         self.arena.invalidate();
         self.motion.set(motion);
     }
@@ -1143,7 +1140,10 @@ impl Document {
 
     pub fn show_content(&mut self, ctx: &Context, rect: Rect) {
         self.now = ctx.now();
-        self.set_motion(ctx.motion());
+        let motion = ctx.motion();
+        if self.motion() != motion {
+            crate::current::run_in(self, |document| document.set_motion(motion));
+        }
         if std::mem::take(&mut self.hidden) {
             ctx.report_damage(rect);
             self.conceal_embeds(false);

@@ -5,7 +5,9 @@ use std::rc::{Rc, Weak};
 
 use crate::arena::{self, Key};
 use crate::computation::{Computation, no_computation};
-use crate::runtime::{Context, RUNTIME, batch, flush_within, leave_component_body, next_sequence};
+use crate::runtime::{
+    Context, RUNTIME, batch, defer, flush_within, leave_component_body, next_sequence,
+};
 
 pub(crate) struct Gate {
     parent: Option<Rc<Gate>>,
@@ -218,7 +220,7 @@ impl Scope {
                 }
             }
         });
-        crate::runtime::settle();
+        crate::runtime::wake_if_pending();
     }
 
     pub fn run<T>(&self, f: impl FnOnce() -> T) -> T {
@@ -228,7 +230,7 @@ impl Scope {
     }
 
     pub fn dispose(&self) {
-        batch(|| self.owner.dispose());
+        defer(|| self.owner.dispose());
     }
 
     pub fn is_disposed(&self) -> bool {

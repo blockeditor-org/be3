@@ -213,7 +213,7 @@ pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
         |runtime| &runtime.memo_depth,
         memo_depth + usize::from(memo),
     );
-    batch(|| {
+    defer(|| {
         let _context = Context::enter(no_computation(), Weak::new());
         let _body = leave_component_body();
         RUNTIME.with(|runtime| {
@@ -256,12 +256,18 @@ pub(crate) fn tracking() -> bool {
 }
 
 pub(crate) fn batch<T>(f: impl FnOnce() -> T) -> T {
-    let result = defer(f);
+    let result = nested(f);
     settle();
     result
 }
 
 pub(crate) fn defer<T>(f: impl FnOnce() -> T) -> T {
+    let result = nested(f);
+    wake_if_pending();
+    result
+}
+
+fn nested<T>(f: impl FnOnce() -> T) -> T {
     let depth = RUNTIME.with(|runtime| runtime.depth.get());
     let _depth = Reset::set(|runtime| &runtime.depth, depth + 1);
     f()
@@ -271,7 +277,7 @@ pub fn wake_with(wake: impl Fn() + 'static) {
     RUNTIME.with(|runtime| runtime.waker.replace(Some(Rc::new(wake))));
 }
 
-pub(crate) fn written() {
+pub(crate) fn wake_if_pending() {
     let wake = RUNTIME.with(|runtime| {
         if runtime.depth.get() != 0
             || runtime.flushing.get()
@@ -306,6 +312,7 @@ pub(crate) fn enqueue(computation: &Rc<Computation>) {
                 .borrow_mut()
                 .push_back(Rc::downgrade(computation))
         });
+        wake_if_pending();
     }
 }
 
@@ -428,8 +435,8 @@ fn run_parked(zone: u64) {
     let parked = RUNTIME.with(|runtime| runtime.take_parked(zone));
     if let Some(parked) = parked {
         RUNTIME.with(|runtime| runtime.queue.borrow_mut().extend(parked));
+        settle();
     }
-    settle();
 }
 
 pub fn zone_pending(zone: u64) -> bool {
