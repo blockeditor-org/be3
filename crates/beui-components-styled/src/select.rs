@@ -95,7 +95,7 @@ fn SelectTrigger(
     view! {
         <Frame
             width={width}
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::FOCUS.offset(FOCUS_RING_OFFSET))}
             radius=Radius::Md
         >
             <Frame

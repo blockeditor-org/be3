@@ -679,7 +679,7 @@ fn FocusedTile() -> NodeId {
                     on_click={move || opened.set("Opened the album".to_owned())}
                 >|handle: beui::unstyled::ButtonHandle|
                     <FocusRing
-                        focused={Prop::dynamic(move || handle.state.get().focused)}
+                        focused={Prop::field(handle.state, |state| state.focused)}
                         radius={Radius::custom(Radius::Lg.px() + 3.0)}
                         offset=3.0
                     >
@@ -2777,7 +2777,7 @@ fn ScrollRowFace(
     compact: ReadSignal<bool>,
 ) -> NodeId {
     let unstyled::ButtonHandle { state, .. } = handle;
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     let vertical = create_memo(move || match compact.get() {
         true => COMPACT_ROW_PADDING_VERTICAL,
         false => ROW_PADDING_VERTICAL,
@@ -3472,7 +3472,7 @@ fn CanvasBoard(
     state: Memo<PanZoomState>,
 ) -> NodeId {
     let [first, second, third, fourth] = STAGE_CARDS;
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     view! {
         <Frame
             border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}

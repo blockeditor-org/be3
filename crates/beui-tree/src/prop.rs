@@ -1,4 +1,4 @@
-use reactive::{Get, Memo, ReadSignal, Signal, Stored, check_tracked_read, store, untrack};
+use reactive::{AnyMemo, Get, Memo, ReadSignal, Signal, Stored, check_tracked_read, store, untrack};
 
 pub enum Prop<T> {
     Static(T),
@@ -22,6 +22,7 @@ enum Source<T> {
     Function(Stored<Box<dyn Fn() -> T>>),
     Signal(ReadSignal<T>, fn(&ReadSignal<T>) -> T),
     Memo(Memo<T>, fn(&Memo<T>) -> T),
+    Field(AnyMemo, *const (), fn(AnyMemo, *const ()) -> T),
 }
 
 impl<T> Clone for Source<T> {
@@ -59,11 +60,21 @@ impl<T: 'static> Getter<T> {
         Self(Source::Memo(memo, <Memo<T> as Get<T>>::get))
     }
 
+    pub fn of_field<S: 'static>(memo: Memo<S>, field: fn(&S) -> T) -> Self {
+        fn read<S: 'static, T>(memo: AnyMemo, field: *const ()) -> T {
+            // SAFETY: `of_field` erased this pointer from a `fn(&S) -> T`.
+            let field = unsafe { std::mem::transmute::<*const (), fn(&S) -> T>(field) };
+            memo.typed::<S>().with(field)
+        }
+        Self(Source::Field(memo.erased(), field as *const (), read::<S, T>))
+    }
+
     pub fn get(&self) -> T {
         match &self.0 {
             Source::Function(read) => read.with(|read| read()),
             Source::Signal(signal, read) => read(signal),
             Source::Memo(memo, read) => read(memo),
+            Source::Field(memo, field, read) => read(*memo, *field),
         }
     }
 }
@@ -71,6 +82,10 @@ impl<T: 'static> Getter<T> {
 impl<T: 'static> Prop<T> {
     pub fn dynamic(read: impl Fn() -> T + 'static) -> Self {
         Prop::Dynamic(Getter::new(read))
+    }
+
+    pub fn field<S: 'static>(memo: Memo<S>, field: fn(&S) -> T) -> Self {
+        Prop::Dynamic(Getter::of_field(memo, field))
     }
 
     pub fn map<U: 'static>(self, f: impl Fn(T) -> U + 'static) -> Prop<U> {

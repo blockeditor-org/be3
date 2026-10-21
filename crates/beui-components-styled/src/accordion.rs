@@ -45,7 +45,7 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
     view! {
         <Frame
             fill={ColorRole::custom(header_color)}
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS.offset(2.0))}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::FOCUS.offset(2.0))}
             radius=Radius::Md
             padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >

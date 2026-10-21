@@ -439,16 +439,16 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
                 <Separator />
             </Show>
             <ActionRowFace
-                hovered={Prop::dynamic(move || state.get().hovered)}
-                active={Prop::dynamic(move || state.get().active)}
-                focused={Prop::dynamic(move || state.get().focused)}
+                hovered={Prop::field(state, |state| state.hovered)}
+                active={Prop::field(state, |state| state.active)}
+                focused={Prop::field(state, |state| state.focused)}
                 label
                 lead
                 glyph
                 detail
-                disabled={Prop::dynamic(move || state.get().disabled)}
-                danger={Prop::dynamic(move || state.get().danger)}
-                submenu={Prop::dynamic(move || state.get().has_submenu)}
+                disabled={Prop::field(state, |state| state.disabled)}
+                danger={Prop::field(state, |state| state.danger)}
+                submenu={Prop::field(state, |state| state.has_submenu)}
                 checked
                 depth
                 expanded

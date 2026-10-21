@@ -2788,7 +2788,8 @@ pressed must. Hand it a `Signal<InteractionState>` and give the content one
 the component's own values (`ToggleState { checked, mixed, hovered, active,
 focused, disabled }` in `unstyled::Toggle`), rather than a signal per flag:
 a face reading `state.get().hovered` in its own memo stops there when another
-flag changes. Logic that wants the edge of one flag, such as a commit on blur,
+flag changes, and `Prop::field(state, |state| state.focused)` passes one flag
+on as a prop without boxing a closure. Logic that wants the edge of one flag, such as a commit on blur,
 wraps its callback in `InteractionState::watch(|state| state.focused, ...)`.
 
 A catcher takes the wheel with `on_scroll` and a touch drag with

@@ -79,7 +79,7 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
         half_fill(&theme, variant, state.disabled, state.hovered, state.active)
     });
     let ink = create_memo(move || variant.label(state.get().disabled));
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     view! {
         <HalfFace fill focused side=Side::Leading padding=LABEL_PADDING_HORIZONTAL>
@@ -114,7 +114,7 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
     });
     let ink = create_memo(move || variant.label(state.get().disabled));
     let divider = create_memo(move || divider_color(&theme, variant, state.get().disabled));
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame padding={Sides::vertical(DIVIDER_INSET)}>

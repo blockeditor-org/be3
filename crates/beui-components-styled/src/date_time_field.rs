@@ -111,7 +111,7 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
         false => theme.surface_raised.get(),
     });
     let outer = trigger.is_some();
-    let keyboard = focus_ring(Prop::dynamic(move || state.get().focused));
+    let keyboard = focus_ring(Prop::field(state, |state| state.focused));
     let ring = create_memo(move || outer && keyboard.get());
     view! {
         <Frame
@@ -199,7 +199,7 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
     };
     view! {
         <Tooltip label disabled={open}>
-            <FocusRing focused={Prop::dynamic(move || state.get().focused)} offset=1.0>
+            <FocusRing focused={Prop::field(state, |state| state.focused)} offset=1.0>
                 <Frame
                     fill={ColorRole::custom(fill)}
                     radius={Radius::custom(SEGMENT_RADIUS)}
@@ -449,7 +449,7 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
             height=TIME_ROW_HEIGHT
             fill={ColorRole::custom(fill)}
             radius=Radius::Md
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS.offset(-1.0))}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::FOCUS.offset(-1.0))}
             padding={Sides::horizontal(10.0)}
         >
             <Text

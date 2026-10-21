@@ -127,7 +127,7 @@ pub fn ColorArea(
     });
     let content_node = content.call(ColorAreaHandle { color, x, y, state });
     let tab_stop = create_memo(move || !disabled.get());
-    let drag = InteractionState::watch(|state| state.pressed, on_drag_change);
+    let drag = InteractionState::watch(|state| state.pressed, move |next| on_drag_change.call(next));
     view! {
         <Interactive
             focusable=true

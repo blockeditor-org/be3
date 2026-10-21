@@ -55,7 +55,7 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
     });
 
     view! {
-        <FocusRing focused={Prop::dynamic(move || state.get().focused)} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused={Prop::field(state, |state| state.focused)} offset=FOCUS_RING_OFFSET>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame
                     width=BOX_SIZE

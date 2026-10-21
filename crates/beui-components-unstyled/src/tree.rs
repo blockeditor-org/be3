@@ -395,7 +395,7 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
             }
         },
     );
-    let hovering = InteractionState::watch(|state| state.hovered, hover);
+    let hovering = InteractionState::watch(|state| state.hovered, move |next| hover.call(next));
     let changed = move |next: InteractionState| {
         interaction.set(next);
         settled.call(next);

@@ -260,7 +260,7 @@ pub fn SettingsLink(
 #[component]
 fn SettingsLinkFace(handle: unstyled::ButtonHandle, description: Memo<String>) -> NodeId {
     let unstyled::ButtonHandle { state, label, .. } = handle;
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     let theme = use_theme();
     let fill = create_memo(move || {
         match (

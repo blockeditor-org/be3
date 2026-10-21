@@ -312,7 +312,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                     <Interactive
                         focusable=true
                         on_activate={clicked}
-                        on_state_change={InteractionState::watch(|state| state.hovered, hovered)}
+                        on_state_change={InteractionState::watch(|state| state.hovered, move |next| hovered.set(next))}
                     >
                         <Draggable
                             @test_id={element_test_id}

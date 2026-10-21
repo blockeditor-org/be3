@@ -311,7 +311,7 @@ pub fn ColorWheel(
     });
     let content_node = content.call(ColorWheelHandle { point, state });
     let tab_stop = create_memo(move || !disabled.get());
-    let drag = InteractionState::watch(|state| state.pressed, on_drag_change);
+    let drag = InteractionState::watch(|state| state.pressed, move |next| on_drag_change.call(next));
     view! {
         <Interactive
             focusable=true

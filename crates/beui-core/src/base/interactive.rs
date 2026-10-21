@@ -10,12 +10,9 @@ use crate::input::{
 };
 use crate::painter::Painter;
 
-use std::cell::Cell;
-
 use crate::callback::{Callback, ClickCallback};
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects};
-use beui_tree::callback::IntoCallback;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InteractionState {
@@ -29,17 +26,17 @@ pub struct InteractionState {
 impl InteractionState {
     pub fn watch<T: Copy + PartialEq + Default + 'static>(
         pick: fn(&InteractionState) -> T,
-        on_change: impl IntoCallback<T, ()>,
+        mut on_change: impl FnMut(T) + 'static,
     ) -> Callback<InteractionState> {
-        let on_change = on_change.into_callback();
-        let last = Cell::new(T::default());
+        let mut last = T::default();
         Callback::new(move |state: InteractionState| {
             let next = pick(&state);
-            if last.replace(next) != next {
-                on_change.call(next);
+            if std::mem::replace(&mut last, next) != next {
+                on_change(next);
             }
         })
     }
+
 }
 
 pub struct InteractiveNode {

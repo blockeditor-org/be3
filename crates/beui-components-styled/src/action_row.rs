@@ -39,10 +39,10 @@ pub fn ActionRow(
                 glyph,
                 ..
             } = handle;
-            let hovered = Prop::dynamic(move || state.get().hovered);
-            let active = Prop::dynamic(move || state.get().active);
-            let focused = Prop::dynamic(move || state.get().focused);
-            let disabled = Prop::dynamic(move || state.get().disabled);
+            let hovered = Prop::field(state, |state| state.hovered);
+            let active = Prop::field(state, |state| state.active);
+            let focused = Prop::field(state, |state| state.focused);
+            let disabled = Prop::field(state, |state| state.disabled);
             view! {
                 <ActionRowFace hovered active focused label glyph detail disabled danger />
             }

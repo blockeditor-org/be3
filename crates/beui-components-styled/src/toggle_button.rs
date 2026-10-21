@@ -75,7 +75,7 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
     });
 
     view! {
-        <FocusRing focused={Prop::dynamic(move || state.get().focused)} offset=3.0>
+        <FocusRing focused={Prop::field(state, |state| state.focused)} offset=3.0>
             <Frame
                 fill={ColorRole::custom(fill_color)}
                 border={create_memo(move || Some(Border::new(ColorRole::Custom(border_color.get())).width(1.0)))}

@@ -35,7 +35,7 @@ pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
     view! {
         <Frame
             fill={ColorRole::custom(fill_color)}
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS.offset(1.0))}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::FOCUS.offset(1.0))}
             radius=Radius::Md
             padding={Sides::symmetric(14.0, 6.0)}
         >

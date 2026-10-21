@@ -79,7 +79,7 @@ fn SwatchTrigger(
         open,
         button: ButtonHandle { state, .. },
     } = handle;
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     view! {
         <Tooltip label disabled={open}>
             <FocusRing

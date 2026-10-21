@@ -752,7 +752,7 @@ fn AddChild(
 #[component]
 fn AddChildFace(handle: ButtonHandle, shown: Memo<bool>, label: Memo<String>) -> NodeId {
     let ButtonHandle { state, .. } = handle;
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     let theme = use_theme();
     let color =
         create_memo(

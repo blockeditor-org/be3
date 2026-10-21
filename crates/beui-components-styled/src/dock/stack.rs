@@ -55,7 +55,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         <List spacing=0.0>
             <Frame fill=ColorRole::Surface padding=BAR_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                    <Show condition={Prop::dynamic(move || state.get().backward)}>
+                    <Show condition={Prop::field(state, |state| state.backward)}>
                         <IconButton
                             @test_id={"dock.back"}
                             glyph=ICON_ARROW_BACK
@@ -88,7 +88,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     </Frame>
                     <Portal node={actions} />
                     <DockMenu menu size=IconButtonSize::Regular />
-                    <Show condition={Prop::dynamic(move || state.get().switchable)}>
+                    <Show condition={Prop::field(state, |state| state.switchable)}>
                         <DockTabCount
                             count={others}
                             label={switch_label}
@@ -123,7 +123,7 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
                     height=COUNT_TARGET
                     fill={ColorRole::custom(fill)}
                     radius={Radius::custom(COUNT_TARGET_RADIUS)}
-                    border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS)}
+                    border={focus_border(Prop::field(state, |state| state.focused), Border::FOCUS)}
                     align=Align::Center
                 >
                     <Frame

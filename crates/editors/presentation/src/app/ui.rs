@@ -234,7 +234,7 @@ fn Playback(editor: Editor, slides: Slides, shown: Prop<bool>) -> NodeId {
     view! {
         <Frame visible={shown} height=PLAYBACK_HEIGHT>
             <Interactive
-                on_state_change={InteractionState::watch(|state| state.hovered, over)}
+                on_state_change={InteractionState::watch(|state| state.hovered, move |next| over.set(next))}
                 @test_id={"presentation.playback"}
             >
                 <Frame

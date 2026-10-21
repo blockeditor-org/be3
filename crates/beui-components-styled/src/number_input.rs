@@ -93,7 +93,7 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
         ButtonVariant::Secondary.fill(&theme, state.disabled, state.hovered, state.active)
     });
     view! {
-        <FocusRing focused={Prop::dynamic(move || state.get().focused)} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused={Prop::field(state, |state| state.focused)} offset=FOCUS_RING_OFFSET>
             <Frame
                 height=HEIGHT
                 fill={ColorRole::custom(fill)}

@@ -11,7 +11,7 @@ fn hover_only_repaints_when_its_handler_changes_a_node() {
         view! {
             <Interactive
                 cursor=crate::CursorIcon::PointingHand
-                on_state_change={InteractionState::watch(|state| state.hovered, hover_paints)}
+                on_state_change={InteractionState::watch(|state| state.hovered, move |next| hover_paints.set(next))}
             >
                 <Frame @node_ref=&fill fill=Color32::WHITE radius=0.0 />
             </Interactive>

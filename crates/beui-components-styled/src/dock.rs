@@ -232,8 +232,8 @@ fn DockTabChrome(
     });
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
     let pictured = create_memo(move || !grouped && !shows_picture.get() && !icon.get().is_empty());
-    let waiting = Prop::dynamic(move || state.get().waiting);
-    let closable = Prop::dynamic(move || state.get().closable);
+    let waiting = Prop::field(state, |state| state.waiting);
+    let closable = Prop::field(state, |state| state.closable);
     let title_size = match vertical {
         true => ItemSize::Percent(100.0),
         false => ItemSize::Intrinsic,
@@ -244,7 +244,7 @@ fn DockTabChrome(
             radius=Radius::Md
             height=TAB_HEIGHT
             padding={Sides::horizontal(TAB_PADDING_HORIZONTAL)}
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS)}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::FOCUS)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
@@ -658,7 +658,7 @@ fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
     view! {
         <Frame
             fill={ColorRole::custom(fill)}
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS)}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::FOCUS)}
         />
     }
 }

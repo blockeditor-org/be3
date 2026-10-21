@@ -35,7 +35,7 @@ fn LinkFace(handle: unstyled::ButtonHandle, size: Prop<TextSize>) -> NodeId {
         glyph,
         ..
     } = handle;
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     let theme = use_theme();
     let color = create_memo(move || {
         text_color(

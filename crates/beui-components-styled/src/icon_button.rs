@@ -81,7 +81,7 @@ pub(crate) fn IconButtonFace(
     size: IconButtonSize,
 ) -> NodeId {
     let unstyled::ButtonHandle { state, glyph, .. } = handle;
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     let theme = use_theme();
     let fill_color = create_memo(move || {
         variant.fill(

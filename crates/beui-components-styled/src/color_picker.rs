@@ -232,7 +232,7 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
     });
     view! {
         <FocusRing
-            focused={Prop::dynamic(move || state.get().focused)}
+            focused={Prop::field(state, |state| state.focused)}
             radius={Radius::custom(Radius::Md.px() + 2.0)}
             offset=FOCUS_RING_OFFSET
         >
@@ -294,7 +294,7 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
     });
     view! {
         <FocusRing
-            focused={Prop::dynamic(move || state.get().focused)}
+            focused={Prop::field(state, |state| state.focused)}
             radius={Radius::custom(10.0)}
             offset=FOCUS_RING_OFFSET
         >
@@ -332,7 +332,7 @@ fn SwatchFace(handle: SwatchHandle) -> NodeId {
         option: ChoiceOptionHandle { state, .. },
     } = handle;
     let theme = use_theme();
-    let keyboard = focus_ring(Prop::dynamic(move || state.get().focused));
+    let keyboard = focus_ring(Prop::field(state, |state| state.focused));
     let ring = create_memo(move || state.get().selected || keyboard.get());
     let ring_color = create_memo(move || match keyboard.get() {
         true => theme.accent.get(),

@@ -59,7 +59,7 @@ fn SwitchTrack(handle: ToggleHandle) -> NodeId {
     });
 
     view! {
-        <FocusRing focused={Prop::dynamic(move || state.get().focused)} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused={Prop::field(state, |state| state.focused)} offset=FOCUS_RING_OFFSET>
             <Frame
                 width=WIDTH
                 height=HEIGHT

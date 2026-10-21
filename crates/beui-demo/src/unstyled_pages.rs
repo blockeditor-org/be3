@@ -118,7 +118,7 @@ fn PillButton() -> NodeId {
 fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
     let ButtonHandle { state, .. } = handle;
     let theme = use_theme();
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     let fill = create_memo(move || {
         let theme = theme.get();
         let state = state.get();
@@ -157,7 +157,7 @@ fn SquareCheckbox() -> NodeId {
 fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
     let ToggleHandle { state, .. } = handle;
     let theme = use_theme();
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     let checked = create_memo(move || state.get().checked);
     let border = create_memo(move || match state.get().hovered {
         true => theme.accent.get(),
@@ -259,7 +259,7 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
             height=METER_HEIGHT
             fill=ColorRole::Track
             radius=Radius::Md
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::new(ColorRole::Accent).width(2.0).offset(2.0))}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::new(ColorRole::Accent).width(2.0).offset(2.0))}
         >
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame
@@ -436,7 +436,7 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
         <Frame
             fill={ColorRole::custom(fill)}
             radius={Radius::custom(PILL_RADIUS)}
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::new(ColorRole::Accent).width(2.0))}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::new(ColorRole::Accent).width(2.0))}
             padding={Sides::symmetric(14.0, 6.0)}
         >
             <Text string={label} color={ink} />
@@ -478,7 +478,7 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
     let selected = create_memo(move || state.get().selected);
     view! {
         <Frame
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::new(ColorRole::Accent).width(2.0))}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::new(ColorRole::Accent).width(2.0))}
             radius=Radius::Md
             padding=4.0
         >
@@ -969,7 +969,7 @@ fn OpenableFiles() -> NodeId {
 fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -> NodeId {
     let ButtonHandle { state, .. } = handle;
     let theme = use_theme();
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     let fill = create_memo(move || {
         let theme = theme.get();
         match (selected.get(), state.get().hovered) {
@@ -1034,7 +1034,7 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
         <Frame
             fill={ColorRole::custom(fill)}
             radius=Radius::Md
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::new(ColorRole::Accent).width(2.0))}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::new(ColorRole::Accent).width(2.0))}
             padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
             <Text string={text} align=TextAlign::Center />
@@ -1276,7 +1276,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
                 @sizing=ItemSize::Percent(100.0)
                 fill={ColorRole::custom(fill)}
                 radius=Radius::Md
-                border={focus_border(Prop::dynamic(move || state.get().focused), Border::new(ColorRole::Accent).width(2.0))}
+                border={focus_border(Prop::field(state, |state| state.focused), Border::new(ColorRole::Accent).width(2.0))}
                 padding={Sides::symmetric(6.0, 3.0)}
             >
                 <unstyled::TreeRowArea target>

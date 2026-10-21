@@ -228,7 +228,7 @@ where
         move || outline.call(key.clone())
     });
     let outline_color = create_memo(move || highlight.get().unwrap_or_else(|| theme.accent.get()));
-    let ring = focus_ring(Prop::dynamic(move || state.get().focused));
+    let ring = focus_ring(Prop::field(state, |state| state.focused));
     let outlined = create_memo(move || highlight.get().is_some() || ring.get());
     let menu = menu.call(key.clone());
     let face = TreeRowFace { key, item, state };
@@ -369,7 +369,7 @@ fn RowMenuButton(named: String, sized: Memo<Metrics>, on_open: Callback<Pos2>) -
 #[component]
 fn RowMenuFace(handle: ButtonHandle, sized: Memo<Metrics>) -> NodeId {
     let ButtonHandle { state, label, .. } = handle;
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     let theme = use_theme();
     let fill = create_memo(move || match (state.get().active, state.get().hovered) {
         (true, _) => theme.pressed.get(),
@@ -447,7 +447,7 @@ fn ChevronFace(
             (false, false, false) => Color32::TRANSPARENT,
         },
     );
-    let ring = focus_ring(Prop::dynamic(move || state.get().focused));
+    let ring = focus_ring(Prop::field(state, |state| state.focused));
     let outlined = create_memo(move || marked.get() || ring.get());
     let color = create_memo(move || match marked.get() || state.get().hovered {
         true => TextColor::Default,

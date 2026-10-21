@@ -64,7 +64,7 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
     view! {
         <Frame
             height=HEIGHT
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::FOCUS.offset(FOCUS_RING_OFFSET))}
             radius=Radius::Md
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>

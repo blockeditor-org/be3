@@ -101,7 +101,7 @@ pub fn ButtonFace(
             .fill(&theme, state.disabled, state.hovered, state.active)
     });
     let label_color = create_memo(move || variant.get().label(state.get().disabled));
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     let border =
         create_memo(move || (variant.get() == ButtonVariant::Secondary).then_some(Border::DEFAULT));
     let has_glyph = create_memo(move || !glyph.get().is_empty());

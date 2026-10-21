@@ -67,4 +67,20 @@ impl<T: 'static> Memo<T> {
     pub fn is_alive(&self) -> bool {
         arena::get::<Value<Option<T>>>(self.key).is_some()
     }
+
+    pub fn erased(self) -> AnyMemo {
+        AnyMemo(self.key)
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct AnyMemo(Key);
+
+impl AnyMemo {
+    pub fn typed<T>(self) -> Memo<T> {
+        Memo {
+            key: self.0,
+            ty: PhantomData,
+        }
+    }
 }

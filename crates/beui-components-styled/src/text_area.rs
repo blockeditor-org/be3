@@ -86,7 +86,7 @@ pub fn TextArea(
                     show_runs
                     client_colors
                     on_widget_press={on_widget_press}
-                    on_state_change={InteractionState::watch(|state| state.focused, on_focus_change)}
+                    on_state_change={InteractionState::watch(|state| state.focused, move |next| on_focus_change.call(next))}
                     pastes_images
                     on_image_paste={on_image_paste}
                     on_toolbar={move |at: Option<Rect>| open_menu.call(at)}

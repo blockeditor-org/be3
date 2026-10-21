@@ -48,7 +48,7 @@ fn ListRowFace(handle: ButtonHandle, selected: Prop<bool>, children: Child) -> N
     view! {
         <Frame
             fill={ColorRole::custom(fill_color)}
-            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS)}
+            border={focus_border(Prop::field(state, |state| state.focused), Border::FOCUS)}
             radius=Radius::Md
             padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >

@@ -188,7 +188,7 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
         let state = state.get();
         state.marked && !state.selected
     });
-    let focused = Prop::dynamic(move || state.get().focused);
+    let focused = Prop::field(state, |state| state.focused);
     view! {
         <FocusRing focused radius={Radius::custom(Radius::Md.px() + 2.0)} offset=FOCUS_RING_OFFSET>
             <Frame
