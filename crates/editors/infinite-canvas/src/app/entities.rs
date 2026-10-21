@@ -15,6 +15,7 @@ pub(crate) struct EntitySignals {
     stored: Memo<Option<CanvasEntity>>,
     shown: Memo<Option<CanvasEntity>>,
     frame: Memo<bool>,
+    embeds: Memo<bool>,
 }
 
 impl EntitySignals {
@@ -157,6 +158,15 @@ impl Entities {
         })
     }
 
+    pub(crate) fn shown_embedding(&self) -> Vec<Uuid> {
+        self.shown_ids.with(|ids| {
+            ids.iter()
+                .copied()
+                .filter(|id| self.signals(*id).embeds.get())
+                .collect()
+        })
+    }
+
     pub(crate) fn first_frame(&self) -> Option<CanvasEntity> {
         self.ids.with(|ids| {
             ids.iter()
@@ -253,6 +263,13 @@ impl Entities {
                 let frame = create_memo(move || {
                     held_shown.with(|entity| entity.as_ref().is_some_and(CanvasEntity::is_frame))
                 });
+                let embeds = create_memo(move || {
+                    held_shown.with(|entity| {
+                        entity.as_ref().is_some_and(|entity| {
+                            entity.block.is_some() && entity.shape.embeds_block()
+                        })
+                    })
+                });
                 (
                     EntitySignals {
                         held,
@@ -260,6 +277,7 @@ impl Entities {
                         stored,
                         shown,
                         frame,
+                        embeds,
                     },
                     preview,
                 )

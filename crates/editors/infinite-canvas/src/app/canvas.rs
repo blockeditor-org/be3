@@ -38,6 +38,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                 super::state::camera_view(view.get(), world.get(), placed.get(), state.framed())
             });
             let ids = state.entities.shown_ids();
+            let embedding = create_memo(move || state.entities.shown_embedding());
             let inset = create_memo(move || {
                 let (placed, shown) = (placed.get(), shown.get());
                 Sides::new(
@@ -76,7 +77,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                                         <EntityShape state id camera />
                                     }
                                 }</ForEach>
-                                <ForEach keys={ids}>|id: Uuid|
+                                <ForEach keys={embedding}>|id: Uuid|
                                     <EntityEmbed state id />
                                 </ForEach>
                                 <Show condition={!previewing}>
