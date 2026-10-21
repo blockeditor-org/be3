@@ -1,5 +1,4 @@
 use std::collections::{BTreeMap, BTreeSet};
-use std::fmt::Write as _;
 use std::fs;
 use std::io::{self, Write as _};
 use std::path::{Path, PathBuf};
@@ -546,68 +545,10 @@ impl Run {
                 }
             }
         }
-        let groups: &[&[&str]] = &[
-            &[
-                ":(glob)crates/**/*.rs",
-                ":(exclude,glob)**/tests.rs",
-                ":(exclude,glob)**/tests/**",
-                ":(exclude)crates/local-tools",
-                ":(exclude)crates/fix-rust-source",
-                ":(exclude)crates/buck-tools",
-            ],
-            &[
-                ":(glob)**/*.bzl",
-                ":(glob)**/*.bxl",
-                ":(glob)**/BUCK",
-                "BUCK.v2",
-                ":(glob)**/PACKAGE",
-                ":(glob)**/*.sh",
-                "scripts",
-                "buck",
-                ".github/workflows",
-                ".github/actions",
-                ".github/zizmor.yml",
-                ".cargo/config.toml",
-                ".config/nextest.toml",
-                ":(glob)**/Cargo.toml",
-                "Cargo.lock",
-                "rust-toolchain.toml",
-                "rustfmt.toml",
-                "clippy.toml",
-                ".buckconfig",
-                "crates/local-tools",
-                "crates/fix-rust-source",
-                "crates/buck-tools",
-                ":(exclude,glob)**/*.md",
-            ],
-            &[":(glob)**/*.md"],
-        ];
+        let numstat = git(&["diff", "--numstat", "--no-renames", from, "HEAD"])
+            .ok_or("could not count the lines that changed")?;
         let mut comment = "## Lines of code\n\n".to_owned();
-        for (paths, label) in groups.iter().zip([
-            "Rust (excluding tests and build tooling)",
-            "build system",
-            "Markdown",
-        ]) {
-            let mut arguments = vec!["diff", "--numstat", "--no-renames", from, "HEAD", "--"];
-            arguments.extend_from_slice(paths);
-            let numstat = git(&arguments).ok_or("could not count the lines that changed")?;
-            let (mut added, mut removed, mut files) = (0u64, 0u64, 0u64);
-            for line in numstat.lines() {
-                let mut fields = line.split('\t');
-                if let (Some(plus), Some(minus)) = (fields.next(), fields.next())
-                    && let (Ok(plus), Ok(minus)) = (plus.parse::<u64>(), minus.parse::<u64>())
-                {
-                    added += plus;
-                    removed += minus;
-                    files += 1;
-                }
-            }
-            let _ = writeln!(
-                comment,
-                "**+{added} -{removed}** of {label} in {files} {}.\n",
-                if files == 1 { "file" } else { "files" }
-            );
-        }
+        comment.push_str(&lines::summary(&numstat));
         let renderers = self.built("browser-rasterizer");
         comment.push_str(&crate::previews::generate(
             &before,
@@ -797,6 +738,7 @@ fn clear_executable(_: &Path) -> io::Result<()> {
 }
 
 mod bootstrap;
+mod lines;
 
 #[cfg(test)]
 mod tests;
