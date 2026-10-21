@@ -169,12 +169,15 @@ pub fn Sidebar(
     #[prop(default = Side::Right)] side: Side,
     #[prop(default = true)] shown: Prop<bool>,
     #[prop(default = SIDEBAR_WIDTH)] width: Prop<f32>,
-    #[prop(children)] children: Children<ListChild>,
+    #[prop(children)] children: Render<(), Children<ListChild>>,
 ) -> NodeId {
+    let shown = create_memo(move || shown.get());
     view! {
-        <SidebarFrame side shown width>
+        <SidebarFrame side shown={shown} width>
             <Frame padding=PADDING>
-                <List spacing=SPACING children={children} />
+                <List spacing=SPACING>
+                    <ShowKeepAlive condition={shown}>{children.call(())}</ShowKeepAlive>
+                </List>
             </Frame>
         </SidebarFrame>
     }
