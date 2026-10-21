@@ -2,6 +2,10 @@ use std::collections::BTreeMap;
 
 use serde::{Deserialize, Serialize};
 
+mod raster;
+
+pub use raster::rasterize;
+
 pub type TextureKey = u64;
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -426,3 +430,6 @@ impl Painting {
             .collect()
     }
 }
+
+#[cfg(test)]
+mod tests;
