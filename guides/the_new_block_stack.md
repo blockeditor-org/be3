@@ -1639,8 +1639,6 @@ pixel art export regenerate this way.
   a snapshot of.
 - Moving a block into or out of a checkout keeps the ids its content stores, so
   what they name changes with the scope it lands in.
-- Undo in the text editor lives in the editor, so it is gone when the editor
-  closes, and the app's undo command does nothing for text.
 - Nothing vouches for who wrote an item. The deterministic game stores the
   account behind each move as a field the sender fills in, so a player can move
   as someone else. Signing operations would not be enough, because the session
