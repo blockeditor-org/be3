@@ -44,8 +44,8 @@ pub(crate) struct State {
     pub typing: Signal<bool>,
     pub hex_insert_mode: Signal<bool>,
     pub import_error: Signal<Option<String>>,
-    pub presence_revision: Signal<u64>,
     pub peers: ReadSignal<Vec<(u64, TextCursor)>>,
+    pub remote_cursors: Memo<Vec<(u64, TextCursor)>>,
     inner: Stored<Inner>,
 }
 
@@ -60,8 +60,6 @@ pub(crate) struct Inner {
     pub focus_confirmed: Cell<bool>,
     pub hex_pending_nibble: Cell<Option<u8>>,
     pub hex_selection_anchor: Cell<Option<usize>>,
-    presence_counter: Cell<u64>,
-    remote_cursors: RefCell<Vec<(u64, TextCursor)>>,
 }
 
 impl State {
@@ -79,13 +77,23 @@ impl State {
         let typing = create_signal(false);
         let hex_insert_mode = create_signal(false);
         let import_error = create_signal(None);
-        let presence_revision = create_signal(0);
+        let peers = editor.peers::<TextCursor>();
+        let visible = editor.presence_visible();
+        let remote_cursors = create_memo(move || {
+            if !visible.get() {
+                return Vec::new();
+            }
+            let mut remote = peers.get();
+            remote.sort_by_key(|(client_id, _)| *client_id);
+            remote
+        });
         let focused_embed = create_signal(None);
         let embed_sizes = create_signal(HashMap::new());
         let state = Self {
             organization_id: editor.host().organization_id(),
             link_base: editor.host_value::<LinkBase>(),
-            peers: editor.peers::<TextCursor>(),
+            peers,
+            remote_cursors,
             editor,
             block_id,
             text,
@@ -96,7 +104,6 @@ impl State {
             typing,
             hex_insert_mode,
             import_error,
-            presence_revision,
             inner: store(Inner {
                 client,
                 content,
@@ -108,8 +115,6 @@ impl State {
                 focus_confirmed: Cell::new(false),
                 hex_pending_nibble: Cell::new(None),
                 hex_selection_anchor: Cell::new(None),
-                presence_counter: Cell::new(0),
-                remote_cursors: RefCell::new(Vec::new()),
             }),
         };
         let edited = state.text.content();
@@ -191,63 +196,42 @@ impl State {
         self.text.reveal_cursor();
     }
 
-    pub fn remote_cursors(&self) -> Vec<(u64, TextCursor)> {
-        let inner = self.inner();
-        inner.remote_cursors.borrow().clone()
-    }
-
-    pub fn poll_presence(&self, visible: bool) {
+    pub fn publish_cursor(&self, visible: bool) {
         let inner = self.inner();
         if !visible {
             if inner.published_cursor.take().is_some() {
                 self.editor.show::<TextCursor>(None);
             }
-            if !inner.remote_cursors.borrow().is_empty() {
-                inner.remote_cursors.borrow_mut().clear();
-                self.bump_presence();
-            }
             return;
         }
-        if let Some(caret) = SharedCaret::of(self.text) {
-            let color = inner.published_cursor.get().map_or_else(
-                || {
-                    pick_free_color(
-                        self.peers
-                            .get_untracked()
-                            .iter()
-                            .map(|(_, peer)| peer.color),
-                    )
-                },
-                |published| published.color,
-            );
-            let published = TextCursor { caret, color };
-            if inner.published_cursor.get() != Some(published) {
-                inner.published_cursor.set(Some(published));
-                self.editor.show(Some(&published));
-            }
+        let Some(caret) = SharedCaret::of(self.text) else {
+            return;
+        };
+        let color = inner.published_cursor.get().map_or_else(
+            || {
+                pick_free_color(
+                    self.peers
+                        .get_untracked()
+                        .iter()
+                        .map(|(_, peer)| peer.color),
+                )
+            },
+            |published| published.color,
+        );
+        let published = TextCursor { caret, color };
+        if inner.published_cursor.get() != Some(published) {
+            inner.published_cursor.set(Some(published));
+            self.editor.show(Some(&published));
         }
-        let mut remote = self.peers.get_untracked();
-        remote.sort_by_key(|(client_id, _)| *client_id);
-        if *inner.remote_cursors.borrow() != remote {
-            *inner.remote_cursors.borrow_mut() = remote;
-            self.bump_presence();
-        }
-    }
-
-    fn bump_presence(&self) {
-        let inner = self.inner();
-        inner.presence_counter.set(inner.presence_counter.get() + 1);
-        self.presence_revision.set(inner.presence_counter.get());
     }
 
     pub fn presence_cursor_rect(&self, client_id: u64) -> Option<Rect> {
-        let cursor = self
-            .inner()
-            .remote_cursors
-            .borrow()
-            .iter()
-            .find(|(id, _)| *id == client_id)
-            .map(|(_, cursor)| *cursor)?;
+        let cursor = self.remote_cursors.with_untracked(|remote| {
+            remote
+                .iter()
+                .find(|(id, _)| *id == client_id)
+                .map(|(_, cursor)| *cursor)
+        })?;
         let focus = self
             .text
             .with_core(|core| core.position_index(cursor.caret.focus))?;
