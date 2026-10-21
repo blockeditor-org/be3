@@ -303,7 +303,7 @@ impl Pass<'_> {
                 return;
             }
             let mut inner = Gathered::default();
-            element.for_each_child(&mut |child| {
+            element.for_each_shown_child(&mut |child| {
                 self.visit(child, Some(id), origin, false, &mut inner);
             });
             out.children.extend_from_slice(&inner.children);
@@ -337,7 +337,7 @@ impl Pass<'_> {
         }
 
         let mut inner = Gathered::default();
-        element.for_each_child(&mut |child| {
+        element.for_each_shown_child(&mut |child| {
             self.visit(child, Some(id), rect.min, false, &mut inner);
         });
         self.described += 1;

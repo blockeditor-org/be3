@@ -321,6 +321,12 @@ impl Element for CanvasNode {
         self.laid.clone()
     }
 
+    fn for_each_shown_child(&self, visit: &mut dyn FnMut(NodeId)) {
+        for item in &self.laid {
+            visit(*item);
+        }
+    }
+
     fn remove_child(&mut self, child: NodeId) {
         crate::base::child_list::remove_hosted(self, child);
     }

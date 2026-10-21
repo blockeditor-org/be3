@@ -155,6 +155,10 @@ pub trait Element: Any {
         }
     }
 
+    fn for_each_shown_child(&self, visit: &mut dyn FnMut(NodeId)) {
+        self.for_each_child(visit);
+    }
+
     fn remove_child(&mut self, child: NodeId);
 
     fn focus_children(&self) -> Option<Vec<FocusChild>> {
