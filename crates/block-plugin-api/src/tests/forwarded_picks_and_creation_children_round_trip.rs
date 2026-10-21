@@ -22,6 +22,7 @@ fn forwarded_picks_and_creation_children_round_trip() {
             filter,
             parent: BlockLocation::Block([4; 16]),
             within: Some([8; 16]),
+            touch: true,
         }),
         Message::Editor(EditorMessage::PickAnswered {
             instance: EditorInstanceId(1),
