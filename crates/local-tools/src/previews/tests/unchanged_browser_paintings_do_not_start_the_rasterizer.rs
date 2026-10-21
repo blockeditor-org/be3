@@ -21,7 +21,7 @@ fn unchanged_browser_paintings_do_not_start_the_rasterizer() {
         .unwrap();
     }
     let renderer = root.join("missing-rasterizer");
-    let comment = generate(&before, &after, &output, Some(&renderer)).unwrap();
+    let comment = generate(&before, &after, &output, Some(&renderer), None).unwrap();
     assert!(comment.contains("No paintings changed."));
     let changed = snapshot.file("/style.css", "text/css", b"body { color: blue; }");
     std::fs::write(
@@ -29,6 +29,6 @@ fn unchanged_browser_paintings_do_not_start_the_rasterizer() {
         changed.encode().unwrap(),
     )
     .unwrap();
-    assert!(generate(&before, &after, &output, Some(&renderer)).is_err());
+    assert!(generate(&before, &after, &output, Some(&renderer), None).is_err());
     std::fs::remove_dir_all(root).unwrap();
 }

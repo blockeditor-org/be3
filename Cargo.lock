@@ -4338,9 +4338,11 @@ dependencies = [
  "jks",
  "libc",
  "p12-keystore",
+ "paint-review-manifest",
  "paint-snapshot",
  "prompt",
  "rsa",
+ "serde_json",
  "sha2 0.10.9",
  "ureq",
  "x509-cert 0.2.5",
@@ -5081,6 +5083,13 @@ version = "0.1.0"
 dependencies = [
  "beui",
  "block-ui-test",
+ "paint-review-manifest",
+]
+
+[[package]]
+name = "paint-review-manifest"
+version = "0.1.0"
+dependencies = [
  "serde",
 ]
 
@@ -5092,6 +5101,7 @@ dependencies = [
  "image",
  "js-sys",
  "paint-review",
+ "paint-review-manifest",
  "serde_json",
  "wasi-threads",
  "wasm-bindgen",

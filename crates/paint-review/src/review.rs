@@ -5,7 +5,7 @@ use beui::unstyled::PanZoomView;
 
 use crate::Fetch;
 use crate::images::Images;
-use crate::manifest::{Frame, Manifest, Painting, Status};
+use paint_review_manifest::{Frame, Manifest, Painting, Status};
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Hash)]
 pub(crate) enum Mode {

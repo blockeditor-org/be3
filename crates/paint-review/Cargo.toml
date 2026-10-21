@@ -7,7 +7,7 @@ license.workspace = true
 
 [dependencies]
 beui = { path = "../beui", default-features = false }
-serde = { version = "1", features = ["derive"] }
+paint-review-manifest = { path = "../paint-review-manifest" }
 
 [dev-dependencies]
 block-ui-test = { path = "../block-ui-test" }

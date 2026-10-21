@@ -554,11 +554,13 @@ impl Run {
             &unsafe_at("HEAD")?,
         ));
         let renderers = self.built("browser-rasterizer");
+        let site = self.built("paint-review-site");
         comment.push_str(&crate::previews::generate(
             &before,
             &after,
             out,
             renderers.first().map(PathBuf::as_path),
+            site.first().map(PathBuf::as_path),
         )?);
         let path = out.join("comment.md");
         fs::write(path, comment).map_err(|error| error.to_string())?;

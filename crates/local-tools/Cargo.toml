@@ -10,7 +10,9 @@ base64 = "0.22"
 beui-html = { path = "../beui-html" }
 build-id = { path = "../build-id" }
 fix-rust-source = { path = "../fix-rust-source" }
+paint-review-manifest = { path = "../paint-review-manifest" }
 paint-snapshot = { path = "../paint-snapshot" }
+serde_json = "1"
 prompt = { path = "../prompt" }
 jks = { version = "0.3", default-features = false }
 p12-keystore = "0.4"

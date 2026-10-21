@@ -3,8 +3,8 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{NodeId, TextAlign};
 
-use crate::manifest::Status;
 use crate::review::Review;
+use paint_review_manifest::Status;
 
 const PADDING: f32 = 12.0;
 const GROUP_SPACING: f32 = 16.0;

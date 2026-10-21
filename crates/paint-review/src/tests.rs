@@ -5,7 +5,7 @@ use beui::{Image, Vec2};
 use block_ui_test::DocumentTest;
 
 use super::*;
-use crate::manifest::{Frame, Manifest, Painting, Status};
+use paint_review_manifest::{Frame, Manifest, Painting, Status};
 
 mod a_changed_painting_shows_both_sides_by_side;
 mod a_changed_painting_shows_its_changes_in_magenta;

@@ -5,7 +5,6 @@ use beui::styled::*;
 use beui::{Color32, Context, Document, Key, KeyPress, NodeId, Rect};
 
 mod images;
-pub mod manifest;
 mod painting;
 mod review;
 mod sidebar;
@@ -13,7 +12,7 @@ mod stage;
 
 pub use images::{ImageRequest, ImageState, Images};
 
-use manifest::Manifest;
+use paint_review_manifest::Manifest;
 use painting::PaintingView;
 use review::{Mode, Review};
 use sidebar::PaintingList;

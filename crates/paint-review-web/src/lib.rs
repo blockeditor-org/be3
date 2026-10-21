@@ -3,7 +3,7 @@
 use std::rc::Rc;
 
 use beui::reactive::Set;
-use paint_review::manifest::Manifest;
+use paint_review_manifest::Manifest;
 use paint_review::{Fetch, PaintReviewApp};
 use wasm_bindgen::prelude::*;
 use wasm_bindgen::{JsCast, JsValue};

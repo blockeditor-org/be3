@@ -95,6 +95,7 @@ members = [
     "crates/namespace-waker",
     "crates/paint-format",
     "crates/paint-review",
+    "crates/paint-review-manifest",
     "crates/paint-review-web",
     "crates/paint-snapshot",
     "crates/plugin-test-runner",

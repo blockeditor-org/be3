@@ -3,10 +3,10 @@ use beui::reactive::*;
 use beui::styled::*;
 use beui::{NodeId, TextAlign};
 
-use crate::manifest::Status;
 use crate::review::{Mode, Review};
 use crate::sidebar::{color, glyph, label, role};
 use crate::stage::Stage;
+use paint_review_manifest::Status;
 
 const PADDING: f32 = 16.0;
 const SPACING: f32 = 8.0;
