@@ -1127,7 +1127,11 @@ pub fn TextArea(
                 let remote_cursors = create_memo(move || remote_cursors.get());
                 let drop_caret = create_memo(move || drop_caret.get());
                 let text_extent = create_signal(Vec2::ZERO);
-                let view_width = create_memo(move || placed.get().width());
+                let view_size = create_memo(move || match single_line {
+                    true => placed.get().size(),
+                    false => size.get(),
+                });
+                let view_width = create_memo(move || view_size.get().x);
                 let client_colors = create_memo(move || client_colors.get());
                 create_effect(move || {
                     let shown = show_runs.get();
@@ -1299,7 +1303,7 @@ pub fn TextArea(
                     offset,
                     shift,
                     view_width,
-                    view_height: create_memo(move || placed.get().height()),
+                    view_height: create_memo(move || view_size.get().y),
                     focused,
                     keyboard: use_keyboard(),
                     autoscroll,
