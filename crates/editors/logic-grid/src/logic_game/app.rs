@@ -17,7 +17,7 @@ pub(crate) fn operate(
     block: &GameBlock,
     operation: block_editor_beui::be_block::logic_game::LogicGameOperation,
 ) {
-    if let Some(edit) = block.read(|game| game.root().edit_for(&operation)) {
+    if let Ok(edit) = block.read(|game| game.root().edit_for(&operation)) {
         block.operate(edit);
     }
 }
@@ -26,9 +26,8 @@ pub struct LogicGameApp;
 
 impl block_editor_beui::BeuiApp for LogicGameApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::LogicGameContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <LogicGameEditor editor={editor} />
             </Loaded>
         }

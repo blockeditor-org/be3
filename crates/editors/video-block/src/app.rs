@@ -9,7 +9,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::{BlockQuery, Loaded};
+use block_editor_beui::Loaded;
 use block_editor_beui::{Creation, Editor, Toolbar};
 use uuid::Uuid;
 
@@ -42,24 +42,16 @@ pub struct VideoApp;
 
 impl block_editor_beui::BeuiApp for VideoApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded =
-            editor.loaded::<block_editor_beui::be_block::VideoContent>(&[BlockQuery::References(
-                editor.block_id(),
-            )]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <VideoEditor editor={editor} />
             </Loaded>
         }
     }
 
     fn preview_view(editor: Editor) -> NodeId {
-        let loaded =
-            editor.loaded::<block_editor_beui::be_block::VideoContent>(&[BlockQuery::References(
-                editor.block_id(),
-            )]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <VideoPreview editor={editor} />
             </Loaded>
         }

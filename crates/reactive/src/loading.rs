@@ -21,6 +21,7 @@ type Probe = Rc<dyn Fn() -> Ready<()>>;
 struct Waits {
     probes: RefCell<Vec<(u64, Probe)>>,
     next: Cell<u64>,
+    revealed: Cell<bool>,
 }
 
 #[derive(Clone, Copy)]
@@ -59,7 +60,22 @@ impl Boundary {
         if in_memo() {
             return None;
         }
-        use_context::<Self>()
+        use_context::<Self>().filter(|boundary| {
+            boundary
+                .waits
+                .try_with(|waits| !waits.revealed.get())
+                .unwrap_or(false)
+        })
+    }
+
+    pub fn reveal(&self) {
+        let revealed = self.waits.try_with(|waits| {
+            waits.revealed.set(true);
+            waits.probes.borrow_mut().clear();
+        });
+        if revealed.is_some() {
+            self.changed.update(|changed| *changed += 1);
+        }
     }
 
     pub fn state(&self) -> Ready<()> {

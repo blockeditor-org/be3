@@ -15,9 +15,8 @@ pub struct GameModuleApp;
 
 impl block_editor_beui::BeuiApp for GameModuleApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::GameModuleContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <ModuleView editor={editor} />
             </Loaded>
         }

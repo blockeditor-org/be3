@@ -1,10 +1,8 @@
 use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
-use std::rc::Rc;
 
 use crate::presence::CanvasCursor;
-use block_editor_beui::BlockList;
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::Edit;
@@ -18,7 +16,7 @@ use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
-use block_editor_beui::block_ui::{BlockCatalog, BlockLabel};
+use block_editor_beui::block_ui::BlockLabel;
 use block_editor_beui::database::DatabaseBlockPickRequest;
 use block_editor_beui::{
     BlockFilter, ChildRect, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
@@ -259,7 +257,6 @@ struct Placeholder {
 
 struct CanvasCells {
     content: ContentProjection<CanvasContent>,
-    dependencies: BlockList,
     pending_image_center: Cell<Option<CanvasPoint>>,
     pending_file_drop: Cell<Option<CanvasPoint>>,
     context_position: Cell<Option<CanvasPoint>>,
@@ -293,9 +290,9 @@ pub(crate) struct CanvasState {
     pub(crate) focused_editor: Signal<Option<Uuid>>,
     pub(crate) editing_text: Signal<Option<Uuid>>,
     pub(crate) import_error: Signal<Option<String>>,
-    pub(crate) labels: Signal<HashMap<Uuid, BlockLabel>>,
-    pub(crate) types: Signal<HashMap<Uuid, Uuid>>,
-    thumbhashes: Signal<HashMap<Uuid, Thumbhash>>,
+    labels: Memo<Ready<HashMap<Uuid, BlockLabel>>>,
+    types: Memo<HashMap<Uuid, Uuid>>,
+    thumbhashes: Memo<HashMap<Uuid, Thumbhash>>,
     pub(crate) child_states: Signal<HashMap<Uuid, ChildState>>,
     pub(crate) presence: Signal<Presence>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
@@ -312,16 +309,50 @@ impl CanvasState {
         let focused_editor = create_signal(None);
         let editing_text = create_signal(None);
         let import_error = create_signal(None);
-        let labels = create_signal(HashMap::new());
-        let types = create_signal(HashMap::new());
-        let thumbhashes = create_signal(HashMap::new());
+        let dependencies = editor
+            .blocks()
+            .watch(BlockQuery::References(editor.block_id()));
+        let references = create_memo(move || dependencies.read());
+        let labels = create_memo(move || {
+            let catalog = editor.block_types();
+            Ok(references
+                .get()?
+                .iter()
+                .map(|reference| (reference.id, reference.label(catalog.as_ref())))
+                .collect())
+        });
+        let types = create_memo(move || {
+            references.with(|references| {
+                references
+                    .iter()
+                    .flatten()
+                    .map(|reference| (reference.id, reference.block_type))
+                    .collect()
+            })
+        });
+        let thumbhashes = create_memo(move || {
+            references.with(|references| {
+                references
+                    .iter()
+                    .flatten()
+                    .filter_map(|reference| {
+                        let thumbhash = reference.thumbhash()?;
+                        Some((
+                            reference.id,
+                            Thumbhash {
+                                hash: thumbhash.hash,
+                                width: thumbhash.width,
+                                height: thumbhash.height,
+                            },
+                        ))
+                    })
+                    .collect()
+            })
+        });
         let child_states = create_signal(HashMap::new());
         let presence = create_signal(Presence::default());
         let pointer = create_signal(None);
         let cells = store(CanvasCells {
-            dependencies: editor
-                .blocks()
-                .watch(BlockQuery::References(editor.block_id())),
             content,
             pending_image_center: Cell::new(None),
             pending_file_drop: Cell::new(None),
@@ -383,10 +414,6 @@ impl CanvasState {
         self.editor.block_id()
     }
 
-    pub(crate) fn types(&self) -> Rc<BlockCatalog> {
-        self.editor.block_types()
-    }
-
     pub(crate) fn camera(&self) -> CanvasView {
         camera_view(
             self.editor.canvas().get_untracked(),
@@ -435,11 +462,20 @@ impl CanvasState {
     }
 
     pub(crate) fn label_of(&self, reference: Uuid) -> Option<BlockLabel> {
-        self.labels.get().get(&reference).cloned()
+        self.labels
+            .with(|labels| labels.as_ref().ok()?.get(&reference).cloned())
+    }
+
+    pub(crate) fn unlabeled(&self) -> String {
+        self.labels.with(|labels| match labels {
+            Err(Pending::Failed(error)) => error.clone(),
+            _ => "Loading…".to_owned(),
+        })
     }
 
     pub(crate) fn thumbhash_of(&self, reference: Uuid) -> Option<Thumbhash> {
-        self.thumbhashes.get().get(&reference).cloned()
+        self.thumbhashes
+            .with(|thumbhashes| thumbhashes.get(&reference).cloned())
     }
 
     pub(crate) fn block_type_of(&self, id: Uuid) -> Option<Uuid> {
@@ -602,7 +638,7 @@ impl CanvasState {
     }
 
     fn operate_all(&self, operations: &[InfiniteCanvasOperation]) {
-        if let Some(edit) = self.cells.value().content.read(|canvas| {
+        if let Ok(edit) = self.cells.value().content.read(|canvas| {
             operations
                 .iter()
                 .flat_map(|operation| canvas.root().edit_for(operation).0)
@@ -1908,8 +1944,6 @@ impl CanvasState {
 impl CanvasState {
     pub(crate) fn watch(self) {
         let state = self;
-        create_effect(move || state.publish_references());
-        let state = self;
         let drag = self.editor.drag();
         create_effect(move || {
             let drag = drag.get();
@@ -1959,44 +1993,6 @@ impl CanvasState {
                 return;
             };
             untrack(|| state.reveal_peer(client_id));
-        });
-    }
-
-    fn publish_references(&self) {
-        let catalog = self.types();
-        let dependencies = self.cells.value().dependencies.read();
-        let labels: HashMap<Uuid, BlockLabel> = dependencies
-            .iter()
-            .map(|reference| (reference.id, reference.label(catalog.as_ref())))
-            .collect();
-        let types: HashMap<Uuid, Uuid> = dependencies
-            .iter()
-            .map(|reference| (reference.id, reference.block_type))
-            .collect();
-        let thumbhashes: HashMap<Uuid, Thumbhash> = dependencies
-            .iter()
-            .filter_map(|reference| {
-                let thumbhash = reference.thumbhash()?;
-                Some((
-                    reference.id,
-                    Thumbhash {
-                        hash: thumbhash.hash,
-                        width: thumbhash.width,
-                        height: thumbhash.height,
-                    },
-                ))
-            })
-            .collect();
-        untrack(|| {
-            if self.thumbhashes.get_untracked() != thumbhashes {
-                self.thumbhashes.set(thumbhashes);
-            }
-            if self.labels.get_untracked() != labels {
-                self.labels.set(labels);
-            }
-            if self.types.get_untracked() != types {
-                self.types.set(types);
-            }
         });
     }
 

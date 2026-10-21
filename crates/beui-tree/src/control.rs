@@ -117,6 +117,7 @@ where
             match state {
                 Ok(()) => {
                     revealed.value().set(true);
+                    boundary.reveal();
                     drop(shown.take());
                     let content = content.value();
                     content.0.set_visible(true);

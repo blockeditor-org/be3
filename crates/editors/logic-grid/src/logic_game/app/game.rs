@@ -29,7 +29,7 @@ pub(crate) struct Level {
 
 #[derive(Default)]
 struct Work {
-    grids: HashMap<Uuid, (BlockList, ContentProjection<LogicGridContent>)>,
+    grids: HashMap<Uuid, (Scope, BlockList, ContentProjection<LogicGridContent>)>,
     hotbar: RootSetting<HotbarContent>,
 }
 
@@ -57,7 +57,8 @@ impl Game {
         let working = Rc::clone(&work);
         let blocks = editor.blocks();
         let host = editor.host();
-        create_effect(move || {
+        let body = owner_scope();
+        create_binding(move || {
             let mut work = working.borrow_mut();
             let Work {
                 grids,
@@ -80,36 +81,46 @@ impl Game {
                             if let Some(id) = id {
                                 listed.push(id);
                                 grids.entry(id).or_insert_with(|| {
-                                    (
-                                        blocks.watch(BlockQuery::Block(id)),
-                                        editor.content_of::<LogicGridContent>(id),
-                                    )
+                                    let scope = body
+                                        .as_ref()
+                                        .and_then(ScopeContext::child)
+                                        .unwrap_or_default();
+                                    let (listed, grid) = scope.run(|| {
+                                        (
+                                            blocks.watch(BlockQuery::Block(id)),
+                                            editor.content_of::<LogicGridContent>(id),
+                                        )
+                                    });
+                                    (scope, listed, grid)
                                 });
                             }
                             let handle = id.and_then(|id| grids.get(&id));
-                            let label = handle.and_then(|(listed, _)| {
-                                listed
-                                    .read()
-                                    .into_iter()
-                                    .next()
-                                    .map(|info| info.label(types.as_ref()))
+                            let label = handle.map(|(_, listed, _)| {
+                                listed.read().map(|listed| {
+                                    listed
+                                        .into_iter()
+                                        .next()
+                                        .map(|info| info.label(types.as_ref()))
+                                })
                             });
+                            let name = match &label {
+                                None => "Broken link".to_owned(),
+                                Some(Ok(Some(label))) => label.name.clone(),
+                                Some(Err(Pending::Failed(error))) => error.clone(),
+                                Some(_) => "Loading…".to_owned(),
+                            };
+                            let label = label.and_then(|label| label.ok().flatten());
                             Solution {
                                 reference,
                                 id,
-                                name: label.as_ref().map_or_else(
-                                    || match id.is_some() {
-                                        true => "Loading…".to_owned(),
-                                        false => "Broken link".to_owned(),
-                                    },
-                                    |label| label.name.clone(),
-                                ),
+                                name,
                                 automatic: label.is_none_or(|label| label.automatic),
                                 completed: handle
-                                    .and_then(|(_, grid)| {
+                                    .and_then(|(_, _, grid)| {
                                         grid.read(|grid| {
                                             grid.field(ObjectId::ROOT, LogicGridDocument::COMPLETED)
                                         })
+                                        .ok()
                                     })
                                     .unwrap_or(false),
                             }
@@ -119,18 +130,27 @@ impl Game {
                 })
                 .collect();
             grids.retain(|id, _| listed.contains(id));
-            for level in &rows {
-                if level.solutions.iter().any(|solution| solution.completed) && !level.completed {
-                    crate::logic_game::app::operate(
-                        &block,
-                        LogicGameOperation::SetCompleted {
-                            challenge: level.challenge,
-                            completed: true,
-                        },
-                    );
-                }
-            }
             levels.set(rows);
+        });
+        create_effect(move || {
+            let completed: Vec<ChallengeId> = levels.with(|levels| {
+                levels
+                    .iter()
+                    .filter(|level| {
+                        !level.completed && level.solutions.iter().any(|solution| solution.completed)
+                    })
+                    .map(|level| level.challenge)
+                    .collect()
+            });
+            for challenge in completed {
+                crate::logic_game::app::operate(
+                    &block,
+                    LogicGameOperation::SetCompleted {
+                        challenge,
+                        completed: true,
+                    },
+                );
+            }
         });
         Self {
             editor,

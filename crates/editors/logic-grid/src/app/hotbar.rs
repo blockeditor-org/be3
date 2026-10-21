@@ -124,7 +124,7 @@ impl LogicGridEditor {
 
         let Some(slots) = self
             .hotbar_content()
-            .and_then(|content| content.read(|hotbar| hotbar.root().slots.to_vec()))
+            .and_then(|content| content.read(|hotbar| hotbar.root().slots.to_vec()).ok())
         else {
             return false;
         };
@@ -252,7 +252,7 @@ impl LogicGridEditor {
     pub(super) fn persist_hotbar(&mut self) {
         let slots: Vec<BlockHotbarSlot> = self.hotbar.iter().map(hotbar_slot_to_block).collect();
         let Some((content, edit)) = self.hotbar_content().and_then(|content| {
-            let edit = content.read(|hotbar| hotbar.root().replace_all(slots))?;
+            let edit = content.read(|hotbar| hotbar.root().replace_all(slots)).ok()?;
             Some((content, edit))
         }) else {
             self.hotbar_needs_write = true;

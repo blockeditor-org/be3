@@ -193,7 +193,13 @@ impl Board {
             .filter_map(|target| Some((self.rect_of(target)?, target)))
             .filter(|(rect, _)| rect.contains_half_open(pos))
             .filter(|(_, target)| (target.accepts)(payload))
-            .max_by_key(|(_, target)| (target.depth, target.id))
+            .max_by(|(rect, target), (other_rect, other)| {
+                target
+                    .depth
+                    .cmp(&other.depth)
+                    .then((other_rect.width() * other_rect.height()).total_cmp(&(rect.width() * rect.height())))
+                    .then(target.id.cmp(&other.id))
+            })
             .map(|(rect, target)| (target.id, rect, Rc::clone(&target.over)))
     }
 

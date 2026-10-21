@@ -104,7 +104,7 @@ impl Session {
         if inner.navigation.borrow().opened {
             return;
         }
-        let Some((index, url)) = inner.tab.read(|tab| {
+        let Ok((index, url)) = inner.tab.read(|tab| {
             let tab = tab.root();
             (tab.index(), tab.current().url)
         }) else {
@@ -140,7 +140,7 @@ impl Session {
     fn edit(&self, make: impl FnOnce(&BrowserTab) -> Edit) {
         let inner = self.inner.value();
         let edit = inner.tab.read(|tab| make(&tab.root()));
-        if let Some(edit) = edit.filter(|edit| !edit.0.is_empty()) {
+        if let Some(edit) = edit.ok().filter(|edit| !edit.0.is_empty()) {
             inner.tab.operate(edit);
         }
     }
@@ -194,14 +194,14 @@ impl Session {
         drop(navigation);
         self.address.set(url.clone());
         let current = inner.tab.read(|tab| tab.root().current().url);
-        if current.as_deref().is_some_and(|current| current != url) {
+        if current.as_deref().is_ok_and(|current| current != url) {
             self.replace(url);
         }
     }
 
     fn title_changed(&self, title: String) {
         let inner = self.inner.value();
-        let Some(shown) = inner.tab.read(|tab| tab.root().current().url) else {
+        let Ok(shown) = inner.tab.read(|tab| tab.root().current().url) else {
             return;
         };
         let url = inner.navigation.borrow().current.clone().unwrap_or(shown);
@@ -220,7 +220,7 @@ impl Session {
 
     fn traverse_history(&self, delta: isize) {
         let inner = self.inner.value();
-        let Some((index, length)) = inner.tab.read(|tab| {
+        let Ok((index, length)) = inner.tab.read(|tab| {
             let tab = tab.root();
             (tab.index(), tab.history.len())
         }) else {
@@ -236,7 +236,7 @@ impl Session {
 
     fn synchronize(&self) {
         let inner = self.inner.value();
-        let Some(selected) = inner.tab.read(|tab| {
+        let Ok(selected) = inner.tab.read(|tab| {
             let tab = tab.root();
             (tab.index(), tab.current().url)
         }) else {

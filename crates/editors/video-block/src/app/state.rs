@@ -3,7 +3,6 @@ use std::collections::HashMap;
 use std::rc::Rc;
 use std::time::{Duration, Instant};
 
-use block_editor_beui::BlockList;
 use block_editor_beui::be_block::VideoContent;
 use block_editor_beui::be_block::video::{
     DEFAULT_CLIP_SECONDS, Video, VideoAttachment, VideoClip, VideoFrameRate, VideoOperation,
@@ -37,13 +36,12 @@ pub(crate) struct VideoState {
     pub(crate) playing: Signal<bool>,
     pub(crate) pixels_per_frame: Signal<f32>,
     pub(crate) drag: Signal<Option<ClipDrag>>,
-    pub(crate) labels: Signal<HashMap<Uuid, BlockLabel>>,
+    pub(crate) labels: Memo<Ready<HashMap<Uuid, BlockLabel>>>,
     inner: Stored<Inner>,
 }
 
 struct Inner {
     block: ContentProjection<VideoContent>,
-    dependencies: BlockList,
     picker: RefCell<BlockPicker>,
     picker_attachment: Cell<Option<Uuid>>,
     play_origin: Cell<Option<(Instant, u64)>>,
@@ -61,7 +59,17 @@ impl VideoState {
         let playing = create_signal(false);
         let pixels_per_frame = create_signal(DEFAULT_PIXELS_PER_FRAME);
         let drag = create_signal(None);
-        let labels = create_signal(HashMap::new());
+        let dependencies = editor
+            .blocks()
+            .watch(BlockQuery::References(editor.block_id()));
+        let labels = create_memo(move || {
+            let types: Rc<BlockCatalog> = editor.block_types();
+            Ok(dependencies
+                .read()?
+                .into_iter()
+                .map(|reference: BlockInfo| (reference.id, reference.label(types.as_ref())))
+                .collect())
+        });
         let fit_requested = create_signal(false);
         let state = Self {
             editor,
@@ -76,9 +84,6 @@ impl VideoState {
             drag,
             labels,
             inner: store(Inner {
-                dependencies: editor
-                    .blocks()
-                    .watch(BlockQuery::References(editor.block_id())),
                 block,
                 picker: RefCell::new(BlockPicker::default()),
                 picker_attachment: Cell::new(None),
@@ -91,7 +96,6 @@ impl VideoState {
                 state.take_pick();
             }
         });
-        create_effect(move || state.publish_references());
         create_effect(move || state.synchronize());
         let playback = create_timer(move || state.advance_playback());
         let playing = state.playing;
@@ -113,12 +117,12 @@ impl VideoState {
 
     pub(crate) fn video(&self) -> Option<Video> {
         let inner = self.inner.value();
-        inner.block.read(|video| video.root().video())
+        inner.block.read(|video| video.root().video()).ok()
     }
 
     pub(crate) fn operate(&self, operation: VideoOperation) {
         let inner = self.inner.value();
-        if let Some(edit) = inner.block.read(|video| video.root().edit_for(&operation)) {
+        if let Ok(edit) = inner.block.read(|video| video.root().edit_for(&operation)) {
             inner.block.operate(edit);
         }
     }
@@ -141,14 +145,17 @@ impl VideoState {
     }
 
     pub(crate) fn target(&self, block: Uuid) -> Option<ChildTarget> {
-        let label = self.labels.get().get(&block).cloned()?;
+        let label = self.labels.get().ok()?.get(&block).cloned()?;
         Some(ChildTarget::new(block, label.block_type))
     }
 
     pub(crate) fn name_of(&self, block: Uuid) -> String {
-        match self.labels.get().get(&block) {
-            Some(label) => label.name.clone(),
-            None => "Loading…".to_owned(),
+        match self.labels.get() {
+            Ok(labels) => labels
+                .get(&block)
+                .map_or_else(|| "Loading…".to_owned(), |label| label.name.clone()),
+            Err(Pending::Loading) => "Loading…".to_owned(),
+            Err(Pending::Failed(error)) => error,
         }
     }
 
@@ -345,19 +352,5 @@ impl VideoState {
         let attachment = inner.picker_attachment.take();
         self.adopt(picked.id);
         self.insert_clip(picked.id, attachment, self.playhead.get_untracked(), None);
-    }
-
-    fn publish_references(&self) {
-        let inner = self.inner.value();
-        let types: Rc<BlockCatalog> = self.editor.block_types();
-        let labels: HashMap<Uuid, BlockLabel> = inner
-            .dependencies
-            .read()
-            .into_iter()
-            .map(|reference: BlockInfo| (reference.id, reference.label(types.as_ref())))
-            .collect();
-        if self.labels.get_untracked() != labels {
-            self.labels.set(labels);
-        }
     }
 }
