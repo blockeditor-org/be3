@@ -118,6 +118,7 @@ impl Stored {
 
 struct Block {
     content: Stored,
+    references: RefCell<Option<(u64, Vec<Uuid>)>>,
     revision: u64,
     base: u64,
     log: Vec<(Vec<u8>, bool)>,
@@ -129,6 +130,7 @@ impl Block {
     fn new(content: Stored) -> Self {
         Self {
             content,
+            references: RefCell::new(None),
             revision: 1,
             base: 1,
             log: Vec::new(),
@@ -151,6 +153,21 @@ impl Block {
         if mine {
             self.taken += 1;
         }
+    }
+
+    fn references(&self, organization: Uuid) -> Option<Vec<Uuid>> {
+        let Stored::Typed(content) = &self.content else {
+            return None;
+        };
+        let mut cached = self.references.borrow_mut();
+        if let Some((revision, references)) = &*cached
+            && *revision == self.revision
+        {
+            return Some(references.clone());
+        }
+        let references = content.references(organization);
+        *cached = Some((self.revision, references.clone()));
+        Some(references)
     }
 
     fn update(&mut self, instance: EditorInstanceId, block: Uuid) -> Option<Message> {
@@ -503,14 +520,12 @@ impl ContentStore {
 
     fn references_of(&self, id: Uuid) -> Vec<Uuid> {
         let inner = self.0.borrow();
-        match inner.blocks.get(&id).map(|held| &held.content) {
-            Some(Stored::Typed(content)) => content.references(inner.organization),
-            _ => inner
-                .graph
-                .get(&id)
-                .map(|info| info.references.clone())
-                .unwrap_or_default(),
-        }
+        inner
+            .blocks
+            .get(&id)
+            .and_then(|held| held.references(inner.organization))
+            .or_else(|| inner.graph.get(&id).map(|info| info.references.clone()))
+            .unwrap_or_default()
     }
 
     fn query(&self, query: BlockQuery) -> Vec<BlockInfo> {
