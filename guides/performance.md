@@ -34,16 +34,22 @@ The target for opening a page is under 2 ms warm. The canvas bench measured, in 
 
 | | 100 shapes | 10,000 shapes |
 |---|---|---|
-| pan, p50 wall | 0.06 ms | 1.7 ms (layout 0.47 ms) |
-| zoom, p50 wall | 0.19 ms | 1.9 ms (layout 0.49 ms) |
-| pen move, p50 wall | 0.08 ms | 5.2 ms (paint 2.2 ms) |
-| pen lift, p50 wall | 2.6 ms | 390 ms (interaction 340 ms) |
+| open | 28 ms | 2.0 s |
+| pan at scale 1, p50 wall | 0.06 ms | 0.07 ms (layout 0.01 ms) |
+| pan at scale 0.1, p50 wall | 0.08 ms | 0.48 ms (layout 0.30 ms) |
+| zoom, p50 wall | 0.16 ms | 0.43 ms (layout 0.24 ms) |
+| pen move, p50 wall | 0.05 ms | 0.06 ms |
+| pen lift, p50 wall | 0.59 ms | 30 ms (interaction 26 ms) |
 | frames from pen event to ink | 0 | 0 |
 
-A pan or zoom places 14 to 23 nodes and paints 5 or 6 whatever the count, so no entity is
-painted again. Still linear in the count: a pan's layout; a pen move, which paints every
-entity again (22,505 nodes) though only the overlay changed; and adding the stroke when
-the pen lifts.
+A pan, zoom or pen move places and paints the same few nodes whatever the count. A canvas
+finds the items near its view through a grid of world cells, so only what is in view costs
+anything: at scale 0.1 all 10,000 shapes are in view. Still linear in the count: building
+an entity's items when the canvas opens, and on a pen lift the editor's effects that read
+every entity (the intrinsic size, frame backdrops, a press) and the canvas's lists of ids.
+
+The test host fits a canvas to its content until the viewer moves it, and `set_view` does
+not count as moving it, so the bench sets its view again before each stroke.
 
 2. Comparing two builds
 
