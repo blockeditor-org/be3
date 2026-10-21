@@ -1,6 +1,4 @@
 use super::*;
-use crate::presence::CanvasDraft;
-use block_editor_beui::beui::{PenPhase, PointerButton};
 
 #[test]
 fn a_peer_sees_a_labelled_shape_while_it_is_moved() {
@@ -29,7 +27,7 @@ fn a_peer_sees_a_labelled_shape_while_it_is_moved() {
         .filter(|(kind, _)| CanvasDraft::holds(**kind))
         .map(|(_, value)| serde_json::from_slice(value).unwrap())
         .collect();
-    let [CanvasDraft::Change(moving)] = &drafted[..] else {
+    let [CanvasDraft::Change { entity: moving, .. }] = &drafted[..] else {
         panic!("a shape being moved is drafted as a change to it, drafted {drafted:?}");
     };
     assert_eq!(moving.id, shape.id);
@@ -48,18 +46,43 @@ fn a_peer_sees_a_labelled_shape_while_it_is_moved() {
     mover.pen(PenPhase::Up(PointerButton::Primary), from + by, 0.0);
     mover.run();
     forward_presence(&mut mover, &mut watcher, &mut held);
-    assert!(
-        !held.keys().any(|kind| CanvasDraft::holds(*kind)),
-        "a move that has been written is drafted no longer"
-    );
+    let moved = entities(&mover);
     assert_eq!(
-        entities(&mover)[0].transform.center,
+        moved[0].transform.center,
         CanvasPoint::new(by.x, by.y),
         "the move is written"
     );
     assert_eq!(
+        watcher.rect_of(&item).center(),
+        resting.center() + by,
+        "a peer the edit has not reached yet keeps drawing the shape where it was dropped"
+    );
+
+    apply(
+        &mut watcher,
+        InfiniteCanvasOperation::Update {
+            entities: moved.clone(),
+        },
+    );
+    watcher.run();
+    assert_eq!(
+        watcher.rect_of(&item).center(),
+        resting.center() + by,
+        "once the edit arrives the peer draws the stored shape in the same place"
+    );
+
+    let mut undone = moved[0].clone();
+    undone.transform.center = CanvasPoint::default();
+    apply(
+        &mut watcher,
+        InfiniteCanvasOperation::Update {
+            entities: vec![undone],
+        },
+    );
+    watcher.run();
+    assert_eq!(
         watcher.rect_of(&item),
         resting,
-        "without the write the peer draws the shape where it is stored"
+        "a drafted change that has landed is not drawn again when the shape moves back"
     );
 }

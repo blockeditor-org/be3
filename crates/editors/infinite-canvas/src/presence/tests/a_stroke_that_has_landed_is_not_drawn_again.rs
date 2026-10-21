@@ -14,7 +14,11 @@ fn a_stroke_that_has_landed_is_not_drawn_again() {
     let drawn = unlanded(vec![(7, stroke.clone())], |_| false, &mut landed);
     assert_eq!(drawn.len(), 1, "a stroke still being drawn is drawn");
 
-    let drawn = unlanded(vec![(7, stroke.clone())], |of| of == id, &mut landed);
+    let drawn = unlanded(
+        vec![(7, stroke.clone())],
+        |draft| draft.id() == id,
+        &mut landed,
+    );
     assert!(
         drawn.is_empty(),
         "once its entity arrives only the entity is drawn"

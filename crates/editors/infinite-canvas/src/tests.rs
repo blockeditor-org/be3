@@ -20,6 +20,8 @@ use uuid::Uuid;
 use crate::app::CanvasApp;
 use crate::app::state::{attach_component, remove_component, set_component_value};
 use crate::geometry::{ResizeHandle, entity_bounds, resize_entities_axis};
+use crate::presence::CanvasDraft;
+use block_editor_beui::beui::{PenPhase, PointerButton};
 
 mod a_direct_editor_entity_draws_the_frame_it_reserves;
 mod a_dock_too_wide_for_the_canvas_scrolls_to_its_last_tools;
@@ -41,6 +43,7 @@ mod a_peer_sees_a_labelled_shape_while_it_is_moved;
 mod a_peer_sees_a_shape_while_it_is_dragged;
 mod a_peer_sees_a_stroke_while_it_is_drawn;
 mod a_peer_sees_where_another_is_writing;
+mod a_peer_stops_drawing_a_move_that_is_called_off;
 mod a_peer_types_into_the_text_being_edited;
 mod a_pen_move_paints_and_visits_no_entity_again;
 mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;

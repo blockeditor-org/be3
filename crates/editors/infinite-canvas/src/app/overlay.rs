@@ -291,7 +291,7 @@ impl Overlay {
                     color,
                 );
             }
-            Draft::Shape(_) | Draft::Change(_) => {}
+            Draft::Shape(_) | Draft::Change { .. } => {}
         }
     }
 

@@ -32,7 +32,10 @@ impl PresenceKind for CanvasCursor {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum CanvasDraft {
     Shape(Box<CanvasEntity>),
-    Change(Box<CanvasEntity>),
+    Change {
+        entity: Box<CanvasEntity>,
+        base: u64,
+    },
     Stroke {
         id: Uuid,
         part: u16,
@@ -56,16 +59,54 @@ pub(crate) enum Draft {
         style: CanvasStyle,
     },
     Shape(Box<CanvasEntity>),
-    Change(Box<CanvasEntity>),
+    Change {
+        entity: Box<CanvasEntity>,
+        base: u64,
+    },
 }
 
 impl Draft {
     pub(crate) fn id(&self) -> Uuid {
         match self {
             Self::Stroke { id, .. } => *id,
-            Self::Shape(entity) | Self::Change(entity) => entity.id,
+            Self::Shape(entity) | Self::Change { entity, .. } => entity.id,
         }
     }
+
+    fn key(&self) -> (Uuid, u64) {
+        match self {
+            Self::Change { base, .. } => (self.id(), *base),
+            _ => (self.id(), 0),
+        }
+    }
+}
+
+impl CanvasDraft {
+    pub(crate) fn id(&self) -> Uuid {
+        match self {
+            Self::Stroke { id, .. } => *id,
+            Self::Shape(entity) | Self::Change { entity, .. } => entity.id,
+        }
+    }
+}
+
+pub(crate) fn fingerprint(entity: &CanvasEntity) -> u64 {
+    struct Fnv(u64);
+    impl std::io::Write for Fnv {
+        fn write(&mut self, bytes: &[u8]) -> std::io::Result<usize> {
+            for byte in bytes {
+                self.0 = (self.0 ^ u64::from(*byte)).wrapping_mul(0x0100_0000_01b3);
+            }
+            Ok(bytes.len())
+        }
+
+        fn flush(&mut self) -> std::io::Result<()> {
+            Ok(())
+        }
+    }
+    let mut hash = Fnv(0xcbf2_9ce4_8422_2325);
+    serde_json::to_writer(&mut hash, entity).expect("an entity serializes");
+    hash.0
 }
 
 pub(crate) fn stroke_parts(
@@ -117,7 +158,10 @@ fn assemble_one(drafts: &[&CanvasDraft]) -> Vec<Draft> {
         .iter()
         .filter_map(|draft| match draft {
             CanvasDraft::Shape(entity) => Some(Draft::Shape(entity.clone())),
-            CanvasDraft::Change(entity) => Some(Draft::Change(entity.clone())),
+            CanvasDraft::Change { entity, base } => Some(Draft::Change {
+                entity: entity.clone(),
+                base: *base,
+            }),
             CanvasDraft::Stroke { .. } => None,
         })
         .collect();
@@ -174,22 +218,19 @@ fn assemble_stroke(drafts: &[&CanvasDraft]) -> Option<Draft> {
 
 pub(crate) fn unlanded(
     drafts: Vec<(u64, Draft)>,
-    exists: impl Fn(Uuid) -> bool,
-    landed: &mut HashSet<Uuid>,
+    landed_here: impl Fn(&Draft) -> bool,
+    landed: &mut HashSet<(Uuid, u64)>,
 ) -> Vec<(u64, Draft)> {
-    let drafted: HashSet<Uuid> = drafts.iter().map(|(_, draft)| draft.id()).collect();
-    landed.retain(|id| drafted.contains(id));
+    let drafted: HashSet<(Uuid, u64)> = drafts.iter().map(|(_, draft)| draft.key()).collect();
+    landed.retain(|key| drafted.contains(key));
     drafts
         .into_iter()
         .filter(|(_, draft)| {
-            if let Draft::Change(_) = draft {
-                return true;
+            let key = draft.key();
+            if landed_here(draft) {
+                landed.insert(key);
             }
-            let id = draft.id();
-            if exists(id) {
-                landed.insert(id);
-            }
-            !landed.contains(&id)
+            !landed.contains(&key)
         })
         .collect()
 }

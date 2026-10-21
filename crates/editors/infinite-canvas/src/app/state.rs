@@ -3,7 +3,7 @@ use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::presence::{
-    CanvasCaret, CanvasCursor, CanvasDraft, Draft, assemble, stroke_parts, unlanded,
+    CanvasCaret, CanvasCursor, CanvasDraft, Draft, assemble, fingerprint, stroke_parts, unlanded,
 };
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::CanvasContent;
@@ -428,7 +428,7 @@ struct CanvasCells {
     shown: RefCell<Option<CanvasCursor>>,
     drafted: RefCell<Option<(Uuid, Vec<CanvasDraft>)>>,
     landing: Cell<Option<Uuid>>,
-    landed: RefCell<HashSet<Uuid>>,
+    landed: RefCell<HashSet<(Uuid, u64)>>,
     color: Cell<Option<PresenceColor>>,
     stage: Cell<Rect>,
 }
@@ -2450,7 +2450,7 @@ impl CanvasState {
         create_effect(move || {
             visible.with(|_| ());
             state.gesture.with(|_| ());
-            state.entities.ids().with(|_| ());
+            state.entities.track_edits();
             untrack(|| state.publish_draft());
         });
         let state = self;
@@ -2629,24 +2629,28 @@ impl CanvasState {
                     .into_iter()
                     .filter_map(|entity| match self.entities.get_untracked(entity.id) {
                         Some(stored) if stored == entity => None,
-                        Some(_) => Some(CanvasDraft::Change(Box::new(entity))),
+                        Some(stored) => Some(CanvasDraft::Change {
+                            base: fingerprint(&stored),
+                            entity: Box::new(entity),
+                        }),
                         None => Some(CanvasDraft::Shape(Box::new(entity))),
                     })
                     .take(CanvasDraft::SLOTS as usize)
                     .collect();
-                let id = match parts.first()? {
-                    CanvasDraft::Shape(entity) | CanvasDraft::Change(entity) => entity.id,
-                    CanvasDraft::Stroke { id, .. } => *id,
-                };
+                let id = parts.first()?.id();
                 Some((id, parts))
             }
             None => held.filter(|(id, parts)| {
                 let landing = self.cells.value().landing.get() == Some(*id)
                     || self.entities.get_untracked(*id).is_some();
                 landing
-                    && !parts
-                        .iter()
-                        .any(|part| matches!(part, CanvasDraft::Change(_)))
+                    && parts.iter().all(|part| match part {
+                        CanvasDraft::Change { entity, base } => self
+                            .entities
+                            .get_untracked(entity.id)
+                            .is_some_and(|stored| fingerprint(&stored) != *base),
+                        _ => true,
+                    })
             }),
         }
     }
@@ -2670,18 +2674,21 @@ impl CanvasState {
     fn read_presence(&self) {
         let drafts = unlanded(
             assemble(&self.drafts.get_untracked()),
-            |id| self.entities.get_untracked(id).is_some(),
+            |draft| match draft {
+                Draft::Change { entity, base } => self
+                    .entities
+                    .get_untracked(entity.id)
+                    .is_none_or(|stored| fingerprint(&stored) != *base),
+                _ => self.entities.get_untracked(draft.id()).is_some(),
+            },
             &mut self.cells.value().landed.borrow_mut(),
         );
         let mut presence = Presence::default();
         for (_, draft) in drafts {
             match draft {
                 Draft::Stroke { .. } => presence.drafts.push(draft),
-                Draft::Shape(entity) => presence.entities.push(*entity),
-                Draft::Change(entity) => {
-                    if self.entities.get_untracked(entity.id).is_some() {
-                        presence.entities.push(*entity);
-                    }
+                Draft::Shape(entity) | Draft::Change { entity, .. } => {
+                    presence.entities.push(*entity)
                 }
             }
         }
