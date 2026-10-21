@@ -590,6 +590,15 @@ for one that is not), `radius` a `Radius` (`Xs` to `Lg`, `Full`, or
 `Border::FOCUS`, `Border::new(role)` with `.width(..)` and `.offset(..)`;
 `focus_border` shows one only while the focus ring is visible). A
 `ColorRole::custom(..)` wraps a colour or a signal of one.
+A frame can also paint a `shadow` (`Shadow`: a colour, a `spread` drawn as one
+ring per point fading outwards, and a `drop`) and a `pointer`, a beak of that
+reach on its top or bottom edge, filled and outlined with the frame so its
+border runs on around the beak; it shows only while an overlay points it at its
+anchor (below). Both paint outside the frame's box without taking room, so give
+them room in a padded frame around it: a plugin's host draws what is outside an
+overlay's content under the editors it holds. The styled `Frame` takes them as
+tokens: `elevation` (`Elevation::Floating`, the theme's `shadow` colour at
+`FLOATING_SHADOW_SPREAD`) and `pointer=true` (`POINTER_REACH`).
 `Layers` lays every child over the same box, sized to the largest, later
 children on top: content over a background, a badge over an icon. A child that
 should not fill the box goes in a `Frame` that aligns it. Pointer input is the
@@ -1240,6 +1249,19 @@ so a tooltip shown over a covered window leaves the window where it was.
 `Document::layers()` is worked out once for each change to the tree or the
 layers and shared until the next, so asking for it again costs nothing.
 
+An overlay is anchored to a node, a point, a rect in document coordinates, or a
+rect pinned to a node (`OverlayAnchor::Pinned { node, rect }`): the rect is
+taken in document coordinates and, the first time the overlay is placed, held
+by its offset from the node's nearer edge on each axis, so it follows the node
+when it moves or resizes and the layer still hangs from the node.
+`Placement::Popover { gap, margin }` places content like a popover: centred on
+the anchor and `gap` below it, flipping above where only that side has room and
+shifting sideways to stay `margin` inside the screen (the vertical choice and
+the shrinking when neither side fits are `BelowStart`'s). Given a `pointer`
+frame in its content, the overlay moves the content so that frame, not the
+content's padded edge, stands `gap` off the anchor, and points the frame's beak
+at the anchor's middle on whichever side it opened.
+
 Hand an `Overlay` what it shows as `content={move || ...}` rather than as
 children: it calls that the first time it opens, so a closed tooltip, select,
 menu or prompt costs its overlay node and nothing else. Children are built with
@@ -1805,17 +1827,31 @@ too small (the body is `Extent::at_most(size)`): in a short window it shrinks
 under its tab bar first, and rises over the bar, hiding the tab's waiting dot,
 only when even its smallest size does not fit below it. Its scrim (Docking's
 `dialog_scrim`) dims that panel alone: a `BlocksParent` overlay with a visible
-scrim lays it over the node it blocks, and occludes both rects
-(`Document::layer_covers`), so the card draws over other panes and takes the
-presses it covers there while the rest of those panes, the tab bar and other
-tabs stay live. A press on the dimmed panel calls the card's attention, or
+scrim lays it over the node it blocks. A `BlocksParent` layer occludes the node
+it blocks and its content (`Document::layer_covers`), dimmed or not, so the card
+draws over other panes and takes the presses it covers there, a plugin's host
+routes presses on the blocked panel to the dock rather than to an editor shown
+in it, and the rest of those panes, the tab bar and other tabs stay live. A
+press on the blocked panel calls the card's attention, or
 closes it through `on_close` with `dismiss_on_outside_press` (any modal
 `DockDialog` takes it; a press on another pane never closes one). It has no
 title bar: its content draws its own header and close button (styled: the
 dialog card's raised surface, `Radius::Lg` on every corner, the dialog outline
-that shows focus and attention, and a soft shadow, kept `dialog::MARGIN` from
-the tab bar and the window's edges). Its layer hangs from the panel, so it
-follows the tab into another pane or a window. In a stacked dock it is
+that shows focus and attention, and the floating shadow, kept `dialog::MARGIN`
+from the tab bar and the window's edges). Its layer hangs from the panel, so it
+follows the tab into another pane or a window.
+
+Given an `anchor`, the rect in document coordinates of the control that asked
+for it, a card is a popover instead: it hangs `Placement::Popover` from that rect
+pinned to the parent's panel (`OverlayAnchor::Pinned`), Docking's `dialog_gap`
+off it and `dialog_margin` inside the window, so it keeps its place on the tab
+when the pane moves or resizes and follows the tab into another pane or window.
+It is not dimmed: the panel is blocked all the same, so a press on it closes the
+card or calls its attention as above. The chrome names the frame to point from
+with the handle's `pointer` (styled: the card's frame, whose beak points at the
+control's middle from the side the card opened on). Everything else - modal to
+its tab, hidden with it, the waiting dot, the keyboard, the sheet in a stacked
+dock - is the card's. In a stacked dock it is
 `dialog_sheet` instead (styled: a `ModalSheet`), whose body fills the sheet's
 width as every sheet's does rather than keeping the card's `size`, and the same
 body moves between the two through `Portal`s, so nothing in it is rebuilt. A dialog's

@@ -432,9 +432,8 @@ impl DemoDialogs {
     }
 
     fn add(&self, parent: TabId, modal: bool, card: bool, anchor: Option<Rect>) {
-        let anchor = anchor.map(|rect| {
-            [rect.min.x, rect.min.y, rect.max.x, rect.max.y].map(f32::to_bits)
-        });
+        let anchor =
+            anchor.map(|rect| [rect.min.x, rect.min.y, rect.max.x, rect.max.y].map(f32::to_bits));
         let id = TabId::new(self.next.with(|next| next.replace(next.get() + 1)));
         self.open.update(|open| {
             let depth = open
