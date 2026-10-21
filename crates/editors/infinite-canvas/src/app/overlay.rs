@@ -18,7 +18,6 @@ const HINT: &str = "Scroll or use two fingers to move around  ·  Pick a tool to
 const HINT_MARGIN: f32 = 16.0;
 const SELECT_BOX_FILL: Color32 = Color32::from_rgba_unmultiplied(66, 153, 225, 28);
 const BADGE_SIDE: f32 = 22.0;
-const OUTSIDE_FRAMES: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 56);
 const FRAME_OUTLINE: f32 = 1.0;
 const FRAME_LABEL_SIZE: f32 = 12.0;
 const DASHES: [f32; 2] = [4.0, 4.0];
@@ -34,53 +33,34 @@ const ERASER_TRAIL_WIDTH: f32 = 6.0;
 
 #[derive(Clone, PartialEq)]
 pub(crate) struct FrameBackdrop {
-    pub(crate) bounds: WorldRect,
     pub(crate) name: String,
     pub(crate) fill: Color32,
-}
-
-#[derive(Clone, PartialEq)]
-pub(crate) struct Backdrop {
-    pub(crate) camera: Camera,
-    pub(crate) stage: Rect,
     pub(crate) label: Color32,
     pub(crate) outline: Color32,
     pub(crate) chrome: bool,
-    pub(crate) frames: Vec<FrameBackdrop>,
 }
 
-impl Backdrop {
-    pub(crate) fn draw(&self, painter: &Painter) {
-        if self.frames.is_empty() {
-            return;
-        }
-        if self.chrome {
-            painter.rect_filled(self.stage, 0.0, OUTSIDE_FRAMES);
-        }
-        for frame in &self.frames {
-            painter.rect_filled(self.camera.rect(frame.bounds), 0.0, frame.fill);
-        }
+impl FrameBackdrop {
+    pub(crate) fn draw(&self, painter: &Painter, rect: Rect) {
+        painter.rect_filled(rect, 0.0, self.fill);
         if !self.chrome {
             return;
         }
-        for frame in &self.frames {
-            let rect = self.camera.rect(frame.bounds);
-            painter.rect_stroke(rect, 0.0, FRAME_OUTLINE, self.outline);
-            let galley = painter.layout(
-                &frame.name,
-                FontId::proportional(FRAME_LABEL_SIZE),
-                f32::INFINITY,
-            );
-            let height = galley.size().y;
-            painter.galley(
-                pos2(
-                    rect.left(),
-                    rect.top() - height - (FRAME_LABEL_HEIGHT - height) / 2.0,
-                ),
-                galley,
-                self.label,
-            );
-        }
+        painter.rect_stroke(rect, 0.0, FRAME_OUTLINE, self.outline);
+        let galley = painter.layout(
+            &self.name,
+            FontId::proportional(FRAME_LABEL_SIZE),
+            f32::INFINITY,
+        );
+        let height = galley.size().y;
+        painter.galley(
+            pos2(
+                rect.left(),
+                rect.top() - height - (FRAME_LABEL_HEIGHT - height) / 2.0,
+            ),
+            galley,
+            self.label,
+        );
     }
 }
 

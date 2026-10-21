@@ -13,7 +13,7 @@ use crate::geometry::*;
 
 use super::grid::{GridLook, GridTile, GridTileItem};
 use super::menu::CanvasMenu;
-use super::overlay::{Backdrop, FrameBackdrop, Overlay, PathGrips};
+use super::overlay::{FrameBackdrop, Overlay, PathGrips};
 use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, resolve_color};
 use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::CanvasState;
@@ -59,15 +59,36 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                     .map(|frame| entity_bounds(frame).rect())
                     .collect::<Vec<_>>()
             });
+            let frame_ids = create_memo(move || {
+                state
+                    .entities
+                    .shown_frames()
+                    .iter()
+                    .filter(|frame| !frame.hidden)
+                    .map(|frame| frame.id)
+                    .collect::<Vec<_>>()
+            });
+            let theme = use_theme();
+            let outside_frames = create_memo(move || {
+                match !previewing && frames.with(|frames| !frames.is_empty()) {
+                    true => ColorRole::Custom(theme.shadow.get()),
+                    false => ColorRole::None,
+                }
+            });
             view! {
                 <CanvasMenu disabled={previewing}>
-                    <Frame padding={inset}>
+                    <Frame padding={inset} fill={outside_frames}>
                         <CanvasSurface state={state}>
                             <Canvas
                                 view={create_memo(move || Some(camera.get()))}
                                 @test_id={"infinite-canvas.canvas"}
                             >
-                                <CanvasBackdrop state={state} camera={camera} stage={shown} />
+                                <ForEach keys={frame_ids}>|id: Uuid| {
+                                    let camera = camera;
+                                    view! {
+                                        <FrameBackdropItem state id camera />
+                                    }
+                                }</ForEach>
                                 <ForEach keys={tiles}>|tile: GridTile|
                                     <GridTileItem tile look={grid} frames />
                                 </ForEach>
@@ -199,50 +220,51 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>
 }
 
 #[component]
-fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
-    let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
-    let theme = use_theme();
-    let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
-    let shown = RefCell::new(None::<Backdrop>);
-    let frames = create_memo(move || {
-        state
-            .entities
-            .shown_frames()
-            .into_iter()
-            .filter(|entity| !entity.hidden)
-            .map(|entity| FrameBackdrop {
-                bounds: entity_bounds(&entity),
-                name: entity.text.to_str_lossy().into_owned(),
-                fill: match entity.style.filled().unwrap_or_default() {
-                    CanvasColor::Auto => theme.background.get(),
-                    color => resolve_color(color, theme.text.get()),
-                },
-            })
-            .collect::<Vec<_>>()
+fn FrameBackdropItem(state: CanvasState, id: Uuid, camera: Memo<CanvasView>) -> CanvasItem {
+    let entity = entity_of(state, id);
+    let label = create_memo(move || FRAME_LABEL_HEIGHT / camera.get().scale.max(f32::EPSILON));
+    let bounds = create_memo(move || {
+        let Some(entity) = entity.get() else {
+            return Rect::ZERO;
+        };
+        let frame = entity_bounds(&entity).rect();
+        Rect::from_min_max(pos2(frame.left(), frame.top() - label.get()), frame.max)
     });
-    create_effect(move || {
-        let backdrop = Backdrop {
-            camera: Camera::of(Some(camera.get()), stage.get().min),
-            stage: stage.get(),
+    let theme = use_theme();
+    let chrome = !state.previewing();
+    let backdrop = create_memo(move || {
+        let entity = entity.get()?;
+        Some(FrameBackdrop {
+            name: entity.text.to_str_lossy().into_owned(),
+            fill: match entity.style.filled().unwrap_or_default() {
+                CanvasColor::Auto => theme.background.get(),
+                color => resolve_color(color, theme.text.get()),
+            },
             label: theme.text_muted.get(),
             outline: theme.border.get(),
-            chrome: !state.previewing(),
-            frames: frames.get(),
-        };
-        if shown.borrow().as_ref() == Some(&backdrop) {
-            return;
-        }
-        *shown.borrow_mut() = Some(backdrop.clone());
-        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
-            backdrop.draw(&painter.in_document())
-        }));
+            chrome,
+        })
     });
-    let x = create_memo(move || visible.get().left());
-    let y = create_memo(move || visible.get().top());
-    let width = create_memo(move || visible.get().width().max(1.0));
-    let height = create_memo(move || visible.get().height().max(1.0));
+    let draw = Prop::dynamic(move || -> Draw {
+        let backdrop = backdrop.get();
+        Rc::new(move |painter: &Painter, rect: Rect| {
+            if let Some(backdrop) = backdrop.as_ref() {
+                let frame = Rect::from_min_max(
+                    pos2(rect.left(), rect.top() + FRAME_LABEL_HEIGHT),
+                    rect.max,
+                );
+                backdrop.draw(painter, frame);
+            }
+        })
+    });
     view! {
-        <CanvasItem x={x} y={y} width={width} height={height} @test_id={"infinite-canvas.backdrop"}>
+        <CanvasItem
+            x={create_memo(move || bounds.get().left())}
+            y={create_memo(move || bounds.get().top())}
+            width={create_memo(move || bounds.get().width().max(1.0))}
+            height={create_memo(move || bounds.get().height().max(1.0))}
+            @test_id={format!("infinite-canvas.backdrop.{id}")}
+        >
             <Drawing draw={draw} />
         </CanvasItem>
     }
