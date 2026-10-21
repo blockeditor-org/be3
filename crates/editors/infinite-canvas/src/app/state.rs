@@ -128,6 +128,7 @@ pub(crate) enum Gesture {
     Pen {
         points: Vec<CanvasPoint>,
         pressures: Vec<f32>,
+        predicted: Option<CanvasPoint>,
     },
     SelectBox {
         start: CanvasPoint,
@@ -1755,7 +1756,9 @@ impl CanvasState {
                     }
                 }
             }
-            Gesture::Pen { points, pressures } => {
+            Gesture::Pen {
+                points, pressures, ..
+            } => {
                 if !points.is_empty() {
                     self.add_entity(pen_entity(points, pressures, self.default_style()));
                 }

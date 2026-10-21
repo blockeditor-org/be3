@@ -147,9 +147,21 @@ impl Overlay {
                 }
                 Tool::Select | Tool::Pen => {}
             },
-            Some(Gesture::Pen { points, pressures }) => {
-                let points: Vec<Pos2> = points.iter().map(|point| self.camera.at(*point)).collect();
-                stroke(painter, &points, 2.0, pressures, color);
+            Some(Gesture::Pen {
+                points,
+                pressures,
+                predicted,
+            }) => {
+                let mut pressures = pressures.clone();
+                let points: Vec<Pos2> = points
+                    .iter()
+                    .chain(predicted)
+                    .map(|point| self.camera.at(*point))
+                    .collect();
+                if let Some(last) = pressures.last().copied().filter(|_| predicted.is_some()) {
+                    pressures.push(last);
+                }
+                stroke(painter, &points, 2.0, &pressures, color);
             }
             Some(Gesture::SelectBox {
                 start,

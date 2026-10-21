@@ -124,6 +124,7 @@ impl CanvasState {
             Tool::Pen => self.begin_gesture(Some(Gesture::Pen {
                 points: vec![world],
                 pressures: pen_pressure(press).into_iter().collect(),
+                predicted: None,
             })),
         }
     }
@@ -269,6 +270,7 @@ impl CanvasState {
         self.hover(Some(world));
         let modifiers = press.modifiers;
         let pen_step = 1.0 / self.scale();
+        let predicted = press.predicted.map(|at| self.world_at(at));
         self.update_gesture(|gesture| match gesture {
             Gesture::Create {
                 tool,
@@ -346,7 +348,12 @@ impl CanvasState {
                     || *force_preserve_aspect_ratio
                     || *default_preserve_aspect_ratio != modifiers.shift;
             }
-            Gesture::Pen { points, pressures } => {
+            Gesture::Pen {
+                points,
+                pressures,
+                predicted: tail,
+            } => {
+                *tail = predicted;
                 if points
                     .last()
                     .is_none_or(|last| distance(*last, world) > pen_step)
