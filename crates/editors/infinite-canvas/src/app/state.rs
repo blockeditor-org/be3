@@ -1166,6 +1166,23 @@ impl CanvasState {
         }
     }
 
+    pub(crate) fn request_fit_all(&self) {
+        if untrack(|| self.entities.first_frame()).is_some() {
+            return self.request_fit_frame();
+        }
+        let extents = self
+            .entities
+            .all_untracked()
+            .iter()
+            .filter(|entity| !entity.hidden)
+            .map(entity_bounds)
+            .reduce(WorldRect::union);
+        match extents {
+            Some(extents) => self.fit_into_view_within(extents, 1.0),
+            None => self.editor.fit(),
+        }
+    }
+
     pub(crate) fn selected_entities(&self) -> Vec<CanvasEntity> {
         self.selection
             .with(|selection| self.entities.among(selection))
@@ -2780,12 +2797,18 @@ impl CanvasState {
     }
 
     fn fit_into_view(&self, bounds: WorldRect) {
+        self.fit_into_view_within(bounds, f32::INFINITY);
+    }
+
+    fn fit_into_view_within(&self, bounds: WorldRect, max_scale: f32) {
         let stage = self.cells.value().stage.get();
         let available = (stage.size() - Vec2::splat(40.0)).max(Vec2::splat(1.0));
         let target = bounds.rect();
         let scale = self.scale();
-        let factor = (available.x / (target.width() * scale).max(1.0))
-            .min(available.y / (target.height() * scale).max(1.0));
+        let fitted = (available.x / target.width().max(f32::EPSILON))
+            .min(available.y / target.height().max(f32::EPSILON))
+            .min(max_scale);
+        let factor = fitted / scale;
         let anchor = self.camera().to_screen(target.center());
         self.editor.zoom_at(factor, anchor);
         self.editor.pan(stage.center() - anchor);

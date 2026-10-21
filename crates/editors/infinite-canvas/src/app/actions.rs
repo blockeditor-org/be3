@@ -481,7 +481,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     })
     .enabled(live)
     .register();
-    let fit_all = Action::new("canvas.fit-all", "Fit all", move || state.editor().fit())
+    let fit_all = Action::new("canvas.fit-all", "Fit all", move || state.request_fit_all())
         .glyph(ICON_FIT_SCREEN)
         .enabled(live)
         .register();
