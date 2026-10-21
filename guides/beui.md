@@ -773,7 +773,12 @@ and lowers it once the content is back at its start. It is never taller than
 what it holds, whatever stop it rests at, and pulled past its top it stretches
 like an overscroll. It slides up as it opens, easing out, and slides down as it
 closes, easing in from however fast it was flicked; a `ModalSheet` stays up
-while it leaves however it was closed, and fades its scrim with it. Let go, it springs to the
+while it leaves however it was closed, and fades its scrim with it. A sheet
+that opens within a moment of another closing in the same document (a menu's
+sheet giving way to the sheet of the dialog it opened, either order in the same
+frame) takes the other's place instead: the closing one goes at once, and the
+opening one starts at the height the other showed and eases to its own, so the
+two read as one sheet changing its content (`Slide::Morphing`). Let go, it springs to the
 stop nearest where the flick was heading, or closed below the lowest one, and
 its content flings and bounces at its bottom end as a `Scroll` does. A fling
 reaching the content's start bounces the whole sheet down and back without
