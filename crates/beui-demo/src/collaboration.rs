@@ -126,7 +126,7 @@ impl Peer {
         }
         self.visible = visible;
         self.marks.invalidate();
-        difference(&before, self.visible.mirrored().unwrap_or_default())
+        TextChange::between(&before, self.visible.mirrored().unwrap_or_default())
     }
 }
 
@@ -428,25 +428,6 @@ impl Simulation {
         }
         self.peers[side.index()].bump(Some(change));
         minted
-    }
-}
-
-fn difference(old: &[u8], new: &[u8]) -> TextChange {
-    let prefix = old
-        .iter()
-        .zip(new)
-        .take_while(|(before, after)| before == after)
-        .count();
-    let suffix = old[prefix..]
-        .iter()
-        .rev()
-        .zip(new[prefix..].iter().rev())
-        .take_while(|(before, after)| before == after)
-        .count();
-    TextChange {
-        start: prefix,
-        old_end: old.len() - suffix,
-        new_end: new.len() - suffix,
     }
 }
 
