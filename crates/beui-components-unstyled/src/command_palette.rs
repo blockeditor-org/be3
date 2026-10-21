@@ -1,7 +1,7 @@
 use beui_core::layer::Dismiss;
 use std::cell::RefCell;
 
-use accesskit::{Node, Role};
+use accesskit::{Node, Role, Toggled};
 use beui_core::base::overlay::{OverlayAnchor, OverlayNode, Placement};
 use beui_core::color::Color32;
 use beui_core::document::Document;
@@ -23,6 +23,7 @@ pub struct CommandRowHandle {
     pub label: Prop<String>,
     pub glyph: String,
     pub shortcut: Option<String>,
+    pub checked: Memo<Option<bool>>,
     pub disabled: Memo<bool>,
     pub highlighted: Memo<bool>,
     pub hovered: ReadSignal<bool>,
@@ -149,11 +150,16 @@ fn CommandRow(
     let enabled = action.enabled();
     let disabled = create_memo(move || !enabled.get());
     let label = action.label();
+    let checked = action.checked();
+    let checked = create_memo(move || checked.map(|checked| checked.get()));
     let accessibility = create_memo({
         let label = label.clone();
         move || {
             let mut node = Node::new(Role::ListBoxOption);
             node.set_label(label.get());
+            if let Some(on) = checked.get() {
+                node.set_toggled(Toggled::from(on));
+            }
             if disabled.get() {
                 node.set_disabled();
             }
@@ -181,6 +187,7 @@ fn CommandRow(
                 label: label.clone(),
                 glyph: glyph.clone(),
                 shortcut: shortcut.clone(),
+                checked,
                 disabled,
                 highlighted: highlight.memo(Some(key)),
                 hovered: handle.hovered,

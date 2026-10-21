@@ -297,7 +297,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
 }
 
 #[component]
-fn MenuCheck(checked: Prop<Option<bool>>) -> DynamicSegment<ListChild> {
+pub(crate) fn MenuCheck(checked: Prop<Option<bool>>) -> DynamicSegment<ListChild> {
     let ticked = create_memo(move || checked.get() == Some(true));
     view! {
         <Show condition={ticked}>

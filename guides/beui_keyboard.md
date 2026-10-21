@@ -227,7 +227,8 @@ typed into.
 `styled::CommandPalette` lists the actions that are live where the focus was
 when it opened: typing filters them by every word, Up/Down/Page Up/Page Down
 move the highlight over the enabled ones, Enter or a click runs the highlighted
-one, and Escape closes it; disabled actions are listed last and greyed. Closing
+one, and Escape closes it; disabled actions are listed last and greyed, and a
+checked action, or the chosen one of a radio group, is ticked as in a menu. Closing
 it puts the focus back where it was before the action runs. An editor frame
 opens it with Ctrl+Shift+P and from a row of its menu.
 

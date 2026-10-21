@@ -1,6 +1,7 @@
 use crate::frame::{Border, ColorRole, Frame, Radius};
 use beui_macros::{component, view};
 
+use crate::context_menu::MenuCheck;
 use crate::scroll::scrollbar_style;
 use crate::text::{Icon, Text, TextColor, TextSize};
 use crate::text_input::text_input_style;
@@ -84,6 +85,7 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
         label,
         glyph,
         shortcut,
+        checked,
         disabled,
         highlighted,
         hovered,
@@ -119,6 +121,7 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
                 <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
                     {shortcut}
                 </Text>
+                <MenuCheck checked />
             </List>
         </Frame>
     }

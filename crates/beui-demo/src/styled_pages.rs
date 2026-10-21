@@ -1484,7 +1484,11 @@ fn GlobalActions() -> NodeId {
             />
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0 wrap=true>
                 <Button action={lock} variant=ButtonVariant::Primary />
-                <Button action={palette} variant=ButtonVariant::Secondary />
+                <Button
+                    @test_id="demo.palette.open"
+                    action={palette}
+                    variant=ButtonVariant::Secondary
+                />
             </List>
             <Text style=TextStyle::CAPTION>{locked}</Text>
             <CommandPalette open />
