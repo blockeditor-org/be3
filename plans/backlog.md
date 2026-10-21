@@ -19,3 +19,14 @@ frame does no checking at all.
   every later one.
 - **Edge fade.** The styled scroll view fades content out with a short
   opacity gradient at clipped edges instead of a hard cut.
+
+## 3. Editor icons in the manifest
+
+A manifest's `icon` is a Material Symbols codepoint (`""`), so an editor
+can only use an icon from the font every beui context carries. Let an editor
+declare any icon: the manifest carries the icon as vector outlines, which the
+host draws with beui's path shape (`plans/canvas.md`, step 1) and tints with
+the theme. An editor that uses a `beui::icons` icon names it in its source, and
+the build writes that glyph's outlines into the manifest. **(ask)** vector
+outlines, or icons rasterized at build time at a few sizes. Done: no manifest
+holds a font codepoint.
