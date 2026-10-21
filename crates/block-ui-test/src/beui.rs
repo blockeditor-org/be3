@@ -1212,7 +1212,24 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn click(&mut self, test_id: &str) {
+        self.reveal(test_id);
         self.click_at(self.point_of(test_id));
+    }
+
+    pub fn reveal(&mut self, test_id: &str) {
+        if self.rect_of(test_id).intersect(self.rect()).is_positive() {
+            return;
+        }
+        let region = self.region();
+        let document = self
+            .plugin
+            .document_mut(INSTANCE, region)
+            .expect("the editor has not built its view yet");
+        let node = document
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("no element with test id {test_id:?}"));
+        document.reveal_node(node);
+        self.run();
     }
 
     pub fn double_click(&mut self, test_id: &str) {

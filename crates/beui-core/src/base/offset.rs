@@ -464,17 +464,14 @@ impl Document {
     }
 
     pub fn reveal_node(&mut self, node: NodeId) {
-        if let Some(&offset) = self.enclosing_offsets(node).first() {
+        for offset in self.enclosing_offsets(node) {
             self.reveal_in(offset, node);
         }
     }
 
     pub fn reveal_focus(&mut self) {
-        let Some(focused) = self.focused else {
-            return;
-        };
-        for offset in self.enclosing_offsets(focused) {
-            self.reveal_in(offset, focused);
+        if let Some(focused) = self.focused {
+            self.reveal_node(focused);
         }
     }
 }

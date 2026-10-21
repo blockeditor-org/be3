@@ -265,6 +265,15 @@ impl<A: BeuiApp> BeuiInstance<A> {
         }
     }
 
+    pub(crate) fn document_mut(&mut self, region: EditorRegion) -> Option<&mut beui::Document> {
+        match (region, self.views.creating) {
+            (EditorRegion::Frame, false) => self.views.chrome.as_mut().map(BeuiFrame::document_mut),
+            (EditorRegion::Frame, true) => self.views.dialog.as_mut(),
+            (EditorRegion::Preview, _) => self.views.preview_document.as_mut(),
+            (EditorRegion::ArtifactSettings, _) => self.views.settings.as_mut(),
+        }
+    }
+
     pub(crate) fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput> {
         self.surfaces.get_mut(&region)?.take_output()
     }
