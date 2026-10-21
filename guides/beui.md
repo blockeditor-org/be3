@@ -361,7 +361,24 @@ hooks the higher crates fill in:
   `Keystroke` (the key, its text and scancode, with no modifiers), a
   `ScrollDelta` in pixels, lines (`SCROLL_LINE` points) or pages
   (`SCROLL_PAGE`), or a `Pinch` (a Ctrl-wheel, as a `ScrollDelta`, which
-  becomes `Event::Zoom` at `PINCH_SPEED` per point). `Input::logical` wraps
+  becomes `Event::Zoom` at `PINCH_SPEED` per point). A trackpad's two-finger
+  scroll is a scroll and its pinch an `Event::Zoom` on every platform: winit's
+  `PinchGesture`, and in the browser a Ctrl-wheel (how Chrome and Firefox
+  report a pinch) or Safari's `gesturechange`, whose scale over the last one's
+  is the factor; the web adapter ignores a gesture while fingers are down,
+  since those touches pinch already, and prevents the default of all of them
+  so the browser never zooms the page. Every pointer sample is an event of its
+  own: the web adapter pushes each of a `pointermove`'s
+  `getCoalescedEvents()` rather than only the last, and `on_drag` runs once
+  per sample, so a stroke keeps every point the device reported between two
+  frames. After a pressed move it pushes `Event::Predicted` with the last of
+  `getPredictedEvents()`, where the pointer is expected to be by the next
+  frame; the runner attaches it to the move just before it as
+  `PointerEvent::predicted`, and the drag it makes carries it as
+  `PointerPress::predicted`. A prediction is only good until the next sample
+  replaces it, so a component draws it as a transient tail (the canvas's pen
+  tool does) and never keeps it; the other platforms report none, and a
+  plugin's host forwards it as `InputEvent::Predicted`. `Input::logical` wraps
   any of them whose pixels are the window's logical ones (physical pixels
   over the scale it last reported: the browser's CSS pixels), so the runner
   converts them with the same scale the frame lays out at and no adapter

@@ -4838,7 +4838,9 @@ crates = {
         "platforms": {
             "android-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4846,7 +4848,9 @@ crates = {
             },
             "linux-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4854,7 +4858,9 @@ crates = {
             },
             "linux-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4862,7 +4868,9 @@ crates = {
             },
             "macos-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4870,7 +4878,9 @@ crates = {
             },
             "macos-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4892,7 +4902,9 @@ crates = {
             },
             "windows-arm64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],
@@ -4900,7 +4912,9 @@ crates = {
             },
             "windows-x86_64": {
                 "binaries": {},
-                "deps": [],
+                "deps": [
+                    "//crates/beui-core:beui-core",
+                ],
                 "examples": {},
                 "features": [],
                 "test_deps": [],

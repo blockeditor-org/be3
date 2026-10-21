@@ -1,7 +1,3 @@
-#![cfg(target_arch = "wasm32")]
-
-mod file_picker;
-
 use std::cell::{Cell, RefCell};
 use std::error::Error;
 use std::future::Future;
@@ -26,8 +22,10 @@ use beui_core::input::{
 };
 use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::Loaded;
-use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running, ScrollDelta};
+use beui_core::runner::{Adapter, Input, Keystroke, Launch, Platform, Running};
 use beui_core::window::{Appearance, WindowReports, WindowState};
+
+use crate::wheel::{Pinch, wheel};
 
 type Loading = Pin<Box<dyn Future<Output = Result<Vec<Loaded>, Box<dyn Error>>>>>;
 type Load = Box<dyn FnOnce(web_sys::HtmlElement) -> Loading>;
@@ -83,6 +81,8 @@ thread_local! {
     static HELD_FIELD: Cell<Option<Rect>> = const { Cell::new(None) };
     static REFOCUSING: Cell<bool> = const { Cell::new(false) };
     static PASTE_KINDS: RefCell<Vec<PasteKind>> = const { RefCell::new(Vec::new()) };
+    static PINCH: RefCell<Pinch> = RefCell::new(Pinch::default());
+    static TOUCHES: RefCell<Vec<i32>> = const { RefCell::new(Vec::new()) };
 }
 
 const PASTED_NAME: &str = "Pasted Image.png";
@@ -225,7 +225,7 @@ impl Platform for WebPlatform {
     }
 
     fn pick_file(&mut self, request: FilePickRequest, answer: FilePickAnswer) {
-        file_picker::open(request, answer);
+        crate::file_picker::open(request, answer);
     }
 
     fn show_window(&mut self, window: &WindowState, shown: &WindowState) {
@@ -602,17 +602,44 @@ fn on<E: wasm_bindgen::convert::FromWasmAbi + 'static>(
     Ok(())
 }
 
-fn position(surface: &web_sys::HtmlElement, event: &web_sys::MouseEvent) -> Pos2 {
-    let bounds = surface.get_bounding_client_rect();
+fn position(surface: &web_sys::HtmlElement, event: &web_sys::Event) -> Pos2 {
+    within(&surface.get_bounding_client_rect(), event)
+}
+
+fn within(bounds: &web_sys::DomRect, event: &web_sys::Event) -> Pos2 {
     let (x, y) = (
-        client(event, "clientX").unwrap_or(f64::from(event.client_x())),
-        client(event, "clientY").unwrap_or(f64::from(event.client_y())),
+        client(event, "clientX").unwrap_or_default(),
+        client(event, "clientY").unwrap_or_default(),
     );
     pos2((x - bounds.left()) as f32, (y - bounds.top()) as f32)
 }
 
-fn client(event: &web_sys::MouseEvent, axis: &str) -> Option<f64> {
+fn client(event: &web_sys::Event, axis: &str) -> Option<f64> {
     js_sys::Reflect::get(event, &axis.into()).ok()?.as_f64()
+}
+
+fn pointer_list(event: &web_sys::PointerEvent, method: &str) -> Vec<web_sys::PointerEvent> {
+    let list = js_sys::Reflect::get(event, &method.into())
+        .ok()
+        .and_then(|function| function.dyn_into::<js_sys::Function>().ok())
+        .and_then(|function| function.call0(event).ok());
+    let Some(list) = list else {
+        return Vec::new();
+    };
+    js_sys::Array::from(&list)
+        .iter()
+        .filter_map(|sample| sample.dyn_into().ok())
+        .collect()
+}
+
+fn touching(id: i32, down: bool) {
+    TOUCHES.with(|touches| {
+        let mut touches = touches.borrow_mut();
+        touches.retain(|touch| *touch != id);
+        if down {
+            touches.push(id);
+        }
+    });
 }
 
 thread_local! {
@@ -655,6 +682,9 @@ fn listen(
                 event.shift_key(),
             );
             let pos = position(&surface, &event);
+            if event.pointer_type() == "touch" {
+                touching(event.pointer_id(), true);
+            }
             if event.pointer_type() == "touch"
                 && HELD_FIELD
                     .with(|held| held.get())
@@ -692,16 +722,24 @@ fn listen(
                 )));
                 return;
             }
-            let pos = position(&surface, &event);
-            if event.pointer_type() == "touch" {
-                push_logical(touch(&event, TouchPhase::Move, pos));
-                return;
+            let bounds = surface.get_bounding_client_rect();
+            let mut samples = pointer_list(&event, "getCoalescedEvents");
+            if samples.is_empty() {
+                samples.push(event.clone());
             }
-            if event.pointer_type() == "pen" {
-                push_logical(pen(&event, PenPhase::Move, pos));
-                return;
+            for sample in &samples {
+                let pos = within(&bounds, sample);
+                push_logical(match event.pointer_type().as_str() {
+                    "touch" => touch(sample, TouchPhase::Move, pos),
+                    "pen" => pen(sample, PenPhase::Move, pos),
+                    _ => Event::PointerMoved(pos),
+                });
             }
-            push_logical(Event::PointerMoved(pos));
+            if event.buttons() != 0
+                && let Some(predicted) = pointer_list(&event, "getPredictedEvents").last()
+            {
+                push_logical(Event::Predicted(within(&bounds, predicted)));
+            }
         }
     })?;
     for (name, cancelled) in [("pointerup", false), ("pointercancel", true)] {
@@ -717,6 +755,7 @@ fn listen(
                 );
                 let pos = position(&surface, &event);
                 if event.pointer_type() == "touch" {
+                    touching(event.pointer_id(), false);
                     let phase = match cancelled {
                         true => TouchPhase::Cancel,
                         false => TouchPhase::End,
@@ -752,16 +791,34 @@ fn listen(
     })?;
     on(surface_target, "wheel", |event: web_sys::WheelEvent| {
         event.prevent_default();
-        let delta = -vec2(event.delta_x() as f32, event.delta_y() as f32);
-        let delta = match event.delta_mode() {
-            web_sys::WheelEvent::DOM_DELTA_LINE => ScrollDelta::Lines(delta),
-            web_sys::WheelEvent::DOM_DELTA_PAGE => ScrollDelta::Pages(delta),
-            _ => ScrollDelta::Pixels(delta),
-        };
-        push_logical(match event.ctrl_key() {
-            true => Input::Pinch(delta),
-            false => Input::Scroll(delta),
-        });
+        let delta = vec2(event.delta_x() as f32, event.delta_y() as f32);
+        let input =
+            PINCH.with(|pinch| wheel(delta, event.delta_mode(), event.ctrl_key(), &pinch.borrow()));
+        if let Some(input) = input {
+            push_logical(input);
+        }
+    })?;
+    on(surface_target, "gesturestart", {
+        let surface = surface.clone();
+        move |event: web_sys::Event| {
+            event.prevent_default();
+            PINCH.with(|pinch| pinch.borrow_mut().start());
+            if TOUCHES.with(|touches| touches.borrow().is_empty()) {
+                push_logical(Event::PointerMoved(position(&surface, &event)));
+            }
+        }
+    })?;
+    on(surface_target, "gesturechange", |event: web_sys::Event| {
+        event.prevent_default();
+        let scale = client(&event, "scale").unwrap_or(1.0) as f32;
+        let touching = TOUCHES.with(|touches| !touches.borrow().is_empty());
+        if let Some(factor) = PINCH.with(|pinch| pinch.borrow_mut().change(scale, touching)) {
+            push_logical(Event::Zoom(factor));
+        }
+    })?;
+    on(surface_target, "gestureend", |event: web_sys::Event| {
+        event.prevent_default();
+        PINCH.with(|pinch| pinch.borrow_mut().end());
     })?;
     on(
         surface_target,
