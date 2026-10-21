@@ -2689,7 +2689,6 @@ impl CanvasState {
     }
 
     fn read_presence(&self) {
-        let entities = self.entities.all_untracked();
         let drafts = unlanded(
             assemble(&self.drafts.get_untracked()),
             |id| self.entities.get_untracked(id).is_some(),
@@ -2714,20 +2713,21 @@ impl CanvasState {
             .collect();
         for (_, cursor) in self.peers.get_untracked() {
             let color = cursor.color;
-            if !cursor.selection.is_empty() {
-                let selected: HashSet<_> = cursor.selection.iter().copied().collect();
-                if let Some(bounds) = entities
+            if !cursor.selection.is_empty()
+                && let Some(bounds) = cursor
+                    .selection
                     .iter()
-                    .filter(|entity| selected.contains(&entity.id))
-                    .map(|entity| drafted.get(&entity.id).copied().unwrap_or(entity))
-                    .map(entity_bounds)
+                    .filter_map(|id| self.entities.get_untracked(*id))
+                    .map(|entity| match drafted.get(&entity.id) {
+                        Some(drafted) => entity_bounds(drafted),
+                        None => entity_bounds(&entity),
+                    })
                     .reduce(WorldRect::union)
-                {
-                    presence.selections.push(RemoteSelection {
-                        frame: SelectionFrame::from_world_rect(bounds),
-                        color,
-                    });
-                }
+            {
+                presence.selections.push(RemoteSelection {
+                    frame: SelectionFrame::from_world_rect(bounds),
+                    color,
+                });
             }
             if let Some(caret) = cursor.caret {
                 presence.carets.push((caret, color));
@@ -2797,7 +2797,19 @@ impl CanvasState {
     fn autosize_direct_editors(&self) {
         let mut before = Vec::new();
         let mut after = Vec::new();
-        for entity in self.entities.all_untracked() {
+        let placed: Vec<Uuid> = self
+            .cells
+            .value()
+            .children
+            .borrow()
+            .iter()
+            .filter(|(_, child)| child.placed)
+            .map(|(id, _)| *id)
+            .collect();
+        for entity in placed
+            .into_iter()
+            .filter_map(|id| self.entities.get_untracked(id))
+        {
             if entity.shape != CanvasShape::Editor {
                 continue;
             }
