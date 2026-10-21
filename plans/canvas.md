@@ -30,23 +30,33 @@ shared live state.
 
 ## Where it stands
 
-It has select, artboard, line, rectangle, text and pressure-aware pen tools;
-resize, rotate, group, lock, layers, align and distribute; peers' cursors and
-selections; child blocks edited in place; and a phone dock and selection bar.
+It has select, frame, line, arrow, rectangle, ellipse, diamond, text and
+pressure-aware pen tools; resize, rotate, group, lock, layers, align and
+distribute; peers' cursors and selections; child blocks edited in place; and a
+phone dock and selection bar.
+
+The model (`be-block/src/canvas.rs`, step 2) is one `Entity` per shape. Its
+`shape` names what it is (`CanvasShape`: rectangle, ellipse, diamond, path,
+freehand, text, image, block, editor, frame) and decides only how the general
+fields are read: `points` is a path or stroke in the unit square of the
+entity's transform, each point with optional bezier handles; `pressures` go
+with a freehand stroke's points; `block` and `scale` hold an embed; `text` is a
+text shape's text, a shape's or path's label, and a frame's name. A path's
+`start_binding` and `end_binding` name a shape and an anchor in its unit
+square; the end is resolved against that shape whenever the canvas is read
+(`CanvasEntity::follow`), so it follows the shape whoever moved it. Every
+part of the style is its own field, so concurrent restyles merge.
+
 What holds it back:
 
-- beui draws only rectangles, straight lines, text and images
-  (`beui-core/src/painter.rs`). There are no paths, so no ellipses, curves,
-  clean joins or filled freehand: a pen stroke is line segments with a dot at
-  each joint (`paint.rs::stroke`).
+- A pen stroke is line segments with a dot at each joint
+  (`paint.rs::stroke`); shapes, lines and arrows are drawn as beui paths in
+  the clean look only, and labels are drawn but not yet edited.
 - Text entities are text fields shaped at the camera's scale, so every zoom
   frame lays them out and paints them again; shapes are scaled by the renderer.
-- `CanvasEntityKind` is a closed variant per tool. Lines have two ends and bind
-  to nothing, text cannot sit in a shape, `style` is saved as one value (two
-  peers changing colour and width at once lose one change), and freehand
-  points live inside `kind`.
+- Text and labels are plain strings in the `text` field, not rich text yet.
 - The chrome is built for precise work: an accordion inspector with X/Y/W/H,
-  and artboards among the main tools.
+  and frames among the main tools.
 - On web, opening a canvas needs a server sign-in first.
 
 The canvas is not a frozen format yet (guides/frozen_formats.md), so its model
