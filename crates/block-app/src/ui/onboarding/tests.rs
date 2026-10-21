@@ -95,7 +95,7 @@ fn painting_of_sized(
         &output,
         size,
         1.0,
-        beui::Color32::WHITE,
+        output.window.appearance.clear_color,
         beui::painting::Punches::Shown,
     )
     .unwrap();
