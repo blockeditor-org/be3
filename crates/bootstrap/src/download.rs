@@ -59,10 +59,6 @@ pub fn sha256_file(path: &Path) -> Result<String> {
     Ok(hex(&hasher.finalize()))
 }
 
-pub fn sha256(bytes: &[u8]) -> String {
-    hex(&Sha256::digest(bytes))
-}
-
 fn hex(bytes: &[u8]) -> String {
     bytes.iter().map(|byte| format!("{byte:02x}")).collect()
 }
