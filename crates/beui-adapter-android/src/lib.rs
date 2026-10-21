@@ -1035,6 +1035,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativePreferences<'local>(
     }));
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeTouch<'local>(
     _env: EnvUnowned<'local>,
