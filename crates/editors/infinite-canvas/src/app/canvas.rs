@@ -194,8 +194,8 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
     let theme = use_theme();
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<Backdrop>);
-    create_effect(move || {
-        let frames = state
+    let frames = create_memo(move || {
+        state
             .entities
             .shown_frames()
             .into_iter()
@@ -208,13 +208,15 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
                     color => resolve_color(color, theme.text.get()),
                 },
             })
-            .collect();
+            .collect::<Vec<_>>()
+    });
+    create_effect(move || {
         let backdrop = Backdrop {
             camera: Camera::of(Some(camera.get()), stage.get().min),
             stage: stage.get(),
             label: theme.text_muted.get(),
             chrome: !state.previewing(),
-            frames,
+            frames: frames.get(),
         };
         if shown.borrow().as_ref() == Some(&backdrop) {
             return;
