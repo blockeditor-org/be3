@@ -3,7 +3,7 @@ use beui::styled::*;
 use beui::unstyled::{RemoteTextCursor, TextWidget};
 use beui::{NodeId, Vec2};
 use block_editor_beui::{Drag, block_ui::BlockLabel};
-use text_editor_core::{CursorLeftRightStop, CursorPosition, EditorCommand};
+use text_editor_core::{CursorLeftRightStop, EditorCommand};
 
 use super::embeds::ResolvedEmbed;
 use super::large_embed::{LargeEmbed, embed_is_live};
@@ -152,23 +152,13 @@ fn drop_target(state: State, drag: Option<Drag>) -> Option<usize> {
 }
 
 fn remote_cursors(state: State) -> Vec<RemoteTextCursor> {
-    state.text.with_core(|core| {
+    block_editor_beui::remote_carets(
+        state.text,
         state
             .remote_cursors()
             .into_iter()
-            .filter_map(|(_, cursor)| {
-                let color = cursor.color;
-                let selection =
-                    core.selection_range(&CursorPosition::range(cursor.anchor, cursor.focus))?;
-                let caret = core.position_index(cursor.focus)?;
-                Some(RemoteTextCursor {
-                    selection,
-                    caret,
-                    color: block_editor_beui::presence_color(color),
-                })
-            })
-            .collect()
-    })
+            .map(|(_, cursor)| (cursor.caret, cursor.color)),
+    )
 }
 
 fn take_drag(state: State, drag: Option<Drag>) {

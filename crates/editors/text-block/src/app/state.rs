@@ -7,6 +7,7 @@ use beui::reactive::*;
 use beui::unstyled::TextAreaState;
 use beui::{Rect, Vec2};
 use block_editor_beui::BlockQuery;
+use block_editor_beui::SharedCaret;
 use block_editor_beui::be_block::presence::pick_free_color;
 use block_editor_beui::be_block::{ImageContent, TextContent};
 use block_editor_beui::live_text::Synced;
@@ -207,10 +208,7 @@ impl State {
             }
             return;
         }
-        if let Some(cursor) = self
-            .text
-            .with_core(|core| core.cursor_positions().first().copied())
-        {
+        if let Some(caret) = SharedCaret::of(self.text) {
             let color = inner.published_cursor.get().map_or_else(
                 || {
                     pick_free_color(
@@ -222,11 +220,7 @@ impl State {
                 },
                 |published| published.color,
             );
-            let published = TextCursor {
-                anchor: cursor.pos.anchor,
-                focus: cursor.pos.focus,
-                color,
-            };
+            let published = TextCursor { caret, color };
             if inner.published_cursor.get() != Some(published) {
                 inner.published_cursor.set(Some(published));
                 self.editor.show(Some(&published));
@@ -256,7 +250,7 @@ impl State {
             .map(|(_, cursor)| *cursor)?;
         let focus = self
             .text
-            .with_core(|core| core.position_index(cursor.focus))?;
+            .with_core(|core| core.position_index(cursor.caret.focus))?;
         self.text.layout().get_untracked().caret_rect(focus)
     }
 

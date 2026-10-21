@@ -20,6 +20,7 @@ mod loading;
 mod related_content;
 mod rotation;
 pub mod sections;
+mod shared_caret;
 pub mod version_control;
 
 use be_block::presence::PresenceColor;
@@ -43,6 +44,7 @@ pub use layered_settings::{
 pub use loading::{FailedPane, Loaded, LoadingPane};
 pub use related_content::RelatedContent;
 pub use rotation::RotationPicker;
+pub use shared_caret::{SharedCaret, remote_carets};
 pub use version_control::{VersionHistory, short_id};
 
 pub trait BeuiApp: 'static {
