@@ -193,6 +193,14 @@ fn inked(test: &BeuiTest<CanvasApp>, at: Pos2) -> bool {
         })
 }
 
+#[inline(never)]
+fn lift(test: &mut BeuiTest<CanvasApp>, at: Pos2) -> Frame {
+    frame(
+        test,
+        vec![pen(PenPhase::Up(PointerButton::Primary), at, 0.0)],
+    )
+}
+
 struct Ink {
     moves: Vec<Frame>,
     frames_to_ink: Vec<usize>,
@@ -237,15 +245,7 @@ fn ink(count: usize) -> Ink {
             ink.moves.push(delivered);
             ink.frames_to_ink.push(waited);
         }
-        let lift = frame(
-            &mut test,
-            vec![pen(
-                PenPhase::Up(PointerButton::Primary),
-                at(STROKE_MOVES),
-                0.0,
-            )],
-        );
-        ink.lifts.push(lift);
+        ink.lifts.push(lift(&mut test, at(STROKE_MOVES)));
         test.run();
         test.settle();
     }
