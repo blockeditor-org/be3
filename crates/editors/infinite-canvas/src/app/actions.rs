@@ -12,6 +12,7 @@ use block_editor_beui::beui::reactive::*;
 use uuid::Uuid;
 
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
+use super::touch::TouchChoice;
 
 #[derive(Clone)]
 pub(crate) struct CanvasActions {
@@ -52,6 +53,8 @@ pub(crate) struct CanvasActions {
     pub(crate) zoom_out: Action,
     pub(crate) zoom_reset: Action,
     pub(crate) fit_all: Action,
+    pub(crate) ignore_touch: Action,
+    pub(crate) touch: TouchChoice,
 }
 
 impl CanvasActions {
@@ -367,6 +370,8 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         .glyph(ICON_FIT_SCREEN)
         .enabled(live)
         .register();
+    let touch = TouchChoice::new();
+    let ignore_touch = touch.action();
     CanvasActions {
         select,
         frame,
@@ -405,6 +410,8 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         zoom_out,
         zoom_reset,
         fit_all,
+        ignore_touch,
+        touch,
     }
 }
 

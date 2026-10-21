@@ -63,6 +63,12 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 </List>
             }}
         >
+            <ToggleButton
+                icon_only=true
+                action={actions.ignore_touch.clone()}
+                @test_id={"infinite-canvas.dock.ignore-touch"}
+            />
+            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
             <ForEach keys={(0..TOOLS.len()).collect::<Vec<usize>>()}>|index: usize| {
                 let actions = tools.clone();
                 view! {

@@ -26,7 +26,10 @@ pub(crate) fn CanvasMenu(disabled: bool, children: Child) -> NodeId {
                 <MenuItem action={actions.copy} />
                 <MenuItem action={actions.paste} />
                 <MenuItem action={actions.duplicate} />
-                <MenuItem action={actions.delete} />
+                <MenuItem
+                    action={actions.delete}
+                    row_test_id={"infinite-canvas.menu.delete".to_owned()}
+                />
                 <MenuItem action={actions.group} />
                 <MenuItem action={actions.ungroup} />
                 <MenuItem action={actions.lock} />

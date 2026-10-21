@@ -91,6 +91,7 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
             on_paste={move |pasted: Pasted| state.take_paste(pasted)}
             cursor={cursor}
             touch_drags={interactive}
+            drawing={interactive}
             on_cancel={move || state.cancel()}
             on_press={move |press: PointerPress| state.press(press)}
             on_secondary_press={move |press: PointerPress| state.secondary_press(press)}

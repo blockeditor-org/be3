@@ -1,12 +1,15 @@
 use std::collections::{BTreeMap, HashSet};
 
-use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::canvas::Canvas;
 use block_editor_beui::be_block::canvas::{
     CanvasArrowhead, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill, CanvasPathPoint,
     CanvasPoint, CanvasShape, CanvasTransform, InfiniteCanvasOperation,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
+use block_editor_beui::be_block::{
+    CanvasContent, DisplaySettings, Root, Settings, SettingsContent, SettingsProfile,
+    SettingsProfileContent,
+};
 use block_editor_beui::beui::Vec2;
 use block_editor_beui::{BlockInfo, BlockParent, EditorHost, OwnedEditor};
 use block_ui_test::BeuiTest;
@@ -69,6 +72,7 @@ mod the_pen_tool_keeps_every_coalesced_sample_and_draws_the_predicted_tail;
 mod the_preview_fills_the_frame_with_its_background;
 mod the_preview_shows_the_first_frame;
 mod the_transform_fields_edit_the_selected_entity;
+mod turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas;
 mod typed_text_grows_away_from_the_edges_it_is_aligned_to;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
 
@@ -155,6 +159,37 @@ fn phone(entities: &[CanvasEntity]) -> BeuiTest<CanvasApp> {
         &[],
         Some(Vec2::new(390.0, 760.0)),
     )
+}
+
+fn display_settings_here(editor: &mut BeuiTest<CanvasApp>) -> Uuid {
+    let client = editor.host().client_id();
+    let (settings, profile, display) = (Uuid::new_v4(), Uuid::new_v4(), Uuid::new_v4());
+    let store = editor.store();
+    store.add_block(BlockInfo::new(
+        settings,
+        Settings::CONTENT_TYPE,
+        BlockParent::Root,
+    ));
+    store.add_block(BlockInfo::new(
+        profile,
+        SettingsProfile::CONTENT_TYPE,
+        BlockParent::Block(settings),
+    ));
+    let mut held = SettingsContent::default();
+    held.apply(&Settings::add_profile(client, profile));
+    store.hold(Some(settings), held);
+    let mut own = SettingsProfileContent::default();
+    own.apply(&SettingsProfile::set_kind(
+        DisplaySettings::CONTENT_TYPE,
+        display,
+    ));
+    store.hold(Some(profile), own);
+    store.hold(
+        Some(display),
+        block_editor_beui::be_block::DisplaySettingsContent::default(),
+    );
+    editor.run();
+    display
 }
 
 fn apply(editor: &mut BeuiTest<CanvasApp>, operation: InfiniteCanvasOperation) {

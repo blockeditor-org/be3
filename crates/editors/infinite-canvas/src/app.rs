@@ -22,12 +22,14 @@ pub(crate) mod sidebar;
 pub(crate) mod state;
 pub(crate) mod text;
 pub(crate) mod toolbar;
+pub(crate) mod touch;
 
 use actions::canvas_actions;
 use canvas::CanvasStage;
 use sidebar::CanvasSidebar;
 use state::CanvasState;
 use toolbar::{ImportError, ToolDock, ZoomPill};
+use touch::TouchSetting;
 
 use crate::geometry::{MIN_SIZE, embedded_region};
 
@@ -71,9 +73,12 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     let chrome = editor.chrome_shown();
     let scope = NodeRef::new();
     action_scope(&scope);
-    provide_context(canvas_actions(state));
+    let actions = canvas_actions(state);
+    let touch = actions.touch;
+    provide_context(actions);
     view! {
         <List @node_ref=&scope spacing=0.0>
+            <TouchSetting editor choice={touch} />
             <ImportError state={state} />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={state} />
