@@ -7015,7 +7015,6 @@ dependencies = [
  "block-ui-test",
  "serde",
  "serde_json",
- "similar",
  "text-editor-core",
  "uuid",
 ]
