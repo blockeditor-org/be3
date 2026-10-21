@@ -663,7 +663,7 @@ impl Renderer {
             entries: &[
                 wgpu::BindGroupLayoutEntry {
                     binding: 0,
-                    visibility: wgpu::ShaderStages::VERTEX,
+                    visibility: wgpu::ShaderStages::VERTEX_FRAGMENT,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
@@ -1638,6 +1638,19 @@ impl Renderer {
                 rect,
                 clip,
             },
+            Quad::Triangle {
+                corners: [a, b, c],
+                edges,
+                clip,
+                color,
+            } => plain(Instance {
+                rect: [a[0], a[1], b[0], b[1]],
+                clip,
+                uv: [c[0], c[1], 0.0, 0.0],
+                color: self.encode(color),
+                params: [f32::from(edges), 0.0, 4.0, 0.0],
+                turn: turn(Turn::NONE),
+            }),
         })
     }
 

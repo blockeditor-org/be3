@@ -9,6 +9,8 @@ accesskit = "0.24.1"
 beui-tree = { path = "../beui-tree" }
 foldhash = "0.2"
 geometry = { path = "../geometry" }
+kurbo = "0.13"
+lyon_tessellation = "1"
 paint-format = { path = "../paint-format" }
 raw-window-handle = { version = "0.6", features = ["alloc"] }
 reactive = { path = "../reactive" }

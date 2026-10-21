@@ -50,6 +50,12 @@ pub enum Quad {
         clip: [f32; 4],
         drawing: Drawing,
     },
+    Triangle {
+        corners: [[f32; 2]; 3],
+        edges: u8,
+        clip: [f32; 4],
+        color: Color32,
+    },
 }
 
 #[derive(Clone, Copy, Debug, Default, PartialEq)]
@@ -79,6 +85,17 @@ impl Turn {
             cos,
             sin,
         }
+    }
+
+    fn apply(self, [x, y]: [f32; 2]) -> [f32; 2] {
+        if self == Self::NONE {
+            return [x, y];
+        }
+        let (x, y) = (x - self.pivot[0], y - self.pivot[1]);
+        [
+            self.pivot[0] + x * self.cos - y * self.sin,
+            self.pivot[1] + x * self.sin + y * self.cos,
+        ]
     }
 
     fn swept(self, rect: [f32; 4]) -> [f32; 4] {
@@ -327,6 +344,47 @@ pub fn push_quads(
                 clip,
                 drawing: drawing.clone(),
             });
+        }
+        Shape::Path {
+            path,
+            scale,
+            offset,
+            color,
+            rotation,
+            clip,
+        } => {
+            let clip = bounds(*clip, pixels_per_point);
+            let reach = crate::damage::path_bounds(path, *scale, *offset, *rotation);
+            if !reach.is_positive() || skipped(damaged, bounds(reach, pixels_per_point), clip) {
+                return;
+            }
+            let shift = [offset.x * pixels_per_point, offset.y * pixels_per_point];
+            let turn = Turn::of(*rotation, pixels_per_point);
+            for triangle in path.mesh(scale * pixels_per_point).iter() {
+                let corners = triangle
+                    .corners
+                    .map(|[x, y]| turn.apply([x + shift[0], y + shift[1]]));
+                let near = corners.iter().fold(
+                    [f32::MAX, f32::MAX, f32::MIN, f32::MIN],
+                    |near, [x, y]| {
+                        [
+                            near[0].min(*x),
+                            near[1].min(*y),
+                            near[2].max(*x),
+                            near[3].max(*y),
+                        ]
+                    },
+                );
+                if skipped(damaged, expand(near, 1.0), clip) {
+                    continue;
+                }
+                quads.push(Quad::Triangle {
+                    corners,
+                    edges: triangle.edges,
+                    clip,
+                    color: *color,
+                });
+            }
         }
     }
 }

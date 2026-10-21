@@ -10,6 +10,7 @@ use crate::font::{FontId, Galley, TextLayout};
 use crate::geometry::{Pos2, Rect, Rotation, Vec2};
 use crate::image::Image;
 use crate::node::{NodeId, SpaceId};
+use crate::path::{FillRule, Path, PathPaint, PathStyle, Stroke};
 use crate::pixel_grid::PixelGrid;
 use crate::rich::{Piece, RichLayout, RichOptions, Shaper};
 
@@ -127,6 +128,14 @@ pub enum Shape {
     Drawing {
         rect: Rect,
         drawing: Drawing,
+        clip: Rect,
+    },
+    Path {
+        path: Rc<PathPaint>,
+        scale: f32,
+        offset: Vec2,
+        color: Color32,
+        rotation: Rotation,
         clip: Rect,
     },
 }
@@ -484,6 +493,31 @@ impl Painter {
         });
     }
 
+    pub fn fill_path(&self, path: &Path, rule: FillRule, color: Color32) {
+        self.path(path, PathStyle::Fill(rule), color);
+    }
+
+    pub fn stroke_path(&self, path: &Path, stroke: &Stroke, color: Color32) {
+        if stroke.width.is_nan() || stroke.width <= 0.0 {
+            return;
+        }
+        self.path(path, PathStyle::Stroke(stroke.clone()), color);
+    }
+
+    fn path(&self, path: &Path, style: PathStyle, color: Color32) {
+        if color.alpha() == 0 || path.is_empty() {
+            return;
+        }
+        self.push(Shape::Path {
+            path: Rc::new(PathPaint::new(path.clone(), style)),
+            scale: 1.0,
+            offset: Vec2::ZERO,
+            color,
+            rotation: self.state.rotation,
+            clip: Rect::EVERYTHING,
+        });
+    }
+
     pub fn galley(&self, origin: Pos2, galley: Galley, color: Color32) {
         if color.alpha() == 0 || galley.is_blank() {
             return;
@@ -545,6 +579,16 @@ pub fn placed_shape(shape: &Shape, offset: Vec2, space_clip: Rect) -> Shape {
         }
         Shape::Drawing { rect, clip, .. } => {
             *rect = rect.translate(offset);
+            *clip = clip.translate(offset).intersect(space_clip);
+        }
+        Shape::Path {
+            offset: at,
+            rotation,
+            clip,
+            ..
+        } => {
+            *at += offset;
+            *rotation = rotation.translate(offset);
             *clip = clip.translate(offset).intersect(space_clip);
         }
     }

@@ -1,5 +1,6 @@
-use crate::geometry::{Pos2, Rect};
+use crate::geometry::{Pos2, Rect, Rotation, Vec2};
 use crate::painter::Shape;
+use crate::path::PathPaint;
 
 const REGIONS: usize = 4;
 
@@ -195,7 +196,23 @@ pub fn bounds(shape: &Shape) -> Rect {
             ..
         } => rotation.bounds(*rect).intersect(*clip),
         Shape::Drawing { rect, clip, .. } => rect.intersect(*clip),
+        Shape::Path {
+            path,
+            scale,
+            offset,
+            rotation,
+            clip,
+            ..
+        } => path_bounds(path, *scale, *offset, *rotation).intersect(*clip),
     }
+}
+
+pub fn path_bounds(path: &PathPaint, scale: f32, offset: Vec2, rotation: Rotation) -> Rect {
+    let bounds = path.bounds();
+    if !bounds.is_positive() {
+        return Rect::NOTHING;
+    }
+    rotation.bounds(bounds.scaled(scale).translate(offset).expand(1.0))
 }
 
 pub fn line_bounds(from: Pos2, to: Pos2, width: f32) -> Rect {

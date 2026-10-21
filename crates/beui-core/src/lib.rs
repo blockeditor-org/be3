@@ -32,6 +32,7 @@ pub mod page;
 pub mod paint;
 pub mod painter;
 pub mod painting;
+pub mod path;
 pub mod performance;
 pub mod pixel_grid;
 pub mod preferences;

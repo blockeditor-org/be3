@@ -56,7 +56,41 @@ pub fn painting(
     let turn_of = |turn: crate::draw::Turn| turned(turn, pixels_per_point);
     let mut textures = BTreeMap::new();
     let mut primitives = Vec::new();
+    let mut joined = false;
     for quad in crate::draw::quads(output, pixels_per_point).list {
+        let joining = std::mem::replace(&mut joined, false);
+        if let Quad::Triangle {
+            corners,
+            clip,
+            color,
+            ..
+        } = &quad
+        {
+            let clip = points(*clip);
+            if clip[2].min(size.x) <= clip[0].max(0.0) || clip[3].min(size.y) <= clip[1].max(0.0) {
+                continue;
+            }
+            let triangle = Triangle {
+                texture: white(&mut textures)?,
+                corners: corners.map(|[x, y]| Vertex {
+                    pos: [x / pixels_per_point, y / pixels_per_point],
+                    uv: [0.0, 0.0],
+                    color: color.to_array(),
+                }),
+            };
+            joined = true;
+            match primitives.last_mut() {
+                Some(Primitive {
+                    clip: held,
+                    content: Content::Mesh(triangles),
+                }) if joining && *held == clip => triangles.push(triangle),
+                _ => primitives.push(Primitive {
+                    clip,
+                    content: Content::Mesh(vec![triangle]),
+                }),
+            }
+            continue;
+        }
         if let Quad::Drawing {
             rect,
             clip,
@@ -192,6 +226,7 @@ pub fn painting(
             Quad::Punch { rect, clip, .. } | Quad::Drawing { rect, clip, .. } => {
                 (clip, Content::Callback(points(rect)))
             }
+            Quad::Triangle { .. } => continue,
         };
         let clip = points(clip);
         let outside =

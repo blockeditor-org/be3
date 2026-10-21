@@ -1404,7 +1404,8 @@ pub fn shape_clip(shape: &mut Shape) -> &mut Rect {
         | Shape::Line { clip, .. }
         | Shape::Image { clip, .. }
         | Shape::Punch { clip, .. }
-        | Shape::Drawing { clip, .. } => clip,
+        | Shape::Drawing { clip, .. }
+        | Shape::Path { clip, .. } => clip,
     }
 }
 
@@ -1466,6 +1467,18 @@ pub fn scale_shape(shape: &mut Shape, scale: f32) {
         }
         Shape::Drawing { rect, clip, .. } => {
             *rect = rect.scaled(scale);
+            *clip = clip.scaled(scale);
+        }
+        Shape::Path {
+            scale: held,
+            offset,
+            rotation,
+            clip,
+            ..
+        } => {
+            *held *= scale;
+            *offset *= scale;
+            *rotation = rotation.scaled(scale);
             *clip = clip.scaled(scale);
         }
     }

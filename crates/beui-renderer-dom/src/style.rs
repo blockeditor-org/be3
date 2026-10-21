@@ -7,6 +7,7 @@ use beui_core::font::Galley;
 use beui_core::geometry::Vec2;
 use beui_core::geometry::{Pos2, Rect, Rotation, vec2};
 use beui_core::painter::Shape;
+use beui_core::path::{FillRule, LineCap, LineJoin, PathElement, PathPaint, PathStyle};
 use beui_font_browser::css_font;
 
 const REACH: f64 = 1_000_000.0;
@@ -133,9 +134,120 @@ pub fn look(shape: &Shape, factor: f32, image: Option<&str>) -> Option<Look> {
             let _ = write!(css, "background:{};", rgba(UNDRAWABLE));
             Look::Box(css)
         }
+        Shape::Path {
+            path,
+            scale,
+            offset,
+            color,
+            rotation,
+            clip,
+        } => {
+            let bounds = path.bounds().scaled(*scale).translate(*offset).expand(1.0);
+            if !bounds.is_positive() {
+                return None;
+            }
+            let mut css = placed(bounds, *clip, *rotation)?;
+            let image = svg(
+                path,
+                *scale,
+                *offset - bounds.min.to_vec2(),
+                bounds.size(),
+                *color,
+            );
+            let _ = write!(
+                css,
+                "background-image:url(\"data:image/svg+xml,{}\");background-size:100% 100%;",
+                escaped(&image)
+            );
+            Look::Box(css)
+        }
         Shape::Punch { .. } => return None,
     };
     Some(look)
+}
+
+fn svg(path: &PathPaint, scale: f32, offset: Vec2, size: Vec2, color: Color32) -> String {
+    let at = |point: Pos2| {
+        let point = Pos2::new(point.x * scale, point.y * scale) + offset;
+        format!("{} {}", point.x, point.y)
+    };
+    let mut data = String::new();
+    for element in path.path().elements() {
+        let _ = match *element {
+            PathElement::MoveTo(to) => write!(data, "M{}", at(to)),
+            PathElement::LineTo(to) => write!(data, "L{}", at(to)),
+            PathElement::QuadTo(control, to) => write!(data, "Q{} {}", at(control), at(to)),
+            PathElement::CubicTo(first, second, to) => {
+                write!(data, "C{} {} {}", at(first), at(second), at(to))
+            }
+            PathElement::Close => write!(data, "Z"),
+        };
+    }
+    let [red, green, blue, alpha] = color.to_array();
+    let paint = format!("rgb({red},{green},{blue})");
+    let opacity = f32::from(alpha) / 255.0;
+    let painted = match path.style() {
+        PathStyle::Fill(rule) => format!(
+            "fill='{paint}' fill-opacity='{opacity}' fill-rule='{}'",
+            match rule {
+                FillRule::NonZero => "nonzero",
+                FillRule::EvenOdd => "evenodd",
+            }
+        ),
+        PathStyle::Stroke(stroke) => {
+            let mut painted = format!(
+                "fill='none' stroke='{paint}' stroke-opacity='{opacity}' stroke-width='{}' \
+                 stroke-linejoin='{}' stroke-linecap='{}' stroke-miterlimit='{}'",
+                stroke.width * scale,
+                match stroke.join {
+                    LineJoin::Miter => "miter",
+                    LineJoin::Round => "round",
+                    LineJoin::Bevel => "bevel",
+                },
+                match stroke.cap {
+                    LineCap::Butt => "butt",
+                    LineCap::Round => "round",
+                    LineCap::Square => "square",
+                },
+                stroke.miter_limit.max(1.0),
+            );
+            if stroke.is_dashed() {
+                let dashes: Vec<String> = stroke
+                    .dashes
+                    .iter()
+                    .map(|dash| (dash * scale).to_string())
+                    .collect();
+                let _ = write!(
+                    painted,
+                    " stroke-dasharray='{}' stroke-dashoffset='{}'",
+                    dashes.join(" "),
+                    stroke.dash_offset * scale
+                );
+            }
+            painted
+        }
+    };
+    format!(
+        "<svg xmlns='http://www.w3.org/2000/svg' width='{width}' height='{height}' \
+         viewBox='0 0 {width} {height}' overflow='visible'><path d='{data}' {painted}/></svg>",
+        width = size.x,
+        height = size.y,
+    )
+}
+
+fn escaped(text: &str) -> String {
+    let mut escaped = String::with_capacity(text.len());
+    for character in text.chars() {
+        match character {
+            '%' => escaped.push_str("%25"),
+            '#' => escaped.push_str("%23"),
+            '<' => escaped.push_str("%3C"),
+            '>' => escaped.push_str("%3E"),
+            '"' => escaped.push_str("%22"),
+            _ => escaped.push(character),
+        }
+    }
+    escaped
 }
 
 fn text(

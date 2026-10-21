@@ -1,0 +1,490 @@
+use std::cell::RefCell;
+use std::rc::Rc;
+
+use foldhash::HashMap;
+use kurbo::Shape as _;
+
+use crate::geometry::{Pos2, Rect, Vec2, pos2};
+
+const TOLERANCE: f32 = 0.05;
+const DOT: f64 = 0.001;
+const ELLIPSE_HANDLE: f32 = 0.552_284_8;
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub enum PathElement {
+    MoveTo(Pos2),
+    LineTo(Pos2),
+    QuadTo(Pos2, Pos2),
+    CubicTo(Pos2, Pos2, Pos2),
+    Close,
+}
+
+#[derive(Clone, PartialEq, Debug, Default)]
+pub struct Path {
+    elements: Vec<PathElement>,
+}
+
+impl Path {
+    pub fn new() -> Self {
+        Self::default()
+    }
+
+    pub fn move_to(mut self, to: Pos2) -> Self {
+        self.elements.push(PathElement::MoveTo(to));
+        self
+    }
+
+    pub fn line_to(self, to: Pos2) -> Self {
+        match self.elements.is_empty() {
+            true => self.move_to(to),
+            false => self.pushed(PathElement::LineTo(to)),
+        }
+    }
+
+    pub fn quad_to(self, control: Pos2, to: Pos2) -> Self {
+        self.started(control)
+            .pushed(PathElement::QuadTo(control, to))
+    }
+
+    pub fn cubic_to(self, first: Pos2, second: Pos2, to: Pos2) -> Self {
+        self.started(first)
+            .pushed(PathElement::CubicTo(first, second, to))
+    }
+
+    pub fn close(self) -> Self {
+        match self.elements.last() {
+            None | Some(PathElement::Close) => self,
+            Some(_) => self.pushed(PathElement::Close),
+        }
+    }
+
+    pub fn polyline(points: impl IntoIterator<Item = Pos2>) -> Self {
+        let mut points = points.into_iter();
+        let Some(first) = points.next() else {
+            return Self::new();
+        };
+        points.fold(Self::new().move_to(first), Self::line_to)
+    }
+
+    pub fn polygon(points: impl IntoIterator<Item = Pos2>) -> Self {
+        Self::polyline(points).close()
+    }
+
+    pub fn ellipse(center: Pos2, radii: Vec2) -> Self {
+        let handle = radii * ELLIPSE_HANDLE;
+        let at = |x: f32, y: f32| pos2(center.x + x, center.y + y);
+        Self::new()
+            .move_to(at(radii.x, 0.0))
+            .cubic_to(
+                at(radii.x, handle.y),
+                at(handle.x, radii.y),
+                at(0.0, radii.y),
+            )
+            .cubic_to(
+                at(-handle.x, radii.y),
+                at(-radii.x, handle.y),
+                at(-radii.x, 0.0),
+            )
+            .cubic_to(
+                at(-radii.x, -handle.y),
+                at(-handle.x, -radii.y),
+                at(0.0, -radii.y),
+            )
+            .cubic_to(
+                at(handle.x, -radii.y),
+                at(radii.x, -handle.y),
+                at(radii.x, 0.0),
+            )
+            .close()
+    }
+
+    pub fn elements(&self) -> &[PathElement] {
+        &self.elements
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.elements.is_empty()
+    }
+
+    pub fn bounds(&self) -> Rect {
+        self.elements
+            .iter()
+            .fold(Rect::NOTHING, |bounds, element| match *element {
+                PathElement::MoveTo(point) | PathElement::LineTo(point) => {
+                    bounds.union(Rect::from_min_max(point, point))
+                }
+                PathElement::QuadTo(control, to) => bounds.union(Rect::from_points(&[control, to])),
+                PathElement::CubicTo(first, second, to) => {
+                    bounds.union(Rect::from_points(&[first, second, to]))
+                }
+                PathElement::Close => bounds,
+            })
+    }
+
+    fn started(self, at: Pos2) -> Self {
+        match self.elements.is_empty() {
+            true => self.move_to(at),
+            false => self,
+        }
+    }
+
+    fn pushed(mut self, element: PathElement) -> Self {
+        self.elements.push(element);
+        self
+    }
+
+    fn kurbo(&self, scale: f32) -> kurbo::BezPath {
+        let point =
+            |point: Pos2| kurbo::Point::new(f64::from(point.x * scale), f64::from(point.y * scale));
+        let mut path = kurbo::BezPath::new();
+        let mut start = Pos2::ZERO;
+        let mut closed = false;
+        for element in &self.elements {
+            if closed && !matches!(element, PathElement::MoveTo(_) | PathElement::Close) {
+                path.move_to(point(start));
+            }
+            closed = false;
+            match *element {
+                PathElement::MoveTo(to) => {
+                    path.move_to(point(to));
+                    start = to;
+                }
+                PathElement::LineTo(to) => path.line_to(point(to)),
+                PathElement::QuadTo(control, to) => path.quad_to(point(control), point(to)),
+                PathElement::CubicTo(first, second, to) => {
+                    path.curve_to(point(first), point(second), point(to))
+                }
+                PathElement::Close => {
+                    path.close_path();
+                    closed = true;
+                }
+            }
+        }
+        path
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum FillRule {
+    #[default]
+    NonZero,
+    EvenOdd,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum LineJoin {
+    #[default]
+    Miter,
+    Round,
+    Bevel,
+}
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug, Default)]
+pub enum LineCap {
+    #[default]
+    Butt,
+    Round,
+    Square,
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub struct Stroke {
+    pub width: f32,
+    pub join: LineJoin,
+    pub miter_limit: f32,
+    pub cap: LineCap,
+    pub dashes: Vec<f32>,
+    pub dash_offset: f32,
+}
+
+impl Stroke {
+    pub fn new(width: f32) -> Self {
+        Self {
+            width,
+            join: LineJoin::Miter,
+            miter_limit: 4.0,
+            cap: LineCap::Butt,
+            dashes: Vec::new(),
+            dash_offset: 0.0,
+        }
+    }
+
+    pub fn join(self, join: LineJoin) -> Self {
+        Self { join, ..self }
+    }
+
+    pub fn miter_limit(self, miter_limit: f32) -> Self {
+        Self {
+            miter_limit: miter_limit.max(1.0),
+            ..self
+        }
+    }
+
+    pub fn cap(self, cap: LineCap) -> Self {
+        Self { cap, ..self }
+    }
+
+    pub fn dashed(self, dashes: impl IntoIterator<Item = f32>, offset: f32) -> Self {
+        Self {
+            dashes: dashes.into_iter().collect(),
+            dash_offset: offset,
+            ..self
+        }
+    }
+
+    pub fn reach(&self) -> f32 {
+        let half = self.width / 2.0;
+        let join = match self.join {
+            LineJoin::Miter => self.miter_limit.max(1.0),
+            LineJoin::Round | LineJoin::Bevel => 1.0,
+        };
+        let cap = match self.cap {
+            LineCap::Square => std::f32::consts::SQRT_2,
+            LineCap::Butt | LineCap::Round => 1.0,
+        };
+        half * join.max(cap)
+    }
+
+    pub fn is_dashed(&self) -> bool {
+        self.dashes
+            .iter()
+            .all(|dash| dash.is_finite() && *dash >= 0.0)
+            && self.dashes.iter().sum::<f32>() > 0.0
+    }
+
+    fn kurbo(&self, scale: f32) -> kurbo::Stroke {
+        let scaled = |value: f32| f64::from(value * scale);
+        let stroke = kurbo::Stroke::new(scaled(self.width))
+            .with_join(match self.join {
+                LineJoin::Miter => kurbo::Join::Miter,
+                LineJoin::Round => kurbo::Join::Round,
+                LineJoin::Bevel => kurbo::Join::Bevel,
+            })
+            .with_miter_limit(f64::from(self.miter_limit.max(1.0)))
+            .with_caps(match self.cap {
+                LineCap::Butt => kurbo::Cap::Butt,
+                LineCap::Round => kurbo::Cap::Round,
+                LineCap::Square => kurbo::Cap::Square,
+            });
+        if !self.is_dashed() {
+            return stroke;
+        }
+        let mut pattern: Vec<f64> = self.dashes.iter().map(|dash| scaled(*dash)).collect();
+        if pattern.len() % 2 == 1 {
+            pattern.extend_from_within(..);
+        }
+        for pair in pattern.as_chunks_mut::<2>().0 {
+            let dot = DOT.min(pair[1]) - pair[0];
+            if dot > 0.0 {
+                pair[0] += dot;
+                pair[1] -= dot;
+            }
+        }
+        stroke.with_dashes(scaled(self.dash_offset), pattern)
+    }
+}
+
+#[derive(Clone, PartialEq, Debug)]
+pub enum PathStyle {
+    Fill(FillRule),
+    Stroke(Stroke),
+}
+
+impl PathStyle {
+    pub fn reach(&self) -> f32 {
+        match self {
+            Self::Fill(_) => 0.0,
+            Self::Stroke(stroke) => stroke.reach(),
+        }
+    }
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+pub struct PathTriangle {
+    pub corners: [[f32; 2]; 3],
+    pub edges: u8,
+}
+
+pub struct PathPaint {
+    path: Path,
+    style: PathStyle,
+    bounds: Rect,
+    mesh: RefCell<Option<(f32, Rc<[PathTriangle]>)>>,
+}
+
+impl PathPaint {
+    pub fn new(path: Path, style: PathStyle) -> Self {
+        let bounds = match path.is_empty() {
+            true => Rect::NOTHING,
+            false => path.bounds().expand(style.reach()),
+        };
+        Self {
+            path,
+            style,
+            bounds,
+            mesh: RefCell::new(None),
+        }
+    }
+
+    pub fn path(&self) -> &Path {
+        &self.path
+    }
+
+    pub fn style(&self) -> &PathStyle {
+        &self.style
+    }
+
+    pub fn bounds(&self) -> Rect {
+        self.bounds
+    }
+
+    pub fn mesh(&self, scale: f32) -> Rc<[PathTriangle]> {
+        if let Some((held, mesh)) = self.mesh.borrow().as_ref()
+            && *held == scale
+        {
+            return Rc::clone(mesh);
+        }
+        let mesh: Rc<[PathTriangle]> = tessellate(&self.path, &self.style, scale).into();
+        *self.mesh.borrow_mut() = Some((scale, Rc::clone(&mesh)));
+        mesh
+    }
+}
+
+impl PartialEq for PathPaint {
+    fn eq(&self, other: &Self) -> bool {
+        std::ptr::eq(self, other) || (self.path == other.path && self.style == other.style)
+    }
+}
+
+impl std::fmt::Debug for PathPaint {
+    fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        formatter
+            .debug_struct("PathPaint")
+            .field("path", &self.path)
+            .field("style", &self.style)
+            .finish()
+    }
+}
+
+pub fn tessellate(path: &Path, style: &PathStyle, scale: f32) -> Vec<PathTriangle> {
+    if path.is_empty() || scale.is_nan() || scale <= 0.0 {
+        return Vec::new();
+    }
+    let (outline, rule) = match style {
+        PathStyle::Fill(rule) => (path.kurbo(scale), *rule),
+        PathStyle::Stroke(stroke) => {
+            if !stroke.width.is_finite() || stroke.width <= 0.0 {
+                return Vec::new();
+            }
+            let outline = kurbo::stroke(
+                path.kurbo(scale),
+                &stroke.kurbo(scale),
+                &kurbo::StrokeOpts::default(),
+                f64::from(TOLERANCE),
+            );
+            (outline, FillRule::NonZero)
+        }
+    };
+    fill(&outline, rule)
+}
+
+fn fill(outline: &kurbo::BezPath, rule: FillRule) -> Vec<PathTriangle> {
+    use lyon_tessellation::{
+        BuffersBuilder, FillOptions, FillTessellator, FillVertex, VertexBuffers,
+    };
+
+    if outline.is_empty() || !outline.bounding_box().is_finite() {
+        return Vec::new();
+    }
+    let at = |at: kurbo::Point| lyon_tessellation::math::point(at.x as f32, at.y as f32);
+    let mut builder = lyon_tessellation::path::Path::builder();
+    let mut open = false;
+    for element in outline.elements() {
+        match *element {
+            kurbo::PathEl::MoveTo(to) => {
+                if open {
+                    builder.end(false);
+                }
+                builder.begin(at(to));
+                open = true;
+            }
+            kurbo::PathEl::LineTo(to) if open => {
+                builder.line_to(at(to));
+            }
+            kurbo::PathEl::QuadTo(control, to) if open => {
+                builder.quadratic_bezier_to(at(control), at(to));
+            }
+            kurbo::PathEl::CurveTo(first, second, to) if open => {
+                builder.cubic_bezier_to(at(first), at(second), at(to));
+            }
+            kurbo::PathEl::ClosePath if open => {
+                builder.end(true);
+                open = false;
+            }
+            _ => {}
+        }
+    }
+    if open {
+        builder.end(false);
+    }
+    let outline = builder.build();
+    let options = FillOptions::tolerance(TOLERANCE).with_fill_rule(match rule {
+        FillRule::NonZero => lyon_tessellation::FillRule::NonZero,
+        FillRule::EvenOdd => lyon_tessellation::FillRule::EvenOdd,
+    });
+    let mut buffers: VertexBuffers<[f32; 2], u32> = VertexBuffers::new();
+    let filled = FillTessellator::new().tessellate_path(
+        &outline,
+        &options,
+        &mut BuffersBuilder::new(&mut buffers, |vertex: FillVertex| {
+            vertex.position().to_array()
+        }),
+    );
+    if filled.is_err() {
+        return Vec::new();
+    }
+    triangles(&buffers.vertices, &buffers.indices)
+}
+
+fn triangles(vertices: &[[f32; 2]], indices: &[u32]) -> Vec<PathTriangle> {
+    let solid: Vec<[[f32; 2]; 3]> = indices
+        .as_chunks::<3>()
+        .0
+        .iter()
+        .map(|corners| [0, 1, 2].map(|corner| vertices[corners[corner] as usize]))
+        .filter(|[a, b, c]| {
+            let area = (b[0] - a[0]) * (c[1] - a[1]) - (b[1] - a[1]) * (c[0] - a[0]);
+            area != 0.0 && area.is_finite()
+        })
+        .collect();
+    let edge = |from: [f32; 2], to: [f32; 2]| {
+        let (from, to) = (from.map(f32::to_bits), to.map(f32::to_bits));
+        match from <= to {
+            true => (from, to),
+            false => (to, from),
+        }
+    };
+    let mut shared: HashMap<([u32; 2], [u32; 2]), u32> = HashMap::default();
+    for corners in &solid {
+        for side in 0..3 {
+            *shared
+                .entry(edge(corners[side], corners[(side + 1) % 3]))
+                .or_default() += 1;
+        }
+    }
+    solid
+        .into_iter()
+        .map(|corners| {
+            let edges = (0..3).fold(0, |edges, side| {
+                match shared[&edge(corners[side], corners[(side + 1) % 3])] {
+                    1 => edges | (1 << side),
+                    _ => edges,
+                }
+            });
+            PathTriangle { corners, edges }
+        })
+        .collect()
+}
+
+#[cfg(test)]
+mod tests;

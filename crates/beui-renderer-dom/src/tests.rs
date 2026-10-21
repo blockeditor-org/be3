@@ -3,6 +3,7 @@ use super::*;
 mod a_child_moved_to_the_end_is_the_only_one_that_moves;
 mod a_clip_group_cuts_its_content_to_the_rectangle_it_names;
 mod a_mask_group_fades_what_it_holds_toward_the_edges_it_names;
+mod a_path_is_an_svg_drawn_over_its_bounds;
 mod a_scaled_group_scales_what_it_holds;
 mod a_scroll_group_clips_to_its_viewport_and_shifts_what_it_holds;
 mod a_shape_partly_outside_its_clip_is_cut_with_an_inset;
