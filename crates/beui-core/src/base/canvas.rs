@@ -200,7 +200,7 @@ pub struct CanvasNode {
     size: Vec2,
     items: ChildList<NodeId>,
     index: ItemIndex,
-    laid: Vec<NodeId>,
+    laid: Vec<(NodeId, u8)>,
     host: Option<NodeId>,
     shift: Vec2,
     zoom: Zoom,
@@ -277,6 +277,8 @@ impl Element for CanvasNode {
         let host = doc.laying_out().expect("a canvas is laid out as itself");
         let shift = self.shift(doc, painter);
         let zoom = self.zoom();
+        let painted = (self.host, self.shift, self.zoom);
+        let was_laid = std::mem::take(&mut self.laid);
         self.host = Some(host);
         self.shift = shift;
         self.zoom = zoom;
@@ -309,19 +311,26 @@ impl Element for CanvasNode {
             .index
             .near(seen)
             .unwrap_or_else(|| self.items.iter().copied().collect());
-        self.laid.clear();
         for item in &near {
             let world = doc.canvas_item_rect(NodeOf::assumed(*item));
-            let (painter, placed, shown) = match Self::slot(doc, NodeOf::assumed(*item)) {
+            let slot = Self::slot(doc, NodeOf::assumed(*item));
+            let (painter, placed, shown) = match slot {
                 SCALED => (&scaled, world, seen),
                 CLIPPED => (&clipped, scaled_rect(world, zoom.scale), visible),
                 _ => (&unclipped, scaled_rect(world, zoom.scale), visible),
             };
             if placed.intersects(shown) {
                 crate::layout::layout(doc, painter, *item, placed, out);
-                self.laid.push(*item);
+                self.laid.push((*item, slot));
             }
         }
+        if was_laid != self.laid || painted != (self.host, self.shift, self.zoom) {
+            doc.arena.note_relaid(host);
+        }
+    }
+
+    fn paints_from_layout(&self) -> bool {
+        false
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
@@ -335,9 +344,9 @@ impl Element for CanvasNode {
             Rect::EVERYTHING,
         );
         let scaled = painter.zoomed(SpaceId::inside(host, SCALED), self.shift, self.zoom, rect);
-        for item in &self.laid {
+        for (item, slot) in &self.laid {
             if rects.contains_key(item) {
-                let painter = match Self::slot(doc, NodeOf::assumed(*item)) {
+                let painter = match *slot {
                     SCALED => &scaled,
                     CLIPPED => &clipped,
                     _ => &unclipped,
@@ -356,11 +365,11 @@ impl Element for CanvasNode {
     }
 
     fn pointer_children(&self) -> Vec<NodeId> {
-        self.laid.clone()
+        self.laid.iter().map(|(item, _)| *item).collect()
     }
 
     fn for_each_shown_child(&self, visit: &mut dyn FnMut(NodeId)) {
-        for item in &self.laid {
+        for (item, _) in &self.laid {
             visit(*item);
         }
     }
