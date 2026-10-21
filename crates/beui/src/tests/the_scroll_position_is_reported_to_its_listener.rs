@@ -15,7 +15,7 @@ fn the_scroll_position_is_reported_to_its_listener() {
                 >
                     <List spacing=0.0>
                         <ForEach keys={indices(100)}>|index: usize|
-                            <Text string={format!("Row {index}")} color=Color32::WHITE />
+                            <Text color=Color32::WHITE>{format!("Row {index}")}</Text>
                         </ForEach>
                     </List>
                 </Offset>

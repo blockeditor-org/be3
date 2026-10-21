@@ -40,11 +40,9 @@ pub fn Kanban(data: Data) -> NodeId {
             <List spacing=0.0>
                 <Show condition={missing}>
                     <Frame padding=PADDING>
-                        <Text
-                            style=TextStyle::CAPTION
-                            string="Choose the choice field whose options make the columns, under Display."
-                            wrap=true
-                        />
+                        <Text style=TextStyle::CAPTION wrap=true>
+                            "Choose the choice field whose options make the columns, under Display."
+                        </Text>
                     </Frame>
                 </Show>
                 <Show condition={ready}>
@@ -114,7 +112,7 @@ fn FoldedColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId
         >
             <List align=Align::Center spacing=8.0>
                 <ChoiceMark option={option} size=MARK />
-                <Text style=TextStyle::CAPTION string={count} />
+                <Text style=TextStyle::CAPTION>{count}</Text>
                 <IconButton
                     glyph={ICON_UNFOLD_MORE.to_owned()}
                     label={name}
@@ -194,8 +192,8 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
                         <Frame padding={Sides::vertical(4.0).left(4.0)}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                                 <ChoiceMark option={option} size=MARK />
-                                <Text string={label} />
-                                <Text style=TextStyle::CAPTION string={count} />
+                                <Text>{label}</Text>
+                                <Text style=TextStyle::CAPTION>{count}</Text>
                                 <Frame @sizing=ItemSize::Percent(100.0) />
                                 <IconButton
                                     glyph={ICON_ADD.to_owned()}
@@ -308,8 +306,8 @@ fn CardLines(data: Data, row: Prop<usize>) -> NodeId {
     });
     view! {
         <List spacing=6.0>
-            <Text style=TextStyle::CAPTION string={code} />
-            <Text string={title} wrap=true />
+            <Text style=TextStyle::CAPTION>{code}</Text>
+            <Text wrap=true>{title}</Text>
             <Parts parts={parts} keys={keys} wrap=true />
         </List>
     }

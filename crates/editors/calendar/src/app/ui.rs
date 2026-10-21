@@ -113,7 +113,7 @@ pub fn CalendarEditor(editor: Editor) -> NodeId {
                         @test_id={"calendar.next"}
                         on_click={next}
                     />
-                    <Text string={header} />
+                    <Text>{header}</Text>
                     <Tabs
                         options={view! {
                             <ChoiceOption label={CalendarView::Day.label()} />
@@ -282,14 +282,14 @@ fn EventDialog(
                     disabled={read_only}
                     @test_id={"calendar.form.title"}
                 />
-                <Text style=TextStyle::CAPTION string="Starts" />
+                <Text style=TextStyle::CAPTION>"Starts"</Text>
                 <DateTimeField
                     value={Binding::new(start, edit_start)}
                     label="Starts"
                     disabled={read_only}
                     @test_id={"calendar.form.start"}
                 />
-                <Text style=TextStyle::CAPTION string="Ends" />
+                <Text style=TextStyle::CAPTION>"Ends"</Text>
                 <DateTimeField
                     value={Binding::new(end, edit_end)}
                     label="Ends"
@@ -297,7 +297,7 @@ fn EventDialog(
                     @test_id={"calendar.form.end"}
                 />
                 <Show condition={backwards}>
-                    <Text style=TextStyle::CAPTION string="The event ends before it starts." />
+                    <Text style=TextStyle::CAPTION>"The event ends before it starts."</Text>
                 </Show>
             </List>
         </Dialog>

@@ -58,7 +58,7 @@ pub(crate) fn MapToolbar(state: MapState, shown: Prop<bool>) -> NodeId {
                 on_click={move || state.reload_tiles()}
             />
             <Show condition={failed}>
-                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
+                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </Toolbar>
     }

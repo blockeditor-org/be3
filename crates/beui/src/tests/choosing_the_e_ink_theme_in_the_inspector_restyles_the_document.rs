@@ -8,7 +8,7 @@ fn choosing_the_e_ink_theme_in_the_inspector_restyles_the_document() {
     let (document, [_card]) = toolbar_of(|| {
         [view! {
             <Card>
-                <Text style=TextStyle::CAPTION string="Themed" />
+                <Text style=TextStyle::CAPTION>"Themed"</Text>
             </Card>
         }]
     });

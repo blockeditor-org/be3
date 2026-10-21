@@ -1513,7 +1513,7 @@ pub(crate) fn MenuRegion() -> NodeId {
 pub(crate) fn ButtonFace(label: String) -> NodeId {
     view! {
         <Frame fill={Color32::from_gray(60)} radius=4.0 padding={Sides::symmetric(20.0, 12.0)}>
-            <Text string={label} color=Color32::WHITE />
+            <Text color=Color32::WHITE>{label}</Text>
         </Frame>
     }
 }
@@ -1639,7 +1639,7 @@ pub(crate) fn hello_column() -> HelloColumn {
         view! {
             <List spacing=0.0>
                 <Frame @node_ref=&padding padding=4.0>
-                    <Text @node_ref=&text string="Hello" color=Color32::WHITE />
+                    <Text @node_ref=&text color=Color32::WHITE>"Hello"</Text>
                 </Frame>
             </List>
         }
@@ -2121,11 +2121,9 @@ fn nested() -> Document {
 fn Rows(count: usize) -> DynamicSegment<ListChild> {
     view! {
         <ForEach keys={indices(count)}>|index: usize|
-            <Text
-                string={format!("Row {index}")}
-                color=Color32::WHITE
-                font={FontId::proportional(20.0)}
-            />
+            <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
+                {format!("Row {index}")}
+            </Text>
         </ForEach>
     }
 }

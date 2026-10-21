@@ -20,8 +20,8 @@ fn a_layout_builder_in_a_scroll_rebuilds_for_the_width_it_is_given() {
                         let label = create_memo(move || format!("{:.0} wide", size.get().x));
                         view! {
                             <List direction spacing=8.0>
-                                <Text string={label} @test_id={"width"} />
-                                <Text string="beside" />
+                                <Text @test_id={"width"}>{label}</Text>
+                                <Text>"beside"</Text>
                             </List>
                         }
                     }</LayoutBuilder>

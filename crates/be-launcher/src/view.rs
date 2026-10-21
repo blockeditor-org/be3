@@ -162,8 +162,8 @@ fn Sidebar(model: Model) -> NodeId {
                 <List spacing=SPACING>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                         <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                            <Text style=TextStyle::HEADING string="Pull requests" />
-                            <Text style=TextStyle::CAPTION string={repository} />
+                            <Text style=TextStyle::HEADING>"Pull requests"</Text>
+                            <Text style=TextStyle::CAPTION>{repository}</Text>
                         </List>
                         <IconButton
                             glyph=ICON_FRAME_INSPECT
@@ -194,14 +194,14 @@ fn Sidebar(model: Model) -> NodeId {
                     <Show condition={loading}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <Spinner width=20.0 label="Loading pull requests" />
-                            <Text style=TextStyle::CAPTION string="Loading pull requests" />
+                            <Text style=TextStyle::CAPTION>"Loading pull requests"</Text>
                         </List>
                     </Show>
                     <Show condition={failed}>
-                        <Text string={error} color=TextColor::Danger wrap=true />
+                        <Text color=TextColor::Danger wrap=true>{error}</Text>
                     </Show>
                     <Show condition={empty}>
-                        <Text style=TextStyle::CAPTION string={empty_text} />
+                        <Text style=TextStyle::CAPTION>{empty_text}</Text>
                     </Show>
                 </List>
             </Frame>
@@ -262,8 +262,8 @@ fn PullRequestRow(model: Model, pull_request: Memo<PullRequest>) -> NodeId {
             <List direction=Direction::Horizontal spacing=8.0>
                 <StateIcon state />
                 <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                    <Text string={title} wrap=true />
-                    <Text style=TextStyle::CAPTION string={details} />
+                    <Text wrap=true>{title}</Text>
+                    <Text style=TextStyle::CAPTION>{details}</Text>
                     <Show condition={has_tags}>
                         <Labels labels={labels} checked_out={checked_out} />
                     </Show>
@@ -329,7 +329,7 @@ fn Chip(text: Prop<String>, color: Prop<Color32>) -> NodeId {
             radius={Radius::custom(CHIP_RADIUS)}
             padding={Sides::symmetric(CHIP_PADDING_HORIZONTAL, CHIP_PADDING_VERTICAL)}
         >
-            <Text string={text} size=TextSize::Sm color={ink} />
+            <Text size=TextSize::Sm color={ink}>{text}</Text>
         </Frame>
     }
 }

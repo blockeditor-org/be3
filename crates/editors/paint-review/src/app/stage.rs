@@ -177,10 +177,10 @@ fn Notice(
     view! {
         <List spacing=4.0>
             <Show condition={shown}>
-                <Text string={note} color={color} @test_id={"paint_review.notice"} />
+                <Text color={color} @test_id={"paint_review.notice"}>{note}</Text>
             </Show>
             <Show condition={telling}>
-                <Text style=TextStyle::CAPTION string={progress} />
+                <Text style=TextStyle::CAPTION>{progress}</Text>
             </Show>
         </List>
     }

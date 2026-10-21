@@ -767,9 +767,9 @@ fn DemoToolbar(pages: Pages, mobile: Signal<bool>) -> NodeId {
     let wide = create_memo(move || !narrow.get());
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=TOOLBAR_SPACING>
-            <Text style=TextStyle::TITLE string="beui" />
+            <Text style=TextStyle::TITLE>"beui"</Text>
             <Show condition={wide}>
-                <Text style=TextStyle::CAPTION string="retained mode ui" />
+                <Text style=TextStyle::CAPTION>"retained mode ui"</Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={wide}>
@@ -852,8 +852,8 @@ fn CatalogGroup(
         <List spacing=0.0>
             <Frame padding=CATALOG_GROUP_PADDING>
                 <List spacing=2.0>
-                    <Text style=TextStyle::HEADING string={title} />
-                    <Text style=TextStyle::CAPTION string={summary} ellipsis=true />
+                    <Text style=TextStyle::HEADING>{title}</Text>
+                    <Text style=TextStyle::CAPTION ellipsis=true>{summary}</Text>
                 </List>
             </Frame>
             <ForEach keys={listed}>|page: Page| {
@@ -880,8 +880,8 @@ fn CatalogRow(page: Page, pages: Pages, selected: Memo<bool>) -> NodeId {
                     <Icon glyph={page.icon()} />
                 </Text>
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <Text string={page.title()} />
-                    <Text style=TextStyle::CAPTION string={page.summary()} ellipsis=true />
+                    <Text>{page.title()}</Text>
+                    <Text style=TextStyle::CAPTION ellipsis=true>{page.summary()}</Text>
                 </List>
             </List>
         </ListRow>
@@ -893,11 +893,8 @@ fn EmptyPanel() -> NodeId {
     view! {
         <Frame padding=PAGE_PADDING>
             <List spacing=4.0 align=Align::Center>
-                <Text style=TextStyle::HEADING string="Nothing open" />
-                <Text
-                    style=TextStyle::CAPTION
-                    string="Open a page from Components to get started."
-                />
+                <Text style=TextStyle::HEADING>"Nothing open"</Text>
+                <Text style=TextStyle::CAPTION>"Open a page from Components to get started."</Text>
             </List>
         </Frame>
     }

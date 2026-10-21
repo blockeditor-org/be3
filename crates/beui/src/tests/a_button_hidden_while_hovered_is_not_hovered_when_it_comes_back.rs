@@ -34,7 +34,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
                             }
                         });
                         view! {
-                            <Text string="Themes" />
+                            <Text>"Themes"</Text>
                         }
                     }</unstyled::Button>
                 </ShowKeepAlive>

@@ -244,7 +244,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                 <List direction=Direction::Horizontal align=Align::Center spacing=SUBMENU_SPACING>
                     <MenuTreeLead depth expanded toggle indent=TREE_INDENT chevron=TREE_CHEVRON />
                     <Show condition={has_lead}>
-                        <Text string={lead} size=TextSize::Sm color=TextColor::Muted />
+                        <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                     </Show>
                     <Show condition={has_glyph}>
                         <Text color={icon_color} align=TextAlign::Center>
@@ -252,15 +252,16 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                         </Text>
                     </Show>
                     <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                        <Text string={label} color align=TextAlign::Start ellipsis=true />
+                        <Text color align=TextAlign::Start ellipsis=true>{label}</Text>
                         <Show condition={has_detail}>
                             <Text
-                                string={detail}
                                 size=TextSize::Sm
                                 color=TextColor::Muted
                                 align=TextAlign::Start
                                 ellipsis=true
-                            />
+                            >
+                                {detail}
+                            </Text>
                         </Show>
                     </List>
                     <MenuCheck checked />
@@ -344,13 +345,14 @@ fn MenuCaptionFace(handle: MenuRowHandle, padding: f32, spacing: f32) -> NodeId 
             </Show>
             <Frame padding={Sides::symmetric(padding, CAPTION_PADDING_VERTICAL)}>
                 <Text
-                    string={label}
                     size=TextSize::Sm
                     weight=Weight::Bold
                     color=TextColor::Muted
                     align=TextAlign::Start
                     ellipsis=true
-                />
+                >
+                    {label}
+                </Text>
             </Frame>
         </List>
     }
@@ -379,13 +381,7 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Sides) -> NodeId {
                 <Text size=TextSize::Xl color align=TextAlign::Center>
                     <Icon glyph={glyph} />
                 </Text>
-                <Text
-                    string={label}
-                    size=TextSize::Sm
-                    color
-                    align=TextAlign::Center
-                    ellipsis=true
-                />
+                <Text size=TextSize::Sm color align=TextAlign::Center ellipsis=true>{label}</Text>
             </List>
         </Frame>
     }

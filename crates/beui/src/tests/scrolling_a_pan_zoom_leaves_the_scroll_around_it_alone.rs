@@ -22,11 +22,9 @@ fn scrolling_a_pan_zoom_leaves_the_scroll_around_it_alone() {
                         <PanZoomStage />
                     </Frame>
                     <ForEach keys={indices(20)}>|index: usize|
-                        <Text
-                            string={format!("Row {index}")}
-                            color=Color32::WHITE
-                            font={FontId::proportional(20.0)}
-                        />
+                        <Text color=Color32::WHITE font={FontId::proportional(20.0)}>
+                            {format!("Row {index}")}
+                        </Text>
                     </ForEach>
                 </Scroll>
             </List>

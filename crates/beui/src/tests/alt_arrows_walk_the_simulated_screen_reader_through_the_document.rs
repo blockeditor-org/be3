@@ -8,10 +8,10 @@ fn alt_arrows_walk_the_simulated_screen_reader_through_the_document() {
     let (document, [_heading, _body]) = toolbar_of(|| {
         [
             view! {
-                <Text style=TextStyle::HEADING string="Settings" />
+                <Text style=TextStyle::HEADING>"Settings"</Text>
             },
             view! {
-                <Text string="Pick a theme" />
+                <Text>"Pick a theme"</Text>
             },
         ]
     });

@@ -238,8 +238,8 @@ fn GameError(snapshot: ReadSignal<GameSnapshot>) -> NodeId {
     view! {
         <Card>
             <List spacing=8.0>
-                <Text style=TextStyle::HEADING string="Game unavailable" />
-                <Text style=TextStyle::PARAGRAPH string={error} @test_id={"game.error"} wrap=true />
+                <Text style=TextStyle::HEADING>"Game unavailable"</Text>
+                <Text style=TextStyle::PARAGRAPH @test_id={"game.error"} wrap=true>{error}</Text>
             </List>
         </Card>
     }
@@ -387,7 +387,7 @@ fn Sidebar(panel: Panel) -> NodeId {
                 <Frame padding=PANEL_PADDING>
                     <List spacing=SECTION_SPACING>
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                            <Text style=TextStyle::CAPTION string="Playing as" />
+                            <Text style=TextStyle::CAPTION>"Playing as"</Text>
                             <Select
                                 options={view! {
                                     <ForEach keys={seat_keys}>|seat: usize| {
@@ -463,7 +463,7 @@ fn ControlButton(game: Stored<Rc<dyn GameModel>>, action: Action, editable: Memo
             <Show condition={confirming}>|| {
                 let confirm = confirm.clone(); let effect = effect.clone(); let question = question.clone(); view! {
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
-                        <Text style=TextStyle::CAPTION string={question} />
+                        <Text style=TextStyle::CAPTION>{question}</Text>
                         <IconButton
                             glyph={ICON_CHECK.to_owned()}
                             label={confirm}
@@ -517,7 +517,7 @@ fn Banner(anchor: NodeRef, table: Memo<Table>) -> NodeId {
                     @test_id={"game.banner"}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
-                        <Text string={text} size=TextSize::Lg weight=Weight::Bold color={color} />
+                        <Text size=TextSize::Lg weight=Weight::Bold color={color}>{text}</Text>
                         <IconButton
                             glyph={ICON_CLOSE.to_owned()}
                             label="Close"
@@ -538,7 +538,7 @@ fn Choices(play: Play) -> NodeId {
     view! {
         <Card>
             <List spacing=8.0>
-                <Text string="Which move?" />
+                <Text>"Which move?"</Text>
                 <ChoiceButtons play />
             </List>
         </Card>
@@ -654,14 +654,17 @@ pub(crate) fn GameCreation(
                                 @test_id={format!("game.staged.{index}")}
                                 on_click={move || creation.value().choose_staged(index)}
                             />
-                            <Show condition={failed}>
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    string={caption.clone()}
-                                    color=TextColor::Danger
-                                    wrap=true
-                                />
-                            </Show>
+                            <Show condition={failed}>|| {
+                                let caption = caption.clone(); view! {
+                                    <Text
+                                        style=TextStyle::CAPTION
+                                        color=TextColor::Danger
+                                        wrap=true
+                                    >
+                                        {caption}
+                                    </Text>
+                                }
+                            }</Show>
                         </List>
                     }
                 }</ForEach>
@@ -673,12 +676,9 @@ pub(crate) fn GameCreation(
                     on_click={move || creation.value().choose_module()}
                 />
                 <Show condition={has_status}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string={status}
-                        color={status_color}
-                        @test_id={"game.selection"}
-                    />
+                    <Text style=TextStyle::CAPTION color={status_color} @test_id={"game.selection"}>
+                        {status}
+                    </Text>
                 </Show>
             </List>
         </Frame>

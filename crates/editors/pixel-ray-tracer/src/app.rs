@@ -89,8 +89,8 @@ fn RayToolbar(state: RayState, shown: block_editor_beui::beui::reactive::Prop<bo
     let size = format!("{PIXEL_RAY_TRACER_SIZE} × {PIXEL_RAY_TRACER_SIZE}");
     view! {
         <Toolbar shown={shown}>
-            <Text string="Pixel Ray Tracer" />
-            <Text style=TextStyle::CAPTION string={size} />
+            <Text>"Pixel Ray Tracer"</Text>
+            <Text style=TextStyle::CAPTION>{size}</Text>
             <Button
                 label="Fit view"
                 variant=ButtonVariant::Secondary

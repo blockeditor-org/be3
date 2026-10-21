@@ -103,11 +103,9 @@ fn Inspector(state: CanvasState) -> NodeId {
         <List spacing=SPACING>
             <SelectionSummary state={state} />
             <Show condition={empty}>
-                <Text
-                    style=TextStyle::CAPTION
-                    string="Select an object to edit its appearance."
-                    wrap=true
-                />
+                <Text style=TextStyle::CAPTION wrap=true>
+                    "Select an object to edit its appearance."
+                </Text>
             </Show>
             <Show condition={chosen}>
                 <List spacing=SPACING>
@@ -175,11 +173,9 @@ fn ArtboardSection(state: CanvasState) -> NodeId {
                             @test_id={"infinite-canvas.artboard.name"}
                         />
                         <Show condition={first}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="The first artboard is what other editors show when they embed this canvas."
-                                wrap=true
-                            />
+                            <Text style=TextStyle::CAPTION wrap=true>
+                                "The first artboard is what other editors show when they embed this canvas."
+                            </Text>
                         </Show>
                         <ArtboardBackground artboard={artboard} locked={locked} state={state} />
                     </List>
@@ -250,7 +246,7 @@ fn ArtboardBackground(
     let count = swatches.len();
     view! {
         <List spacing=6.0>
-            <Text style=TextStyle::CAPTION string="Background" />
+            <Text style=TextStyle::CAPTION>"Background"</Text>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                 <ToggleButton
                     label="Theme background"
@@ -309,7 +305,7 @@ fn SelectionSummary(state: CanvasState) -> NodeId {
         }
     });
     view! {
-        <Text style=TextStyle::HEADING string={label} @test_id={"infinite-canvas.selection"} />
+        <Text style=TextStyle::HEADING @test_id={"infinite-canvas.selection"}>{label}</Text>
     }
 }
 
@@ -322,11 +318,9 @@ fn TransformSection(state: CanvasState) -> NodeId {
         <Accordion title="Transform" open={open}>
             <List spacing=6.0>
                 <Show condition={many}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="Select one object to edit exact transform values."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true>
+                        "Select one object to edit exact transform values."
+                    </Text>
                 </Show>
                 <Show condition={single}>
                     <TransformFields state={state} />
@@ -389,7 +383,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 row_spacing=6.0
             >
                 <Frame align={Align2::vertical(Align::Center)}>
-                    <Text style=TextStyle::CAPTION string="X" />
+                    <Text style=TextStyle::CAPTION>"X"</Text>
                 </Frame>
                 <NumberInput
                     label="X"
@@ -400,7 +394,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     on_preview={x_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
-                    <Text style=TextStyle::CAPTION string="Y" />
+                    <Text style=TextStyle::CAPTION>"Y"</Text>
                 </Frame>
                 <NumberInput
                     label="Y"
@@ -411,7 +405,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     on_preview={y_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
-                    <Text style=TextStyle::CAPTION string="W" />
+                    <Text style=TextStyle::CAPTION>"W"</Text>
                 </Frame>
                 <NumberInput
                     label="W"
@@ -423,7 +417,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                     on_preview={width_preview}
                 />
                 <Frame align={Align2::vertical(Align::Center)}>
-                    <Text style=TextStyle::CAPTION string="H" />
+                    <Text style=TextStyle::CAPTION>"H"</Text>
                 </Frame>
                 <NumberInput
                     label="H"
@@ -436,7 +430,7 @@ fn TransformFields(state: CanvasState) -> NodeId {
                 />
             </Grid>
             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                <Text style=TextStyle::CAPTION string="Rotation" />
+                <Text style=TextStyle::CAPTION>"Rotation"</Text>
                 <NumberInput
                     @sizing=ItemSize::Percent(100.0)
                     label="Rotation"
@@ -535,7 +529,7 @@ fn EditorScale(state: CanvasState) -> NodeId {
     };
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-            <Text style=TextStyle::CAPTION string="Scale" />
+            <Text style=TextStyle::CAPTION>"Scale"</Text>
             <NumberInput
                 @sizing=ItemSize::Percent(100.0)
                 label="Scale"
@@ -721,7 +715,7 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
         <List spacing=0.0>
             <Show condition={shown}>
                 <List spacing=6.0>
-                    <Text style=TextStyle::CAPTION string="Color" />
+                    <Text style=TextStyle::CAPTION>"Color"</Text>
                     <ColorInput
                         label="Custom color"
                         value={Binding::new(custom, typed)}
@@ -804,9 +798,9 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
 fn MixedLabel(label: &'static str, mixed: Memo<bool>) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-            <Text style=TextStyle::CAPTION string={label} />
+            <Text style=TextStyle::CAPTION>{label}</Text>
             <Show condition={mixed}>
-                <Text style=TextStyle::CAPTION string="Mixed" />
+                <Text style=TextStyle::CAPTION>"Mixed"</Text>
             </Show>
             <Spacer @sizing=ItemSize::Percent(100.0) />
         </List>
@@ -849,7 +843,7 @@ fn LineOptions(state: CanvasState) -> NodeId {
             <Show condition={shown}>
                 <List spacing=6.0>
                     <Separator />
-                    <Text style=TextStyle::CAPTION string="Line" />
+                    <Text style=TextStyle::CAPTION>"Line"</Text>
                     <Checkbox
                         label="Dashed"
                         checked={Binding::new(dashed, dash)}
@@ -931,7 +925,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
             <Show condition={shown}>
                 <List spacing=6.0>
                     <Separator />
-                    <Text style=TextStyle::CAPTION string="Rectangle" />
+                    <Text style=TextStyle::CAPTION>"Rectangle"</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                         <ToggleButton
                             label="No fill"
@@ -1114,9 +1108,9 @@ fn TextOptions(state: CanvasState) -> NodeId {
             <Show condition={shown}>
                 <List spacing=6.0>
                     <Separator />
-                    <Text style=TextStyle::CAPTION string="Text" />
+                    <Text style=TextStyle::CAPTION>"Text"</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                        <Text style=TextStyle::CAPTION string="Font size" />
+                        <Text style=TextStyle::CAPTION>"Font size"</Text>
                         <NumberInput
                             @sizing=ItemSize::Percent(100.0)
                             label="Font size"
@@ -1128,7 +1122,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                         />
                     </List>
                     <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
-                        <Text style=TextStyle::CAPTION string="Line height" />
+                        <Text style=TextStyle::CAPTION>"Line height"</Text>
                         <NumberInput
                             @sizing=ItemSize::Percent(100.0)
                             label="Line height"
@@ -1192,11 +1186,9 @@ fn TextOptions(state: CanvasState) -> NodeId {
                         checked={Binding::new(wrap, wrapped)}
                         @test_id={"infinite-canvas.wrap"}
                     />
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="Resize to wrap; hold Alt while resizing to scale text."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true>
+                        "Resize to wrap; hold Alt while resizing to scale text."
+                    </Text>
                 </List>
             </Show>
         </List>

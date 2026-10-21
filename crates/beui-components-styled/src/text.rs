@@ -298,7 +298,6 @@ fn resolved(
 
 #[component]
 pub fn Text(
-    #[prop(default = String::new())] string: Prop<String>,
     style: Option<Prop<TextStyle>>,
     size: Option<Prop<TextSize>>,
     weight: Option<Prop<Weight>>,
@@ -326,19 +325,7 @@ pub fn Text(
             .resolve(&theme)
     });
     view! {
-        <primitives::Text
-            string
-            font
-            color
-            underline
-            align
-            vertical_align
-            wrap
-            clip
-            ellipsis
-            marks
-            carets
-        >
+        <primitives::Text font color underline align vertical_align wrap clip ellipsis marks carets>
             {children}
         </primitives::Text>
     }
@@ -363,7 +350,6 @@ fn part<T: Copy + PartialEq + 'static, U: Clone + 'static>(
 
 #[component]
 pub fn Span(
-    text: Option<Prop<String>>,
     size: Option<Prop<TextSize>>,
     weight: Option<Prop<Weight>>,
     family: Option<Prop<Family>>,
@@ -380,25 +366,10 @@ pub fn Span(
     let family = part(family, Family::font);
     let italic = part(italic, |italic| italic);
     let color = color_part(color, theme);
-    match text {
-        Some(text) => view! {
-            <primitives::Span
-                text
-                size
-                family
-                bold
-                italic
-                color
-                underline
-                strikethrough
-                break_after
-            />
-        },
-        None => view! {
-            <primitives::Span size family bold italic color underline strikethrough break_after>
-                {children}
-            </primitives::Span>
-        },
+    view! {
+        <primitives::Span size family bold italic color underline strikethrough break_after>
+            {children}
+        </primitives::Span>
     }
 }
 

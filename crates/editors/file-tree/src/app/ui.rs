@@ -221,16 +221,14 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                                 </Show>
                                 <Show condition={failed}>
                                     <Frame padding=PADDING>
-                                        <Text
-                                            style=TextStyle::CAPTION
-                                            string={reason}
-                                            color=TextColor::Danger
-                                        />
+                                        <Text style=TextStyle::CAPTION color=TextColor::Danger>
+                                            {reason}
+                                        </Text>
                                     </Frame>
                                 </Show>
                                 <Show condition={empty}>
                                     <Frame padding=PADDING @test_id={"file-tree.empty"}>
-                                        <Text style=TextStyle::CAPTION string="Nothing here yet" />
+                                        <Text style=TextStyle::CAPTION>"Nothing here yet"</Text>
                                     </Frame>
                                 </Show>
                                 <Tree
@@ -300,7 +298,7 @@ fn PhoneTitle(
         <Frame fill=ColorRole::Background padding=PADDING>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                 <Frame @sizing=ItemSize::Percent(100.0) padding={Sides::symmetric(PADDING, 4.0)}>
-                    <Text style=TextStyle::TITLE string="Files" />
+                    <Text style=TextStyle::TITLE>"Files"</Text>
                 </Frame>
                 <IconButton
                     @test_id={"file-tree.new-workspace"}
@@ -366,14 +364,15 @@ fn Inspector(inspecting: Signal<Option<Inspection>>) -> NodeId {
 fn Field(label: Prop<String>, value: Memo<String>, named: String) -> NodeId {
     view! {
         <List spacing=FIELD_SPACING>
-            <Text style=TextStyle::CAPTION string={label} />
+            <Text style=TextStyle::CAPTION>{label}</Text>
             <Text
                 style=TextStyle::PARAGRAPH
-                string={value}
                 color=TextColor::Default
                 @test_id={format!("file-tree.inspect.{named}")}
                 wrap=true
-            />
+            >
+                {value}
+            </Text>
         </List>
     }
 }
@@ -493,9 +492,9 @@ fn TreeRow(
                 </Text>
             </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                <Text string={label} color={color} weight={weight} ellipsis=true />
+                <Text color={color} weight={weight} ellipsis=true>{label}</Text>
                 <Show condition={detailed}>
-                    <Text style=TextStyle::CAPTION string={detail} ellipsis=true />
+                    <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
                 </Show>
             </List>
             <Show condition={generated}>
@@ -556,9 +555,9 @@ fn SectionRow(
                 </Text>
             </Show>
             <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                <Text string={label} weight=Weight::Bold ellipsis=true />
+                <Text weight=Weight::Bold ellipsis=true>{label}</Text>
                 <Show condition={detailed}>
-                    <Text style=TextStyle::CAPTION string={detail} ellipsis=true />
+                    <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
                 </Show>
             </List>
             <Show condition={can_add}>

@@ -5,7 +5,7 @@ use crate::reactive::*;
 fn Shell(children: Children<ListChild>) -> NodeId {
     view! {
         <primitives::List spacing=0.0>
-            <styled::Text string="Inside" />
+            <styled::Text>"Inside"</styled::Text>
             {children}
         </primitives::List>
     }
@@ -16,8 +16,8 @@ fn the_component_tree_separates_callers_children_from_body_internals() {
     let document = build(|| {
         view! {
             <Shell>
-                <styled::Text string="Outside" />
-                <styled::Text string="Sibling" />
+                <styled::Text>"Outside"</styled::Text>
+                <styled::Text>"Sibling"</styled::Text>
             </Shell>
         }
     });

@@ -186,7 +186,7 @@ fn Attribution() -> NodeId {
             fill={ColorRole::Custom(HALO)}
             padding={Sides::horizontal(6.0)}
         >
-            <Text style=TextStyle::CAPTION string=ATTRIBUTION align=TextAlign::End />
+            <Text style=TextStyle::CAPTION align=TextAlign::End>{ATTRIBUTION}</Text>
         </Frame>
     }
 }

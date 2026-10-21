@@ -126,11 +126,9 @@ pub(super) fn EditorTab(shared: Shared) -> NodeId {
             <Show condition={warned}>
                 <SettingsSection>
                     <SettingsRow label="Problem">
-                        <Text
-                            style={TextStyle::CAPTION.color(TextColor::Danger)}
-                            string={message}
-                            wrap=true
-                        />
+                        <Text style={TextStyle::CAPTION.color(TextColor::Danger)} wrap=true>
+                            {message}
+                        </Text>
                     </SettingsRow>
                 </SettingsSection>
             </Show>

@@ -89,7 +89,7 @@ fn PressCounter() -> NodeId {
                     radius=Radius::Md
                     padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
                 >
-                    <Text string={label} />
+                    <Text>{label}</Text>
                 </Frame>
             </unstyled::Pressable>
         </List>
@@ -109,7 +109,7 @@ fn PillButton() -> NodeId {
                     <PillFace handle label="Launch" />
                 </unstyled::Button>
             </List>
-            <Text string={launched} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{launched}</Text>
         </List>
     }
 }
@@ -139,7 +139,7 @@ fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
             border={focus_border(focused, Border::new(ColorRole::Text).width(2.0).offset(2.0))}
             padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
-            <Text string={label.to_owned()} color=TextColor::OnAccent weight=Weight::Bold />
+            <Text color=TextColor::OnAccent weight=Weight::Bold>{label.to_owned()}</Text>
         </Frame>
     }
 }
@@ -189,7 +189,7 @@ fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
                         visible={checked}
                     />
                 </Frame>
-                <Text string={label.to_owned()} />
+                <Text>{label.to_owned()}</Text>
             </List>
         </Frame>
     }
@@ -248,7 +248,7 @@ fn VolumeMeter() -> NodeId {
             <unstyled::Slider value={volume}>|handle: SliderHandle|
                 <MeterFace handle />
             </unstyled::Slider>
-            <Text string={volume_text} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{volume_text}</Text>
         </List>
     }
 }
@@ -303,7 +303,7 @@ fn UnderlinedInput() -> NodeId {
             >|handle: TextInputHandle|
                 <UnderlinedField handle />
             </unstyled::TextInput>
-            <Text string={submitted} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{submitted}</Text>
         </List>
     }
 }
@@ -456,7 +456,7 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
             border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
             padding={Sides::symmetric(14.0, 6.0)}
         >
-            <Text string={label} color={ink} />
+            <Text color={ink}>{label}</Text>
         </Frame>
     }
 }
@@ -483,7 +483,7 @@ fn SizeRadios() -> NodeId {
             >|handle: ChoiceOptionHandle|
                 <RadioFace handle />
             </unstyled::Choice>
-            <Text string={chosen} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{chosen}</Text>
         </List>
     }
 }
@@ -519,7 +519,7 @@ fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
                         visible={selected}
                     />
                 </Frame>
-                <Text string={label} />
+                <Text>{label}</Text>
             </List>
         </Frame>
     }
@@ -545,16 +545,14 @@ fn DetailsDisclosure() -> NodeId {
                     false => TextColor::Accent,
                 });
                 view! {
-                    <Text string={title} color={ink} underline=true />
+                    <Text color={ink} underline=true>{title}</Text>
                 }
             }}
         >
-            <Text
-                string="A disclosure only knows whether it is open. The header and the body are \
+            <Text color={body} wrap=true>
+                "A disclosure only knows whether it is open. The header and the body are \
                  whatever you give it."
-                color={body}
-                wrap=true
-            />
+            </Text>
         </unstyled::Disclosure>
     }
 }
@@ -641,10 +639,9 @@ fn InfoPopover() -> NodeId {
                 view! {
                     <PopupPanel>
                         <List spacing=SECTION_SPACING>
-                            <Text
-                                string="A popover places its content below the trigger and closes on Escape or a click outside."
-                                wrap=true
-                            />
+                            <Text wrap=true>
+                                "A popover places its content below the trigger and closes on Escape or a click outside."
+                            </Text>
                             <unstyled::Button
                                 on_click={move || close.call(())}
                             >|handle: ButtonHandle|
@@ -669,7 +666,7 @@ fn HintTooltip() -> NodeId {
                 content={move |handle: TooltipHandle| view! {
                     <Frame padding={Sides::vertical(4.0)}>
                         <PopupPanel>
-                            <Text string={handle.label} color={ink} />
+                            <Text color={ink}>{handle.label}</Text>
                         </PopupPanel>
                     </Frame>
                 }}
@@ -679,7 +676,7 @@ fn HintTooltip() -> NodeId {
                     radius=Radius::Md
                     padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
                 >
-                    <Text string="Hover me" />
+                    <Text>"Hover me"</Text>
                 </Frame>
             </unstyled::Tooltip>
         </List>
@@ -718,7 +715,7 @@ fn ExportMenu() -> NodeId {
                     }}
                 />
             </List>
-            <Text string={exported} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{exported}</Text>
         </List>
     }
 }
@@ -757,7 +754,7 @@ fn RunSplit() -> NodeId {
                     }}
                 />
             </List>
-            <Text string={ran} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{ran}</Text>
         </List>
     }
 }
@@ -782,7 +779,7 @@ fn MenuRow(handle: MenuRowHandle) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(10.0, 6.0)}
         >
-            <Text string={label} />
+            <Text>{label}</Text>
         </Frame>
     }
 }
@@ -839,7 +836,7 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
                     padding=12.0
                 >
                     <List spacing=8.0>
-                        <Text string={BINS[bin].to_owned()} color=TextColor::Muted />
+                        <Text color=TextColor::Muted>{BINS[bin].to_owned()}</Text>
                         <ForEach keys={fruits}>|fruit: usize|
                             <unstyled::Draggable
                                 payload={Some(fruit)}
@@ -871,7 +868,7 @@ fn FruitChip(fruit: usize, lifted: Prop<bool>) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(10.0, 6.0)}
         >
-            <Text string={PRODUCE[fruit].to_owned()} />
+            <Text>{PRODUCE[fruit].to_owned()}</Text>
         </Frame>
     }
 }
@@ -903,7 +900,7 @@ fn ThinScroll() -> NodeId {
                     <Frame padding=12.0>
                         <List spacing=6.0>
                             <ForEach keys={(1..=SCROLL_LINES).collect::<Vec<usize>>()}>|line: usize|
-                                <Text string={format!("Line {line}")} />
+                                <Text>{format!("Line {line}")}</Text>
                             </ForEach>
                         </List>
                     </Frame>
@@ -986,7 +983,7 @@ fn OpenableFiles() -> NodeId {
                     {row(2, "photo.png")}
                 </List>
             </Frame>
-            <Text string={opened} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{opened}</Text>
         </List>
     }
 }
@@ -1013,7 +1010,7 @@ fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -
             border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
             padding={Sides::symmetric(10.0, 6.0)}
         >
-            <Text string={name.to_owned()} />
+            <Text>{name.to_owned()}</Text>
         </Frame>
     }
 }
@@ -1039,7 +1036,7 @@ fn ScrubbedNumber() -> NodeId {
                     }}
                 />
             </Frame>
-            <Text string={shown} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{shown}</Text>
         </List>
     }
 }
@@ -1070,7 +1067,7 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
             border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
             padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
-            <Text string={text} align=TextAlign::Center />
+            <Text align=TextAlign::Center>{text}</Text>
         </Frame>
     }
 }
@@ -1169,7 +1166,7 @@ fn PadFace(handle: ColorAreaHandle) -> NodeId {
     });
     view! {
         <Frame height=PAD_HEIGHT fill={ColorRole::custom(fill)} radius=Radius::Md padding=8.0>
-            <Text string={place} color={TextColor::Custom(Color32::WHITE)} />
+            <Text color={TextColor::Custom(Color32::WHITE)}>{place}</Text>
         </Frame>
     }
 }
@@ -1301,7 +1298,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
                             false => "+".to_owned(),
                         });
                         view! {
-                            <Text string={marker} color=TextColor::Muted />
+                            <Text color=TextColor::Muted>{marker}</Text>
                         }
                     }</unstyled::TreeToggle>
                 </List>
@@ -1314,7 +1311,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
                 padding={Sides::symmetric(6.0, 3.0)}
             >
                 <unstyled::TreeRowArea target>
-                    <Text string={label} />
+                    <Text>{label}</Text>
                 </unstyled::TreeRowArea>
             </Frame>
         </List>
@@ -1345,7 +1342,7 @@ fn ToolbarKey(handle: ButtonHandle) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(10.0, 6.0)}
         >
-            <Text string={label} />
+            <Text>{label}</Text>
         </Frame>
     }
 }
@@ -1441,7 +1438,7 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
             radius=Radius::Md
             padding={Sides::symmetric(10.0, 4.0)}
         >
-            <Text string={label} />
+            <Text>{label}</Text>
         </Frame>
     }
 }
@@ -1470,11 +1467,9 @@ fn PullUpSheet() -> NodeId {
             >
                 <Frame padding=PAGE_PADDING>
                     <List spacing=SECTION_SPACING>
-                        <Text
-                            string="Swipe the sheet down, tap above, or press Escape to close."
-                            color={ink}
-                            wrap=true
-                        />
+                        <Text color={ink} wrap=true>
+                            "Swipe the sheet down, tap above, or press Escape to close."
+                        </Text>
                         <List direction=Direction::Horizontal spacing=0.0>
                             <unstyled::Button
                                 on_click={move || open.set(false)}
@@ -1507,7 +1502,7 @@ fn FolderPages() -> NodeId {
         let label = folder_label(depth.get_untracked().saturating_sub(1));
         view! {
             <Frame fill={ColorRole::custom(page)}>
-                <Text string={label} color={ink} wrap=true />
+                <Text color={ink} wrap=true>{label}</Text>
             </Frame>
         }
     };
@@ -1520,7 +1515,7 @@ fn FolderPages() -> NodeId {
         >
             <Frame fill={ColorRole::custom(page)}>
                 <List spacing=SECTION_SPACING>
-                    <Text string={label} color={ink} wrap=true />
+                    <Text color={ink} wrap=true>{label}</Text>
                     <List direction=Direction::Horizontal spacing=0.0>
                         <unstyled::Button
                             on_click={move || depth.set(depth.get_untracked() + 1)}
@@ -1563,7 +1558,7 @@ fn DeadlinePicker() -> NodeId {
                         <DateSegmentFace handle />
                     }}
                     literal={move |text: String| view! {
-                        <Text string={text} color=TextColor::Muted />
+                        <Text color=TextColor::Muted>{text}</Text>
                     }}
                     segments={move |segments: Child| view! {
                         <Frame padding={Sides::symmetric(10.0, 6.0)}>{segments}</Frame>
@@ -1579,7 +1574,7 @@ fn DeadlinePicker() -> NodeId {
                     }}
                 />
             </List>
-            <Text string={shown} color=TextColor::Muted />
+            <Text color=TextColor::Muted>{shown}</Text>
         </List>
     }
 }
@@ -1608,7 +1603,7 @@ fn DateSegmentFace(handle: DateSegmentHandle) -> NodeId {
             radius={Radius::custom(3.0)}
             padding={Sides::horizontal(2.0)}
         >
-            <Text string={text} color={ink} />
+            <Text color={ink}>{text}</Text>
         </Frame>
     }
 }

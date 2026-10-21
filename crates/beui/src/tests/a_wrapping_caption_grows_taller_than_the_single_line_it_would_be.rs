@@ -19,7 +19,7 @@ fn caption_height(wrap: bool) -> f32 {
         view! {
             <List spacing=0.0>
                 <Frame @node_ref=&frame width=FRAME_WIDTH>
-                    <Text style=TextStyle::CAPTION string=LONG_CAPTION wrap />
+                    <Text style=TextStyle::CAPTION wrap>{LONG_CAPTION}</Text>
                 </Frame>
             </List>
         }

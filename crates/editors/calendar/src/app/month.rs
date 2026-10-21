@@ -31,7 +31,7 @@ pub(crate) fn MonthGrid(
         <List spacing=CELL_SPACING>
             <List direction=Direction::Horizontal spacing=CELL_SPACING>
                 <ForEach keys={weekday_names()}>|name: &'static str|
-                    <Text @sizing=ItemSize::Percent(100.0) string={name} align=TextAlign::Center />
+                    <Text @sizing=ItemSize::Percent(100.0) align=TextAlign::Center>{name}</Text>
                 </ForEach>
             </List>
             <ForEach keys={weeks}>|start: i64|
@@ -129,11 +129,9 @@ fn MonthCell(
                     on_click={pick}
                     on_activate={pick}
                 >
-                    <Text
-                        style=TextStyle::CAPTION
-                        string={day_number.to_string()}
-                        color={number_color}
-                    />
+                    <Text style=TextStyle::CAPTION color={number_color}>
+                        {day_number.to_string()}
+                    </Text>
                 </ListRow>
                 <ForEach keys={shown}>|id: ObjectId| {
                     let event = event_of(day_events, id);
@@ -153,7 +151,7 @@ fn MonthCell(
                         />
                     }
                 }</ForEach>
-                <Text style=TextStyle::CAPTION string={overflow} />
+                <Text style=TextStyle::CAPTION>{overflow}</Text>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
         </Frame>
@@ -168,7 +166,7 @@ fn EventChip(
     view! {
         <Frame fill=ColorRole::Accent radius={Radius::custom(3.0)}>
             <ListRow on_click={on_click} on_activate={on_click}>
-                <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
+                <Text style=TextStyle::CAPTION color=TextColor::OnAccent>{title}</Text>
             </ListRow>
         </Frame>
     }

@@ -147,11 +147,11 @@ fn LockCard(
             <Frame width=width height=height align=Align::Center @test_id=card_id>
                 <List spacing=GROUP_SPACING align=Align::Center>
                     <List spacing=SPACING align=Align::Center>
-                        <Text style=TextStyle::DISPLAY string={time} />
-                        <Text string={date} color=TextColor::Muted />
+                        <Text style=TextStyle::DISPLAY>{time}</Text>
+                        <Text color=TextColor::Muted>{date}</Text>
                     </List>
                     <List spacing=SPACING align=Align::Center>
-                        <Text style=TextStyle::TITLE string={user} />
+                        <Text style=TextStyle::TITLE>{user}</Text>
                         <Frame width=FIELD_WIDTH>
                             <TextInput
                                 value={password}
@@ -165,15 +165,16 @@ fn LockCard(
                             />
                         </Frame>
                         <Show condition={checking}>
-                            <Text style=TextStyle::CAPTION string="Checking…" />
+                            <Text style=TextStyle::CAPTION>"Checking…"</Text>
                         </Show>
                         <Show condition={failed}>
                             <Text
                                 style=TextStyle::CAPTION
-                                string={reason}
                                 color=TextColor::Danger
                                 @test_id={error_id.clone()}
-                            />
+                            >
+                                {reason}
+                            </Text>
                         </Show>
                     </List>
                     <List direction=Direction::Horizontal spacing=ACTION_SPACING>

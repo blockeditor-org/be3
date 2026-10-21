@@ -10,11 +10,9 @@ fn clicking_an_accordion_header_hides_its_content() {
     let (document, [accordion]) = toolbar_of(move || {
         [view! {
             <Accordion title="About" open=true>
-                <Text
-                    @node_ref=&body
-                    string="beui keeps a retained tree of nodes."
-                    color=Color32::WHITE
-                />
+                <Text @node_ref=&body color=Color32::WHITE>
+                    "beui keeps a retained tree of nodes."
+                </Text>
             </Accordion>
         }]
     });

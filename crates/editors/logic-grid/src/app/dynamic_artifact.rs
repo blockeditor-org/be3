@@ -107,7 +107,7 @@ pub(super) fn Settings(artifacts: Artifacts) -> NodeId {
                     />
                 </Show>
                 <Show condition={unreadable}>
-                    <Text style=TextStyle::CAPTION string="These settings cannot be read." />
+                    <Text style=TextStyle::CAPTION>"These settings cannot be read."</Text>
                 </Show>
             </List>
         </Frame>

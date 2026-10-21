@@ -459,12 +459,9 @@ fn SliderSetting(
                 disabled={read_only}
                 @test_id={format!("input.{id}")}
             />
-            <Text
-                @sizing=ItemSize::Fixed(VALUE_WIDTH)
-                string={shown}
-                color=TextColor::Muted
-                align=TextAlign::End
-            />
+            <Text @sizing=ItemSize::Fixed(VALUE_WIDTH) color=TextColor::Muted align=TextAlign::End>
+                {shown}
+            </Text>
         </LayeredSettingsRow>
     }
 }

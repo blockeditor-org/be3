@@ -53,19 +53,15 @@ fn the_inspector_paints_the_component_shadow_tree() {
         view! {
             <styled::Frame padding={Sides::all(24.0)}>
                 <styled::List spacing=16.0>
-                    <styled::Text
-                        @test_id="example.heading"
-                        string="Release checklist"
-                        size=TextSize::Xl
-                        weight=Weight::Bold
-                    />
+                    <styled::Text @test_id="example.heading" size=TextSize::Xl weight=Weight::Bold>
+                        "Release checklist"
+                    </styled::Text>
                     <styled::Card @test_id="example.card">
                         <styled::List spacing=12.0>
-                            <styled::Text string="Ready for review" weight=Weight::Bold />
-                            <styled::Text
-                                string="Check the build, then publish the release."
-                                color=TextColor::Muted
-                            />
+                            <styled::Text weight=Weight::Bold>"Ready for review"</styled::Text>
+                            <styled::Text color=TextColor::Muted>
+                                "Check the build, then publish the release."
+                            </styled::Text>
                             <styled::Checkbox label="All tests pass" checked=true />
                             <styled::Button
                                 @test_id="example.publish"
@@ -74,10 +70,9 @@ fn the_inspector_paints_the_component_shadow_tree() {
                             />
                         </styled::List>
                     </styled::Card>
-                    <styled::Text
-                        string="Draft changes are saved automatically."
-                        color=TextColor::Muted
-                    />
+                    <styled::Text color=TextColor::Muted>
+                        "Draft changes are saved automatically."
+                    </styled::Text>
                 </styled::List>
             </styled::Frame>
         }

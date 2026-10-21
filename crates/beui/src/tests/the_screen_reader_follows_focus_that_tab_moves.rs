@@ -8,7 +8,7 @@ fn the_screen_reader_follows_focus_that_tab_moves() {
     let (document, [_heading, _first, second]) = toolbar_of(|| {
         [
             view! {
-                <Text style=TextStyle::HEADING string="Settings" />
+                <Text style=TextStyle::HEADING>"Settings"</Text>
             },
             view! {
                 <Checkbox label="Show timings" checked=false />

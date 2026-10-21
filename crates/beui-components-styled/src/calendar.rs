@@ -152,12 +152,13 @@ fn WeekdayLabel(weekday: Weekday) -> NodeId {
     view! {
         <Frame height=WEEKDAY_HEIGHT>
             <Text
-                string={weekday.narrow_name().to_owned()}
                 size=TextSize::Sm
                 color=TextColor::Muted
                 align=TextAlign::Center
                 vertical_align=TextAlign::Center
-            />
+            >
+                {weekday.narrow_name().to_owned()}
+            </Text>
         </Frame>
     }
 }
@@ -200,12 +201,9 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
                 border={create_memo(move || ring.get().then_some(Border::new(ColorRole::Accent).width(TODAY_RING_WIDTH)))}
                 radius=Radius::Md
             >
-                <Text
-                    string={label}
-                    color={ink}
-                    align=TextAlign::Center
-                    vertical_align=TextAlign::Center
-                />
+                <Text color={ink} align=TextAlign::Center vertical_align=TextAlign::Center>
+                    {label}
+                </Text>
             </Frame>
         </FocusRing>
     }

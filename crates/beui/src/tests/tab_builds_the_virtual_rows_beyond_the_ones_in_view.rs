@@ -18,7 +18,7 @@ fn tab_builds_the_virtual_rows_beyond_the_ones_in_view() {
                         view! {
                             <Interactive focusable=true>
                                 <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                    <Text string={label} />
+                                    <Text>{label}</Text>
                                 </Frame>
                             </Interactive>
                         }

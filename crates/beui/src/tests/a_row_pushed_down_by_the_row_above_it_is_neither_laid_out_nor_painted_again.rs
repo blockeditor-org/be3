@@ -17,7 +17,7 @@ fn a_row_pushed_down_by_the_row_above_it_is_neither_laid_out_nor_painted_again()
                     <Frame height=30.0 fill=Color32::WHITE radius=0.0>
                         <List direction=Direction::Horizontal spacing=4.0>
                             <ForEach keys={(0..LABELS).collect::<Vec<_>>()}>|label: usize|
-                                <Text string={format!("{row}.{label}")} />
+                                <Text>{format!("{row}.{label}")}</Text>
                             </ForEach>
                         </List>
                     </Frame>

@@ -16,12 +16,13 @@ pub fn Shortcut(keys: Prop<String>, description: Prop<String>) -> NodeId {
             <Chip label={keys} />
             <Text
                 @sizing=ItemSize::Percent(100.0)
-                string={description}
                 size=TextSize::Sm
                 color=TextColor::Muted
                 align=TextAlign::Start
                 wrap=true
-            />
+            >
+                {description}
+            </Text>
         </List>
     }
 }

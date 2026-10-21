@@ -12,11 +12,11 @@ fn for_each_reuses_nodes_for_keys_that_persist_across_an_update() {
         view! {
             <List spacing=0.0>
                 <Button @node_ref=&shuffle on_click={move || items.set(vec![3, 2, 4])}>
-                    <Text string="shuffle" />
+                    <Text>"shuffle"</Text>
                 </Button>
                 <List @node_ref=&list spacing=0.0>
                     <ForEach keys={items}>|value: i64|
-                        <Text string={value.to_string()} />
+                        <Text>{value.to_string()}</Text>
                     </ForEach>
                 </List>
             </List>

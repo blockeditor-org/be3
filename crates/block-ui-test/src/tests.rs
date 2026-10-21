@@ -62,7 +62,7 @@ fn Status(state: ReadSignal<ChildState>) -> NodeId {
         })
     });
     view! {
-        <Text string={text} @test_id={"child.status"} />
+        <Text @test_id={"child.status"}>{text}</Text>
     }
 }
 

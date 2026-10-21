@@ -18,15 +18,13 @@ const SWATCH: f32 = 18.0;
 pub(crate) fn ToolsPanel(state: RayState) -> NodeId {
     view! {
         <List spacing=8.0>
-            <Text style=TextStyle::HEADING string="Tools" />
+            <Text style=TextStyle::HEADING>"Tools"</Text>
             <ForEach keys={Tool::ALL.to_vec()}>|tool: Tool|
                 <ToolButton state tool />
             </ForEach>
-            <Text
-                style=TextStyle::CAPTION
-                string="Scroll: pan · Ctrl scroll: zoom · Middle drag: pan · Delete: remove entity"
-                wrap=true
-            />
+            <Text style=TextStyle::CAPTION wrap=true>
+                "Scroll: pan · Ctrl scroll: zoom · Middle drag: pan · Delete: remove entity"
+            </Text>
         </List>
     }
 }
@@ -51,7 +49,7 @@ pub(crate) fn PropertiesPanel(state: RayState) -> NodeId {
     let unchosen = create_memo(move || !chosen.get());
     view! {
         <List spacing=10.0>
-            <Text style=TextStyle::HEADING string="Palette" />
+            <Text style=TextStyle::HEADING>"Palette"</Text>
             <Palette state={state} />
             <Show condition={chosen}>
                 <SelectedEntity state={state} selected={selected} />
@@ -195,8 +193,8 @@ fn SelectedEntity(
     });
     view! {
         <List spacing=8.0>
-            <Text style=TextStyle::HEADING string="Selected entity" />
-            <Text string={kind} />
+            <Text style=TextStyle::HEADING>"Selected entity"</Text>
+            <Text>{kind}</Text>
             <Show condition={surface}>
                 <List spacing=6.0>
                     <Slider value={Binding::new(roughness, set_roughness)} label="Roughness" />
@@ -254,7 +252,7 @@ fn NewEntity(state: RayState) -> NodeId {
         <List spacing=8.0>
             <Show condition={light}>
                 <List spacing=6.0>
-                    <Text style=TextStyle::HEADING string="New light" />
+                    <Text style=TextStyle::HEADING>"New light"</Text>
                     <Slider
                         value={Binding::new(intensity, move |value: f32| state.set_light_intensity(value))}
                         min=0.1
@@ -265,7 +263,7 @@ fn NewEntity(state: RayState) -> NodeId {
             </Show>
             <Show condition={surface}>
                 <List spacing=6.0>
-                    <Text style=TextStyle::HEADING string="New surface" />
+                    <Text style=TextStyle::HEADING>"New surface"</Text>
                     <Slider value={Binding::new(roughness, set_roughness)} label="Roughness" />
                     <Slider value={Binding::new(metalness, set_metalness)} label="Metalness" />
                     <Slider
@@ -287,12 +285,12 @@ fn RaySettingsPanels(state: RayState) -> NodeId {
         <List spacing=10.0>
             <Show condition={tracing}>
                 <List spacing=6.0>
-                    <Text style=TextStyle::HEADING string="View rays" />
+                    <Text style=TextStyle::HEADING>"View rays"</Text>
                     <RayControls state={state} view=true />
                 </List>
             </Show>
             <List spacing=6.0>
-                <Text style=TextStyle::HEADING string="Lighting rays" />
+                <Text style=TextStyle::HEADING>"Lighting rays"</Text>
                 <RayControls state={state} view=false />
             </List>
         </List>

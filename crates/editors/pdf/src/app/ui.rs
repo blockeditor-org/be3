@@ -82,7 +82,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
     view! {
         <List spacing=0.0>
             <Toolbar shown={chrome}>
-                <Text string="PDF" />
+                <Text>"PDF"</Text>
                 <block_editor_beui::beui::styled::IconButton
                     glyph={ICON_ARROW_BACK.to_owned()}
                     label="Previous page"
@@ -90,7 +90,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                     @test_id={"pdf.previous"}
                     on_click={back}
                 />
-                <Text style=TextStyle::CAPTION string={page_label} />
+                <Text style=TextStyle::CAPTION>{page_label}</Text>
                 <block_editor_beui::beui::styled::IconButton
                     glyph={ICON_ARROW_FORWARD.to_owned()}
                     label="Next page"
@@ -113,8 +113,8 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                     </Interactive>
                 </Frame>
                 <Sidebar shown={chrome}>
-                    <Text style=TextStyle::HEADING string="PDF" />
-                    <Text style=TextStyle::CAPTION string={name} />
+                    <Text style=TextStyle::HEADING>"PDF"</Text>
+                    <Text style=TextStyle::CAPTION>{name}</Text>
                     <Button
                         label="Replace PDF…"
                         variant=ButtonVariant::Secondary
@@ -123,7 +123,7 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
                         on_click={choose}
                     />
                     <Show condition={refused}>
-                        <Text style=TextStyle::CAPTION string={refusal} color=TextColor::Danger />
+                        <Text style=TextStyle::CAPTION color=TextColor::Danger>{refusal}</Text>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </Sidebar>
@@ -178,12 +178,9 @@ fn PageCanvas(
                 }</ForEach>
             </Canvas>
             <Show condition={failed}>
-                <Text
-                    style=TextStyle::CAPTION
-                    string={reason}
-                    color=TextColor::Danger
-                    @test_id={"pdf.error"}
-                />
+                <Text style=TextStyle::CAPTION color=TextColor::Danger @test_id={"pdf.error"}>
+                    {reason}
+                </Text>
             </Show>
         </List>
     }

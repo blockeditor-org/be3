@@ -8,7 +8,7 @@ fn dragging_the_inspector_edge_resizes_the_panel() {
     let text = NodeRef::new();
     let document = build(move || {
         view! {
-            <Text @node_ref=&text string="Hello" color=Color32::WHITE />
+            <Text @node_ref=&text color=Color32::WHITE>"Hello"</Text>
         }
     });
     let text = text.get();

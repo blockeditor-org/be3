@@ -12,10 +12,10 @@ fn a_tap_outside_selectable_text_puts_its_toolbar_away() {
             <List spacing=40.0>
                 <SelectableText @node_ref=&region>
                     <List spacing=4.0>
-                        <Text @node_ref=&text string="hello world" />
+                        <Text @node_ref=&text>"hello world"</Text>
                     </List>
                 </SelectableText>
-                <Text @node_ref=&elsewhere string="somewhere else" />
+                <Text @node_ref=&elsewhere>"somewhere else"</Text>
             </List>
         }
     });

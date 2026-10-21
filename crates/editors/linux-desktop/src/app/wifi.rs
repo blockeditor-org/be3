@@ -127,7 +127,7 @@ fn WifiPanel(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
     view! {
         <List spacing=SPACING @test_id={"desktop.wifi.panel"}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::HEADING string="Wi-Fi" />
+                <Text @sizing=ItemSize::Percent(100.0) style=TextStyle::HEADING>"Wi-Fi"</Text>
                 <Switch
                     on={Binding::new(enabled, move |on: bool| editor.act(WifiRequest::SetEnabled(on)))}
                     label="Wi-Fi"
@@ -135,10 +135,10 @@ fn WifiPanel(editor: Editor, status: Memo<WifiStatus>) -> NodeId {
                 />
             </List>
             <Show condition={off}>
-                <Text style=TextStyle::CAPTION string="Wi-Fi is off." />
+                <Text style=TextStyle::CAPTION>"Wi-Fi is off."</Text>
             </Show>
             <Show condition={none}>
-                <Text style=TextStyle::CAPTION string="No networks found." />
+                <Text style=TextStyle::CAPTION>"No networks found."</Text>
             </Show>
             <Show condition={listing}>
                 <Scroll max_length=LIST_HEIGHT bleed={Bleed::POPOVER.top(false)}>
@@ -228,9 +228,9 @@ fn NetworkRow(
                             <Icon glyph />
                         </Text>
                         <List @sizing=ItemSize::Percent(100.0) spacing=ROW_SPACING>
-                            <Text string={ssid.clone()} wrap=true />
+                            <Text wrap=true>{ssid.clone()}</Text>
                             <Show condition={captioned}>
-                                <Text style=TextStyle::CAPTION string={said} wrap=true />
+                                <Text style=TextStyle::CAPTION wrap=true>{said}</Text>
                             </Show>
                         </List>
                     </List>

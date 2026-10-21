@@ -50,12 +50,9 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
     };
     let unavailable_row = move || {
         view! {
-            <Text
-                string="Block unavailable"
-                size=TextSize::Sm
-                color=TextColor::Muted
-                align=TextAlign::Center
-            />
+            <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::Center>
+                "Block unavailable"
+            </Text>
         }
     };
     view! {
@@ -76,17 +73,16 @@ pub(crate) fn LargeEmbed(state: State, embed: ResolvedEmbed) -> NodeId {
                         <Show condition={has_icon} then={icon_row} />
                         <Text
                             @sizing=ItemSize::Percent(100.0)
-                            string={label}
                             size=TextSize::Lg
                             italic={automatic}
                             clip=true
-                        />
+                        >
+                            {label}
+                        </Text>
                         <Show condition={deleted}>
-                            <Text
-                                string="In Recently Deleted"
-                                size=TextSize::Sm
-                                color=TextColor::Muted
-                            />
+                            <Text size=TextSize::Sm color=TextColor::Muted>
+                                "In Recently Deleted"
+                            </Text>
                         </Show>
                         <Show condition={editable}>
                             <Button

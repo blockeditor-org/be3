@@ -167,7 +167,7 @@ fn DockAwayFace(handle: DockAwayHandle) -> NodeId {
                 <Text size=TextSize::Xl3 color=TextColor::Muted align=TextAlign::Center>
                     <Icon glyph=ICON_FULLSCREEN />
                 </Text>
-                <Text string={message} align=TextAlign::Center />
+                <Text align=TextAlign::Center>{message}</Text>
                 <Button
                     label="Leave full screen"
                     glyph=ICON_FULLSCREEN_EXIT
@@ -279,7 +279,7 @@ fn DockTabChrome(
                 <Show condition={shows_picture}>
                     <TabPicture picture={picture} />
                 </Show>
-                <Text string={title} color={label} clip=true @sizing={title_size} />
+                <Text color={label} clip=true @sizing={title_size}>{title}</Text>
                 <Show condition={waiting}>
                     <Frame
                         @test_id={waiting_test_id.clone()}
@@ -445,7 +445,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
                                 <Icon glyph={icon} />
                             </Text>
                         </Show>
-                        <Text string={title} clip=true @sizing=ItemSize::Percent(100.0) />
+                        <Text clip=true @sizing=ItemSize::Percent(100.0)>{title}</Text>
                         <Show condition={closable}>
                             <IconButton
                                 @test_id={format!("dock.dialog.{}.close", tab.value())}
@@ -509,9 +509,11 @@ fn DockTitleBar(
                     <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
                         {grip}
                         {tabs} @sizing=ItemSize::Percent(100.0)
-                        <Show condition={titled}>
-                            <Text string={title.clone()} @sizing=ItemSize::Percent(100.0) />
-                        </Show>
+                        <Show condition={titled}>|| {
+                            let title = title.clone(); view! {
+                                <Text @sizing=ItemSize::Percent(100.0)>{title}</Text>
+                            }
+                        }</Show>
                         <DockMenu menu />
                         <DockClose closable close={close} />
                     </List>
@@ -560,9 +562,11 @@ fn DockSideBar(
                         </List>
                     </List>
                     {tabs} @sizing=ItemSize::Percent(100.0)
-                    <Show condition={titled}>
-                        <Text string={title.clone()} />
-                    </Show>
+                    <Show condition={titled}>|| {
+                        let title = title.clone(); view! {
+                            <Text>{title}</Text>
+                        }
+                    }</Show>
                 </List>
             </Frame>
             <Frame fill={ColorRole::custom(rule)} width=CHROME_BORDER />
@@ -695,7 +699,7 @@ fn DockDragPreview(title: Prop<String>, icon: Memo<String>, grouped: bool) -> No
                         <Icon glyph={icon} />
                     </Text>
                 </Show>
-                <Text string={title} />
+                <Text>{title}</Text>
             </List>
         </Frame>
     }

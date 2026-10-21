@@ -207,8 +207,8 @@ pub(crate) fn ZoomBar(
                     on_click={move || zoom.up()}
                 />
                 <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                    <Text style=TextStyle::CAPTION string={path} ellipsis=true />
-                    <Text style=TextStyle::HEADING string={name} ellipsis=true />
+                    <Text style=TextStyle::CAPTION ellipsis=true>{path}</Text>
+                    <Text style=TextStyle::HEADING ellipsis=true>{name}</Text>
                 </List>
                 <Show condition={addable}>
                     <IconButton

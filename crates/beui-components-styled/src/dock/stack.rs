@@ -82,9 +82,10 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                             <Text
                                 @sizing=ItemSize::Percent(100.0)
                                 @test_id={"dock.title"}
-                                string={title}
                                 ellipsis=true
-                            />
+                            >
+                                {title}
+                            </Text>
                         </List>
                     </Frame>
                     <Portal node={actions} />
@@ -133,7 +134,7 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
                         radius={Radius::custom(COUNT_RADIUS)}
                         border={Border::new(ColorRole::Text).width(COUNT_OUTLINE)}
                     >
-                        <Text string={shown} size=TextSize::Sm align=TextAlign::Center />
+                        <Text size=TextSize::Sm align=TextAlign::Center>{shown}</Text>
                     </Frame>
                 </Frame>
             }
@@ -156,12 +157,12 @@ pub(crate) fn DockSwitcher(handle: DockSwitcherHandle) -> NodeId {
         <ModalSheet open rest={SHEET_STOPS[2]} on_close={close}>
             <List spacing=0.0>
                 <Frame padding={Sides::horizontal(SHEET_PADDING)}>
-                    <Text style=TextStyle::HEADING string="Open tabs" />
+                    <Text style=TextStyle::HEADING>"Open tabs"</Text>
                 </Frame>
                 <Frame padding=SHEET_PADDING>
                     <List spacing=CARD_SPACING>
                         <Show condition={none}>
-                            <Text style=TextStyle::CAPTION string="Nothing else is open." />
+                            <Text style=TextStyle::CAPTION>"Nothing else is open."</Text>
                         </Show>
                         <Grid
                             columns={vec![Track::Fraction(1.0), Track::Fraction(1.0)]}
@@ -245,7 +246,7 @@ fn DockSwitcherCard(handle: DockSwitcherCardHandle) -> NodeId {
                                     <Icon glyph={icon} />
                                 </Text>
                             </List>
-                            <Text string={title} ellipsis=true />
+                            <Text ellipsis=true>{title}</Text>
                         </List>
                     </Frame>
                 </ListRow>

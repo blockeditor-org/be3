@@ -46,12 +46,9 @@ pub(crate) fn Workspace(model: Model) -> NodeId {
         <List spacing=0.0>
             <Frame padding={Sides::symmetric(PADDING, 12.0)}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
-                    <Text
-                        style=TextStyle::CAPTION
-                        @sizing=ItemSize::Percent(100.0)
-                        string={head}
-                        ellipsis=true
-                    />
+                    <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) ellipsis=true>
+                        {head}
+                    </Text>
                     <Show condition={running}>
                         <Spinner width=18.0 label="A command is running" />
                     </Show>
@@ -181,15 +178,15 @@ fn TargetList(model: Model) -> NodeId {
                             on_click={refresh}
                         />
                     </List>
-                    <Text style=TextStyle::CAPTION string={count} />
+                    <Text style=TextStyle::CAPTION>{count}</Text>
                     <Show condition={loading}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                             <Spinner width=20.0 label="Listing targets" />
-                            <Text style=TextStyle::CAPTION string="Asking buck2 for the targets" />
+                            <Text style=TextStyle::CAPTION>"Asking buck2 for the targets"</Text>
                         </List>
                     </Show>
                     <Show condition={failed}>
-                        <Text string={error} color=TextColor::Danger wrap=true />
+                        <Text color=TextColor::Danger wrap=true>{error}</Text>
                     </Show>
                 </List>
             </Frame>
@@ -247,8 +244,8 @@ fn TargetRow(model: Model, target: Memo<Option<Target>>) -> NodeId {
     view! {
         <Frame padding={Sides::symmetric(PADDING, 4.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) string={label} />
-                <Text style=TextStyle::CAPTION string={kind} />
+                <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0)>{label}</Text>
+                <Text style=TextStyle::CAPTION>{kind}</Text>
                 <Show condition={buildable}>
                     <Button
                         label="Build"
@@ -344,18 +341,14 @@ pub(crate) fn Notes(
         <Show condition={shown}>
             <List spacing=8.0>
                 <Show condition={fork}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="This pull request comes from a fork, so scripts/switch cannot check it out."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true>
+                        "This pull request comes from a fork, so scripts/switch cannot check it out."
+                    </Text>
                 </Show>
                 <Show condition={deleted}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="Its branch was deleted, so there is nothing to check out."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::CAPTION wrap=true>
+                        "Its branch was deleted, so there is nothing to check out."
+                    </Text>
                 </Show>
             </List>
         </Show>

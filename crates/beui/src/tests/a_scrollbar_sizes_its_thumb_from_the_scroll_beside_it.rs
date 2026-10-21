@@ -23,10 +23,9 @@ fn a_scrollbar_sizes_its_thumb_from_the_scroll_beside_it() {
                         item_size=ROW_HEIGHT
                     >|index: ReadSignal<usize>|
                         <Frame height=ROW_HEIGHT>
-                            <Text
-                                string={create_memo(move || format!("Row {}", index.get()))}
-                                color=Color32::WHITE
-                            />
+                            <Text color=Color32::WHITE>
+                                {create_memo(move || format!("Row {}", index.get()))}
+                            </Text>
                         </Frame>
                     </VirtualList>
                 </Offset>

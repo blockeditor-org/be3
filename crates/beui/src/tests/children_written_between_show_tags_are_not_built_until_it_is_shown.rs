@@ -7,7 +7,7 @@ use crate::unstyled::Button;
 fn CountedPanel(builds: Signal<usize>) -> NodeId {
     builds.update(|builds| *builds += 1);
     view! {
-        <Text string="panel" />
+        <Text>"panel"</Text>
     }
 }
 
@@ -25,7 +25,7 @@ fn children_written_between_show_tags_are_not_built_until_it_is_shown() {
                     @node_ref=&toggle
                     on_click={move || visible.update(|visible| *visible = !*visible)}
                 >
-                    <Text string="toggle" />
+                    <Text>"toggle"</Text>
                 </Button>
                 <Show condition=visible>
                     <CountedPanel builds={builds} />

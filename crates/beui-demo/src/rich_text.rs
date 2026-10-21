@@ -299,7 +299,7 @@ fn ListMarker(
                 />
             </Show>
             <Show condition={number}>
-                <Text string={ordinal} color=TextColor::Muted />
+                <Text color=TextColor::Muted>{ordinal}</Text>
             </Show>
             <Show condition={check}>
                 <Checkbox
@@ -334,7 +334,7 @@ fn Mention(void: VoidView) -> NodeId {
             fill=ColorRole::AccentSoft
             radius=Radius::Md
         >
-            <Text string={name} align=TextAlign::Center vertical_align=TextAlign::Center />
+            <Text align=TextAlign::Center vertical_align=TextAlign::Center>{name}</Text>
         </Frame>
     }
 }

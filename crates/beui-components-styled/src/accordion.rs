@@ -57,11 +57,12 @@ fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Text
                     @sizing=ItemSize::Percent(100.0)
-                    string={title}
                     size=TextSize::Lg
                     color={title_color}
                     align=TextAlign::Start
-                />
+                >
+                    {title}
+                </Text>
                 <Text size=TextSize::Sm color={marker_color} align=TextAlign::Center>
                     <Icon glyph={marker_glyph} />
                 </Text>

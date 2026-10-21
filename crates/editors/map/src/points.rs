@@ -67,10 +67,11 @@ pub(crate) fn Marker(
                 >
                     <Text
                         style=TextStyle::CAPTION
-                        string={label}
                         align=TextAlign::Center
                         color={TextColor::Custom(LABEL_COLOR)}
-                    />
+                    >
+                        {label}
+                    </Text>
                 </Frame>
             </List>
         </CanvasItem>

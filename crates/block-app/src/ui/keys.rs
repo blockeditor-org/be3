@@ -64,28 +64,24 @@ pub(super) fn RecoveryScreen(view: AppViewStore) -> NodeId {
     };
     view! {
         <Column>
-            <Text style=TextStyle::TITLE string={title} />
+            <Text style=TextStyle::TITLE>{title}</Text>
             <Show condition={replacing}>
-                <Text
-                    style=TextStyle::PARAGRAPH
-                    string="Once you save this phrase, your old one stops working. Every key sealed to the old phrase is sealed to this one instead, and your other devices will ask to be unlocked again."
-                    wrap=true
-                />
+                <Text style=TextStyle::PARAGRAPH wrap=true>
+                    "Once you save this phrase, your old one stops working. Every key sealed to the old phrase is sealed to this one instead, and your other devices will ask to be unlocked again."
+                </Text>
             </Show>
-            <Text
-                style=TextStyle::PARAGRAPH
-                string="Your notes are encrypted with a key the server never sees. These twelve words are the only way to open them on a new device when no other device of yours is at hand. Write them down and keep them somewhere safe: nobody can recover them for you."
-                wrap=true
-            />
+            <Text style=TextStyle::PARAGRAPH wrap=true>
+                "Your notes are encrypted with a key the server never sees. These twelve words are the only way to open them on a new device when no other device of yours is at hand. Write them down and keep them somewhere safe: nobody can recover them for you."
+            </Text>
             <Card>
-                <Text style=TextStyle::PARAGRAPH string={phrase} wrap=true />
+                <Text style=TextStyle::PARAGRAPH wrap=true>{phrase}</Text>
             </Card>
-            <Text style=TextStyle::HEADING string="Check that you saved them" />
-            <Text style=TextStyle::CAPTION string={first_label} />
+            <Text style=TextStyle::HEADING>"Check that you saved them"</Text>
+            <Text style=TextStyle::CAPTION>{first_label}</Text>
             <TextInput value={first} label={first_label} />
-            <Text style=TextStyle::CAPTION string={second_label} />
+            <Text style=TextStyle::CAPTION>{second_label}</Text>
             <TextInput value={second} label={second_label} />
-            <Text style=TextStyle::CAPTION string={third_label} />
+            <Text style=TextStyle::CAPTION>{third_label}</Text>
             <TextInput
                 value={third}
                 label={third_label}
@@ -139,14 +135,12 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
     };
     view! {
         <Column>
-            <Text style=TextStyle::TITLE string={title} />
-            <Text
-                style=TextStyle::PARAGRAPH
-                string="This device does not have this account's key yet, so it cannot open anything the account keeps."
-                wrap=true
-            />
+            <Text style=TextStyle::TITLE>{title}</Text>
+            <Text style=TextStyle::PARAGRAPH wrap=true>
+                "This device does not have this account's key yet, so it cannot open anything the account keeps."
+            </Text>
             <List spacing=8.0>
-                <Text style=TextStyle::HEADING string="With your recovery phrase" />
+                <Text style=TextStyle::HEADING>"With your recovery phrase"</Text>
                 <TextInput
                     value={phrase}
                     label="Recovery phrase"
@@ -163,15 +157,12 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
                     />
                 </List>
             </List>
-            <Text style=TextStyle::HEADING string="With another device" />
+            <Text style=TextStyle::HEADING>"With another device"</Text>
             <Show condition={idle}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text
-                        style=TextStyle::PARAGRAPH
-                        @sizing=ItemSize::Percent(100.0)
-                        string="Open any organization of this account on a device that is unlocked, and it will ask for a code."
-                        wrap=true
-                    />
+                    <Text style=TextStyle::PARAGRAPH @sizing=ItemSize::Percent(100.0) wrap=true>
+                        "Open any organization of this account on a device that is unlocked, and it will ask for a code."
+                    </Text>
                     <Button
                         label="Show a code"
                         variant=ButtonVariant::Secondary
@@ -181,15 +172,13 @@ pub(super) fn UnlockScreen(view: AppViewStore) -> NodeId {
             </Show>
             <Show condition={waiting}>
                 <List spacing=8.0>
-                    <Text
-                        style=TextStyle::PARAGRAPH
-                        string="Type this code on the other device:"
-                        wrap=true
-                    />
-                    <Text style=TextStyle::TITLE string={code} />
+                    <Text style=TextStyle::PARAGRAPH wrap=true>
+                        "Type this code on the other device:"
+                    </Text>
+                    <Text style=TextStyle::TITLE>{code}</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                         <Spinner />
-                        <Text style=TextStyle::CAPTION string="Waiting for the other device…" />
+                        <Text style=TextStyle::CAPTION>"Waiting for the other device…"</Text>
                         <Spacer @sizing=ItemSize::Percent(100.0) />
                         <Button
                             label="Cancel"
@@ -257,7 +246,7 @@ pub(super) fn PairingDialog(view: AppViewStore) -> NodeId {
             on_confirm={approve}
             on_dismiss={dismiss}
         >
-            <Text style=TextStyle::PARAGRAPH string={message} wrap=true />
+            <Text style=TextStyle::PARAGRAPH wrap=true>{message}</Text>
             <TextInput value={code} label="Code" placeholder="XXXX-XXXX" />
         </Dialog>
     }

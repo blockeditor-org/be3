@@ -174,7 +174,7 @@ pub(crate) fn DialogSurface(
                     >
                         <List spacing=SPACING>
                             <Show condition={titled}>
-                                <Text style=TextStyle::TITLE string={label} />
+                                <Text style=TextStyle::TITLE>{label}</Text>
                             </Show>
                             {children}
                         </List>

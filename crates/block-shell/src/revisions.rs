@@ -310,29 +310,27 @@ pub fn RevisionHistoryPanel(workspace: Workspace) -> NodeId {
         <Scroll @test_id={"workspace.revisions"}>
             <Frame padding=14.0>
                 <List spacing=8.0>
-                    <Text wrap=true style=TextStyle::HEADING string="Revision history" />
+                    <Text wrap=true style=TextStyle::HEADING>"Revision history"</Text>
                     <Show condition={no_file}>
-                        <Text
-                            wrap=true
-                            style=TextStyle::CAPTION
-                            string="Open a file to see its revision history."
-                        />
+                        <Text wrap=true style=TextStyle::CAPTION>
+                            "Open a file to see its revision history."
+                        </Text>
                     </Show>
                     <Show condition={has_file}>
-                        <Text wrap=true string={name} />
+                        <Text wrap=true>{name}</Text>
                     </Show>
                     <Show condition={history.loading}>
-                        <Text wrap=true style=TextStyle::CAPTION string="Loading revisions…" />
+                        <Text wrap=true style=TextStyle::CAPTION>"Loading revisions…"</Text>
                     </Show>
                     <Show condition={history.busy}>
-                        <Text wrap=true style=TextStyle::CAPTION string="Working…" />
+                        <Text wrap=true style=TextStyle::CAPTION>"Working…"</Text>
                     </Show>
                     <Show condition={empty}>
-                        <Text wrap=true style=TextStyle::CAPTION string="No saved revisions yet." />
+                        <Text wrap=true style=TextStyle::CAPTION>"No saved revisions yet."</Text>
                     </Show>
                     <Show condition={failed}>
                         <List spacing=8.0>
-                            <Text wrap=true style=TextStyle::CAPTION string={error} />
+                            <Text wrap=true style=TextStyle::CAPTION>{error}</Text>
                             <Button
                                 variant=ButtonVariant::Secondary
                                 label="Retry"
@@ -398,7 +396,7 @@ pub(crate) fn RevisionPreviewBar(
             <Show condition={visible}>
                 <Frame padding=14.0>
                     <List spacing=8.0>
-                        <Text wrap=true style=TextStyle::CAPTION string={label} />
+                        <Text wrap=true style=TextStyle::CAPTION>{label}</Text>
                         <List direction=Direction::Horizontal spacing=8.0>
                             <Button
                                 label="Back to current"
@@ -418,15 +416,13 @@ pub(crate) fn RevisionPreviewBar(
                             </Show>
                         </List>
                         <Show condition={failed}>
-                            <Text wrap=true style=TextStyle::CAPTION string={error} />
+                            <Text wrap=true style=TextStyle::CAPTION>{error}</Text>
                         </Show>
                         <Show condition={history.confirm}>
                             <List spacing=8.0>
-                                <Text
-                                    wrap=true
-                                    style=TextStyle::CAPTION
-                                    string="Restore this file as a new revision? Current edits will be saved. Contained and linked files will stay unchanged."
-                                />
+                                <Text wrap=true style=TextStyle::CAPTION>
+                                    "Restore this file as a new revision? Current edits will be saved. Contained and linked files will stay unchanged."
+                                </Text>
                                 <List direction=Direction::Horizontal spacing=8.0>
                                     <Button
                                         variant=ButtonVariant::Primary

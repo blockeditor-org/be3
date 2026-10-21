@@ -161,17 +161,18 @@ where
                         @test_id={choose_id}
                         on_click={choose}
                     />
-                    <Text style=TextStyle::CAPTION string={name} />
+                    <Text style=TextStyle::CAPTION>{name}</Text>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
                 <Show condition={failed}>
                     <Text
                         style=TextStyle::CAPTION
-                        string={reason}
                         color=TextColor::Danger
                         wrap=true
                         @test_id={error_id.clone()}
-                    />
+                    >
+                        {reason}
+                    </Text>
                 </Show>
             </List>
         </Frame>

@@ -243,7 +243,7 @@ fn HexSettings(state: State) -> NodeId {
     let insert = state.hex_insert_mode;
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-            <Text @sizing=ItemSize::Percent(100.0) string="Insert instead of overwriting" />
+            <Text @sizing=ItemSize::Percent(100.0)>"Insert instead of overwriting"</Text>
             <Switch
                 label="Insert instead of overwriting"
                 on={Binding::new(insert, move |pressed: bool| {
@@ -286,7 +286,7 @@ fn TextSettings(state: State) -> NodeId {
     view! {
         <List spacing=SETTINGS_SPACING>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-                <Text @sizing=ItemSize::Percent(100.0) string="Language" />
+                <Text @sizing=ItemSize::Percent(100.0)>"Language"</Text>
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Language"
@@ -308,7 +308,7 @@ fn TextSettings(state: State) -> NodeId {
                 </Frame>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-                <Text @sizing=ItemSize::Percent(100.0) string="Indentation" />
+                <Text @sizing=ItemSize::Percent(100.0)>"Indentation"</Text>
                 <Frame width=SELECT_WIDTH>
                     <Select
                         label="Indentation"
@@ -329,7 +329,7 @@ fn TextSettings(state: State) -> NodeId {
             </List>
             <Show condition={spaces}>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SETTINGS_SPACING>
-                    <Text @sizing=ItemSize::Percent(100.0) string="Indentation width" />
+                    <Text @sizing=ItemSize::Percent(100.0)>"Indentation width"</Text>
                     <Frame width=NUMBER_WIDTH>
                         <NumberInput
                             label="Indentation width"

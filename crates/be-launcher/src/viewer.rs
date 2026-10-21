@@ -105,12 +105,9 @@ pub(crate) fn ViewerBar(
 ) -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Percent(100.0)
-                string={position}
-                wrap=true
-            />
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) wrap=true>
+                {position}
+            </Text>
             <IconButton
                 glyph=ICON_CHEVRON_LEFT
                 label="Previous image"
@@ -194,9 +191,10 @@ fn ImageStage(picture: Memo<Option<Image>>) -> NodeId {
                     <Text
                         style=TextStyle::CAPTION
                         @sizing=ItemSize::Fixed(HINT_HEIGHT)
-                        string={hint}
                         align=TextAlign::Center
-                    />
+                    >
+                        {hint}
+                    </Text>
                 </List>
             }
         }</LayoutBuilder>

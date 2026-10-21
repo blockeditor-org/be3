@@ -57,30 +57,28 @@ pub fn ModuleView(editor: Editor) -> NodeId {
                         <Show condition={named}>
                             <Text
                                 style=TextStyle::HEADING
-                                string={name}
                                 align=TextAlign::Center
                                 @test_id={"game-module.name"}
-                            />
+                            >
+                                {name}
+                            </Text>
                         </Show>
                         <Show condition={failed}>
                             <Text
                                 style=TextStyle::PARAGRAPH
-                                string={reason}
                                 align=TextAlign::Center
                                 color=TextColor::Danger
                                 @test_id={"game-module.error"}
                                 wrap=true
-                            />
+                            >
+                                {reason}
+                            </Text>
                         </Show>
                         <Show condition={waiting}>
-                            <Text
-                                style=TextStyle::CAPTION
-                                string="Loading…"
-                                align=TextAlign::Center
-                            />
+                            <Text style=TextStyle::CAPTION align=TextAlign::Center>"Loading…"</Text>
                         </Show>
-                        <Text string={source} align=TextAlign::Center />
-                        <Text style=TextStyle::CAPTION string={bytes} align=TextAlign::Center />
+                        <Text align=TextAlign::Center>{source}</Text>
+                        <Text style=TextStyle::CAPTION align=TextAlign::Center>{bytes}</Text>
                     </List>
                 </Frame>
                 <Sidebar shown={chrome}>
@@ -109,7 +107,7 @@ fn ModulePanel(editor: Editor) -> NodeId {
     let replace = move || chooser.open();
     view! {
         <List spacing=SPACING>
-            <Text style=TextStyle::HEADING string="Game module" />
+            <Text style=TextStyle::HEADING>"Game module"</Text>
             <Button
                 label="Replace module..."
                 variant=ButtonVariant::Secondary
@@ -118,7 +116,7 @@ fn ModulePanel(editor: Editor) -> NodeId {
                 on_click={replace}
             />
             <Show condition={failed}>
-                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
+                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </List>
     }

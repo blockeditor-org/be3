@@ -15,7 +15,7 @@ fn a_driver_clicks_a_button_by_its_label_and_hears_what_changed() {
                     on_click={move || added.set(true)}
                 />
                 <ShowKeepAlive condition={added}>
-                    <Text string="Added" />
+                    <Text>"Added"</Text>
                 </ShowKeepAlive>
             </List>
         }

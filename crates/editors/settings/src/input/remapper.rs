@@ -172,11 +172,9 @@ pub(super) fn RemapperSetting(editor: Editor, settings: Settings, read_only: Mem
                 on_confirm={confirmed}
                 on_dismiss={move || asking.set(false)}
             >
-                <Text
-                    style=TextStyle::PARAGRAPH
-                    string="Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
-                    wrap=true
-                />
+                <Text style=TextStyle::PARAGRAPH wrap=true>
+                    "Resetting deletes the remaps made here, and this device follows the ones its other settings pick, if any."
+                </Text>
             </Dialog>
         </SettingsSection>
     }

@@ -88,8 +88,8 @@ fn LabeledValue(label: Prop<String>, value: Prop<String>) -> NodeId {
     let text = create_memo(move || value.get());
     view! {
         <List spacing=4.0>
-            <Text string={label} />
-            <Text string={text} />
+            <Text>{label}</Text>
+            <Text>{text}</Text>
         </List>
     }
 }
@@ -180,10 +180,17 @@ non-`Copy` prop is cloned into each closure that keeps it:
 let fill = create_memo(move || paint(value.get()));
 view! {
     <Frame fill>
-        <Text string={value} />
+        <Text>{value}</Text>
     </Frame>
 }
 ```
+
+A tag's children are built in a `move` closure, so a child `{value}` moves
+`value`. Inside a render closure that runs more than once (`Show`, `ForEach`),
+clone it in a block head,
+`<Show condition>|| { let value = value.clone(); view! { <Text>{value}</Text> } }</Show>`,
+and work out anything a later prop still needs from it, such as a `format!`,
+above the `view!`.
 
 A callback prop (`Callback<V, R>` or `ClickCallback`) takes either a closure or
 a callback the component already has, so a wrapper passes its own callback
@@ -491,8 +498,9 @@ overriding its Text's `font` whole or any of its `size`, `family`, `bold` and
 opportunity with `break_after` - `Icon`s, `TextItem`s, whose child is laid
 inline as if it were one character (U+FFFC in the text), and `Gap`s, room of a
 given width that holds no bytes, so the indices on either side of one are the
-same. An unset span prop takes its Text's.
-`string` is a leading span in the Text's own style.
+same. An unset span prop takes its Text's. A Text whose only child is a
+string or `Prop<String>` keeps it as its own content rather than as a span,
+which costs no more than a node made with `Document::create_text`.
 
 An `Icon` is a span that paints one glyph from the icon font and, like a
 `Gap`, holds no bytes, so the caret steps over it, a selection never covers it
@@ -2129,7 +2137,7 @@ fn Counter() -> NodeId {
     view! {
         <Frame fill=ColorRole::Background>
             <List spacing=8.0>
-                <Text style=TextStyle::DISPLAY string={label} />
+                <Text style=TextStyle::DISPLAY>{label}</Text>
                 <Button
                     label="Decrease"
                     variant=ButtonVariant::Secondary
@@ -2595,7 +2603,7 @@ way; `children: Children<NodeId>` takes any
 number of plain nodes, as `Scroll` does; `children: Children<CanvasItem>` takes
 only the items a `Canvas` can place; `children: Child` and
 `children: Option<Child>` take one node. A plain node converts into whatever a
-slot asks for that takes one, so `<List><Text string="hi" /></List>` needs no
+slot asks for that takes one, so `<List><Text>"hi"</Text></List>` needs no
 ceremony. Writing
 `@sizing` on the child of a slot that does not size its children is a compile
 error rather than an attribute that quietly does nothing.
@@ -2607,7 +2615,7 @@ stay in one place:
 
 ```rust
 <List spacing=4.0>
-    <Text style=TextStyle::HEADING string="Cards" />
+    <Text style=TextStyle::HEADING>"Cards"</Text>
     <ForEach keys={card_ids()}>|id: Uuid|
         <CardRow id />
     </ForEach>

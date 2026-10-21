@@ -154,14 +154,11 @@ fn RotationTile(
                                 </Frame>
                             </Turn>
                         </Frame>
-                        <Text
-                            style=TextStyle::CAPTION
-                            string={label}
-                            wrap=true
-                            align=TextAlign::Center
-                        />
+                        <Text style=TextStyle::CAPTION wrap=true align=TextAlign::Center>
+                            {label}
+                        </Text>
                         <Show condition={now}>
-                            <Text size=TextSize::Xs color=TextColor::Accent string="Now" />
+                            <Text size=TextSize::Xs color=TextColor::Accent>"Now"</Text>
                         </Show>
                     </List>
                 </Frame>
@@ -185,7 +182,7 @@ fn LittleScreen(size: Memo<(f32, f32)>) -> NodeId {
             <List spacing=0.0>
                 <Frame height=TITLE_BAR fill=ColorRole::Accent />
                 <Frame @sizing=ItemSize::Percent(100.0) align=Align2::CENTER>
-                    <Text size=TextSize::Xs string="Aa" />
+                    <Text size=TextSize::Xs>"Aa"</Text>
                 </Frame>
             </List>
         </Frame>

@@ -74,7 +74,7 @@ fn an_occluded_window_shows_itself_for_a_shot_once_the_app_has_drawn() {
     let _root = crate::reactive::RootScope::new();
     let document = build(|| {
         view! {
-            <Text string="Shown" color=Color32::WHITE />
+            <Text color=Color32::WHITE>"Shown"</Text>
         }
     });
     let prepared = Rc::new(Cell::new(0));
