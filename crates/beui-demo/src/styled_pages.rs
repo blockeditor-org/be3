@@ -1509,6 +1509,13 @@ fn ActionMenu() -> NodeId {
     })
     .checked(wrapped)
     .register();
+    let link = Action::new(
+        "demo.menu.link",
+        "Copy a link to this paragraph",
+        move || copies.update(|copies| *copies += 1),
+    )
+    .shortcut(Chord::ctrl(Key::C).alt().shift())
+    .register();
     let sized = |id: &str, label: &'static str, points: u32| {
         Action::new(id, label, move || size.set(points))
             .radio(create_memo(move || size.get() == points))
@@ -1516,6 +1523,7 @@ fn ActionMenu() -> NodeId {
     };
     let nodes = vec![
         MenuNode::action(&copy),
+        MenuNode::action(&link),
         MenuNode::Separator,
         MenuNode::action(&wrap),
         MenuNode::submenu(
@@ -1544,10 +1552,10 @@ fn ActionMenu() -> NodeId {
         <List spacing=SECTION_SPACING>
             <ContextMenu
                 items={view! {
-                    <unstyled::MenuNodes nodes />
+                    <unstyled::MenuNodes nodes test_prefix="demo.actions" />
                 }}
             >
-                <Card>
+                <Card @test_id="demo.actions">
                     <Text style=TextStyle::PARAGRAPH wrap=true>
                         "One description of actions, separators and submenus fills this menu, a \
                          plugin's frame menu and the command palette. Each row shows its action's \
@@ -1927,7 +1935,7 @@ fn HeldMenu() -> NodeId {
             <MenuPopup
                 anchor=button
                 open
-                width=240.0
+                min_width=240.0
                 on_dismiss={move || open.set(false)}
                 on_select={move |path: Vec<usize>| {
                     let colour = ["Red", "Green", "Blue"][path.first().copied().unwrap_or_default()];

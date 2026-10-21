@@ -133,11 +133,19 @@ impl DocumentTest {
     }
 
     pub fn click_at(&mut self, pos: Pos2) {
+        self.press_at(pos, PointerButton::Primary);
+    }
+
+    pub fn secondary_click_at(&mut self, pos: Pos2) {
+        self.press_at(pos, PointerButton::Secondary);
+    }
+
+    fn press_at(&mut self, pos: Pos2, button: PointerButton) {
         self.frame(vec![beui::Event::PointerMoved(pos)]);
         for pressed in [true, false] {
             self.frame(vec![beui::Event::PointerButton {
                 pos,
-                button: PointerButton::Primary,
+                button,
                 pressed,
                 modifiers: Modifiers::NONE,
             }]);

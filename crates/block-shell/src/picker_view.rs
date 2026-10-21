@@ -173,7 +173,7 @@ fn PickerMenu(
             placement
             open
             sheet
-            width=MENU_WIDTH
+            min_width=MENU_WIDTH
             on_dismiss={move || act.call(PickAction::Close)}
         />
     }

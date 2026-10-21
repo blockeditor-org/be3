@@ -26,8 +26,10 @@ use beui_view::reactive::*;
 const PADDING_HORIZONTAL: f32 = 14.0;
 const PADDING_VERTICAL: f32 = 6.0;
 const MENU_PADDING: f32 = 4.0;
-const MENU_WIDTH: f32 = 256.0;
+const MENU_MIN_WIDTH: f32 = 200.0;
+const MENU_MAX_WIDTH: f32 = 400.0;
 const SUBMENU_SPACING: f32 = 8.0;
+const SHORTCUT_SPACING: f32 = 24.0;
 const SHEET_PADDING: f32 = 8.0;
 const SHEET_STOPS: [f32; 2] = [0.5, 0.9];
 const SHEET_SEPARATOR_SPACING: f32 = 4.0;
@@ -84,7 +86,7 @@ pub fn MenuPopup(
     #[prop(default = Placement::BelowStart)] placement: Prop<Placement>,
     open: Prop<bool>,
     #[prop(default = false)] sheet: Prop<bool>,
-    #[prop(default = MENU_WIDTH)] width: f32,
+    #[prop(default = MENU_MIN_WIDTH)] min_width: f32,
     on_dismiss: ClickCallback,
     on_select: Callback<Vec<usize>>,
 ) -> NodeId {
@@ -93,7 +95,7 @@ pub fn MenuPopup(
     view! {
         <unstyled::MenuPopup
             items={items.into_run()}
-            menu={sized_menu_style(width)}
+            menu={sized_menu_style(min_width)}
             anchor
             placement
             open={open}
@@ -105,10 +107,10 @@ pub fn MenuPopup(
 }
 
 pub fn menu_style() -> MenuStyle {
-    sized_menu_style(MENU_WIDTH)
+    sized_menu_style(MENU_MIN_WIDTH)
 }
 
-fn sized_menu_style(width: f32) -> MenuStyle {
+fn sized_menu_style(min_width: f32) -> MenuStyle {
     MenuStyle::new(
         |handle| {
             view! {
@@ -117,7 +119,7 @@ fn sized_menu_style(width: f32) -> MenuStyle {
         },
         move |content| {
             view! {
-                <MenuPanel width>{content}</MenuPanel>
+                <MenuPanel min_width>{content}</MenuPanel>
             }
         },
     )
@@ -210,6 +212,7 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         focused,
         ..
     } = handle;
+    let has_submenu = create_memo(move || has_submenu.get());
     let shortcut = create_memo(move || shortcut.get());
     let has_shortcut = create_memo(move || !shortcut.get().is_empty());
     let theme = use_theme();
@@ -272,16 +275,21 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
                         </Show>
                     </List>
                     <Show condition={has_shortcut}>
-                        <Text size=TextSize::Sm color=TextColor::Muted align=TextAlign::End>
+                        <Text
+                            @sizing={ItemSize::Intrinsic.gap(SHORTCUT_SPACING)}
+                            size=TextSize::Sm
+                            color=TextColor::Muted
+                            align=TextAlign::End
+                        >
                             {shortcut}
                         </Text>
                     </Show>
                     <MenuCheck checked />
-                    <Frame visible={has_submenu}>
+                    <Show condition={has_submenu}>
                         <Text size=TextSize::Sm color={chevron_color} align=TextAlign::Center>
                             <Icon glyph=ICON_CHEVRON_RIGHT />
                         </Text>
-                    </Frame>
+                    </Show>
                 </List>
             </Frame>
         </List>
@@ -497,20 +505,27 @@ fn MenuSheetPanel(handle: MenuSheetHandle) -> NodeId {
 }
 
 #[component]
-fn MenuPanel(width: f32, children: Child) -> NodeId {
+fn MenuPanel(min_width: f32, children: Child) -> NodeId {
     view! {
-        <Frame width fill=ColorRole::SurfaceRaised border={Border::DEFAULT} radius=Radius::Md>
-            <List spacing=0.0>
-                <unstyled::Scroll
-                    @sizing={ItemSize::Intrinsic.max(MENU_MAX_HEIGHT).shrink(1.0)}
-                    fit=true
-                    tab_stop=false
-                    scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
-                >
-                    <Frame padding=MENU_PADDING>{children}</Frame>
-                </unstyled::Scroll>
-            </List>
-        </Frame>
+        <List direction=Direction::Horizontal spacing=0.0>
+            <Frame
+                @sizing={ItemSize::Intrinsic.min(min_width).max(MENU_MAX_WIDTH).shrink(1.0)}
+                fill=ColorRole::SurfaceRaised
+                border={Border::DEFAULT}
+                radius=Radius::Md
+            >
+                <List spacing=0.0>
+                    <unstyled::Scroll
+                        @sizing={ItemSize::Intrinsic.max(MENU_MAX_HEIGHT).shrink(1.0)}
+                        fit=true
+                        tab_stop=false
+                        scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
+                    >
+                        <Frame padding=MENU_PADDING>{children}</Frame>
+                    </unstyled::Scroll>
+                </List>
+            </Frame>
+        </List>
     }
 }
 

@@ -781,11 +781,12 @@ guides/beui_keyboard.md, Actions and the command palette), each row's test id
 `<test_prefix>.<id>`, so one description fills a context menu, the dock's More
 menu and a plugin's frame menu. `lead` is a few muted words before
 an item's icon on the same line, read with its label (`New in` before a folder's
-name). The dropdown is never taller than a fixed height
-and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu
+name). The dropdown is as wide as its widest row, between a least width and a
+greatest one past which labels end in an ellipsis, is never taller than a fixed
+height, and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu
 opened by something other than a button, such as a model holding a request: it
 shows while `open` holds, under `anchor` at `placement`, as the sheet while
-`sheet` holds, `width` wide, and reports `on_dismiss` for Escape or a press
+`sheet` holds, at least `min_width` wide, and reports `on_dismiss` for Escape or a press
 outside. A host that opens one for a plugin's button (block-app's app menu)
 anchors it to the button's rect, which the plugin sends from `node_anchor`, and
 sets `sheet` from `last_pointer` (`Document::last_pointer`): the host routed that
