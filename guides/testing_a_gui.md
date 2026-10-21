@@ -372,7 +372,7 @@ which close() checks, so a test that ends without calling it fails too.
   overflows`), in the host or in any plugin shown, whatever the crop.
 - ./scripts/verify runs each test as an action of its own, so a test that fails leaves the
   paintings of the others to be accepted.
-- A failure prints the steps so far as `drive` commands, which replay against
+- Any failure, a plain `assert!` or a painting as much as a step, prints the steps so far as `drive` commands, which replay against
   `./scripts/buck run //crates/block-app:dev -- --fresh`, what the app shows (`drive tree`), and
   the end of the app's log. A step that times out while the tree shows nothing pending means the
   app never settled: something asks for a frame every frame.

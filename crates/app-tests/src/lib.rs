@@ -1,3 +1,4 @@
+use std::cell::Cell;
 use std::time::Instant;
 
 use be_drive::Driven;
@@ -14,6 +15,7 @@ pub struct AppTest {
     overflows: Vec<String>,
     crop: Option<String>,
     started: Instant,
+    reported: Cell<bool>,
 }
 
 impl AppTest {
@@ -40,6 +42,7 @@ impl AppTest {
             overflows: Vec::new(),
             crop: None,
             started,
+            reported: Cell::new(false),
         };
         test.wait(ready);
         test.run(&["clock", "stop"]);
@@ -179,6 +182,11 @@ impl AppTest {
     }
 
     fn fail(&self, error: &str) -> ! {
+        panic!("{error}\n\n{}", self.context());
+    }
+
+    fn context(&self) -> String {
+        self.reported.set(true);
         let log = self
             .app
             .as_ref()
@@ -193,17 +201,20 @@ impl AppTest {
                 )
             })
             .unwrap_or_default();
-        panic!(
-            "{error}\n\nThe steps so far, which `drive -` replays against ./scripts/buck run //crates/block-app:dev -- --fresh:\n{}{log}",
+        format!(
+            "The steps so far, which `drive -` replays against ./scripts/buck run //crates/block-app:dev -- --fresh:\n{}{log}",
             self.steps.join("\n")
-        );
+        )
     }
 }
 
 impl Drop for AppTest {
     fn drop(&mut self) {
-        if self.app.is_some() && !std::thread::panicking() {
-            self.fail("the test ended with the app still open; end it with close(), which fails unless the app exits cleanly");
+        match std::thread::panicking() {
+            true if !self.reported.get() => eprintln!("\n{}", self.context()),
+            true => {}
+            false if self.app.is_some() => self.fail("the test ended with the app still open; end it with close(), which fails unless the app exits cleanly"),
+            false => {}
         }
     }
 }
