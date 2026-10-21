@@ -3439,9 +3439,9 @@ fn scale_in(view: &mut PanZoomView) {
 fn CanvasStage(#[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomView>) -> NodeId {
     view! {
         <PanZoom view>|handle: PanZoomHandle| {
-            let PanZoomHandle { view, scale, focused, .. } = handle;
+            let PanZoomHandle { view, focused, .. } = handle;
             view! {
-                <CanvasBoard view scale focused />
+                <CanvasBoard view focused />
             }
         }</PanZoom>
     }
@@ -3449,11 +3449,7 @@ fn CanvasStage(#[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomVie
 
 #[sample]
 #[component]
-fn CanvasBoard(
-    view: Memo<Option<CanvasView>>,
-    scale: Memo<f32>,
-    focused: ReadSignal<bool>,
-) -> NodeId {
+fn CanvasBoard(view: Memo<Option<CanvasView>>, focused: ReadSignal<bool>) -> NodeId {
     let [first, second, third, fourth] = STAGE_CARDS;
     view! {
         <Frame
@@ -3461,10 +3457,10 @@ fn CanvasBoard(
             radius=Radius::Md
         >
             <Canvas view>
-                <StageCard card=first scale={scale} />
-                <StageCard card=second scale={scale} />
-                <StageCard card=third scale={scale} />
-                <StageCard card=fourth scale />
+                <StageCard card=first />
+                <StageCard card=second />
+                <StageCard card=third />
+                <StageCard card=fourth />
             </Canvas>
         </Frame>
     }
@@ -3472,19 +3468,17 @@ fn CanvasBoard(
 
 #[sample]
 #[component]
-fn StageCard(card: (f32, f32, f32, f32, &'static str), scale: Memo<f32>) -> CanvasItem {
+fn StageCard(card: (f32, f32, f32, f32, &'static str)) -> CanvasItem {
     let (x, y, width, height, label) = card;
-    let size = create_memo(move || TextSize::Custom(STAGE_LABEL_SIZE * scale.get()));
-    let padding = create_memo(move || STAGE_PADDING * scale.get());
     view! {
-        <CanvasItem x y width height>
+        <CanvasItem x y width height scales=true>
             <Frame
                 fill=ColorRole::SurfaceRaised
                 border={Border::new(ColorRole::Border).width(1.0)}
                 radius=Radius::Lg
-                padding=padding
+                padding=STAGE_PADDING
             >
-                <Text size>{label.to_string()}</Text>
+                <Text size=TextSize::Custom(STAGE_LABEL_SIZE)>{label.to_string()}</Text>
             </Frame>
         </CanvasItem>
     }
