@@ -564,7 +564,8 @@ fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Opt
     let focused = doc.focused_node();
     doc.set_focus_visible(false);
     for owner in session.owners.clone().into_iter().rev() {
-        let change = node_mut(doc, owner).and_then(|node| node.change(|state| state.pressed = true));
+        let change =
+            node_mut(doc, owner).and_then(|node| node.change(|state| state.pressed = true));
         let pressed = rect_of(doc, frame.rects, owner).zip(interactive(doc, owner));
         if let Some((rect, node)) = pressed {
             node.on_press.clone().call(session.press(rect, pos));

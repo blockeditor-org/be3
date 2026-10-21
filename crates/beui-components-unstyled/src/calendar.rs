@@ -185,8 +185,9 @@ pub fn Calendar(
         months_open: mode.get() == CalendarMode::Months,
         years_open: mode.get() == CalendarMode::Years,
     });
-    let month_toggle =
-        toggle_accessibility(month_label, "choose a month", header_state, |s| s.months_open);
+    let month_toggle = toggle_accessibility(month_label, "choose a month", header_state, |s| {
+        s.months_open
+    });
     let year_toggle =
         toggle_accessibility(year_label, "choose a year", header_state, |s| s.years_open);
     let header_node = header.call(CalendarHeaderHandle {

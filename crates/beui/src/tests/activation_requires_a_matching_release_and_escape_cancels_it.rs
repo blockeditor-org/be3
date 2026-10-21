@@ -15,11 +15,19 @@ fn activation_requires_a_matching_release_and_escape_cancels_it() {
     harness.frame(vec![key_event(Key::Space, true, Modifiers::NONE)]);
     harness.frame(vec![key_event(Key::Enter, false, Modifiers::NONE)]);
     assert_eq!(clicks.get_untracked(), 0);
-    assert!(unstyled::button_state(harness.document(), button).get().active);
+    assert!(
+        unstyled::button_state(harness.document(), button)
+            .get()
+            .active
+    );
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(vec![key_event(Key::Space, false, Modifiers::NONE)]);
     assert_eq!(clicks.get_untracked(), 0);
-    assert!(!unstyled::button_state(harness.document(), button).get().active);
+    assert!(
+        !unstyled::button_state(harness.document(), button)
+            .get()
+            .active
+    );
     harness.key(Key::Space, Modifiers::NONE);
     assert_eq!(clicks.get_untracked(), 1);
 }

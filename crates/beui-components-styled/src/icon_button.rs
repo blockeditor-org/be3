@@ -83,8 +83,14 @@ pub(crate) fn IconButtonFace(
     let unstyled::ButtonHandle { state, glyph, .. } = handle;
     let focused = Prop::dynamic(move || state.get().focused);
     let theme = use_theme();
-    let fill_color =
-        create_memo(move || variant.fill(&theme, state.get().disabled, state.get().hovered, state.get().active));
+    let fill_color = create_memo(move || {
+        variant.fill(
+            &theme,
+            state.get().disabled,
+            state.get().hovered,
+            state.get().active,
+        )
+    });
     let icon_color = create_memo(move || variant.label(state.get().disabled));
     view! {
         <FocusRing

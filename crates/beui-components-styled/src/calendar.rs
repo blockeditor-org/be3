@@ -163,11 +163,7 @@ fn WeekdayLabel(weekday: Weekday) -> NodeId {
 
 #[component]
 fn CellFace(handle: CalendarCellHandle) -> NodeId {
-    let CalendarCellHandle {
-        kind,
-        label,
-        state,
-    } = handle;
+    let CalendarCellHandle { kind, label, state } = handle;
     let height = match kind {
         CalendarMode::Days => DAY_SIZE,
         CalendarMode::Months => MONTH_HEIGHT,

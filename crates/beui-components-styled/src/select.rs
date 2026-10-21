@@ -67,9 +67,7 @@ fn SelectTrigger(
     placeholder: Memo<String>,
     width: Prop<Extent>,
 ) -> NodeId {
-    let SelectTriggerHandle {
-        label, state, ..
-    } = handle;
+    let SelectTriggerHandle { label, state, .. } = handle;
     let theme = use_theme();
     let empty = create_memo(move || label.with(Option::is_none));
     let label_text = create_memo(move || {
@@ -146,9 +144,7 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
 
 #[component]
 fn SelectOption(handle: SelectOptionHandle) -> NodeId {
-    let SelectOptionHandle {
-        label, state, ..
-    } = handle;
+    let SelectOptionHandle { label, state, .. } = handle;
     let theme = use_theme();
     let fill_color = create_memo(move || {
         let state = state.get();

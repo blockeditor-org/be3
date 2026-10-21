@@ -65,13 +65,12 @@ pub use color_picker::{
     Swatches, alpha_image, hue_image, plane_image, texel_centres,
 };
 pub use color_wheel::{
-    ColorWheel, ColorWheelHandle, ColorWheelState, OKLCH_TIP_CHROMA, OklchTriangle, WheelGeometry, WheelPoint,
-    color_wheel_value,
+    ColorWheel, ColorWheelHandle, ColorWheelState, OKLCH_TIP_CHROMA, OklchTriangle, WheelGeometry,
+    WheelPoint, color_wheel_value,
 };
 pub use command_palette::{
     CommandPalette, CommandRowHandle, CommandRowState, command_palette_highlighted,
-    command_palette_row,
-    command_palette_search, command_palette_shown,
+    command_palette_row, command_palette_search, command_palette_shown,
 };
 pub use container::{Container, ContainerSize, container_size, narrower_than, shorter_than};
 pub use context_menu::{
@@ -79,23 +78,23 @@ pub use context_menu::{
     context_menu_toolbar,
 };
 pub use date_time_field::{
-    DateDraft, DateSegment, DateSegmentHandle, DateSegmentState, DateTimeField, DateTimeParts, date_time_field_text,
-    date_time_field_value,
+    DateDraft, DateSegment, DateSegmentHandle, DateSegmentState, DateTimeField, DateTimeParts,
+    date_time_field_text, date_time_field_value,
 };
 pub use date_time_picker::{
     DateTimeBoxHandle, DateTimeBoxState, DateTimeCalendarHandle, DateTimePanelHandle,
-    DateTimePanelLayout,
-    DateTimePicker, DateTimeTimesHandle, DateTimeTriggerHandle,
+    DateTimePanelLayout, DateTimePicker, DateTimeTimesHandle, DateTimeTriggerHandle,
 };
 pub use disclosure::{Disclosure, DisclosureHandle, disclosure_open};
 pub use dock::{
     DockAwayHandle, DockBarHandle, DockBarState, DockChromeHandle, DockDialog, DockDialogHandle,
-    DockDialogPresentation, DockDialogState, DockDragged, DockDrop, DockEntry, DockFullscreen, DockGripHandle,
-    DockGroup, DockKey, DockLayout, DockMenus, DockMode, DockNode, DockPane, DockPreviewHandle,
-    DockSheetHandle, DockSplit, DockSplitter, DockSplitterHandle, DockSplitterState, DockStackHandle, DockStackState, DockState,
-    DockSwitch, DockSwitchHandle, DockSwitchRowHandle, DockSwitcherCardHandle, DockSwitcherHandle,
-    DockTab, DockTabControl, DockTabHandle, DockTabMenu, DockTabState, DockTree, DockTreeEntry, DockVisit,
-    DockWindow, Docking, DockingLayout, DockingSnapshot, Entry, GroupId, LeafId, MIN_PANE_LENGTH,
+    DockDialogPresentation, DockDialogState, DockDragged, DockDrop, DockEntry, DockFullscreen,
+    DockGripHandle, DockGroup, DockKey, DockLayout, DockMenus, DockMode, DockNode, DockPane,
+    DockPreviewHandle, DockSheetHandle, DockSplit, DockSplitter, DockSplitterHandle,
+    DockSplitterState, DockStackHandle, DockStackState, DockState, DockSwitch, DockSwitchHandle,
+    DockSwitchRowHandle, DockSwitcherCardHandle, DockSwitcherHandle, DockTab, DockTabControl,
+    DockTabHandle, DockTabMenu, DockTabState, DockTree, DockTreeEntry, DockVisit, DockWindow,
+    Docking, DockingLayout, DockingSnapshot, Entry, GroupId, LeafId, MIN_PANE_LENGTH,
     MIN_SIDEBAR_WIDTH, OwnedDockingLayout, SIDEBAR_WIDTH, SPLITTER_THICKNESS, Side, SplitId,
     SurfaceId, TabId, TabPosition, Tree, dock_actions, dock_menu, dock_menu_items, dock_state,
     layout_surface, layout_tree, sidebar_size, use_dock_tab,
@@ -106,17 +105,19 @@ pub use drag::{
 pub use floating::{Edge, Floating};
 pub use list_row::ListRow;
 pub use menu::{
-    MenuCaption, MenuGrid, MenuItem, MenuRowHandle, MenuRowKind, MenuRowState, MenuThen, menu_list_back_button,
-    menu_list_len, menu_list_page, menu_list_root_focusable, menu_list_row_button,
-    menu_list_row_submenu_content, menu_list_tile_button,
+    MenuCaption, MenuGrid, MenuItem, MenuRowHandle, MenuRowKind, MenuRowState, MenuThen,
+    menu_list_back_button, menu_list_len, menu_list_page, menu_list_root_focusable,
+    menu_list_row_button, menu_list_row_submenu_content, menu_list_tile_button,
 };
 pub use menu_button::{MenuButton, MenuButtonHandle};
 pub use menu_popup::{MenuPopup, MenuSheetHandle, MenuStyle};
 pub use number_input::{
-    NumberDrag, NumberFaceHandle, NumberFaceState, NumberFieldHandle, NumberInput, number_input_face,
-    number_input_field,
+    NumberDrag, NumberFaceHandle, NumberFaceState, NumberFieldHandle, NumberInput,
+    number_input_face, number_input_field,
 };
-pub use pan_zoom::{MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomState, PanZoomView, pan_zoom_view};
+pub use pan_zoom::{
+    MAX_SCALE, MIN_SCALE, PanZoom, PanZoomHandle, PanZoomState, PanZoomView, pan_zoom_view,
+};
 pub use picture::Picture;
 pub use pointer_lock::{PointerLock, PointerLockHandle, PointerLockState};
 pub use popover::{
@@ -127,12 +128,13 @@ pub use scroll::{
     SCROLLBAR_FADE_OUT, SCROLLBAR_LINGER, Scroll, ScrollHandle, ScrollbarStyle, scroll_animating,
 };
 pub use scrollbar::{
-    Scrollbar, ScrollbarHandle, ScrollbarState, ScrollbarThumb, thumb_length, thumb_rect, thumb_start,
+    Scrollbar, ScrollbarHandle, ScrollbarState, ScrollbarThumb, thumb_length, thumb_rect,
+    thumb_start,
 };
 pub use select::{
     Select, SelectOptionHandle, SelectOptionState, SelectTriggerHandle, SelectTriggerState,
-    select_highlighted, select_open,
-    select_option_button, select_search, select_selected, select_trigger,
+    select_highlighted, select_open, select_option_button, select_search, select_selected,
+    select_trigger,
 };
 pub use selectable::{Selectable, SelectableState, copy_selection, select_all, selectable_text};
 pub use sheet::{ModalSheet, SHEET_STOPS, Sheet, SheetGripHandle};
@@ -142,10 +144,10 @@ pub use split_button::SplitButton;
 pub use stack::Stack;
 pub use text_area::text_area_handles;
 pub use text_area::{
-    BlockView, Completer, Completion, CompletionMenu, CompletionRowHandle, CompletionRowState, Prose, RemoteTextCursor,
-    SyntaxColors, TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextCheckbox,
-    TextWidget, VOID_SIZE, VoidSize, VoidView, emoji_completer, search_emoji, text_area_index_at,
-    text_area_shown, text_area_state,
+    BlockView, Completer, Completion, CompletionMenu, CompletionRowHandle, CompletionRowState,
+    Prose, RemoteTextCursor, SyntaxColors, TextArea, TextAreaColors, TextAreaLayout, TextAreaState,
+    TextCheckbox, TextWidget, VOID_SIZE, VoidSize, VoidView, emoji_completer, search_emoji,
+    text_area_index_at, text_area_shown, text_area_state,
 };
 pub use text_input::text_input_handles;
 pub use text_input::{
@@ -154,10 +156,13 @@ pub use text_input::{
     text_input_shown, text_input_state, text_input_text, text_input_toolbar, text_input_value,
 };
 pub use text_menu::TextContextMenu;
-pub use time_list::{TimeList, TimeOptionHandle, TimeOptionState, grid_columns, time_list_selected};
+pub use time_list::{
+    TimeList, TimeOptionHandle, TimeOptionState, grid_columns, time_list_selected,
+};
 pub use toggle::{Toggle, ToggleHandle, ToggleState, toggle_checked};
 pub use tooltip::{TOOLTIP_DELAY, Tooltip, TooltipHandle};
 pub use tree::{
     Tree, TreeItem, TreeReveal, TreeRevealHandle, TreeRowArea, TreeRowEdit, TreeRowEditor,
-    TreeRowHandle, TreeRowState, TreeRowTarget, TreeToggle, TreeToggleHandle, tree_focused, tree_row_node,
+    TreeRowHandle, TreeRowState, TreeRowTarget, TreeToggle, TreeToggleHandle, tree_focused,
+    tree_row_node,
 };

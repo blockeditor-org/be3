@@ -21,5 +21,8 @@ fn shift_tab_moves_focus_to_the_previous_button() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::SHIFT);
 
-    assert_eq!((first_focused.get().focused, second_focused.get().focused), (true, false));
+    assert_eq!(
+        (first_focused.get().focused, second_focused.get().focused),
+        (true, false)
+    );
 }

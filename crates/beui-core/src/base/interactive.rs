@@ -13,9 +13,9 @@ use crate::painter::Painter;
 use std::cell::Cell;
 
 use crate::callback::{Callback, ClickCallback};
-use beui_tree::callback::IntoCallback;
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects};
+use beui_tree::callback::IntoCallback;
 
 #[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
 pub struct InteractionState {
@@ -597,7 +597,9 @@ impl Document {
     pub(crate) fn change_interaction(
         &mut self,
         id: NodeId,
-        change: impl FnOnce(&mut InteractiveNode) -> Option<(Callback<InteractionState>, InteractionState)>,
+        change: impl FnOnce(
+            &mut InteractiveNode,
+        ) -> Option<(Callback<InteractionState>, InteractionState)>,
     ) {
         if !self.arena.contains(id) {
             return;

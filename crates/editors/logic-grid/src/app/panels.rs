@@ -1017,7 +1017,10 @@ fn GraphCanvas(
         }
     };
     view! {
-        <Interactive on_hover_move={over} on_state_change={InteractionState::watch(|state| state.hovered, left)}>
+        <Interactive
+            on_hover_move={over}
+            on_state_change={InteractionState::watch(|state| state.hovered, left)}
+        >
             <Frame width=width height=height>
                 <Drawing draw={draw} />
             </Frame>

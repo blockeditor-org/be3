@@ -434,18 +434,19 @@ fn ChevronFace(
     sized: Memo<Metrics>,
 ) -> NodeId {
     let TreeToggleHandle {
-        button:
-            ButtonHandle { state, label, .. },
+        button: ButtonHandle { state, label, .. },
         expanded,
     } = handle;
     let theme = use_theme();
     let marked = create_memo(move || row.get().marked);
-    let fill = create_memo(move || match (state.get().active, marked.get(), state.get().hovered) {
-        (true, _, _) => theme.pressed.get(),
-        (false, true, _) => theme.accent_soft.get(),
-        (false, false, true) => theme.hover.get(),
-        (false, false, false) => Color32::TRANSPARENT,
-    });
+    let fill = create_memo(
+        move || match (state.get().active, marked.get(), state.get().hovered) {
+            (true, _, _) => theme.pressed.get(),
+            (false, true, _) => theme.accent_soft.get(),
+            (false, false, true) => theme.hover.get(),
+            (false, false, false) => Color32::TRANSPARENT,
+        },
+    );
     let ring = focus_ring(Prop::dynamic(move || state.get().focused));
     let outlined = create_memo(move || marked.get() || ring.get());
     let color = create_memo(move || match marked.get() || state.get().hovered {

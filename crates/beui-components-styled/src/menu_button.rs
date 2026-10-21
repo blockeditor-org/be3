@@ -120,11 +120,21 @@ pub fn PictureMenuButton(
     let trigger = move |handle: MenuButtonHandle| {
         let MenuButtonHandle { open, button } = handle;
         let theme = use_theme();
-        let unstyled::ButtonHandle { state, glyph, label, .. } = button;
+        let unstyled::ButtonHandle {
+            state,
+            glyph,
+            label,
+            ..
+        } = button;
         let focused = Prop::dynamic(move || state.get().focused);
         let pressed = create_memo(move || state.get().active || open.get());
         let fill = create_memo(move || {
-            ButtonVariant::Ghost.fill(&theme, state.get().disabled, state.get().hovered, pressed.get())
+            ButtonVariant::Ghost.fill(
+                &theme,
+                state.get().disabled,
+                state.get().hovered,
+                pressed.get(),
+            )
         });
         let color = create_memo(move || ButtonVariant::Ghost.label(state.get().disabled));
         view! {

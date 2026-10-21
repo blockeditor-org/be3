@@ -28,13 +28,21 @@ fn tabbing_to_an_offscreen_control_reveals_it() {
     for _ in 0..6 {
         harness.key(Key::Tab, Modifiers::NONE);
     }
-    assert!(unstyled::button_state(harness.document(), buttons[4]).get().focused);
+    assert!(
+        unstyled::button_state(harness.document(), buttons[4])
+            .get()
+            .focused
+    );
     assert!(harness.document.scroll_offset(scroll) > 0.0);
     let rect = harness.rect(buttons[4]);
     assert!(rect.top() >= 0.0 && rect.bottom() <= 100.0);
     for _ in 0..4 {
         harness.key(Key::Tab, Modifiers::SHIFT);
     }
-    assert!(unstyled::button_state(harness.document(), buttons[0]).get().focused);
+    assert!(
+        unstyled::button_state(harness.document(), buttons[0])
+            .get()
+            .focused
+    );
     assert_eq!(harness.document.scroll_offset(scroll), 0.0);
 }

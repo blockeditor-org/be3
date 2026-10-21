@@ -136,11 +136,7 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
 
 #[component]
 fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
-    let DateSegmentHandle {
-        text,
-        state,
-        ..
-    } = handle;
+    let DateSegmentHandle { text, state, .. } = handle;
     let theme = use_theme();
     let fill = create_memo(move || match state.get().focused {
         true => theme.accent_soft.get(),
@@ -433,11 +429,7 @@ fn TimePane(
 
 #[component]
 fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
-    let TimeOptionHandle {
-        label,
-        state,
-        ..
-    } = handle;
+    let TimeOptionHandle { label, state, .. } = handle;
     let theme = use_theme();
     let fill = create_memo(move || {
         let state = state.get();

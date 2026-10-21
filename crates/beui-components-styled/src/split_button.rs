@@ -99,8 +99,7 @@ fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
 fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
     let MenuButtonHandle {
         open,
-        button:
-            ButtonHandle { state, label, .. },
+        button: ButtonHandle { state, label, .. },
     } = handle;
     let theme = use_theme();
     let fill = create_memo(move || {

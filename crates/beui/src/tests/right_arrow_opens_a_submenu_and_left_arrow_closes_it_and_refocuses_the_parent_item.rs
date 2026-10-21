@@ -37,12 +37,20 @@ fn right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent
     let share_button = unstyled::menu_list_row_button(harness.document(), content, 0);
     assert!(unstyled::menu_list_row_submenu_content(harness.document(), content, 0).is_none());
 
-    assert!(!unstyled::button_state(harness.document(), share_button).get().focused);
+    assert!(
+        !unstyled::button_state(harness.document(), share_button)
+            .get()
+            .focused
+    );
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert!(unstyled::button_state(harness.document(), share_button).get().focused);
+    assert!(
+        unstyled::button_state(harness.document(), share_button)
+            .get()
+            .focused
+    );
 
     harness.key(Key::ArrowRight, Modifiers::NONE);
     harness.frame(Vec::new());
@@ -50,12 +58,20 @@ fn right_arrow_opens_a_submenu_and_left_arrow_closes_it_and_refocuses_the_parent
     let submenu = unstyled::menu_list_row_submenu_content(harness.document(), content, 0)
         .expect("share's submenu is built once it opens");
     let email_button = unstyled::menu_list_row_button(harness.document(), submenu, 0);
-    assert!(unstyled::button_state(harness.document(), email_button).get().focused);
+    assert!(
+        unstyled::button_state(harness.document(), email_button)
+            .get()
+            .focused
+    );
     assert!(harness.document().node_rect(email_button).is_some());
 
     harness.key(Key::ArrowLeft, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert!(unstyled::button_state(harness.document(), share_button).get().focused);
+    assert!(
+        unstyled::button_state(harness.document(), share_button)
+            .get()
+            .focused
+    );
     assert!(harness.document().node_rect(email_button).is_none());
 }

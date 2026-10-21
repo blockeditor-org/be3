@@ -8,7 +8,9 @@ use crate::unstyled::{DockPane, DockTab, DockWindow, DockingLayout};
 #[component]
 fn HoverInto(hovered: Rc<Cell<bool>>) -> NodeId {
     view! {
-        <Interactive on_state_change={InteractionState::watch(|state| state.hovered, move |on: bool| hovered.set(on))} />
+        <Interactive
+            on_state_change={InteractionState::watch(|state| state.hovered, move |on: bool| hovered.set(on))}
+        />
     }
 }
 

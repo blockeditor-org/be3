@@ -14,10 +14,9 @@ use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
-    DockDialogState, DockTabState,
-    DockDragged, DockGripHandle, DockKey, DockMode, DockNode, DockPreviewHandle, DockSheetHandle,
-    DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
-    DockingLayout, Entry, MenuItem, Picture,
+    DockDialogState, DockDragged, DockGripHandle, DockKey, DockMode, DockNode, DockPreviewHandle,
+    DockSheetHandle, DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle,
+    DockTabHandle, DockTabState, DockingLayout, Entry, MenuItem, Picture,
 };
 use beui_core::base::{Align, Direction, ItemSize, Justify};
 use beui_core::color::Color32;
@@ -353,11 +352,13 @@ fn DockDialogSheet(handle: DockSheetHandle) -> NodeId {
 
 fn dialog_outline_color(state: Memo<DockDialogState>) -> Memo<Color32> {
     let theme = use_theme();
-    create_memo(move || match state.with(|state| (state.attention, state.focused)) {
-        (true, _) => theme.danger.get(),
-        (false, true) => theme.accent.get(),
-        (false, false) => theme.border.get(),
-    })
+    create_memo(
+        move || match state.with(|state| (state.attention, state.focused)) {
+            (true, _) => theme.danger.get(),
+            (false, true) => theme.accent.get(),
+            (false, false) => theme.border.get(),
+        },
+    )
 }
 
 fn dialog_outline(state: Memo<DockDialogState>) -> Memo<Option<Border>> {
@@ -647,11 +648,13 @@ fn DockGrip(handle: DockGripHandle) -> NodeId {
 fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
     let DockSplitterHandle { state, .. } = handle;
     let theme = use_theme();
-    let fill = create_memo(move || match state.with(|state| (state.active, state.hovered)) {
-        (true, _) => theme.accent.get(),
-        (false, true) => theme.border.get(),
-        (false, false) => theme.background.get(),
-    });
+    let fill = create_memo(
+        move || match state.with(|state| (state.active, state.hovered)) {
+            (true, _) => theme.accent.get(),
+            (false, true) => theme.border.get(),
+            (false, false) => theme.background.get(),
+        },
+    );
     view! {
         <Frame
             fill={ColorRole::custom(fill)}

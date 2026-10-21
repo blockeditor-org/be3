@@ -20,8 +20,8 @@ use beui::styled::*;
 use beui::unstyled::{
     ChoiceOption, Container, DateTimeParts, DockDialog, DockDialogPresentation, DockMode, DockPane,
     DockSplit, DockTab, DockTabControl, DockingLayout, MAX_SCALE, MIN_SCALE, PanZoom,
-    PanZoomHandle, PanZoomState, PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TabId, TextAreaState,
-    TreeItem, dock_actions, narrower_than, use_dock_tab,
+    PanZoomHandle, PanZoomState, PanZoomView, PopoverHandle, SliderScale, SyntaxColors, TabId,
+    TextAreaState, TreeItem, dock_actions, narrower_than, use_dock_tab,
 };
 use beui::{
     Color32, Context, Direction, Document, FontId, Image, ItemSize, Key, Modifiers, NodeId, Rect,

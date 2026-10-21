@@ -47,7 +47,9 @@ use rows::{
 use state::{AreaGeometry, Grab};
 
 pub use colors::{SyntaxColors, TextAreaColors};
-pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle, CompletionRowState};
+pub use completion::{
+    Completer, Completion, CompletionMenu, CompletionRowHandle, CompletionRowState,
+};
 pub use emoji::{emoji_completer, search_emoji};
 pub use rows::{Prose, TextWidget, VOID_SIZE, VoidSize};
 pub use state::{TextAreaLayout, TextAreaState};
@@ -1504,7 +1506,10 @@ fn Editing(field: Field) -> NodeId {
             }
         },
     );
-    let pressed = InteractionState::watch(|state| state.pressed, move |active: bool| release(&cx, active));
+    let pressed = InteractionState::watch(
+        |state| state.pressed,
+        move |active: bool| release(&cx, active),
+    );
     view! {
         <Interactive
             focusable=true

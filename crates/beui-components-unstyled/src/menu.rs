@@ -461,7 +461,11 @@ fn MenuBackRow(
     built
 }
 
-fn quiet_handle(kind: MenuRowKind, label: Prop<String>, state: Memo<MenuRowState>) -> MenuRowHandle {
+fn quiet_handle(
+    kind: MenuRowKind,
+    label: Prop<String>,
+    state: Memo<MenuRowState>,
+) -> MenuRowHandle {
     MenuRowHandle {
         kind,
         label,

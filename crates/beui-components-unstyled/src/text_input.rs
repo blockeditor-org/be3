@@ -315,7 +315,10 @@ pub fn text_input_value(document: &Document, input_node: NodeId) -> String {
 }
 
 pub fn text_input_focused(document: &Document, input_node: NodeId) -> bool {
-    input(document, input_node).interaction.get_untracked().focused
+    input(document, input_node)
+        .interaction
+        .get_untracked()
+        .focused
 }
 
 pub fn text_input_caret(document: &Document, input_node: NodeId) -> usize {

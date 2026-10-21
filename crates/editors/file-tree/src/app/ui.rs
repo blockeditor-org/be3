@@ -754,11 +754,14 @@ fn AddChildFace(handle: ButtonHandle, shown: Memo<bool>, label: Memo<String>) ->
     let ButtonHandle { state, .. } = handle;
     let focused = Prop::dynamic(move || state.get().focused);
     let theme = use_theme();
-    let color = create_memo(move || match (shown.get(), state.get().hovered || state.get().active) {
-        (false, _) => TextColor::Custom(Color32::TRANSPARENT),
-        (true, true) => TextColor::Default,
-        (true, false) => TextColor::Muted,
-    });
+    let color =
+        create_memo(
+            move || match (shown.get(), state.get().hovered || state.get().active) {
+                (false, _) => TextColor::Custom(Color32::TRANSPARENT),
+                (true, true) => TextColor::Default,
+                (true, false) => TextColor::Muted,
+            },
+        );
     let fill = create_memo(move || match state.get().active {
         true => theme.pressed.get(),
         false => Color32::TRANSPARENT,

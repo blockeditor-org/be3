@@ -231,7 +231,11 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
         }) as Draw
     });
     view! {
-        <FocusRing focused={Prop::dynamic(move || state.get().focused)} radius={Radius::custom(Radius::Md.px() + 2.0)} offset=FOCUS_RING_OFFSET>
+        <FocusRing
+            focused={Prop::dynamic(move || state.get().focused)}
+            radius={Radius::custom(Radius::Md.px() + 2.0)}
+            offset=FOCUS_RING_OFFSET
+        >
             <Frame height=AREA_HEIGHT>
                 <Drawing draw />
             </Frame>
@@ -289,7 +293,11 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
         }) as Draw
     });
     view! {
-        <FocusRing focused={Prop::dynamic(move || state.get().focused)} radius={Radius::custom(10.0)} offset=FOCUS_RING_OFFSET>
+        <FocusRing
+            focused={Prop::dynamic(move || state.get().focused)}
+            radius={Radius::custom(10.0)}
+            offset=FOCUS_RING_OFFSET
+        >
             <Frame height=SLIDER_HEIGHT>
                 <Drawing draw />
             </Frame>

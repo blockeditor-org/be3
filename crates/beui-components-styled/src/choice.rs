@@ -21,11 +21,7 @@ const MARK_RADIUS: f32 = 9.0;
 
 #[component]
 pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
-    let ChoiceOptionHandle {
-        label,
-        state,
-        ..
-    } = handle;
+    let ChoiceOptionHandle { label, state, .. } = handle;
     let theme = use_theme();
     let selected = create_memo(move || state.get().selected);
     let label_color = create_memo(move || match selected.get() {

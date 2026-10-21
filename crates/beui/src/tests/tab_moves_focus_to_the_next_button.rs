@@ -18,8 +18,14 @@ fn tab_moves_focus_to_the_next_button() {
     let mut harness = Harness::new(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
-    assert_eq!((first_focused.get().focused, second_focused.get().focused), (true, false));
+    assert_eq!(
+        (first_focused.get().focused, second_focused.get().focused),
+        (true, false)
+    );
 
     harness.key(Key::Tab, Modifiers::NONE);
-    assert_eq!((first_focused.get().focused, second_focused.get().focused), (false, true));
+    assert_eq!(
+        (first_focused.get().focused, second_focused.get().focused),
+        (false, true)
+    );
 }

@@ -12,10 +12,14 @@ fn the_edge_two_rows_share_hovers_only_the_lower_one() {
     let document = build(move || {
         view! {
             <List spacing=0.0>
-                <Interactive on_state_change={InteractionState::watch(|state| state.hovered, upper)}>
+                <Interactive
+                    on_state_change={InteractionState::watch(|state| state.hovered, upper)}
+                >
                     <Frame height=ROW />
                 </Interactive>
-                <Interactive on_state_change={InteractionState::watch(|state| state.hovered, lower)}>
+                <Interactive
+                    on_state_change={InteractionState::watch(|state| state.hovered, lower)}
+                >
                     <Frame height=ROW />
                 </Interactive>
             </List>

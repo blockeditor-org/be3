@@ -20,7 +20,10 @@ fn tab_focus_stays_in_the_active_document_when_the_inspector_is_open() {
     harness.toggle_inspector();
     harness.key(Key::Tab, Modifiers::NONE);
 
-    assert_eq!((first_focused.get().focused, second_focused.get().focused), (true, false));
+    assert_eq!(
+        (first_focused.get().focused, second_focused.get().focused),
+        (true, false)
+    );
     assert_eq!(harness.inspector().document.focused_node(), None);
 
     let accesskit_tab = harness.accesskit_tab_center();
