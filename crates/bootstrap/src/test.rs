@@ -72,6 +72,7 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
         arguments.extend(["--env".to_owned(), "UPDATE_SNAPSHOTS=1".to_owned()]);
     }
     eprintln!("Running {}", targets.join(" "));
+    // unsafe(env)
     unsafe { std::env::set_var("BE3_VERBOSE", "1") };
     buck::main(arguments)
 }

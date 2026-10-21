@@ -59,6 +59,7 @@ fn run(arguments: Vec<String>) -> Result<ExitCode> {
         passed.extend(["--lint".to_owned(), "--plugin-tests".to_owned()]);
     }
     if verbose {
+        // unsafe(env)
         unsafe { std::env::set_var("BE3_VERBOSE", "1") };
     }
 

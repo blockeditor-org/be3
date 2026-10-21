@@ -120,6 +120,7 @@ fn backtrace() -> String {
     trace
 }
 
+// unsafe(ffi)
 #[cfg(target_os = "android")]
 fn library_offset(line: &str) -> Option<String> {
     let hex = line

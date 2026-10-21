@@ -140,6 +140,7 @@ fn read(buffer: &WlBuffer) -> Option<Image> {
         }
         let needed = stride * (height - 1) + width * 4;
         let mut bytes = vec![0u8; needed];
+        // unsafe(ffi)
         unsafe {
             std::ptr::copy_nonoverlapping(pointer.add(offset), bytes.as_mut_ptr(), needed);
         }

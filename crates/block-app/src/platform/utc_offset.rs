@@ -1,3 +1,4 @@
+// unsafe(ffi)
 #[cfg(unix)]
 pub(crate) fn utc_offset() -> i32 {
     let now = unsafe { libc::time(std::ptr::null_mut()) };

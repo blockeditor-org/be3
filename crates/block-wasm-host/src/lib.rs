@@ -145,6 +145,7 @@ impl Host {
             .to_str()?
             .to_owned();
         let bytes = read(&artifact).ok()?;
+        // unsafe(ffi)
         match unsafe { Module::deserialize(&self.engine, &bytes) } {
             Ok(module) => Some(module),
             Err(error) => {
@@ -424,6 +425,7 @@ fn global(instance: &Instance, store: &mut Store<State>, name: &str) -> Result<u
 
 fn module(engine: &Engine, bytes: &[u8]) -> Result<Module, String> {
     if Engine::detect_precompiled(bytes).is_some() {
+        // unsafe(ffi)
         return unsafe { Module::deserialize(engine, bytes) }
             .map_err(|error| format!("the compiled plugin module could not be loaded: {error}"));
     }
@@ -443,6 +445,7 @@ fn precompiled_beside(engine: &Engine, path: &Path) -> Option<Module> {
     if !artifact.is_file() {
         return None;
     }
+    // unsafe(ffi)
     match unsafe { Module::deserialize_file(engine, &artifact) } {
         Ok(module) => Some(module),
         Err(error) => {

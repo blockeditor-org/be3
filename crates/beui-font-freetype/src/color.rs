@@ -2,6 +2,7 @@ use freetype::freetype as ft;
 
 use beui_core::font::GlyphImage;
 
+// unsafe(ffi)
 pub(crate) unsafe fn set_size(face: ft::FT_Face, pixel_size: u32) -> Option<f32> {
     unsafe {
         if ft::FT_Set_Pixel_Sizes(face, 0, pixel_size) == 0 {
@@ -53,6 +54,7 @@ pub(crate) fn image(bitmap: &ft::FT_Bitmap, left: i32, top: i32, scale: f32) -> 
     }
 }
 
+// unsafe(ffi)
 fn bgra(bitmap: &ft::FT_Bitmap) -> Vec<f32> {
     let width = bitmap.width as usize;
     let rows = bitmap.rows as usize;

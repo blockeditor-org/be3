@@ -12,6 +12,7 @@ impl Password {
     }
 }
 
+// unsafe(memory)
 impl Drop for Password {
     fn drop(&mut self) {
         let bytes = unsafe { self.0.as_bytes_mut() };

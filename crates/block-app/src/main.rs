@@ -244,6 +244,7 @@ pub async fn automate(
     }
 }
 
+// unsafe(ffi)
 #[cfg(target_os = "android")]
 #[unsafe(no_mangle)]
 fn android_main(app: beui::AndroidApp) {

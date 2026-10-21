@@ -67,6 +67,7 @@ fn write(memory: &SharedMemory, at: u32, bytes: &[u8]) -> Result<(), String> {
         .filter(|end| *end <= data.len())
         .ok_or("the plugin's memory ran past the end of the shared memory")?;
     for (cell, byte) in data[at as usize..end].iter().zip(bytes) {
+        // unsafe(ffi)
         unsafe { *cell.get() = *byte };
     }
     Ok(())

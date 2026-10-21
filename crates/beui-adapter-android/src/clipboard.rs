@@ -25,8 +25,10 @@ mod android {
         run: impl FnOnce(&mut Env<'_>, &JObject<'_>, &JObject<'_>) -> Result<T, Error>,
     ) -> Result<T, Error> {
         let context = ndk_context::android_context();
+        // unsafe(ffi)
         let vm = unsafe { JavaVM::from_raw(context.vm().cast()) };
         vm.attach_current_thread_for_scope(|env| {
+            // unsafe(ffi)
             let activity = unsafe { JObject::from_raw(env, context.context().cast()) };
             let service = env.new_string("clipboard")?;
             let manager = env

@@ -51,8 +51,10 @@ fn open(url: &str) -> Result<(), String> {
         vm::JavaVM,
     };
     let context = ndk_context::android_context();
+    // unsafe(ffi)
     let vm = unsafe { JavaVM::from_raw(context.vm().cast()) };
     vm.attach_current_thread_for_scope(|env| {
+        // unsafe(ffi)
         let activity = unsafe { JObject::from_raw(env, context.context().cast()) };
         let value = env.new_string(url)?;
         let uri = env

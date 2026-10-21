@@ -21,6 +21,7 @@ const WHITE: c_ulong = 0xFFFF_FFFF;
 const FPDF_ANNOT: c_int = 0x01;
 const FPDF_REVERSE_BYTE_ORDER: c_int = 0x10;
 
+// unsafe(ffi)
 unsafe extern "C" {
     fn FPDF_InitLibrary();
     fn FPDF_SetSystemFontInfo(font_info: *mut c_void);
@@ -92,6 +93,7 @@ pub(crate) fn spawn_render_job(
     RenderJob { receiver }
 }
 
+// unsafe(ffi)
 fn worker() -> &'static mpsc::Sender<Job> {
     static WORKER: OnceLock<mpsc::Sender<Job>> = OnceLock::new();
     WORKER.get_or_init(|| {
@@ -124,6 +126,7 @@ fn worker() -> &'static mpsc::Sender<Job> {
 
 struct Document(*mut c_void);
 
+// unsafe(ffi)
 impl Document {
     fn load(data: &[u8]) -> Result<Self, String> {
         let size = c_int::try_from(data.len()).map_err(|_| "This PDF is too large".to_owned())?;
@@ -147,6 +150,7 @@ impl Document {
     }
 }
 
+// unsafe(ffi)
 impl Drop for Document {
     fn drop(&mut self) {
         unsafe { FPDF_CloseDocument(self.0) }
@@ -155,12 +159,14 @@ impl Drop for Document {
 
 struct Page<'document>(*mut c_void, std::marker::PhantomData<&'document Document>);
 
+// unsafe(ffi)
 impl Page<'_> {
     fn size(&self) -> block_editor_beui::beui::Vec2 {
         unsafe { vec2(FPDF_GetPageWidthF(self.0), FPDF_GetPageHeightF(self.0)) }
     }
 }
 
+// unsafe(ffi)
 impl Drop for Page<'_> {
     fn drop(&mut self) {
         unsafe { FPDF_ClosePage(self.0) }
@@ -169,6 +175,7 @@ impl Drop for Page<'_> {
 
 struct Bitmap(*mut c_void);
 
+// unsafe(ffi)
 impl Bitmap {
     fn new(width: c_int, height: c_int) -> Result<Self, String> {
         let bitmap = unsafe { FPDFBitmap_Create(width, height, 1) };
@@ -191,6 +198,7 @@ impl Bitmap {
     }
 }
 
+// unsafe(ffi)
 impl Drop for Bitmap {
     fn drop(&mut self) {
         unsafe { FPDFBitmap_Destroy(self.0) }
@@ -208,6 +216,7 @@ fn load_error(code: c_ulong) -> String {
     }
 }
 
+// unsafe(ffi)
 fn render_tile(
     data: &[u8],
     page: usize,
