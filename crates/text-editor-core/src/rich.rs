@@ -1,3 +1,4 @@
+use std::collections::BTreeSet;
 use std::fmt;
 use std::ops::Range;
 use std::sync::{Arc, Mutex};
@@ -165,6 +166,7 @@ pub struct Change {
 pub enum RichOp {
     Text(SeqOp<u8>),
     Format(FormatOp),
+    Unformat(MarkId),
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
@@ -365,6 +367,7 @@ impl Painted {
 #[derive(Default)]
 pub struct Marks {
     marks: Vec<Mark>,
+    removed: BTreeSet<MarkId>,
     clock: u64,
     cache: Mutex<Option<Resolved>>,
 }
@@ -379,6 +382,7 @@ impl Clone for Marks {
     fn clone(&self) -> Self {
         Self {
             marks: self.marks.clone(),
+            removed: self.removed.clone(),
             clock: self.clock,
             cache: Mutex::new(self.lock().clone()),
         }
@@ -387,7 +391,7 @@ impl Clone for Marks {
 
 impl PartialEq for Marks {
     fn eq(&self, other: &Self) -> bool {
-        self.marks == other.marks && self.clock == other.clock
+        self.marks == other.marks && self.removed == other.removed && self.clock == other.clock
     }
 }
 
@@ -398,6 +402,7 @@ impl fmt::Debug for Marks {
         formatter
             .debug_struct("Marks")
             .field("marks", &self.marks)
+            .field("removed", &self.removed)
             .field("clock", &self.clock)
             .finish()
     }
@@ -453,6 +458,9 @@ impl Marks {
 
     pub fn apply(&mut self, text: &Sequence<u8>, mark: Mark) -> bool {
         self.clock = self.clock.max(mark.id.clock);
+        if self.removed.contains(&mark.id) {
+            return false;
+        }
         let at = match self.marks.binary_search_by_key(&mark.id, |held| held.id) {
             Ok(_) => return false,
             Err(at) => at,
@@ -464,19 +472,38 @@ impl Marks {
             return true;
         };
         resolved.spans.insert(at, span);
-        if let Some((start, end)) = span {
-            let formats = Arc::make_mut(&mut resolved.formats);
-            match scope {
-                Scope::Inline => self.repaint_inline(&resolved.spans, formats, start..end),
-                Scope::Block => {
-                    let first = formats.blocks.partition_point(|block| block.end < start);
-                    let last = formats.blocks.partition_point(|block| block.end <= end);
-                    self.repaint_blocks(&resolved.spans, formats, first..last);
-                }
-            }
-        }
+        self.repaint(&mut resolved, span, scope);
         *self.slot() = Some(resolved);
         true
+    }
+
+    pub fn remove(&mut self, id: MarkId) -> Option<FormatOp> {
+        if !self.removed.insert(id) {
+            return None;
+        }
+        let at = self.marks.binary_search_by_key(&id, |held| held.id).ok()?;
+        let mark = self.marks.remove(at);
+        if let Some(mut resolved) = self.slot().take() {
+            let span = resolved.spans.remove(at);
+            self.repaint(&mut resolved, span, mark.op.scope);
+            *self.slot() = Some(resolved);
+        }
+        Some(mark.op)
+    }
+
+    fn repaint(&self, resolved: &mut Resolved, span: Option<(usize, usize)>, scope: Scope) {
+        let Some((start, end)) = span else {
+            return;
+        };
+        let formats = Arc::make_mut(&mut resolved.formats);
+        match scope {
+            Scope::Inline => self.repaint_inline(&resolved.spans, formats, start..end),
+            Scope::Block => {
+                let first = formats.blocks.partition_point(|block| block.end < start);
+                let last = formats.blocks.partition_point(|block| block.end <= end);
+                self.repaint_blocks(&resolved.spans, formats, first..last);
+            }
+        }
     }
 
     pub fn invalidate(&mut self) {

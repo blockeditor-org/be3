@@ -1,7 +1,7 @@
 use crate::Language;
 use crate::core::EditorCommand;
 use crate::highlighter::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
-use crate::rich::{Expand, MarkSet, Name};
+use crate::rich::{Expand, MarkSet, Name, Value};
 
 pub mod basic;
 
@@ -14,7 +14,17 @@ pub struct Selected {
 #[derive(Clone, Debug, Eq, PartialEq)]
 pub enum Break {
     Split { reset: Vec<Name> },
-    Lift(Vec<Name>),
+    Lift(Vec<(Name, Option<Value>)>),
+    Exit(Vec<Name>),
+}
+
+#[derive(Clone, Copy, Debug)]
+pub struct Line<'a> {
+    pub props: &'a MarkSet,
+    pub empty: bool,
+    pub at_end: bool,
+    pub above: Option<(&'a MarkSet, bool)>,
+    pub below: Option<&'a MarkSet>,
 }
 
 #[derive(Clone, Copy)]
@@ -38,15 +48,15 @@ pub trait Schema: Send + Sync {
         decoration: Option<SynHlStyle>,
     ) -> SynHlStyle;
 
-    fn on_break(&self, _block: &MarkSet, _empty: bool, _at_end: bool) -> Break {
+    fn on_break(&self, _line: &Line<'_>) -> Break {
         Break::Split { reset: Vec::new() }
     }
 
-    fn lift_on_backspace(&self, _block: &MarkSet) -> Vec<Name> {
+    fn lift_on_backspace(&self, _block: &MarkSet, _previous: Option<&MarkSet>) -> Vec<Name> {
         Vec::new()
     }
 
-    fn indent(&self, _block: &MarkSet, _outdent: bool) -> Option<(Name, Option<crate::Value>)> {
+    fn indent(&self, _block: &MarkSet, _outdent: bool) -> Option<(Name, Option<Value>)> {
         None
     }
 

@@ -686,7 +686,11 @@ block. Formatting is a set of `Marks` beside the bytes, each setting one key to 
 clearing it, either over a stretch of text (`Scope::Inline`) or over whole lines
 (`Scope::Block`, a block's props). Marks are anchored to the sequence's positions, the latest
 wins where two overlap, and two copies that exchange marks in any order agree (the demo's Rich
-text page sends them over its simulated network). `Marks` keeps the resolved `Formats` and
+text page sends them over its simulated network). Undo removes the marks an edit made
+(`RichOp::Unformat`, which a copy sends on like a mark, and which a mark arriving after its
+removal cannot bring back) rather than marking the old values over them, so text an undo brings
+back never falls under a mark made for the edit, and a concurrent mark from another copy stays.
+Redo makes those marks again under new ids. `Marks` keeps the resolved `Formats` and
 updates them from each text splice and each new mark rather than resolving the document again,
 so a document that holds marks passes every splice its sequence reports to `Marks::splice`
 (and calls `invalidate` if it replaces the sequence wholesale). Each inline mark records whether it grows when
@@ -696,7 +700,10 @@ caret, `SetBlock` sets a prop on the selected blocks or one at a position, `Inse
 atomic inline item (U+FFFC carrying its own marks, such as a mention) at the caret, and
 `Transform` runs a function over `Transform`'s range-level operations as one undo step. Typed
 text takes the marks before it that grow (or after it at a paragraph's start), and the schema
-decides what Enter, Backspace at a block's start and Tab do to a block, its tools (a name, a
+decides what Enter (given the line, its neighbours and whether it is empty), Backspace at a
+block's start and Tab do to a block. No block traps the caret at the document's edge: Down at the
+very end of a document whose last line has props, or Up at the very start of one whose first line
+has, opens a plain line past it, and so does a click below the last line. The schema also decides its tools (a name, a
 shortcut, whether the selection has it, and the command it runs), each leaf's `SynHlStyle`, and
 which blocks a highlighter decorates (a code block's language). `schema::basic` is a schema
 with the usual marks, headings, lists, checklists, quotes and code blocks. `TextAreaState::with_schema`
