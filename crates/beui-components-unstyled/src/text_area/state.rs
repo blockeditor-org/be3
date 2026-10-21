@@ -13,8 +13,10 @@ use text_editor_core::{
     TextLanguage, TextRun, markdown_checkbox_marker,
 };
 
+use beui_core::color::Color32;
 use beui_core::font::FontId;
 use beui_core::geometry::{Pos2, Rect, Vec2};
+use beui_core::rich::{Piece, RichLayout, RichOptions, SpanStyle};
 use beui_view::reactive::*;
 
 use super::colors::TextAreaColors;
@@ -573,6 +575,28 @@ impl TextAreaState {
         placeholder: &str,
         wrap_width: f32,
     ) -> Option<Vec2> {
+        let lines = self.lay_out_prose(
+            font_size,
+            prose,
+            placeholder,
+            wrap_width,
+            &TextAreaColors::DEFAULT,
+            beui_view::reactive::rich_layout,
+        )?;
+        Some(lines.iter().fold(Vec2::ZERO, |size, line| {
+            Vec2::new(size.x.max(line.size.x), size.y + line.size.y)
+        }))
+    }
+
+    pub fn lay_out_prose(
+        &self,
+        font_size: f32,
+        prose: Prose,
+        placeholder: &str,
+        wrap_width: f32,
+        colors: &TextAreaColors,
+        mut lay_out: impl FnMut(&[Piece], RichOptions) -> Option<RichLayout>,
+    ) -> Option<Vec<RichLayout>> {
         let inner = self.0.value();
         let snapshot = inner.snapshot.borrow();
         if !snapshot.loaded {
@@ -584,7 +608,6 @@ impl TextAreaState {
             single_line: false,
             prose: Some(prose),
         };
-        let colors = TextAreaColors::DEFAULT;
         let font = FontId::proportional(font_size).bold(prose.bold);
         let wrap = match prose.wrap {
             true => wrap_width.max(1.0),
@@ -594,7 +617,7 @@ impl TextAreaState {
             true => vec![0],
             false => snapshot.starts.to_vec(),
         };
-        let mut size = Vec2::ZERO;
+        let mut lines = Vec::with_capacity(starts.len());
         for line in 0..starts.len() {
             let (start, end, newline) = line_range(&snapshot.bytes, &starts, line)?;
             let shown = (snapshot.bytes.is_empty() && !placeholder.is_empty() && line == 0)
@@ -604,17 +627,21 @@ impl TextAreaState {
                 widgets: &[],
                 client_colors: &[],
                 composition: None,
-                colors: &colors,
+                colors,
                 options,
                 spacers: &[],
                 placeholder: shown,
                 void_size: None,
             };
             let row = build_row(&inputs, line, start, end, newline);
-            let laid = rich_layout(&row, font, options.padding(), wrap)?.size;
-            size = Vec2::new(size.x.max(laid.x), size.y + laid.y);
+            let options = RichOptions {
+                wrap_width: wrap,
+                padding: options.padding(),
+                style: SpanStyle::new(font, Color32::WHITE),
+            };
+            lines.push(lay_out(&row.pieces(), options)?);
         }
-        Some(size)
+        Some(lines)
     }
 
     pub fn find_open(&self) -> ReadSignal<bool> {

@@ -15,15 +15,12 @@ use crate::base::child_list::{ChildHost, ChildItem, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects};
 use crate::rich::{
-    CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanKind, SpanStyle, TextCaret,
-    TextMark, handle_shape,
+    CaretHandle, OBJECT, Piece, RichLayout, RichOptions, Shaper, SpanStyle, TextCaret, TextMark,
+    handle_shape,
 };
 
 pub const DEFAULT_FONT_SIZE: f32 = 14.0;
 pub const CARET_BLINK: Duration = Duration::from_millis(530);
-const SPAN_UNDERLINE_OFFSET: f32 = 0.12;
-const SPAN_STRIKE_OFFSET: f32 = 0.32;
-const SPAN_LINE_THICKNESS: f32 = 1.0 / 16.0;
 const CARET_FLAG: Vec2 = Vec2::new(6.0, 4.0);
 
 #[derive(Clone, Copy, PartialEq, Debug, Default)]
@@ -678,42 +675,7 @@ impl TextNode {
                 painter.rect_filled(area.translate(origin), 0.0, *color);
             }
         }
-        for line in &layout.lines {
-            for run in &line.runs {
-                let Some(galley) = &run.galley else {
-                    continue;
-                };
-                let left = origin.x + line.run_left(run);
-                let (color, underline, strikethrough) = paint_of(run.piece);
-                let decorated = run.kind == SpanKind::Text;
-                let (underline, strikethrough) =
-                    (underline && decorated, strikethrough && decorated);
-                painter.galley(
-                    pos2(left, origin.y + line.run_top(run)),
-                    galley.clone(),
-                    color,
-                );
-                let size = run.style.font.size;
-                let thickness = (size * SPAN_LINE_THICKNESS).max(1.0);
-                let baseline = origin.y + line.top + line.baseline;
-                if underline {
-                    let y = baseline + (size * SPAN_UNDERLINE_OFFSET).max(1.0);
-                    painter.rect_filled(
-                        Rect::from_min_size(pos2(left, y), Vec2::new(run.width, thickness)),
-                        0.0,
-                        color,
-                    );
-                }
-                if strikethrough {
-                    let y = baseline - size * SPAN_STRIKE_OFFSET;
-                    painter.rect_filled(
-                        Rect::from_min_size(pos2(left, y), Vec2::new(run.width, thickness)),
-                        0.0,
-                        color,
-                    );
-                }
-            }
-        }
+        layout.paint_runs(painter, origin, |run| paint_of(run.piece));
         for item in self.parts.nodes() {
             if rects.contains_key(&item) {
                 crate::paint::paint(doc, painter, rects, item);

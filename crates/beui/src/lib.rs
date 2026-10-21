@@ -60,6 +60,7 @@ pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, Performa
 pub use beui_core::preferences::{
     CanvasTouch, PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences, ThemeKind,
 };
+pub use beui_core::rich;
 pub use beui_core::screens::Screen;
 pub use beui_core::touch_cursor;
 #[cfg(not(target_arch = "wasm32"))]

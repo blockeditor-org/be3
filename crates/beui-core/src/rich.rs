@@ -4,9 +4,12 @@ use std::ops::Range;
 use crate::color::Color32;
 use crate::font::{FontId, Galley, TextAlign, Wraps};
 use crate::geometry::{Rect, Vec2, pos2, vec2};
-use crate::painter::Corners;
+use crate::painter::{Corners, Painter};
 
 const WRAP_FALLBACK_REMAINING_WIDTH: f32 = 0.15;
+const SPAN_UNDERLINE_OFFSET: f32 = 0.12;
+const SPAN_STRIKE_OFFSET: f32 = 0.32;
+const SPAN_LINE_THICKNESS: f32 = 1.0 / 16.0;
 
 #[derive(Clone, Copy, PartialEq, Debug)]
 pub struct SpanStyle {
@@ -720,6 +723,45 @@ impl RichLayout {
             size: vec2(width, top),
             reach,
             limit,
+        }
+    }
+
+    pub fn paint_runs(
+        &self,
+        painter: &Painter,
+        origin: Vec2,
+        paint_of: impl Fn(&RichRun) -> (Color32, bool, bool),
+    ) {
+        for line in &self.lines {
+            for run in &line.runs {
+                let Some(galley) = &run.galley else {
+                    continue;
+                };
+                let left = origin.x + line.run_left(run);
+                let (color, underline, strikethrough) = paint_of(run);
+                let decorated = run.kind == SpanKind::Text;
+                painter.galley(
+                    pos2(left, origin.y + line.run_top(run)),
+                    galley.clone(),
+                    color,
+                );
+                let size = run.style.font.size;
+                let thickness = (size * SPAN_LINE_THICKNESS).max(1.0);
+                let baseline = origin.y + line.top + line.baseline;
+                let decorate = |y: f32| {
+                    painter.rect_filled(
+                        Rect::from_min_size(pos2(left, y), Vec2::new(run.width, thickness)),
+                        0.0,
+                        color,
+                    );
+                };
+                if underline && decorated {
+                    decorate(baseline + (size * SPAN_UNDERLINE_OFFSET).max(1.0));
+                }
+                if strikethrough && decorated {
+                    decorate(baseline - size * SPAN_STRIKE_OFFSET);
+                }
+            }
         }
     }
 
