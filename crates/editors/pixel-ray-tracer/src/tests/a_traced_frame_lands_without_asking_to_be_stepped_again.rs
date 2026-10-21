@@ -17,8 +17,10 @@ fn a_traced_frame_lands_without_asking_to_be_stepped_again() {
 
     let state = RayState::new(*editor);
     state.watch();
+    flush();
     for _ in 0..2 {
         editor.begin_frame();
+        flush();
     }
 
     assert!(
