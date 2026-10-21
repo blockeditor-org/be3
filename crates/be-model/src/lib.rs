@@ -27,9 +27,10 @@ pub use items::Items;
 pub use latest::{Latest, LatestMap, Stamp, Stamped};
 pub use references::BlockRef;
 pub use schema::{Kind, Property, Shape};
+pub use sequence::marks;
 pub use sequence::{LOADED, Pos, SeqOp, Sequence, Span, Splice};
 pub use stored::{BLOB_REF, BLOCK_REF, CRITICAL, Stored, decode as from_cbor, encode as to_cbor};
-pub use text::Text;
+pub use text::{RichText, Text};
 pub use tree::Tree;
 
 thread_local! {
@@ -102,6 +103,7 @@ pub enum Value {
     Grid(Cells),
     Latest(BTreeMap<Vec<u8>, Stamped>),
     Text(Sequence<u8>),
+    Rich(marks::Rich),
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Eq, PartialEq, Serialize)]
@@ -234,6 +236,16 @@ pub enum Change {
         object: ObjectId,
         field: u16,
         op: SeqOp<u8>,
+    },
+    Mark {
+        object: ObjectId,
+        field: u16,
+        mark: marks::Mark,
+    },
+    Unmark {
+        object: ObjectId,
+        field: u16,
+        id: marks::MarkId,
     },
 }
 
@@ -384,6 +396,18 @@ impl<R: Model> Document<R> {
             .get(usize::from(field.index()))?
         {
             Value::Text(sequence) => Some(sequence),
+            _ => None,
+        }
+    }
+
+    pub fn rich<M>(&self, object: ObjectId, field: FieldRef<M, RichText>) -> Option<&marks::Rich> {
+        match self
+            .tree
+            .object(object)?
+            .fields
+            .get(usize::from(field.index()))?
+        {
+            Value::Rich(rich) => Some(rich),
             _ => None,
         }
     }

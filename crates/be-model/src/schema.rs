@@ -28,6 +28,7 @@ pub enum Shape {
     Register { accepts: fn(&[u8]) -> bool },
     Count,
     Text,
+    Rich,
     List(fn() -> Kind),
     Map,
     Grid,
@@ -90,6 +91,7 @@ impl Kind {
                 }
                 Shape::Count => "count".to_owned(),
                 Shape::Text => "text".to_owned(),
+                Shape::Rich => "rich text".to_owned(),
                 Shape::List(kind) => format!("list {}", kind().name),
                 Shape::Map => "map".to_owned(),
                 Shape::Grid => "grid".to_owned(),

@@ -108,7 +108,7 @@ fn walk_object(tree: &Tree, id: ObjectId, kind: &Kind, found: &mut Vec<Uuid>) {
                         }
                     }
                 }
-                Value::Count(_) | Value::Grid(_) | Value::Text(_) => {}
+                Value::Count(_) | Value::Grid(_) | Value::Text(_) | Value::Rich(_) => {}
             }
         }
     }

@@ -8,11 +8,13 @@ use crate::{
     Value,
 };
 use sequence::State;
+use sequence::marks::{Rich, RichState};
 
 #[derive(Default, Deserialize, Serialize)]
 struct Session {
     texts: BTreeMap<Place, State>,
     lists: BTreeMap<Place, ItemsState>,
+    riches: BTreeMap<Place, RichState>,
 }
 
 #[derive(Clone, Debug, Default, Deserialize, Serialize)]
@@ -49,17 +51,24 @@ impl Tree {
                 Value::List(items) if !items.is_fresh() => {
                     session.lists.insert(place, items.state());
                 }
+                Value::Rich(rich) if !rich.is_fresh() => {
+                    session.riches.insert(place, rich.state());
+                }
                 _ => {}
             }
         }
-        if session.texts.is_empty() && session.lists.is_empty() {
+        if session.texts.is_empty() && session.lists.is_empty() && session.riches.is_empty() {
             return Vec::new();
         }
         postcard::to_stdvec(&session).unwrap_or_default()
     }
 
     pub(crate) fn adopt_session_state(&mut self, bytes: &[u8]) -> Result<(), Malformed> {
-        let Session { texts, lists } = match bytes.is_empty() {
+        let Session {
+            texts,
+            lists,
+            riches,
+        } = match bytes.is_empty() {
             true => Session::default(),
             false => postcard::from_bytes(bytes).map_err(|_| Malformed)?,
         };
@@ -77,6 +86,13 @@ impl Tree {
             };
             let items = Items::from_state(state, &held.ids()).map_err(|_| Malformed)?;
             adopted.push((place, Value::List(items)));
+        }
+        for (place, state) in riches {
+            let Some(Value::Rich(held)) = self.value(place.object, place.field) else {
+                return Err(Malformed);
+            };
+            let rich = Rich::from_state(state, &held.text.items()).map_err(|_| Malformed)?;
+            adopted.push((place, Value::Rich(rich)));
         }
         self.refresh_sequences();
         for (place, value) in adopted {
@@ -148,7 +164,9 @@ impl Tree {
             | Change::Paint { object, .. }
             | Change::Reshape { object, .. }
             | Change::Stamp { object, .. }
-            | Change::Text { object, .. } => !locked(object),
+            | Change::Text { object, .. }
+            | Change::Mark { object, .. }
+            | Change::Unmark { object, .. } => !locked(object),
             Change::Insert { place, .. } => !locked(&place.object),
             Change::Remove { object } | Change::RemoveIf { object, .. } => !parent_locked(object),
             Change::Move { object, place, .. } => !parent_locked(object) && !locked(&place.object),
@@ -251,6 +269,19 @@ impl Tree {
             },
             Change::Text { object, field, op } => match self.value_mut(*object, *field) {
                 Some(Value::Text(sequence)) => sequence.apply(op).is_some(),
+                Some(Value::Rich(rich)) => rich.apply(op).is_some(),
+                _ => false,
+            },
+            Change::Mark {
+                object,
+                field,
+                mark,
+            } => match self.value_mut(*object, *field) {
+                Some(Value::Rich(rich)) => rich.mark(mark.clone()),
+                _ => false,
+            },
+            Change::Unmark { object, field, id } => match self.value_mut(*object, *field) {
+                Some(Value::Rich(rich)) => rich.unmark(*id).is_some(),
                 _ => false,
             },
             Change::Remove { object } => self.remove(*object),
@@ -400,8 +431,10 @@ impl Tree {
             }
             Change::Stamp { .. } => None,
             Change::Text { object, field, op } => {
-                let Some(Value::Text(sequence)) = self.value(*object, *field) else {
-                    return None;
+                let sequence = match self.value(*object, *field) {
+                    Some(Value::Text(sequence)) => sequence,
+                    Some(Value::Rich(rich)) => &rich.text,
+                    _ => return None,
                 };
                 let (back, forward) = sequence.inverse(op)?;
                 Some((
@@ -415,6 +448,39 @@ impl Tree {
                         field: *field,
                         op: forward,
                     },
+                ))
+            }
+            Change::Mark {
+                object,
+                field,
+                mark,
+            } => {
+                let Some(Value::Rich(rich)) = self.value(*object, *field) else {
+                    return None;
+                };
+                rich.marks.get(mark.id).is_none().then(|| {
+                    (
+                        Change::Unmark {
+                            object: *object,
+                            field: *field,
+                            id: mark.id,
+                        },
+                        change.clone(),
+                    )
+                })
+            }
+            Change::Unmark { object, field, id } => {
+                let Some(Value::Rich(rich)) = self.value(*object, *field) else {
+                    return None;
+                };
+                let held = rich.marks.get(*id)?;
+                Some((
+                    Change::Mark {
+                        object: *object,
+                        field: *field,
+                        mark: held.clone(),
+                    },
+                    change.clone(),
                 ))
             }
             Change::Insert { place, objects, .. } => {
@@ -490,7 +556,9 @@ impl Tree {
             | Change::Paint { object, field, .. }
             | Change::Reshape { object, field, .. }
             | Change::Stamp { object, field, .. }
-            | Change::Text { object, field, .. } => {
+            | Change::Text { object, field, .. }
+            | Change::Mark { object, field, .. }
+            | Change::Unmark { object, field, .. } => {
                 out.push(Touched::Field(*object, *field));
                 self.touch_up(*object, out);
             }
@@ -805,6 +873,7 @@ fn refresh(fields: &mut [Value]) {
         match value {
             Value::Text(sequence) if !sequence.is_fresh() => *sequence = sequence.refreshed(),
             Value::List(items) if !items.is_fresh() => *items = items.refreshed(),
+            Value::Rich(rich) if !rich.is_fresh() => *rich = rich.refreshed(),
             _ => {}
         }
     }

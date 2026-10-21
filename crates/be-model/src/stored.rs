@@ -4,6 +4,8 @@ use std::fmt::Write as _;
 use serde::{Serialize, de::DeserializeOwned};
 use uuid::Uuid;
 
+use sequence::marks::{Expand, Name, Rich, Scope, Seed, Value as MarkValue};
+
 use crate::{
     Items, Kept, Kind, Malformed, Object, ObjectId, Objects, Place, Sequence, Shape, Tree, Value,
     grid::Cells,
@@ -119,6 +121,7 @@ fn field(tree: &Tree, value: &Value, shape: &Shape) -> Stored {
         Value::Register(bytes) => raw(bytes),
         Value::Count(count) => Stored::from(*count),
         Value::Text(sequence) => Stored::Bytes(sequence.items()),
+        Value::Rich(rich) => rich_text(rich),
         Value::List(items) => {
             let Shape::List(child) = shape else {
                 return Stored::Array(Vec::new());
@@ -264,6 +267,7 @@ impl Loading {
                 Value::Count(int(&found)?.clamp(i128::from(i64::MIN), i128::from(i64::MAX)) as i64)
             }
             Shape::Text => Value::Text(Sequence::from_items(found.into_bytes().ok()?)),
+            Shape::Rich => Value::Rich(load_rich_text(found)?),
             Shape::List(child) => {
                 let child = child();
                 let mut ids = Vec::new();
@@ -330,6 +334,78 @@ impl Loading {
             }
         }
     }
+}
+
+fn rich_text(rich: &Rich) -> Stored {
+    let marks = rich
+        .seeds()
+        .into_iter()
+        .map(|seed| {
+            let mut entries = vec![
+                ("start".to_owned(), Stored::from(seed.range.start as u64)),
+                ("end".to_owned(), Stored::from(seed.range.end as u64)),
+                ("key".to_owned(), text(seed.key.as_str())),
+                (
+                    "value".to_owned(),
+                    match seed.value {
+                        MarkValue::Bool(value) => Stored::Bool(value),
+                        MarkValue::Int(value) => Stored::from(value),
+                        MarkValue::Text(value) => text(value.as_str()),
+                    },
+                ),
+            ];
+            if seed.scope == Scope::Block {
+                entries.push(("block".to_owned(), Stored::Bool(true)));
+            }
+            if seed.expand == Expand::Never {
+                entries.push(("expand".to_owned(), text("never")));
+            }
+            sorted(entries)
+        })
+        .collect();
+    sorted(vec![
+        ("text".to_owned(), Stored::Bytes(rich.text.items())),
+        ("marks".to_owned(), Stored::Array(marks)),
+    ])
+}
+
+fn load_rich_text(found: Stored) -> Option<Rich> {
+    let mut entries = properties(found)?;
+    let bytes = entries.remove("text")?.into_bytes().ok()?;
+    let len = bytes.len();
+    let seeds: Vec<Seed> = entries
+        .remove("marks")
+        .and_then(|marks| marks.into_array().ok())
+        .unwrap_or_default()
+        .into_iter()
+        .filter_map(|mark| {
+            let mut mark = properties(mark)?;
+            let start = usize::try_from(int(mark.get("start")?)?).ok()?;
+            let end = usize::try_from(int(mark.get("end")?)?).ok()?;
+            let key = mark.remove("key")?.into_text().ok()?;
+            let value = match mark.remove("value")? {
+                Stored::Bool(value) => MarkValue::Bool(value),
+                Stored::Text(value) => MarkValue::text(&value),
+                value => MarkValue::Int(i64::try_from(int(&value)?).ok()?),
+            };
+            let scope = match mark.get("block") {
+                Some(Stored::Bool(true)) => Scope::Block,
+                _ => Scope::Inline,
+            };
+            let expand = match mark.get("expand").and_then(Stored::as_text) {
+                Some("never") => Expand::Never,
+                _ => Expand::After,
+            };
+            (start <= end && end <= len).then(|| Seed {
+                range: start..end,
+                scope,
+                expand,
+                key: Name::new(&key),
+                value,
+            })
+        })
+        .collect();
+    Some(Rich::load(bytes, &seeds))
 }
 
 pub fn diagnostic(value: &Stored) -> String {
