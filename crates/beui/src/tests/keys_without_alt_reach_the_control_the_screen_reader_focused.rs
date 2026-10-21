@@ -8,7 +8,7 @@ fn keys_without_alt_reach_the_control_the_screen_reader_focused() {
     let (document, [_heading, input]) = toolbar_of(|| {
         [
             view! {
-                <Text style=TextStyle::HEADING string="Name" />
+                <Text style=TextStyle::HEADING>"Name"</Text>
             },
             view! {
                 <TextInput value=String::new() />

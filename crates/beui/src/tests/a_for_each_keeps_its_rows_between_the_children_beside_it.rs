@@ -17,7 +17,7 @@ fn a_for_each_keeps_its_rows_between_the_children_beside_it() {
                 </ForEach>
                 <Frame @node_ref=&trail width=5.0 />
                 <Button @node_ref=&add on_click={move || items.set(vec![1, 2, 3])}>
-                    <Text string="add" />
+                    <Text>"add"</Text>
                 </Button>
             </List>
         }

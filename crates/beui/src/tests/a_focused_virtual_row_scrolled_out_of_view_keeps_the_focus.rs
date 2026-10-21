@@ -19,7 +19,7 @@ fn a_focused_virtual_row_scrolled_out_of_view_keeps_the_focus() {
                         view! {
                             <Interactive focusable=true>
                                 <Frame height=VIRTUAL_ITEM_HEIGHT>
-                                    <Text string={label} />
+                                    <Text>{label}</Text>
                                 </Frame>
                             </Interactive>
                         }

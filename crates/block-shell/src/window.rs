@@ -176,7 +176,7 @@ fn NotResponding(
             @test_id={"workspace.window.not_responding"}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=BANNER_SPACING>
-                <Text string={message} />
+                <Text>{message}</Text>
                 <Button
                     label="Wait"
                     variant=ButtonVariant::Secondary

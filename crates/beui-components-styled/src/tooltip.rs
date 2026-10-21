@@ -45,7 +45,7 @@ fn TooltipBubble(handle: TooltipHandle) -> NodeId {
                 radius=Radius::Md
                 padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
             >
-                <Text style=TextStyle::CAPTION string={label} color=TextColor::Default />
+                <Text style=TextStyle::CAPTION color=TextColor::Default>{label}</Text>
             </Frame>
         </Frame>
     }

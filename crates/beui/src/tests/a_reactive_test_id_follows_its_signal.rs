@@ -13,9 +13,9 @@ fn a_reactive_test_id_follows_its_signal() {
         view! {
             <List spacing=0.0>
                 <Button @node_ref=&rename on_click={move || row.set(1)}>
-                    <Text string="rename" />
+                    <Text>"rename"</Text>
                 </Button>
-                <Text @crate::reactive::test_id={test_id} string="value" />
+                <Text @crate::reactive::test_id={test_id}>"value"</Text>
             </List>
         }
     });

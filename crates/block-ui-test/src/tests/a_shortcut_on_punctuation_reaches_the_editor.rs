@@ -16,7 +16,7 @@ impl BeuiApp for ShortcutApp {
         });
         let text = create_memo(move || pressed.get());
         view! {
-            <Text string={text} @test_id={"shortcut.pressed"} />
+            <Text @test_id={"shortcut.pressed"}>{text}</Text>
         }
     }
 }

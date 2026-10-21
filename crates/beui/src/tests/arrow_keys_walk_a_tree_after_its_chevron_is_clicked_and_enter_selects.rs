@@ -31,7 +31,7 @@ fn arrow_keys_walk_a_tree_after_its_chevron_is_clicked_and_enter_selects() {
                 on_select={move |key: usize| chosen.update(|chosen| chosen.push(key))}
                 on_expand={move |(_, open): (usize, bool)| expanded.set(open)}
             >|row: TreeRowFace<usize>|
-                <Text string={format!("row {}", row.key)} />
+                <Text>{format!("row {}", row.key)}</Text>
             </Tree>
         }
     });

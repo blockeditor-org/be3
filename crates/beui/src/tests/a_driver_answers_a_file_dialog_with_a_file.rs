@@ -19,7 +19,7 @@ fn a_driver_answers_a_file_dialog_with_a_file() {
                     variant=ButtonVariant::Primary
                     on_click={move || picker.open(FileFilter::new("Notes", &["txt"], &[]))}
                 />
-                <Text string={picked} />
+                <Text>{picked}</Text>
             </List>
         }
     });

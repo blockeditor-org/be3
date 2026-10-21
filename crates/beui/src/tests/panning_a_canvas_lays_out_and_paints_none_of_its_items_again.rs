@@ -11,11 +11,11 @@ fn panning_a_canvas_lays_out_and_paints_none_of_its_items_again() {
         view! {
             <Canvas view={view}>
                 <CanvasItem x=10.0 y=10.0 width=80.0 height=20.0>
-                    <Text string="first" />
+                    <Text>"first"</Text>
                 </CanvasItem>
                 <CanvasItem x=10.0 y=40.0 width=80.0 height=20.0>
                     <Frame fill=Color32::WHITE radius=0.0>
-                        <Text string="second" />
+                        <Text>"second"</Text>
                     </Frame>
                 </CanvasItem>
             </Canvas>

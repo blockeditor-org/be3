@@ -202,7 +202,8 @@ fn Label(handle: KeyCapHandle, slot: Slot, locked: Memo<bool>, align: Align2) ->
     };
     view! {
         <Frame align padding>
-            <Text string={text} size color ellipsis={!center}>
+            <Text size color ellipsis={!center}>
+                {text}
                 <Icon glyph={glyph} size color />
                 {after}
             </Text>
@@ -323,7 +324,7 @@ fn EmojiKey(emoji: &'static str, keyboard: KeyboardHandle) -> NodeId {
                         fill
                         radius=Radius::Sm
                     >
-                        <Text string=emoji size=TextSize::Xl />
+                        <Text size=TextSize::Xl>{emoji}</Text>
                     </Frame>
                 }
             }}
@@ -349,7 +350,8 @@ fn PanelKey(keyboard: KeyboardHandle, value: Value) -> NodeId {
                 view! {
                     <Frame padding=Sides::all(GAP)>
                         <Frame fill radius=Radius::Sm align=Align2::CENTER>
-                            <Text string=text size=TextSize::Lg>
+                            <Text size=TextSize::Lg>
+                                {text}
                                 <Icon glyph size=TextSize::Lg />
                             </Text>
                         </Frame>

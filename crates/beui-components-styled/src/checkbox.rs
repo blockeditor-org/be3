@@ -80,10 +80,11 @@ fn CheckboxFace(handle: ToggleHandle) -> NodeId {
                 <Show condition={labeled}>
                     <Text
                         @sizing=ItemSize::Percent(100.0)
-                        string={label}
                         color={label_color}
                         align=TextAlign::Start
-                    />
+                    >
+                        {label}
+                    </Text>
                 </Show>
             </List>
         </FocusRing>

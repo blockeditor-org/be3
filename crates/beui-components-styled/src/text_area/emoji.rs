@@ -66,9 +66,9 @@ fn EmojiRow(handle: CompletionRowHandle) -> NodeId {
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                 <Frame width=EMOJI_COLUMN>
-                    <Text string={emoji} size=TextSize::Lg align=TextAlign::Center />
+                    <Text size=TextSize::Lg align=TextAlign::Center>{emoji}</Text>
                 </Frame>
-                <Text string={label} size=TextSize::Sm color=TextColor::Muted />
+                <Text size=TextSize::Sm color=TextColor::Muted>{label}</Text>
             </List>
         </Frame>
     }

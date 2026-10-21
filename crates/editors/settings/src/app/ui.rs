@@ -74,7 +74,7 @@ pub fn SettingsView(editor: Editor) -> NodeId {
             <Frame padding=PADDING>
                 <List spacing=SECTION_SPACING>
                     <Show condition={others}>
-                        <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
+                        <Text style=TextStyle::CAPTION wrap=true>{NOT_OURS}</Text>
                     </Show>
                     <Show condition={here}>
                         <Section
@@ -248,7 +248,7 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
         <SettingsPage>
             <Show condition={others}>
                 <Frame padding={Sides::horizontal(NOTICE_INSET)}>
-                    <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
+                    <Text style=TextStyle::CAPTION wrap=true>{NOT_OURS}</Text>
                 </Frame>
             </Show>
             <Show condition={setting_up}>
@@ -301,9 +301,9 @@ fn Section(title: &'static str, caption: &'static str, children: Child) -> NodeI
     view! {
         <List spacing=SPACING>
             <List spacing=CAPTION_SPACING>
-                <Text style=TextStyle::HEADING string=title />
+                <Text style=TextStyle::HEADING>{title}</Text>
                 <Show condition={captioned}>
-                    <Text style=TextStyle::CAPTION string=caption wrap=true />
+                    <Text style=TextStyle::CAPTION wrap=true>{caption}</Text>
                 </Show>
             </List>
             {children}
@@ -341,9 +341,9 @@ fn SettingRow(
                         <Icon glyph={glyph} />
                     </Text>
                     <List @sizing=ItemSize::Percent(100.0) spacing=0.0>
-                        <Text string={label} color={text_color} ellipsis=true />
+                        <Text color={text_color} ellipsis=true>{label}</Text>
                         <Show condition={has_detail}>
-                            <Text style=TextStyle::CAPTION string={detail} ellipsis=true />
+                            <Text style=TextStyle::CAPTION ellipsis=true>{detail}</Text>
                         </Show>
                     </List>
                 </List>

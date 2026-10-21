@@ -92,10 +92,10 @@ pub fn SettingsSection(
                     <Frame padding={header_inset}>
                         <List spacing=HEADER_SPACING>
                             <Show condition={titled}>
-                                <Text style=SECTION_TITLE string={title} wrap=true />
+                                <Text style=SECTION_TITLE wrap=true>{title}</Text>
                             </Show>
                             <Show condition={described}>
-                                <Text style=TextStyle::CAPTION string={description} wrap=true />
+                                <Text style=TextStyle::CAPTION wrap=true>{description}</Text>
                             </Show>
                         </List>
                     </Frame>
@@ -190,12 +190,12 @@ pub fn SettingsRow(
                 >
                     <unstyled::Stack spacing={spacing} narrow={narrow}>
                         <List @sizing={label_size} justify=Justify::Center spacing=LABEL_SPACING>
-                            <Text string={label} wrap=true />
+                            <Text wrap=true>{label}</Text>
                             <Show condition={described}>
-                                <Text style=TextStyle::CAPTION string={description} wrap=true />
+                                <Text style=TextStyle::CAPTION wrap=true>{description}</Text>
                             </Show>
                             <Show condition={noted}>
-                                <Text style=NOTE string={note} wrap=true />
+                                <Text style=NOTE wrap=true>{note}</Text>
                             </Show>
                         </List>
                         <List
@@ -301,9 +301,9 @@ fn SettingsLinkFace(handle: unstyled::ButtonHandle, description: Memo<String>) -
                             justify=Justify::Center
                             spacing=LABEL_SPACING
                         >
-                            <Text string={label} color={text_color} wrap=true />
+                            <Text color={text_color} wrap=true>{label}</Text>
                             <Show condition={described}>
-                                <Text style=TextStyle::CAPTION string={description} wrap=true />
+                                <Text style=TextStyle::CAPTION wrap=true>{description}</Text>
                             </Show>
                         </List>
                         <Text color=TextColor::Muted>

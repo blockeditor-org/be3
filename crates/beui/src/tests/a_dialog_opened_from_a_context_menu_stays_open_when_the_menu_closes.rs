@@ -24,7 +24,7 @@ fn a_dialog_opened_from_a_context_menu_stays_open_when_the_menu_closes() {
                     title="Inspect"
                     on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
                 >
-                    <Text string="Details" color=Color32::WHITE @node_ref={&surface} />
+                    <Text color=Color32::WHITE @node_ref={&surface}>"Details"</Text>
                 </Dialog>
             </List>
         }]

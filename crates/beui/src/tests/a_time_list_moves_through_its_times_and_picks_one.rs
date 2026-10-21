@@ -18,7 +18,7 @@ fn a_time_list_moves_through_its_times_and_picks_one() {
                         step_minutes=30
                         focused=true
                         option={|handle: TimeOptionHandle| view! {
-                            <Text string={handle.label} />
+                            <Text>{handle.label}</Text>
                         }}
                     />
                 </List>

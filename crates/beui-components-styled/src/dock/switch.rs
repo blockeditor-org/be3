@@ -56,7 +56,7 @@ fn DockSwitchRow(handle: DockSwitchRowHandle) -> NodeId {
                     <Text color=TextColor::Accent align=TextAlign::Center>
                         <Icon glyph={icon} />
                     </Text>
-                    <Text string={title} ellipsis=true />
+                    <Text ellipsis=true>{title}</Text>
                 </List>
             </Frame>
         </ListRow>

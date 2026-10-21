@@ -25,7 +25,7 @@ fn a_tree_given_on_open_opens_a_row_on_enter_and_a_second_click() {
                 on_select={move |key: usize| chosen.update(|chosen| chosen.push(key))}
                 on_open={move |key: usize| opened.update(|opened| opened.push(key))}
             >|row: TreeRowFace<usize>|
-                <Text string={format!("row {}", row.key)} />
+                <Text>{format!("row {}", row.key)}</Text>
             </Tree>
         }
     });

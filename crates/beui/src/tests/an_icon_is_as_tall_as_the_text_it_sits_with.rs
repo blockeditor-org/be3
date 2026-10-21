@@ -13,7 +13,7 @@ fn an_icon_is_as_tall_as_the_text_it_sits_with() {
     let _root = crate::reactive::RootScope::new();
     let text = height(|| {
         view! {
-            <Text string=LABEL />
+            <Text>{LABEL}</Text>
         }
     });
     let icon = height(|| {
@@ -29,7 +29,7 @@ fn an_icon_is_as_tall_as_the_text_it_sits_with() {
                 <Text align=TextAlign::Center>
                     <Icon glyph=ICON_FOLDER />
                 </Text>
-                <Text string=LABEL />
+                <Text>{LABEL}</Text>
             </List>
         }
     });

@@ -183,20 +183,18 @@ pub(crate) fn HostItemFace(content: Memo<HostItem>) -> NodeId {
         >
             <List spacing=8.0 align=Align::Center>
                 <Show condition={unsupported}>
-                    <Text
-                        style=TextStyle::HEADING
-                        string="Unsupported block type"
-                        align=TextAlign::Center
-                    />
+                    <Text style=TextStyle::HEADING align=TextAlign::Center>
+                        "Unsupported block type"
+                    </Text>
                 </Show>
                 <Show condition={has_glyph}>
                     <Text size=TextSize::Xl color=color align=TextAlign::Center>
                         <Icon glyph={glyph} />
                     </Text>
                 </Show>
-                <Text string={text} align=TextAlign::Center color=color italic />
+                <Text align=TextAlign::Center color=color italic>{text}</Text>
                 <Show condition={unsupported}>
-                    <Text style=TextStyle::CAPTION string={detail} align=TextAlign::Center />
+                    <Text style=TextStyle::CAPTION align=TextAlign::Center>{detail}</Text>
                 </Show>
                 <Show condition={spinning}>
                     <Spinner />

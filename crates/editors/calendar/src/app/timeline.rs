@@ -73,7 +73,7 @@ fn DayHeader(day: i64) -> NodeId {
     };
     view! {
         <Frame height=HEADER_HEIGHT>
-            <Text string={label} align=TextAlign::Center color={color} />
+            <Text align=TextAlign::Center color={color}>{label}</Text>
         </Frame>
     }
 }
@@ -130,7 +130,7 @@ fn Grid(
                                 };
                                 view! {
                                     <CanvasItem x=4.0 y={top} width=GUTTER height=16.0>
-                                        <Text style=TextStyle::CAPTION string={label} />
+                                        <Text style=TextStyle::CAPTION>{label}</Text>
                                     </CanvasItem>
                                 }
                             }</ForEach>
@@ -179,7 +179,7 @@ fn EventBlock(item: Memo<Option<Placed>>, on_pick: Callback<Shown>) -> CanvasIte
         <CanvasItem x={x} y={y} width={width} height={height}>
             <Frame fill=ColorRole::Accent radius={Radius::custom(3.0)}>
                 <ListRow @test_id={element_test_id} on_click={open} on_activate={open}>
-                    <Text style=TextStyle::CAPTION string={title} color=TextColor::OnAccent />
+                    <Text style=TextStyle::CAPTION color=TextColor::OnAccent>{title}</Text>
                 </ListRow>
             </Frame>
         </CanvasItem>

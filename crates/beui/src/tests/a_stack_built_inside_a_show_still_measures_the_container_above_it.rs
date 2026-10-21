@@ -19,7 +19,7 @@ fn a_stack_built_inside_a_show_still_measures_the_container_above_it() {
             <Container>|_|
                 <List spacing=0.0>
                     <Button @node_ref=&toggle on_click={move || visible.set(true)}>
-                        <Text string="toggle" />
+                        <Text>"toggle"</Text>
                     </Button>
                     <Show condition={visible}>
                         <Stack spacing=0.0 breakpoint=BREAKPOINT>

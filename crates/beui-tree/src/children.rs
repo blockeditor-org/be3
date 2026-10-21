@@ -548,6 +548,20 @@ impl<T: SlotChild> Children<T> {
         )
     }
 
+    pub fn into_only(mut self) -> Result<T, Self> {
+        match self.0.as_slice() {
+            [ChildSegment::One(_)] => match self.0.pop() {
+                Some(ChildSegment::One(child)) => Ok(child),
+                _ => unreachable!(),
+            },
+            [ChildSegment::Nested(_)] => match self.0.pop() {
+                Some(ChildSegment::Nested(segments)) => Self(segments).into_only(),
+                _ => unreachable!(),
+            },
+            _ => Err(self),
+        }
+    }
+
     pub fn into_run(self) -> Run<T> {
         let run = Run::default();
         for segment in self.0 {

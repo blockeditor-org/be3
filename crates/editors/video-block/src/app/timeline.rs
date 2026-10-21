@@ -233,7 +233,7 @@ fn RulerTick(tick: Tick) -> CanvasItem {
     let label = format!("{}:{:02}", tick.seconds / 60, tick.seconds % 60);
     view! {
         <CanvasItem x={tick.x + 3.0} y=2.0 width=60.0 height={RULER_HEIGHT - 4.0}>
-            <Text style=TextStyle::CAPTION string={label} />
+            <Text style=TextStyle::CAPTION>{label}</Text>
         </CanvasItem>
     }
 }
@@ -312,7 +312,7 @@ fn Clip(state: VideoState, row: Lane, selected: Memo<bool>, scale: ReadSignal<f3
                                     on_state={move |_| {}}
                                 />
                             </Frame>
-                            <Text @sizing=ItemSize::Percent(100.0) string={name} />
+                            <Text @sizing=ItemSize::Percent(100.0)>{name}</Text>
                             <TrimHandle state={state} row={row} scale={scale} />
                         </List>
                     </Frame>

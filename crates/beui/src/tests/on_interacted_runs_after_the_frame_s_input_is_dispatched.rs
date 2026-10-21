@@ -11,7 +11,7 @@ fn on_interacted_runs_after_the_frame_s_input_is_dispatched() {
     let mut document = build_node(move || {
         let node = view! {
             <Button on_click={move || clicks.update(|clicks| *clicks += 1)}>
-                <Text string="go" />
+                <Text>"go"</Text>
             </Button>
         };
         button.set(Some(node));

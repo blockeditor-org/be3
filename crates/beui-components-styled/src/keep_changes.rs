@@ -167,12 +167,9 @@ fn KeepChangesCard(
                     actions={actions}
                     surface_id={id.clone()}
                 >
-                    <Text
-                        style=TextStyle::PARAGRAPH
-                        string={message}
-                        @test_id={format!("{id}.countdown")}
-                        wrap=true
-                    />
+                    <Text style=TextStyle::PARAGRAPH @test_id={format!("{id}.countdown")} wrap=true>
+                        {message}
+                    </Text>
                 </DialogSurface>
             </Frame>
         </Frame>

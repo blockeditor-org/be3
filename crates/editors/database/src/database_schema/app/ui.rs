@@ -108,7 +108,7 @@ pub fn SchemaView(editor: Editor) -> NodeId {
     view! {
         <Frame padding=PADDING>
             <List spacing=SECTION_SPACING>
-                <Text style=TextStyle::HEADING string="Fields" />
+                <Text style=TextStyle::HEADING>"Fields"</Text>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=SECTION_SPACING>
                         <ForEach keys={keys}>|id: Uuid| {
@@ -350,7 +350,7 @@ fn NumberOptions(
                         read_only={read_only}
                     />
                     <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                        <Text string="Scale" />
+                        <Text>"Scale"</Text>
                         <Select
                             options={view! {
                                 <ForEach keys={scale_keys}>|index: usize|
@@ -511,14 +511,12 @@ fn EnumOptions(
                         @test_id={format!("database-schema.enum.{id}.add")}
                         on_click={add}
                     />
-                    <Text string="Add option" />
+                    <Text>"Add option"</Text>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
-                <Text
-                    style=TextStyle::CAPTION
-                    string="A closed option marks a row finished: views can hide closed rows, the board folds their columns, and a merged pull request moves rows to the first one. New rows start at the default."
-                    wrap=true
-                />
+                <Text style=TextStyle::CAPTION wrap=true>
+                    "A closed option marks a row finished: views can hide closed rows, the board folds their columns, and a merged pull request moves rows to the first one. New rows start at the default."
+                </Text>
             </List>
         </Frame>
     }
@@ -655,7 +653,7 @@ fn EnumOptionRow(
                         <ControlFace handle={handle.button}>
                             <List direction=Direction::Horizontal align=Align::Center spacing=6.0>
                                 <ChoiceMark option={dotted} size=TextSize::Sm />
-                                <Text string={label} />
+                                <Text>{label}</Text>
                             </List>
                         </ControlFace>
                     }
@@ -768,7 +766,7 @@ fn BlockOptions(
     view! {
         <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                <Text string="Block type" />
+                <Text>"Block type"</Text>
                 <Select
                     options={view! {
                         <ForEach keys={keys}>|id: Option<Uuid>| {
@@ -878,7 +876,7 @@ fn RelationOptions(
         <Frame padding={Sides::new(INDENT + ROW_SPACING, 0.0, 0.0, 0.0)}>
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <Text string="Links to" />
+                    <Text>"Links to"</Text>
                     <Button
                         @node_ref={&button}
                         label={label}
@@ -896,7 +894,7 @@ fn RelationOptions(
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <Text string="Shown on the linked rows as" />
+                    <Text>"Shown on the linked rows as"</Text>
                     <Frame width=NAME_WIDTH>
                         <TextInput
                             value={Binding::new(inverse, renamed)}

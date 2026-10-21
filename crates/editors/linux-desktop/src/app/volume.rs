@@ -50,10 +50,10 @@ fn VolumePanel(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
                     label="Volume"
                     @test_id={"desktop.volume.level"}
                 />
-                <Text @sizing=ItemSize::Fixed(PERCENT_WIDTH) string={shown} />
+                <Text @sizing=ItemSize::Fixed(PERCENT_WIDTH)>{shown}</Text>
             </List>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                <Text @sizing=ItemSize::Percent(100.0) string="Mute" />
+                <Text @sizing=ItemSize::Percent(100.0)>"Mute"</Text>
                 <Switch
                     on={Binding::new(muted, move |mute: bool| editor.act(MediaRequest::SetMute(mute)))}
                     label="Mute"
@@ -92,7 +92,7 @@ fn OutputPicker(editor: Editor, levels: Memo<MediaLevels>) -> NodeId {
     };
     view! {
         <List spacing=LABEL_SPACING>
-            <Text style=TextStyle::CAPTION string="Output" />
+            <Text style=TextStyle::CAPTION>"Output"</Text>
             <Select
                 options={view! {
                     <ForEach keys={keys}>|id: String| {

@@ -7,7 +7,7 @@ fn Joined(prefix: Prop<String>, suffix: Prop<String>, children: Child) -> NodeId
     let joined = create_memo(move || format!("{}-{}", prefix.get(), suffix.get()));
     view! {
         <List spacing=0.0>
-            <Text string={joined} />
+            <Text>{joined}</Text>
             {children}
         </List>
     }
@@ -22,10 +22,10 @@ fn required_props_can_be_written_in_any_order_and_as_children() {
         view! {
             <List spacing=0.0>
                 <Joined prefix="left" suffix="right">
-                    <Text @node_ref=&declared string="declared" />
+                    <Text @node_ref=&declared>"declared"</Text>
                 </Joined>
                 <Joined suffix="right" prefix="left">
-                    <Text @node_ref=&reversed string="reversed" />
+                    <Text @node_ref=&reversed>"reversed"</Text>
                 </Joined>
             </List>
         }

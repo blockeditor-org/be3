@@ -12,7 +12,7 @@ fn a_driver_holds_a_back_gesture_part_way_and_cancels_it() {
             <BackHandler
                 on_gesture={move |gesture: BackGesture| heard.update(|heard| heard.push(gesture))}
             >
-                <Text string="Page" />
+                <Text>"Page"</Text>
             </BackHandler>
         }
     });

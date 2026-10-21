@@ -15,7 +15,7 @@ fn a_virtual_scroll_row_can_build_reactive_content_during_dispatch() {
                         keys={indices(VIRTUAL_ITEM_COUNT)}
                         item_size=VIRTUAL_ITEM_HEIGHT
                     >|index: ReadSignal<usize>|
-                        <Text string={create_memo(move || format!("Row {}", index.get()))} />
+                        <Text>{create_memo(move || format!("Row {}", index.get()))}</Text>
                     </VirtualList>
                 </Offset>
             </List>

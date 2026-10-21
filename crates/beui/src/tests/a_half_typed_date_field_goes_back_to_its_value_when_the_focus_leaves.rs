@@ -15,10 +15,10 @@ fn a_half_typed_date_field_goes_back_to_its_value_when_the_focus_leaves() {
                 @node_ref=&field
                 value={Binding::new(Some(DateTime::new(Date::new(2026, 9, 27), Time::new(10, 30))), move |value| reported.update(|reported| reported.push(value)))}
                 segment={|handle: DateSegmentHandle| view! {
-                    <Text string={handle.text} />
+                    <Text>{handle.text}</Text>
                 }}
                 literal={|text: String| view! {
-                    <Text string=text />
+                    <Text>{text}</Text>
                 }}
             />
         }

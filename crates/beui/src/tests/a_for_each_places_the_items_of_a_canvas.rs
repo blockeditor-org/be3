@@ -12,7 +12,7 @@ fn a_for_each_places_the_items_of_a_canvas() {
         view! {
             <List spacing=0.0>
                 <Button @node_ref=&add on_click={move || keys.set(vec![0, 1, 2])}>
-                    <Text string="add" />
+                    <Text>"add"</Text>
                 </Button>
                 <Canvas @sizing=ItemSize::Percent(100.0) @node_ref=&canvas>
                     <ForEach keys={keys}>|index: u32|

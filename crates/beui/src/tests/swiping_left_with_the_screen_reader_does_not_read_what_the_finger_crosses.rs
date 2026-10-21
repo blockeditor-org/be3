@@ -8,10 +8,10 @@ fn swiping_left_with_the_screen_reader_does_not_read_what_the_finger_crosses() {
     let (document, [_heading, _body]) = toolbar_of(|| {
         [
             view! {
-                <Text style=TextStyle::HEADING string="Settings" />
+                <Text style=TextStyle::HEADING>"Settings"</Text>
             },
             view! {
-                <Text string="Pick a theme" />
+                <Text>"Pick a theme"</Text>
             },
         ]
     });

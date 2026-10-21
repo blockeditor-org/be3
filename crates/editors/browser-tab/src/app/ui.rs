@@ -89,10 +89,11 @@ pub fn BrowserTab(editor: Editor) -> NodeId {
                         <Show condition={failed}>
                             <Text
                                 style=TextStyle::CAPTION
-                                string={reason}
                                 color=TextColor::Danger
                                 @test_id={"browser.error"}
-                            />
+                            >
+                                {reason}
+                            </Text>
                         </Show>
                     </List>
                 </Layers>

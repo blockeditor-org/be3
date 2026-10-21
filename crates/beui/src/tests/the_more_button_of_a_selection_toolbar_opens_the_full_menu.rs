@@ -11,7 +11,7 @@ fn the_more_button_of_a_selection_toolbar_opens_the_full_menu() {
         view! {
             <SelectableText @node_ref=&region>
                 <List spacing=4.0>
-                    <Text @node_ref=&text string="hello world" />
+                    <Text @node_ref=&text>"hello world"</Text>
                 </List>
             </SelectableText>
         }

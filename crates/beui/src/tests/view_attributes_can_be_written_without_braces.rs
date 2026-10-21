@@ -26,11 +26,12 @@ fn view_attributes_can_be_written_without_braces() {
                     >
                         <Text
                             @node_ref=&label
-                            string=LABEL
                             align=TextAlign::End
                             wrap=false
                             font={FontId::proportional(LABEL_SIZE)}
-                        />
+                        >
+                            {LABEL}
+                        </Text>
                     </Frame>
                 </List>
             </List>

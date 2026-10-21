@@ -156,7 +156,7 @@ fn LineView(line: Memo<Option<Line>>) -> NodeId {
     });
     view! {
         <Frame padding=indent>
-            <Text string={text} size color weight family wrap=true />
+            <Text size color weight family wrap=true>{text}</Text>
         </Frame>
     }
 }
@@ -213,33 +213,31 @@ fn PerformanceLine(row: Memo<Option<PerformanceRow>>) -> NodeId {
     });
     view! {
         <List direction=Direction::Horizontal spacing=8.0>
-            <Text
-                @sizing=ItemSize::Percent(100.0)
-                string={name}
-                size=TextSize::Sm
-                weight={weight}
-            />
+            <Text @sizing=ItemSize::Percent(100.0) size=TextSize::Sm weight={weight}>{name}</Text>
             <Text
                 @sizing=ItemSize::Fixed(90.0)
-                string={current}
                 size=TextSize::Sm
                 family=Family::Mono
                 weight={weight}
-            />
+            >
+                {current}
+            </Text>
             <Text
                 @sizing=ItemSize::Fixed(90.0)
-                string={average}
                 size=TextSize::Sm
                 family=Family::Mono
                 weight={weight}
-            />
+            >
+                {average}
+            </Text>
             <Text
                 @sizing=ItemSize::Fixed(90.0)
-                string={peak}
                 size=TextSize::Sm
                 family=Family::Mono
                 weight={weight}
-            />
+            >
+                {peak}
+            </Text>
         </List>
     }
 }
@@ -277,9 +275,9 @@ fn PluginsPanel(plugins: Memo<Option<PluginsView>>) -> NodeId {
                         <LineView line />
                     }
                 }</ForEach>
-                <Text style=TextStyle::HEADING string={running} />
+                <Text style=TextStyle::HEADING>{running}</Text>
                 <Show condition={idle}>
-                    <Text style=TextStyle::CAPTION string="no editor plugins are running" />
+                    <Text style=TextStyle::CAPTION>"no editor plugins are running"</Text>
                 </Show>
                 <ForEach keys={runtime_keys}>|id: String| {
                     let key = id.clone();
@@ -317,12 +315,8 @@ fn RuntimeBlock(id: String, runtime: Memo<Option<RuntimeView>>) -> NodeId {
         <Frame padding={Sides::vertical(6.0)}>
             <List spacing=2.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                    <Text style=TextStyle::HEADING string={id} />
-                    <Text
-                        style=TextStyle::CAPTION
-                        @sizing=ItemSize::Percent(100.0)
-                        string={state}
-                    />
+                    <Text style=TextStyle::HEADING>{id}</Text>
+                    <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{state}</Text>
                     <Button
                         label="Kill"
                         variant=ButtonVariant::Secondary

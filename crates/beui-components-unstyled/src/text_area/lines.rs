@@ -631,7 +631,7 @@ fn RowPiece(
                 _ => color,
             });
             view! {
-                <Span text font color underline strikethrough break_after />
+                <Span font color underline strikethrough break_after>{text}</Span>
             }
             .into_child()
         }
@@ -741,12 +741,13 @@ fn RunChip(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
     view! {
         <Frame width=width height=RUN_CHIP_HEIGHT fill=fill radius=RUN_CHIP_RADIUS>
             <Text
-                string={label}
                 font={FontId::monospace(RUN_CHIP_SIZE)}
                 color={color}
                 align=TextAlign::Center
                 vertical_align=TextAlign::Center
-            />
+            >
+                {label}
+            </Text>
         </Frame>
     }
 }
@@ -887,7 +888,7 @@ fn WidgetPill(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
                         </Text>
                     </Frame>
                 </Show>
-                <Text string={label} font={font} color={color} vertical_align=TextAlign::Center />
+                <Text font={font} color={color} vertical_align=TextAlign::Center>{label}</Text>
                 <Show condition={selected}>|| {
                     let render = cx
                         .selected_widget
@@ -960,11 +961,12 @@ fn Gutter(cx: Context, model: Memo<Rc<Row>>) -> NodeId {
                 </Frame>
                 <Frame @sizing=ItemSize::Percent(100.0) height=height>
                     <Text
-                        string={number}
                         font={FontId::monospace(BODY_SIZE)}
                         color={number_color}
                         align=TextAlign::End
-                    />
+                    >
+                        {number}
+                    </Text>
                 </Frame>
             </List>
         </Frame>

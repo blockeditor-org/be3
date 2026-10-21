@@ -33,12 +33,9 @@ pub fn ViewHeader(data: Data) -> NodeId {
             <Show condition={failed}>
                 <Frame padding={Sides::symmetric(GUTTER, 6.0)}>
                     <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                        <Text
-                            @sizing=ItemSize::Percent(100.0)
-                            string={message}
-                            color=TextColor::Danger
-                            wrap=true
-                        />
+                        <Text @sizing=ItemSize::Percent(100.0) color=TextColor::Danger wrap=true>
+                            {message}
+                        </Text>
                         <Button
                             label="Dismiss"
                             variant=ButtonVariant::Secondary
@@ -60,14 +57,14 @@ fn WideHeader(data: Data) -> NodeId {
         <Frame padding={Sides::horizontal(GUTTER).top(8.0).bottom(6.0)}>
             <List spacing=6.0>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Text style=TextStyle::HEADING string={data.name} />
+                    <Text style=TextStyle::HEADING>{data.name}</Text>
                     <ViewTabs @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
                     <SearchField @sizing=ItemSize::Fixed(SEARCH_WIDTH) data={data} />
                     <NewRow data={data} compact=false />
                 </List>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                     <FilterBar @sizing={ItemSize::Percent(100.0).shrink(1.0)} data={data} />
-                    <Text style=TextStyle::CAPTION string={count} />
+                    <Text style=TextStyle::CAPTION>{count}</Text>
                     <Popover
                         label="Display"
                         glyph={ICON_TUNE.to_owned()}
@@ -96,12 +93,10 @@ fn NarrowHeader(data: Data) -> NodeId {
         <Frame padding={Sides::horizontal(GUTTER).top(8.0).bottom(8.0)}>
             <List spacing=SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Text
-                        style=TextStyle::HEADING
-                        @sizing=ItemSize::Percent(100.0)
-                        string={data.name}
-                    />
-                    <Text style=TextStyle::CAPTION string={count} />
+                    <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
+                        {data.name}
+                    </Text>
+                    <Text style=TextStyle::CAPTION>{count}</Text>
                     <NewRow data={data} compact=true />
                 </List>
                 <Scroll direction=Direction::Horizontal>
@@ -125,11 +120,9 @@ fn NarrowHeader(data: Data) -> NodeId {
                                 align=Align::Center
                                 spacing=SPACING
                             >
-                                <Text
-                                    style=TextStyle::HEADING
-                                    @sizing=ItemSize::Percent(100.0)
-                                    string="Filter and display"
-                                />
+                                <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
+                                    "Filter and display"
+                                </Text>
                                 <Button
                                     label="Done"
                                     variant=ButtonVariant::Ghost
@@ -137,7 +130,7 @@ fn NarrowHeader(data: Data) -> NodeId {
                                     on_click={close}
                                 />
                             </List>
-                            <Text style=TextStyle::CAPTION string="Filters" />
+                            <Text style=TextStyle::CAPTION>"Filters"</Text>
                             <FilterList data={data} />
                             <Separator />
                             <DisplayOptions data={data} />

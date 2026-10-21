@@ -8,7 +8,7 @@ fn a_driver_resizes_a_headless_window_and_reads_its_state() {
         view! {
             <beui_view::primitives::Root clear_color={Color32::BLACK} title="Driven">
                 <List spacing=0.0>
-                    <Text string="Hello" />
+                    <Text>"Hello"</Text>
                 </List>
             </beui_view::primitives::Root>
         }

@@ -229,8 +229,8 @@ fn PlaceholderBody(
                         <Icon glyph={ICON_WEB_ASSET.to_owned()} />
                     </Text>
                 </Show>
-                <Text style=TextStyle::HEADING string={name} />
-                <Text style=TextStyle::CAPTION string={shown_title} />
+                <Text style=TextStyle::HEADING>{name}</Text>
+                <Text style=TextStyle::CAPTION>{shown_title}</Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BUTTON_SPACING>
                     <Button
                         label="Open"

@@ -18,7 +18,7 @@ fn disposing_a_scope_removes_the_nodes_it_owns() {
                         let inner = component(&ComponentInfo { name: "Inner", module: module_path!() }, move || {
                             on_cleanup(move || cleaned.update(|cleaned| cleaned.push("inner")));
                             view! {
-                                <Text @node_ref=&text string={label} />
+                                <Text @node_ref=&text>{label}</Text>
                             }
                         });
                         view! {

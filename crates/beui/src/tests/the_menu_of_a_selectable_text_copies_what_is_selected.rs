@@ -11,8 +11,8 @@ fn the_menu_of_a_selectable_text_copies_what_is_selected() {
         view! {
             <SelectableText @node_ref=&region>
                 <List spacing=4.0>
-                    <Text @node_ref=&first string="main" />
-                    <Text @node_ref=&second string="0123abc" />
+                    <Text @node_ref=&first>"main"</Text>
+                    <Text @node_ref=&second>"0123abc"</Text>
                 </List>
             </SelectableText>
         }

@@ -213,7 +213,7 @@ pub(crate) fn MapLabel(
                 padding={Sides::horizontal(HALO_PADDING)}
                 @test_id={element_test_id}
             >
-                <Text string={text} size align=TextAlign::Center color={color} wrap=false />
+                <Text size align=TextAlign::Center color={color} wrap=false>{text}</Text>
             </Frame>
         </CanvasItem>
     }

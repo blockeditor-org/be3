@@ -95,9 +95,9 @@ fn ColumnHeading(weight: f32, column: Memo<TableColumn>) -> ListChild {
     }));
     view! {
         <List @sizing=ItemSize::Percent(weight) spacing=0.0>
-            <Text style=COLUMN_TITLE string={title} wrap=true />
+            <Text style=COLUMN_TITLE wrap=true>{title}</Text>
             <Show condition={captioned}>
-                <Text style=TextStyle::CAPTION string={caption} wrap=true />
+                <Text style=TextStyle::CAPTION wrap=true>{caption}</Text>
             </Show>
         </List>
     }
@@ -131,7 +131,7 @@ fn RowHeading(label: Memo<String>) -> ListChild {
     }));
     view! {
         <List @sizing=ItemSize::Percent(LABEL_WEIGHT) spacing=0.0>
-            <Text string={label} wrap=true />
+            <Text wrap=true>{label}</Text>
         </List>
     }
 }
@@ -152,9 +152,9 @@ pub fn TableCell(
     }));
     view! {
         <List @sizing=ItemSize::Percent(CELL_WEIGHT) spacing=CAPTION_SPACING>
-            <Text string={text} color={color} wrap=true />
+            <Text color={color} wrap=true>{text}</Text>
             <Show condition={captioned}>
-                <Text style=TextStyle::CAPTION string={caption} wrap=true />
+                <Text style=TextStyle::CAPTION wrap=true>{caption}</Text>
             </Show>
         </List>
     }

@@ -66,7 +66,7 @@ pub fn LogicGameEditor(editor: Editor) -> NodeId {
         <Frame @node_ref={&content} padding=PADDING>
             <List spacing=ROW_SPACING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <Text style=TextStyle::HEADING string="Levels" />
+                    <Text style=TextStyle::HEADING>"Levels"</Text>
                     <Show condition={has_hotbar}>
                         <IconButton
                             glyph={ICON_WIDGETS.to_owned()}
@@ -133,21 +133,21 @@ fn LevelRow(
                 on_activate={move || {}}
             >
                 <List direction=Direction::Horizontal align=Align::Center spacing=ROW_SPACING>
-                    <Text string={challenge.name()} />
+                    <Text>{challenge.name()}</Text>
                     <Show condition={completed}>
                         <Text color=TextColor::Success align=TextAlign::Center>
                             <Icon glyph={ICON_CHECK_CIRCLE.to_owned()} />
                         </Text>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Text style=TextStyle::CAPTION string={attempts} />
+                    <Text style=TextStyle::CAPTION>{attempts}</Text>
                 </List>
             </ListRow>
             <Show condition={expanded}>|| {
                 let goal = goal.clone(); view! {
                     <Frame padding={Sides::new(INDENT, 0.0, 0.0, 0.0)}>
                         <List spacing=ROW_SPACING>
-                            <Text style=TextStyle::CAPTION string={goal} wrap=true />
+                            <Text style=TextStyle::CAPTION wrap=true>{goal}</Text>
                             <Show condition={shows_quiz}>
                                 <BinaryAddition editor={editor} block={block} />
                             </Show>

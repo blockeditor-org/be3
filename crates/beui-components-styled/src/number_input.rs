@@ -106,13 +106,9 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
                 radius=Radius::Md
                 padding={Sides::horizontal(PADDING_HORIZONTAL)}
             >
-                <Text
-                    @node_ref=&shown
-                    string={string}
-                    color={color}
-                    align=TextAlign::Center
-                    clip=true
-                />
+                <Text @node_ref=&shown color={color} align=TextAlign::Center clip=true>
+                    {string}
+                </Text>
             </Frame>
         </FocusRing>
     }

@@ -358,7 +358,7 @@ updates the view in place. A source waits on the nearest boundary around the
 scope that makes it: `wait_for(probe)` registers a `Fn() -> Ready<()>` and
 `hold(source)` turns a `Ready<T>` into a memo of the last `T` it was (the
 default before the first) that waits for it. A `Memo<Ready<T>>` handed to a
-`Prop<T>` is held that way, so `<Text string={name} />` takes it directly.
+`Prop<T>` is held that way, so `<Text>{name}</Text>` takes it directly.
 Inside a memo nothing registers: a memo runs whenever it is read, so it would
 register again each time; make the source in a body or a binding instead. A wait
 lasts as long as the scope that registered it, so a source a binding caches
@@ -528,7 +528,7 @@ fn App() -> beui::NodeId {
         <List spacing=0.0>
             <List direction=Direction::Horizontal spacing=8.0>
                 <Button label="-" on_click={move || count.update(|count| *count -= 1)} />
-                <Text string={count_text} /> // updates itself when `count` changes
+                <Text>{count_text}</Text> // updates itself when `count` changes
                 <Button label="+" on_click={move || count.update(|count| *count += 1)} />
             </List>
         </List>
@@ -578,7 +578,7 @@ path, a unary expression, and a reference to a path.
 
 ```rust
 <Frame fill=ColorRole::Surface>
-<Text style=TextStyle::CAPTION string=count_text align=TextAlign::End />
+<Text style=TextStyle::CAPTION align=TextAlign::End>{count_text}</Text>
 <List direction=Direction::Horizontal />
 <Frame @node_ref=&panel width=TRIGGER_WIDTH height=HEIGHT>
 <Frame fill=ColorRole::Accent radius=Radius::Sm>
@@ -971,7 +971,7 @@ returned `ItemSize::Percent` in a row, for instance.
 
 ```rust
 <Toolbar @sizing=ItemSize::Fixed(TOOLBAR_HEIGHT) />
-<Text @sizing=ItemSize::Percent(100.0) style=TextStyle::CAPTION string=count_text align=TextAlign::End />
+<Text @sizing=ItemSize::Percent(100.0) style=TextStyle::CAPTION align=TextAlign::End>{count_text}</Text>
 <Card @sizing={rows_size}>
 ```
 

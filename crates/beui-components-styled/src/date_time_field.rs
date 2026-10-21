@@ -161,7 +161,7 @@ fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
                 radius={Radius::custom(SEGMENT_RADIUS)}
                 padding={Sides::horizontal(SEGMENT_PADDING)}
             >
-                <Text string={text} color={ink} align=TextAlign::Center />
+                <Text color={ink} align=TextAlign::Center>{text}</Text>
             </Frame>
         </Frame>
     }
@@ -170,7 +170,7 @@ fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
 #[component]
 fn LiteralFace(text: String) -> NodeId {
     view! {
-        <Text string={text} color=TextColor::Muted vertical_align=TextAlign::Center />
+        <Text color=TextColor::Muted vertical_align=TextAlign::Center>{text}</Text>
     }
 }
 
@@ -471,11 +471,12 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
             padding={Sides::horizontal(10.0)}
         >
             <Text
-                string={label}
                 color={ink}
                 align={if centred { TextAlign::Center } else { TextAlign::Start }}
                 vertical_align=TextAlign::Center
-            />
+            >
+                {label}
+            </Text>
         </Frame>
     }
 }

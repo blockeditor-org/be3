@@ -89,7 +89,7 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
                         </Text>
                     </Show>
                     <Show condition={named}>
-                        <Text string={label} color={text_color} />
+                        <Text color={text_color}>{label}</Text>
                     </Show>
                 </List>
             </Frame>

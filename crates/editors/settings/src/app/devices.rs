@@ -311,12 +311,9 @@ pub(super) fn DevicesTable(editor: Editor, settings: ContentProjection<SettingsC
     view! {
         <List spacing=0.0>
             <Show condition={same}>
-                <Text
-                    style=TextStyle::CAPTION
-                    string=NOTHING_DIFFERS
-                    wrap=true
-                    @test_id={"devices.same"}
-                />
+                <Text style=TextStyle::CAPTION wrap=true @test_id={"devices.same"}>
+                    {NOTHING_DIFFERS}
+                </Text>
             </Show>
             <Show condition={differs}>
                 <Frame fill=ColorRole::Surface border={Border::DEFAULT} radius=Radius::Lg>

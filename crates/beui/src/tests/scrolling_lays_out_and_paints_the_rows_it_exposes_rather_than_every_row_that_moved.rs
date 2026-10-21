@@ -18,7 +18,7 @@ fn scrolling_lays_out_and_paints_the_rows_it_exposes_rather_than_every_row_that_
                             <Frame height=40.0 fill=Color32::WHITE radius=0.0>
                                 <List direction=Direction::Horizontal spacing=4.0>
                                     <ForEach keys={(0..LABELS).collect::<Vec<_>>()}>|label: usize|
-                                        <Text string={format!("{row}.{label}")} />
+                                        <Text>{format!("{row}.{label}")}</Text>
                                     </ForEach>
                                 </List>
                             </Frame>

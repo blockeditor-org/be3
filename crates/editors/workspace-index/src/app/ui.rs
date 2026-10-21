@@ -186,10 +186,11 @@ pub fn FolderEditor(editor: Editor) -> NodeId {
                     <Show condition={empty}>
                         <Text
                             style=TextStyle::CAPTION
-                            string="This folder is empty."
                             align=TextAlign::Center
                             @test_id={"folder.empty"}
-                        />
+                        >
+                            "This folder is empty."
+                        </Text>
                     </Show>
                     <Scroll @sizing=ItemSize::Percent(100.0)>
                         <Dynamic value={mode}>|shown: FolderView| {
@@ -240,12 +241,10 @@ fn EntryRows(cells: Cells) -> NodeId {
                     >
                         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
                             <EntryGlyph entry={entry} size=ROW_ICON />
-                            <Text
-                                @sizing=ItemSize::Percent(100.0)
-                                string={name_of(entry)}
-                                color={name_color(entry)}
-                            />
-                            <Text style=TextStyle::CAPTION string={type_of(entry)} />
+                            <Text @sizing=ItemSize::Percent(100.0) color={name_color(entry)}>
+                                {name_of(entry)}
+                            </Text>
+                            <Text style=TextStyle::CAPTION>{type_of(entry)}</Text>
                         </List>
                     </ListRow>
                 }
@@ -276,16 +275,12 @@ fn EntryTiles(cells: Cells, tile: Vec2, icon_size: TextSize) -> NodeId {
                         <Frame height={tile.y}>
                             <List align=Align::Center justify=Justify::Center spacing=4.0>
                                 <EntryGlyph entry={entry} size={icon_size} />
-                                <Text
-                                    string={name_of(entry)}
-                                    color={name_color(entry)}
-                                    align=TextAlign::Center
-                                />
-                                <Text
-                                    style=TextStyle::CAPTION
-                                    string={type_of(entry)}
-                                    align=TextAlign::Center
-                                />
+                                <Text color={name_color(entry)} align=TextAlign::Center>
+                                    {name_of(entry)}
+                                </Text>
+                                <Text style=TextStyle::CAPTION align=TextAlign::Center>
+                                    {type_of(entry)}
+                                </Text>
                             </List>
                         </Frame>
                     </ListRow>

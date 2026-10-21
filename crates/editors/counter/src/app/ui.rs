@@ -22,7 +22,7 @@ pub fn Counter(editor: Editor) -> NodeId {
     view! {
         <Frame padding=PADDING>
             <List spacing=16.0>
-                <Text style=TextStyle::DISPLAY string={shown} @test_id={"counter.value"} />
+                <Text style=TextStyle::DISPLAY @test_id={"counter.value"}>{shown}</Text>
                 <List direction=Direction::Horizontal align=Align::Center spacing=10.0>
                     <Button
                         @sizing=ItemSize::Fixed(BUTTON_WIDTH)

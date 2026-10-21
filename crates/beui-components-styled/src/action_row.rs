@@ -109,7 +109,7 @@ pub(crate) fn ActionRowFace(
                     chevron=SHEET_TREE_CHEVRON
                 />
                 <Show condition={has_lead}>
-                    <Text string={lead} size=TextSize::Sm color=TextColor::Muted />
+                    <Text size=TextSize::Sm color=TextColor::Muted>{lead}</Text>
                 </Show>
                 <Show condition={has_glyph}>
                     <Text color={icon_color} align=TextAlign::Center>
@@ -117,14 +117,9 @@ pub(crate) fn ActionRowFace(
                     </Text>
                 </Show>
                 <List @sizing=ItemSize::Percent(100.0) spacing=2.0>
-                    <Text string={label} color={text_color} ellipsis=true />
+                    <Text color={text_color} ellipsis=true>{label}</Text>
                     <Show condition={has_detail}>
-                        <Text
-                            string={detail}
-                            size=TextSize::Sm
-                            color=TextColor::Muted
-                            ellipsis=true
-                        />
+                        <Text size=TextSize::Sm color=TextColor::Muted ellipsis=true>{detail}</Text>
                     </Show>
                 </List>
                 <Show condition={ticked}>

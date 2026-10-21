@@ -100,13 +100,13 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
                     <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
                         <Icon glyph={ICON_AUTO_AWESOME.to_owned()} />
                     </Text>
-                    <Text string="Dynamic artifact" />
+                    <Text>"Dynamic artifact"</Text>
                     <Show condition={waiting}>
-                        <Text style=TextStyle::CAPTION string="Loading…" />
+                        <Text style=TextStyle::CAPTION>"Loading…"</Text>
                     </Show>
                     <Show condition={described}>
                         <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Text style=TextStyle::CAPTION string="Generated from" />
+                            <Text style=TextStyle::CAPTION>"Generated from"</Text>
                             <Button
                                 @test_id={"workspace.artifact.source"}
                                 label={source_name}
@@ -117,12 +117,12 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
                                     }
                                 }}
                             />
-                            <Text style=TextStyle::CAPTION string={summary} />
+                            <Text style=TextStyle::CAPTION>{summary}</Text>
                         </List>
                     </Show>
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <Show condition={running}>
-                        <Text style=TextStyle::CAPTION string="Regenerating…" />
+                        <Text style=TextStyle::CAPTION>"Regenerating…"</Text>
                     </Show>
                     <IconButton
                         @test_id={"workspace.artifact.settings"}
@@ -147,7 +147,7 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
                     />
                 </List>
                 <Show condition={failed}>
-                    <Text style=TextStyle::CAPTION string={failure} color=TextColor::Danger />
+                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{failure}</Text>
                 </Show>
             </List>
         </Frame>

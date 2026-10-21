@@ -18,7 +18,7 @@ impl SurveyApp {
                 <Root title="beui survey">
                     <Frame padding=16.0>
                         <List spacing=8.0>
-                            <Text string={state} />
+                            <Text>{state}</Text>
                             <TextInput value={state} label="Text" />
                         </List>
                     </Frame>

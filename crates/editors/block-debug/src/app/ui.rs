@@ -72,7 +72,7 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
                     })
                 });
                 view! {
-                    <Text style=TextStyle::CODE string={label} />
+                    <Text style=TextStyle::CODE>{label}</Text>
                 }
             }</Tree>
         </List>

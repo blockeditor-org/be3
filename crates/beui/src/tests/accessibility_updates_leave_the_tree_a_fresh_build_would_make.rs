@@ -27,7 +27,7 @@ fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
         taken.update(|taken| *taken = Some(Setters { title, rows, panel }));
         view! {
             <List spacing=0.0>
-                <Text string={create_memo(move || title.get())} />
+                <Text>{create_memo(move || title.get())}</Text>
                 <ForEach keys={rows}>|row: u32|
                     <styled::Button
                         variant=styled::ButtonVariant::Primary
@@ -37,7 +37,7 @@ fn accessibility_updates_leave_the_tree_a_fresh_build_would_make() {
                 </ForEach>
                 <Show condition={panel}>
                     <List spacing=0.0>
-                        <Text string="Details" />
+                        <Text>"Details"</Text>
                         <styled::Button
                             variant=styled::ButtonVariant::Primary
                             label="Archive"

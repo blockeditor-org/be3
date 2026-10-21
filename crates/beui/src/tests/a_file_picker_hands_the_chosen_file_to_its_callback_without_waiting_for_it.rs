@@ -14,7 +14,7 @@ fn a_file_picker_hands_the_chosen_file_to_its_callback_without_waiting_for_it() 
         let open = move || picker.open(FileFilter::new("Images", &["png"], &["image/png"]));
         view! {
             <Button @node_ref=&button disabled={picking} on_click={open}>
-                <Text string="Choose" />
+                <Text>"Choose"</Text>
             </Button>
         }
     });

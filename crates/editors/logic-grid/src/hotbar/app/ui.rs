@@ -51,10 +51,9 @@ pub fn HotbarView(editor: Editor) -> NodeId {
         <Frame padding=PADDING>
             <List spacing=ROW_SPACING>
                 <Show condition={empty}>
-                    <Text
-                        style=TextStyle::CAPTION
-                        string="Nothing is pinned yet. Compiling a grid pins the component it builds."
-                    />
+                    <Text style=TextStyle::CAPTION>
+                        "Nothing is pinned yet. Compiling a grid pins the component it builds."
+                    </Text>
                 </Show>
                 <Scroll @sizing=ItemSize::Percent(100.0)>
                     <List spacing=ROW_SPACING>
@@ -161,7 +160,7 @@ fn SlotRow(
                 </Text>
             </Show>
             <Show condition={is_folder}>
-                <Text string={folder} />
+                <Text>{folder}</Text>
             </Show>
             <Show condition={is_component}>
                 <BlockLink
@@ -171,7 +170,7 @@ fn SlotRow(
                     @test_id={format!("hotbar.slot.{index}")}
                 />
             </Show>
-            <Text style=TextStyle::CAPTION string={note} />
+            <Text style=TextStyle::CAPTION>{note}</Text>
             <Spacer @sizing=ItemSize::Percent(100.0) />
             <Show condition={is_component}>
                 <IconButton

@@ -8,7 +8,7 @@ fn resizing_scaling_and_replacing_the_root_invalidate_the_cache() {
     let text = NodeRef::new();
     let mut document = build_node(move || {
         view! {
-            <Text @node_ref=&text string="hello" color=Color32::WHITE />
+            <Text @node_ref=&text color=Color32::WHITE>"hello"</Text>
         }
     });
     let text = text.get();

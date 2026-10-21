@@ -28,7 +28,7 @@ fn Alarm() -> NodeId {
         None => "waiting".to_owned(),
     });
     view! {
-        <Text string={text} @test_id={"alarm"} />
+        <Text @test_id={"alarm"}>{text}</Text>
     }
 }
 

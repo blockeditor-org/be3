@@ -18,7 +18,7 @@ fn a_dialog_opens_in_the_middle_and_escape_dismisses_it() {
                     width=300.0
                     on_dismiss={move || dismissed.update(|dismissed| *dismissed += 1)}
                 >
-                    <Text string="Body" color=Color32::WHITE @node_ref={&surface} />
+                    <Text color=Color32::WHITE @node_ref={&surface}>"Body"</Text>
                 </Dialog>
             </List>
         }

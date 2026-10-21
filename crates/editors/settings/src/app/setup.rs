@@ -167,8 +167,8 @@ pub(super) fn SetUpHeading() -> NodeId {
     view! {
         <Frame padding={Sides::horizontal(HEADER_INSET)}>
             <List spacing=HEADER_SPACING>
-                <Text style=TextStyle::HEADING string=SET_UP />
-                <Text style=TextStyle::CAPTION string=SET_UP_CAPTION wrap=true />
+                <Text style=TextStyle::HEADING>{SET_UP}</Text>
+                <Text style=TextStyle::CAPTION wrap=true>{SET_UP_CAPTION}</Text>
             </List>
         </Frame>
     }

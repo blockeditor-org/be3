@@ -94,7 +94,7 @@ pub fn AudioView(editor: Editor) -> NodeId {
                     <Text size=TextSize::Xl4 align=TextAlign::Center>
                         <Icon glyph={ICON_AUDIO_FILE.to_owned()} />
                     </Text>
-                    <Text string={source} align=TextAlign::Center />
+                    <Text align=TextAlign::Center>{source}</Text>
                     <IconButton
                         @sizing={ItemSize::Intrinsic.align(Align::Center)}
                         glyph={glyph}
@@ -104,17 +104,19 @@ pub fn AudioView(editor: Editor) -> NodeId {
                     />
                     <Text
                         style=TextStyle::CAPTION
-                        string={elapsed}
                         align=TextAlign::Center
                         @test_id={"audio.position"}
-                    />
+                    >
+                        {elapsed}
+                    </Text>
                     <Show condition={failed}>
                         <Text
                             style=TextStyle::CAPTION
-                            string={reason}
                             align=TextAlign::Center
                             color=TextColor::Danger
-                        />
+                        >
+                            {reason}
+                        </Text>
                     </Show>
                 </List>
             </Frame>
@@ -146,7 +148,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
     let replace = move || chooser.open();
     view! {
         <List spacing=SPACING>
-            <Text style=TextStyle::HEADING string="Audio" />
+            <Text style=TextStyle::HEADING>"Audio"</Text>
             <Button
                 label="Replace audio..."
                 variant=ButtonVariant::Secondary
@@ -155,7 +157,7 @@ fn AudioPanel(editor: Editor) -> NodeId {
                 on_click={replace}
             />
             <Show condition={failed}>
-                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
+                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </List>
     }

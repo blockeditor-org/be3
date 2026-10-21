@@ -138,13 +138,10 @@ fn Sidebar(editor: Editor, selected: Signal<Option<usize>>, open: Signal<bool>) 
     view! {
         <Frame fill=ColorRole::Surface padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING>
-                <Text string="Pan and Zoom" size=TextSize::Lg @test_id={"pan_zoom.title"} />
-                <Text
-                    string={readout}
-                    size=TextSize::Sm
-                    color=TextColor::Muted
-                    @test_id={"pan_zoom.zoom"}
-                />
+                <Text size=TextSize::Lg @test_id={"pan_zoom.title"}>"Pan and Zoom"</Text>
+                <Text size=TextSize::Sm color=TextColor::Muted @test_id={"pan_zoom.zoom"}>
+                    {readout}
+                </Text>
                 <List direction=Direction::Horizontal spacing=6.0>
                     <Button
                         label="-"
@@ -166,12 +163,9 @@ fn Sidebar(editor: Editor, selected: Signal<Option<usize>>, open: Signal<bool>) 
                     />
                 </List>
                 <Separator />
-                <Text
-                    string={chosen}
-                    size=TextSize::Sm
-                    color=TextColor::Muted
-                    @test_id={"pan_zoom.selected"}
-                />
+                <Text size=TextSize::Sm color=TextColor::Muted @test_id={"pan_zoom.selected"}>
+                    {chosen}
+                </Text>
                 <List spacing=4.0>
                     <ForEach keys={card_indices()}>|index: usize|
                         <FocusRow index editor={editor} selected={selected} />
@@ -274,8 +268,8 @@ fn CardView(index: usize, scale: ReadSignal<f32>, selected: Signal<Option<usize>
                     padding=padding
                 >
                     <List spacing={spacing}>
-                        <Text string={card.name} size={title_size} />
-                        <Text string={position} size={label_size} color=TextColor::Muted />
+                        <Text size={title_size}>{card.name}</Text>
+                        <Text size={label_size} color=TextColor::Muted>{position}</Text>
                     </List>
                 </Frame>
             </Interactive>

@@ -193,7 +193,7 @@ fn ColorFields(picker: ColorPickerState, alpha: bool) -> NodeId {
 fn ChannelLabel(content: Prop<String>) -> NodeId {
     view! {
         <Frame align={Align2::vertical(Align::Center)}>
-            <Text style=TextStyle::CAPTION string={content} />
+            <Text style=TextStyle::CAPTION>{content}</Text>
         </Frame>
     }
 }

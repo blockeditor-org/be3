@@ -183,11 +183,10 @@ fn EmptyPanel() -> NodeId {
     view! {
         <Frame padding=PANEL_PADDING>
             <List spacing=PANEL_SPACING align=Align::Center>
-                <Text style=TextStyle::HEADING string="No file open" />
-                <Text
-                    style=TextStyle::CAPTION
-                    string="Open or create a file from Files to get started."
-                />
+                <Text style=TextStyle::HEADING>"No file open"</Text>
+                <Text style=TextStyle::CAPTION>
+                    "Open or create a file from Files to get started."
+                </Text>
             </List>
         </Frame>
     }

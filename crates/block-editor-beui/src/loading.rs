@@ -34,7 +34,7 @@ pub fn FailedPane(error: String) -> NodeId {
         <Frame @test_id={"editor.failed"}>
             <List spacing=0.0 align=Align::Center>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
-                <Text string={error} color=TextColor::Muted wrap=true />
+                <Text color=TextColor::Muted wrap=true>{error}</Text>
                 <Spacer @sizing=ItemSize::Percent(100.0) />
             </List>
         </Frame>

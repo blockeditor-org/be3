@@ -8,10 +8,10 @@ fn dragging_slowly_with_the_screen_reader_reads_what_the_finger_is_on() {
     let (document, [_heading, _body]) = toolbar_of(|| {
         [
             view! {
-                <Text style=TextStyle::HEADING string="Settings" />
+                <Text style=TextStyle::HEADING>"Settings"</Text>
             },
             view! {
-                <Text string="Pick a theme" />
+                <Text>"Pick a theme"</Text>
             },
         ]
     });

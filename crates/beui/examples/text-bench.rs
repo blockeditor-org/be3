@@ -132,9 +132,11 @@ fn resize_paragraphs(frames: usize) -> Report {
                 <Root>
                     <Frame width={create_memo(move || Some(read.get()))}>
                         <List spacing=8.0>
-                            <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize|
-                                <Text string={text.clone()} wrap=true />
-                            </ForEach>
+                            <ForEach keys={(0..20).collect::<Vec<usize>>()}>|_: usize| {
+                                let text = text.clone(); view! {
+                                    <Text wrap=true>{text}</Text>
+                                }
+                            }</ForEach>
                         </List>
                     </Frame>
                 </Root>
@@ -167,7 +169,7 @@ fn resize_labels(frames: usize) -> Report {
                     <Frame width={create_memo(move || Some(read.get()))}>
                         <List spacing=0.0>
                             <ForEach keys={(0..2000).collect::<Vec<usize>>()}>|index: usize|
-                                <Text string={format!("label number {index}")} ellipsis=true />
+                                <Text ellipsis=true>{format!("label number {index}")}</Text>
                             </ForEach>
                         </List>
                     </Frame>
@@ -198,7 +200,7 @@ fn edit_plain_paragraph(frames: usize) -> Report {
             *content.borrow_mut() = Some(read);
             view! {
                 <Root>
-                    <Text string={read} wrap=true />
+                    <Text wrap=true>{read}</Text>
                 </Root>
             }
         }
@@ -246,7 +248,7 @@ fn edit_one_span(frames: usize) -> Report {
                                 read.get().get(index).cloned().unwrap_or_default()
                             });
                             view! {
-                                <Span text={word} />
+                                <Span>{word}</Span>
                             }
                         }</ForEach>
                     </Text>

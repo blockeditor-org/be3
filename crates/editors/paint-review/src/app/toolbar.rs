@@ -78,7 +78,7 @@ pub(crate) fn ReviewToolbar(review: Review, shown: Prop<bool>) -> NodeId {
             </Show>
             <ZoomControls review={review} />
             <Show condition={failed}>
-                <Text style=TextStyle::CAPTION string={reason} color=TextColor::Danger />
+                <Text style=TextStyle::CAPTION color=TextColor::Danger>{reason}</Text>
             </Show>
         </Toolbar>
     }
@@ -184,8 +184,8 @@ pub(crate) fn ReviewCaption(review: Review) -> NodeId {
     view! {
         <Frame visible={chosen} padding={Sides::symmetric(12.0, 6.0)}>
             <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
-                <Text string={path} @test_id={"paint_review.path"} />
-                <Text style=TextStyle::CAPTION string={summary} @test_id={"paint_review.summary"} />
+                <Text @test_id={"paint_review.path"}>{path}</Text>
+                <Text style=TextStyle::CAPTION @test_id={"paint_review.summary"}>{summary}</Text>
             </List>
         </Frame>
     }
@@ -248,7 +248,7 @@ pub(crate) fn FrameControls(review: Review, count: Memo<usize>) -> NodeId {
                         @test_id={"paint_review.frame.at"}
                     />
                 </Dynamic>
-                <Text style=TextStyle::CAPTION string={position} />
+                <Text style=TextStyle::CAPTION>{position}</Text>
                 <Show condition={differs}>
                     <Button
                         label="Changed frame"

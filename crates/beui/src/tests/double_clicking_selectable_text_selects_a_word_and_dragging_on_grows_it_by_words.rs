@@ -11,8 +11,8 @@ fn double_clicking_selectable_text_selects_a_word_and_dragging_on_grows_it_by_wo
         view! {
             <SelectableText @node_ref=&region>
                 <List spacing=4.0>
-                    <Text @node_ref=&first string="alpha beta gamma" />
-                    <Text @node_ref=&second string="delta epsilon" />
+                    <Text @node_ref=&first>"alpha beta gamma"</Text>
+                    <Text @node_ref=&second>"delta epsilon"</Text>
                 </List>
             </SelectableText>
         }

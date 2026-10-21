@@ -29,7 +29,7 @@ fn Legend(children: Children<Note>) -> NodeId {
             .join(", ")
     });
     view! {
-        <Text string={labels} />
+        <Text>{labels}</Text>
     }
 }
 

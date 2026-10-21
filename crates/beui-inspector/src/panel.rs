@@ -228,13 +228,14 @@ pub fn build(state: Stored<State>) -> Panel {
                                     align=Align::Center
                                     spacing=HEADER_SPACING
                                 >
-                                    <Text style=TextStyle::HEADING string="Inspector" />
+                                    <Text style=TextStyle::HEADING>"Inspector"</Text>
                                     <Text
                                         style=TextStyle::CAPTION
                                         @sizing=ItemSize::Percent(100.0)
-                                        string={count_text}
                                         align=TextAlign::End
-                                    />
+                                    >
+                                        {count_text}
+                                    </Text>
                                     <ShowKeepAlive condition={tree_visible}>
                                         <PickToggle state={state} picking />
                                     </ShowKeepAlive>
@@ -321,12 +322,10 @@ pub fn build(state: Stored<State>) -> Panel {
                             <List spacing=0.0>
                                 <ShowKeepAlive condition={tree_visible}>
                                     <List spacing=FOOTER_SPACING>
-                                        <Text style=TextStyle::CODE string={selection_text} />
-                                        <Text
-                                            style=TextStyle::CODE
-                                            string={bounds_text}
-                                            color=TextColor::Muted
-                                        />
+                                        <Text style=TextStyle::CODE>{selection_text}</Text>
+                                        <Text style=TextStyle::CODE color=TextColor::Muted>
+                                            {bounds_text}
+                                        </Text>
                                     </List>
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={performance_visible}>
@@ -337,11 +336,9 @@ pub fn build(state: Stored<State>) -> Panel {
                                     />
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={simulation_visible}>
-                                    <Text
-                                        style=TextStyle::CODE
-                                        string={native_pixel_ratio_text}
-                                        color=TextColor::Muted
-                                    />
+                                    <Text style=TextStyle::CODE color=TextColor::Muted>
+                                        {native_pixel_ratio_text}
+                                    </Text>
                                 </ShowKeepAlive>
                             </List>
                         </Frame>
@@ -466,7 +463,7 @@ fn SimulationPanel(
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
-                        <Text style=TextStyle::HEADING string="Device pixel ratio" />
+                        <Text style=TextStyle::HEADING>"Device pixel ratio"</Text>
                         <RadioGroup
                             @test_id={"inspector.simulation.pixel_ratio"}
                             options={view! {
@@ -489,7 +486,7 @@ fn SimulationPanel(
                     />
                     <Separator />
                     <List spacing=TIMING_SPACING>
-                        <Text style=TextStyle::HEADING string="Theme" />
+                        <Text style=TextStyle::HEADING>"Theme"</Text>
                         <RadioGroup
                             @test_id={"inspector.simulation.theme"}
                             options={view! {
@@ -575,8 +572,8 @@ fn BackSection(state: Stored<State>, handles_back: Memo<bool>) -> NodeId {
     };
     view! {
         <List spacing=TIMING_SPACING>
-            <Text style=TextStyle::HEADING string="Back gesture" />
-            <Text style=TextStyle::CAPTION string={caption} />
+            <Text style=TextStyle::HEADING>"Back gesture"</Text>
+            <Text style=TextStyle::CAPTION>{caption}</Text>
             <Slider
                 @test_id={"inspector.simulation.back"}
                 label="Back gesture progress"
@@ -607,8 +604,8 @@ fn FilterSection(state: Stored<State>) -> NodeId {
     let vision_labels = labels(&ColorVision::ALL);
     view! {
         <List spacing=TIMING_SPACING>
-            <Text style=TextStyle::HEADING string="Filters" />
-            <Text style=TextStyle::CAPTION string={blur_text} />
+            <Text style=TextStyle::HEADING>"Filters"</Text>
+            <Text style=TextStyle::CAPTION>{blur_text}</Text>
             <Slider
                 @test_id={"inspector.simulation.blur"}
                 label="Blur"
@@ -620,7 +617,7 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                 max=MAX_BLUR
                 scale={SliderScale::Midpoint(BLUR_MIDPOINT)}
             />
-            <Text style=TextStyle::CAPTION string={contrast_text} />
+            <Text style=TextStyle::CAPTION>{contrast_text}</Text>
             <Slider
                 @test_id={"inspector.simulation.contrast"}
                 label="Reduce contrast"
@@ -629,7 +626,7 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                     state.value().set_contrast_reduction(value);
                 })}
             />
-            <Text style=TextStyle::CAPTION string="Colour vision" />
+            <Text style=TextStyle::CAPTION>"Colour vision"</Text>
             <RadioGroup
                 @test_id={"inspector.simulation.color_vision"}
                 options={view! {
@@ -664,7 +661,7 @@ fn contrast_label(amount: f32) -> String {
 fn ScreenReaderSection(state: Stored<State>) -> NodeId {
     view! {
         <List spacing=TIMING_SPACING>
-            <Text style=TextStyle::HEADING string="Screen reader" />
+            <Text style=TextStyle::HEADING>"Screen reader"</Text>
             <Checkbox
                 @test_id={"inspector.accessibility.enabled"}
                 label="Expose the accessibility tree"
@@ -691,9 +688,9 @@ fn ScreenReaderSection(state: Stored<State>) -> NodeId {
 fn GuideSection(title: &'static str, lines: &'static [&'static str]) -> NodeId {
     view! {
         <List spacing=FOOTER_SPACING>
-            <Text style=TextStyle::CAPTION string={title.to_owned()} color=TextColor::Default />
+            <Text style=TextStyle::CAPTION color=TextColor::Default>{title.to_owned()}</Text>
             <ForEach keys={lines.to_vec()}>|line: &'static str|
-                <Text style=TextStyle::CAPTION string={line.to_owned()} wrap=true />
+                <Text style=TextStyle::CAPTION wrap=true>{line.to_owned()}</Text>
             </ForEach>
         </List>
     }
@@ -752,10 +749,10 @@ fn PerformancePanel(
             <Frame padding=BODY_PADDING>
                 <List spacing=PERFORMANCE_SPACING>
                     <List spacing=FOOTER_SPACING>
-                        <Text style=TextStyle::CODE string={latest_work} />
-                        <Text style=TextStyle::CODE string={scene} color=TextColor::Muted />
-                        <Text style=TextStyle::CODE string={cache} color=TextColor::Muted />
-                        <Text style=TextStyle::CODE string={reuse} color=TextColor::Muted />
+                        <Text style=TextStyle::CODE>{latest_work}</Text>
+                        <Text style=TextStyle::CODE color=TextColor::Muted>{scene}</Text>
+                        <Text style=TextStyle::CODE color=TextColor::Muted>{cache}</Text>
+                        <Text style=TextStyle::CODE color=TextColor::Muted>{reuse}</Text>
                     </List>
                     <Separator />
                     <List spacing=TIMING_SPACING>
@@ -764,12 +761,10 @@ fn PerformancePanel(
                             align=Align::Center
                             spacing=TIMING_SPACING
                         >
-                            <Text
-                                style=TextStyle::HEADING
-                                @sizing=ItemSize::Percent(100.0)
-                                string="CPU time"
-                            />
-                            <Text style=TextStyle::CAPTION string="milliseconds" />
+                            <Text style=TextStyle::HEADING @sizing=ItemSize::Percent(100.0)>
+                                "CPU time"
+                            </Text>
+                            <Text style=TextStyle::CAPTION>"milliseconds"</Text>
                         </List>
                         <TimingHeader />
                         <TimingRow label="Document" values={total} />
@@ -781,7 +776,7 @@ fn PerformancePanel(
                     </List>
                     <Separator />
                     <List spacing=TIMING_SPACING>
-                        <Text style=TextStyle::HEADING string="Visualize" />
+                        <Text style=TextStyle::HEADING>"Visualize"</Text>
                         <Checkbox
                             @test_id={"inspector.performance.flash_changes"}
                             label="Flash changed elements"
@@ -818,7 +813,7 @@ fn RendererSection(
     let active = create_memo(move || Some(renderers.with(|renderers| renderers.active)));
     view! {
         <List spacing=TIMING_SPACING>
-            <Text style=TextStyle::HEADING string="Renderer" />
+            <Text style=TextStyle::HEADING>"Renderer"</Text>
             <Show condition={choosable}>
                 <RadioGroup
                     @test_id={"inspector.performance.renderer.choice"}
@@ -835,7 +830,7 @@ fn RendererSection(
                 />
             </Show>
             <Show condition={missing}>
-                <Text style=TextStyle::CAPTION string="Not reported by this host" />
+                <Text style=TextStyle::CAPTION>"Not reported by this host"</Text>
             </Show>
             <ForEach keys={rows}>|(label, value): (&'static str, String)|
                 <LabeledRow label={label.to_owned()} value />
@@ -852,7 +847,7 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
             <Scroll @sizing=ItemSize::Percent(100.0)>
                 <Frame padding=BODY_PADDING>
                     <List spacing=TIMING_SPACING>
-                        <Text style=TextStyle::HEADING string="Properties" />
+                        <Text style=TextStyle::HEADING>"Properties"</Text>
                         <ForEach keys={properties}>|(label, value): (String, String)|
                             <LabeledRow label value />
                         </ForEach>
@@ -867,18 +862,17 @@ fn PropertiesSection(properties: Memo<Vec<(String, String)>>) -> NodeId {
 fn LabeledRow(label: String, value: String) -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH)
-                string={label}
-            />
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(RENDERER_LABEL_WIDTH)>
+                {label}
+            </Text>
             <Text
                 style=TextStyle::CAPTION
                 @sizing=ItemSize::Percent(100.0)
-                string={value}
                 color=TextColor::Default
                 wrap=true
-            />
+            >
+                {value}
+            </Text>
         </List>
     }
 }
@@ -888,24 +882,15 @@ fn TimingHeader() -> NodeId {
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
             <Spacer @sizing=ItemSize::Percent(100.0) />
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Fixed(54.0)
-                string="Current"
-                align=TextAlign::End
-            />
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Fixed(54.0)
-                string="Average"
-                align=TextAlign::End
-            />
-            <Text
-                style=TextStyle::CAPTION
-                @sizing=ItemSize::Fixed(54.0)
-                string="Peak"
-                align=TextAlign::End
-            />
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                "Current"
+            </Text>
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                "Average"
+            </Text>
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                "Peak"
+            </Text>
         </List>
     }
 }
@@ -915,25 +900,16 @@ fn TimingRow(label: String, values: [Memo<String>; 3]) -> NodeId {
     let [current, average, peak] = values;
     view! {
         <List direction=Direction::Horizontal spacing=TIMING_SPACING>
-            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0) string={label} />
-            <Text
-                style=TextStyle::CODE
-                @sizing=ItemSize::Fixed(54.0)
-                string={current}
-                align=TextAlign::End
-            />
-            <Text
-                style=TextStyle::CODE
-                @sizing=ItemSize::Fixed(54.0)
-                string={average}
-                align=TextAlign::End
-            />
-            <Text
-                style=TextStyle::CODE
-                @sizing=ItemSize::Fixed(54.0)
-                string={peak}
-                align=TextAlign::End
-            />
+            <Text style=TextStyle::CAPTION @sizing=ItemSize::Percent(100.0)>{label}</Text>
+            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                {current}
+            </Text>
+            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                {average}
+            </Text>
+            <Text style=TextStyle::CODE @sizing=ItemSize::Fixed(54.0) align=TextAlign::End>
+                {peak}
+            </Text>
         </List>
     }
 }
@@ -1015,14 +991,11 @@ fn TreeCells(row_key: Key, entries: Entries) -> NodeId {
             align=Align::Center
             spacing=ROW_SPACING
         >
-            <Text style=TextStyle::CODE string={kind} />
-            <Text
-                style=TextStyle::CODE
-                @sizing=ItemSize::Percent(100.0)
-                string={detail}
-                color=TextColor::Muted
-            />
-            <Text style=TextStyle::CODE string={size} color=TextColor::Muted align=TextAlign::End />
+            <Text style=TextStyle::CODE>{kind}</Text>
+            <Text style=TextStyle::CODE @sizing=ItemSize::Percent(100.0) color=TextColor::Muted>
+                {detail}
+            </Text>
+            <Text style=TextStyle::CODE color=TextColor::Muted align=TextAlign::End>{size}</Text>
         </List>
     }
 }

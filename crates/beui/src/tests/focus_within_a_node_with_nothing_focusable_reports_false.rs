@@ -8,7 +8,7 @@ fn focus_within_a_node_with_nothing_focusable_reports_false() {
     let (document, [label, input]) = toolbar_of(|| {
         [
             view! {
-                <Text string="Label" />
+                <Text>"Label"</Text>
             },
             view! {
                 <TextInput value="Text" />

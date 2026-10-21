@@ -124,7 +124,7 @@ pub(crate) fn PowerMenu(editor: Editor) -> NodeId {
                 on_dismiss={dismiss}
             >
                 <List spacing=DIALOG_SPACING @test_id={"desktop.power.dialog"}>
-                    <Text style=TextStyle::PARAGRAPH string={explained} wrap=true />
+                    <Text style=TextStyle::PARAGRAPH wrap=true>{explained}</Text>
                 </List>
             </Dialog>
         </List>
