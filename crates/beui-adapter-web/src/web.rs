@@ -528,6 +528,7 @@ fn watch_preferences(
                     (false, false) => None,
                 },
                 motion: reduce.matches().then_some(Motion::Instant),
+                canvas_touch: None,
             });
         }
     };

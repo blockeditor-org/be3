@@ -13,4 +13,4 @@ pub use input::{
     Modifiers, PenPhase, PointerButton, TouchPhase,
 };
 pub use pointer::{InputDevice, PointerSetting, PointerSettings, PointerSpeed};
-pub use preferences::{Motion, PreferenceLayer, Preferences, ThemeKind};
+pub use preferences::{CanvasTouch, Motion, PreferenceLayer, Preferences, ThemeKind};

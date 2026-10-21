@@ -33,8 +33,8 @@ pub use ui_types::{
     Keyboard, Modifiers, PasteKind, Pasted, PenPhase, PickedFile, PointerButton, TouchPhase,
 };
 pub use ui_types::{
-    DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer, Preferences,
-    Rotation, ThemeKind,
+    CanvasTouch, DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer,
+    Preferences, Rotation, ThemeKind,
 };
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
@@ -114,6 +114,7 @@ pub struct FrameReport {
     pub content: ChildRect,
     pub painted: Vec<ChildRect>,
     pub floating: Vec<ChildRect>,
+    pub drawing: Vec<ChildRect>,
     pub claims: Vec<PressClaim>,
     pub description: Option<Description>,
 }
@@ -2216,6 +2217,7 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             for report in value {
                 collection(report.painted.len())?;
                 collection(report.floating.len())?;
+                collection(report.drawing.len())?;
                 collection(report.claims.len())?;
                 if let Some(tree) = report
                     .description

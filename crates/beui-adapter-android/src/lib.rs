@@ -1032,6 +1032,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativePreferences<'local>(
             (false, false) => None,
         },
         motion: reduce_motion.then_some(Motion::Instant),
+        canvas_touch: None,
     }));
 }
 

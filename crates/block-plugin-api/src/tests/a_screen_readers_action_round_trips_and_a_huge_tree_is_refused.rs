@@ -27,6 +27,7 @@ fn a_screen_readers_action_round_trips_and_a_huge_tree_is_refused() {
         },
         painted: Vec::new(),
         floating: Vec::new(),
+        drawing: Vec::new(),
         claims: Vec::new(),
         description: Some(Description {
             tree: Some(TreeUpdate {

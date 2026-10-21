@@ -24,6 +24,7 @@ pub struct Pointers {
     wheel_latch: Option<(NodeId, Instant, Pos2)>,
     fingers: Fingers,
     pinch_target: Option<NodeId>,
+    kept_off: Vec<TouchId>,
     hits: Vec<(Pos2, bool, Hit)>,
     current: usize,
     pub(crate) routed: Vec<Routed>,
@@ -309,6 +310,10 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
     if autoscroll::pointer(doc, &event) {
         return None;
     }
+    if kept_off(doc, frame, &event) {
+        doc.pointers.route(None);
+        return None;
+    }
     match event.phase {
         PointerPhase::Down(button) => return down(doc, frame, event, button),
         PointerPhase::Move => moved(doc, frame, event),
@@ -344,6 +349,39 @@ fn pointer_event(doc: &mut Document, frame: &Frame, event: PointerEvent) -> Opti
         }
     }
     None
+}
+
+fn kept_off(doc: &mut Document, frame: &Frame, event: &PointerEvent) -> bool {
+    let PointerId::Touch(id) = event.pointer else {
+        return false;
+    };
+    let held = doc.pointers.kept_off.contains(&id);
+    match event.phase {
+        PointerPhase::Down(_) => {
+            let off = !frame.ctx.preferences().canvas_touch.reaches()
+                && find(doc, event.pointer, None).is_none()
+                && on_drawing(doc, frame, event.pos);
+            if off && !held {
+                doc.pointers.kept_off.push(id);
+            }
+            off
+        }
+        PointerPhase::Up(_) | PointerPhase::Cancel | PointerPhase::Gone => {
+            doc.pointers.kept_off.retain(|kept| *kept != id);
+            held
+        }
+        _ => held,
+    }
+}
+
+fn on_drawing(doc: &mut Document, frame: &Frame, pos: Pos2) -> bool {
+    let hit = hit(doc, frame.rects, frame.root, pos, true);
+    let at = pos + hit.shift;
+    hit.path.iter().any(|id| {
+        interactive(doc, *id)
+            .zip(frame.rects.visible(id))
+            .is_some_and(|(node, rect)| node.draws_at(at, rect))
+    })
 }
 
 fn node_mut(doc: &mut Document, id: NodeId) -> Option<&mut InteractiveNode> {

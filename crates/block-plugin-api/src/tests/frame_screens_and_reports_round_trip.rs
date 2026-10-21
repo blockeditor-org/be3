@@ -62,6 +62,12 @@ fn frame_screens_and_reports_round_trip() {
             width: 120.0,
             height: 90.0,
         }],
+        drawing: vec![ChildRect {
+            x: 0.0,
+            y: 0.0,
+            width: 640.0,
+            height: 400.0,
+        }],
         claims: vec![PressClaim {
             modifiers: Modifiers {
                 logo: true,

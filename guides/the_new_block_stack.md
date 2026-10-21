@@ -1022,9 +1022,10 @@ pointer settings for every pointer with per-device overrides) to the `--session`
 seat through `beui_adapter_drm::InputControl` and to the nested Wayland clients'
 keyboard, and the display settings to the app and the seat. `DisplaySettings` is
 one block for everything about what the device shows: the theme, motion and scale,
-which `sync_ui_settings` takes from the display settings last applied (the theme and
-motion are the app's layer of beui's preferences, so an unset one follows the system's,
-guides/beui.md; the scale is beui's zoom factor, multiplied into the screen's own pixels
+which `sync_ui_settings` takes from the display settings last applied (the theme,
+motion and canvas touch are the app's layer of beui's preferences, so an unset one follows
+the system's, guides/beui.md; canvas touch, which a canvas's dock turns off, is kept on
+this device only; the scale is beui's zoom factor, multiplied into the screen's own pixels
 per point); a
 `ScreenSettings` per screen (a mode and a rotation, keyed by the monitor's EDID
 make, model and serial, or by its connector when it has no EDID), whose modes and

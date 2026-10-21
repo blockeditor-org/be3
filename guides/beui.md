@@ -1254,7 +1254,7 @@ motion are independent preferences, even for the e-paper theme.
 
 ### Preferences
 
-`Preferences` (a `ThemeKind` and a `Motion`) is what every document follows. Their types live
+`Preferences` (a `ThemeKind`, a `Motion` and a `CanvasTouch`) is what every document follows. Their types live
 in `crates/ui-types`, which the plugin protocol shares, so a plugin's preferences are the
 host's without conversion. A `Context` holds three `PreferenceLayer`s, each an `Option` per
 preference, and resolves them top down, falling back to `Preferences::default()`:
@@ -1272,7 +1272,8 @@ preference, and resolves them top down, falling back to `Preferences::default()`
   `BeuiTest::set_preferences`.
 
 Set a layer with `Context::set_preference_layer(source, layer)` and read them with
-`preference_layers()`. Each document mirrors them at the start of a frame;
+`preference_layers()`. Each document mirrors them at the start of a frame (`preferences()`, and
+`watch_theme()`, `watch_motion()` and `watch_canvas_touch()` for one each);
 `Document::watch_preference_layers()` is that, reactively, for settings that show where a value
 comes from. `styled::PreferencesSection` is a settings section over the app layer, with a
 `styled::ThemeSelect` and `styled::MotionSelect` whose first option is the value inherited from
@@ -1501,6 +1502,16 @@ not these), which is how the host hands an embedded editor's active
 child back when someone clicks elsewhere. A secondary drag stays with the node that
 took it while the pointer crosses a floating window above that node; only the
 start of one is hidden from what a floating window covers.
+
+A canvas a pen draws on is an `Interactive` with `drawing` (or `drawing_at` per
+point). While the `canvas_touch` preference is `CanvasTouch::Off`, a finger that
+lands on one reaches nothing at all: no press, drag, long press, scroll or pinch,
+for that node or any around it, until it lifts. A pen, a mouse and a touchpad
+are untouched, and so is a finger on anything the drawing surface does not
+hold, its floating chrome among them. It is a switch the person turns rather
+than palm rejection, which guesses. `Document::drawing_rects` lists the
+`drawing` rectangles, which a plugin reports to its host (`FrameReport::drawing`)
+so the host keeps the finger from the plugin, and from its own pan and zoom, too.
 
 `unstyled::Tree` makes the same split the other way round. A row is a tab stop
 with the tree's keyboard and its `TreeItem` accessibility, and nothing more:

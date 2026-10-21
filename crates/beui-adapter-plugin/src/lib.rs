@@ -295,6 +295,7 @@ fn frame_for(
         content: None,
         painted: Vec::new(),
         floating: Vec::new(),
+        drawing: Vec::new(),
         claims: Vec::new(),
         window: block_editor_plugin::WindowRequests {
             cursor: window.cursor,

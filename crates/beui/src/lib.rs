@@ -58,7 +58,7 @@ pub use beui_core::painting;
 pub use beui_core::path::{FillRule, LineCap, LineJoin, Path, PathElement, Stroke};
 pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
 pub use beui_core::preferences::{
-    PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences, ThemeKind,
+    CanvasTouch, PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences, ThemeKind,
 };
 pub use beui_core::screens::Screen;
 pub use beui_core::touch_cursor;

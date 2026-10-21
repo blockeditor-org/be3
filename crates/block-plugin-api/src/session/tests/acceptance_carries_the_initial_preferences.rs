@@ -5,6 +5,7 @@ fn acceptance_carries_the_initial_preferences() {
     let preferences = crate::Preferences {
         theme: crate::ThemeKind::EPaper,
         motion: crate::Motion::Instant,
+        canvas_touch: Default::default(),
     };
     let mut session = HostSession::new(
         "BE3",

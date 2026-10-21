@@ -101,6 +101,7 @@ pub struct Document {
     intercepted_keys: ::reactive::OwnedSignal<Vec<KeyChord>>,
     pub autoscroll: Option<crate::interact::autoscroll::Autoscroll>,
     pub(crate) press_claimants: HashSet<NodeId>,
+    pub(crate) drawing_surfaces: HashSet<NodeId>,
     pub(crate) outside_watchers: HashSet<NodeId>,
     pub forward: crate::interact::forward::Routing,
     pub pointers: crate::interact::pointer::Pointers,
@@ -158,6 +159,7 @@ pub struct Document {
     painters: NodeMap<Placing>,
     motion: ::reactive::OwnedSignal<crate::animation::Motion>,
     theme: ::reactive::OwnedSignal<crate::preferences::ThemeKind>,
+    canvas_touch: ::reactive::OwnedSignal<crate::preferences::CanvasTouch>,
     preference_layers: ::reactive::OwnedSignal<crate::preferences::PreferenceLayers>,
     out_of_bounds: Option<Vec<String>>,
     animations: Rc<Cell<usize>>,
@@ -315,6 +317,7 @@ impl Document {
             intercepted_keys: ::reactive::OwnedSignal::new(Vec::new()),
             autoscroll: None,
             press_claimants: HashSet::default(),
+            drawing_surfaces: HashSet::default(),
             outside_watchers: HashSet::default(),
             forward: Default::default(),
             pointers: Default::default(),
@@ -371,6 +374,7 @@ impl Document {
             painters: NodeMap::default(),
             motion: ::reactive::OwnedSignal::new(crate::animation::Motion::default()),
             theme: ::reactive::OwnedSignal::new(crate::preferences::ThemeKind::default()),
+            canvas_touch: ::reactive::OwnedSignal::new(Default::default()),
             preference_layers: ::reactive::OwnedSignal::new(Default::default()),
             out_of_bounds: None,
             animations: Rc::default(),
@@ -803,7 +807,12 @@ impl Document {
         crate::preferences::Preferences {
             theme: self.theme.get_untracked(),
             motion: self.motion.get_untracked(),
+            canvas_touch: self.canvas_touch.get_untracked(),
         }
+    }
+
+    pub fn watch_canvas_touch(&self) -> ::reactive::ReadSignal<crate::preferences::CanvasTouch> {
+        self.canvas_touch.read_only()
     }
 
     pub fn watch_theme(&self) -> ::reactive::ReadSignal<crate::preferences::ThemeKind> {
@@ -829,6 +838,9 @@ impl Document {
             }
             if document.theme.get_untracked() != preferences.theme {
                 document.theme.set(preferences.theme);
+            }
+            if document.canvas_touch.get_untracked() != preferences.canvas_touch {
+                document.canvas_touch.set(preferences.canvas_touch);
             }
         });
     }
@@ -1032,6 +1044,7 @@ impl Document {
         self.placed_children.remove(&id);
         self.placed_pass.remove(&id);
         self.press_claimants.remove(&id);
+        self.drawing_surfaces.remove(&id);
         self.outside_watchers.remove(&id);
         self.reached_pass.remove(&id);
         self.reveals.remove(&id);

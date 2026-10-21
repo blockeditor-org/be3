@@ -507,6 +507,9 @@ pub(crate) fn PluginRegion(
     let claims = move |(position, held): (Pos2, beui::Modifiers)| {
         !passive.get_untracked() && state.with_untracked(|view| view.claims(position, held))
     };
+    let pen_surface = move |position: Pos2| {
+        !passive.get_untracked() && state.with_untracked(|view| view.draws(position))
+    };
     view! {
         <DropTarget on_over={over} on_drop={dropped}>|_: DropHandle|
             <Layers>
@@ -525,6 +528,7 @@ pub(crate) fn PluginRegion(
                         on_forward={forward}
                         hit_at={takes}
                         claim_at={claims}
+                        drawing_at={pen_surface}
                         on_press_outside={pressed_outside}
                         on_focus_change={move |focused: bool| {
                             if focused {

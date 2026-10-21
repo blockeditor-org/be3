@@ -206,6 +206,7 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
         runner.reports().system_preferences(PreferenceLayer {
             theme: Some(ThemeKind::EPaper),
             motion: Some(Motion::Instant),
+            canvas_touch: None,
         });
     }
     let input = InputConfig::default();

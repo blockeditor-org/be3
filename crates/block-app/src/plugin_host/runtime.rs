@@ -1937,6 +1937,7 @@ pub(crate) struct RegionView {
     pub(crate) base: Vec<Piece>,
     pub(crate) floating: Vec<Piece>,
     pub(crate) floating_rects: Vec<Rect>,
+    pub(crate) drawing: Vec<Rect>,
     pub(crate) claims: Vec<(beui::Modifiers, Rect)>,
     pub(crate) held: Option<Rect>,
     pub(crate) drawn: Option<(u32, u32)>,
@@ -1961,6 +1962,7 @@ impl RegionView {
             base: Vec::new(),
             floating: Vec::new(),
             floating_rects: Vec::new(),
+            drawing: Vec::new(),
             claims: Vec::new(),
             held: None,
             drawn: None,
@@ -1988,6 +1990,16 @@ impl RegionView {
         self.claims.iter().any(|(claimed, rect)| {
             claimed.any() && held.holds(*claimed) && rect.contains_half_open(position)
         })
+    }
+
+    pub(crate) fn draws(&self, position: Pos2) -> bool {
+        self.drawing
+            .iter()
+            .any(|rect| rect.contains_half_open(position))
+            && !self
+                .floating_rects
+                .iter()
+                .any(|rect| rect.contains_half_open(position))
     }
 
     pub(crate) fn takes(&self, local: Pos2) -> bool {
@@ -2128,6 +2140,21 @@ fn placed_view(
                     .collect()
             })
             .unwrap_or_default();
+        let drawing = report
+            .map(|report| {
+                report
+                    .drawing
+                    .iter()
+                    .map(|drawing| {
+                        Rect::from_min_size(
+                            pos2(drawing.x, drawing.y) + rect.min.to_vec2(),
+                            vec2(drawing.width, drawing.height),
+                        )
+                        .intersect(visible)
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
         let intercepted_keys = window
             .iter()
             .flat_map(|window| window.intercepted_keys.iter().copied())
@@ -2158,6 +2185,7 @@ fn placed_view(
             base,
             floating,
             floating_rects,
+            drawing,
             claims,
             held: held.map(|held| held.rect),
             drawn: held.map(|held| held.drawn),
