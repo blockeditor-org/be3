@@ -1066,6 +1066,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativePen<'local>(
     _env: EnvUnowned<'local>,
     _: JClass<'local>,
     phase: jint,
+    button: jint,
     x: jfloat,
     y: jfloat,
     pressure: jfloat,
@@ -1073,10 +1074,14 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativePen<'local>(
     tilt_y: jfloat,
     eraser: jboolean,
 ) {
+    let button = match button {
+        1 => PointerButton::Secondary,
+        _ => PointerButton::Primary,
+    };
     let phase = match phase {
         0 => PenPhase::Move,
-        1 => PenPhase::Down(PointerButton::Primary),
-        2 => PenPhase::Up(PointerButton::Primary),
+        1 => PenPhase::Down(button),
+        2 => PenPhase::Up(button),
         3 => PenPhase::Gone,
         _ => return,
     };

@@ -31,6 +31,9 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     private static final int PEN_DOWN = 1;
     private static final int PEN_UP = 2;
     private static final int PEN_GONE = 3;
+    private static final int PEN_TIP = 0;
+    private static final int PEN_BARREL = 1;
+    private static int penButton = PEN_TIP;
 
     private final InputMethodManager input;
     private boolean keyboard;
@@ -156,8 +159,13 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
         double orientation = event.getAxisValue(MotionEvent.AXIS_ORIENTATION, index);
         float tiltX = (float) Math.toDegrees(Math.atan(Math.sin(-orientation) * Math.tan(tilt)));
         float tiltY = (float) Math.toDegrees(Math.atan(Math.cos(-orientation) * Math.tan(tilt)));
-        nativePen(phase, event.getX(index), event.getY(index), event.getPressure(index), tiltX,
-                tiltY, event.getToolType(index) == MotionEvent.TOOL_TYPE_ERASER);
+        if (phase == PEN_DOWN) {
+            boolean barrel = (event.getButtonState() & MotionEvent.BUTTON_STYLUS_PRIMARY) != 0;
+            penButton = barrel ? PEN_BARREL : PEN_TIP;
+        }
+        nativePen(phase, penButton, event.getX(index), event.getY(index),
+                event.getPressure(index), tiltX, tiltY,
+                event.getToolType(index) == MotionEvent.TOOL_TYPE_ERASER);
     }
 
     @Override
@@ -345,8 +353,8 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
     private static native void nativeTouch(int device, int id, int phase, float x, float y,
             float pressure);
 
-    private static native void nativePen(int phase, float x, float y, float pressure, float tiltX,
-            float tiltY, boolean eraser);
+    private static native void nativePen(int phase, int button, float x, float y, float pressure,
+            float tiltX, float tiltY, boolean eraser);
 
     private static native void nativeScroll(float x, float y);
 
