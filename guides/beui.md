@@ -2038,8 +2038,9 @@ with two fingers pans, and Ctrl+scroll, a trackpad pinch or a two-finger pinch
 zooms around the pointer or the point between the fingers. It is a tab stop as
 well: the arrows pan it, `+` and `-` zoom around the middle of the viewport,
 and `0` returns the scale to one. The handle carries the camera as a
-`CanvasView` ready for a `<Canvas>`, the `scale` for content that should grow
-with the zoom, whether a pan is in progress, and whether it has focus, which is
+`CanvasView` ready for a `<Canvas>`, the `scale` for interactive content that should grow
+with the zoom (content that only draws is a `CanvasItem scales=true` instead,
+guides/pan_and_zoom.md), whether a pan is in progress, and whether it has focus, which is
 what a caller paints a focus ring from. Because the view is the caller's, a toolbar button, a fit command or
 a host that syncs several editors writes the same signal the gestures do; the
 camera a plugin editor is handed (guides/pan_and_zoom.md) reaches a beui editor

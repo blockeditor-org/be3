@@ -39,8 +39,8 @@ What holds it back:
   (`beui-core/src/painter.rs`). There are no paths, so no ellipses, curves,
   clean joins or filled freehand: a pen stroke is line segments with a dot at
   each joint (`paint.rs::stroke`).
-- The camera is applied while painting (`Camera::at`), so every pan or zoom
-  frame repaints every entity.
+- Text entities are text fields shaped at the camera's scale, so every zoom
+  frame lays them out and paints them again; shapes are scaled by the renderer.
 - `CanvasEntityKind` is a closed variant per tool. Lines have two ends and bind
   to nothing, text cannot sit in a shape, `style` is saved as one value (two
   peers changing colour and width at once lose one change), and freehand
