@@ -28,7 +28,9 @@ fn a_keyed_row_kept_across_a_rerun_still_reads_context() {
     assert_eq!(*seen.borrow(), [Some(Theme(7))]);
 
     keys.set(vec![1, 2]);
+    flush();
     poke.set(1);
+    flush();
     assert_eq!(
         *seen.borrow(),
         [

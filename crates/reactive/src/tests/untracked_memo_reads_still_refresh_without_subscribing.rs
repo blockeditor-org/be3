@@ -16,6 +16,8 @@ fn untracked_memo_reads_still_refresh_without_subscribing() {
         });
     });
     value.set(2);
+    flush();
     trigger.set(1);
+    flush();
     assert_eq!(*seen.borrow(), [2, 4]);
 }

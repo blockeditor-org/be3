@@ -2,7 +2,6 @@ use foldhash::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::hash::Hash;
 
-use crate::runtime::batch;
 use crate::scope::Scope;
 use crate::signal::{Get, OwnedSignal, ReadSignal, Signal};
 use crate::stored::{OwnedStored, Stored, store};
@@ -129,25 +128,21 @@ impl<K: Clone + Eq + Hash + 'static, V: Clone + PartialEq + 'static> KeyedStore<
     where
         V: 'a,
     {
-        batch(|| {
-            let mut keys = Vec::new();
-            for (key, value) in items {
-                self.write(&key, value);
-                keys.push(key);
-            }
-            self.set_keys(keys);
-        });
+        let mut keys = Vec::new();
+        for (key, value) in items {
+            self.write(&key, value);
+            keys.push(key);
+        }
+        self.set_keys(keys);
     }
 
     pub fn reconcile_owned(&self, items: impl IntoIterator<Item = (K, V)>) {
-        batch(|| {
-            let mut keys = Vec::new();
-            for (key, value) in items {
-                self.write(&key, &value);
-                keys.push(key);
-            }
-            self.set_keys(keys);
-        });
+        let mut keys = Vec::new();
+        for (key, value) in items {
+            self.write(&key, &value);
+            keys.push(key);
+        }
+        self.set_keys(keys);
     }
 
     fn write(&self, key: &K, value: &V) {

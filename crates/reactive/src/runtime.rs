@@ -20,6 +20,8 @@ pub(crate) struct Runtime {
     pub(crate) zone: Cell<u64>,
     pub(crate) parked: RefCell<Vec<(u64, Vec<Weak<Computation>>)>>,
     pub(crate) wakes: RefCell<Vec<(u64, Wake)>>,
+    pub(crate) waker: RefCell<Option<Wake>>,
+    pub(crate) woken: Cell<bool>,
     pub(crate) sequence: Cell<u64>,
     pub(crate) flushes: Cell<u64>,
     pub(crate) removals: Cell<u64>,
@@ -41,6 +43,8 @@ impl Runtime {
             zone: Cell::new(0),
             parked: RefCell::new(Vec::new()),
             wakes: RefCell::new(Vec::new()),
+            waker: RefCell::new(None),
+            woken: Cell::new(false),
             sequence: Cell::new(0),
             flushes: Cell::new(0),
             removals: Cell::new(0),
@@ -212,7 +216,7 @@ pub(crate) fn probe<T>(memo: bool, f: impl FnOnce() -> T) -> Probed<T> {
             false => 0,
         },
     );
-    batch(|| {
+    defer(|| {
         let _context = Context::enter(no_computation(), Weak::new());
         let _body = leave_component_body();
         RUNTIME.with(|runtime| {
@@ -258,13 +262,44 @@ pub(crate) fn tracking() -> bool {
     })
 }
 
-pub fn batch<T>(f: impl FnOnce() -> T) -> T {
-    let depth = RUNTIME.with(|runtime| runtime.depth.get());
-    let guard = Reset::set(|runtime| &runtime.depth, depth + 1);
-    let result = f();
-    drop(guard);
-    flush();
+pub(crate) fn batch<T>(f: impl FnOnce() -> T) -> T {
+    let result = nested(f);
+    settle();
     result
+}
+
+pub(crate) fn defer<T>(f: impl FnOnce() -> T) -> T {
+    let result = nested(f);
+    wake_if_pending();
+    result
+}
+
+fn nested<T>(f: impl FnOnce() -> T) -> T {
+    let depth = RUNTIME.with(|runtime| runtime.depth.get());
+    let _depth = Reset::set(|runtime| &runtime.depth, depth + 1);
+    f()
+}
+
+pub fn wake_with(wake: impl Fn() + 'static) {
+    RUNTIME.with(|runtime| runtime.waker.replace(Some(Rc::new(wake))));
+}
+
+pub(crate) fn wake_if_pending() {
+    let wake = RUNTIME.with(|runtime| {
+        if runtime.depth.get() != 0
+            || runtime.flushing.get()
+            || runtime.woken.get()
+            || runtime.queue.borrow().is_empty()
+        {
+            return None;
+        }
+        let wake = runtime.waker.borrow().clone()?;
+        runtime.woken.set(true);
+        Some(wake)
+    });
+    if let Some(wake) = wake {
+        wake();
+    }
 }
 
 pub(crate) fn next_sequence() -> u64 {
@@ -284,14 +319,22 @@ pub(crate) fn enqueue(computation: &Rc<Computation>) {
                 .borrow_mut()
                 .push_back(Rc::downgrade(computation))
         });
+        wake_if_pending();
     }
 }
 
-pub(crate) fn flush() {
-    if RUNTIME.with(|runtime| runtime.depth.get() != 0 || runtime.flushing.get()) {
+pub(crate) fn settle() {
+    if RUNTIME.with(|runtime| runtime.depth.get() == 0) {
+        flush();
+    }
+}
+
+pub fn flush() {
+    if RUNTIME.with(|runtime| runtime.flushing.get()) {
         return;
     }
     let _guard = Reset::set(|runtime| &runtime.flushing, true);
+    RUNTIME.with(|runtime| runtime.woken.set(false));
     let flush = next_flush();
     loop {
         let next = RUNTIME.with(|runtime| {
@@ -399,7 +442,7 @@ fn run_parked(zone: u64) {
     let parked = RUNTIME.with(|runtime| runtime.take_parked(zone));
     if let Some(parked) = parked {
         RUNTIME.with(|runtime| runtime.queue.borrow_mut().extend(parked));
-        flush();
+        settle();
     }
 }
 

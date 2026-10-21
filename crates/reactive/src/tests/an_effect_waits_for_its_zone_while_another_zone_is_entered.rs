@@ -19,6 +19,7 @@ fn an_effect_waits_for_its_zone_while_another_zone_is_entered() {
     {
         let _zone = enter_zone(8);
         count.set(1);
+        flush();
         assert_eq!(*seen.borrow(), vec![0]);
     }
     assert!(zone_pending(7));

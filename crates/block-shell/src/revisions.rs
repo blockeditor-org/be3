@@ -185,19 +185,19 @@ impl RevisionHistory {
             if *generation == state.generation.get() && *request == state.latest_list.get() {
                 self.loading.set(false);
                 match result {
-                    Ok(entries) => batch(|| {
+                    Ok(entries) => {
                         self.entries.set(entries);
                         self.listed
                             .set(self.target.get_untracked().map(|item| item.id));
-                    }),
-                    Err(error) => batch(|| {
+                    }
+                    Err(error) => {
                         let target = self.target.get_untracked().map(|item| item.id);
                         if self.listed.get_untracked() != target {
                             self.entries.set(Vec::new());
                             self.listed.set(None);
                         }
                         self.error.set(Some(error));
-                    }),
+                    }
                 }
             }
             false

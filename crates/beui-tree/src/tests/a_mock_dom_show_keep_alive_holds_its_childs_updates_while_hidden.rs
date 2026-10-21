@@ -24,6 +24,7 @@ fn a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden() {
     assert_eq!(runs.with(Cell::get), 1);
 
     open.set(false);
+    flush();
     for next in 1..=5 {
         note.set(next);
     }
@@ -34,6 +35,7 @@ fn a_mock_dom_show_keep_alive_holds_its_childs_updates_while_hidden() {
     );
 
     open.set(true);
+    flush();
     assert_eq!(runs.with(Cell::get), 2, "showing it again catches up once");
     assert_eq!(page.html(), "<div id=0><p id=1>5</p></div>");
 }

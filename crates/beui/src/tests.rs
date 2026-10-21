@@ -1129,6 +1129,7 @@ impl Harness {
     }
 
     pub(crate) fn accessible(&self) -> Vec<accesskit::Node> {
+        ::reactive::flush();
         self.document
             .accessibility_view()
             .map(|view| view.nodes().cloned().collect())
@@ -1136,6 +1137,7 @@ impl Harness {
     }
 
     pub(crate) fn document(&self) -> &Document {
+        ::reactive::flush();
         &self.document
     }
 
@@ -1144,16 +1146,19 @@ impl Harness {
     }
 
     pub(crate) fn document_mut(&mut self) -> &mut Document {
+        ::reactive::flush();
         &mut self.document
     }
 
     pub(crate) fn rect(&self, id: impl Into<NodeId>) -> Rect {
+        ::reactive::flush();
         self.document
             .node_rect(id)
             .expect("the node was not laid out")
     }
 
     pub(crate) fn find(&self, test_id: &str) -> NodeId {
+        ::reactive::flush();
         self.document
             .find_test_id(test_id)
             .unwrap_or_else(|| panic!("no node with test id {test_id:?}"))
@@ -1164,12 +1169,14 @@ impl Harness {
     }
 
     pub(crate) fn inspector_open(&self) -> bool {
+        ::reactive::flush();
         self.document
             .tools::<InspectorTools>()
             .is_some_and(|tools| tools.inspector.is_some())
     }
 
     pub(crate) fn inspector(&self) -> &Inspector {
+        ::reactive::flush();
         self.document
             .tools::<InspectorTools>()
             .and_then(|tools| tools.inspector.as_deref())

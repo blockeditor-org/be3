@@ -8,7 +8,9 @@ fn RetainedPair(
     disposed: Rc<Cell<usize>>,
 ) -> Children<DomNode> {
     builds.set(builds.get() + 1);
+    flush();
     on_cleanup(move || disposed.set(disposed.get() + 1));
+    flush();
     view! {
         <Element tag="p" text={label} />
         <Show condition={tail}>
@@ -43,17 +45,22 @@ fn show_keep_alive_retains_multiple_children_and_pauses_nested_updates() {
     });
     assert_eq!(builds.get(), 0);
     shown.set(true);
+    flush();
     assert_eq!(builds.get(), 1);
     assert_eq!(page.0.children.borrow().len(), 4);
     let first = page.html();
     let retained = page.0.children.borrow().iter().nth(1).unwrap().clone();
     shown.set(false);
+    flush();
     assert_eq!(disposed.get(), 0);
     assert_eq!(page.0.children.borrow().len(), 2);
     label.set("two".to_string());
+    flush();
     tail.set(true);
+    flush();
     assert_eq!(page.0.children.borrow().len(), 2);
     shown.set(true);
+    flush();
     assert_eq!(builds.get(), 1);
     assert_eq!(page.0.children.borrow().len(), 5);
     let updated = page.html();
@@ -67,9 +74,12 @@ fn show_keep_alive_retains_multiple_children_and_pauses_nested_updates() {
     assert!(updated.find("tail").unwrap() < updated.find("sibling").unwrap());
     assert!(updated.find("sibling").unwrap() < updated.find("after").unwrap());
     tail.set(false);
+    flush();
     label.set("one".to_string());
+    flush();
     assert_eq!(page.html(), first);
     shown.set(false);
+    flush();
     drop(scope);
     assert_eq!(disposed.get(), 1);
 }

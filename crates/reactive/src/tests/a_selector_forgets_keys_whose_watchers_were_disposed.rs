@@ -20,11 +20,14 @@ fn a_selector_forgets_keys_whose_watchers_were_disposed() {
     });
     assert_eq!(selector.watched_keys(), 3);
     watch_left.set(false);
+    flush();
     assert_eq!(selector.watched_keys(), 4);
     watch_left.set(true);
+    flush();
     assert_eq!(selector.watched_keys(), 3);
     rows.dispose();
     assert_eq!(selector.watched_keys(), 0);
     selected.set(1);
+    flush();
     assert_eq!(selector.watched_keys(), 0);
 }

@@ -26,6 +26,7 @@ fn the_write_that_pauses_a_scope_still_reaches_its_effects() {
     assert_eq!(*seen.borrow(), vec![true]);
 
     open.set(false);
+    flush();
     assert_eq!(
         *seen.borrow(),
         vec![true, false],

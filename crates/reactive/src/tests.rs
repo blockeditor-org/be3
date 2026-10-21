@@ -3,9 +3,8 @@ use std::panic::{AssertUnwindSafe, catch_unwind};
 use std::rc::Rc;
 
 use crate::{
-    Get, KeyedItems, OwnedKeyedStore, OwnedStored, RootScope, Scope, Set, Store, batch,
-    create_effect, create_memo, create_selector, create_signal, on_cleanup, owner_scope, store,
-    untrack,
+    Get, KeyedItems, OwnedKeyedStore, OwnedStored, RootScope, Scope, Set, Store, create_effect,
+    create_memo, create_selector, create_signal, flush, on_cleanup, owner_scope, store, untrack,
 };
 
 mod a_binding_inside_an_effect_tracks_for_itself;
@@ -36,6 +35,7 @@ mod a_selector_memo_tracks_one_key_without_watching_the_source;
 mod a_selector_only_reruns_the_keys_that_gained_or_lost_selection;
 mod a_store_wakes_only_the_field_that_changed;
 mod a_stored_value_is_shared_by_its_copies_and_freed_with_its_scope;
+mod a_write_outside_an_entry_wakes_the_host_once;
 mod a_zone_is_woken_once_when_its_first_effect_waits;
 mod all_cleanups_run_even_when_one_panics;
 mod an_effect_keeps_its_zone_for_the_effects_it_creates;
@@ -60,20 +60,20 @@ mod flushing_a_scope_runs_only_the_effects_it_owns;
 mod memo_panic_can_be_retried;
 mod memo_writes_are_rejected_even_when_untracked;
 mod memos_are_lazy_cached_and_filter_equal_outputs;
-mod nested_batches_defer_effects_but_memo_reads_are_current;
 mod nested_effects_are_disposed_before_parent_reruns;
 mod non_clone_values_can_be_read_and_updated;
 mod opening_a_child_scope_outside_any_scope_panics;
-mod panic_restores_tracking_and_batching;
+mod panic_restores_tracking_and_deferral;
 mod panicking_update_still_invalidates_mutated_value;
 mod reconciling_an_unchanged_list_wakes_nothing;
 mod reordering_a_keyed_store_keeps_the_item_signals;
 mod repeated_reads_only_subscribe_once;
 mod runaway_effects_are_stopped_and_scheduler_remains_usable;
 mod scopes_dispose_effects_and_run_cleanup_once;
-mod selector_reads_are_current_inside_a_batch;
+mod selector_reads_are_current_before_a_flush;
 mod signals_track_changes_and_skip_equal_sets;
 mod the_nearest_context_shadows_the_ones_above_it;
 mod the_write_that_pauses_a_scope_still_reaches_its_effects;
 mod untracked_memo_reads_still_refresh_without_subscribing;
 mod untracked_reads_do_not_subscribe;
+mod writes_defer_effects_until_a_flush_but_memo_reads_are_current;

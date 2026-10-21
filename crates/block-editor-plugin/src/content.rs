@@ -8,7 +8,7 @@ use std::{
 use be_block::be_model::{Document, Field, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
 use reactive::{
-    Get, KeyedStore, OwnedSignal, OwnedStored, Pending, ReadSignal, Ready, Set, Stored, batch,
+    Get, KeyedStore, OwnedSignal, OwnedStored, Pending, ReadSignal, Ready, Set, Stored,
     create_signal, on_cleanup,
 };
 
@@ -224,11 +224,9 @@ impl<C: LiveEdit + Clone + Default> Projection<C> {
             return;
         }
         let runs = self.watchers.borrow().touched_by(&touched);
-        batch(|| {
-            for run in runs {
-                run(&self.visible.borrow(), &touched);
-            }
-        });
+        for run in runs {
+            run(&self.visible.borrow(), &touched);
+        }
     }
 
     fn adopt_lazily(&self) {

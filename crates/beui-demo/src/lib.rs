@@ -500,7 +500,7 @@ impl Pages {
             return;
         }
         let shown = self.active().filter(|_| !beside);
-        batch(|| match shown {
+        match shown {
             Some(shown) if self.layout.replace(&shown.tab(), page.tab()) => {
                 self.dialogs.close_from(shown.tab());
                 self.open.update(|open| {
@@ -510,21 +510,17 @@ impl Pages {
                 });
             }
             _ => self.open.update(|open| open.push(page)),
-        });
+        }
     }
 
     fn close(&self, page: Page) {
-        batch(|| {
-            self.dialogs.close_from(page.tab());
-            self.open.update(|open| open.retain(|other| *other != page));
-        });
+        self.dialogs.close_from(page.tab());
+        self.open.update(|open| open.retain(|other| *other != page));
     }
 
     fn reset(&self) {
-        batch(|| {
-            self.open.set(vec![Page::Docking]);
-            self.layout.reset();
-        });
+        self.open.set(vec![Page::Docking]);
+        self.layout.reset();
     }
 
     fn active(&self) -> Option<Page> {

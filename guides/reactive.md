@@ -27,7 +27,7 @@ Keep the scope alive for as long as the view exists. Dropping it or calling
 `scope.dispose()` stops its computations, runs their cleanup callbacks, and
 frees the signals and memos created in it.
 Run `./scripts/buck run //crates/reactive:example-retained` for a complete example that
-updates retained state and batches changes around a mutable borrow.
+updates retained state while it holds a mutable borrow, then flushes.
 
 ## Signals and memos
 
@@ -68,7 +68,7 @@ it keeps its value and no computation at all. Memos expose the
 same reading methods as signals, are `Copy` the same way, and are freed with
 their scope. A changed dependency invalidates downstream
 computations, but equal memo outputs suppress downstream execution. Reading a
-memo inside a batch returns its current value. Dependency chains and diamonds
+memo whose effects have not run yet returns its current value. Dependency chains and diamonds
 refresh before effects observe them, preventing intermediate derived values.
 
 Dependencies are discovered on each execution. Conditional branches unsubscribe
@@ -98,7 +98,7 @@ its signals one of three ways:
   `let _root = RootScope::new();`. A constructor that creates many signals
   starts the same way and ends with `owner.into_scope()`, which stops it being
   current and returns the `Scope` for the struct to keep. Unlike `Scope::run`,
-  it neither batches nor flushes. Drop or hand back a `RootScope` in the block
+  it is not an entry: it flushes nothing when dropped. Drop or hand back a `RootScope` in the block
   that made it.
 - `Scope::run` creates them in an existing scope.
 
@@ -180,8 +180,8 @@ want a value rather than a call. Keys need `Clone + Eq + Hash`, and the source's
 own value is its key type, so an optional selection is a `Selector<Option<K>>`
 queried with `is_selected(&Some(key))`.
 
-Reads are current the moment they happen, including inside a batch that has not
-flushed yet, and a key is forgotten once the last computation watching it is
+Reads are current the moment they happen, including before the effects of a
+write have run, and a key is forgotten once the last computation watching it is
 disposed or stops reading it. Like memos, a selector must be created inside a
 scope, and its per-key notifications stop when that scope is disposed.
 
@@ -376,21 +376,37 @@ seeding a child block - never acts on data that has not arrived. That makes
 the split matter: an effect that makes a source the view waits for, such as
 one that watches another query when an id changes, is a `create_binding`.
 
-## Effects, batches, and ownership
+## Effects, entries, and ownership
 
 Create signals, memos, effects, and cleanup callbacks inside `Scope::run` or
-another computation. `create_effect(|| ...)` schedules an initial execution, then runs
-again when its tracked inputs change. Effects run synchronously before a write
-returns, except inside `batch` or `Scope::run`, which flush when their outermost
-batch finishes. Multiple writes coalesce into one pending execution. Effects
-created inside effects run after their parent finishes.
+another computation. `create_effect(|| ...)` queues an initial execution, then runs
+again when its tracked inputs change.
+
+A write never runs effects itself. The value changes at once, so a read right
+after it, of the signal or of a memo over it, sees the new value; the effects
+it wakes are queued. Queued effects run in exactly three places: when the
+outermost `Scope::run` or `ScopeContext::run` ends, when a frame begins or
+ends, and at `flush()`. Every event, timer, accessibility action and frame
+step beui handles runs inside a `ScopeContext::run`, so its effects run once
+at its end. Nothing else runs them: creating an effect or a binding, reading
+a memo, disposing a scope and resuming a paused one all leave them queued.
+(Effects parked for a zone are the one addition: they run when that zone is
+entered, see "Zones".) Whenever effects are left queued outside any entry, from
+a write in a future or a callback the host runs, or from creating an effect,
+the runtime calls the waker registered with `wake_with(wake)`, once until the
+next flush, so a burst of them asks for one frame; beui's `Context::set_waker`
+registers it. `flush()` runs everything queued there and then, for the rare
+caller that needs effects to have run, such as a test that writes and then
+checks what an effect did; it does nothing inside an effect, whose flush is
+already running. Multiple writes coalesce into one pending
+execution. Effects created inside effects run after their parent finishes.
 
 An effect that finishes its first execution without reading a signal, opening a
 scope, or registering a cleanup can never run again, so it is disposed right
 there and releases whatever its closure captured.
 
 `create_binding(|| ...)` is an effect whose first execution happens at once,
-before the batch around it ends, the way a memo's does. If that execution read
+before the entry around it ends, the way a memo's does. If that execution read
 nothing and left nothing to clean up, no computation is made at all; otherwise
 it reruns like an effect. Bind a property of a node that already exists with
 it, as the base components do with their props: most props are plain values,
@@ -446,8 +462,8 @@ tracking reads. All cleanup callbacks are attempted even if one panics; the firs
 panic is propagated unless disposal is already unwinding.
 
 Tracking, ownership, and scheduler state are restored when user code panics.
-A batch that panics does not flush effects while unwinding; pending work runs at
-the next successful outer batch or write. A panicking `update` invalidates its
+A `Scope::run` that panics does not flush effects while unwinding; pending work
+runs at the next flush. A panicking `update` invalidates its
 value because it may already have mutated it. There is no transaction rollback.
 
 ## Zones
@@ -457,9 +473,9 @@ no zone is entered, zone 0 is. An effect remembers the zone that was entered
 when it was created, and the effects it creates inherit it. An effect woken by
 a write runs only while its own zone is entered; otherwise it is parked, and it
 runs when its zone is next entered or returned to as an inner zone's guard
-drops. So an effect made outside every zone runs at once when written outside
-every zone, as plain reactive code expects, but never in the middle of a
-document's frame: it waits until the document's zone is left. `zone_pending(zone)`
+drops. So an effect made outside every zone runs at the next flush outside every
+zone, but never in the middle of a document's frame: it waits until the
+document's zone is left. `zone_pending(zone)`
 says whether a zone has parked effects, and `forget_zone(zone)` drops them.
 `wake_zone_with(zone, wake)` registers a callback that runs when a zone with
 nothing parked parks its first effect, so a burst of writes wakes it once.
@@ -480,8 +496,8 @@ runs them itself.
 `Scope::detached().pausable()` (or `Scope::new().pausable()`, before anything
 is created in it) is a scope that can be paused. While `pause()` holds, an
 effect created under it that is woken waits instead of running, and
-`resume()` runs each one that waited once, with the values as they are by
-then. Memos are not paused, but they only compute when read, so a memo only
+`resume()` queues each one that waited to run once at the next flush, with the
+values as they are by then. Memos are not paused, but they only compute when read, so a memo only
 paused effects read waits with them. An effect already woken when the scope
 pauses still runs, so the write that hides a subtree reaches it: an overlay
 inside closes rather than staying open. A scope inside a paused scope waits
@@ -493,7 +509,7 @@ content in.
 ## beui integration
 
 `beui::reactive` (re-exporting `create_signal`, `create_effect`, `create_binding`, `create_memo`,
-`create_selector`, `store`, `Scope`, `batch`, `untrack`, `on_cleanup`,
+`create_selector`, `store`, `Scope`, `flush`, `untrack`, `on_cleanup`,
 `provide_context`, and `use_context` from this crate) binds signals and
 memos directly to `Document` nodes. Nothing in a view takes a `&mut Document`
 parameter, so tags nest the way JSX or solidjs would nest them: write the tree
@@ -1092,8 +1108,8 @@ document (and enters its scope, so a `Prop` bound to a signal can create its
 effect) for the duration of the tree-building closure. `Document::show` installs
 itself for each event it dispatches and flushes the effects that event queued
 before the next one, outside any walk, so a signal write from a click handler
-is visible in the same frame and to the events after it. A write inside a
-batch is seen by effects when the outermost batch ends, with one exception:
+is visible in the same frame and to the events after it. A write inside an
+entry is seen by effects when the outermost entry ends, with one exception:
 `ScopeContext::flush_owned` (and `Scope::flush_owned`) runs, there and then,
 the queued effects owned by that scope and the scopes under it, and leaves
 every other effect queued. `KeyedItems::entry_owned` builds an entry and
@@ -1114,5 +1130,5 @@ closures with no document parameter, so they call ambient functions like any
 other code. Keep those calls at the leaves: a component should read and write
 node properties through props on base elements, and reach for `with_document`
 only inside a base element or to look up its own component state. Effects always
-run after the batch that queued them has released its borrow, so ambient calls
+run after the entry that queued them has released its borrow, so ambient calls
 inside an effect body nest safely too.

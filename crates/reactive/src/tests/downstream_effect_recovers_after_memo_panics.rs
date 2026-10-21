@@ -15,7 +15,9 @@ fn downstream_effect_recovers_after_memo_panics() {
         let seen = seen.clone();
         create_effect(move || seen.borrow_mut().push(memo.get()));
     });
-    assert!(catch_unwind(AssertUnwindSafe(|| value.set(1))).is_err());
+    value.set(1);
+    assert!(catch_unwind(AssertUnwindSafe(flush)).is_err());
     value.set(2);
+    flush();
     assert_eq!(*seen.borrow(), [0, 4]);
 }

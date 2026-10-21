@@ -25,8 +25,11 @@ fn a_zone_is_woken_once_when_its_first_effect_waits() {
     });
 
     count.set(1);
+    flush();
     other.set(1);
+    flush();
     count.set(2);
+    flush();
     assert_eq!(woken.get(), 1);
     assert_eq!(seen.get(), 0);
 
@@ -34,11 +37,13 @@ fn a_zone_is_woken_once_when_its_first_effect_waits() {
         let _zone = enter_zone(11);
         assert_eq!(seen.get(), 2);
         count.set(3);
+        flush();
         assert_eq!(seen.get(), 3);
     }
     assert_eq!(woken.get(), 1);
 
     count.set(4);
+    flush();
     assert_eq!(woken.get(), 2);
 
     forget_zone(11);
@@ -47,5 +52,6 @@ fn a_zone_is_woken_once_when_its_first_effect_waits() {
         assert_eq!(seen.get(), 3);
     }
     count.set(5);
+    flush();
     assert_eq!(woken.get(), 2);
 }

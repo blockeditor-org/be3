@@ -17,8 +17,8 @@ pub use loading::{Boundary, Pending, Ready, hold, wait_for, wait_while};
 pub use memo::{Memo, create_memo};
 pub use reactive_macros::Store;
 pub use runtime::{
-    ZoneGuard, batch, check_tracked_read, component_body, enter_zone, forget_zone, untrack,
-    wake_zone_with, zone_pending,
+    ZoneGuard, check_tracked_read, component_body, enter_zone, flush, forget_zone, untrack,
+    wake_with, wake_zone_with, zone_pending,
 };
 pub use scope::{
     Release, RootScope, Scope, ScopeContext, child_scope, current_scope, on_cleanup, on_release,

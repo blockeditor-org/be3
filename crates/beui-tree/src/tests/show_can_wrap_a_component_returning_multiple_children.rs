@@ -3,6 +3,7 @@ use super::*;
 #[component]
 fn Pair(label: Prop<String>, tail: Prop<bool>, disposed: Rc<Cell<usize>>) -> Children<DomNode> {
     on_cleanup(move || disposed.set(disposed.get() + 1));
+    flush();
     view! {
         <Element tag="p" text={label} />
         <Show condition={tail}>
@@ -34,19 +35,25 @@ fn show_can_wrap_a_component_returning_multiple_children() {
     });
     assert_eq!(page.0.children.borrow().len(), 2);
     shown.set(true);
+    flush();
     assert_eq!(page.0.children.borrow().len(), 3);
     tail.set(true);
+    flush();
     label.set("two".to_string());
+    flush();
     assert_eq!(page.0.children.borrow().len(), 4);
     let html = page.html();
     assert!(html.find("before").unwrap() < html.find("two").unwrap());
     assert!(html.find("two").unwrap() < html.find("tail").unwrap());
     assert!(html.find("tail").unwrap() < html.find("after").unwrap());
     shown.set(false);
+    flush();
     assert_eq!(disposed.get(), 1);
     assert_eq!(page.0.children.borrow().len(), 2);
     tail.set(false);
+    flush();
     shown.set(true);
+    flush();
     assert_eq!(page.0.children.borrow().len(), 3);
     drop(scope);
     assert_eq!(disposed.get(), 2);

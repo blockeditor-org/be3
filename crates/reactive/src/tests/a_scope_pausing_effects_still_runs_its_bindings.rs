@@ -19,9 +19,11 @@ fn a_scope_pausing_effects_still_runs_its_bindings() {
     });
 
     count.set(1);
+    flush();
     assert_eq!(bound.get(), 1);
     assert_eq!(effected.get(), 0);
 
     scope.resume();
+    flush();
     assert_eq!(effected.get(), 101);
 }

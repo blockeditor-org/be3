@@ -24,12 +24,16 @@ fn a_selector_memo_tracks_one_key_without_watching_the_source() {
     });
     assert_eq!(*seen.borrow(), [true]);
     selected.set(1);
+    flush();
     assert_eq!(*seen.borrow(), [true, false]);
     selected.set(2);
+    flush();
     selected.set(3);
+    flush();
     assert_eq!(*seen.borrow(), [true, false]);
     assert_eq!(calls.get(), 2);
     assert_eq!(selector.watched_keys(), 1);
     selected.set(0);
+    flush();
     assert_eq!(*seen.borrow(), [true, false, true]);
 }

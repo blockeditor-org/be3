@@ -3,7 +3,7 @@ use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
 use crate::runtime::{
-    Context, RUNTIME, Read, Reset, batch, current_zone, enqueue, flush, leave_component_body, probe,
+    Context, RUNTIME, Read, Reset, current_zone, defer, enqueue, leave_component_body, probe,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
 use crate::signal::Tracked;
@@ -114,7 +114,6 @@ impl Computation {
         self.state.set(State::Clean);
         if stale {
             self.invalidate(State::Dirty);
-            flush();
         }
     }
 
@@ -149,7 +148,7 @@ impl Computation {
         if matches!(self.state.get(), State::Clean | State::Disposed) {
             return;
         }
-        batch(|| {
+        defer(|| {
             self.refreshing.set(true);
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 self.refresh_inner();
@@ -324,7 +323,6 @@ pub fn create_effect(mut effect: impl FnMut() + 'static) -> Effect {
         false
     });
     enqueue(&computation);
-    flush();
     Effect { computation }
 }
 
@@ -346,7 +344,7 @@ pub fn create_binding(mut binding: impl FnMut() + 'static) {
 
 impl Effect {
     pub fn dispose(&self) {
-        batch(|| self.computation.dispose());
+        defer(|| self.computation.dispose());
     }
 
     pub fn is_disposed(&self) -> bool {

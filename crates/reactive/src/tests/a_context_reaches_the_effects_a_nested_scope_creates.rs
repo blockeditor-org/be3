@@ -24,6 +24,7 @@ fn a_context_reaches_the_effects_a_nested_scope_creates() {
     });
 
     count.set(1);
+    flush();
 
     assert_eq!(*seen.borrow(), vec![Some(Width(320.0)), Some(Width(320.0))]);
     assert_eq!(use_context::<Width>(), None);

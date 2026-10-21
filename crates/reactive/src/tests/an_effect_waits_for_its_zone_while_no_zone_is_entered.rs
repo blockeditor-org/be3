@@ -16,6 +16,7 @@ fn an_effect_waits_for_its_zone_while_no_zone_is_entered() {
     }
 
     count.set(5);
+    flush();
     assert_eq!(seen.get(), 0);
     assert!(zone_pending(3));
 
