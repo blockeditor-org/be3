@@ -26,7 +26,7 @@ fn the_desktop_starts_with_nothing_open_but_its_bar() {
             .test
             .take_block_commands()
             .iter()
-            .any(|(_, command)| *command == BlockCommand::AppMenu),
+            .any(|(_, command)| matches!(command, BlockCommand::AppMenu { anchor: Some(_) })),
         "the menu button asks the host for its menu"
     );
 }

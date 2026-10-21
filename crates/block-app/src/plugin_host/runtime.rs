@@ -2208,11 +2208,26 @@ pub(crate) fn take_region_actions(
             actions.push(EditorAction::OpenBlock(open));
         }
         while let Some((id, command)) = runtime.instances.take_block_command(instance) {
-            actions.push(EditorAction::Command { id, command });
+            actions.push(match command {
+                block_plugin_api::BlockCommand::AppMenu { anchor } => EditorAction::AppMenu {
+                    at: anchor.and_then(|anchor| in_host(runtime, instance, anchor)),
+                },
+                command => EditorAction::Command { id, command },
+            });
         }
         actions
     })
     .unwrap_or_default()
+}
+
+fn in_host(runtime: &Runtime, instance: EditorInstanceId, anchor: ChildRect) -> Option<Rect> {
+    let placed = runtime.placements.get(&(instance, EditorRegion::Frame))?;
+    let min = placed.rect.min + vec2(anchor.x, anchor.y) * placed.zoom;
+    let rect = Rect::from_min_size(min, vec2(anchor.width, anchor.height).max(Vec2::ZERO) * placed.zoom);
+    [rect.min.x, rect.min.y, rect.max.x, rect.max.y]
+        .iter()
+        .all(|value| value.is_finite())
+        .then_some(rect)
 }
 
 pub(crate) fn take_block_drags(plugin_id: &str, instance: EditorInstanceId) -> Vec<BlockDrag> {

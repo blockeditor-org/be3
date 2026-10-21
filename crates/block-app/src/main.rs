@@ -497,7 +497,7 @@ struct BlockApp {
     pending_copies: Vec<PendingCopy>,
     about_open: bool,
     programs: programs::Programs,
-    app_menu_open: bool,
+    app_menu: Option<ui::AppMenuView>,
     pending_destructive_action: Option<PendingDestructiveAction>,
     leaving: Option<Uuid>,
     allow_close: bool,
@@ -746,7 +746,7 @@ impl BlockApp {
             pending_copies: Vec::new(),
             about_open: false,
             programs: programs::Programs::default(),
-            app_menu_open: false,
+            app_menu: None,
             pending_destructive_action: None,
             leaving: None,
             allow_close: false,
@@ -851,7 +851,7 @@ impl BlockApp {
         remap::set_locked(locked);
         plugin_host::publish::<block_plugin_api::ScreenLocked>(&locked);
         if locked {
-            self.app_menu_open = false;
+            self.app_menu = None;
         }
         let mut availability = self
             .desktop
@@ -1524,7 +1524,7 @@ impl BlockApp {
         self.dynamic_artifact_settings_open = None;
         self.pending_transfers.clear();
         self.about_open = false;
-        self.app_menu_open = false;
+        self.app_menu = None;
         self.pending_destructive_action = None;
         self.allow_close = false;
         self.organization = None;
@@ -2362,7 +2362,13 @@ impl BlockApp {
         match action {
             EditorAction::OpenBlock(open) => self.show_block(from, open),
             EditorAction::Command { id, command } => self.handle_block_command(from, id, command),
+            EditorAction::AppMenu { at } => self.open_app_menu(at),
         }
+    }
+
+    fn open_app_menu(&mut self, at: Option<beui::Rect>) {
+        let opened = self.app_menu.as_ref().map_or(0, |menu| menu.opened) + 1;
+        self.app_menu = Some(ui::AppMenuView { opened, at });
     }
 
     fn handle_block_command(&mut self, from: Option<Uuid>, id: Uuid, command: BlockCommand) {
@@ -2373,7 +2379,7 @@ impl BlockApp {
             BlockCommand::Undo if self.editor_access(id).can_edit() => be::undo(id),
             BlockCommand::Redo if self.editor_access(id).can_edit() => be::redo(id),
             BlockCommand::Undo | BlockCommand::Redo => {}
-            BlockCommand::AppMenu => self.app_menu_open = true,
+            BlockCommand::AppMenu { .. } => self.open_app_menu(None),
             BlockCommand::Unlink { container } => {
                 self.queue_copy(id, Uuid::from_bytes(container));
             }
@@ -2801,7 +2807,8 @@ impl BlockApp {
                 }
             }
             UiCommand::About(open) => self.about_open = open,
-            UiCommand::AppMenu(open) => self.app_menu_open = open,
+            UiCommand::AppMenu(false) => self.app_menu = None,
+            UiCommand::AppMenu(true) => self.open_app_menu(None),
             UiCommand::DismissToast(id) => notices::dismiss(id),
             UiCommand::KeepDisplay(round) => self.answer_display(round, true),
             UiCommand::RevertDisplay(round) => self.answer_display(round, false),
@@ -3095,7 +3102,7 @@ impl BlockApp {
                 link: self.invite_link.clone(),
             }),
             about: self.about_open,
-            app_menu: self.app_menu_open,
+            app_menu: self.app_menu.clone(),
             discard: self.pending_destructive_action.as_ref().map(discard_view),
             leaving: self.leaving.is_some(),
             presenting: self

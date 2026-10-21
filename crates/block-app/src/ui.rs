@@ -258,6 +258,12 @@ pub(crate) struct AgentsView {
     pub(crate) created: Option<CreatedAgent>,
 }
 
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct AppMenuView {
+    pub(crate) opened: u64,
+    pub(crate) at: Option<beui::Rect>,
+}
+
 #[derive(Clone, Debug, Default, PartialEq)]
 pub(crate) struct DiscardView {
     pub(crate) title: String,
@@ -294,7 +300,7 @@ pub(crate) struct AppView {
     pub(crate) contacts: Option<ContactsView>,
     pub(crate) members: Option<MembersView>,
     pub(crate) about: bool,
-    pub(crate) app_menu: bool,
+    pub(crate) app_menu: Option<AppMenuView>,
     pub(crate) discard: Option<DiscardView>,
     pub(crate) leaving: bool,
     pub(crate) presenting: bool,

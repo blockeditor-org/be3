@@ -721,14 +721,15 @@ and scrolls the row the keyboard is on into view. `MenuPopup` is the same menu
 opened by something other than a button, such as a model holding a request: it
 shows while `open` holds, under `anchor` at `placement`, as the sheet while
 `sheet` holds, `width` wide, and reports `on_dismiss` for Escape or a press
-outside. `MenuButton` is the button that
+outside. A host that opens one for a plugin's button (block-app's app menu)
+anchors it to the button's rect, which the plugin sends from `node_anchor`, and
+sets `sheet` from `last_pointer` (`Document::last_pointer`): the host routed that
+press, so it knows whether a finger made it. `MenuButton` is the button that
 opens a menu under itself, which is what a toolbar reaches for where `Select`
 would imply the choice sticks (`IconMenuButton` is the same with an icon
 button's face); `ContextMenu` is the same menu on a secondary press, and it
 also takes an `open_at` point so a touch gesture can raise it where the finger
-was, or `open_at_pointer` to open where the last pointer was, reading
-`Document::last_pointer` to know whether that was a finger, for a menu something
-else asks for (the app menu a plugin's button opens). A text selection's menu
+was. A text selection's menu
 sets `selection` and stays beside the selection under a finger too. A finger
 held still for the long-press delay (`Context::set_long_press_delay`, which a
 test sets to zero rather than waiting) is a secondary press where it rests, so

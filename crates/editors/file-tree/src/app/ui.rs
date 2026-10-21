@@ -112,7 +112,14 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
         tree.reveal_system(focused.via.last().copied().or(focused.block_id));
         tree.expand(focused.via.iter().rev().copied());
     };
-    let app_menu = move || editor.host().show_app_menu(editor.block_id());
+    let (desktop_menu, phone_menu) = (NodeRef::new(), NodeRef::new());
+    let app_menu = move |button: NodeRef| {
+        move || {
+            editor
+                .host()
+                .show_app_menu(editor.block_id(), node_anchor(&button))
+        }
+    };
     let new_workspace = move || new_workspace(editor, renaming);
     let picked = picker.error();
     let failure = create_memo(move || picked.get().or_else(|| exported.get()));
@@ -191,14 +198,15 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
                     />
                     <Spacer @sizing=ItemSize::Percent(100.0) />
                     <IconButton
+                        @node_ref={&desktop_menu}
                         glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
                         label="Account and settings"
                         @test_id={"file-tree.desktop-app-menu"}
-                        on_click={app_menu}
+                        on_click={app_menu(desktop_menu)}
                     />
                 </Toolbar>
                 <Show condition={titled}>
-                    <PhoneTitle on_new_workspace={new_workspace} on_menu={app_menu} />
+                    <PhoneTitle on_new_workspace={new_workspace} menu_button={phone_menu} on_menu={app_menu(phone_menu)} />
                 </Show>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
                     <BackSlide enabled={swipes} on_back={move || zoom.up()}>
@@ -279,7 +287,11 @@ pub fn FileTreeEditor(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn PhoneTitle(on_new_workspace: ClickCallback, on_menu: ClickCallback) -> NodeId {
+fn PhoneTitle(
+    on_new_workspace: ClickCallback,
+    menu_button: NodeRef,
+    on_menu: ClickCallback,
+) -> NodeId {
     view! {
         <Frame fill=ColorRole::Background padding=PADDING>
             <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
@@ -293,6 +305,7 @@ fn PhoneTitle(on_new_workspace: ClickCallback, on_menu: ClickCallback) -> NodeId
                     on_click={on_new_workspace}
                 />
                 <IconButton
+                    @node_ref={&menu_button}
                     @test_id={"file-tree.app-menu"}
                     glyph={ICON_ACCOUNT_CIRCLE.to_owned()}
                     label="Account and settings"
