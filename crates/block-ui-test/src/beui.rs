@@ -1299,22 +1299,31 @@ impl<A: BeuiApp> BeuiTest<A> {
         let (Some(&from), Some(&to)) = (points.first(), points.last()) else {
             return;
         };
-        let modifiers = self.input.held();
-        self.hover_at(from);
-        self.push(Event::PointerButton {
-            pos: from,
-            button: PointerButton::Primary,
-            pressed: true,
-            modifiers,
-        });
+        self.press_at(from);
         for &at in &points[1..] {
             self.next_frame();
             self.push(Event::PointerMoved(at));
         }
         self.next_frame();
         self.push(Event::PointerMoved(to + Vec2::new(0.0, 0.5)));
+        self.release_at(to);
+    }
+
+    pub fn press_at(&mut self, pos: Pos2) {
+        let modifiers = self.input.held();
+        self.hover_at(pos);
         self.push(Event::PointerButton {
-            pos: to,
+            pos,
+            button: PointerButton::Primary,
+            pressed: true,
+            modifiers,
+        });
+    }
+
+    pub fn release_at(&mut self, pos: Pos2) {
+        let modifiers = self.input.held();
+        self.push(Event::PointerButton {
+            pos,
             button: PointerButton::Primary,
             pressed: false,
             modifiers,
