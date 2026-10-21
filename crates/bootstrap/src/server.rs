@@ -1,7 +1,7 @@
 use std::fmt::Write as _;
+use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::{Command, Stdio};
-use std::io::Write as _;
 use std::sync::mpsc;
 use std::time::Duration;
 
@@ -350,7 +350,13 @@ mod namespace {
     fn wake(key: Option<String>) -> Result<(String, String)> {
         let mut child = Command::new("curl")
             .args(["--silent", "--show-error", "--max-time", "600"])
-            .args(["--header", "@-", "--write-out", "\n%{http_code}", NAMESPACE_URL])
+            .args([
+                "--header",
+                "@-",
+                "--write-out",
+                "\n%{http_code}",
+                NAMESPACE_URL,
+            ])
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
             .stderr(Stdio::inherit())
