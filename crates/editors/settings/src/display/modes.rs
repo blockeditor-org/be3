@@ -1,5 +1,5 @@
+use block_editor_beui::HostDisplay;
 use block_editor_beui::be_block::display_settings::{DisplayMode, LockAfter, ScreenOff};
-use block_editor_beui::{HostDisplay, HostDisplayMode};
 
 pub(crate) type Size = (u32, u32);
 
@@ -43,34 +43,17 @@ pub(crate) fn screen_off_label(screen_off: ScreenOff) -> String {
     }
 }
 
-pub(crate) fn saved(mode: HostDisplayMode) -> DisplayMode {
-    DisplayMode {
-        width: mode.width,
-        height: mode.height,
-        refresh_millihertz: mode.refresh_millihertz,
-    }
-}
-
-fn offered(mode: DisplayMode) -> HostDisplayMode {
-    HostDisplayMode {
-        width: mode.width,
-        height: mode.height,
-        refresh_millihertz: mode.refresh_millihertz,
-    }
-}
-
-pub(crate) fn size_of(mode: HostDisplayMode) -> Size {
+pub(crate) fn size_of(mode: DisplayMode) -> Size {
     (mode.width, mode.height)
 }
 
-pub(crate) fn effective(display: &HostDisplay, saved: Option<DisplayMode>) -> HostDisplayMode {
+pub(crate) fn effective(display: &HostDisplay, saved: Option<DisplayMode>) -> DisplayMode {
     saved
-        .map(offered)
         .filter(|mode| display.modes.contains(mode))
         .unwrap_or(display.default)
 }
 
-pub(crate) fn sizes(modes: &[HostDisplayMode]) -> Vec<Size> {
+pub(crate) fn sizes(modes: &[DisplayMode]) -> Vec<Size> {
     let mut sizes: Vec<Size> = Vec::new();
     for mode in modes {
         if !sizes.contains(&size_of(*mode)) {
@@ -80,7 +63,7 @@ pub(crate) fn sizes(modes: &[HostDisplayMode]) -> Vec<Size> {
     sizes
 }
 
-pub(crate) fn rates(modes: &[HostDisplayMode], size: Size) -> Vec<HostDisplayMode> {
+pub(crate) fn rates(modes: &[DisplayMode], size: Size) -> Vec<DisplayMode> {
     modes
         .iter()
         .copied()
@@ -98,7 +81,7 @@ pub(crate) fn rate_label(refresh_millihertz: u32) -> String {
     format!("{hertz} Hz")
 }
 
-pub(crate) fn mode_label(mode: HostDisplayMode) -> String {
+pub(crate) fn mode_label(mode: DisplayMode) -> String {
     format!(
         "{} at {}",
         size_label(size_of(mode)),

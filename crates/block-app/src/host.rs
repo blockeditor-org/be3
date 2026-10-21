@@ -1,5 +1,3 @@
-use beui::styled;
-use beui::styled::*;
 use std::{
     cell::RefCell,
     sync::{
@@ -9,7 +7,7 @@ use std::{
     time::{Duration, Instant},
 };
 
-use beui::{Document, FileFilter, FilePick, FilePickId, Waker};
+use beui::{FileFilter, FilePick, FilePickId, Waker};
 use uuid::Uuid;
 
 static WAKER: OnceLock<Waker> = OnceLock::new();
@@ -73,8 +71,7 @@ struct Host {
     seen: bool,
     pixels_per_point: f32,
     screen_scale: f32,
-    theme: block_plugin_api::Theme,
-    motion: block_plugin_api::Motion,
+    preferences: block_plugin_api::Preferences,
     commands: Vec<HostCommand>,
     waiting_picks: Vec<(FilePickId, PickSlot)>,
     output: Output,
@@ -89,8 +86,7 @@ impl Default for Host {
             seen: true,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
-            theme: block_plugin_api::Theme::Dark,
-            motion: block_plugin_api::Motion::default(),
+            preferences: block_plugin_api::Preferences::default(),
             commands: Vec::new(),
             waiting_picks: Vec::new(),
             output: Output::default(),
@@ -105,8 +101,7 @@ fn with<R>(act: impl FnOnce(&mut Host) -> R) -> R {
 struct Frame {
     now: Option<Instant>,
     seen: bool,
-    theme: block_plugin_api::Theme,
-    motion: block_plugin_api::Motion,
+    preferences: block_plugin_api::Preferences,
     pixels_per_point: f32,
     screen_scale: f32,
 }
@@ -116,15 +111,14 @@ impl Default for Frame {
         Self {
             now: None,
             seen: true,
-            theme: block_plugin_api::Theme::Dark,
-            motion: block_plugin_api::Motion::default(),
+            preferences: block_plugin_api::Preferences::default(),
             pixels_per_point: 1.0,
             screen_scale: 1.0,
         }
     }
 }
 
-pub(crate) fn begin(context: &beui::Context, document: &Document) {
+pub(crate) fn begin(context: &beui::Context) {
     let mut picked = Vec::new();
     with(|host| {
         host.waiting_picks
@@ -144,11 +138,14 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
         seen: context.seen(),
         ..Frame::default()
     };
-    frame.theme = plugin_theme(document.theme());
-    frame.motion = match context.motion() {
-        beui::reactive::Motion::Animated => block_plugin_api::Motion::Animated,
-        beui::reactive::Motion::Instant => block_plugin_api::Motion::Instant,
-    };
+    frame.preferences = context.preferences();
+    let layers = context.preference_layers();
+    crate::plugin_host::publish::<block_plugin_api::PreferenceSources>(
+        &block_plugin_api::HostPreferenceSources {
+            system: layers.layer(beui::PreferenceSource::System),
+            developer: layers.layer(beui::PreferenceSource::Developer),
+        },
+    );
     frame.screen_scale = context.screen_scale();
     frame.pixels_per_point = context.pixels_per_point() * frame.screen_scale;
     start(frame);
@@ -156,8 +153,7 @@ pub(crate) fn begin(context: &beui::Context, document: &Document) {
 
 fn start(frame: Frame) {
     with(|host| {
-        host.theme = frame.theme;
-        host.motion = frame.motion;
+        host.preferences = frame.preferences;
         host.pass += 1;
         host.seen = frame.seen;
         if let Some(now) = frame.now {
@@ -223,21 +219,8 @@ pub(crate) fn pixels_per_point() -> f32 {
     with(|host| host.pixels_per_point)
 }
 
-pub(crate) fn motion() -> block_plugin_api::Motion {
-    with(|host| host.motion)
-}
-
-pub(crate) fn theme() -> block_plugin_api::Theme {
-    with(|host| host.theme)
-}
-
-fn plugin_theme(theme: styled::Theme) -> block_plugin_api::Theme {
-    match theme.kind {
-        ThemeKind::Dark => block_plugin_api::Theme::Dark,
-        ThemeKind::OledDark => block_plugin_api::Theme::OledDark,
-        ThemeKind::Light => block_plugin_api::Theme::Light,
-        ThemeKind::EInk => block_plugin_api::Theme::EInk,
-    }
+pub(crate) fn preferences() -> block_plugin_api::Preferences {
+    with(|host| host.preferences)
 }
 
 pub(crate) fn set_fullscreen(fullscreen: bool) {
@@ -309,6 +292,3 @@ pub(crate) enum HostItem {
         block_type: Uuid,
     },
 }
-
-#[cfg(test)]
-mod tests;

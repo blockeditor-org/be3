@@ -13,6 +13,7 @@ paint-format = { path = "../paint-format" }
 raw-window-handle = { version = "0.6", features = ["alloc"] }
 reactive = { path = "../reactive" }
 thumbhash = "0.1"
+ui-types = { path = "../ui-types" }
 unicode-segmentation = "1.13"
 
 [lints]

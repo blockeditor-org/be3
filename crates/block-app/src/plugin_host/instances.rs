@@ -4,11 +4,10 @@ use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
     ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, Camera, ChildContent,
     ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildRect, ChildStatus, CreationOutcome,
-    CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick,
-    FileSave, FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor,
-    Occluder, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
-    ScreenRequest, ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewCommand,
-    WebViewEvent, WebViewId,
+    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FileSave, FrameReport,
+    FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
+    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
+    ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{DescribedAction, WindowRequests};
 use std::{
@@ -1035,9 +1034,9 @@ impl Instances {
         else {
             return Vec::new();
         };
-        let Some(key) = beui_plugin_input::protocol_key(key) else {
+        if key == beui::Key::Unidentified {
             return Vec::new();
-        };
+        }
         vec![Message::Input(block_plugin_api::InputBatch {
             screen: screen.request.screen,
             events: vec![block_plugin_api::InputEvent::InterceptedTap { key }],
@@ -2318,11 +2317,8 @@ impl Instances {
         Some(ImeArea {
             rect: host_rect(area.rect, origin, stretch),
             cursor: host_rect(area.cursor, origin, stretch),
-            text: area.text.as_ref().map(beui_plugin_input::beui_ime_text),
-            keyboard: match area.keyboard {
-                block_plugin_api::Keyboard::Held => beui::Keyboard::Held,
-                block_plugin_api::Keyboard::Shown { asks } => beui::Keyboard::Shown { asks },
-            },
+            text: area.text.clone(),
+            keyboard: area.keyboard,
         })
     }
 
@@ -2341,44 +2337,7 @@ impl Instances {
         region: EditorRegion,
     ) -> Option<beui::CursorIcon> {
         let screen = self.entries.get(&instance)?.screens.get(&region)?;
-        Some(match screen.window.cursor {
-            CursorIcon::Default => beui::CursorIcon::Default,
-            CursorIcon::None => beui::CursorIcon::None,
-            CursorIcon::Pointer => beui::CursorIcon::PointingHand,
-            CursorIcon::Text => beui::CursorIcon::Text,
-            CursorIcon::Crosshair => beui::CursorIcon::Crosshair,
-            CursorIcon::Grab => beui::CursorIcon::Grab,
-            CursorIcon::Grabbing => beui::CursorIcon::Grabbing,
-            CursorIcon::Move => beui::CursorIcon::Move,
-            CursorIcon::NotAllowed => beui::CursorIcon::NotAllowed,
-            CursorIcon::Wait => beui::CursorIcon::Wait,
-            CursorIcon::Progress => beui::CursorIcon::Progress,
-            CursorIcon::Help => beui::CursorIcon::Help,
-            CursorIcon::ResizeHorizontal => beui::CursorIcon::ResizeHorizontal,
-            CursorIcon::ResizeVertical => beui::CursorIcon::ResizeVertical,
-            CursorIcon::ResizeNeSw => beui::CursorIcon::ResizeNeSw,
-            CursorIcon::ResizeNwSe => beui::CursorIcon::ResizeNwSe,
-            CursorIcon::Alias => beui::CursorIcon::Alias,
-            CursorIcon::ContextMenu => beui::CursorIcon::ContextMenu,
-            CursorIcon::Cell => beui::CursorIcon::Cell,
-            CursorIcon::VerticalText => beui::CursorIcon::VerticalText,
-            CursorIcon::Copy => beui::CursorIcon::Copy,
-            CursorIcon::NoDrop => beui::CursorIcon::NoDrop,
-            CursorIcon::AllScroll => beui::CursorIcon::AllScroll,
-            CursorIcon::ZoomIn => beui::CursorIcon::ZoomIn,
-            CursorIcon::ZoomOut => beui::CursorIcon::ZoomOut,
-            CursorIcon::ResizeColumn => beui::CursorIcon::ResizeColumn,
-            CursorIcon::ResizeRow => beui::CursorIcon::ResizeRow,
-            CursorIcon::ResizeNorth => beui::CursorIcon::ResizeNorth,
-            CursorIcon::ResizeEast => beui::CursorIcon::ResizeEast,
-            CursorIcon::ResizeSouth => beui::CursorIcon::ResizeSouth,
-            CursorIcon::ResizeWest => beui::CursorIcon::ResizeWest,
-            CursorIcon::ResizeNorthEast => beui::CursorIcon::ResizeNorthEast,
-            CursorIcon::ResizeNorthWest => beui::CursorIcon::ResizeNorthWest,
-            CursorIcon::ResizeSouthEast => beui::CursorIcon::ResizeSouthEast,
-            CursorIcon::ResizeSouthWest => beui::CursorIcon::ResizeSouthWest,
-            CursorIcon::Touch => beui::CursorIcon::Touch,
-        })
+        Some(screen.window.cursor)
     }
 
     pub(super) fn screen_set(&mut self, screens: Vec<ScreenRequest>) -> Message {
@@ -2493,21 +2452,7 @@ impl Instances {
                 reply(HostReply::RevisionReleased);
             }
             HostRequest::PickFile(filter) => {
-                let filter = beui::FileFilter {
-                    name: filter.name,
-                    extensions: filter.extensions,
-                    mime_types: filter.mime_types,
-                };
-                host::pick_file(filter, move |picked| {
-                    reply(HostReply::FilePicked(match picked {
-                        Ok(Some(file)) => FilePick::Chosen {
-                            name: file.name,
-                            data: file.data,
-                        },
-                        Ok(None) => FilePick::Cancelled,
-                        Err(error) => FilePick::Failed(error),
-                    }));
-                });
+                host::pick_file(filter, move |picked| reply(HostReply::FilePicked(picked)));
             }
             HostRequest::SaveFile(file) => {
                 let file = SavedFile {

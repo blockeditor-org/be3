@@ -1,6 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::unstyled::{TextArea, TextAreaState};
+use crate::{PreferenceLayer, PreferenceSource};
 use std::sync::Arc;
 use text_editor_core::TextBuffer;
 
@@ -24,9 +25,21 @@ fn instant_carets_do_not_request_blink_frames() {
     harness.key(Key::Tab, Modifiers::NONE);
     harness.advance(BLINK);
     harness.frame(Vec::new());
-    harness.context.set_motion(Motion::Instant);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(Motion::Instant),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     harness.frame(Vec::new());
     assert_eq!(harness.frame(Vec::new()).repaint_after, Duration::MAX);
-    harness.context.set_motion(Motion::Animated);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(Motion::Animated),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     assert!(harness.frame(Vec::new()).repaint_after <= BLINK);
 }

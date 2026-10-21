@@ -56,6 +56,9 @@ pub use beui_core::page::{Page, PageShape};
 pub use beui_core::painter::{Corners, Painter, Shape};
 pub use beui_core::painting;
 pub use beui_core::performance::{FramePerformance, PerformanceSnapshot, PerformanceTimings};
+pub use beui_core::preferences::{
+    PreferenceLayer, PreferenceLayers, PreferenceSource, Preferences, ThemeKind,
+};
 pub use beui_core::screens::Screen;
 pub use beui_core::touch_cursor;
 #[cfg(not(target_arch = "wasm32"))]
@@ -91,6 +94,8 @@ mod web;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 pub use window::{WindowRenderer, run_on, run_with, run_with_renderers, window_adapter};
 
+#[cfg(all(feature = "window", not(target_arch = "wasm32")))]
+mod saved_preferences;
 #[cfg(all(feature = "window", not(target_arch = "wasm32")))]
 mod window;
 

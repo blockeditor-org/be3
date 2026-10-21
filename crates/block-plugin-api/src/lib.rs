@@ -11,13 +11,13 @@ mod manifest;
 mod session;
 pub use block_ids::BlockIdRole;
 pub use host_value::{
-    Administrator, Contacts, HostAction, HostContact, HostImage, HostValue, LinkBase, decode_host,
-    encode_host,
+    Administrator, Contacts, HostAction, HostContact, HostImage, HostPreferenceSources, HostValue,
+    LinkBase, PreferenceSources, decode_host, encode_host,
 };
 pub use linux::{
-    AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostDisplayMode, HostInputDevice,
-    HostNotificationAction, HostProgram, HostRotation, HostTrayItem, HostWindow, HostWindowId,
-    HostWindows, IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
+    AudioOutput, Displays, Epaper, EpaperRequest, HostDisplay, HostInputDevice,
+    HostNotificationAction, HostProgram, HostTrayItem, HostWindow, HostWindowId, HostWindows,
+    IncomingNotification, InputDevices, Media, MediaLevel, MediaLevels, MediaRequest,
     NotificationCloseReason, NotificationInbox, NotificationReport, NotificationRequest,
     NotificationSignal, NotificationUrgency, Notifications, PlayerCommand, Power, PowerAction,
     PowerAvailability, ProgramAction, Programs, RemapState, Remaps, ScreenLocked, Tray,
@@ -28,6 +28,14 @@ pub use manifest::{
     EditorDocument, ManifestDocument, TemplateDocument, Templates, manifest_from_json,
 };
 pub use session::{HostSession, QueueError, SessionFailure, SessionState};
+pub use ui_types::{
+    BackEdge, BackGesture, CursorIcon, FileFilter, FilePick, ImeEvent, ImeText, Key, KeyChord,
+    Keyboard, Modifiers, PasteKind, Pasted, PenPhase, PickedFile, PointerButton, TouchPhase,
+};
+pub use ui_types::{
+    DisplayMode, InputDevice, Motion, PointerSettings, PointerSpeed, PreferenceLayer, Preferences,
+    Rotation, ThemeKind,
+};
 
 pub const MAX_COLLECTION_ITEMS: usize = 1024;
 pub const MAX_STRING_BYTES: usize = 16 * 1024;
@@ -122,22 +130,6 @@ pub struct WindowRequests {
     pub keyboard_toggles: u32,
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum PasteKind {
-    Text,
-    Image,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Pasted {
-    Text(String),
-    Image {
-        name: String,
-        #[serde(with = "serde_bytes")]
-        data: Vec<u8>,
-    },
-}
-
 #[derive(Clone, Debug, Default, PartialEq, Serialize, Deserialize)]
 pub struct Description {
     pub tree: Option<accesskit::TreeUpdate>,
@@ -152,13 +144,6 @@ pub struct DescribedAction {
     pub enabled: bool,
     pub checked: Option<bool>,
     pub live: bool,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct KeyChord {
-    pub key: Key,
-    pub modifiers: Modifiers,
-    pub tap: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
@@ -1315,54 +1300,6 @@ pub enum PerformanceMeasurement {
     Count { name: String, count: u64 },
 }
 
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct FileFilter {
-    pub name: String,
-    pub extensions: Vec<String>,
-    pub mime_types: Vec<String>,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum CursorIcon {
-    #[default]
-    Default,
-    None,
-    Pointer,
-    Text,
-    Crosshair,
-    Grab,
-    Grabbing,
-    Move,
-    NotAllowed,
-    Wait,
-    Progress,
-    Help,
-    ResizeHorizontal,
-    ResizeVertical,
-    ResizeNeSw,
-    ResizeNwSe,
-    Alias,
-    ContextMenu,
-    Cell,
-    VerticalText,
-    Copy,
-    NoDrop,
-    AllScroll,
-    ZoomIn,
-    ZoomOut,
-    ResizeColumn,
-    ResizeRow,
-    ResizeNorth,
-    ResizeEast,
-    ResizeSouth,
-    ResizeWest,
-    ResizeNorthEast,
-    ResizeNorthWest,
-    ResizeSouthEast,
-    ResizeSouthWest,
-    Touch,
-}
-
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum ArtifactDescription {
     Described { source: [u8; 16], summary: String },
@@ -1698,13 +1635,6 @@ pub enum BlockPick {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum FilePick {
-    Chosen { name: String, data: Vec<u8> },
-    Cancelled,
-    Failed(String),
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub struct SavedFile {
     pub name: String,
     pub mime_type: String,
@@ -1777,8 +1707,7 @@ pub struct AudioStatus {
 pub enum Message {
     Hello(Hello),
     HelloAccepted(HelloAccepted),
-    Theme(Theme),
-    Motion(Motion),
+    Preferences(Preferences),
     UtcOffset(i32),
     Fonts(Fonts),
     MissingCharacters(Vec<char>),
@@ -1844,8 +1773,7 @@ impl Message {
     pub fn direction(&self) -> Direction {
         match self {
             Self::HelloAccepted(_)
-            | Self::Motion(_)
-            | Self::Theme(_)
+            | Self::Preferences(_)
             | Self::UtcOffset(_)
             | Self::Fonts(_)
             | Self::Screens(_)
@@ -1972,24 +1900,7 @@ pub struct Hello {
 pub struct HelloAccepted {
     pub host_name: String,
     pub surface: Option<SurfaceSpec>,
-    pub theme: Theme,
-    pub motion: Motion,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Motion {
-    #[default]
-    Animated,
-    Instant,
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Theme {
-    #[default]
-    Dark,
-    OledDark,
-    Light,
-    EInk,
+    pub preferences: Preferences,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2133,10 +2044,10 @@ pub enum InputEvent {
     },
     Text(String),
     Paste(Pasted),
-    Ime(ImeInput),
+    Ime(ImeEvent),
     Modifiers(Modifiers),
     Focus(bool),
-    Back(BackPhase),
+    Back(BackGesture),
     InterceptedKey {
         key: Key,
         pressed: bool,
@@ -2156,58 +2067,6 @@ pub enum InputEvent {
     },
 }
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PenPhase {
-    Move,
-    Down(PointerButton),
-    Up(PointerButton),
-    Gone,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Serialize, Deserialize)]
-pub enum BackPhase {
-    Started { edge: BackEdge },
-    Progressed(f32),
-    Cancelled,
-    Invoked,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum BackEdge {
-    None,
-    Left,
-    Right,
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum TouchPhase {
-    Start,
-    Move,
-    End,
-    Cancel,
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum ImeInput {
-    Enabled,
-    Disabled,
-    SetComposingText(String),
-    CommitText(String),
-    FinishComposing,
-    SetComposingRegion { start: u64, end: u64 },
-    ReplaceText { start: u64, end: u64, text: String },
-    DeleteSurrounding { before: u64, after: u64 },
-    SetSelection { anchor: u64, focus: u64 },
-}
-
-#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub struct ImeText {
-    pub start: u64,
-    pub text: String,
-    pub selection: (u64, u64),
-    pub composing: Option<(u64, u64)>,
-}
-
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct ImeArea {
     pub rect: ChildRect,
@@ -2217,287 +2076,10 @@ pub struct ImeArea {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Keyboard {
-    Held,
-    Shown { asks: u32 },
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
-pub enum PointerButton {
-    Primary,
-    Secondary,
-    Middle,
-    Back,
-    Forward,
-    Other(u16),
-}
-
-#[derive(Clone, Copy, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum WheelUnit {
     Pixels,
     Lines,
     Pages,
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum Key {
-    ArrowDown,
-    ArrowLeft,
-    ArrowRight,
-    ArrowUp,
-    Escape,
-    Tab,
-    Backspace,
-    Enter,
-    Space,
-    Insert,
-    Delete,
-    Home,
-    End,
-    PageUp,
-    PageDown,
-    Copy,
-    Cut,
-    Paste,
-    Colon,
-    Comma,
-    Backslash,
-    Slash,
-    Pipe,
-    Questionmark,
-    Exclamationmark,
-    OpenBracket,
-    CloseBracket,
-    OpenCurlyBracket,
-    CloseCurlyBracket,
-    Backtick,
-    Minus,
-    Period,
-    Plus,
-    Equals,
-    Semicolon,
-    Quote,
-    Num0,
-    Num1,
-    Num2,
-    Num3,
-    Num4,
-    Num5,
-    Num6,
-    Num7,
-    Num8,
-    Num9,
-    A,
-    B,
-    C,
-    D,
-    E,
-    F,
-    G,
-    H,
-    I,
-    J,
-    K,
-    L,
-    M,
-    N,
-    O,
-    P,
-    Q,
-    R,
-    S,
-    T,
-    U,
-    V,
-    W,
-    X,
-    Y,
-    Z,
-    F1,
-    F2,
-    F3,
-    F4,
-    F5,
-    F6,
-    F7,
-    F8,
-    F9,
-    F10,
-    F11,
-    F12,
-    F13,
-    F14,
-    F15,
-    F16,
-    F17,
-    F18,
-    F19,
-    F20,
-    F21,
-    F22,
-    F23,
-    F24,
-    F25,
-    F26,
-    F27,
-    F28,
-    F29,
-    F30,
-    F31,
-    F32,
-    F33,
-    F34,
-    F35,
-    BrowserBack,
-    VolumeUp,
-    VolumeDown,
-    VolumeMute,
-    MicMute,
-    BrightnessUp,
-    BrightnessDown,
-    MediaPlayPause,
-    MediaNext,
-    MediaPrevious,
-    MediaStop,
-    Shift,
-    Control,
-    Alt,
-    Logo,
-}
-
-impl Key {
-    pub const ALL: [Self; 122] = [
-        Self::ArrowDown,
-        Self::ArrowLeft,
-        Self::ArrowRight,
-        Self::ArrowUp,
-        Self::Escape,
-        Self::Tab,
-        Self::Backspace,
-        Self::Enter,
-        Self::Space,
-        Self::Insert,
-        Self::Delete,
-        Self::Home,
-        Self::End,
-        Self::PageUp,
-        Self::PageDown,
-        Self::Copy,
-        Self::Cut,
-        Self::Paste,
-        Self::Colon,
-        Self::Comma,
-        Self::Backslash,
-        Self::Slash,
-        Self::Pipe,
-        Self::Questionmark,
-        Self::Exclamationmark,
-        Self::OpenBracket,
-        Self::CloseBracket,
-        Self::OpenCurlyBracket,
-        Self::CloseCurlyBracket,
-        Self::Backtick,
-        Self::Minus,
-        Self::Period,
-        Self::Plus,
-        Self::Equals,
-        Self::Semicolon,
-        Self::Quote,
-        Self::Num0,
-        Self::Num1,
-        Self::Num2,
-        Self::Num3,
-        Self::Num4,
-        Self::Num5,
-        Self::Num6,
-        Self::Num7,
-        Self::Num8,
-        Self::Num9,
-        Self::A,
-        Self::B,
-        Self::C,
-        Self::D,
-        Self::E,
-        Self::F,
-        Self::G,
-        Self::H,
-        Self::I,
-        Self::J,
-        Self::K,
-        Self::L,
-        Self::M,
-        Self::N,
-        Self::O,
-        Self::P,
-        Self::Q,
-        Self::R,
-        Self::S,
-        Self::T,
-        Self::U,
-        Self::V,
-        Self::W,
-        Self::X,
-        Self::Y,
-        Self::Z,
-        Self::F1,
-        Self::F2,
-        Self::F3,
-        Self::F4,
-        Self::F5,
-        Self::F6,
-        Self::F7,
-        Self::F8,
-        Self::F9,
-        Self::F10,
-        Self::F11,
-        Self::F12,
-        Self::F13,
-        Self::F14,
-        Self::F15,
-        Self::F16,
-        Self::F17,
-        Self::F18,
-        Self::F19,
-        Self::F20,
-        Self::F21,
-        Self::F22,
-        Self::F23,
-        Self::F24,
-        Self::F25,
-        Self::F26,
-        Self::F27,
-        Self::F28,
-        Self::F29,
-        Self::F30,
-        Self::F31,
-        Self::F32,
-        Self::F33,
-        Self::F34,
-        Self::F35,
-        Self::BrowserBack,
-        Self::VolumeUp,
-        Self::VolumeDown,
-        Self::VolumeMute,
-        Self::MicMute,
-        Self::BrightnessUp,
-        Self::BrightnessDown,
-        Self::MediaPlayPause,
-        Self::MediaNext,
-        Self::MediaPrevious,
-        Self::MediaStop,
-        Self::Shift,
-        Self::Control,
-        Self::Alt,
-        Self::Logo,
-    ];
-}
-
-#[derive(Clone, Copy, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
-pub struct Modifiers {
-    pub alt: bool,
-    pub control: bool,
-    pub shift: bool,
-    pub logo: bool,
 }
 
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
@@ -2606,16 +2188,16 @@ fn validate(message: &Message) -> Result<(), DecodeError> {
             collection(value.events.len())?;
             for event in &value.events {
                 match event {
-                    InputEvent::Paste(Pasted::Image { name, data }) => {
-                        string(name)?;
-                        blob(data)?;
+                    InputEvent::Paste(Pasted::Image(file)) => {
+                        string(&file.name)?;
+                        blob(&file.data)?;
                     }
                     InputEvent::Text(value)
                     | InputEvent::Paste(Pasted::Text(value))
                     | InputEvent::Ime(
-                        ImeInput::SetComposingText(value)
-                        | ImeInput::CommitText(value)
-                        | ImeInput::ReplaceText { text: value, .. },
+                        ImeEvent::SetComposingText(value)
+                        | ImeEvent::CommitText(value)
+                        | ImeEvent::ReplaceText { text: value, .. },
                     ) => text(value)?,
                     _ => {}
                 }
@@ -2952,16 +2534,14 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
         HostReply::RevisionPreviewed(Ok(_))
         | HostReply::RevisionRestored(Ok(()))
         | HostReply::RevisionReleased => Ok(()),
-        HostReply::FilePicked(FilePick::Chosen { name, data }) => {
-            string(name).and_then(|()| blob(data))
-        }
+        HostReply::FilePicked(Ok(Some(file))) => string(&file.name).and_then(|()| blob(&file.data)),
         HostReply::Fetched(FetchResult::Body(body))
         | HostReply::DataRead(FetchResult::Body(body)) => blob(body),
         HostReply::DataListed(DataListing::Files(files)) => {
             collection(files.len())?;
             strings(files)
         }
-        HostReply::FilePicked(FilePick::Failed(message))
+        HostReply::FilePicked(Err(message))
         | HostReply::FileSaved(FileSave::Failed(message))
         | HostReply::BlockPicked(BlockPick::Failed(message))
         | HostReply::Fetched(FetchResult::Failed(message))
@@ -2980,7 +2560,7 @@ fn validate_reply(reply: &HostReply) -> Result<(), DecodeError> {
             }
             Ok(())
         }
-        HostReply::FilePicked(FilePick::Cancelled)
+        HostReply::FilePicked(Ok(None))
         | HostReply::FileSaved(FileSave::Saved | FileSave::Cancelled)
         | HostReply::BlockPicked(BlockPick::Chosen { .. } | BlockPick::Cancelled)
         | HostReply::BlocksImported(BlockImport::Imported { .. } | BlockImport::Cancelled) => {

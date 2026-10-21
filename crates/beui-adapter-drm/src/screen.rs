@@ -2,7 +2,7 @@ use beui::{FrameOutput, Rect, Renderer, Repaint, Vec2, vec2};
 use smithay::utils::{Physical, Rectangle};
 
 use crate::gpu::{Gpu, Sprite};
-use crate::rotation::Rotation;
+use crate::rotation::{Rotation, Turn};
 
 pub const FORMAT: wgpu::TextureFormat = wgpu::TextureFormat::Bgra8Unorm;
 

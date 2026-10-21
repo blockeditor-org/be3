@@ -3,11 +3,11 @@ use beui_core::input::{Event, KeyPress, Modifiers, Pen, TouchId};
 use beui_core::runner::{Input, Keystroke, ScrollDelta};
 use block_editor_plugin::{InputEvent, Region, WheelUnit};
 
-pub(crate) fn translate(region: &Region, event: &InputEvent) -> Option<Input> {
+pub(crate) fn translate(region: &Region, event: &InputEvent) -> Input {
     let origin = region.rect.min.to_vec2();
     let scale = region.scale_factor;
     let at = |x: f32, y: f32| pos2((x + origin.x) * scale, (y + origin.y) * scale);
-    let input: Input = match event {
+    match event {
         InputEvent::PointerMoved { x, y } => Event::PointerMoved(at(*x, *y)).into(),
         InputEvent::PointerLeft => Event::PointerGone.into(),
         InputEvent::PointerButton {
@@ -15,16 +15,13 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Option<Input> {
             pressed,
             x,
             y,
-        } => {
-            let button = beui_plugin_input::beui_button(*button)?;
-            Event::PointerButton {
-                pos: at(*x, *y),
-                button,
-                pressed: *pressed,
-                modifiers: Modifiers::NONE,
-            }
-            .into()
+        } => Event::PointerButton {
+            pos: at(*x, *y),
+            button: *button,
+            pressed: *pressed,
+            modifiers: Modifiers::NONE,
         }
+        .into(),
         InputEvent::Wheel { x, y, unit } => {
             let delta = vec2(*x, *y);
             match unit {
@@ -46,7 +43,7 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Option<Input> {
                 device: *device,
                 finger: *finger,
             },
-            phase: beui_plugin_input::beui_touch_phase(*phase),
+            phase: *phase,
             pos: at(*x, *y),
             force: *force,
         }
@@ -57,7 +54,7 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Option<Input> {
             repeat,
             text,
         } => Keystroke {
-            key: beui_plugin_input::beui_key(*key),
+            key: Some(*key),
             pressed: *pressed,
             repeat: *repeat,
             code: None,
@@ -65,36 +62,26 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Option<Input> {
         }
         .into(),
         InputEvent::Text(text) => Event::Text(text.clone()).into(),
-        InputEvent::Paste(pasted) => {
-            Event::Paste(beui_plugin_input::beui_pasted(pasted.clone())).into()
-        }
-        InputEvent::Modifiers(modifiers) => {
-            Event::Modifiers(beui_plugin_input::beui_modifiers(*modifiers)).into()
-        }
+        InputEvent::Paste(pasted) => Event::Paste(pasted.clone()).into(),
+        InputEvent::Modifiers(modifiers) => Event::Modifiers(*modifiers).into(),
         InputEvent::WheelEnded => Event::ScrollEnded.into(),
         InputEvent::Zoom { factor } => Event::Zoom(*factor).into(),
         InputEvent::PointerMotion { x, y } => Event::PointerMotion(vec2(*x, *y) * scale).into(),
         InputEvent::Focus(focused) => Event::Focus(*focused).into(),
-        InputEvent::Ime(ime) => Event::Ime(beui_plugin_input::beui_ime(ime)).into(),
+        InputEvent::Ime(ime) => Event::Ime(ime.clone()).into(),
         InputEvent::InterceptedKey {
             key,
             pressed,
             repeat,
-        } => {
-            let key = beui_plugin_input::beui_key(*key)?;
-            Event::InterceptedKey(KeyPress {
-                key,
-                pressed: *pressed,
-                repeat: *repeat,
-                modifiers: Modifiers::NONE,
-            })
-            .into()
-        }
-        InputEvent::InterceptedTap { key } => {
-            let key = beui_plugin_input::beui_key(*key)?;
-            Event::InterceptedTap(key).into()
-        }
-        InputEvent::Back(phase) => Event::Back(beui_plugin_input::beui_back(*phase)).into(),
+        } => Event::InterceptedKey(KeyPress {
+            key: *key,
+            pressed: *pressed,
+            repeat: *repeat,
+            modifiers: Modifiers::NONE,
+        })
+        .into(),
+        InputEvent::InterceptedTap { key } => Event::InterceptedTap(*key).into(),
+        InputEvent::Back(gesture) => Event::Back(*gesture).into(),
         InputEvent::Pen {
             phase,
             x,
@@ -104,7 +91,7 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Option<Input> {
             tilt_y,
             eraser,
         } => Event::Pen {
-            phase: beui_plugin_input::beui_pen_phase(*phase)?,
+            phase: *phase,
             pos: at(*x, *y),
             pressure: *pressure,
             pen: Pen {
@@ -113,6 +100,5 @@ pub(crate) fn translate(region: &Region, event: &InputEvent) -> Option<Input> {
             },
         }
         .into(),
-    };
-    Some(input)
+    }
 }

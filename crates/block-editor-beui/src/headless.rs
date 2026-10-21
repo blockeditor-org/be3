@@ -29,6 +29,7 @@ impl Adopted {
 
 pub(crate) trait Parts {
     fn document(&self, region: EditorRegion) -> Option<&beui::Document>;
+    fn document_mut(&mut self, region: EditorRegion) -> Option<&mut beui::Document>;
     fn editor(&self) -> Option<Editor>;
     fn take_output(&mut self, region: EditorRegion) -> Option<beui::FrameOutput>;
 }
@@ -36,6 +37,10 @@ pub(crate) trait Parts {
 impl<A: BeuiApp> Parts for BeuiInstance<A> {
     fn document(&self, region: EditorRegion) -> Option<&beui::Document> {
         BeuiInstance::document(self, region)
+    }
+
+    fn document_mut(&mut self, region: EditorRegion) -> Option<&mut beui::Document> {
+        BeuiInstance::document_mut(self, region)
     }
 
     fn editor(&self) -> Option<Editor> {
@@ -134,6 +139,14 @@ impl HeadlessPlugin {
         region: EditorRegion,
     ) -> Option<&beui::Document> {
         self.parts(instance)?.document(region)
+    }
+
+    pub fn document_mut(
+        &mut self,
+        instance: EditorInstanceId,
+        region: EditorRegion,
+    ) -> Option<&mut beui::Document> {
+        self.parts_mut(instance)?.document_mut(region)
     }
 
     pub fn host(&self, instance: EditorInstanceId) -> Option<EditorHost> {

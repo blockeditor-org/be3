@@ -1,6 +1,7 @@
 use serde::{Deserialize, Serialize};
 
 use crate::{ChildRect, HostAction, HostImage, HostValue, Size};
+use ui_types::{DisplayMode, InputDevice, PointerSettings, Rotation};
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct HostWindowId(pub u64);
@@ -30,19 +31,8 @@ pub struct WindowOrigin {
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
 pub struct HostInputDevice {
-    pub name: String,
-    pub vendor: u32,
-    pub product: u32,
-    pub speed: Option<f64>,
-    pub tap_to_click: Option<bool>,
-    pub natural_scroll: Option<bool>,
-}
-
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
-pub struct HostDisplayMode {
-    pub width: u32,
-    pub height: u32,
-    pub refresh_millihertz: u32,
+    pub device: InputDevice,
+    pub defaults: PointerSettings,
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]
@@ -50,19 +40,10 @@ pub struct HostDisplay {
     pub id: String,
     pub name: String,
     pub connector: String,
-    pub modes: Vec<HostDisplayMode>,
-    pub default: HostDisplayMode,
-    pub current: HostDisplayMode,
-    pub rotation: HostRotation,
-}
-
-#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq, Serialize, Deserialize)]
-pub enum HostRotation {
-    #[default]
-    Normal,
-    Clockwise90,
-    Clockwise180,
-    Clockwise270,
+    pub modes: Vec<DisplayMode>,
+    pub default: DisplayMode,
+    pub current: DisplayMode,
+    pub rotation: Rotation,
 }
 
 #[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, Serialize, Deserialize)]

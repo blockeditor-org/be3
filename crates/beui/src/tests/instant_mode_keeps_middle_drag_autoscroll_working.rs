@@ -1,6 +1,7 @@
 use super::*;
 use crate::reactive::*;
 use crate::unstyled::{Scroll, scroll_animating};
+use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
 fn instant_mode_keeps_middle_drag_autoscroll_working() {
@@ -29,7 +30,13 @@ fn instant_mode_keeps_middle_drag_autoscroll_working() {
     harness.frame(Vec::new());
     assert!(scroll_animating(harness.document(), scroll));
     let before = harness.document().scroll_offset(scroll);
-    harness.context.set_motion(Motion::Instant);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(Motion::Instant),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     harness.frame(Vec::new());
     assert!(harness.document().scroll_offset(scroll) > before);
 

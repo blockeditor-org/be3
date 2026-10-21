@@ -114,8 +114,22 @@ impl DocumentTest {
     }
 
     pub fn click(&mut self, test_id: &str) {
+        self.reveal(test_id);
         let rect = self.rect_of(test_id);
         self.click_at(rect.center());
+    }
+
+    pub fn reveal(&mut self, test_id: &str) {
+        let shown = Rect::from_min_size(Pos2::ZERO, self.size);
+        if self.rect_of(test_id).intersect(shown).is_positive() {
+            return;
+        }
+        let node = self
+            .document
+            .find_test_id(test_id)
+            .unwrap_or_else(|| panic!("nothing is marked {test_id}"));
+        self.document.reveal_node(node);
+        self.frame(Vec::new());
     }
 
     pub fn click_at(&mut self, pos: Pos2) {

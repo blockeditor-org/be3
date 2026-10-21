@@ -7,13 +7,7 @@ use beui_view::reactive::*;
 
 use crate::frame::{Border, ColorRole};
 
-#[derive(Clone, Copy, PartialEq, Eq, Debug)]
-pub enum ThemeKind {
-    Dark,
-    OledDark,
-    Light,
-    EInk,
-}
+pub use beui_core::preferences::ThemeKind;
 
 #[derive(Clone, Copy, PartialEq, Eq, Debug, Store)]
 pub struct Theme {
@@ -50,12 +44,14 @@ pub struct Theme {
 }
 
 impl Theme {
-    pub const BUILT_IN: [(&'static str, Theme); 4] = [
-        ("Dark", Theme::DARK),
-        ("OLED dark", Theme::OLED),
-        ("Light", Theme::LIGHT),
-        ("E-ink", Theme::EINK),
-    ];
+    pub const fn of(kind: ThemeKind) -> Self {
+        match kind {
+            ThemeKind::Dark => Self::DARK,
+            ThemeKind::OledDark => Self::OLED,
+            ThemeKind::Light => Self::LIGHT,
+            ThemeKind::EPaper => Self::EPAPER,
+        }
+    }
 
     pub const DARK: Theme = Theme {
         kind: ThemeKind::Dark,
@@ -156,8 +152,8 @@ impl Theme {
         shadow: Color32::from_rgba_unmultiplied(16, 24, 40, 40),
     };
 
-    pub const EINK: Theme = Theme {
-        kind: ThemeKind::EInk,
+    pub const EPAPER: Theme = Theme {
+        kind: ThemeKind::EPaper,
         background: Color32::WHITE,
         surface: Color32::WHITE,
         surface_raised: Color32::WHITE,
@@ -238,24 +234,21 @@ pub fn use_theme() -> ThemeStore {
 }
 
 fn document_theme_store(document: &mut Document) -> ThemeStore {
-    document.extension_or_insert_with(|| ThemeStore::new(Theme::DARK))
+    let kind = document.watch_theme();
+    document.extension_or_insert_with(|| {
+        let store = ThemeStore::new(Theme::of(kind.get_untracked()));
+        create_effect(move || store.set(Theme::of(kind.get())));
+        store
+    })
 }
 
 pub trait DocumentTheme {
     fn theme(&self) -> Theme;
-
-    fn set_theme(&mut self, theme: Theme);
 }
 
 impl DocumentTheme for Document {
     fn theme(&self) -> Theme {
-        self.extension::<ThemeStore>()
-            .map_or(Theme::DARK, |store| store.get_untracked())
-    }
-
-    fn set_theme(&mut self, theme: Theme) {
-        let store = document_theme_store(self);
-        store.set(theme);
+        Theme::of(self.preferences().theme)
     }
 }
 

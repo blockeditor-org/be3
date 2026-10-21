@@ -128,7 +128,11 @@ pub fn InputSettingsView(editor: Editor, settings: Settings) -> NodeId {
 }
 
 fn device_key(device: &HostInputDevice) -> DeviceKey {
-    (device.name.clone(), device.vendor, device.product)
+    (
+        device.device.name.clone(),
+        device.device.vendor,
+        device.device.product,
+    )
 }
 
 fn identity(key: &DeviceKey) -> InputDevice {
@@ -270,10 +274,13 @@ fn PointerRows(
             })
         })
     };
-    let tap = state(|pointer| pointer.tap_to_click, |device| device.tap_to_click);
+    let tap = state(
+        |pointer| pointer.tap_to_click,
+        |device| device.defaults.tap_to_click,
+    );
     let natural = state(
         |pointer| pointer.natural_scroll,
-        |device| device.natural_scroll,
+        |device| device.defaults.natural_scroll,
     );
     let speed = create_memo({
         let scope = scope.clone();
@@ -285,7 +292,7 @@ fn PointerRows(
                     devices,
                     scope.as_ref(),
                     |pointer| pointer.speed.map(PointerSpeed::get),
-                    |device| device.speed.map(|speed| speed as f32),
+                    |device| device.defaults.speed.map(PointerSpeed::get),
                     0.0,
                 )
             })

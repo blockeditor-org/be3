@@ -7,13 +7,7 @@ use uuid::Uuid;
 use crate::Root;
 use crate::setting::Setting;
 use crate::settings::Layered;
-
-#[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, Ord, PartialEq, PartialOrd, Serialize)]
-pub struct DisplayMode {
-    pub width: u32,
-    pub height: u32,
-    pub refresh_millihertz: u32,
-}
+pub use ui_types::{DisplayMode, Motion, PreferenceLayer, Rotation, ThemeKind};
 
 #[derive(Clone, Copy, Debug, Deserialize, Eq, Hash, PartialEq, Serialize)]
 pub enum ScreenOff {
@@ -51,55 +45,6 @@ impl LockAfter {
     }
 }
 
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub enum Theme {
-    #[default]
-    Dark,
-    OledDark,
-    Light,
-    EInk,
-}
-
-impl Theme {
-    pub const ALL: [Self; 4] = [Self::Light, Self::Dark, Self::OledDark, Self::EInk];
-
-    pub fn name(self) -> &'static str {
-        match self {
-            Self::Dark => "Dark",
-            Self::OledDark => "OLED dark",
-            Self::Light => "Light",
-            Self::EInk => "E-ink",
-        }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, Deserialize, Eq, Hash, PartialEq, Serialize)]
-pub enum Rotation {
-    #[default]
-    Normal,
-    Clockwise90,
-    Clockwise180,
-    Clockwise270,
-}
-
-impl Rotation {
-    pub const ALL: [Self; 4] = [
-        Self::Normal,
-        Self::Clockwise90,
-        Self::Clockwise180,
-        Self::Clockwise270,
-    ];
-
-    pub fn degrees(self) -> u32 {
-        match self {
-            Self::Normal => 0,
-            Self::Clockwise90 => 90,
-            Self::Clockwise180 => 180,
-            Self::Clockwise270 => 270,
-        }
-    }
-}
-
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 pub struct ScreenSettings {
     pub mode: Option<DisplayMode>,
@@ -117,24 +62,36 @@ impl ScreenSettings {
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 pub struct DisplaySettings {
-    pub theme: Option<Theme>,
+    pub theme: Option<ThemeKind>,
     pub scale_percent: Option<u32>,
     pub screens: Map<String, ScreenSettings>,
     pub rotate_in_bar: Option<bool>,
     pub screen_off: Option<ScreenOff>,
     pub lock_after: Option<LockAfter>,
+    pub motion: Option<Motion>,
 }
 
 impl DisplaySettings {
     pub const SCALES: [u32; 9] = [75, 90, 100, 110, 125, 150, 175, 200, 250];
     pub const DEFAULT_SCALE: u32 = 100;
 
-    pub fn theme(&self) -> Theme {
+    pub fn theme(&self) -> ThemeKind {
         self.theme.unwrap_or_default()
     }
 
-    pub fn set_theme(theme: Option<Theme>) -> Edit {
+    pub fn preferences(&self) -> PreferenceLayer {
+        PreferenceLayer {
+            theme: self.theme,
+            motion: self.motion,
+        }
+    }
+
+    pub fn set_theme(theme: Option<ThemeKind>) -> Edit {
         Self::THEME.set(ObjectId::ROOT, &theme).into()
+    }
+
+    pub fn set_motion(motion: Option<Motion>) -> Edit {
+        Self::MOTION.set(ObjectId::ROOT, &motion).into()
     }
 
     pub fn scale_percent(&self) -> u32 {
@@ -224,14 +181,24 @@ impl DisplaySettings {
         !id.contains('|')
     }
 
-    pub fn theme_setting() -> Setting<Self, Theme> {
+    pub fn theme_setting() -> Setting<Self, ThemeKind> {
         Setting::new(
             "theme",
             "Theme",
             |settings: &Self| settings.theme,
             |_, theme| Self::set_theme(theme),
         )
-        .with_default(Some(Theme::default()))
+        .with_default(Some(ThemeKind::default()))
+    }
+
+    pub fn motion_setting() -> Setting<Self, Motion> {
+        Setting::new(
+            "motion",
+            "Motion",
+            |settings: &Self| settings.motion,
+            |_, motion| Self::set_motion(motion),
+        )
+        .with_default(Some(Motion::default()))
     }
 
     pub fn scale_setting() -> Setting<Self, u32> {
@@ -313,6 +280,7 @@ impl Layered for DisplaySettings {
             rotate_in_bar: self.rotate_in_bar.or(lower.rotate_in_bar),
             screen_off: self.screen_off.or(lower.screen_off),
             lock_after: self.lock_after.or(lower.lock_after),
+            motion: self.motion.or(lower.motion),
         }
     }
 }

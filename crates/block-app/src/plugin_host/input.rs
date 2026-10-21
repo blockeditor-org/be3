@@ -148,10 +148,8 @@ impl InputAdapter {
         if event.pointer == PointerId::Pen {
             let phase = match event.phase {
                 PointerPhase::Move => PenPhase::Move,
-                PointerPhase::Down(button) => {
-                    PenPhase::Down(beui_plugin_input::pointer_button(button))
-                }
-                PointerPhase::Up(button) => PenPhase::Up(beui_plugin_input::pointer_button(button)),
+                PointerPhase::Down(button) => PenPhase::Down(button),
+                PointerPhase::Up(button) => PenPhase::Up(button),
                 PointerPhase::Cancel | PointerPhase::Gone => PenPhase::Gone,
                 _ => return,
             };
@@ -175,7 +173,7 @@ impl InputAdapter {
             PointerPhase::Down(button) | PointerPhase::Up(button) => {
                 push_modifiers(&mut self.modifiers, event.modifiers, output);
                 output.push(InputEvent::PointerButton {
-                    button: beui_plugin_input::pointer_button(button),
+                    button,
                     pressed: matches!(event.phase, PointerPhase::Down(_)),
                     x,
                     y,
@@ -203,14 +201,14 @@ impl InputAdapter {
             }),
             Event::Key { press, text, .. } => {
                 push_modifiers(&mut self.modifiers, press.modifiers, output);
-                match beui_plugin_input::protocol_key(press.key) {
-                    Some(key) => output.push(InputEvent::Key {
+                match press.key {
+                    beui::Key::Unidentified => output.extend(text.clone().map(InputEvent::Text)),
+                    key => output.push(InputEvent::Key {
                         key,
                         pressed: press.pressed,
                         repeat: press.repeat,
                         text: text.clone(),
                     }),
-                    None => output.extend(text.clone().map(InputEvent::Text)),
                 }
             }
             Event::Modifiers(modifiers) => push_modifiers(&mut self.modifiers, *modifiers, output),
@@ -218,10 +216,8 @@ impl InputAdapter {
             Event::Paste(beui::Pasted::Text(text)) => {
                 output.extend(block_plugin_api::paste_events(text))
             }
-            Event::Paste(pasted) => output.push(InputEvent::Paste(
-                beui_plugin_input::protocol_pasted(pasted.clone()),
-            )),
-            Event::Ime(ime) => output.push(InputEvent::Ime(beui_plugin_input::protocol_ime(ime))),
+            Event::Paste(pasted) => output.push(InputEvent::Paste(pasted.clone())),
+            Event::Ime(ime) => output.push(InputEvent::Ime(ime.clone())),
             _ => {}
         }
     }
@@ -234,10 +230,10 @@ impl InputAdapter {
         let mut output = Vec::new();
         push_modifiers(&mut self.modifiers, modifiers, &mut output);
         if let Some(press) = press
-            && let Some(key) = beui_plugin_input::protocol_key(press.key)
+            && press.key != beui::Key::Unidentified
         {
             output.push(InputEvent::InterceptedKey {
-                key,
+                key: press.key,
                 pressed: press.pressed,
                 repeat: press.repeat,
             });
@@ -246,7 +242,7 @@ impl InputAdapter {
     }
 
     pub(super) fn back(&self, gesture: beui::BackGesture) -> InputEvent {
-        InputEvent::Back(beui_plugin_input::back_phase(gesture))
+        InputEvent::Back(gesture)
     }
 }
 
@@ -276,7 +272,6 @@ fn push_modifiers(
     modifiers: beui::Modifiers,
     output: &mut Vec<InputEvent>,
 ) {
-    let modifiers = beui_plugin_input::protocol_modifiers(modifiers);
     if *previous != modifiers {
         *previous = modifiers;
         output.push(InputEvent::Modifiers(modifiers));

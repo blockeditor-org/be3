@@ -5,7 +5,7 @@ use be_block::counter::CounterContent;
 use std::time::Duration;
 
 use block_editor_plugin::session::{ClientSession, State};
-use block_plugin_api::{HelloAccepted, SurfaceFormat, SurfaceSpec, Theme};
+use block_plugin_api::{HelloAccepted, SurfaceFormat, SurfaceSpec};
 
 #[test]
 fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
@@ -20,8 +20,7 @@ fn an_editor_is_only_sent_messages_its_plugin_session_accepts() {
         surface: Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
         }),
-        theme: Theme::Dark,
-        motion: block_plugin_api::Motion::default(),
+        preferences: block_plugin_api::Preferences::default(),
     }));
 
     let opened = next_screens(&mut instances).opened;

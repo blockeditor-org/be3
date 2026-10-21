@@ -41,8 +41,7 @@ impl Message {
             }
             Self::Hello(_)
             | Self::HelloAccepted(_)
-            | Self::Motion(_)
-            | Self::Theme(_)
+            | Self::Preferences(_)
             | Self::UtcOffset(_)
             | Self::Fonts(_)
             | Self::MissingCharacters(_)

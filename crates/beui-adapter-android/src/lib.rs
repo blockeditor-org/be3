@@ -34,6 +34,7 @@ use beui_core::input::{
     BackEdge, BackGesture, Event, ImeArea, ImeEvent, ImeText, Key, Keyboard, Modifiers, Pen,
     PenPhase, PointerButton, TouchId, TouchPhase,
 };
+use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::{Loaded, WindowHandle};
 use beui_core::runner::{Adapter, Keystroke, Launch, Platform, Running, ScrollDelta};
 use beui_core::window::{SystemBars, WindowState};
@@ -82,6 +83,7 @@ enum Message {
     },
     SurfaceGone(SyncSender<()>),
     Insets(SafeArea),
+    Preferences(PreferenceLayer),
     Focus(bool),
     Touch {
         device: jint,
@@ -532,6 +534,10 @@ impl Runner {
             }
             Message::Insets(area) => {
                 self.safe_area = area;
+                self.redraw = true;
+            }
+            Message::Preferences(preferences) => {
+                self.runner.reports().system_preferences(preferences);
                 self.redraw = true;
             }
             Message::Focus(focused) => self.runner.push(Event::Focus(focused)),
@@ -993,6 +999,24 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeInsets<'local>(
         top: top as f32,
         right: right as f32,
         bottom: bottom as f32,
+    }));
+}
+
+#[unsafe(no_mangle)]
+pub extern "system" fn Java_com_be3_beui_BeuiView_nativePreferences<'local>(
+    _env: EnvUnowned<'local>,
+    _: JClass<'local>,
+    dark: jboolean,
+    light: jboolean,
+    reduce_motion: jboolean,
+) {
+    send(Message::Preferences(PreferenceLayer {
+        theme: match (dark, light) {
+            (true, _) => Some(ThemeKind::Dark),
+            (false, true) => Some(ThemeKind::Light),
+            (false, false) => None,
+        },
+        motion: reduce_motion.then_some(Motion::Instant),
     }));
 }
 

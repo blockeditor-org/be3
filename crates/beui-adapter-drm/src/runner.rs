@@ -14,6 +14,7 @@ use beui::{
 };
 use beui_core::app::SafeArea;
 use beui_core::clipboard::{PasteAnswer, PasteKind, Pasted};
+use beui_core::preferences::{Motion, PreferenceLayer, ThemeKind};
 use beui_core::renderer::Loaded;
 use beui_core::runner::{Keystroke, Runner, panic_message};
 use beui_core::window::WindowState;
@@ -41,7 +42,7 @@ use smithay::reexports::calloop::{
 use smithay::reexports::drm;
 use smithay::reexports::drm::control::Device as ControlDevice;
 use smithay::reexports::drm::control::{connector, crtc};
-use smithay::reexports::input::{Device as InputDevice, DeviceCapability, Libinput};
+use smithay::reexports::input::{Device as Libdevice, DeviceCapability, Libinput};
 use smithay::reexports::rustix::fs::OFlags;
 use smithay::utils::{Clock, DeviceFd, Monotonic};
 
@@ -54,7 +55,8 @@ use crate::escape::{Escape, FINGERS as ESCAPE_FINGERS, HOLD as ESCAPE_HOLD};
 use crate::flips::{Flip, Flips};
 use crate::gpu::{Gpu, SoftwareCursor};
 use crate::input::{
-    DeviceId, InputConfig, InputControl, PointerConfig, PointerDevice, RawInput, SharedFilter,
+    InputConfig, InputControl, InputDevice, PointerDevice, PointerSettings, PointerSpeed, RawInput,
+    SharedFilter,
 };
 use crate::keyboard::Keyboard;
 use crate::layout::{absolute, arrange, bounds, clamp, moved};
@@ -62,7 +64,7 @@ use crate::output::{Buffers, Output, connected, wait_for};
 use crate::pacing::{Lane, Pacer, Wait};
 use crate::problems::Problems;
 use crate::recovery::{Card, Recovery};
-use crate::rotation::Rotation;
+use crate::rotation::{Rotation, Turn};
 use crate::screen::FORMAT;
 use crate::wake::{Held, Input, WakeGate};
 
@@ -84,7 +86,7 @@ struct Session {
     escape_timer: Option<RegistrationToken>,
     node: u64,
     libinput: Libinput,
-    devices: Vec<InputDevice>,
+    devices: Vec<Libdevice>,
     input: InputConfig,
     control: InputControl,
     display_control: DisplayControl,
@@ -200,6 +202,12 @@ pub fn run(launch: Launch) -> Result<(), Box<dyn Error>> {
     )?;
     runner.reports().fullscreen(true);
     runner.reports().scaled(displays.borrow().scale);
+    if epaper.is_some() {
+        runner.reports().system_preferences(PreferenceLayer {
+            theme: Some(ThemeKind::EPaper),
+            motion: Some(Motion::Instant),
+        });
+    }
     let input = InputConfig::default();
     let platform = Seat {
         clipboard: None,
@@ -904,7 +912,7 @@ impl Session {
         let mut pointers: Vec<PointerDevice> = Vec::new();
         for device in &self.devices {
             let defaults = pointer_defaults(device);
-            if defaults == PointerConfig::default() {
+            if defaults == PointerSettings::default() {
                 continue;
             }
             let id = device_id(device);
@@ -1357,19 +1365,19 @@ fn touch_held(slot: smithay::backend::input::TouchSlot) -> Held {
     Held::Touch(slot.into())
 }
 
-fn device_id(device: &InputDevice) -> DeviceId {
-    DeviceId {
+fn device_id(device: &Libdevice) -> InputDevice {
+    InputDevice {
         name: device.name().to_owned(),
         vendor: device.id_vendor(),
         product: device.id_product(),
     }
 }
 
-fn pointer_defaults(device: &InputDevice) -> PointerConfig {
-    PointerConfig {
+fn pointer_defaults(device: &Libdevice) -> PointerSettings {
+    PointerSettings {
         speed: device
             .config_accel_is_available()
-            .then(|| device.config_accel_default_speed()),
+            .then(|| PointerSpeed::new(device.config_accel_default_speed() as f32)),
         tap_to_click: (device.config_tap_finger_count() > 0)
             .then(|| device.config_tap_default_enabled()),
         natural_scroll: device
@@ -1378,11 +1386,12 @@ fn pointer_defaults(device: &InputDevice) -> PointerConfig {
     }
 }
 
-fn configure_device(device: &mut InputDevice, config: &InputConfig) {
+fn configure_device(device: &mut Libdevice, config: &InputConfig) {
     let defaults = pointer_defaults(device);
     let wanted = config.pointer(&device_id(device));
     if let Some(default) = defaults.speed {
-        let _ = device.config_accel_set_speed(wanted.speed.unwrap_or(default));
+        let speed = wanted.speed.unwrap_or(default);
+        let _ = device.config_accel_set_speed(speed.get().into());
     }
     if let Some(default) = defaults.tap_to_click {
         let _ = device.config_tap_set_enabled(wanted.tap_to_click.unwrap_or(default));

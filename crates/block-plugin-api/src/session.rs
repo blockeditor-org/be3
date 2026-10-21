@@ -1,6 +1,6 @@
 use crate::{
     DecodeError, HelloAccepted, InputBatch, InputEvent, MAX_QUEUED_MESSAGES, Message,
-    REQUEST_TIMEOUT_MILLISECONDS, SurfaceSpec, SurfaceSupport, Theme, decode_frame,
+    REQUEST_TIMEOUT_MILLISECONDS, SurfaceSpec, SurfaceSupport, decode_frame,
 };
 use std::collections::{HashMap, VecDeque};
 
@@ -34,8 +34,7 @@ pub enum QueueError {
 pub struct HostSession {
     state: SessionState,
     host_name: String,
-    theme: Theme,
-    motion: crate::Motion,
+    preferences: crate::Preferences,
     surface: Option<SurfaceSpec>,
     granted: Option<SurfaceSpec>,
     queue: VecDeque<Message>,
@@ -44,22 +43,21 @@ pub struct HostSession {
 }
 
 impl HostSession {
-    pub fn new(host_name: impl Into<String>, surface: Option<SurfaceSpec>, theme: Theme) -> Self {
+    pub fn new(
+        host_name: impl Into<String>,
+        surface: Option<SurfaceSpec>,
+        preferences: crate::Preferences,
+    ) -> Self {
         Self {
             state: SessionState::Idle,
             host_name: host_name.into(),
-            theme,
-            motion: crate::Motion::default(),
+            preferences,
             surface,
             granted: None,
             queue: VecDeque::new(),
             requests: HashMap::new(),
             lifecycle_deadline: None,
         }
-    }
-
-    pub fn set_motion(&mut self, motion: crate::Motion) {
-        self.motion = motion;
     }
 
     pub fn state(&self) -> &SessionState {
@@ -104,8 +102,7 @@ impl HostSession {
                 self.queue.push_back(Message::HelloAccepted(HelloAccepted {
                     host_name: self.host_name.clone(),
                     surface: granted,
-                    theme: self.theme,
-                    motion: self.motion,
+                    preferences: self.preferences,
                 }));
                 self.state = SessionState::Running;
                 self.lifecycle_deadline = None;

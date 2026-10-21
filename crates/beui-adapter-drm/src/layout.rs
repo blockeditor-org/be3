@@ -1,6 +1,6 @@
 use beui::{Pos2, Rect, Vec2, pos2, vec2};
 
-use crate::rotation::Rotation;
+use crate::rotation::{Rotation, Turn};
 
 pub fn arrange(sizes: &[(u32, u32)], scale: f32) -> Vec<Rect> {
     let mut left = 0.0;

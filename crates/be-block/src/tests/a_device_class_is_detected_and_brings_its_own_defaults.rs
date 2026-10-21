@@ -1,5 +1,5 @@
 use super::*;
-use crate::{DeviceClass, Theme};
+use crate::{DeviceClass, Motion, ThemeKind};
 
 #[test]
 fn a_device_class_is_detected_and_brings_its_own_defaults() {
@@ -20,7 +20,8 @@ fn a_device_class_is_detected_and_brings_its_own_defaults() {
         assert_eq!(class.display_settings(), DisplaySettings::default());
     }
     let epaper = DeviceClass::EpaperTablet.display_settings();
-    assert_eq!(epaper.theme, Some(Theme::EInk));
+    assert_eq!(epaper.theme, Some(ThemeKind::EPaper));
+    assert_eq!(epaper.motion, Some(Motion::Instant));
     assert_eq!(epaper.scale_percent, Some(150));
     assert_eq!(epaper.rotate_in_bar, Some(true));
     assert_eq!(
@@ -30,7 +31,7 @@ fn a_device_class_is_detected_and_brings_its_own_defaults() {
     assert!(epaper.screens.is_empty(), "a class never sets a rotation");
 
     let every_device = DisplaySettings {
-        theme: Some(Theme::EInk),
+        theme: Some(ThemeKind::EPaper),
         ..DisplaySettings::default()
     };
     let differing: Vec<String> = DeviceClass::EpaperTablet
@@ -39,7 +40,7 @@ fn a_device_class_is_detected_and_brings_its_own_defaults() {
         .filter(|default| default.differs(&epaper, &every_device))
         .map(|default| default.name().to_owned())
         .collect();
-    assert_eq!(differing, ["Scale", "The rotate button"]);
+    assert_eq!(differing, ["Motion", "Scale", "The rotate button"]);
 
     let changed = DisplaySettings {
         scale_percent: Some(125),
@@ -55,6 +56,7 @@ fn a_device_class_is_detected_and_brings_its_own_defaults() {
         "a default still in place goes with its class"
     );
     assert_eq!(desktop.rotate_in_bar, None);
+    assert_eq!(desktop.motion, None);
     assert_eq!(
         desktop.scale_percent,
         Some(125),

@@ -1,7 +1,7 @@
 use super::*;
 use crate::{
     Hello, HelloAccepted, Modifiers, PluginIdentity, PointerButton, SurfaceFormat, SurfaceSpec,
-    SurfaceSupport, Theme, WheelUnit, encode_frame,
+    SurfaceSupport, WheelUnit, encode_frame,
 };
 
 fn session() -> HostSession {
@@ -10,7 +10,7 @@ fn session() -> HostSession {
         Some(SurfaceSpec {
             format: SurfaceFormat::Rgba8Unorm,
         }),
-        Theme::Dark,
+        crate::Preferences::default(),
     )
 }
 
@@ -49,7 +49,7 @@ fn input(event: InputEvent) -> Message {
 
 mod a_plugin_that_draws_nothing_is_granted_no_surface;
 mod a_superseded_request_is_forgotten;
-mod acceptance_carries_the_initial_motion_preference;
+mod acceptance_carries_the_initial_preferences;
 mod coalesced_zoom_gestures_multiply;
 mod disconnect_fails_the_session;
 mod malformed_payload_fails_the_session;

@@ -97,19 +97,6 @@ struct Views<A: BeuiApp> {
     app: PhantomData<A>,
 }
 
-fn follow_host_theme(document: &mut beui::Document) {
-    use beui::styled::*;
-    let theme = match block_editor_plugin::host_theme() {
-        block_plugin_api::Theme::Dark => Theme::DARK,
-        block_plugin_api::Theme::OledDark => Theme::OLED,
-        block_plugin_api::Theme::Light => Theme::LIGHT,
-        block_plugin_api::Theme::EInk => Theme::EINK,
-    };
-    if document.theme() != theme {
-        document.set_theme(theme);
-    }
-}
-
 impl<A: BeuiApp> Views<A> {
     fn preview(&mut self, context: &beui::Context, rect: beui::Rect) {
         let Some(editor) = self.preview.as_deref().copied() else {
@@ -125,7 +112,6 @@ impl<A: BeuiApp> Views<A> {
             })
         });
         editor.begin_frame();
-        follow_host_theme(document);
         document.show(context, rect);
         editor.end_frame(document);
     }
@@ -136,7 +122,6 @@ impl<A: BeuiApp> Views<A> {
         };
         let creation = creation.clone();
         creation.begin_frame();
-        follow_host_theme(dialog);
         dialog.show(context, rect);
         let measured = dialog.measure_root(context, beui::vec2(rect.width(), f32::INFINITY))?;
         measured
@@ -165,7 +150,6 @@ impl<A: BeuiApp> Views<A> {
             })
         });
         artifacts.receive_settings(&std::mem::take(draft));
-        follow_host_theme(document);
         document.show(context, rect);
         *draft = artifacts
             .take_settings_edit()
@@ -223,7 +207,6 @@ impl<A: BeuiApp> Views<A> {
         if let Some(editor) = &editor {
             editor.begin_frame();
         }
-        follow_host_theme(chrome.document_mut());
         chrome.document_mut().show(context, rect);
         if let Some(editor) = &editor {
             editor.end_frame(chrome.document());
@@ -279,6 +262,15 @@ impl<A: BeuiApp> BeuiInstance<A> {
             (EditorRegion::Frame, true) => self.views.dialog.as_ref(),
             (EditorRegion::Preview, _) => self.views.preview_document.as_ref(),
             (EditorRegion::ArtifactSettings, _) => self.views.settings.as_ref(),
+        }
+    }
+
+    pub(crate) fn document_mut(&mut self, region: EditorRegion) -> Option<&mut beui::Document> {
+        match (region, self.views.creating) {
+            (EditorRegion::Frame, false) => self.views.chrome.as_mut().map(BeuiFrame::document_mut),
+            (EditorRegion::Frame, true) => self.views.dialog.as_mut(),
+            (EditorRegion::Preview, _) => self.views.preview_document.as_mut(),
+            (EditorRegion::ArtifactSettings, _) => self.views.settings.as_mut(),
         }
     }
 
@@ -480,12 +472,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             .claims
             .into_iter()
             .map(|(held, rect)| block_editor_plugin::Claim {
-                modifiers: block_plugin_api::Modifiers {
-                    alt: held.alt,
-                    control: held.ctrl,
-                    shift: held.shift,
-                    logo: held.logo,
-                },
+                modifiers: held,
                 rect: to_region(rect),
             })
             .collect();

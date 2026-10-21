@@ -6,7 +6,7 @@ use block_editor_beui::be_block::{
 use block_editor_beui::beui::{Document, Key, KeyChord, Modifiers, NodeId, Rect};
 use block_editor_beui::{
     AudioOutput, BlockInfo, BlockParent, ChildContent, Displays, EditorHost, Epaper, EpaperRequest,
-    HostDisplay, HostDisplayMode, HostImage, HostProgram, HostWindow, HostWindowId, HostWindows,
+    HostDisplay, HostImage, HostProgram, HostWindow, HostWindowId, HostWindows,
     IncomingNotification, Media, MediaLevel, MediaLevels, MediaRequest, NotificationInbox,
     NotificationReport, NotificationRequest, NotificationSignal, Notifications, OwnedEditor,
     PlayerCommand, Power, PowerAction, PowerAvailability, ProgramAction, Programs, Wifi, WifiLink,
@@ -389,7 +389,7 @@ impl Fixture {
 const PANEL: &str = "DPI-1";
 
 fn epaper_panel() -> HostDisplay {
-    let mode = HostDisplayMode {
+    let mode = DisplayMode {
         width: 1404,
         height: 1872,
         refresh_millihertz: 85_000,

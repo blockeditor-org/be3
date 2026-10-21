@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::InputSettingsContent;
-use block_editor_beui::be_block::input_settings::InputDevice;
+use block_editor_beui::be_block::input_settings::{InputDevice, PointerSettings, PointerSpeed};
 use block_editor_beui::beui::Key;
 use block_editor_beui::{EditorHost, HostInputDevice, InputDevices, OwnedEditor};
 use block_ui_test::BeuiTest;
@@ -57,23 +57,31 @@ fn choose_pointer(editor: &mut BeuiTest<InputSettingsApp>, index: usize) {
 
 fn mouse() -> HostInputDevice {
     HostInputDevice {
-        name: "Mouse".to_owned(),
-        vendor: 0x046d,
-        product: 0xc52b,
-        speed: Some(0.0),
-        tap_to_click: None,
-        natural_scroll: Some(false),
+        device: InputDevice {
+            name: "Mouse".to_owned(),
+            vendor: 0x046d,
+            product: 0xc52b,
+        },
+        defaults: PointerSettings {
+            speed: Some(PointerSpeed::new(0.0)),
+            tap_to_click: None,
+            natural_scroll: Some(false),
+        },
     }
 }
 
 fn touchpad() -> HostInputDevice {
     HostInputDevice {
-        name: "Touchpad".to_owned(),
-        vendor: 0x06cb,
-        product: 0x0001,
-        speed: Some(0.0),
-        tap_to_click: Some(true),
-        natural_scroll: Some(false),
+        device: InputDevice {
+            name: "Touchpad".to_owned(),
+            vendor: 0x06cb,
+            product: 0x0001,
+        },
+        defaults: PointerSettings {
+            speed: Some(PointerSpeed::new(0.0)),
+            tap_to_click: Some(true),
+            natural_scroll: Some(false),
+        },
     }
 }
 

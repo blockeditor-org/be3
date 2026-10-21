@@ -5,12 +5,7 @@ use beui::Waker;
 
 use crate::rotation::Rotation;
 
-#[derive(Clone, Copy, Debug, Eq, Hash, Ord, PartialEq, PartialOrd)]
-pub struct DisplayMode {
-    pub width: u32,
-    pub height: u32,
-    pub refresh_millihertz: u32,
-}
+pub use ui_types::DisplayMode;
 
 #[derive(Clone, Debug, PartialEq)]
 pub struct Monitor {

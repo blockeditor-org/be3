@@ -173,8 +173,7 @@ fn name(message: &Message) -> &'static str {
     match message {
         Message::Hello(_) => "a hello",
         Message::HelloAccepted(_) => "an accepted hello",
-        Message::Motion(_) => "a motion preference",
-        Message::Theme(_) => "a theme",
+        Message::Preferences(_) => "preferences",
         Message::UtcOffset(_) => "a UTC offset",
         Message::Fonts(_) => "fonts",
         Message::MissingCharacters(_) => "missing characters",

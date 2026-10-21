@@ -1,5 +1,6 @@
 use super::*;
 use crate::input::BackGesture;
+use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
 fn interrupting_a_sheet_bounce_leaves_no_displacement() {
@@ -38,7 +39,13 @@ fn interrupting_a_sheet_bounce_leaves_no_displacement() {
                 harness.touch(TouchPhase::Move, pos2(200.0, 310.0));
                 harness.touch(TouchPhase::Cancel, pos2(200.0, 310.0));
             }
-            _ => harness.context.set_motion(Motion::Instant),
+            _ => harness.context.set_preference_layer(
+                PreferenceSource::System,
+                PreferenceLayer {
+                    motion: Some(Motion::Instant),
+                    ..PreferenceLayer::EMPTY
+                },
+            ),
         }
         harness.settle();
         assert_eq!(harness.rect(handle).top(), top);

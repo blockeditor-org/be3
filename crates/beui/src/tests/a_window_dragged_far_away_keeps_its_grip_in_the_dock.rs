@@ -1,12 +1,19 @@
 use super::*;
 use crate::unstyled::dock_state;
+use crate::{PreferenceLayer, PreferenceSource};
 
 #[test]
 fn a_window_dragged_far_away_keeps_its_grip_in_the_dock() {
     let _root = crate::reactive::RootScope::new();
     let (document, dock) = dock_of(2);
     let mut harness = Harness::sized(document, WIDE_VIEWPORT);
-    harness.context.set_motion(crate::reactive::Motion::Instant);
+    harness.context.set_preference_layer(
+        PreferenceSource::System,
+        PreferenceLayer {
+            motion: Some(crate::reactive::Motion::Instant),
+            ..PreferenceLayer::EMPTY
+        },
+    );
     let window = floated_window(&mut harness, dock);
     let before = dock_state(harness.document(), dock)
         .window_rect(window)

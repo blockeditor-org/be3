@@ -1,12 +1,12 @@
 use super::*;
-use block_editor_beui::be_block::Theme;
+use block_editor_beui::be_block::ThemeKind;
 
 #[test]
 fn using_my_usual_settings_removes_what_the_kind_kept_here() {
     let mut setup = SetUp::new(
         DeviceClass::EpaperTablet,
         DisplaySettings {
-            theme: Some(Theme::EInk),
+            theme: Some(ThemeKind::EPaper),
             ..DisplaySettings::default()
         },
     );
@@ -17,7 +17,7 @@ fn using_my_usual_settings_removes_what_the_kind_kept_here() {
     assert_eq!(here.rotate_in_bar, None);
     assert_eq!(
         here.theme,
-        Some(Theme::EInk),
+        Some(ThemeKind::EPaper),
         "a value that was not listed stays as it is"
     );
     assert_eq!(setup.profile().class, Some(DeviceClass::EpaperTablet));
