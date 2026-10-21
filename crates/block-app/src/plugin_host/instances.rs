@@ -1805,13 +1805,14 @@ impl Instances {
                 }
             };
             let child_rect = host_rect(child.rect, origin, stretch);
-            let view_rect = match (child.follows_camera, table.camera, view) {
-                (true, Some(camera), Some(view)) => {
-                    host_rect(through(child.rect, camera, view), origin, stretch)
-                }
-                _ => child_rect,
+            let (view_rect, child_clip) = match (child.follows_camera, table.camera, view) {
+                (true, Some(camera), Some(view)) => (
+                    host_rect(through(child.rect, camera, view), origin, stretch),
+                    host_rect(followed_clip(child, camera, view), origin, stretch),
+                ),
+                _ => (child_rect, host_rect(child.clip, origin, stretch)),
             };
-            let child_clip = host_rect(child.clip, origin, stretch).intersect(clip);
+            let child_clip = child_clip.intersect(clip);
             let occluders: Vec<Rect> = table
                 .occluders
                 .iter()
@@ -3322,6 +3323,21 @@ fn through(rect: ChildRect, camera: Camera, view: EditorView) -> ChildRect {
         width: rect.width * scale,
         height: rect.height * scale,
     }
+}
+
+fn followed_clip(child: &ChildPlacement, camera: Camera, view: EditorView) -> ChildRect {
+    let (clip, swept) = (child.clip, child.rect.swept(child.rotation));
+    let held = |clipped: f32, own: f32, open: f32| match (clipped - own).abs() > 0.01 {
+        true => clipped,
+        false => open,
+    };
+    let held = ChildRect::from_edges(
+        held(clip.x, swept.x, f32::MIN),
+        held(clip.y, swept.y, f32::MIN),
+        held(clip.right(), swept.right(), f32::MAX),
+        held(clip.bottom(), swept.bottom(), f32::MAX),
+    );
+    through(swept, camera, view).intersect(held)
 }
 
 fn host_rect(rect: block_plugin_api::ChildRect, origin: Vec2, stretch: Vec2) -> Rect {

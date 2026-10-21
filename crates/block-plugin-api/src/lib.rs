@@ -375,6 +375,49 @@ impl ChildRect {
     pub fn is_empty(&self) -> bool {
         self.width <= 0.0 || self.height <= 0.0
     }
+
+    pub fn right(&self) -> f32 {
+        self.x + self.width
+    }
+
+    pub fn bottom(&self) -> f32 {
+        self.y + self.height
+    }
+
+    pub fn from_edges(left: f32, top: f32, right: f32, bottom: f32) -> Self {
+        Self {
+            x: left,
+            y: top,
+            width: (right - left).max(0.0),
+            height: (bottom - top).max(0.0),
+        }
+    }
+
+    pub fn intersect(&self, other: ChildRect) -> ChildRect {
+        Self::from_edges(
+            self.x.max(other.x),
+            self.y.max(other.y),
+            self.right().min(other.right()),
+            self.bottom().min(other.bottom()),
+        )
+    }
+
+    pub fn swept(&self, rotation: f32) -> ChildRect {
+        if rotation == 0.0 {
+            return *self;
+        }
+        let (center_x, center_y) = (self.x + self.width / 2.0, self.y + self.height / 2.0);
+        let (sin, cos) = rotation.sin_cos();
+        let (half_width, half_height) = (self.width / 2.0, self.height / 2.0);
+        let reach_x = half_width * cos.abs() + half_height * sin.abs();
+        let reach_y = half_width * sin.abs() + half_height * cos.abs();
+        Self::from_edges(
+            center_x - reach_x,
+            center_y - reach_y,
+            center_x + reach_x,
+            center_y + reach_y,
+        )
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Serialize, Deserialize)]

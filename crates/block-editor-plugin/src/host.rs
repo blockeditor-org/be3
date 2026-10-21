@@ -18,7 +18,7 @@ use block_plugin_api::{
 };
 pub use block_plugin_api::{BlockFilter, FileFilter, SavedFile};
 use block_ui::BlockCatalog;
-use geometry::{Pos2, Rect, Vec2, vec2};
+use geometry::{Pos2, Rect, Vec2};
 use uuid::Uuid;
 
 #[derive(Clone, Copy)]
@@ -331,28 +331,6 @@ impl Children {
 struct View {
     rect: Rect,
     scale: f32,
-}
-
-fn swept(rect: Rect, rotation: f32) -> Rect {
-    if rotation == 0.0 {
-        return rect;
-    }
-    let center = rect.center();
-    let (sin, cos) = rotation.sin_cos();
-    let turned = |corner: Pos2| {
-        let offset = corner - center;
-        center
-            + vec2(
-                offset.x * cos - offset.y * sin,
-                offset.x * sin + offset.y * cos,
-            )
-    };
-    Rect::from_points(&[
-        turned(rect.left_top()),
-        turned(rect.right_top()),
-        turned(rect.right_bottom()),
-        turned(rect.left_bottom()),
-    ])
 }
 
 #[derive(Clone, Copy, Debug, Eq, PartialEq)]
@@ -1603,7 +1581,8 @@ impl EditorHost {
         follows_camera: bool,
     ) -> ChildId {
         let state = self.region.get();
-        let clip = clip.intersect(swept(rect, rotation));
+        let placed = child_rect(rect.translate(-state.origin));
+        let clip = child_rect(clip.translate(-state.origin)).intersect(placed.swept(rotation));
         let mut children = self.children.borrow_mut();
         let child = children.identify(
             state.region.unwrap_or(EditorRegion::Frame),
@@ -1612,8 +1591,8 @@ impl EditorHost {
         children.placements.push(ChildPlacement {
             child,
             content,
-            rect: child_rect(rect.translate(-state.origin)),
-            clip: child_rect(clip.translate(-state.origin)),
+            rect: placed,
+            clip,
             own_frame,
             top_bar,
             corner_radius: 0.0,
