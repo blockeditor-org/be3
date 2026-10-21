@@ -604,6 +604,8 @@ length down to its `min` when the row overflows (the label beside a fixed-size
 button), `.align(..)` overrides the list's `align` for that child, and
 `.gap(..)` replaces the list's `spacing` before it:
 `@sizing={ItemSize::Percent(100.0).max(320.0)}`.
+A child that is collapsed (`Element::collapsed`, a `Frame` with
+`visible=false`) takes no room and no spacing, like CSS `display: none`.
 
 `Frame` combines optional sizing, an aspect ratio it centres
 its box within, padding, fill, outline, and visibility on one retained node,

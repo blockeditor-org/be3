@@ -231,13 +231,18 @@ impl ListNode {
         }
     }
 
-    fn gaps(&self, spacing: f32, grid: PixelGrid) -> Vec<f32> {
+    fn gaps(&self, doc: &Document, spacing: f32, grid: PixelGrid) -> Vec<f32> {
+        let mut first = true;
         self.items
             .iter()
-            .enumerate()
-            .map(|(index, item)| match index {
-                0 => 0.0,
-                _ => grid.snap(item.size.gap.unwrap_or(spacing)),
+            .map(|item| {
+                if doc.arena.get(item.child).collapsed() {
+                    return 0.0;
+                }
+                match std::mem::replace(&mut first, false) {
+                    true => 0.0,
+                    false => grid.snap(item.size.gap.unwrap_or(spacing)),
+                }
             })
             .collect()
     }
@@ -282,8 +287,9 @@ impl ListNode {
     ) -> Line {
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
+        let gaps = self.gaps(doc, spacing, grid);
         let mut slots = Vec::with_capacity(self.items.len());
-        for (index, item) in self.items.iter().enumerate() {
+        for (item, gap) in self.items.iter().zip(gaps) {
             let intrinsic = match item.size.size {
                 ItemSize::Intrinsic => true,
                 ItemSize::Percent(_) => !available_main.is_finite(),
@@ -296,10 +302,6 @@ impl ListNode {
                     self.main_and_cross(size).0
                 }
                 false => 0.0,
-            };
-            let gap = match index {
-                0 => 0.0,
-                _ => grid.snap(item.size.gap.unwrap_or(spacing)),
             };
             slots.push(Slot {
                 size: item.size,
@@ -331,7 +333,7 @@ impl ListNode {
     fn lines(&self, doc: &mut Document, painter: &Painter, available_main: f32) -> Vec<Line> {
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
-        let gaps = self.gaps(spacing, grid);
+        let gaps = self.gaps(doc, spacing, grid);
         let mut runs: Vec<Vec<(ListItem, f32, f32)>> = Vec::new();
         let mut run: Vec<(ListItem, f32, f32)> = Vec::new();
         let mut taken = 0.0f32;

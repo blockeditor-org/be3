@@ -135,6 +135,10 @@ pub trait Element: Any {
         false
     }
 
+    fn collapsed(&self) -> bool {
+        false
+    }
+
     fn paints_from_layout(&self) -> bool {
         true
     }

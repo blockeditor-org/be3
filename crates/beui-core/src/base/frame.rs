@@ -462,6 +462,10 @@ impl Element for FrameNode {
         false
     }
 
+    fn collapsed(&self) -> bool {
+        !self.visible
+    }
+
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
         if !self.visible {
             return Vec2::ZERO;
