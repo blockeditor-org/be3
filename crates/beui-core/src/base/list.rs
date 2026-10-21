@@ -231,18 +231,13 @@ impl ListNode {
         }
     }
 
-    fn gaps(&self, doc: &Document, spacing: f32, grid: PixelGrid) -> Vec<f32> {
-        let mut first = true;
+    fn gaps(&self, spacing: f32, grid: PixelGrid) -> Vec<f32> {
         self.items
             .iter()
-            .map(|item| {
-                if doc.arena.get(item.child).collapsed() {
-                    return 0.0;
-                }
-                match std::mem::replace(&mut first, false) {
-                    true => 0.0,
-                    false => grid.snap(item.size.gap.unwrap_or(spacing)),
-                }
+            .enumerate()
+            .map(|(index, item)| match index {
+                0 => 0.0,
+                _ => grid.snap(item.size.gap.unwrap_or(spacing)),
             })
             .collect()
     }
@@ -287,7 +282,7 @@ impl ListNode {
     ) -> Line {
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
-        let gaps = self.gaps(doc, spacing, grid);
+        let gaps = self.gaps(spacing, grid);
         let mut slots = Vec::with_capacity(self.items.len());
         for (item, gap) in self.items.iter().zip(gaps) {
             let intrinsic = match item.size.size {
@@ -333,7 +328,7 @@ impl ListNode {
     fn lines(&self, doc: &mut Document, painter: &Painter, available_main: f32) -> Vec<Line> {
         let grid = doc.pixel_grid();
         let spacing = grid.snap(self.spacing);
-        let gaps = self.gaps(doc, spacing, grid);
+        let gaps = self.gaps(spacing, grid);
         let mut runs: Vec<Vec<(ListItem, f32, f32)>> = Vec::new();
         let mut run: Vec<(ListItem, f32, f32)> = Vec::new();
         let mut taken = 0.0f32;

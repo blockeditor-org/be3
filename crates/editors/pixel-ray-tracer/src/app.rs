@@ -84,7 +84,10 @@ fn PixelRayTracerPreview(editor: Editor) -> NodeId {
 }
 
 #[component]
-fn RayToolbar(state: RayState, shown: block_editor_beui::beui::reactive::Prop<bool>) -> NodeId {
+fn RayToolbar(
+    state: RayState,
+    shown: block_editor_beui::beui::reactive::Prop<bool>,
+) -> DynamicSegment<ListChild> {
     let fit = state.editor();
     let size = format!("{PIXEL_RAY_TRACER_SIZE} × {PIXEL_RAY_TRACER_SIZE}");
     view! {

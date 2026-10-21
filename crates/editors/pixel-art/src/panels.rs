@@ -50,7 +50,11 @@ const ANCHORS: [(PixelArtAnchor, &str, &str); 9] = [
 ];
 
 #[component]
-pub(crate) fn TopBar(tools: Tools, size: Memo<(u16, u16)>, shown: ReadSignal<bool>) -> NodeId {
+pub(crate) fn TopBar(
+    tools: Tools,
+    size: Memo<(u16, u16)>,
+    shown: ReadSignal<bool>,
+) -> DynamicSegment<ListChild> {
     let editor = tools.editor();
     let tool = tools.tool;
     let label = create_memo(move || tool.get().label().to_owned());

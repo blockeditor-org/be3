@@ -2890,11 +2890,11 @@ fn ScrollRowFace(
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=12.0>
                 <Text @sizing=ItemSize::Percent(100.0)>{label}</Text>
-                <Frame visible={timings}>
+                <Show condition={timings}>
                     <Text style=TextStyle::CAPTION align=TextAlign::End color={value_color}>
                         {timing}
                     </Text>
-                </Frame>
+                </Show>
             </List>
         </Frame>
     }

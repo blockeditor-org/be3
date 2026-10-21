@@ -88,7 +88,7 @@ pub(crate) fn PaintingList(review: Review) -> NodeId {
 }
 
 #[component]
-fn StatusGroup(review: Review, status: Status) -> NodeId {
+fn StatusGroup(review: Review, status: Status) -> DynamicSegment<ListChild> {
     let names = create_memo(move || review.names(status));
     let keys = create_memo(move || {
         names
@@ -102,7 +102,7 @@ fn StatusGroup(review: Review, status: Status) -> NodeId {
     let selected = review.selected;
     let here = create_selector(move || selected.get());
     view! {
-        <Frame visible={any}>
+        <Show condition={any}>
             <List spacing=ROW_SPACING>
                 <Frame padding={Sides::symmetric(PADDING / 2.0, ROW_SPACING)}>
                     <List
@@ -137,7 +137,7 @@ fn StatusGroup(review: Review, status: Status) -> NodeId {
                     }
                 }</ForEach>
             </List>
-        </Frame>
+        </Show>
     }
 }
 

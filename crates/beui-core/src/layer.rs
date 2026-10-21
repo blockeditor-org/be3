@@ -1,5 +1,4 @@
 use crate::base::back::BackNode;
-use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect};
@@ -471,12 +470,8 @@ impl Document {
             let element = self.arena.get(id);
             if element
                 .as_any()
-                .downcast_ref::<FrameNode>()
-                .is_some_and(|frame| !frame.visible)
-                || element
-                    .as_any()
-                    .downcast_ref::<OverlayNode>()
-                    .is_some_and(|overlay| !overlay.open)
+                .downcast_ref::<OverlayNode>()
+                .is_some_and(|overlay| !overlay.open)
             {
                 return false;
             }

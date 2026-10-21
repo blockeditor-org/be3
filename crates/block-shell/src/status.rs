@@ -13,7 +13,10 @@ use super::workspace::Workspace;
 const SPACING: f32 = 10.0;
 
 #[component]
-pub(crate) fn StatusBar(workspace: Workspace, info: ReadSignal<Option<Info>>) -> NodeId {
+pub(crate) fn StatusBar(
+    workspace: Workspace,
+    info: ReadSignal<Option<Info>>,
+) -> DynamicSegment<ListChild> {
     let type_label = create_memo(move || {
         info.with(|info| {
             info.as_ref()

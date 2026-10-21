@@ -313,7 +313,6 @@ pub struct FrameNode {
     pub align: Align2,
     pub style: FrameStyle,
     pub pointing: Option<Pointing>,
-    pub visible: bool,
 }
 
 impl FrameNode {
@@ -364,10 +363,6 @@ impl FrameNode {
 
     fn padding(&self, grid: PixelGrid) -> Sides {
         self.padding.snapped(grid)
-    }
-
-    fn shown(&self) -> Option<NodeId> {
-        self.child.filter(|_| self.visible)
     }
 
     fn size(&self, grid: PixelGrid, available: Vec2) -> Vec2 {
@@ -442,7 +437,6 @@ impl Default for FrameNode {
             align: Align2::STRETCH,
             style: FrameStyle::default(),
             pointing: None,
-            visible: true,
         }
     }
 }
@@ -462,14 +456,7 @@ impl Element for FrameNode {
         false
     }
 
-    fn collapsed(&self) -> bool {
-        !self.visible
-    }
-
     fn measure(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Vec2 {
-        if !self.visible {
-            return Vec2::ZERO;
-        }
         if self.width.scales_with(available.x) || self.height.scales_with(available.y) {
             doc.note_offer_dependent();
         }
@@ -494,7 +481,7 @@ impl Element for FrameNode {
     }
 
     fn baseline(&self, doc: &mut Document, painter: &Painter, available: Vec2) -> Option<f32> {
-        let child = self.shown()?;
+        let child = self.child?;
         let grid = doc.pixel_grid();
         let padding = self.padding(grid);
         let offered = self.child_available(available, padding.amount());
@@ -515,7 +502,7 @@ impl Element for FrameNode {
     }
 
     fn layout(&mut self, doc: &mut Document, painter: &Painter, rect: Rect, out: &Rects) {
-        if let Some(child) = self.shown() {
+        if let Some(child) = self.child {
             let grid = doc.pixel_grid();
             let padding = self.padding(grid);
             let outer = self.box_rect(grid, rect);
@@ -533,9 +520,6 @@ impl Element for FrameNode {
     }
 
     fn paint(&self, doc: &Document, painter: &Painter, rects: &Rects, rect: Rect) {
-        if !self.visible {
-            return;
-        }
         let rect = self.box_rect(doc.pixel_grid(), rect);
         if let Some(shadow) = self.style.shadow {
             shadow.paint(painter, rect, self.style.radius);
@@ -574,7 +558,7 @@ impl Element for FrameNode {
     }
 
     fn pointer_children(&self) -> Vec<NodeId> {
-        self.shown().into_iter().collect()
+        self.child.into_iter().collect()
     }
 
     fn passes_scroll_anchor(&self) -> bool {
@@ -587,7 +571,7 @@ impl Element for FrameNode {
 
     fn outline(&self, grid: PixelGrid, rect: Rect) -> Option<Outlined> {
         let outline = self.style.outline.filter(|outline| {
-            self.visible && outline.offset > 0.0 && outline.width > 0.0 && outline.color.alpha() > 0
+            outline.offset > 0.0 && outline.width > 0.0 && outline.color.alpha() > 0
         })?;
         let inner = self.box_rect(grid, rect);
         Some(Outlined {
@@ -597,9 +581,6 @@ impl Element for FrameNode {
     }
 
     fn detail(&self) -> Option<String> {
-        if !self.visible {
-            return Some("hidden".to_owned());
-        }
         let [red, green, blue, alpha] = self.style.fill.to_array();
         if alpha == 0 {
             return None;
@@ -611,7 +592,6 @@ impl Element for FrameNode {
         let padding = self.padding;
         let radius = self.style.radius;
         vec![
-            ("visible", self.visible.to_string()),
             ("width", extent_label(self.width)),
             ("height", extent_label(self.height)),
             (
@@ -738,17 +718,6 @@ impl Document {
     pub fn set_frame_color(&mut self, frame: NodeOf<FrameNode>, color: Color32) {
         if self.arena.get_as::<FrameNode>(frame).style.fill != color {
             self.arena.paint_mut_as::<FrameNode>(frame).style.fill = color;
-        }
-    }
-
-    pub fn is_visible(&self, frame: NodeOf<FrameNode>) -> bool {
-        self.arena.get_as::<FrameNode>(frame).visible
-    }
-
-    pub fn set_visible(&mut self, frame: NodeOf<FrameNode>, visible: bool) {
-        if self.arena.get_as::<FrameNode>(frame).visible != visible {
-            self.arena.get_mut_as::<FrameNode>(frame).visible = visible;
-            self.focus_dirty = true;
         }
     }
 }

@@ -70,7 +70,7 @@ fn shortcut(session: Session, press: KeyPress) -> bool {
 }
 
 #[component]
-fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> NodeId {
+fn GridToolbar(session: Session, shown: ReadSignal<bool>) -> DynamicSegment<ListChild> {
     let editor = session.editor();
     let read_only = editor.read_only();
     let compile = move || {

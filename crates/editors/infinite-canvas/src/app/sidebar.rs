@@ -42,7 +42,7 @@ const LAYERS: [(&str, CanvasLayerMove); 4] = [
 pub(crate) fn CanvasSidebar(
     state: CanvasState,
     shown: block_editor_beui::beui::reactive::Prop<bool>,
-) -> NodeId {
+) -> DynamicSegment<ListChild> {
     view! {
         <Sidebar shown={shown}>
             <Inspector state={state} />

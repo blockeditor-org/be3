@@ -9,7 +9,9 @@ fn a_list_leaves_no_gap_for_a_hidden_frame() {
             <Root>
                 <List spacing=10.0>
                     <Frame @test_id="first" height=20.0 />
-                    <Frame height=20.0 visible=false />
+                    <Show condition=false>
+                        <Frame height=20.0 />
+                    </Show>
                     <Frame @test_id="last" height=20.0 />
                 </List>
             </Root>
@@ -20,6 +22,6 @@ fn a_list_leaves_no_gap_for_a_hidden_frame() {
     assert_eq!(
         test.rect_of("last").top() - test.rect_of("first").bottom(),
         10.0,
-        "a hidden frame takes no room and adds no spacing, as display: none would"
+        "a frame a Show hides is out of the tree, so it takes no room and adds no spacing"
     );
 }

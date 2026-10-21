@@ -354,29 +354,31 @@ pub(crate) fn MenuList(
     let showing_own = create_memo(move || page.get().is_none());
     let paged = create_memo(move || page.get().is_some());
 
-    let lines = items.build_each(
-        state.rows,
-        |_, item| Row {
-            button: NodeRef::new(),
-            item,
-            submenu: Submenu::new(),
-            tiles: store(RefCell::default()),
-        },
-        move |index| {
-            let kind = state.rows.value().borrow()[index].item.kind;
-            match kind {
-                Kind::Row => view! {
-                    <MenuRow state={state} index focused={focused} row={row} panel={panel} />
-                },
-                Kind::Caption => view! {
-                    <MenuCaptionRow state={state} index row={row} />
-                },
-                Kind::Grid(columns) => view! {
-                    <MenuGridRow state={state} index columns focused={focused} row={row} />
-                },
-            }
-        },
-    );
+    let lines = move || {
+        items.build_each(
+            state.rows,
+            |_, item| Row {
+                button: NodeRef::new(),
+                item,
+                submenu: Submenu::new(),
+                tiles: store(RefCell::default()),
+            },
+            move |index| {
+                let kind = state.rows.value().borrow()[index].item.kind;
+                match kind {
+                    Kind::Row => view! {
+                        <MenuRow state={state} index focused={focused} row={row} panel={panel} />
+                    },
+                    Kind::Caption => view! {
+                        <MenuCaptionRow state={state} index row={row} />
+                    },
+                    Kind::Grid(columns) => view! {
+                        <MenuGridRow state={state} index columns focused={focused} row={row} />
+                    },
+                }
+            },
+        )
+    };
     let title = title.unwrap_or_else(|| create_memo(String::new));
     view! {
         <List spacing=0.0>
@@ -392,20 +394,24 @@ pub(crate) fn MenuList(
                 }}
                 on_key={move |press: KeyPress| key(state, Focus::Root, press)}
             />
-            <Frame visible={showing_own}>
-                <List spacing=ROW_SPACING>
-                    <Show condition={state.titled}>
-                        <MenuBackRow
-                            state={state}
-                            title
-                            test_id={title_test_id.clone()}
-                            focused={focused}
-                            row={row}
-                        />
-                    </Show>
-                    {lines}
-                </List>
-            </Frame>
+            <Show condition={showing_own}>|| {
+                let title_test_id = title_test_id.clone();
+                let lines = lines();
+                view! {
+                    <List spacing=ROW_SPACING>
+                        <Show condition={state.titled}>
+                            <MenuBackRow
+                                state={state}
+                                title
+                                test_id={title_test_id.clone()}
+                                focused={focused}
+                                row={row}
+                            />
+                        </Show>
+                        {lines}
+                    </List>
+                }
+            }</Show>
             <Show condition={paged}>
                 <MenuPage state={state} row={row} panel={panel} />
             </Show>

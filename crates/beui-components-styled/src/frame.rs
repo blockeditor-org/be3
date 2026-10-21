@@ -270,7 +270,6 @@ pub fn Frame(
     #[prop(default = None)] border: Prop<Option<Border>>,
     #[prop(default = Elevation::Flat)] elevation: Prop<Elevation>,
     #[prop(default = false)] pointer: Prop<bool>,
-    #[prop(default = true)] visible: Prop<bool>,
     children: Option<Child>,
 ) -> NodeId {
     let theme = use_theme();
@@ -295,7 +294,6 @@ pub fn Frame(
                 outline
                 shadow
                 pointer
-                visible
             >
                 {child}
             </primitives::Frame>
@@ -312,7 +310,6 @@ pub fn Frame(
                 outline
                 shadow
                 pointer
-                visible
             />
         },
     }

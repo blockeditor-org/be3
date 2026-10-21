@@ -49,26 +49,34 @@ pub(crate) fn HandBar(
         <PlacementBuilder>|rect: ReadSignal<Rect>| {
             create_effect(move || bar.set(rect.get()));
             let shown = create_memo(move || !hand.with(Vec::is_empty));
-            let height =
-                create_memo(move || Some(if shown.get() { BAR_HEIGHT } else { 0.0 }));
             let keys = create_memo(move || {
                 hand.with(|hand| hand.iter().map(|held| (held.id, held.spot)).collect::<Vec<_>>())
             });
             let screen = Some(CanvasView::new(Pos2::ZERO, 1.0));
             view! {
-                <Frame
-                    height=height
-                    fill=ColorRole::Surface
-                    border={Border::new(ColorRole::Border).width(1.0)}
-                    visible={shown}
-                    @test_id={"game.hand"}
-                >
-                    <Canvas view={screen}>
-                        <ForEach keys={keys}>|(id, spot): (ItemId, Spot)|
-                            <HandItem id spot hand={hand} bar={rect} play={play} hidden={hidden} />
-                        </ForEach>
-                    </Canvas>
-                </Frame>
+                <Layers>
+                    <Show condition={shown}>
+                        <Frame
+                            height=BAR_HEIGHT
+                            fill=ColorRole::Surface
+                            border={Border::new(ColorRole::Border).width(1.0)}
+                            @test_id={"game.hand"}
+                        >
+                            <Canvas view={screen}>
+                                <ForEach keys={keys}>|(id, spot): (ItemId, Spot)|
+                                    <HandItem
+                                        id
+                                        spot
+                                        hand={hand}
+                                        bar={rect}
+                                        play={play}
+                                        hidden={hidden}
+                                    />
+                                </ForEach>
+                            </Canvas>
+                        </Frame>
+                    </Show>
+                </Layers>
             }
         }</PlacementBuilder>
     }

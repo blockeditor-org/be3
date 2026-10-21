@@ -597,18 +597,20 @@ pub(crate) fn DockMenu(
 }
 
 #[component]
-fn DockClose(closable: Memo<bool>, close: ClickCallback) -> NodeId {
+fn DockClose(closable: Memo<bool>, close: ClickCallback) -> DynamicSegment<ListChild> {
     view! {
-        <Frame padding={Sides::horizontal(CONTROL_PADDING)} visible={closable}>
-            <IconButton
-                glyph=ICON_CLOSE
-                label="Close pane"
-                size=IconButtonSize::Compact
-                variant=ButtonVariant::Ghost
-                capture_presses=true
-                on_click={close}
-            />
-        </Frame>
+        <Show condition={closable}>
+            <Frame padding={Sides::horizontal(CONTROL_PADDING)}>
+                <IconButton
+                    glyph=ICON_CLOSE
+                    label="Close pane"
+                    size=IconButtonSize::Compact
+                    variant=ButtonVariant::Ghost
+                    capture_presses=true
+                    on_click={close}
+                />
+            </Frame>
+        </Show>
     }
 }
 

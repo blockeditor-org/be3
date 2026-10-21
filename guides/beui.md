@@ -108,8 +108,9 @@ When part of the tree depends on something, express it in the view rather than
 in Rust control flow around it. `Show` takes a condition, builds its children each
 time it becomes true and disposes of them when it turns false, as SolidJS's does.
 Both it and `ShowKeepAlive` accept sibling children and components returning
-`Children<_>` without a wrapper. `ShowKeepAlive` builds its children once, keeps
-their identities while hidden, and pauses their effects until shown again.
+`Children<_>` without a wrapper. `ShowKeepAlive` builds its children once and,
+while hidden, takes them out of the tree but keeps their identities and pauses
+their effects until shown again.
 Use it for a tab panel whose scroll position and state should survive switching away.
 `Dynamic` rebuilds a subtree when a value changes shape, `Keyed` rebuilds only when its key changes, and `ForEach` keeps a
 keyed child per item. A component that is genuinely two different trees is two
@@ -604,16 +605,19 @@ length down to its `min` when the row overflows (the label beside a fixed-size
 button), `.align(..)` overrides the list's `align` for that child, and
 `.gap(..)` replaces the list's `spacing` before it:
 `@sizing={ItemSize::Percent(100.0).max(320.0)}`.
-A child that is collapsed (`Element::collapsed`, a `Frame` with
-`visible=false`) takes no room and no spacing, like CSS `display: none`.
 
 `Frame` combines optional sizing, an aspect ratio it centres
-its box within, padding, fill, outline, and visibility on one retained node,
+its box within, padding, fill and outline on one retained node,
 each concern one prop. `width` and `height` take an `Extent`: an exact length
 (`Extent::px`, or a plain `f32`), a share of the space offered when it is
 bounded (`Extent::fraction`), and `.min(..)` and `.max(..)` bounds, so
 `Extent::at_most(320.0)` fills its room up to 320; a memo of `Option<f32>`
-hands an axis back to intrinsic measuring when it is `None`. `padding` takes
+hands an axis back to intrinsic measuring when it is `None`.
+Nothing is hidden while it stays in the tree: what shows only some of the
+time goes in a `Show`, or a `ShowKeepAlive` when it should keep its state
+while it is gone, so it takes no room, no spacing, no focus and no place in
+the accessibility tree. In a single-child slot like a `Frame`'s, put the
+`Show` in a `Layers`, which fills the slot as the child would. `padding` takes
 `Sides` (`Sides::all`, `symmetric`, `horizontal`, `vertical`, then `.left(..)`
 and its siblings to override one side). `align` takes an `Align2` (a plain
 `Align` sets both axes) and places a child smaller than the frame inside it
@@ -2678,7 +2682,7 @@ namespace so a component can name its props whatever it likes:
   text of its own still gets one, a `GenericContainer`. So test ids reach
   `FrameOutput::test_id_rect`, `drive` and a plugin's description by the same
   incremental path as the rest of the tree, and only where the tree shows the
-  node: not under a hidden frame or a closed overlay. `Document::find_test_id`
+  node: not under a closed overlay. `Document::find_test_id`
   finds the node itself.
 - `@node_ref` fills a `NodeRef` when enclosing code genuinely needs the
   resulting `NodeId`.

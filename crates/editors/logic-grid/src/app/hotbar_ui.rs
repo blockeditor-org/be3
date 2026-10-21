@@ -399,18 +399,20 @@ fn SlotFace(shown: Memo<Option<SlotView>>, hovered: ReadSignal<bool>) -> NodeId 
                         {label}
                     </Text>
                 </CanvasItem>
-                <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
-                    <Frame visible={badged} fill=ColorRole::Background radius={Radius::custom(3.0)}>
-                        <Text
-                            size=TextSize::Xs
-                            color={text}
-                            align=TextAlign::Center
-                            vertical_align=TextAlign::Center
-                        >
-                            {hotkey}
-                        </Text>
-                    </Frame>
-                </CanvasItem>
+                <Show condition={badged}>
+                    <CanvasItem x=SLOT_INSET y=SLOT_INSET width=BADGE_SIZE height=BADGE_SIZE>
+                        <Frame fill=ColorRole::Background radius={Radius::custom(3.0)}>
+                            <Text
+                                size=TextSize::Xs
+                                color={text}
+                                align=TextAlign::Center
+                                vertical_align=TextAlign::Center
+                            >
+                                {hotkey}
+                            </Text>
+                        </Frame>
+                    </CanvasItem>
+                </Show>
             </Canvas>
         </Frame>
     }

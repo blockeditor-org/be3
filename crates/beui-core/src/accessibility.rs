@@ -7,7 +7,6 @@ use accesskit::{
 };
 
 use crate::base::focus::focus_of;
-use crate::base::frame::FrameNode;
 use crate::base::overlay::OverlayNode;
 
 pub const LAYER_CLASS: &str = "beui-layer";
@@ -269,12 +268,7 @@ impl Pass<'_> {
         };
         let element = document.arena.get(id);
         let overlay = element.as_any().downcast_ref::<OverlayNode>();
-        if element
-            .as_any()
-            .downcast_ref::<FrameNode>()
-            .is_some_and(|node| !node.visible)
-            || overlay.is_some_and(|node| !node.is_open())
-        {
+        if overlay.is_some_and(|node| !node.is_open()) {
             return;
         }
         let layered = overlay.is_some();

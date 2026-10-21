@@ -227,10 +227,6 @@ pub fn build(state: Stored<State>) -> Panel {
         let properties = create_memo(move || summary.with(|summary| summary.properties.clone()));
         let has_properties =
             create_memo(move || properties.with(|properties| !properties.is_empty()));
-        let properties_size = create_memo(move || match has_properties.get() {
-            true => ItemSize::Percent(PROPERTIES_SHARE),
-            false => ItemSize::Fixed(0.0),
-        });
         let selected = create_memo(move || selection.with(|path| path.last().copied()));
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
@@ -304,13 +300,14 @@ pub fn build(state: Stored<State>) -> Panel {
                                         >|row: TreeRowFace<Key>|
                                             <TreeCells row_key={row.key} entries={entries} />
                                         </Tree>
-                                        <Frame
-                                            @sizing={properties_size}
-                                            @test_id={"inspector.properties"}
-                                            visible={has_properties}
-                                        >
-                                            <PropertiesSection properties />
-                                        </Frame>
+                                        <Show condition={has_properties}>
+                                            <Frame
+                                                @sizing={ItemSize::Percent(PROPERTIES_SHARE)}
+                                                @test_id={"inspector.properties"}
+                                            >
+                                                <PropertiesSection properties />
+                                            </Frame>
+                                        </Show>
                                     </List>
                                 </ShowKeepAlive>
                                 <ShowKeepAlive condition={performance_visible}>

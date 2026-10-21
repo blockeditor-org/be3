@@ -1833,7 +1833,11 @@ fn DockTreeView(
 }
 
 #[component]
-fn DockDropMarker(dock: State, surface: SurfaceId, origin: Memo<Pos2>) -> CanvasItem {
+fn DockDropMarker(
+    dock: State,
+    surface: SurfaceId,
+    origin: Memo<Pos2>,
+) -> DynamicSegment<CanvasItem> {
     let marker = create_memo(move || {
         let state = dock.state.get_untracked();
         let drag = dock.drag.get()?;
@@ -1854,9 +1858,11 @@ fn DockDropMarker(dock: State, surface: SurfaceId, origin: Memo<Pos2>) -> Canvas
     let width = create_memo(move || rect.get().width());
     let height = create_memo(move || rect.get().height());
     view! {
-        <CanvasItem x={x} y={y} width={width} height={height}>
-            <Frame visible={shown}>{dock.highlight.call(())}</Frame>
-        </CanvasItem>
+        <Show condition={shown}>
+            <CanvasItem x={x} y={y} width={width} height={height}>
+                {dock.highlight.call(())}
+            </CanvasItem>
+        </Show>
     }
 }
 

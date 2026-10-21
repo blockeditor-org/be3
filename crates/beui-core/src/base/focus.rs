@@ -1,4 +1,3 @@
-use crate::base::frame::FrameNode;
 use crate::base::interactive::InteractiveNode;
 use crate::base::overlay::OverlayNode;
 use crate::clipboard::{PasteKind, Pasted};
@@ -517,13 +516,6 @@ impl Document {
         };
         if element
             .as_any()
-            .downcast_ref::<FrameNode>()
-            .is_some_and(|node| !node.visible)
-        {
-            return;
-        }
-        if element
-            .as_any()
             .downcast_ref::<OverlayNode>()
             .is_some_and(|node| !node.is_open())
         {
@@ -592,12 +584,8 @@ impl Document {
             let element = self.arena.get(current);
             if element
                 .as_any()
-                .downcast_ref::<FrameNode>()
-                .is_some_and(|frame| !frame.visible)
-                || element
-                    .as_any()
-                    .downcast_ref::<OverlayNode>()
-                    .is_some_and(|overlay| !overlay.is_open())
+                .downcast_ref::<OverlayNode>()
+                .is_some_and(|overlay| !overlay.is_open())
             {
                 return false;
             }

@@ -1,4 +1,3 @@
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_AUTO_AWESOME, ICON_LINK_OFF, ICON_REFRESH, ICON_SETTINGS,
 };
@@ -17,7 +16,10 @@ const PADDING_VERTICAL: f32 = 5.0;
 const SPACING: f32 = 8.0;
 
 #[component]
-pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) -> NodeId {
+pub(crate) fn ArtifactBar(
+    workspace: Workspace,
+    info: ReadSignal<Option<Info>>,
+) -> DynamicSegment<ListChild> {
     let shown = create_memo(move || {
         info.with(|info| {
             info.as_ref()
@@ -90,67 +92,72 @@ pub(crate) fn ArtifactBar(workspace: Workspace, info: ReadSignal<Option<Info>>) 
     let unlink = block_command(&workspace, block, Command::Unlink);
     let heading_color = TextColor::Default;
     view! {
-        <Frame
-            visible={shown}
-            fill=ColorRole::Surface
-            padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
-        >
-            <List spacing=PADDING_VERTICAL>
-                <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                    <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
-                        <Icon glyph={ICON_AUTO_AWESOME.to_owned()} />
-                    </Text>
-                    <Text>"Dynamic artifact"</Text>
-                    <Show condition={waiting}>
-                        <Text style=TextStyle::CAPTION>"Loading…"</Text>
+        <Show condition={shown}>
+            <Frame
+                fill=ColorRole::Surface
+                padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
+            >
+                <List spacing=PADDING_VERTICAL>
+                    <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
+                        <Text size=TextSize::Xs color={heading_color} align=TextAlign::Center>
+                            <Icon glyph={ICON_AUTO_AWESOME.to_owned()} />
+                        </Text>
+                        <Text>"Dynamic artifact"</Text>
+                        <Show condition={waiting}>
+                            <Text style=TextStyle::CAPTION>"Loading…"</Text>
+                        </Show>
+                        <Show condition={described}>
+                            <List
+                                direction=Direction::Horizontal
+                                align=Align::Center
+                                spacing=SPACING
+                            >
+                                <Text style=TextStyle::CAPTION>"Generated from"</Text>
+                                <Button
+                                    @test_id={"workspace.artifact.source"}
+                                    label={source_name}
+                                    variant=ButtonVariant::Ghost
+                                    on_click={move || {
+                                        if let Some(source) = source.get_untracked() {
+                                            workspace.open(source, None);
+                                        }
+                                    }}
+                                />
+                                <Text style=TextStyle::CAPTION>{summary}</Text>
+                            </List>
+                        </Show>
+                        <Spacer @sizing=ItemSize::Percent(100.0) />
+                        <Show condition={running}>
+                            <Text style=TextStyle::CAPTION>"Regenerating…"</Text>
+                        </Show>
+                        <IconButton
+                            @test_id={"workspace.artifact.settings"}
+                            glyph={ICON_SETTINGS.to_owned()}
+                            label="Settings"
+                            disabled={settings_off}
+                            on_click={settings}
+                        />
+                        <IconButton
+                            @test_id={"workspace.artifact.regenerate"}
+                            glyph={ICON_REFRESH.to_owned()}
+                            label="Regenerate"
+                            disabled={regenerate_off}
+                            on_click={regenerate}
+                        />
+                        <IconButton
+                            @test_id={"workspace.artifact.unlink"}
+                            glyph={ICON_LINK_OFF.to_owned()}
+                            label="Unlink from the source block"
+                            disabled={unlink_off}
+                            on_click={unlink}
+                        />
+                    </List>
+                    <Show condition={failed}>
+                        <Text style=TextStyle::CAPTION color=TextColor::Danger>{failure}</Text>
                     </Show>
-                    <Show condition={described}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
-                            <Text style=TextStyle::CAPTION>"Generated from"</Text>
-                            <Button
-                                @test_id={"workspace.artifact.source"}
-                                label={source_name}
-                                variant=ButtonVariant::Ghost
-                                on_click={move || {
-                                    if let Some(source) = source.get_untracked() {
-                                        workspace.open(source, None);
-                                    }
-                                }}
-                            />
-                            <Text style=TextStyle::CAPTION>{summary}</Text>
-                        </List>
-                    </Show>
-                    <Spacer @sizing=ItemSize::Percent(100.0) />
-                    <Show condition={running}>
-                        <Text style=TextStyle::CAPTION>"Regenerating…"</Text>
-                    </Show>
-                    <IconButton
-                        @test_id={"workspace.artifact.settings"}
-                        glyph={ICON_SETTINGS.to_owned()}
-                        label="Settings"
-                        disabled={settings_off}
-                        on_click={settings}
-                    />
-                    <IconButton
-                        @test_id={"workspace.artifact.regenerate"}
-                        glyph={ICON_REFRESH.to_owned()}
-                        label="Regenerate"
-                        disabled={regenerate_off}
-                        on_click={regenerate}
-                    />
-                    <IconButton
-                        @test_id={"workspace.artifact.unlink"}
-                        glyph={ICON_LINK_OFF.to_owned()}
-                        label="Unlink from the source block"
-                        disabled={unlink_off}
-                        on_click={unlink}
-                    />
                 </List>
-                <Show condition={failed}>
-                    <Text style=TextStyle::CAPTION color=TextColor::Danger>{failure}</Text>
-                </Show>
-            </List>
-        </Frame>
+            </Frame>
+        </Show>
     }
 }
 
@@ -165,7 +172,7 @@ fn block_command(
     workspace: &Workspace,
     block: block_editor_beui::beui::reactive::Memo<Option<Uuid>>,
     command: Command,
-) -> impl Fn() + 'static {
+) -> impl Fn() + Copy + 'static {
     let workspace = *workspace;
     move || {
         let Some(id) = block.get_untracked() else {

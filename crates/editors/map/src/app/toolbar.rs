@@ -1,4 +1,3 @@
-use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CROP_FREE, ICON_REFRESH, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
@@ -9,7 +8,7 @@ use block_editor_beui::{Toolbar, node_anchor};
 use super::state::{MapState, ZOOM_STEP};
 
 #[component]
-pub(crate) fn MapToolbar(state: MapState, shown: Prop<bool>) -> NodeId {
+pub(crate) fn MapToolbar(state: MapState, shown: Prop<bool>) -> DynamicSegment<ListChild> {
     let whole = state.editor();
     let regionless = create_memo(move || state.preview_region.get().is_none());
     let error = state.last_error;

@@ -133,16 +133,15 @@ pub(crate) fn Stage(review: Review) -> NodeId {
                                 </Frame>
                             }
                         }</PanZoom>
-                        <Frame
-                            visible={side_by_side}
-                            align={Align2::new(Align::Center, Align::Start)}
-                        >
-                            <Frame padding={Sides::all(MESSAGE_PADDING / 2.0)}>
-                                <Text style=TextStyle::CAPTION>
-                                    "Before on the left, after on the right"
-                                </Text>
+                        <Show condition={side_by_side}>
+                            <Frame align={Align2::new(Align::Center, Align::Start)}>
+                                <Frame padding={Sides::all(MESSAGE_PADDING / 2.0)}>
+                                    <Text style=TextStyle::CAPTION>
+                                        "Before on the left, after on the right"
+                                    </Text>
+                                </Frame>
                             </Frame>
-                        </Frame>
+                        </Show>
                         <Frame align=Align::Center padding={Sides::all(MESSAGE_PADDING)}>
                             <List spacing=0.0>
                                 <Show condition={loading}>

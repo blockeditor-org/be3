@@ -247,28 +247,30 @@ fn SelectRow(
         node
     });
     view! {
-        <Frame visible>
-            <unstyled::Button
-                @node_ref={&button}
-                accessibility
-                tab_stop=false
-                on_click={move || confirm(state, index)}
-            >|button: ButtonHandle| {
-                let hovered = button.hovered;
-                create_effect(move || {
-                    if hovered.get() {
-                        state.highlighted.set(Some(index));
-                    }
-                });
-                option.call(SelectOptionHandle {
-                    index,
-                    label: label.into_prop(),
-                    highlighted: highlight.memo(Some(index)),
-                    hovered: button.hovered,
-                    focused: button.focused,
-                })
-            }</unstyled::Button>
-        </Frame>
+        <Layers>
+            <ShowKeepAlive condition={visible}>
+                <unstyled::Button
+                    @node_ref={&button}
+                    accessibility
+                    tab_stop=false
+                    on_click={move || confirm(state, index)}
+                >|button: ButtonHandle| {
+                    let hovered = button.hovered;
+                    create_effect(move || {
+                        if hovered.get() {
+                            state.highlighted.set(Some(index));
+                        }
+                    });
+                    option.call(SelectOptionHandle {
+                        index,
+                        label: label.into_prop(),
+                        highlighted: highlight.memo(Some(index)),
+                        hovered: button.hovered,
+                        focused: button.focused,
+                    })
+                }</unstyled::Button>
+            </ShowKeepAlive>
+        </Layers>
     }
 }
 
