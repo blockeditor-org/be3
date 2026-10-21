@@ -9,12 +9,13 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
-    self, Prose, SyntaxColors, TextArea, TextAreaColors, TextAreaState,
+    self, Prose, RemoteTextCursor, SyntaxColors, TextArea, TextAreaColors, TextAreaState,
 };
 use block_editor_beui::beui::{
     Color32, Key, KeyAt, KeyPhase, NodeId, Rect, TextAlign, Vec2, line_height, pos2,
 };
 use block_editor_beui::live_text::{FieldOf, LiveText, Synced};
+use block_editor_beui::{SharedCaret, remote_carets};
 use text_editor_core::schema::basic::Basic;
 use text_editor_core::{EditorCommand, TextBuffer};
 use uuid::Uuid;
@@ -222,6 +223,8 @@ pub(crate) fn EntityText(
         ..TextAreaColors::DEFAULT
     });
     let area = live_text(state, id, editing);
+    let remote_cursors = peer_carets(state, id, area);
+    share_caret(state, id, area, editing);
     let field = NodeRef::new();
     create_effect(move || {
         if !editing.get() {
@@ -265,10 +268,51 @@ pub(crate) fn EntityText(
                 font_size
                 padding={inset}
                 prose
+                remote_cursors
                 on_focus_change={left}
             />
         </Frame>
     }
+}
+
+fn peer_carets(state: CanvasState, id: Uuid, area: TextAreaState) -> Memo<Vec<RemoteTextCursor>> {
+    let carets = state.peer_carets();
+    let theirs = create_memo(move || {
+        carets.with(|carets| {
+            carets
+                .iter()
+                .filter(|(caret, _)| caret.entity == id)
+                .map(|(caret, color)| (caret.caret, *color))
+                .collect::<Vec<_>>()
+        })
+    });
+    create_memo(move || {
+        let theirs = theirs.get();
+        if theirs.is_empty() {
+            return Vec::new();
+        }
+        area.content().get();
+        remote_carets(area, theirs)
+    })
+}
+
+fn share_caret(state: CanvasState, id: Uuid, area: TextAreaState, editing: Memo<bool>) {
+    create_effect(move || {
+        let caret = match editing.get() {
+            true => {
+                area.cursors().get();
+                area.content().get();
+                untrack(|| SharedCaret::of(area))
+            }
+            false => None,
+        };
+        untrack(|| state.note_caret(id, caret));
+    });
+    on_cleanup(move || {
+        if state.is_alive() {
+            state.note_caret(id, None);
+        }
+    });
 }
 
 fn live_text(state: CanvasState, id: Uuid, editing: Memo<bool>) -> TextAreaState {

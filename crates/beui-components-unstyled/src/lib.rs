@@ -140,7 +140,7 @@ pub use text_area::{
     BlockView, Completer, Completion, CompletionMenu, CompletionRowHandle, Prose, RemoteTextCursor,
     SyntaxColors, TextArea, TextAreaColors, TextAreaLayout, TextAreaState, TextCheckbox,
     TextWidget, VOID_SIZE, VoidSize, VoidView, emoji_completer, search_emoji, text_area_index_at,
-    text_area_shown, text_area_state,
+    text_area_remote_cursors, text_area_shown, text_area_state,
 };
 pub use text_input::text_input_handles;
 pub use text_input::{

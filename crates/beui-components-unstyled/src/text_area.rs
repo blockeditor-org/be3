@@ -1623,6 +1623,14 @@ fn area_hit(document: &Document, cx: &Context, pos: Pos2) -> Option<usize> {
     Some(entry.row().to_source(display))
 }
 
+pub fn text_area_remote_cursors(document: &Document, area: NodeId) -> Vec<RemoteTextCursor> {
+    document
+        .component_state::<Parts>(area)
+        .cx
+        .remote_cursors
+        .get_untracked()
+}
+
 pub fn text_area_state(document: &Document, area: NodeId) -> TextAreaState {
     document.component_state::<Parts>(area).cx.state
 }

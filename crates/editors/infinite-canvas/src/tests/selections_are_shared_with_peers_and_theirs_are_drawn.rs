@@ -35,6 +35,7 @@ fn selections_are_shared_with_peers_and_theirs_are_drawn() {
     let theirs = CanvasCursor {
         pointer: Some(CanvasPoint::new(40.0, 30.0)),
         selection: vec![rectangle.id],
+        caret: None,
         color: PresenceColor::Purple,
     };
     editor.set_peers(

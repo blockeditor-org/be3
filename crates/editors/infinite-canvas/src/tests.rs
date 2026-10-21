@@ -39,6 +39,7 @@ mod a_narrow_canvas_opens_its_inspector_under_the_stage;
 mod a_new_shape_takes_the_last_style_used;
 mod a_peer_sees_a_shape_while_it_is_dragged;
 mod a_peer_sees_a_stroke_while_it_is_drawn;
+mod a_peer_sees_where_another_is_writing;
 mod a_peer_types_into_the_text_being_edited;
 mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
 mod a_phone_opens_a_context_submenu_as_a_page_of_its_sheet;

@@ -2,7 +2,9 @@ use block_editor_beui::be_block::{BlockContent, DatabaseSchemaContent};
 use std::cell::{Cell, RefCell};
 use std::collections::{BTreeMap, HashMap, HashSet};
 
-use crate::presence::{CanvasCursor, CanvasDraft, Draft, assemble, stroke_parts, unlanded};
+use crate::presence::{
+    CanvasCaret, CanvasCursor, CanvasDraft, Draft, assemble, stroke_parts, unlanded,
+};
 use block_editor_beui::ContentProjection;
 use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::Edit;
@@ -27,7 +29,7 @@ use block_editor_beui::{
     BlockFilter, ChildRect, ChildState, Drag, Editor, FileDrop, InteractionMode, ResizeMode,
     child_rect,
 };
-use block_editor_beui::{BlockParent, BlockQuery};
+use block_editor_beui::{BlockParent, BlockQuery, SharedCaret};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -396,6 +398,7 @@ pub(crate) struct RemoteSelection {
 pub(crate) struct Presence {
     pub(crate) cursors: Vec<RemoteCursor>,
     pub(crate) selections: Vec<RemoteSelection>,
+    pub(crate) carets: Vec<(CanvasCaret, PresenceColor)>,
     pub(crate) drafts: Vec<Draft>,
 }
 
@@ -436,6 +439,7 @@ pub(crate) struct CanvasState {
     editor: Editor,
     preview: bool,
     pub(crate) pointer: Signal<Option<CanvasPoint>>,
+    caret: Signal<Option<CanvasCaret>>,
     pub(crate) entities: Entities,
     pub(crate) tool: Signal<Tool>,
     pub(crate) tool_locked: Signal<bool>,
@@ -453,6 +457,7 @@ pub(crate) struct CanvasState {
     thumbhashes: Memo<HashMap<Uuid, Thumbhash>>,
     pub(crate) child_states: Signal<HashMap<Uuid, ChildState>>,
     pub(crate) presence: Signal<Presence>,
+    peer_carets: Memo<Vec<(CanvasCaret, PresenceColor)>>,
     peers: ReadSignal<Vec<(u64, CanvasCursor)>>,
     drafts: ReadSignal<Vec<(u64, CanvasDraft)>>,
 }
@@ -523,7 +528,9 @@ impl CanvasState {
         });
         let child_states = create_signal(HashMap::new());
         let presence = create_signal(Presence::default());
+        let peer_carets = create_memo(move || presence.with(|presence| presence.carets.clone()));
         let pointer = create_signal(None);
+        let caret = create_signal(None);
         let cells = store(CanvasCells {
             content,
             pending_image_center: Cell::new(None),
@@ -553,6 +560,7 @@ impl CanvasState {
             editor,
             preview,
             pointer,
+            caret,
             entities,
             tool,
             tool_locked: create_signal(false),
@@ -570,6 +578,7 @@ impl CanvasState {
             thumbhashes,
             child_states,
             presence,
+            peer_carets,
             peers: editor.peers::<CanvasCursor>(),
             drafts: editor.peers::<CanvasDraft>(),
         };
@@ -1093,6 +1102,22 @@ impl CanvasState {
 
     pub(crate) fn note_context_position(&self, at: Option<CanvasPoint>) {
         self.cells.value().context_position.set(at);
+    }
+
+    pub(crate) fn peer_carets(&self) -> Memo<Vec<(CanvasCaret, PresenceColor)>> {
+        self.peer_carets
+    }
+
+    pub(crate) fn note_caret(&self, entity: Uuid, caret: Option<SharedCaret>) {
+        let held = self.caret.get_untracked();
+        let caret = match caret {
+            Some(caret) => Some(CanvasCaret { entity, caret }),
+            None if held.is_some_and(|held| held.entity != entity) => return,
+            None => None,
+        };
+        if held != caret {
+            self.caret.set(caret);
+        }
     }
 
     pub(crate) fn note_pointer(&self, at: Option<CanvasPoint>) {
@@ -2429,6 +2454,7 @@ impl CanvasState {
         create_effect(move || {
             visible.with(|_| ());
             state.pointer.with(|_| ());
+            state.caret.with(|_| ());
             state.selection.with(|_| ());
             untrack(|| state.publish_presence());
         });
@@ -2555,6 +2581,7 @@ impl CanvasState {
             CanvasCursor {
                 pointer: self.pointer.get_untracked(),
                 selection: self.selection.get_untracked().iter().copied().collect(),
+                caret: self.caret.get_untracked(),
                 color,
             }
         });
@@ -2654,6 +2681,9 @@ impl CanvasState {
                         color,
                     });
                 }
+            }
+            if let Some(caret) = cursor.caret {
+                presence.carets.push((caret, color));
             }
             if cursor.pointer.is_some() {
                 presence.cursors.push(RemoteCursor {

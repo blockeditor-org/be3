@@ -1,5 +1,6 @@
 use std::collections::{BTreeMap, HashSet};
 
+use block_editor_beui::SharedCaret;
 use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasPoint, CanvasStyle};
 use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind};
 use serde::{Deserialize, Serialize};
@@ -14,7 +15,14 @@ pub(crate) const STROKE_PART: usize = 32;
 pub struct CanvasCursor {
     pub pointer: Option<CanvasPoint>,
     pub selection: Vec<Uuid>,
+    pub caret: Option<CanvasCaret>,
     pub color: PresenceColor,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Eq, Serialize)]
+pub struct CanvasCaret {
+    pub entity: Uuid,
+    pub caret: SharedCaret,
 }
 
 impl PresenceKind for CanvasCursor {
