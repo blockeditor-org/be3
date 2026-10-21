@@ -259,7 +259,7 @@ impl Entity {
         }
     }
 
-    fn view(&self, id: ObjectId) -> Option<CanvasEntity> {
+    pub fn view(&self, id: ObjectId) -> Option<CanvasEntity> {
         Some(CanvasEntity {
             id: id.as_uuid(),
             transform: CanvasTransform::new(self.center, self.size, self.rotation),
