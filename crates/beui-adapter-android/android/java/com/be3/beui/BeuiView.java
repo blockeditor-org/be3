@@ -271,6 +271,10 @@ public final class BeuiView extends SurfaceView implements SurfaceHolder.Callbac
         post(() -> ((BeuiActivity) getContext()).setBackHandled(handled));
     }
 
+    public void setLightBars(boolean light) {
+        post(() -> ((BeuiActivity) getContext()).setLightBars(light));
+    }
+
     public void finishActivity() {
         post(() -> ((Activity) getContext()).finish());
     }

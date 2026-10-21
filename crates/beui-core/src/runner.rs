@@ -13,6 +13,7 @@ use crate::app::accessibility_dump::AccessibilityDump;
 use crate::app::automation::{Automation, Inbox, Resize, Settled, View, World};
 use crate::app::{App, SafeArea, Setup, Waker, next_batch, safe_rect};
 use crate::clipboard::{PasteAnswer, PasteKind, PasteRequest, Pasted};
+use crate::color::Color32;
 use crate::context::{ActionGroup, Context, FrameOutput};
 use crate::file_picker::{FilePick, FilePickAnswer, FilePickId, FilePickRequest};
 use crate::geometry::Vec2;
@@ -265,6 +266,10 @@ impl Runner {
 
     pub fn reports(&self) -> &WindowReports {
         &self.reports
+    }
+
+    pub fn clear_color(&self) -> Color32 {
+        self.app.clear_color()
     }
 
     pub fn window(&self) -> &WindowState {
