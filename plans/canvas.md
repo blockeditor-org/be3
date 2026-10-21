@@ -40,9 +40,7 @@ What holds it back:
   clean joins or filled freehand: a pen stroke is line segments with a dot at
   each joint (`paint.rs::stroke`).
 - The camera is applied while painting (`Camera::at`), so every pan or zoom
-  frame repaints every entity. All entities sit in one
-  `ReadSignal<Vec<CanvasEntity>>`, so each edit, and each frame of a drag,
-  clones the list and every shape re-checks itself.
+  frame repaints every entity.
 - `CanvasEntityKind` is a closed variant per tool. Lines have two ends and bind
   to nothing, text cannot sit in a shape, `style` is saved as one value (two
   peers changing colour and width at once lose one change), and freehand
