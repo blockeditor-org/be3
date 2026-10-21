@@ -13,6 +13,7 @@ pub struct SystemFonts {
     given: Vec<(PathBuf, u32)>,
 }
 
+// unsafe(ffi)
 impl SystemFonts {
     pub fn new() -> Self {
         Self {
@@ -76,6 +77,7 @@ pub fn fallback() -> impl FnMut(char) -> Option<FontData> {
     move |character| fonts.lookup(character)
 }
 
+// unsafe(ffi)
 fn face_covering(library: ft::FT_Library, path: &Path, character: char) -> Option<(PathBuf, u32)> {
     let name = std::ffi::CString::new(path.to_str()?).ok()?;
     let mut index = 0;
@@ -153,6 +155,7 @@ fn font_files() -> Vec<PathBuf> {
     files
 }
 
+// unsafe(ffi)
 #[cfg(all(unix, not(target_os = "android"), not(target_os = "macos")))]
 mod fontconfig {
     use std::ffi::{CStr, c_char, c_int, c_uint, c_void};

@@ -602,8 +602,10 @@ fn data_url(document: &web_sys::Document, image: &Image) -> Option<String> {
         .ok()??
         .dyn_into::<web_sys::CanvasRenderingContext2d>()
         .ok()?;
-    let data = web_sys::ImageData::new_with_u8_clamped_array_and_sh(
-        wasm_bindgen::Clamped(image.pixels()),
+    let pixels = js_sys::Uint8ClampedArray::new_with_length(image.pixels().len() as u32);
+    pixels.copy_from(image.pixels());
+    let data = web_sys::ImageData::new_with_js_u8_clamped_array_and_sh(
+        &pixels,
         image.width(),
         image.height(),
     )

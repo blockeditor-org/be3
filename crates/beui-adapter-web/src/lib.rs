@@ -496,6 +496,10 @@ async fn run(element_id: &str, launch: Launch, load: Load) -> Result<(), Box<dyn
         }))
     });
     listen(&window, &document, &surface, &agent, &reports)?;
+    let pointer = window.match_media("(pointer: fine)").ok().flatten();
+    if pointer.is_some_and(|query| query.matches()) {
+        let _ = agent.focus();
+    }
     watch_preferences(&window, &reports)?;
     schedule();
     Ok(())

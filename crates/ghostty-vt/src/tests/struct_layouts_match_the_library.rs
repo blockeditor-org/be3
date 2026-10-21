@@ -4,6 +4,7 @@ use std::ffi::CStr;
 
 #[test]
 fn struct_layouts_match_the_library() {
+    // unsafe(ffi)
     let json = unsafe { CStr::from_ptr(sys::ghostty_type_json()) };
     let manifest: Value = serde_json::from_str(json.to_str().unwrap()).unwrap();
     let types = &manifest["types"];

@@ -1,9 +1,11 @@
+// unsafe(ffi)
 #[cfg(target_os = "wasi")]
 unsafe extern "C" {
     fn __wasi_init_tp();
     fn __wasm_init_tls(block: *mut u8);
 }
 
+// unsafe(ffi)
 pub fn initialize_main_thread() {
     #[cfg(target_os = "wasi")]
     unsafe {
@@ -11,6 +13,7 @@ pub fn initialize_main_thread() {
     }
 }
 
+// unsafe(ffi)
 pub fn initialize_main_thread_storage(size: usize, align: usize) {
     #[cfg(target_os = "wasi")]
     unsafe {

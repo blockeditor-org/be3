@@ -99,6 +99,7 @@ pub(crate) fn read(memory: &SharedMemory, pointer: u32, length: u32) -> Result<V
     }
     let mut bytes = vec![0u8; length as usize];
     for (offset, byte) in bytes.iter_mut().enumerate() {
+        // unsafe(ffi)
         *byte = unsafe { *data[start + offset].get() };
     }
     Ok(bytes)
@@ -120,6 +121,7 @@ impl Guest for State {
             return 0;
         }
         for (offset, byte) in bytes.iter().enumerate() {
+            // unsafe(ffi)
             unsafe { *data[start + offset].get() = *byte };
         }
         needed

@@ -157,6 +157,7 @@ pub struct Buffer {
     pub len: usize,
 }
 
+// unsafe(ffi)
 unsafe extern "C" {
     pub fn ghostty_terminal_new(
         allocator: *const c_void,

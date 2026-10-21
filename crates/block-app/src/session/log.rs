@@ -50,6 +50,7 @@ pub(crate) fn start_log() -> Option<File> {
         .ok()
         .map(File::from);
     for stream in [libc::STDOUT_FILENO, libc::STDERR_FILENO] {
+        // unsafe(ffi)
         unsafe { libc::dup2(file.as_raw_fd(), stream) };
     }
     console

@@ -95,6 +95,7 @@ pub(crate) fn test_module(
     precompiled: Option<&Path>,
 ) -> Result<Module, String> {
     if let Some(artifact) = precompiled {
+        // unsafe(ffi)
         return unsafe { Module::deserialize_file(engine, artifact) }
             .map_err(|error| format!("{} could not be used: {error}", artifact.display()));
     }

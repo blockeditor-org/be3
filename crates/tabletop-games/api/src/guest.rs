@@ -4,6 +4,7 @@ use crate::{Command, GameHelper, GameScreen};
 
 const FIRST_BUFFER: usize = 256;
 
+// unsafe(ffi)
 #[cfg(target_arch = "wasm32")]
 #[link(wasm_import_module = "game")]
 unsafe extern "C" {
@@ -13,11 +14,13 @@ unsafe extern "C" {
     fn host_present(pointer: u32, length: u32);
 }
 
+// unsafe(ffi)
 #[cfg(not(target_arch = "wasm32"))]
 unsafe fn host_next(_: u32, _: u32) -> u64 {
     panic!("only a game module running in the game host is handed commands")
 }
 
+// unsafe(ffi)
 #[cfg(not(target_arch = "wasm32"))]
 unsafe fn host_present(_: u32, _: u32) {
     panic!("only a game module running in the game host presents screens")
@@ -30,12 +33,14 @@ pub fn text(value: &str) -> u64 {
     (pointer << 32) | length
 }
 
+// unsafe(ffi)
 pub(crate) fn next() -> Command {
     let mut buffer: Vec<u8> = Vec::with_capacity(FIRST_BUFFER);
     loop {
         let length =
             unsafe { host_next(buffer.as_mut_ptr() as u32, buffer.capacity() as u32) } as usize;
         if length <= buffer.capacity() {
+            // unsafe(memory)
             unsafe { buffer.set_len(length) };
             return bincode::deserialize(&buffer).expect("the host encodes the commands it sends");
         }
@@ -43,6 +48,7 @@ pub(crate) fn next() -> Command {
     }
 }
 
+// unsafe(ffi)
 pub(crate) fn present(screen: &GameScreen) {
     let bytes = bincode::serialize(screen).expect("a screen is always encodable");
     unsafe { host_present(bytes.as_ptr() as u32, bytes.len() as u32) };

@@ -48,5 +48,5 @@ deploy(
         out = "index.html",
         visibility = ["PUBLIC"],
     )
-    for name in ["block", "demo"]
+    for name in ["block", "demo", "paint-review"]
 ]

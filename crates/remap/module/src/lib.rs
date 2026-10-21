@@ -10,6 +10,7 @@ mod exports {
         static REPLY: RefCell<Vec<u8>> = const { RefCell::new(Vec::new()) };
     }
 
+    // unsafe(ffi)
     #[unsafe(export_name = "be_remap_buffer")]
     pub extern "C" fn buffer(length: u32) -> u32 {
         REQUEST.with_borrow_mut(|request| {
@@ -19,6 +20,7 @@ mod exports {
         })
     }
 
+    // unsafe(ffi)
     #[unsafe(export_name = "be_remap_handle")]
     pub extern "C" fn handle(length: u32) -> u64 {
         let reply = REQUEST.with_borrow(|request| {

@@ -191,6 +191,7 @@ mod platform {
                 Ok(RawWindowHandle::AppKit(handle)) => handle.ns_view.as_ptr(),
                 _ => return Self(None),
             };
+            // unsafe(ffi)
             Self(Some(unsafe {
                 SubclassingAdapter::new(view, activation, action)
             }))

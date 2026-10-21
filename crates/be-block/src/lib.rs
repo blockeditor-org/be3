@@ -32,7 +32,6 @@ pub mod logic_grid;
 pub mod map;
 pub mod metadata;
 pub mod model;
-pub mod paint;
 pub mod pdf;
 pub mod pixel_art;
 pub mod pixel_ray_tracer;
@@ -80,7 +79,6 @@ pub use metadata::{
     Thumbhash,
 };
 pub use model::Root;
-pub use paint::{PaintReview, PaintReviewContent, PaintSnapshotContent, PaintSnapshotHeader};
 pub use pdf::{PdfContent, PdfHeader};
 pub use pixel_art::{PixelArtContent, PixelArtDocument};
 pub use pixel_ray_tracer::PixelRayTracerContent;

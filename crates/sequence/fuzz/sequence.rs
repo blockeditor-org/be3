@@ -1,5 +1,6 @@
 #![no_main]
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 extern "C" fn LLVMFuzzerTestOneInput(data: *const u8, size: usize) -> i32 {
     let data = match size {

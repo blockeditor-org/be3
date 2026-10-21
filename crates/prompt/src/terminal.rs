@@ -23,6 +23,7 @@ pub fn interactive() -> bool {
     std::io::stdin().is_terminal() && std::io::stderr().is_terminal()
 }
 
+// unsafe(ffi)
 pub fn columns() -> usize {
     if let Some(columns) = std::env::var("COLUMNS")
         .ok()
@@ -76,6 +77,7 @@ pub struct Raw {
     saved: (u32, u32),
 }
 
+// unsafe(ffi)
 impl Raw {
     pub fn enter() -> Option<Raw> {
         if !interactive() || !colors() {
@@ -157,6 +159,7 @@ impl Raw {
     }
 }
 
+// unsafe(ffi)
 impl Drop for Raw {
     fn drop(&mut self) {
         #[cfg(unix)]
@@ -174,6 +177,7 @@ impl Drop for Raw {
     }
 }
 
+// unsafe(ffi)
 fn read_byte() -> Option<u8> {
     let mut byte = [0];
     #[cfg(unix)]
@@ -197,6 +201,7 @@ fn read_byte() -> Option<u8> {
     }
 }
 
+// unsafe(ffi)
 fn more_input_waiting() -> bool {
     #[cfg(unix)]
     {

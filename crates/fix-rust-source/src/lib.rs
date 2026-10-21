@@ -1,4 +1,5 @@
 mod beui_rules;
+mod unsafe_tags;
 mod views;
 
 use ra_ap_syntax::ast::{self, AstNode, AstToken, HasAttrs, HasModuleItem, HasName, HasVisibility};
@@ -10,6 +11,7 @@ use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicUsize, Ordering};
 use std::thread;
+pub use unsafe_tags::{UnsafeSite, unsafe_sites};
 pub use views::format_views;
 
 pub fn fix_repository(root: &Path, check: bool) -> Result<(), Box<dyn Error>> {
@@ -32,7 +34,7 @@ pub fn fix_repository(root: &Path, check: bool) -> Result<(), Box<dyn Error>> {
     let remaining = find_layout_violations(root)?;
     if !remaining.is_empty() {
         return Err(format!(
-            "Rust source layout could not be fixed:\n{}",
+            "Rust source needs changes the fixes cannot make:\n{}",
             remaining.join("\n")
         )
         .into());
@@ -46,6 +48,7 @@ pub fn strip_comments(source: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
         .syntax()
         .descendants_with_tokens()
         .filter_map(NodeOrToken::into_token)
+        .filter(|token| ast::AnyComment::can_cast(token.kind()) && !kept_comment(token))
         .filter_map(ast::AnyComment::cast)
         .map(|comment| Comment {
             range: syntax_range(comment.syntax().text_range()),
@@ -98,6 +101,10 @@ pub fn strip_comments(source: &[u8]) -> Result<Vec<u8>, Box<dyn Error>> {
     }
     stripped.extend_from_slice(&source[cursor..]);
     Ok(stripped)
+}
+
+fn kept_comment(token: &ra_ap_syntax::SyntaxToken) -> bool {
+    token.text().contains("@yeskeep") || unsafe_tags::kept_tag(token)
 }
 
 pub(crate) fn parse(source: &[u8]) -> Result<SourceFile, Box<dyn Error>> {
@@ -360,6 +367,7 @@ fn inspect_file_queue(
         let relative = relative(root, path);
         let text = std::str::from_utf8(&source).map_err(|error| error.to_string())?;
         violations.extend(beui_rules::beui_violations(&tree, text, &relative));
+        violations.extend(unsafe_tags::unsafe_violations(&tree, text, &relative));
         if path.file_name().is_some_and(|name| name == "mod.rs") {
             violations.push(format!("module file: {relative}"));
         }
@@ -386,7 +394,7 @@ fn inspect_file_queue(
             .syntax()
             .descendants_with_tokens()
             .filter_map(NodeOrToken::into_token)
-            .any(|token| ast::AnyComment::cast(token).is_some())
+            .any(|token| ast::AnyComment::can_cast(token.kind()) && !kept_comment(&token))
         {
             violations.push(format!("comments: {relative}"));
         }
