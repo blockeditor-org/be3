@@ -29,7 +29,6 @@ fn unused_navigation_keys_scroll_the_nearest_ancestor() {
     let (scroll, tabs, slider) = (scroll.get(), tabs.get(), slider.get());
     let mut harness = Harness::sized(document, Vec2::new(300.0, 100.0));
     harness.key(Key::Tab, Modifiers::NONE);
-    harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::ArrowDown, Modifiers::NONE);
     assert_eq!(styled::tabs_selected(harness.document(), tabs), 0);
     assert_eq!(harness.document.scroll_offset(scroll), 40.0);

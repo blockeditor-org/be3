@@ -12,6 +12,7 @@ pub use beui_tree::reactive::*;
 
 use beui_core::document::Document;
 use beui_core::geometry::Rect;
+use beui_core::input::Key;
 use beui_core::node::NodeId;
 
 pub use beui_core::animation::{
@@ -179,6 +180,51 @@ fn listen(
     let handler: Rc<beui_core::keys::KeyHandler> = Rc::new(handler);
     with_document(|document| document.listen_keys(at, phase, reveal, Rc::downgrade(&handler)));
     on_cleanup(move || drop(handler));
+}
+
+pub fn arrow_focus(row: NodeRef, direction: Direction) {
+    let (back, forth) = match direction {
+        Direction::Horizontal => (Key::ArrowLeft, Key::ArrowRight),
+        Direction::Vertical => (Key::ArrowUp, Key::ArrowDown),
+    };
+    on_key(
+        beui_core::keys::KeyAt::Node(row),
+        beui_core::keys::KeyPhase::Bubble,
+        move |event| {
+            let Some(press) = event.press() else {
+                return false;
+            };
+            if press.modifiers.ctrl || press.modifiers.alt || press.modifiers.shift {
+                return false;
+            }
+            with_document(|document| {
+                let Some(row) = row.try_get() else {
+                    return false;
+                };
+                let stops = document.tab_stops_within(row);
+                let Some(at) = document
+                    .focused_node()
+                    .and_then(|focused| stops.iter().position(|stop| *stop == focused))
+                else {
+                    return false;
+                };
+                let to = match press.key {
+                    key if key == back => at.checked_sub(1),
+                    key if key == forth => Some(at + 1).filter(|to| *to < stops.len()),
+                    Key::Home => Some(0),
+                    Key::End => Some(stops.len() - 1),
+                    _ => None,
+                };
+                let Some(to) = to else {
+                    return false;
+                };
+                if press.pressed {
+                    document.focus_focusable(stops[to]);
+                }
+                true
+            })
+        },
+    );
 }
 
 pub fn on_shortcut(shortcut: impl Fn(beui_core::input::KeyPress) -> bool + 'static) {

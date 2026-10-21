@@ -165,12 +165,7 @@ pub(crate) fn DialogSurface(
                 @test_id=surface_id
             >
                 <List spacing=0.0>
-                    <Scroll
-                        @sizing={ItemSize::Intrinsic.shrink(1.0)}
-                        fit=true
-                        tab_stop=false
-                        bleed={bleed}
-                    >
+                    <Scroll @sizing={ItemSize::Intrinsic.shrink(1.0)} fit=true bleed={bleed}>
                         <List spacing=SPACING>
                             <Show condition={titled}>
                                 <Text style=TextStyle::TITLE>{label}</Text>

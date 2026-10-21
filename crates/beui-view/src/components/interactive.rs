@@ -23,6 +23,7 @@ use beui_macros::component;
 pub fn Interactive(
     #[prop(default = false)] focusable: bool,
     #[prop(default = true)] tab_stop: Prop<bool>,
+    #[prop(default = false)] yields_tab_stop: bool,
     #[prop(default = true)] press_focus: Prop<bool>,
     #[prop(default = false)] focused: Prop<bool>,
     #[prop(default = false)] ime: Prop<bool>,
@@ -114,6 +115,7 @@ pub fn Interactive(
         let node = document.arena.touch_mut_as::<InteractiveNode>(interactive);
         if let Some(focus) = node.focus.as_mut() {
             focus.keyboard_on_focus = keyboard_on_focus;
+            focus.yields_tab_stop = yields_tab_stop;
             focus.on_focus_change = on_focus_change;
             focus.on_activate_change = on_activate_change;
             focus.on_activate = on_activate;

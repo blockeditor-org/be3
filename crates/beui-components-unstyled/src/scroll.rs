@@ -392,20 +392,21 @@ impl Motion {
         if press.modifiers.ctrl || press.modifiers.alt {
             return false;
         }
-        let Some(position) = self.placed() else {
+        let Some(position) = self.placed().filter(|position| position.max_offset() > 0.0) else {
             return false;
         };
-        let (forwards, backwards) = match self.axis() {
-            Direction::Horizontal => (Key::ArrowRight, Key::ArrowLeft),
-            Direction::Vertical => (Key::ArrowDown, Key::ArrowUp),
+        let vertical = self.axis() == Direction::Vertical;
+        let (forwards, backwards) = match vertical {
+            false => (Key::ArrowRight, Key::ArrowLeft),
+            true => (Key::ArrowDown, Key::ArrowUp),
         };
         let offset = match press.key {
             key if key == forwards => position.offset + STEP,
             key if key == backwards => position.offset - STEP,
-            Key::PageDown | Key::Space if !press.modifiers.shift => {
+            Key::PageDown | Key::Space if vertical && !press.modifiers.shift => {
                 position.offset + position.viewport
             }
-            Key::PageUp | Key::Space => position.offset - position.viewport,
+            Key::PageUp | Key::Space if vertical => position.offset - position.viewport,
             Key::Home => 0.0,
             Key::End => position.max_offset(),
             _ => return false,
@@ -468,7 +469,6 @@ fn Scrolling(
     direction: Prop<Direction>,
     fit: bool,
     bleed: Prop<Sides>,
-    tab_stop: bool,
     focus_color: Prop<Color32>,
     scrollbar: ScrollbarStyle,
     marker: Render<Memo<Direction>>,
@@ -517,6 +517,7 @@ fn Scrolling(
     set_component_state(motion);
 
     let position = create_memo(move || reported.get().unwrap_or_default());
+    let overflows = create_memo(move || position.get().max_offset() > 0.0);
     component_accessibility(create_memo(move || scroll_view(reported.get())));
 
     let near = create_signal(false);
@@ -604,7 +605,8 @@ fn Scrolling(
             <Layers>
                 <Interactive
                     focusable=true
-                    tab_stop
+                    tab_stop={overflows}
+                    yields_tab_stop=true
                     on_focus_change={focused}
                     on_key={move |press: KeyPress| motion.value().key(press)}
                     scroll_axis={axis}
@@ -670,7 +672,6 @@ pub fn Scroll(
     #[prop(default = Direction::Vertical)] direction: Prop<Direction>,
     #[prop(default = false)] fit: bool,
     #[prop(default = Sides::ZERO)] bleed: Prop<Sides>,
-    #[prop(default = true)] tab_stop: bool,
     #[prop(default = Color32::TRANSPARENT)] focus_color: Prop<Color32>,
     #[prop(default = ScrollbarStyle::default())] scrollbar: ScrollbarStyle,
     marker: Option<Render<Memo<Direction>>>,
@@ -693,7 +694,6 @@ pub fn Scroll(
             direction
             fit
             bleed
-            tab_stop
             focus_color
             scrollbar
             marker

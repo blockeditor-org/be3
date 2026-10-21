@@ -16,6 +16,7 @@ const TAB_BUILD_LIMIT: usize = 4096;
 
 enum TabStop {
     Node(NodeId),
+    Yielded(NodeId),
     Unbuilt(NodeId, Range<usize>),
 }
 
@@ -27,6 +28,7 @@ pub struct ImeCursor {
 
 pub struct Focus {
     pub tab_stop: bool,
+    pub yields_tab_stop: bool,
     pub ime: bool,
     pub keyboard_on_focus: bool,
     pub keyboard_asks: Option<u32>,
@@ -55,6 +57,7 @@ impl Focus {
     pub fn new() -> Self {
         Self {
             tab_stop: true,
+            yields_tab_stop: false,
             ime: false,
             keyboard_on_focus: true,
             keyboard_asks: None,
@@ -428,9 +431,9 @@ impl Document {
             return;
         }
         let index = self.focused.and_then(|focused| {
-            order
-                .iter()
-                .position(|stop| matches!(stop, TabStop::Node(id) if *id == focused))
+            order.iter().position(
+                |stop| matches!(stop, TabStop::Node(id) | TabStop::Yielded(id) if *id == focused),
+            )
         });
         let start = index.map_or_else(
             || if step >= 0 { 0 } else { order.len() - 1 },
@@ -452,6 +455,7 @@ impl Document {
             TabStop::Node(id) => focus_of(self.arena.get(*id))
                 .is_none_or(|focus| focus.tab_stop)
                 .then_some(*id),
+            TabStop::Yielded(_) => None,
             TabStop::Unbuilt(list, rows) => self.build_tab_stop(*list, rows.clone(), step, blocked),
         }
     }
@@ -502,9 +506,25 @@ impl Document {
         let mut stops = Vec::new();
         self.collect_tab_stops(id, &mut stops, blocked);
         out.extend(stops.into_iter().filter_map(|stop| match stop {
-            TabStop::Node(id) => Some(id),
+            TabStop::Node(id) | TabStop::Yielded(id) => Some(id),
             TabStop::Unbuilt(..) => None,
         }));
+    }
+
+    pub fn tab_stops_within(&self, root: NodeId) -> Vec<NodeId> {
+        let mut stops = Vec::new();
+        self.collect_tab_stops(root, &mut stops, &self.blocked_roots(&self.layers()));
+        stops
+            .into_iter()
+            .filter_map(|stop| match stop {
+                TabStop::Node(id) if self.is_tab_stop(id) => Some(id),
+                _ => None,
+            })
+            .collect()
+    }
+
+    fn is_tab_stop(&self, id: NodeId) -> bool {
+        focus_of(self.arena.get(id)).is_some_and(|focus| focus.tab_stop)
     }
 
     fn collect_tab_stops(&self, id: NodeId, out: &mut Vec<TabStop>, blocked: &[NodeId]) {
@@ -521,9 +541,10 @@ impl Document {
         {
             return;
         }
-        if focus_of(element).is_some() {
+        let own = focus_of(element).map(|focus| {
             out.push(TabStop::Node(id));
-        }
+            (out.len(), focus.yields_tab_stop)
+        });
         match element.focus_children() {
             Some(children) => {
                 for child in children {
@@ -536,6 +557,13 @@ impl Document {
             None => {
                 element.for_each_child(&mut |child| self.collect_tab_stops(child, out, blocked))
             }
+        }
+        if let Some((within, true)) = own
+            && out[within..]
+                .iter()
+                .any(|stop| matches!(stop, TabStop::Node(stop) if self.is_tab_stop(*stop)))
+        {
+            out[within - 1] = TabStop::Yielded(id);
         }
     }
 

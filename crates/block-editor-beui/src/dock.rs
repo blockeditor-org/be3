@@ -20,6 +20,8 @@ pub fn BottomDock(
 ) -> NodeId {
     let sheet = sheet_open();
     let open = create_memo(move || open.get() && !sheet.get());
+    let row = NodeRef::new();
+    arrow_focus(row, Direction::Horizontal);
     view! {
         <Floating anchor={anchor} edge=Edge::Bottom open={open}>
             <Frame padding=DOCK_MARGIN>
@@ -36,10 +38,10 @@ pub fn BottomDock(
                                 @sizing={ItemSize::Intrinsic.shrink(1.0)}
                                 direction=Direction::Horizontal
                                 fit=true
-                                tab_stop=false
                             >
                                 <Frame padding=DOCK_PADDING>
                                     <List
+                                        @node_ref=&row
                                         direction=Direction::Horizontal
                                         align=Align::Center
                                         spacing=DOCK_SPACING

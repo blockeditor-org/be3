@@ -354,6 +354,7 @@ impl Element for InteractiveNode {
             |focus| {
                 let flags: Vec<&str> = [
                     (focus.tab_stop, "tab stop"),
+                    (focus.yields_tab_stop, "yields tab stop"),
                     (self.press_focus, "press"),
                     (focus.ime, "ime"),
                     (focus.keyboard_on_focus, "keyboard"),

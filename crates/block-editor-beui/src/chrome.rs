@@ -240,9 +240,12 @@ pub fn Toolbar(
     #[prop(default = false)] fit: Prop<bool>,
     #[prop(children)] children: Children<ListChild>,
 ) -> DynamicSegment<ListChild> {
+    let row = NodeRef::new();
+    arrow_focus(row, Direction::Horizontal);
     view! {
         <ToolbarFrame shown fit>
             <List
+                @node_ref=&row
                 direction=Direction::Horizontal
                 align=Align::Center
                 spacing={spacing}

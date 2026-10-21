@@ -540,7 +540,6 @@ fn MenuPanel(min_width: f32, children: Child) -> NodeId {
                     <unstyled::Scroll
                         @sizing={ItemSize::Intrinsic.max(MENU_MAX_HEIGHT).shrink(1.0)}
                         fit=true
-                        tab_stop=false
                         scrollbar={ScrollbarStyle::default().fading(SCROLL_FADE)}
                     >
                         <Frame padding=MENU_PADDING>{children}</Frame>
