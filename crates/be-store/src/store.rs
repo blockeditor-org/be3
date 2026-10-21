@@ -229,6 +229,7 @@ fn remove_if_present(path: &Path) -> Result<(), StoreError> {
 fn sync_written(root: &Path, _: &Unsynced) -> Result<(), StoreError> {
     use std::os::fd::AsRawFd;
     let directory = fs::File::open(root)?;
+    // unsafe(ffi)
     match unsafe { libc::syncfs(directory.as_raw_fd()) } {
         0 => Ok(()),
         _ => Err(std::io::Error::last_os_error().into()),

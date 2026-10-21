@@ -36,6 +36,7 @@ pub fn main(arguments: Vec<String>) -> Result<ExitCode> {
             "deploy: --android-id takes an Android application id such as com.be3.block, not '{android_id}'"
         ));
     }
+    // unsafe(env)
     unsafe {
         std::env::set_var("BE3_APP_ID", "Block");
         std::env::set_var("BE3_DEPLOY_DEFAULT_SERVER", "true");

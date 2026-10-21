@@ -11,12 +11,14 @@ macro_rules! transport_imports {
 
 block_gpu_abi::transport_functions!(transport_imports);
 
+// unsafe(ffi)
 #[link(wasm_import_module = "be3_host")]
 unsafe extern "C" {
     fn host_wake();
     fn host_panic(pointer: u32, length: u32);
 }
 
+// unsafe(ffi)
 pub(crate) fn report_panics() {
     std::panic::set_hook(Box::new(|info| {
         let message = info.payload_as_str().unwrap_or("a panic without a message");
@@ -33,10 +35,12 @@ pub(crate) fn report_panics() {
     }));
 }
 
+// unsafe(ffi)
 pub(crate) fn send(frame: &[u8]) {
     unsafe { host_send(frame.as_ptr() as u32, frame.len() as u32) };
 }
 
+// unsafe(ffi)
 pub(crate) fn receive() -> Option<Vec<u8>> {
     let mut buffer = vec![0u8; 4096];
     let needed = unsafe { host_receive(buffer.as_mut_ptr() as u32, buffer.len() as u32) };
@@ -55,6 +59,7 @@ pub(crate) fn receive() -> Option<Vec<u8>> {
     Some(buffer)
 }
 
+// unsafe(ffi)
 pub(crate) fn wake() {
     unsafe { host_wake() };
 }

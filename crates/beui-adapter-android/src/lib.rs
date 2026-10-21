@@ -46,6 +46,7 @@ const META_ALT_ON: jint = 0x2;
 const META_CTRL_ON: jint = 0x1000;
 const META_META_ON: jint = 0x10000;
 
+// unsafe(ffi)
 unsafe extern "Rust" {
     fn android_main(app: AndroidApp);
 }
@@ -59,9 +60,12 @@ struct AppInner {
     files: PathBuf,
 }
 
+// unsafe(send-sync)
 unsafe impl Send for AppInner {}
+// unsafe(send-sync)
 unsafe impl Sync for AppInner {}
 
+// unsafe(ffi)
 impl AndroidApp {
     pub fn asset_manager(&self) -> AssetManager {
         unsafe { AssetManager::from_ptr(self.0.manager) }
@@ -270,6 +274,7 @@ impl Platform for AndroidPlatform {
     }
 }
 
+// unsafe(ffi)
 impl AndroidPlatform {
     fn sync_ime(&mut self, ime: Option<&ImeArea>) {
         let sent = (ime.and_then(|area| area.text.clone()), self.ime_serial);
@@ -669,6 +674,7 @@ impl Runner {
 
 struct SurfaceWindow(NativeWindow);
 
+// unsafe(ffi)
 impl rwh::HasWindowHandle for SurfaceWindow {
     fn window_handle(&self) -> Result<rwh::WindowHandle<'_>, rwh::HandleError> {
         let handle = rwh::AndroidNdkWindowHandle::new(self.0.ptr().cast());
@@ -827,6 +833,7 @@ fn read(mut env: EnvUnowned<'_>, text: &JString<'_>) -> String {
         .resolve::<LogErrorAndDefault>()
 }
 
+// unsafe(ffi)
 fn forward_stdio_to_logcat() {
     let mut pipe = [0; 2];
     let reader = unsafe {
@@ -860,6 +867,7 @@ fn count(value: jint) -> u32 {
     value.max(0).cast_unsigned()
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeCreate<'local>(
     mut env: EnvUnowned<'local>,
@@ -912,6 +920,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeCreate<'local>(
     .resolve::<LogErrorAndDefault>();
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeDestroy<'local>(
     _env: EnvUnowned<'local>,
@@ -921,6 +930,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeDestroy<'local>(
     send(Message::Destroy { finishing });
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFocus<'local>(
     _env: EnvUnowned<'local>,
@@ -930,6 +940,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFocus<'local>(
     send(Message::Focus(focused));
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeBack<'local>(
     _env: EnvUnowned<'local>,
@@ -943,6 +954,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeBack<'local>(
     }
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeSurfaceChanged<'local>(
     mut env: EnvUnowned<'local>,
@@ -968,6 +980,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeSurfaceChanged<'local>(
     .resolve::<LogErrorAndDefault>();
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeSurfaceDestroyed<'local>(
     _env: EnvUnowned<'local>,
@@ -979,6 +992,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeSurfaceDestroyed<'local>
     }
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeInsets<'local>(
     _env: EnvUnowned<'local>,
@@ -996,6 +1010,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeInsets<'local>(
     }));
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeTouch<'local>(
     _env: EnvUnowned<'local>,
@@ -1019,6 +1034,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeTouch<'local>(
     }
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativePen<'local>(
     _env: EnvUnowned<'local>,
@@ -1050,6 +1066,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativePen<'local>(
     });
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeScroll<'local>(
     _env: EnvUnowned<'local>,
@@ -1060,6 +1077,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeScroll<'local>(
     send(Message::Scroll(vec2(x, y)));
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
     _env: EnvUnowned<'local>,
@@ -1090,6 +1108,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeKey<'local>(
     handled
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeIme<'local>(
     env: EnvUnowned<'local>,
@@ -1130,6 +1149,7 @@ pub extern "system" fn Java_com_be3_beui_BeuiView_nativeIme<'local>(
     });
 }
 
+// unsafe(ffi)
 #[unsafe(no_mangle)]
 pub extern "system" fn Java_com_be3_beui_BeuiView_nativeFilePicked<'local>(
     mut env: EnvUnowned<'local>,

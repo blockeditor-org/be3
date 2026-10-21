@@ -10,6 +10,7 @@ use crate::{
     imports,
 };
 
+// unsafe(ffi)
 fn last_error() -> String {
     let mut buffer = vec![0u8; 256];
     let needed = unsafe { imports::error_take(buffer.as_mut_ptr() as u32, buffer.len() as u32) };
@@ -130,6 +131,7 @@ pub(crate) struct CommandEncoder {
     finished: bool,
 }
 
+// unsafe(ffi)
 impl Drop for CommandEncoder {
     fn drop(&mut self) {
         if !self.finished && self.handle != abi::NULL_HANDLE {
@@ -145,6 +147,7 @@ pub(crate) struct RenderPass {
     handle: abi::Handle,
 }
 
+// unsafe(ffi)
 impl Drop for RenderPass {
     fn drop(&mut self) {
         if self.handle != abi::NULL_HANDLE {
@@ -167,6 +170,7 @@ pub(crate) struct MappedRange {
     written: bool,
 }
 
+// unsafe(ffi)
 impl Drop for MappedRange {
     fn drop(&mut self) {
         if !self.written {
@@ -199,6 +203,7 @@ impl Device {
     }
 }
 
+// unsafe(ffi)
 fn fetch_limits() -> wgpu::Limits {
     let mut buffer = vec![0u8; 512];
     let needed = unsafe { imports::device_limits(buffer.as_mut_ptr() as u32, buffer.len() as u32) };
@@ -233,6 +238,7 @@ fn fetch_limits() -> wgpu::Limits {
     }
 }
 
+// unsafe(ffi)
 impl DeviceInterface for Device {
     fn features(&self) -> wgpu::Features {
         wgpu::Features::empty()
@@ -605,6 +611,7 @@ impl DeviceInterface for Device {
     fn destroy(&self) {}
 }
 
+// unsafe(ffi)
 impl QueueInterface for Queue {
     fn write_buffer(&self, buffer: &DispatchBuffer, offset: wgpu::BufferAddress, data: &[u8]) {
         let Some(buffer) = buffer.as_custom::<Buffer>() else {
@@ -736,6 +743,7 @@ impl RenderPipelineInterface for RenderPipeline {
     }
 }
 
+// unsafe(ffi)
 impl BufferInterface for Buffer {
     fn map_async(
         &self,
@@ -764,6 +772,7 @@ impl BufferInterface for Buffer {
     fn destroy(&self) {}
 }
 
+// unsafe(ffi)
 impl TextureInterface for Texture {
     fn create_view(&self, desc: &wgpu::TextureViewDescriptor<'_>) -> DispatchTextureView {
         let descriptor = abi::TextureViewDescriptor {
@@ -786,6 +795,7 @@ impl TextureInterface for Texture {
     fn destroy(&self) {}
 }
 
+// unsafe(ffi)
 impl QueueWriteBufferInterface for StagingBuffer {
     fn len(&self) -> usize {
         self.bytes.len()
@@ -796,6 +806,7 @@ impl QueueWriteBufferInterface for StagingBuffer {
     }
 }
 
+// unsafe(ffi)
 impl BufferMappedRangeInterface for MappedRange {
     fn len(&self) -> usize {
         self.bytes.len()
@@ -811,6 +822,7 @@ impl BufferMappedRangeInterface for MappedRange {
     }
 }
 
+// unsafe(ffi)
 impl CommandEncoderInterface for CommandEncoder {
     fn copy_buffer_to_buffer(
         &self,
@@ -990,6 +1002,7 @@ fn index_format_code(format: wgpu::IndexFormat) -> u32 {
     }
 }
 
+// unsafe(ffi)
 impl RenderPassInterface for RenderPass {
     fn set_pipeline(&mut self, pipeline: &DispatchRenderPipeline) {
         let Some(pipeline) = pipeline.as_custom::<RenderPipeline>() else {

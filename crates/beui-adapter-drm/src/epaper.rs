@@ -171,6 +171,7 @@ impl Panel {
 
     pub(crate) fn refresh(&self) {
         let mut refresh = GlobalRefresh { trigger: true };
+        // unsafe(ffi)
         let refreshed = unsafe {
             ioctl(
                 &self.drm,
@@ -190,6 +191,7 @@ impl Panel {
             num_rects: 0,
             rect_hints: 0,
         };
+        // unsafe(ffi)
         unsafe { ioctl(&self.drm, Setter::<RECT_HINTS, RectHints>::new(hints)) }
     }
 }

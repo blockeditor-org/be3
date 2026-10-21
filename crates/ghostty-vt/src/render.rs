@@ -78,6 +78,7 @@ pub struct Renderer {
     screen: Screen,
 }
 
+// unsafe(ffi)
 impl Renderer {
     pub fn new() -> Result<Self, Error> {
         let mut renderer = Self {
@@ -179,6 +180,7 @@ impl Renderer {
     }
 }
 
+// unsafe(ffi)
 impl Drop for Renderer {
     fn drop(&mut self) {
         unsafe {
@@ -189,6 +191,7 @@ impl Drop for Renderer {
     }
 }
 
+// unsafe(ffi)
 fn cursor(state: sys::RenderState, colors: &sys::RenderStateColors) -> Option<Cursor> {
     if !state_flag(state, sys::RENDER_STATE_DATA_CURSOR_VISIBLE)
         || !state_flag(state, sys::RENDER_STATE_DATA_CURSOR_VIEWPORT_HAS_VALUE)
@@ -223,6 +226,7 @@ fn cursor(state: sys::RenderState, colors: &sys::RenderStateColors) -> Option<Cu
     })
 }
 
+// unsafe(ffi)
 fn state_flag(state: sys::RenderState, data: std::ffi::c_int) -> bool {
     let mut value = false;
     let result =
@@ -290,6 +294,7 @@ fn read_cell(cells: sys::RowCells, colors: &sys::RenderStateColors, cell: &mut C
     }
 }
 
+// unsafe(ffi)
 fn read_text(cells: sys::RowCells, text: &mut String) {
     let mut storage = [0u8; 64];
     let mut buffer = sys::Buffer {
@@ -330,6 +335,7 @@ fn read_text(cells: sys::RowCells, text: &mut String) {
     }
 }
 
+// unsafe(ffi)
 fn cell_get(cells: sys::RowCells, data: std::ffi::c_int, out: *mut c_void) -> bool {
     unsafe { sys::ghostty_render_state_row_cells_get(cells, data, out) == sys::SUCCESS }
 }

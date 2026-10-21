@@ -24,6 +24,7 @@ struct Slot<F: ?Sized> {
 impl<F: ?Sized> Slot<F> {
     fn release(&mut self) {
         if std::mem::replace(&mut self.live, false) {
+            // unsafe(memory)
             unsafe { ManuallyDrop::drop(&mut self.callback) }
         }
     }
