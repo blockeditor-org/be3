@@ -13,7 +13,7 @@ use crate::geometry::*;
 
 use super::grid::{GridLook, GridTile, GridTileItem};
 use super::menu::CanvasMenu;
-use super::overlay::{FrameBackdrop, Overlay, PathGrips};
+use super::overlay::{Badge, FrameBackdrop, Hint, Live, Overlay, PathGrips};
 use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, resolve_color};
 use super::sketch::{Sketch, SketchKey, rough_reach};
 use super::state::CanvasState;
@@ -102,7 +102,13 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                                     <EntityEmbed state id />
                                 </ForEach>
                                 <Show condition={!previewing}>
-                                    <CanvasOverlay state={state} camera={camera} stage={shown} />
+                                    <CanvasHint state={state} camera={camera} stage={shown} />
+                                </Show>
+                                <Show condition={!previewing}>
+                                    <CanvasOverlay state={state} camera={camera} />
+                                </Show>
+                                <Show condition={!previewing}>
+                                    <LiveOverlay state={state} camera={camera} stage={shown} />
                                 </Show>
                             </Canvas>
                         </CanvasSurface>
@@ -172,50 +178,164 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
 }
 
 #[component]
-fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>) -> CanvasItem {
+fn CanvasHint(
+    state: CanvasState,
+    camera: Memo<CanvasView>,
+    stage: Memo<Rect>,
+) -> DynamicSegment<CanvasItem> {
+    let theme = use_theme();
+    let hint = create_memo(move || {
+        let empty = state.entities.ids().with(Vec::is_empty);
+        let presence = state.presence.get();
+        let busy = state.gesture.with(Option::is_some)
+            || !presence.drafts.is_empty()
+            || !presence.entities.is_empty();
+        (empty && !busy).then(|| Hint {
+            color: theme.text_muted.get(),
+        })
+    });
+    let shown = create_memo(move || hint.with(Option::is_some));
     let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
+    let draw = move || {
+        Prop::dynamic(move || -> Draw {
+            let hint = hint.get();
+            Rc::new(move |painter: &Painter, rect: Rect| {
+                if let Some(hint) = hint.as_ref() {
+                    hint.draw(painter, rect);
+                }
+            })
+        })
+    };
+    view! {
+        <Show condition={shown}>
+            <CanvasItem
+                x={create_memo(move || visible.get().left())}
+                y={create_memo(move || visible.get().top())}
+                width={create_memo(move || visible.get().width().max(1.0))}
+                height={create_memo(move || visible.get().height().max(1.0))}
+            >
+                <Drawing draw={draw()} />
+            </CanvasItem>
+        </Show>
+    }
+}
+
+#[component]
+fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>) -> DynamicSegment<CanvasItem> {
     let theme = use_theme();
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
+    let bounds = create_signal(None::<Rect>);
     let shown = RefCell::new(None::<Overlay>);
+    let scale = create_memo(move || camera.get().scale.max(f32::EPSILON));
     create_effect(move || {
         let selection = state.selection.get();
         let selected = state.entities.shown_among(&selection);
-        let overlay = Overlay {
-            camera: Camera::of(Some(camera.get()), stage.get().min),
+        let scale = scale.get();
+        let mut overlay = Overlay {
+            camera: Camera::item(Pos2::ZERO, scale),
             palette: palette(&theme),
-            stage: stage.get(),
-            empty: state.entities.ids().with(Vec::is_empty),
-            gesture: state.gesture.get(),
             outlines: super::state::selected_outlines(&selected, &selection),
             frame: super::state::selection_frame(&selected, &selection),
             path: state
                 .selected_path()
                 .and_then(|path| state.entities.shown(path.id))
-                .map(|path| path_grips(&path, camera.get().scale)),
+                .map(|path| path_grips(&path, scale)),
             group: entered_group_bounds(state),
             resize: state.selection_handles().0,
             rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),
-            presence: state.presence.get(),
-            tool: state.tool.get(),
-            pointer: state.pointer.get(),
-            pen: state.default_style(),
+            selections: state.presence.with(|presence| presence.selections.clone()),
         };
+        let reach = overlay.reach().map(|reach| {
+            let margin = Overlay::margin(scale);
+            let whole = |at: f32| (at * scale).floor() / scale;
+            Rect::from_min_max(
+                pos2(whole(reach.min.x - margin), whole(reach.min.y - margin)),
+                pos2(reach.max.x + margin, reach.max.y + margin),
+            )
+        });
+        if bounds.get_untracked() != reach {
+            bounds.set(reach);
+        }
+        overlay.camera = Camera::item(reach.map_or(Pos2::ZERO, |reach| reach.min), scale);
         if shown.borrow().as_ref() == Some(&overlay) {
             return;
         }
         *shown.borrow_mut() = Some(overlay.clone());
-        draw.set_unconditionally(Rc::new(move |painter: &Painter, _rect| {
-            overlay.draw(&painter.in_document())
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, rect: Rect| {
+            overlay.draw(&painter.transformed(rect.min.to_vec2(), 1.0))
         }));
     });
-    let x = create_memo(move || visible.get().left());
-    let y = create_memo(move || visible.get().top());
-    let width = create_memo(move || visible.get().width().max(1.0));
-    let height = create_memo(move || visible.get().height().max(1.0));
+    let present = create_memo(move || bounds.with(Option::is_some));
+    let rect = create_memo(move || bounds.get().unwrap_or(Rect::ZERO));
     view! {
-        <CanvasItem x={x} y={y} width={width} height={height}>
-            <Drawing draw={draw} />
-        </CanvasItem>
+        <Show condition={present}>
+            <CanvasItem
+                x={create_memo(move || rect.get().left())}
+                y={create_memo(move || rect.get().top())}
+                width={create_memo(move || rect.get().width().max(f32::EPSILON))}
+                height={create_memo(move || rect.get().height().max(f32::EPSILON))}
+            >
+                <Drawing draw={draw} />
+            </CanvasItem>
+        </Show>
+    }
+}
+
+#[component]
+fn LiveOverlay(
+    state: CanvasState,
+    camera: Memo<CanvasView>,
+    stage: Memo<Rect>,
+) -> DynamicSegment<CanvasItem> {
+    let visible = create_memo(move || camera.get().rect_to_canvas(stage.get()));
+    let theme = use_theme();
+    let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
+    let present = create_signal(false);
+    let shown = RefCell::new(None::<Live>);
+    create_effect(move || {
+        let presence = state.presence.get();
+        let tool = state.tool.get();
+        let live = Live {
+            camera: Camera::item(visible.get().min, camera.get().scale.max(f32::EPSILON)),
+            palette: palette(&theme),
+            gesture: state.gesture.get(),
+            drafts: presence.drafts,
+            cursors: presence.cursors,
+            pen: state.default_style(),
+            badge: state
+                .pointer
+                .get()
+                .filter(|_| !tool.selects())
+                .map(|at| Badge {
+                    glyph: tool.glyph(),
+                    at,
+                }),
+        };
+        if present.get_untracked() == live.is_empty() {
+            present.set(!live.is_empty());
+        }
+        if shown.borrow().as_ref() == Some(&live) {
+            return;
+        }
+        *shown.borrow_mut() = Some(live.clone());
+        draw.set_unconditionally(Rc::new(move |painter: &Painter, rect: Rect| {
+            live.draw(
+                &painter.transformed(rect.min.to_vec2(), 1.0),
+                Rect::from_min_size(Pos2::ZERO, rect.size()),
+            )
+        }));
+    });
+    view! {
+        <Show condition={present}>
+            <CanvasItem
+                x={create_memo(move || visible.get().left())}
+                y={create_memo(move || visible.get().top())}
+                width={create_memo(move || visible.get().width().max(1.0))}
+                height={create_memo(move || visible.get().height().max(1.0))}
+            >
+                <Drawing draw={draw} />
+            </CanvasItem>
+        </Show>
     }
 }
 

@@ -11,17 +11,19 @@ use crate::geometry::*;
 use super::paint::{
     Camera, Palette, SELECTION, arrowhead, handle, outline, resolve_color, with_opacity,
 };
-use super::state::{Gesture, Presence, Tool};
+use super::state::{Gesture, RemoteCursor, RemoteSelection, Tool};
 use crate::presence::Draft;
 
 const HINT: &str = "Scroll or use two fingers to move around  ·  Pick a tool to draw\nDrop or paste images, or use Block to add content";
 const HINT_MARGIN: f32 = 16.0;
 const SELECT_BOX_FILL: Color32 = Color32::from_rgba_unmultiplied(66, 153, 225, 28);
 const BADGE_SIDE: f32 = 22.0;
+const BADGE_BELOW: f32 = 20.0;
 const FRAME_OUTLINE: f32 = 1.0;
 const FRAME_LABEL_SIZE: f32 = 12.0;
 const DASHES: [f32; 2] = [4.0, 4.0];
 const GROUP_MARGIN: f32 = 6.0;
+const OVERLAY_REACH: f32 = 24.0;
 
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct PathGrips {
@@ -65,50 +67,108 @@ impl FrameBackdrop {
 }
 
 #[derive(Clone, PartialEq)]
+pub(crate) struct Hint {
+    pub(crate) color: Color32,
+}
+
+impl Hint {
+    pub(crate) fn draw(&self, painter: &Painter, stage: Rect) {
+        let galley = painter.layout_text(
+            HINT,
+            FontId::proportional(16.0),
+            TextLayout {
+                align: TextAlign::Center,
+                ..TextLayout::wrapped((stage.width() - HINT_MARGIN * 2.0).max(1.0))
+            },
+        );
+        let size = galley.size();
+        painter.galley(
+            pos2(
+                stage.center().x - size.x / 2.0,
+                stage.center().y - size.y / 2.0,
+            ),
+            galley,
+            self.color,
+        );
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub(crate) struct Badge {
+    pub(crate) glyph: &'static str,
+    pub(crate) at: CanvasPoint,
+}
+
+impl Badge {
+    fn draw(&self, painter: &Painter, at: Pos2, palette: &Palette) {
+        let center = pos2(at.x, at.y + BADGE_BELOW);
+        let badge = Rect::from_center_size(center, Vec2::splat(BADGE_SIDE));
+        painter.rect_filled(badge, 5.0, palette.surface);
+        painter.rect_stroke(badge, 5.0, 1.0, palette.border);
+        let icon = painter.layout(self.glyph, FontId::icons(16.0), f32::INFINITY);
+        let size = icon.size();
+        painter.galley(
+            pos2(center.x - size.x / 2.0, center.y - size.y / 2.0),
+            icon,
+            palette.auto,
+        );
+    }
+}
+
+#[derive(Clone, PartialEq)]
 pub(crate) struct Overlay {
     pub(crate) camera: Camera,
     pub(crate) palette: Palette,
-    pub(crate) stage: Rect,
-    pub(crate) empty: bool,
-    pub(crate) gesture: Option<Gesture>,
     pub(crate) outlines: Vec<SelectionFrame>,
     pub(crate) frame: Option<SelectionFrame>,
     pub(crate) path: Option<PathGrips>,
     pub(crate) group: Option<WorldRect>,
     pub(crate) resize: ResizeMode,
     pub(crate) rotatable: bool,
-    pub(crate) presence: Presence,
-    pub(crate) tool: Tool,
-    pub(crate) pointer: Option<CanvasPoint>,
-    pub(crate) pen: CanvasStyle,
+    pub(crate) selections: Vec<RemoteSelection>,
 }
 
 impl Overlay {
-    pub(crate) fn draw(&self, painter: &Painter) {
-        if self.empty
-            && self.gesture.is_none()
-            && self.presence.drafts.is_empty()
-            && self.presence.entities.is_empty()
-        {
-            let galley = painter.layout_text(
-                HINT,
-                FontId::proportional(16.0),
-                TextLayout {
-                    align: TextAlign::Center,
-                    ..TextLayout::wrapped((self.stage.width() - HINT_MARGIN * 2.0).max(1.0))
-                },
-            );
-            let size = galley.size();
-            painter.galley(
-                pos2(
-                    self.stage.center().x - size.x / 2.0,
-                    self.stage.center().y - size.y / 2.0,
-                ),
-                galley,
-                self.palette.muted,
-            );
+    pub(crate) fn reach(&self) -> Option<WorldRect> {
+        let mut points: Vec<CanvasPoint> = Vec::new();
+        for frame in &self.outlines {
+            points.extend(frame.corners());
         }
-        self.draw_gesture(painter);
+        if let Some(group) = self.group {
+            points.extend([group.min, group.max]);
+        }
+        match (&self.path, self.frame) {
+            (Some(grips), _) => {
+                points.extend(
+                    grips
+                        .outline
+                        .iter()
+                        .chain(&grips.points)
+                        .chain(&grips.middles),
+                );
+            }
+            (None, Some(frame)) => {
+                points.extend(frame.corners());
+                if self.rotatable {
+                    points.push(frame.rotate_handle());
+                }
+            }
+            (None, None) => {}
+        }
+        for selection in &self.selections {
+            points.extend(selection.frame.corners());
+        }
+        points
+            .into_iter()
+            .map(|point| WorldRect::from_points(point, point))
+            .reduce(WorldRect::union)
+    }
+
+    pub(crate) fn margin(scale: f32) -> f32 {
+        OVERLAY_REACH / scale.max(f32::EPSILON)
+    }
+
+    pub(crate) fn draw(&self, painter: &Painter) {
         for outline_frame in &self.outlines {
             let corners = outline_frame.corners().map(|corner| self.camera.at(corner));
             outline(painter, corners, 1.0, SELECTION);
@@ -119,8 +179,109 @@ impl Overlay {
             (None, Some(frame)) => self.draw_selection(painter, frame),
             (None, None) => {}
         }
-        self.draw_presence(painter);
-        self.draw_badge(painter);
+        for selection in &self.selections {
+            let color = block_editor_beui::presence_color(selection.color);
+            let corners = selection
+                .frame
+                .corners()
+                .map(|corner| self.camera.at(corner));
+            outline(painter, corners, 1.5, color);
+        }
+    }
+
+    fn draw_group(&self, painter: &Painter) {
+        let Some(group) = self.group else {
+            return;
+        };
+        let rect = self.camera.rect(group).expand(GROUP_MARGIN);
+        let outline = Path::polygon([
+            rect.left_top(),
+            rect.right_top(),
+            rect.right_bottom(),
+            rect.left_bottom(),
+        ]);
+        painter.stroke_path(&outline, &Stroke::new(1.0).dashed(DASHES, 0.0), SELECTION);
+    }
+
+    fn draw_path_grips(&self, painter: &Painter, grips: &PathGrips) {
+        let outline = Path::polyline(grips.outline.iter().map(|at| self.camera.at(*at)));
+        painter.stroke_path(&outline, &Stroke::new(1.0).join(LineJoin::Round), SELECTION);
+        for middle in &grips.middles {
+            let ring = Path::ellipse(self.camera.at(*middle), Vec2::splat(HANDLE_RADIUS - 1.0));
+            painter.fill_path(&ring, FillRule::NonZero, self.palette.surface);
+            painter.stroke_path(&ring, &Stroke::new(1.5), SELECTION);
+        }
+        for point in &grips.points {
+            handle(painter, self.camera.at(*point), SELECTION);
+        }
+    }
+
+    fn draw_selection(&self, painter: &Painter, frame: SelectionFrame) {
+        let corners = frame.corners().map(|corner| self.camera.at(corner));
+        outline(painter, corners, 1.0, SELECTION);
+        if self.resize != ResizeMode::None {
+            for (spot, at) in resize_handles(frame) {
+                if resize_handle_allowed(spot, self.resize) {
+                    handle(painter, self.camera.at(at), SELECTION);
+                }
+            }
+        }
+        if self.rotatable {
+            let top = self.camera.at(frame.point(CanvasPoint::new(0.0, -0.5)));
+            let grip = self.camera.at(frame.rotate_handle());
+            painter.line(top, grip, 1.0, SELECTION);
+            handle(painter, grip, SELECTION);
+        }
+    }
+}
+
+#[derive(Clone, PartialEq)]
+pub(crate) struct Live {
+    pub(crate) camera: Camera,
+    pub(crate) palette: Palette,
+    pub(crate) gesture: Option<Gesture>,
+    pub(crate) drafts: Vec<Draft>,
+    pub(crate) cursors: Vec<RemoteCursor>,
+    pub(crate) pen: CanvasStyle,
+    pub(crate) badge: Option<Badge>,
+}
+
+impl Live {
+    pub(crate) fn is_empty(&self) -> bool {
+        !self.gesture.as_ref().is_some_and(drawn)
+            && self.drafts.is_empty()
+            && self.cursors.iter().all(|cursor| cursor.pointer.is_none())
+            && self.badge.is_none()
+    }
+
+    pub(crate) fn draw(&self, painter: &Painter, stage: Rect) {
+        self.draw_gesture(painter);
+        for draft in &self.drafts {
+            self.draw_draft(painter, draft);
+        }
+        for cursor in &self.cursors {
+            let Some(pointer) = cursor.pointer else {
+                continue;
+            };
+            let color = block_editor_beui::presence_color(cursor.color);
+            let tip = self.camera.at(pointer);
+            let inward = Vec2::new(0.4, 1.0);
+            let length = inward.length();
+            arrowhead(
+                painter,
+                tip,
+                Vec2::new(inward.x / length, inward.y / length),
+                16.0,
+                2.0,
+                color,
+            );
+        }
+        if let Some(badge) = &self.badge {
+            let at = self.camera.at(badge.at);
+            if stage.contains(pos2(at.x, at.y + BADGE_BELOW)) {
+                badge.draw(painter, at, &self.palette);
+            }
+        }
     }
 
     fn draw_gesture(&self, painter: &Painter) {
@@ -197,82 +358,6 @@ impl Overlay {
         }
     }
 
-    fn draw_group(&self, painter: &Painter) {
-        let Some(group) = self.group else {
-            return;
-        };
-        let rect = self.camera.rect(group).expand(GROUP_MARGIN);
-        let outline = Path::polygon([
-            rect.left_top(),
-            rect.right_top(),
-            rect.right_bottom(),
-            rect.left_bottom(),
-        ]);
-        painter.stroke_path(&outline, &Stroke::new(1.0).dashed(DASHES, 0.0), SELECTION);
-    }
-
-    fn draw_path_grips(&self, painter: &Painter, grips: &PathGrips) {
-        let outline = Path::polyline(grips.outline.iter().map(|at| self.camera.at(*at)));
-        painter.stroke_path(&outline, &Stroke::new(1.0).join(LineJoin::Round), SELECTION);
-        for middle in &grips.middles {
-            let ring = Path::ellipse(self.camera.at(*middle), Vec2::splat(HANDLE_RADIUS - 1.0));
-            painter.fill_path(&ring, FillRule::NonZero, self.palette.surface);
-            painter.stroke_path(&ring, &Stroke::new(1.5), SELECTION);
-        }
-        for point in &grips.points {
-            handle(painter, self.camera.at(*point), SELECTION);
-        }
-    }
-
-    fn draw_selection(&self, painter: &Painter, frame: SelectionFrame) {
-        let corners = frame.corners().map(|corner| self.camera.at(corner));
-        outline(painter, corners, 1.0, SELECTION);
-        if self.resize != ResizeMode::None {
-            for (spot, at) in resize_handles(frame) {
-                if resize_handle_allowed(spot, self.resize) {
-                    handle(painter, self.camera.at(at), SELECTION);
-                }
-            }
-        }
-        if self.rotatable {
-            let top = self.camera.at(frame.point(CanvasPoint::new(0.0, -0.5)));
-            let grip = self.camera.at(frame.rotate_handle());
-            painter.line(top, grip, 1.0, SELECTION);
-            handle(painter, grip, SELECTION);
-        }
-    }
-
-    fn draw_presence(&self, painter: &Painter) {
-        for draft in &self.presence.drafts {
-            self.draw_draft(painter, draft);
-        }
-        for selection in &self.presence.selections {
-            let color = block_editor_beui::presence_color(selection.color);
-            let corners = selection
-                .frame
-                .corners()
-                .map(|corner| self.camera.at(corner));
-            outline(painter, corners, 1.5, color);
-        }
-        for cursor in &self.presence.cursors {
-            let Some(pointer) = cursor.pointer else {
-                continue;
-            };
-            let color = block_editor_beui::presence_color(cursor.color);
-            let tip = self.camera.at(pointer);
-            let inward = Vec2::new(0.4, 1.0);
-            let length = inward.length();
-            arrowhead(
-                painter,
-                tip,
-                Vec2::new(inward.x / length, inward.y / length),
-                16.0,
-                2.0,
-                color,
-            );
-        }
-    }
-
     fn draw_draft(&self, painter: &Painter, draft: &Draft) {
         match draft {
             Draft::Stroke {
@@ -294,34 +379,19 @@ impl Overlay {
             Draft::Shape(_) | Draft::Change { .. } => {}
         }
     }
+}
 
-    fn draw_badge(&self, painter: &Painter) {
-        if self.tool.selects() {
-            return;
-        }
-        let glyph = self.tool.glyph();
-        let Some(pointer) = self.pointer else {
-            return;
-        };
-        let at = self.camera.at(pointer);
-        let center = pos2(at.x, at.y + 20.0);
-        if !self.stage.contains(center) {
-            return;
-        }
-        let badge = Rect::from_min_max(
-            pos2(center.x - BADGE_SIDE / 2.0, center.y - BADGE_SIDE / 2.0),
-            pos2(center.x + BADGE_SIDE / 2.0, center.y + BADGE_SIDE / 2.0),
-        );
-        painter.rect_filled(badge, 5.0, self.palette.surface);
-        painter.rect_stroke(badge, 5.0, 1.0, self.palette.border);
-        let icon = painter.layout(glyph, FontId::icons(16.0), f32::INFINITY);
-        let size = icon.size();
-        painter.galley(
-            pos2(center.x - size.x / 2.0, center.y - size.y / 2.0),
-            icon,
-            self.palette.auto,
-        );
-    }
+fn drawn(gesture: &Gesture) -> bool {
+    matches!(
+        gesture,
+        Gesture::Create {
+            tool: Tool::Text,
+            ..
+        } | Gesture::Erase { .. }
+            | Gesture::Pen { .. }
+            | Gesture::SelectBox { .. }
+            | Gesture::Lasso { .. }
+    )
 }
 
 fn stroke_ink(style: &CanvasStyle, palette: &Palette) -> Color32 {

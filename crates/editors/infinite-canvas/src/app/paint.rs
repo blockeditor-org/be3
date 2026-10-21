@@ -4,7 +4,6 @@ use block_editor_beui::be_block::canvas::{
     CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLook, CanvasPoint, CanvasShape,
     CanvasStrokeStyle, CanvasStyle,
 };
-use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{
     Color32, FontId, Image, LineCap, LineJoin, Painter, Pos2, Rect, Stroke, Vec2, pos2,
 };
@@ -24,14 +23,6 @@ pub(crate) struct Camera {
 }
 
 impl Camera {
-    pub(crate) fn of(view: Option<CanvasView>, fallback: Pos2) -> Self {
-        let view = view.unwrap_or_else(|| CanvasView::new(fallback, 1.0));
-        Self {
-            origin: view.origin,
-            scale: view.scale.max(f32::EPSILON),
-        }
-    }
-
     pub(crate) fn item(corner: Pos2, scale: f32) -> Self {
         Self {
             origin: pos2(-corner.x * scale, -corner.y * scale),

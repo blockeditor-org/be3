@@ -121,11 +121,6 @@ impl Walk {
                 Part::Shapes { start, end, .. } => {
                     for shape in &display.shapes[*start as usize..*end as usize] {
                         let placed = at.shape(shape, clip);
-                        if !bounds(&placed).is_positive()
-                            && !matches!(placed, Shape::Drawing { .. })
-                        {
-                            continue;
-                        }
                         let index = self.count;
                         self.count += 1;
                         if let Some(area) = self.area
