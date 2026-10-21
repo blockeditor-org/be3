@@ -1592,14 +1592,18 @@ wants a `Document` that hands out positions, so a cursor stays on its
 character while other people type. `block_editor_beui::live_text::LiveText`
 is that document for any `Text` or `RichText` field of any block, and it is
 the only one: the text editor and anything else that edits text in place
-(a canvas text shape) mount the editor on one. A `TextField` names the
+(a canvas text shape or label) mount the editor on one. Each projection
+has one log of the edits it applied, so only one `LiveText` per projection
+syncs at a time: the canvas syncs the text being edited and has the others
+take in their whole field when it changes. A `TextField` names the
 object and field it edits, and optionally a language and indentation the
 block stores beside it (`text_block::document::TextBody` does that for a text
 block); `FieldOf::rich` and `FieldOf::plain` name a field and nothing else. It
 keeps its own copy of the field's sequence and marks, turns each local edit
 into `Change::Text` and each format into `Change::Mark` (a plain `Text`
 takes no formats), and `LiveText::sync`, called on every change of the
-document and of the projection (the projection must `record()`), sends them,
+document and of the projection (the projection must `record()`, and
+`stop_recording()` once nothing reads its log), sends them,
 asks the host to undo or redo, applies the edits others made to the field in
 place, and takes in the whole field otherwise, which is a no-op when nothing
 in it changed. Undo is the host's (`Document::step`), so it leaves other

@@ -716,8 +716,12 @@ rather than a document: no whitespace markers and no document padding, with
 the weight, horizontal alignment, padding around each line, wrapping, and where
 the lines sit when they are shorter than the area that it names.
 `measure_prose` measures text exactly as such an area lays it out, so a caller
-can size a box to it; the infinite canvas draws its text entities this way, as
-the same field whether or not they are being edited. A document whose language is
+can size a box to it. The infinite canvas sizes its text entities this way and
+draws each text and label as a read-only rich `TextArea` over a `LiveText`, the
+same area whether or not it is being edited. A `TextArea` takes its view size
+from its own layout, not from where it lands on screen, so one inside a scaled
+`CanvasItem` is not laid out again when the view pans or zooms; a
+`VirtualList` reads the clip only while some of its rows lie outside it. A document whose language is
 `TextLanguage::RichText` is rich text, structured the way Slate structures one: the document
 knows nothing of bold or headings, a `Schema` (text-editor-core `schema.rs`) gives keys their
 meaning, and the page renders the result. The bytes are the text alone, and every line is a

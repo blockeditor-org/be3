@@ -45,8 +45,11 @@ The model (`be-block/src/canvas.rs`, step 2) is one `Entity` per shape. Its
 freehand, text, image, block, editor, frame) and decides only how the general
 fields are read: `points` is a path or stroke in the unit square of the
 entity's transform, each point with optional bezier handles; `pressures` go
-with a freehand stroke's points; `block` and `scale` hold an embed; `text` is a
-text shape's text, a shape's or path's label, and a frame's name. A path's
+with a freehand stroke's points; `block` and `scale` hold an embed; `text` is
+rich text (`be_model::RichText`): a text shape's text, a shape's or line's
+label, and a frame's name, which stays plain. Text and labels are drawn as
+read-only rich text areas the renderer scales, and the one being edited syncs
+live with peers through the shared `LiveText`. A path's
 `start_binding` and `end_binding` name a shape and an anchor in its unit
 square; the end is resolved against that shape whenever the canvas is read
 (`CanvasEntity::follow`), so it follows the shape whoever moved it. Every
@@ -74,10 +77,6 @@ soon as an entity with its id arrives, and never draws that one again.
 
 What holds it back:
 
-- Labels are drawn but not yet edited.
-- Text entities are text fields shaped at the camera's scale, so every zoom
-  frame lays them out and paints them again; shapes are scaled by the renderer.
-- Text and labels are plain strings in the `text` field, not rich text yet.
 - On web, opening a canvas needs a server sign-in first.
 
 The canvas is not a frozen format yet (guides/frozen_formats.md), so its model
