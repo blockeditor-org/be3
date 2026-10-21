@@ -28,9 +28,9 @@ pub mod reactive {
     pub use reactive::{
         Boundary, Effect, Get, KeyedItems, KeyedStore, Memo, OwnedKeyedStore, OwnedSignal,
         OwnedStored, Pending, ReadSignal, Ready, RootScope, Scope, ScopeContext, Selector, Set,
-        Signal, Store, Stored, StoredCell, child_scope, create_binding, create_effect,
-        create_memo, create_selector, create_signal, flush, hold, on_cleanup, owner_scope,
-        provide_context, store, untrack, use_context, wait_for, wait_while, zone_pending,
+        Signal, Store, Stored, StoredCell, child_scope, create_binding, create_effect, create_memo,
+        create_selector, create_signal, flush, hold, on_cleanup, owner_scope, provide_context,
+        store, untrack, use_context, wait_for, wait_while, zone_pending,
     };
 }
 
