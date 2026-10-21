@@ -13419,6 +13419,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13431,6 +13432,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13443,6 +13445,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13455,6 +13458,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13467,6 +13471,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13479,6 +13484,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13489,6 +13495,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13499,6 +13506,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},
@@ -13511,6 +13519,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//third-party/rust:memchr-2.8.1",
                     "//third-party/rust:serde-1.0.228",
                 ],
                 "examples": {},

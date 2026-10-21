@@ -1353,6 +1353,8 @@ impl<'de, T: Deserialize<'de> + Clone> Deserialize<'de> for Sequence<T> {
     }
 }
 
+pub mod marks;
+
 #[cfg(any(test, feature = "fuzzing"))]
 pub mod fuzz;
 

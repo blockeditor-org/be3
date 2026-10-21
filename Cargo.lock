@@ -6337,6 +6337,7 @@ dependencies = [
 name = "sequence"
 version = "0.1.0"
 dependencies = [
+ "memchr",
  "postcard",
  "serde",
 ]
