@@ -304,7 +304,6 @@ impl EditorMessage {
             | Self::Window { .. }
             | Self::Presence { .. }
             | Self::ChildReplaced { .. }
-            | Self::ChildView { .. }
             | Self::ChildBar { .. }
             | Self::ChildFocused { .. }
             | Self::CopyText { .. }

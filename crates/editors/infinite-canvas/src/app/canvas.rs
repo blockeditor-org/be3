@@ -6,7 +6,7 @@ use std::cell::RefCell;
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{KeyPress, NodeId, Painter, PointerPress, Rect, Vec2, pos2};
-use block_editor_beui::{ChildBlock, ChildMode, ChildState, ChildTarget, ViewChange};
+use block_editor_beui::{ChildBlock, ChildMode, ChildState, ChildTarget};
 use uuid::Uuid;
 
 use crate::geometry::*;
@@ -342,7 +342,6 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
                 opacity={opacity}
                 intrinsic={intrinsic}
                 on_state={move |child: ChildState| state.report_child(id, child)}
-                on_view_change={move |change: ViewChange| state.apply_view_change(id, change)}
             />
         </CanvasItem>
     }

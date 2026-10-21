@@ -1466,7 +1466,7 @@ impl Viewport {
             _ => true,
         });
         for change in changes {
-            if change != ViewChange::ResumeAutoFit {
+            if !matches!(change, ViewChange::ResumeAutoFit | ViewChange::PanDrag) {
                 self.fitting = false;
             }
             match change {
@@ -1480,6 +1480,7 @@ impl Viewport {
                     self.zoom = zoom;
                 }
                 ViewChange::Fit | ViewChange::ResumeAutoFit => self.fitting = true,
+                ViewChange::PanDrag => {}
             }
         }
     }

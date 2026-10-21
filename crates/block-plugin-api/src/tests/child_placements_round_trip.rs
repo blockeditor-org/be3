@@ -39,6 +39,7 @@ fn child_placements_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
+                follows_camera: true,
             },
             ChildPlacement {
                 child: ChildId(2),
@@ -68,6 +69,7 @@ fn child_placements_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
+                follows_camera: false,
             },
             ChildPlacement {
                 child: ChildId(3),
@@ -97,6 +99,7 @@ fn child_placements_round_trip() {
                 intrinsic: None,
                 rotation: 0.0,
                 opacity: 1.0,
+                follows_camera: false,
             },
         ],
         occluders: vec![Occluder {
@@ -108,6 +111,11 @@ fn child_placements_round_trip() {
                 height: 480.0,
             },
         }],
+        camera: Some(Camera {
+            x: -120.0,
+            y: 40.0,
+            scale: 1.5,
+        }),
     });
     assert_eq!(
         decode_frame(&encode_frame(&message).unwrap()).unwrap(),

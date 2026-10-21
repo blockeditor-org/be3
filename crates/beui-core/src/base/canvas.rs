@@ -247,6 +247,17 @@ impl Element for CanvasItemNode {
 }
 
 impl Document {
+    pub fn panned_by_canvas(&self, id: NodeId) -> bool {
+        let mut at = self.arena.parent(id);
+        while let Some(node) = at {
+            if let Some(canvas) = self.arena.kind_of::<CanvasNode>(node) {
+                return self.arena.get_as(canvas).pans();
+            }
+            at = self.arena.parent(node);
+        }
+        false
+    }
+
     pub fn create_canvas(&mut self) -> NodeOf<CanvasNode> {
         self.arena.insert(CanvasNode {
             view: None,

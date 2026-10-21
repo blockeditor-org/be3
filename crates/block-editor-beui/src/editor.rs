@@ -9,7 +9,7 @@ use beui::{Document, Pos2, Rect, Vec2};
 use block_plugin_api::{
     BarAction, ChildContent, ChildId, ChildLayer, ChildMode, CreationProgress, EditorCapabilities,
     HostAction, HostPanel, HostValue, HostWindowId, InteractionMode, MenuEntry, ResizeMode,
-    SettingsProgress, TopBar, ViewChange, WebViewId,
+    SettingsProgress, TopBar, WebViewId,
 };
 use block_ui::BlockCatalog;
 use uuid::Uuid;
@@ -251,7 +251,6 @@ struct ChildRecord {
     intrinsic: Prop<Option<Vec2>>,
     state: Signal<ChildState>,
     report: Callback<ChildState>,
-    view_change: Callback<ViewChange>,
     bar: Callback<BarAction>,
     focus: Callback<()>,
     child: Cell<Option<ChildId>>,
@@ -912,7 +911,6 @@ impl Editor {
         opacity: Prop<f32>,
         intrinsic: Prop<Option<Vec2>>,
         report: Callback<ChildState>,
-        view_change: Callback<ViewChange>,
         bar: Callback<BarAction>,
         focus: Callback<()>,
     ) -> ReadSignal<ChildState> {
@@ -934,7 +932,6 @@ impl Editor {
                 intrinsic,
                 state,
                 report,
-                view_change,
                 bar,
                 focus,
                 child: Cell::new(None),
@@ -1111,6 +1108,10 @@ impl Editor {
         self.state().host.fit_view();
     }
 
+    pub fn pan_drag(&self) {
+        self.state().host.pan_drag_view();
+    }
+
     pub fn reveal(&self, target: Rect) {
         let Some(placement) = self.view_canvas() else {
             return;
@@ -1214,9 +1215,6 @@ impl Editor {
         let state = self.state();
         for record in self.records() {
             if let Some(child) = record.child.get() {
-                for change in state.host.take_child_view_changes(child) {
-                    record.view_change.call(change);
-                }
                 for action in state.host.take_child_bar_actions(child) {
                     record.bar.call(action);
                 }
@@ -1305,6 +1303,7 @@ impl Editor {
             record.rotation.get_untracked(),
             record.opacity.get_untracked(),
             record.intrinsic.get_untracked(),
+            document.panned_by_canvas(node),
         ))
     }
 }

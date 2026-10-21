@@ -12,13 +12,13 @@ use beui::{
 };
 use block_plugin_api::{
     BarAction, ChildId, ChildMode, ChildRect, CreationProgress, EditorInstanceId, EditorRegion,
-    FrameChrome, FrameSpec, HostPanel, HostWindowId, SettingsProgress, TopBar, ViewChange,
+    FrameChrome, FrameSpec, HostPanel, HostWindowId, PanMode, SettingsProgress, TopBar, ViewChange,
 };
 use uuid::Uuid;
 
 use crate::wayland::WindowSurface;
 
-use super::region::{ChildView, PluginRegion, RegionEditor};
+use super::region::{ChildView, PanDrag, PluginRegion, RegionEditor};
 use crate::editors::plugin::PickSource;
 use crate::editors::{
     BlockLabel, Chrome, CreationStep, EditorRegistry, PendingCreation, PluginEditor,
@@ -433,6 +433,7 @@ struct Handle {
     role: plugin_host::InstanceRole,
     pan_and_zoom: bool,
     max_zoom: Option<u32>,
+    pan: PanMode,
     preview: bool,
 }
 
@@ -446,6 +447,7 @@ impl Handle {
             role: editor.role(),
             pan_and_zoom: capabilities.supports_pan_and_zoom,
             max_zoom: capabilities.max_zoom,
+            pan: capabilities.pan,
             preview: editor.has_region(EditorRegion::Preview),
         }
     }
@@ -491,7 +493,6 @@ struct TabContext {
 
 #[derive(Clone, Copy, Default)]
 pub(crate) struct ChildReporter {
-    view: Callback<ViewChange>,
     bar: Callback<BarAction>,
     focus: Callback<()>,
 }
@@ -557,7 +558,14 @@ pub(crate) fn PresentingSurface() -> NodeId {
                 <ForEach keys={keys}>|block: Uuid| {
                     provide_context(Nesting::root());
                     crate::host::set_fullscreen(true);
-                    on_cleanup(|| crate::host::set_fullscreen(false));
+                    on_cleanup(move || {
+                        crate::host::set_fullscreen(false);
+                        editors.with(|open| {
+                            if let Some(editor) = open.get_mut(&block) {
+                                editor.stop_presenting_now();
+                            }
+                        });
+                    });
                     view! {
                         <BlockFrame
                             block
@@ -782,11 +790,17 @@ fn fit(viewport: &mut Viewport, size: Vec2, content: Vec2) {
     viewport.pan = Vec2::ZERO;
 }
 
+const FIT_MARGIN: f32 = 20.0;
+
+#[derive(Clone, Copy)]
+struct CameraOwner(Callback<Command>);
+
 #[derive(Clone, Copy)]
 enum Command {
     Pan(Vec2),
     Zoom { factor: f32, anchor: Option<Pos2> },
     Fit,
+    FitRect(Rect),
     ResumeAutoFit,
 }
 
@@ -812,6 +826,28 @@ fn settle(viewport: &mut Viewport, command: Command, rect: Rect, content: Vec2, 
             fit(viewport, size, content);
             viewport.auto_fit = viewport.auto_fit.map(|_| false);
         }
+        Command::FitRect(target) => {
+            let room = (size - Vec2::splat(FIT_MARGIN * 2.0)).max(Vec2::splat(1.0));
+            let factor = (room.x / target.width().max(1.0)).min(room.y / target.height().max(1.0));
+            let anchor = target.center();
+            settle(
+                viewport,
+                Command::Zoom {
+                    factor,
+                    anchor: Some(anchor),
+                },
+                rect,
+                content,
+                max_zoom,
+            );
+            settle(
+                viewport,
+                Command::Pan(rect.center() - anchor),
+                rect,
+                content,
+                max_zoom,
+            );
+        }
         Command::ResumeAutoFit => {
             if viewport.auto_fit.is_some() {
                 viewport.auto_fit = Some(true);
@@ -834,8 +870,7 @@ fn BlockFrame(
 ) -> NodeId {
     let any = super::any();
     let counted = store(Cell::new(false));
-    create_effect(move || {
-        any.get();
+    let count = move || {
         if counted.with(Cell::get) {
             return;
         }
@@ -847,6 +882,11 @@ fn BlockFrame(
             None => false,
         });
         counted.with(|counted| counted.set(shown));
+    };
+    count();
+    create_effect(move || {
+        any.get();
+        count();
     });
     on_cleanup(move || {
         if counted.with(Cell::get) {
@@ -1036,7 +1076,6 @@ fn BlockFrameView(
     reporter: ChildReporter,
 ) -> NodeId {
     let ChildReporter {
-        view: on_view_change,
         bar: on_bar_action,
         focus: on_focus,
     } = reporter;
@@ -1081,17 +1120,15 @@ fn BlockFrameView(
                     .unwrap_or(vec2(420.0, 240.0));
                 vec2(size.x.max(intrinsic.x), size.y.max(intrinsic.y))
             });
+            let owner = use_context::<CameraOwner>();
             let command = move |command: Command| {
                     if !pan_and_zoom {
-                        if !on_view_change.is_empty() {
-                            on_view_change.call(match command {
-                                Command::Pan(delta) => ViewChange::Pan { x: delta.x, y: delta.y },
-                                Command::Zoom { factor, anchor } => ViewChange::Zoom {
-                                    factor,
-                                    anchor: anchor.map(|anchor| (anchor.x, anchor.y)),
-                                },
-                                Command::Fit => ViewChange::Fit,
-                                Command::ResumeAutoFit => ViewChange::ResumeAutoFit,
+                        if let (Some(owner), true) = (owner, handle.pan_and_zoom) {
+                            owner.0.call(match command {
+                                Command::Fit => Command::FitRect(
+                                    content.get_untracked().unwrap_or(rect.get_untracked()),
+                                ),
+                                command => command,
                             });
                         }
                         return;
@@ -1102,6 +1139,9 @@ fn BlockFrameView(
                         viewport.set(state);
                     }
             };
+            if pan_and_zoom {
+                provide_context(CameraOwner(Callback::new(command)));
+            }
             create_effect(
                 move || {
                     if !pan_and_zoom {
@@ -1125,6 +1165,7 @@ fn BlockFrameView(
                     }
                 },
             );
+            let pan_drags = create_signal(0u64);
             create_effect(
                 move || {
                     revision.get();
@@ -1138,6 +1179,10 @@ fn BlockFrameView(
                             },
                             ViewChange::Fit => Command::Fit,
                             ViewChange::ResumeAutoFit => Command::ResumeAutoFit,
+                            ViewChange::PanDrag => {
+                                pan_drags.update(|asked| *asked += 1);
+                                continue;
+                            }
                         });
                     }
                     let actions = plugin_host::take_bar_actions(&plugin_id.value(), instance);
@@ -1205,7 +1250,12 @@ fn BlockFrameView(
                     top_bar: top_bar.get(),
                 })
             });
-            let gestures = pan_and_zoom || !on_view_change.is_empty() && handle.pan_and_zoom;
+            let gestures = handle.pan != PanMode::None
+                && (pan_and_zoom || owner.is_some() && handle.pan_and_zoom);
+            let pan_drag = (gestures && handle.pan == PanMode::OneFinger).then(|| PanDrag {
+                asked: pan_drags.read_only(),
+                pan: Callback::new(move |delta: Vec2| command(Command::Pan(delta))),
+            });
             let steered = create_memo(move || {
                 (!read_only && !handle.pan_and_zoom).then(|| content_rect.get())
             });
@@ -1273,6 +1323,7 @@ fn BlockFrameView(
                         view={editor_view}
                         zoom={placed_zoom}
                         passive={passive}
+                        pan_drag
                         on_focus
                         child_view
                     />
@@ -1511,7 +1562,7 @@ fn HostedChild(
                                     };
                                 };
                                 let content = create_memo(move || {
-                                    child.get().map(|child| child.rect.intersect(child.clip))
+                                    child.get().map(|child| child.view_rect.intersect(child.clip))
                                 });
                                 let chrome = create_memo(move || {
                                     match tab.stack.get().last() == Some(&id) {
@@ -1608,6 +1659,7 @@ fn status_of(editors: &Editors, child: &HostChild, available: bool) -> HostChild
                         preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
                         pan_and_zoom: capabilities.supports_pan_and_zoom,
                         max_zoom: capabilities.max_zoom,
+                        pan: capabilities.pan,
                     }
                 },
                 match editor.direct_editor_resize() {
@@ -1662,17 +1714,6 @@ fn reporter_for(
     within: Callback<()>,
 ) -> ChildReporter {
     let report_to = editors().handle(parent);
-    let on_view_change = report_to.clone().and_then(|parent| {
-        let plugin_id = parent.plugin_id()?.to_owned();
-        Some(Callback::new(move |change: ViewChange| {
-            plugin_host::report_child_views(
-                &plugin_id,
-                parent.instance,
-                region,
-                vec![(key, change)],
-            );
-        }))
-    });
     let on_bar_action = report_to.clone().and_then(|parent| {
         let plugin_id = parent.plugin_id()?.to_owned();
         Some(Callback::new(move |action: BarAction| {
@@ -1695,7 +1736,6 @@ fn reporter_for(
         within.call(());
     });
     ChildReporter {
-        view: on_view_change.unwrap_or_default(),
         bar: on_bar_action.unwrap_or_default(),
         focus: on_focus,
     }

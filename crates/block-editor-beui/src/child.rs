@@ -1,7 +1,7 @@
 use beui::NodeId;
 use beui::reactive::*;
 use beui::styled::*;
-use block_plugin_api::{BarAction, ChildLayer, ChildMode, TopBar, ViewChange};
+use block_plugin_api::{BarAction, ChildLayer, ChildMode, TopBar};
 
 use crate::{ChildState, ChildTarget, Editor, SubregionContent};
 
@@ -24,7 +24,6 @@ pub fn ChildBlock(
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
     on_state: Callback<ChildState>,
-    on_view_change: Callback<ViewChange>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
@@ -40,7 +39,6 @@ pub fn ChildBlock(
         opacity,
         intrinsic,
         on_state,
-        on_view_change,
         on_bar,
         on_focus,
         content,
@@ -63,7 +61,6 @@ pub fn Subregion(
     #[prop(default = 1.0)] opacity: Prop<f32>,
     #[prop(default = None)] intrinsic: Prop<Option<beui::Vec2>>,
     on_state: Callback<ChildState>,
-    on_view_change: Callback<ViewChange>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
     #[prop(children)] content: Option<Render<ChildHandle>>,
@@ -78,7 +75,6 @@ pub fn Subregion(
         opacity,
         intrinsic,
         on_state,
-        on_view_change,
         on_bar,
         on_focus,
         content,
@@ -98,7 +94,6 @@ struct Placing {
     opacity: Prop<f32>,
     intrinsic: Prop<Option<beui::Vec2>>,
     on_state: Callback<ChildState>,
-    on_view_change: Callback<ViewChange>,
     on_bar: Callback<BarAction>,
     on_focus: Callback<()>,
     content: Option<Render<ChildHandle>>,
@@ -120,7 +115,6 @@ fn SubregionView(
         opacity,
         intrinsic,
         on_state,
-        on_view_change,
         on_bar,
         on_focus,
         content,
@@ -141,7 +135,6 @@ fn SubregionView(
         opacity,
         intrinsic,
         on_state,
-        on_view_change,
         on_bar,
         on_focus,
     );

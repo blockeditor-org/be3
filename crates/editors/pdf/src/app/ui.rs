@@ -3,7 +3,7 @@ use block_editor_beui::beui::icons::{ICON_ARROW_BACK, ICON_ARROW_FORWARD};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::Picture;
-use block_editor_beui::beui::{Color32, ImageFit, NodeId, Pos2, Rect, Vec2};
+use block_editor_beui::beui::{Color32, ImageFit, NodeId, PointerPress, Pos2, Rect, Vec2};
 use block_editor_beui::{Editor, FileChooser, Sidebar, Toolbar};
 
 use super::pages::{Pages, Shown, Viewport};
@@ -108,7 +108,10 @@ pub fn PdfEditor(editor: Editor) -> NodeId {
             </Toolbar>
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <Interactive on_pan_drag={move |delta: Vec2| editor.pan(delta)}>
+                    <Interactive
+                        on_press={move |_: PointerPress| editor.pan_drag()}
+                        on_pan_drag={move |delta: Vec2| editor.pan(delta)}
+                    >
                         <PageCanvas shown={shown} view={editor.canvas()} />
                     </Interactive>
                 </Frame>

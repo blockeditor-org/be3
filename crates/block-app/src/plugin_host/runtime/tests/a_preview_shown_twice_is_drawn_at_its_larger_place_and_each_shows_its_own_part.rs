@@ -48,6 +48,7 @@ fn pieces(rect: Rect, clip: Rect) -> Vec<(Rect, Rect)> {
             INSTANCE,
             REGION,
             Some(EmbedPlacement { rect, clip }),
+            None,
         )
         .base
         .into_iter()

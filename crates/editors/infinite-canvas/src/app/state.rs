@@ -2178,32 +2178,6 @@ impl CanvasState {
         self.editor.pan(stage.center() - anchor);
     }
 
-    pub(crate) fn apply_view_change(&self, entity: Uuid, change: block_editor_beui::ViewChange) {
-        match change {
-            block_editor_beui::ViewChange::Fit => self.request_fit_entity(entity),
-            block_editor_beui::ViewChange::Pan { x, y } => {
-                self.editor.pan(Vec2::new(x, y));
-            }
-            block_editor_beui::ViewChange::Zoom { factor, anchor } => match anchor {
-                Some((x, y)) => self.editor.zoom_at(factor, Pos2::new(x, y)),
-                None => self.editor.zoom(factor),
-            },
-            block_editor_beui::ViewChange::ResumeAutoFit => self.editor.resume_auto_fit(),
-        }
-    }
-
-    pub(crate) fn request_fit_entity(&self, entity: Uuid) {
-        if let Some(bounds) = self
-            .entities
-            .get_untracked()
-            .iter()
-            .find(|candidate| candidate.id == entity)
-            .and_then(|candidate| direct_editor_layout(candidate).map(|layout| layout.content))
-        {
-            self.fit_into_view(bounds);
-        }
-    }
-
     fn autosize_direct_editors(&self) {
         let mut before = Vec::new();
         let mut after = Vec::new();

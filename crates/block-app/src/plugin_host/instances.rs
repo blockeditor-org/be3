@@ -2,12 +2,13 @@ use be_block::BlockContent as _;
 use beui::accessibility::Embedded;
 use beui::{ImeArea, Rect, Vec2, pos2, vec2};
 use block_plugin_api::{
-    ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, ChildContent, ChildId,
-    ChildMode, ChildPlacement, ChildPlacements, ChildStatus, CreationOutcome, CursorIcon,
-    DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
-    FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
-    PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
+    ArtifactDescription, AudioCommand, BlockCommand, BlockImport, BlockPick, Camera, ChildContent,
+    ChildId, ChildMode, ChildPlacement, ChildPlacements, ChildRect, ChildStatus, CreationOutcome,
+    CursorIcon, DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick,
+    FileSave, FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor,
+    Occluder, PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout,
+    ScreenRequest, ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewCommand,
+    WebViewEvent, WebViewId,
 };
 use block_plugin_api::{DescribedAction, WindowRequests};
 use std::{
@@ -580,6 +581,7 @@ struct ChildTable {
     size: Vec2,
     children: Vec<ChildPlacement>,
     occluders: Vec<Occluder>,
+    camera: Option<Camera>,
 }
 
 struct Hole {
@@ -1626,6 +1628,7 @@ impl Instances {
             size,
             children,
             occluders,
+            camera,
         } = placements;
         let Some(screen) = self
             .entries
@@ -1650,10 +1653,43 @@ impl Instances {
             size: vec2(size.width, size.height),
             children,
             occluders,
+            camera,
         };
         let changed = screen.children != table;
         screen.children = table;
         (Vec::new(), changed)
+    }
+
+    pub(super) fn only_moves(&self, placements: &ChildPlacements) -> bool {
+        let Some(screen) = self
+            .entries
+            .get(&placements.instance)
+            .and_then(|entry| entry.screens.get(&placements.region))
+        else {
+            return false;
+        };
+        let current = &screen.children.children;
+        current.len() == placements.children.len()
+            && current
+                .iter()
+                .zip(&placements.children)
+                .all(|(current, next)| {
+                    (
+                        current.child,
+                        current.mode,
+                        current.own_frame,
+                        current.top_bar,
+                        current.layer,
+                        current.intrinsic,
+                    ) == (
+                        next.child,
+                        next.mode,
+                        next.own_frame,
+                        next.top_bar,
+                        next.layer,
+                        next.intrinsic,
+                    )
+                })
     }
 
     pub(super) fn host_children(
@@ -1662,6 +1698,7 @@ impl Instances {
         region: EditorRegion,
         rect: Rect,
         clip: Rect,
+        view: Option<EditorView>,
     ) -> (Vec<HostChild>, Holes) {
         let Some(screen) = self
             .entries
@@ -1769,6 +1806,12 @@ impl Instances {
                 }
             };
             let child_rect = host_rect(child.rect, origin, stretch);
+            let view_rect = match (child.follows_camera, table.camera, view) {
+                (true, Some(camera), Some(view)) => {
+                    host_rect(through(child.rect, camera, view), origin, stretch)
+                }
+                _ => child_rect,
+            };
             let child_clip = host_rect(child.clip, origin, stretch).intersect(clip);
             let occluders: Vec<Rect> = table
                 .occluders
@@ -1796,6 +1839,7 @@ impl Instances {
                 top_bar: child.top_bar,
                 content,
                 rect: child_rect,
+                view_rect,
                 occluders,
                 clip: child_clip,
                 layer: child.layer,
@@ -2193,25 +2237,6 @@ impl Instances {
             instance,
             visible,
         })]
-    }
-
-    pub(super) fn child_view_changes(
-        &mut self,
-        instance: EditorInstanceId,
-        region: EditorRegion,
-        changes: Vec<(ChildId, ViewChange)>,
-    ) -> Vec<Message> {
-        changes
-            .into_iter()
-            .map(|(child, change)| {
-                Message::Editor(EditorMessage::ChildView {
-                    instance,
-                    region,
-                    child,
-                    change,
-                })
-            })
-            .collect()
     }
 
     pub(super) fn child_bar_actions(
@@ -3330,6 +3355,19 @@ impl Instances {
         }
         self.focus = focus;
         true
+    }
+}
+
+fn through(rect: ChildRect, camera: Camera, view: EditorView) -> ChildRect {
+    if (camera.x, camera.y, camera.scale) == (view.rect.min.x, view.rect.min.y, view.scale) {
+        return rect;
+    }
+    let scale = ratio(view.scale, camera.scale);
+    ChildRect {
+        x: view.rect.min.x + (rect.x - camera.x) * scale,
+        y: view.rect.min.y + (rect.y - camera.y) * scale,
+        width: rect.width * scale,
+        height: rect.height * scale,
     }
 }
 

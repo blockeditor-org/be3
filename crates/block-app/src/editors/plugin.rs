@@ -186,7 +186,6 @@ pub(crate) struct PluginEditor {
     view_block: Option<Uuid>,
     instance: EditorInstanceId,
     opened: bool,
-    fullscreen: bool,
     presence_active: bool,
     shown: u32,
 }
@@ -224,7 +223,6 @@ impl PluginEditor {
             view_block: None,
             instance: next_instance(),
             opened: false,
-            fullscreen: false,
             presence_active: false,
             shown: 0,
         }
@@ -265,12 +263,8 @@ impl PluginEditor {
         let Some(plugin) = &self.plugin else {
             return;
         };
-        let fullscreen = std::mem::take(&mut self.fullscreen);
         if !self.opened {
             return;
-        }
-        if fullscreen {
-            host::set_fullscreen(false);
         }
         if self.presenting() {
             crate::plugin_host::present(&plugin.identity.id, self.instance, false);
@@ -347,9 +341,6 @@ impl PluginEditor {
             false => self.shown = self.shown.saturating_sub(1),
         }
         self.sync_active_presence(self.shown > 0);
-        if self.shown == 0 {
-            self.stop_presenting();
-        }
     }
 
     pub(crate) fn block_type(&self) -> Uuid {
@@ -398,6 +389,7 @@ impl PluginEditor {
             preserve_aspect_ratio: capabilities.preserve_aspect_ratio,
             supports_pan_and_zoom: capabilities.pan_and_zoom,
             max_zoom: capabilities.max_zoom,
+            pan: capabilities.pan,
         }
     }
 

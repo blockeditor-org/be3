@@ -19,6 +19,7 @@
         "rotation": false,
         "preserve_aspect_ratio": true,
         "pan_and_zoom": true,
+        "pan": "OneFinger",
         "max_zoom": 32768
       },
       "regions": [

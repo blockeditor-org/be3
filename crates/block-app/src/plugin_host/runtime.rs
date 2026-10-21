@@ -127,6 +127,8 @@ pub(super) struct Runtime {
     pub(super) backend: Backend,
     session: HostSession,
     queued: Vec<Message>,
+    held: Vec<Message>,
+    taking_in: bool,
     pub(super) instances: Instances,
     pub(super) layout: ScreenLayout,
     pub(super) pass: u64,
@@ -248,6 +250,8 @@ impl Runtime {
             backend,
             session,
             queued: Vec::new(),
+            held: Vec::new(),
+            taking_in: false,
             instances,
             layout: ScreenLayout::default(),
             pass: 0,
@@ -286,6 +290,7 @@ impl Runtime {
         self.stop();
         self.session = session();
         self.queued.clear();
+        self.held.clear();
         self.error = None;
         self.status = PresenterStatus::waiting();
         self.layout = ScreenLayout::default();
@@ -589,6 +594,30 @@ impl Runtime {
                 return;
             }
         }
+        let forwarded = match self.taking_in {
+            true => {
+                let mut taken = std::mem::take(&mut self.held);
+                taken.extend(forwarded);
+                taken
+            }
+            false => {
+                let mut drawing = Vec::with_capacity(forwarded.len());
+                let mut held = false;
+                for message in forwarded {
+                    match self.draws_the_frame(&message) {
+                        true => drawing.push(message),
+                        false => {
+                            held = true;
+                            self.held.push(message);
+                        }
+                    }
+                }
+                if held {
+                    host::request_repaint();
+                }
+                drawing
+            }
+        };
         self.apply(forwarded);
         if let Some(took) = self.backend.took() {
             let id = &self.plugin.identity.id;
@@ -614,6 +643,23 @@ impl Runtime {
                 self.frames,
             );
             mark(&self.plugin.identity.id);
+        }
+    }
+
+    fn draws_the_frame(&self, message: &Message) -> bool {
+        match message {
+            Message::Layout(_)
+            | Message::Frames(_)
+            | Message::FrameNeeded
+            | Message::FrameReady(_) => true,
+            Message::Children(placements) => {
+                !self.held.iter().any(|held| {
+                    matches!(held, Message::Children(earlier)
+                        if (earlier.instance, earlier.region) == (placements.instance, placements.region))
+                }) && self.instances.only_moves(placements)
+            }
+            Message::Extension { key, .. } => *key == beui::painting::PAINTING_EXTENSION,
+            _ => false,
         }
     }
 
@@ -816,23 +862,6 @@ pub(crate) fn replace_gpu(setup: &beui::Setup) {
 pub(crate) struct HostFrame {
     pub(crate) content: Rect,
     pub(crate) floating: Vec<Rect>,
-}
-
-pub(crate) fn report_child_views(
-    plugin_id: &str,
-    instance: EditorInstanceId,
-    region: EditorRegion,
-    changes: Vec<(block_plugin_api::ChildId, ViewChange)>,
-) {
-    if changes.is_empty() {
-        return;
-    }
-    with(plugin_id, |runtime| {
-        let messages = runtime
-            .instances
-            .child_view_changes(instance, region, changes);
-        runtime.send(messages);
-    });
 }
 
 pub(crate) fn report_child_bars(
@@ -1085,7 +1114,9 @@ pub(crate) fn poll() {
             runtime.contain(|runtime| {
                 runtime.instances.touch(&touched);
                 runtime.detect_error();
+                runtime.taking_in = true;
                 runtime.pump();
+                runtime.taking_in = false;
                 runtime.begin_frame(pass);
             });
         }
@@ -2010,6 +2041,7 @@ pub(crate) fn region_view(
     instance: EditorInstanceId,
     region: EditorRegion,
     own: Option<EmbedPlacement>,
+    view: Option<EditorView>,
 ) -> RegionView {
     HOST.with(|host| {
         let mut host = host.borrow_mut();
@@ -2021,7 +2053,7 @@ pub(crate) fn region_view(
             runtime
                 .error
                 .is_none()
-                .then(|| placed_view(runtime, instance, region, own))
+                .then(|| placed_view(runtime, instance, region, own, view))
         });
         match (view, runtime.error.clone()) {
             (_, Some(error)) => RegionView::failed(error, true),
@@ -2036,6 +2068,7 @@ fn placed_view(
     instance: EditorInstanceId,
     region: EditorRegion,
     own: Option<EmbedPlacement>,
+    view: Option<EditorView>,
 ) -> RegionView {
     {
         if let Some(stopped) = runtime.instances.stopped(instance, region) {
@@ -2073,7 +2106,7 @@ fn placed_view(
         };
         let (children, holes) = runtime
             .instances
-            .host_children(instance, region, rect, clip);
+            .host_children(instance, region, rect, clip, view);
         let report = runtime.instances.frame_report(instance, region);
         let floating_rects: Vec<Rect> = match held {
             Some(_) => Vec::new(),
