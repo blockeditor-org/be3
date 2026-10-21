@@ -835,6 +835,27 @@ pub(crate) fn wait_for<T>(
     }
 }
 
+#[cfg(all(test, not(target_arch = "wasm32")))]
+pub(crate) fn fail_listings(query: Query, error: &str) {
+    let query = sourced(query);
+    with_shared_mut(|shared| {
+        for listing in shared.graph.listings_of(query) {
+            shared.graph.failed(listing, error.to_owned());
+        }
+    });
+}
+
+#[cfg(all(test, not(target_arch = "wasm32")))]
+pub(crate) fn refetch(query: Query) {
+    let query = sourced(query);
+    with_shared_mut(|shared| {
+        for listing in shared.graph.listings_of(query) {
+            shared.graph.relist(listing);
+        }
+    });
+    send(Command::Sync);
+}
+
 fn with_shared_mut<T>(change: impl FnOnce(&mut Shared) -> T) -> Option<T> {
     let held = stack().lock().unwrap_or_else(PoisonError::into_inner);
     let stack = held.as_ref()?;
@@ -873,6 +894,11 @@ pub(crate) fn take_touched() -> std::collections::HashSet<Uuid> {
 pub(crate) fn ready(query: Query) -> bool {
     let query = sourced(query);
     with_shared(|shared| shared.graph.ready(query)).unwrap_or_default()
+}
+
+pub(crate) fn failure(query: Query) -> Option<String> {
+    let query = sourced(query);
+    with_shared(|shared| shared.graph.failure(query)).flatten()
 }
 
 pub(crate) fn want(owner: Owner, queries: Vec<Query>) {

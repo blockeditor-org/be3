@@ -1982,7 +1982,12 @@ pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<S
                 Err(ClientError::Refused(..)) => Vec::new(),
                 Err(error) => {
                     record(shared, error);
-                    Vec::new()
+                    shared
+                        .lock()
+                        .unwrap_or_else(PoisonError::into_inner)
+                        .graph
+                        .failed(listing, listing_failure(listing).to_owned());
+                    continue;
                 }
             };
             if let Err(error) = peer.learn(&summaries).await {
@@ -2004,6 +2009,17 @@ pub(super) async fn fetch_listings(peer: &Arc<Peer<Store>>, shared: &Arc<Mutex<S
                 .graph
                 .listed(listing, nodes, revision);
         }
+    }
+}
+
+fn listing_failure(listing: Listing) -> &'static str {
+    match listing {
+        Listing::Children(BlockParent::Root) => "Couldn't load your blocks",
+        Listing::Children(BlockParent::Detached) => "Couldn't load Recently Deleted",
+        Listing::Children(BlockParent::Block(_)) => "Couldn't load what's inside this block",
+        Listing::Shared => "Couldn't load what's shared with you",
+        Listing::Backrefs(_) => "Couldn't load what links here",
+        Listing::Block(_) => "Couldn't load this block",
     }
 }
 
