@@ -693,7 +693,10 @@ caret, `SetBlock` sets a prop on the selected blocks or one at a position, `Inse
 atomic inline item (U+FFFC carrying its own marks, such as a mention) at the caret, and
 `Transform` runs a function over `Transform`'s range-level operations as one undo step. Typed
 text takes the marks before it that grow (or after it at a paragraph's start), and the schema
-decides what Enter, Backspace at a block's start and Tab do to a block, its tools (a name, a
+decides what Enter (given the line, its neighbours and whether it is empty), Backspace at a
+block's start and Tab do to a block. No block traps the caret at the document's edge: Down at the
+very end of a document whose last line has props, or Up at the very start of one whose first line
+has, opens a plain line past it, and so does a click below the last line. The schema also decides its tools (a name, a
 shortcut, whether the selection has it, and the command it runs), each leaf's `SynHlStyle`, and
 which blocks a highlighter decorates (a code block's language). `schema::basic` is a schema
 with the usual marks, headings, lists, checklists, quotes and code blocks. `TextAreaState::with_schema`

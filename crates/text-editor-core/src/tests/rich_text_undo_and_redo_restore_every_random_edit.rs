@@ -71,7 +71,7 @@ fn step(tester: &mut EditorTester, random: &mut Random) -> String {
             focus: tester.pos(focus),
         });
     };
-    let action = random.below(11);
+    let action = random.below(13);
     let left = |direction| EditorCommand::Delete {
         direction,
         stop: CursorLeftRightStop::UnicodeGraphemeCluster,
@@ -152,6 +152,20 @@ fn step(tester: &mut EditorTester, random: &mut Random) -> String {
                 Value::text("grace"),
             )])));
             format!("mention at {anchor}..{focus}")
+        }
+        11 | 12 => {
+            let (at, direction) = match action {
+                11 => (len, UDDirection::Down),
+                _ => (0, UDDirection::Up),
+            };
+            tester.set_cursor(tester.pos(at));
+            tester.execute(EditorCommand::MoveCursorUpDown {
+                direction,
+                mode: VerticalMoveMode::Move,
+                metric: CursorHorizontalPositionMetric::Byte,
+                stop: CursorLeftRightStop::UnicodeGraphemeCluster,
+            });
+            format!("{direction:?} past the edge at {at}")
         }
         _ => {
             place(tester);

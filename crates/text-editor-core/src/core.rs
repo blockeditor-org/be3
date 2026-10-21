@@ -1042,6 +1042,9 @@ impl Core {
         if metric != CursorHorizontalPositionMetric::Byte {
             return;
         }
+        if mode == VerticalMoveMode::Move && self.open_line_past_edge(direction) {
+            return;
+        }
         let revision = self.document.revision();
         let Some(read) = self.document.read() else {
             return;

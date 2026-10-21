@@ -283,6 +283,13 @@ impl Surface {
         Pos2::new(pos.x + laid.min.x - wanted, pos.y)
     }
 
+    fn below_end(&self, pos: Pos2) -> bool {
+        let last = self.starts.get_untracked().len().saturating_sub(1);
+        self.entry(last)
+            .and_then(|entry| entry.rect(&self.held.value().rects))
+            .is_some_and(|rect| pos.y > rect.max.y)
+    }
+
     fn hit(&self, pos: Pos2) -> Option<usize> {
         let entry = self.row_at(pos)?;
         let text = entry.text()?;
@@ -857,6 +864,22 @@ fn select_at(cx: &Context, pos: Pos2, clicks: u32, extend: bool, syntax: bool) {
         LINE_CLICKS => DragSelectionMode::select(CursorLeftRightStop::Line),
         _ => DragSelectionMode::default(),
     };
+    if clicks == 1 && !extend && cx.below_end(pos) {
+        let end = cx.state.with_core(|core| core.position(usize::MAX));
+        cx.state.execute(EditorCommand::SetSelection {
+            anchor: end,
+            focus: end,
+        });
+        cx.state.execute(EditorCommand::MoveCursorUpDown {
+            direction: UDDirection::Down,
+            mode: VerticalMoveMode::Move,
+            metric: CursorHorizontalPositionMetric::Byte,
+            stop: CursorLeftRightStop::UnicodeGraphemeCluster,
+        });
+        cx.state.set_selecting(false);
+        cx.state.reveal_cursor();
+        return;
+    }
     let position = cx.state.with_core(|core| core.position(target));
     cx.state.execute(EditorCommand::Click {
         position,

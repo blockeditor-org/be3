@@ -1,12 +1,12 @@
 use std::ops::Range;
 use std::sync::Arc;
 
-use super::{Core, CursorPosition, Position, UndoClassification, resolve_selection};
+use super::{Core, CursorPosition, Position, UDDirection, UndoClassification, resolve_selection};
 use crate::document::{DocumentEdit, DocumentRead, DocumentView};
 use crate::rich::{
     Change, Expand, Formats, MarkSet, Name, Scope, VOID, Value, line_end, line_start,
 };
-use crate::schema::{Break, Plain, Schema, Selected};
+use crate::schema::{Break, Line, Plain, Schema, Selected};
 
 pub struct Transform<'a> {
     edit: &'a mut dyn DocumentEdit,
@@ -391,11 +391,26 @@ impl Core {
                     .unwrap_or_default();
                 let empty = start == end;
                 let at_end = range.right == end;
+                let above = start
+                    .checked_sub(1)
+                    .and_then(|end| formats.block_at(end))
+                    .map(|block| (&block.props, block.start == block.end));
+                let below = (end < bytes.len())
+                    .then(|| formats.block_at(end + 1))
+                    .flatten()
+                    .map(|block| &block.props);
+                let line = Line {
+                    props: &props,
+                    empty,
+                    at_end,
+                    above,
+                    below,
+                };
                 (
                     Position::at(&document, range.left),
                     range.right - range.left,
                     range.left == start && !at_end,
-                    schema.on_break(&props, empty, at_end),
+                    schema.on_break(&line),
                 )
             })
             .collect();
@@ -413,6 +428,14 @@ impl Core {
                             edit.format(at..at, &block(key, value.clone()));
                         }
                         carets.push(Position::at(edit.document(), at));
+                    }
+                    Break::Exit(keys) => {
+                        let line = at - 1;
+                        replace(edit, schema, line, 1, b"", None);
+                        for key in keys {
+                            edit.format(line..line, &block(key, None));
+                        }
+                        carets.push(Position::at(edit.document(), line));
                     }
                     Break::Split { reset } => {
                         let typed = typing
@@ -442,6 +465,52 @@ impl Core {
         }
         for (cursor, caret) in self.cursor_positions.iter_mut().zip(carets) {
             *cursor = CursorPosition::at(caret);
+        }
+        true
+    }
+
+    pub(super) fn open_line_past_edge(&mut self, direction: UDDirection) -> bool {
+        let [cursor] = self.cursor_positions.as_slice() else {
+            return false;
+        };
+        let Some(read) = self.document.read() else {
+            return false;
+        };
+        let Some(formats) = read.formats() else {
+            return false;
+        };
+        let edge = match direction {
+            UDDirection::Up => 0,
+            UDDirection::Down => read.len(),
+        };
+        let range = resolve_selection(&*read, cursor.pos);
+        let styled = formats
+            .block_at(edge)
+            .is_some_and(|block| !block.props.is_empty());
+        drop(read);
+        if range.left != edge || range.right != edge || !styled {
+            return false;
+        }
+        self.typing = None;
+        let mut caret = None;
+        self.edit_rich(&mut |edit, schema| {
+            let (at, opened) = match direction {
+                UDDirection::Up => (0, 0),
+                UDDirection::Down => (edit.document().len(), edit.document().len() + 1),
+            };
+            replace(edit, schema, at, 0, b"\n", Some(MarkSet::default()));
+            let props = edit
+                .document()
+                .formats()
+                .and_then(|formats| formats.block_at(opened).map(|block| block.props.clone()))
+                .unwrap_or_default();
+            for (key, _) in props.iter() {
+                edit.format(opened..opened, &block(key, None));
+            }
+            caret = Some(Position::at(edit.document(), opened));
+        });
+        if let Some(caret) = caret {
+            self.cursor_positions = vec![CursorPosition::at(caret)];
         }
         true
     }

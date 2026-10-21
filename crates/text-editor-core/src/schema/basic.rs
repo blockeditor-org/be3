@@ -1,6 +1,6 @@
 use std::ops::Range;
 
-use super::{Break, Schema, Selected, Tool};
+use super::{Break, Line, Schema, Selected, Tool};
 use crate::Language;
 use crate::core::EditorCommand;
 use crate::highlighter::{SynHlColorScope, SynHlFontFamily, SynHlStyle, SynHlTextSize};
@@ -239,7 +239,21 @@ impl Schema for Basic {
         }
     }
 
-    fn on_break(&self, block: &MarkSet, empty: bool, at_end: bool) -> Break {
+    fn on_break(&self, line: &Line<'_>) -> Break {
+        let Line {
+            props: block,
+            empty,
+            at_end,
+            above,
+            below,
+        } = *line;
+        let code = block.get(CODE_BLOCK);
+        let blank_above =
+            above.is_some_and(|(above, empty)| empty && above.get(CODE_BLOCK) == code);
+        let ends_code = below.is_none_or(|below| below.get(CODE_BLOCK) != code);
+        if code.is_some() && empty && blank_above && ends_code {
+            return Break::Exit(vec![Name::new(CODE_BLOCK)]);
+        }
         if empty && block.get(LIST).is_some() && depth(block) > 0 {
             return Break::Lift(vec![(
                 Name::new(INDENT),
