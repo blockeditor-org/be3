@@ -3,8 +3,8 @@ use std::rc::{Rc, Weak};
 
 use crate::runtime::in_memo;
 use crate::{
-    Get, Memo, Set, Signal, Stored, create_memo, create_signal, on_cleanup, provide_context,
-    store, use_context,
+    Get, Memo, Set, Signal, Stored, create_memo, create_signal, on_cleanup, provide_context, store,
+    use_context,
 };
 
 #[derive(Clone, Debug, PartialEq, Eq)]

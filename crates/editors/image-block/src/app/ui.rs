@@ -55,7 +55,12 @@ pub fn ImageEditor(editor: Editor) -> NodeId {
                             editor.set_intrinsic_size(image.get().map(|image| image.size()));
                         });
                         view! {
-                            <ImageArea editor={editor} image={image} thumbhash={placeholder} error={error} />
+                            <ImageArea
+                                editor={editor}
+                                image={image}
+                                thumbhash={placeholder}
+                                error={error}
+                            />
                         }
                     }</Loading>
                 </Layers>

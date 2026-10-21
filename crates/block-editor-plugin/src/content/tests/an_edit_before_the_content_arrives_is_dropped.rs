@@ -22,8 +22,5 @@ fn an_edit_before_the_content_arrives_is_dropped() {
     host.set_block_content(HostContent::of(&content));
     projection.pump();
 
-    assert_eq!(
-        projection.read(|content| content.root().items.len()),
-        Ok(1)
-    );
+    assert_eq!(projection.read(|content| content.root().items.len()), Ok(1));
 }

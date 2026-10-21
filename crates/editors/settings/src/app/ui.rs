@@ -70,48 +70,48 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let here = create_memo(move || !devices.get());
     let away = create_memo(move || devices.get());
     view! {
-            <Frame fill=ColorRole::Background>
-                <Scroll>
-                    <Frame padding=PADDING>
-                        <List spacing=SECTION_SPACING>
-                            <Show condition={others}>
-                                <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
-                            </Show>
-                            <Show condition={here}>
-                                <Section
-                                    title="This device"
-                                    caption="A change applies on every device, unless you keep it on this one."
-                                >
-                                    <List spacing=ROW_SPACING>
-                                        <Kinds
-                                            editor={editor}
-                                            layer={settings}
-                                            blocked={blocked}
-                                            shown={shown}
-                                        />
-                                        <SettingRow
-                                            label="Devices and profiles"
-                                            detail="What each device keeps for itself"
-                                            glyph={ICON_DEVICES.to_owned()}
-                                            @test_id={"settings.devices"}
-                                            on_click={move || devices.set(true)}
-                                        />
-                                    </List>
-                                </Section>
-                            </Show>
-                            <Show condition={away}>
-                                <DevicesAndProfiles
-                                    editor={editor}
-                                    settings={settings}
-                                    blocked={blocked}
-                                    shown={shown}
-                                    on_back={move || devices.set(false)}
-                                />
-                            </Show>
-                        </List>
-                    </Frame>
-                </Scroll>
-            </Frame>
+        <Frame fill=ColorRole::Background>
+            <Scroll>
+                <Frame padding=PADDING>
+                    <List spacing=SECTION_SPACING>
+                        <Show condition={others}>
+                            <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
+                        </Show>
+                        <Show condition={here}>
+                            <Section
+                                title="This device"
+                                caption="A change applies on every device, unless you keep it on this one."
+                            >
+                                <List spacing=ROW_SPACING>
+                                    <Kinds
+                                        editor={editor}
+                                        layer={settings}
+                                        blocked={blocked}
+                                        shown={shown}
+                                    />
+                                    <SettingRow
+                                        label="Devices and profiles"
+                                        detail="What each device keeps for itself"
+                                        glyph={ICON_DEVICES.to_owned()}
+                                        @test_id={"settings.devices"}
+                                        on_click={move || devices.set(true)}
+                                    />
+                                </List>
+                            </Section>
+                        </Show>
+                        <Show condition={away}>
+                            <DevicesAndProfiles
+                                editor={editor}
+                                settings={settings}
+                                blocked={blocked}
+                                shown={shown}
+                                on_back={move || devices.set(false)}
+                            />
+                        </Show>
+                    </List>
+                </Frame>
+            </Scroll>
+        </Frame>
     }
 }
 
@@ -247,58 +247,53 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
         false => "Not used on this device".to_owned(),
     });
     view! {
-            <SettingsPage>
-                <Show condition={others}>
-                    <Frame padding={Sides::horizontal(NOTICE_INSET)}>
-                        <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
-                    </Frame>
-                </Show>
-                <Show condition={setting_up}>
-                    <SetUpHeading />
-                </Show>
-                <DeviceSection setup={setup} blocked={blocked} />
-                <Show condition={differs}>
-                    <DifferencesSection setup={setup} blocked={blocked} />
-                </Show>
-                <Show condition={setting_up}>
-                    <SetUpDone on_done={move || finished.set(true)} />
-                </Show>
-                <Show condition={browsing}>
-                    <SettingsSection
-                        title="Settings profile"
-                        description="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
-                    >
-                        <SettingsRow label={status}>
-                            <Show condition={unused}>
-                                <Button
-                                    label="Use on this device"
-                                    variant=ButtonVariant::Primary
-                                    @test_id={"settings-profile.use"}
-                                    on_click={move || {
-                                        if let Some(settings) = parent.get_untracked() {
-                                            editor
-                                                .content_of::<SettingsContent>(settings)
-                                                .operate(Settings::add_profile(client, block));
-                                        }
-                                    }}
-                                />
-                            </Show>
-                        </SettingsRow>
-                    </SettingsSection>
-                </Show>
-                <Show condition={browsing}>
-                    <SettingsSection title="In this profile">
-                        <Frame padding=CARD_PADDING>
-                            <Kinds
-                                editor={editor}
-                                layer={profile}
-                                blocked={blocked}
-                                shown={shown}
+        <SettingsPage>
+            <Show condition={others}>
+                <Frame padding={Sides::horizontal(NOTICE_INSET)}>
+                    <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
+                </Frame>
+            </Show>
+            <Show condition={setting_up}>
+                <SetUpHeading />
+            </Show>
+            <DeviceSection setup={setup} blocked={blocked} />
+            <Show condition={differs}>
+                <DifferencesSection setup={setup} blocked={blocked} />
+            </Show>
+            <Show condition={setting_up}>
+                <SetUpDone on_done={move || finished.set(true)} />
+            </Show>
+            <Show condition={browsing}>
+                <SettingsSection
+                    title="Settings profile"
+                    description="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
+                >
+                    <SettingsRow label={status}>
+                        <Show condition={unused}>
+                            <Button
+                                label="Use on this device"
+                                variant=ButtonVariant::Primary
+                                @test_id={"settings-profile.use"}
+                                on_click={move || {
+                                    if let Some(settings) = parent.get_untracked() {
+                                        editor
+                                            .content_of::<SettingsContent>(settings)
+                                            .operate(Settings::add_profile(client, block));
+                                    }
+                                }}
                             />
-                        </Frame>
-                    </SettingsSection>
-                </Show>
-            </SettingsPage>
+                        </Show>
+                    </SettingsRow>
+                </SettingsSection>
+            </Show>
+            <Show condition={browsing}>
+                <SettingsSection title="In this profile">
+                    <Frame padding=CARD_PADDING>
+                        <Kinds editor={editor} layer={profile} blocked={blocked} shown={shown} />
+                    </Frame>
+                </SettingsSection>
+            </Show>
+        </SettingsPage>
     }
 }
 

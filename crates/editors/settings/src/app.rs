@@ -1,6 +1,6 @@
-use block_editor_beui::{Editor, Loaded};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{NodeId, Vec2};
+use block_editor_beui::{Editor, Loaded};
 
 mod devices;
 mod setup;

@@ -1,5 +1,6 @@
 use block_editor_beui::be_block::VideoContent;
 
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::video::{VideoFrameRate, VideoOperation};
 use block_editor_beui::beui::icons::{
     ICON_ADD, ICON_CONTENT_CUT, ICON_DELETE, ICON_FIT_SCREEN, ICON_PAUSE, ICON_PLAY_ARROW,
@@ -9,7 +10,6 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::ChoiceOption;
 use block_editor_beui::beui::{NodeId, Vec2};
-use block_editor_beui::Loaded;
 use block_editor_beui::{Creation, Editor, Toolbar};
 use uuid::Uuid;
 

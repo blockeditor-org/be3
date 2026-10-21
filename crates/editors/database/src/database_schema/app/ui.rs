@@ -476,7 +476,13 @@ fn EnumOptions(
         field.with(|field| {
             field
                 .as_ref()
-                .map(|field| field.enum_options.iter().map(|option| option.id).collect::<Vec<Uuid>>())
+                .map(|field| {
+                    field
+                        .enum_options
+                        .iter()
+                        .map(|option| option.id)
+                        .collect::<Vec<Uuid>>()
+                })
                 .unwrap_or_default()
         })
     });
@@ -562,7 +568,13 @@ fn EnumOptionRow(
         let order: Vec<Uuid> = field.with_untracked(|field| {
             field
                 .as_ref()
-                .map(|field| field.enum_options.iter().map(|option| option.id).collect::<Vec<Uuid>>())
+                .map(|field| {
+                    field
+                        .enum_options
+                        .iter()
+                        .map(|option| option.id)
+                        .collect::<Vec<Uuid>>()
+                })
                 .unwrap_or_default()
         });
         let Some(at) = order.iter().position(|held| *held == option_id) else {

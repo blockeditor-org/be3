@@ -26,15 +26,18 @@ impl block_editor_beui::BeuiApp for DisplaySettingsApp {
                 let settings = LayeredSettings::<DisplaySettings>::page(editor);
                 let device = settings.on_this_device();
                 view! {
-                <List spacing=0.0>
-                    <Keyed value={device} key={|device: bool| device}>|_device: ReadSignal<bool>|
-                        <DisplaySettingsView
-                            editor={editor}
-                            settings={settings}
-                            @sizing=ItemSize::Percent(100.0)
-                        />
-                    </Keyed>
-                </List>
+                    <List spacing=0.0>
+                        <Keyed
+                            value={device}
+                            key={|device: bool| device}
+                        >|_device: ReadSignal<bool>|
+                            <DisplaySettingsView
+                                editor={editor}
+                                settings={settings}
+                                @sizing=ItemSize::Percent(100.0)
+                            />
+                        </Keyed>
+                    </List>
                 }
             }</Loaded>
         }

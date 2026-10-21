@@ -54,9 +54,9 @@ fn calendar_block(editor: Editor) -> Memo<Option<Uuid>> {
         stored.get().filter(|id| {
             created.get() == Some(*id)
                 || children.with(|children| {
-                    children
-                        .as_ref()
-                        .map_or(true, |children| children.iter().any(|child| child.id == *id))
+                    children.as_ref().map_or(true, |children| {
+                        children.iter().any(|child| child.id == *id)
+                    })
                 })
         })
     });

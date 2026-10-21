@@ -1,7 +1,7 @@
+use block_editor_beui::Loaded;
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::beui::NodeId;
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::Loaded;
 use block_editor_beui::{ContentFileCreation, Creation, Editor, FileFilter, PickedFile};
 
 mod picture;

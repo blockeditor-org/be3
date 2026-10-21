@@ -17,11 +17,7 @@ pub(crate) struct Gate {
 }
 
 impl Gate {
-    pub(crate) fn closed_since(
-        gate: &Rc<Gate>,
-        queued_at: u64,
-        binding: bool,
-    ) -> Option<Rc<Gate>> {
+    pub(crate) fn closed_since(gate: &Rc<Gate>, queued_at: u64, binding: bool) -> Option<Rc<Gate>> {
         let mut gate = Some(gate);
         while let Some(current) = gate {
             if !(binding && current.effects_only)

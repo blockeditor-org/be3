@@ -85,7 +85,8 @@ pub(crate) fn watch(editor: Editor, block: ContentProjection<ImageContent>) -> M
 pub(crate) fn thumbhash(editor: Editor) -> Memo<Option<Thumbhash>> {
     let info = editor.watch_blocks(BlockQuery::Block(editor.block_id()));
     create_memo(move || {
-        info.get().ok()?
+        info.get()
+            .ok()?
             .into_iter()
             .next()
             .and_then(|info| info.thumbhash())

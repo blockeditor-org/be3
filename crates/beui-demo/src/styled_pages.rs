@@ -975,18 +975,29 @@ fn SlowGreeting() -> NodeId {
     let arrive = move || answer.set(Ok("Hello, the data is here".to_owned()));
     let fail = move || answer.set(Err(Pending::Failed("The server said no".to_owned())));
     let fallback = |pending: Pending| match pending {
-        Pending::Loading => view! { <Spinner width=SPINNER_WIDTH label="Waiting" /> },
-        Pending::Failed(error) => view! { <Text style=TextStyle::CAPTION string={error} /> },
+        Pending::Loading => view! {
+            <Spinner width=SPINNER_WIDTH label="Waiting" />
+        },
+        Pending::Failed(error) => view! {
+            <Text style=TextStyle::CAPTION string={error} />
+        },
     };
     view! {
         <List spacing=SECTION_SPACING>
             <List direction=Direction::Horizontal spacing=ROW_SPACING>
-                <Button label="Arrive" variant=ButtonVariant::Primary on_click={arrive} @test_id="demo.loading.arrive" />
+                <Button
+                    label="Arrive"
+                    variant=ButtonVariant::Primary
+                    on_click={arrive}
+                    @test_id="demo.loading.arrive"
+                />
                 <Button label="Fail" variant=ButtonVariant::Secondary on_click={fail} />
             </List>
             <Loading fallback>|| {
                 let greeting = create_memo(move || answer.get());
-                view! { <Text string={greeting} @test_id="demo.loading.content" /> }
+                view! {
+                    <Text string={greeting} @test_id="demo.loading.content" />
+                }
             }</Loading>
         </List>
     }

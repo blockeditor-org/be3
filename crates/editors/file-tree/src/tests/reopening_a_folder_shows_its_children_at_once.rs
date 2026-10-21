@@ -18,7 +18,11 @@ fn reopening_a_folder_shows_its_children_at_once() {
     fixture.settle();
     fixture.host.set_blocks(
         BlockQuery::References(folder),
-        vec![BlockInfo::new(child, Uuid::nil(), BlockParent::Block(folder))],
+        vec![BlockInfo::new(
+            child,
+            Uuid::nil(),
+            BlockParent::Block(folder),
+        )],
     );
     fixture.settle();
     assert!(fixture.test.shown(&row));

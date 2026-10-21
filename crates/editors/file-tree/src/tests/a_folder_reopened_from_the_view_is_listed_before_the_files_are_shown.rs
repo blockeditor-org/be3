@@ -24,9 +24,11 @@ fn a_folder_reopened_from_the_view_is_listed_before_the_files_are_shown() {
     let mut held = BlockInfo::new(folder, Uuid::nil(), BlockParent::Root);
     held.references = vec![child];
     reopened.store().add_block(held);
-    reopened
-        .store()
-        .add_block(BlockInfo::new(child, Uuid::nil(), BlockParent::Block(folder)));
+    reopened.store().add_block(BlockInfo::new(
+        child,
+        Uuid::nil(),
+        BlockParent::Block(folder),
+    ));
     reopened.hold(None, saved);
 
     let folder_row = format!("file-tree.{folder}.row");

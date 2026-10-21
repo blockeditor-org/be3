@@ -17,9 +17,7 @@ fn sent(instances: &mut Instances) -> Vec<Sent> {
         .into_iter()
         .filter_map(|message| match message {
             Message::Editor(EditorMessage::Blocks { .. }) => Some(Sent::Blocks),
-            Message::Editor(EditorMessage::BlocksFailed { error, .. }) => {
-                Some(Sent::Failed(error))
-            }
+            Message::Editor(EditorMessage::BlocksFailed { error, .. }) => Some(Sent::Failed(error)),
             _ => None,
         })
         .collect()
@@ -57,7 +55,9 @@ fn a_listing_the_host_could_not_load_reaches_the_plugin_as_failed() {
     crate::be::fail_listings(children, "Couldn't load what's inside this block");
     assert_eq!(
         sent(&mut instances),
-        [Sent::Failed("Couldn't load what's inside this block".to_owned())],
+        [Sent::Failed(
+            "Couldn't load what's inside this block".to_owned()
+        )],
         "a listing the host could not load is not an empty one"
     );
     assert!(sent(&mut instances).is_empty(), "a failure is sent once");

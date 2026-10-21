@@ -48,8 +48,12 @@ pub fn Loaded(
 ) -> NodeId {
     let label = create_memo(move || label.get());
     let fallback = move |pending: Pending| match pending {
-        Pending::Loading => view! { <LoadingPane label={label} /> },
-        Pending::Failed(error) => view! { <FailedPane error /> },
+        Pending::Loading => view! {
+            <LoadingPane label={label} />
+        },
+        Pending::Failed(error) => view! {
+            <FailedPane error />
+        },
     };
     view! {
         <Layers>

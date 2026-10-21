@@ -300,9 +300,11 @@ impl Tree {
                 rows: Vec::new(),
             };
             match listed {
-                Ok(_) if sections.is_empty() => builder
-                    .rows
-                    .push(Row::note(Vec::new(), 0, "No workspaces yet")),
+                Ok(_) if sections.is_empty() => {
+                    builder
+                        .rows
+                        .push(Row::note(Vec::new(), 0, "No workspaces yet"))
+                }
                 Err(Some(error)) => builder.rows.push(Row::note(Vec::new(), 0, &error)),
                 Ok(_) | Err(None) => {}
             }
@@ -510,9 +512,12 @@ impl Builder<'_> {
             return;
         };
         let listed = self.clock.listed(orphans);
-        let Some(listed) = note_for(&mut self.rows, listed, "No recently deleted blocks", |label| {
-            Row::note_at(RowKey::OrphansNote, 1, label)
-        }) else {
+        let Some(listed) = note_for(
+            &mut self.rows,
+            listed,
+            "No recently deleted blocks",
+            |label| Row::note_at(RowKey::OrphansNote, 1, label),
+        ) else {
             return;
         };
         for block in listed {
@@ -598,9 +603,12 @@ impl Builder<'_> {
         if !open {
             return;
         }
-        let Some(shared) = note_for(&mut self.rows, shared, "Nothing has been shared with you", |label| {
-            Row::note_at(RowKey::SharedNote, 1, label)
-        }) else {
+        let Some(shared) = note_for(
+            &mut self.rows,
+            shared,
+            "Nothing has been shared with you",
+            |label| Row::note_at(RowKey::SharedNote, 1, label),
+        ) else {
             return;
         };
         for block in shared {

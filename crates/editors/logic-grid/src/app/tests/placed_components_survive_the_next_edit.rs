@@ -23,7 +23,8 @@ fn placed_components_survive_the_next_edit() {
         editor
             .store
             .read(|content| content.root().grid().component(id).cloned())
-            .ok().flatten()
+            .ok()
+            .flatten()
             .map(|component| component.kind),
         Some(kind)
     );

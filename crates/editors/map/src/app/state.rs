@@ -85,7 +85,8 @@ impl MapState {
         let references = editor.watch_blocks(BlockQuery::References(editor.block_id()));
         let labels = create_memo(move || {
             let types = editor.block_types();
-            Ok(references.get()?
+            Ok(references
+                .get()?
                 .into_iter()
                 .map(|reference: BlockInfo| (reference.id, reference.label(types.as_ref())))
                 .collect())

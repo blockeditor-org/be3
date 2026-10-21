@@ -137,7 +137,8 @@ impl Game {
                 levels
                     .iter()
                     .filter(|level| {
-                        !level.completed && level.solutions.iter().any(|solution| solution.completed)
+                        !level.completed
+                            && level.solutions.iter().any(|solution| solution.completed)
                     })
                     .map(|level| level.challenge)
                     .collect()

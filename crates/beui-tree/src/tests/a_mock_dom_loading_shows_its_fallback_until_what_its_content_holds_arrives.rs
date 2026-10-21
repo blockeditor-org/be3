@@ -10,22 +10,32 @@ fn a_mock_dom_loading_shows_its_fallback_until_what_its_content_holds_arrives() 
     let effects = store(Cell::new(0));
     let page = scope.run(|| {
         let fallback = |pending: Pending| match pending {
-            Pending::Loading => view! { <Element tag="p" text="loading" /> },
-            Pending::Failed(error) => view! { <Element tag="p" text={error} /> },
+            Pending::Loading => view! {
+                <Element tag="p" text="loading" />
+            },
+            Pending::Failed(error) => view! {
+                <Element tag="p" text={error} />
+            },
         };
         view! {
             <Element tag="div">
                 <Loading fallback>|| {
                     create_effect(move || effects.with(|effects| effects.set(effects.get() + 1)));
                     let held = create_memo(move || name.get());
-                    view! { <Element tag="h1" text={held} /> }
+                    view! {
+                        <Element tag="h1" text={held} />
+                    }
                 }</Loading>
             </Element>
         }
     });
 
     assert_eq!(page.html(), "<div id=0><p id=2>loading</p></div>");
-    assert_eq!(effects.with(Cell::get), 0, "an effect waits until its content is shown");
+    assert_eq!(
+        effects.with(Cell::get),
+        0,
+        "an effect waits until its content is shown"
+    );
 
     name.set(Err(Pending::Failed("refused".to_owned())));
     assert_eq!(page.html(), "<div id=0><p id=3>refused</p></div>");

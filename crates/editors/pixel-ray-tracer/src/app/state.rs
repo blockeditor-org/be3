@@ -203,13 +203,13 @@ impl RayState {
 
     pub(crate) fn settings(&self, view: bool) -> RaySettings {
         let inner = self.inner.value();
-        inner
-            .block
-            .read()
-            .map_or_else(|_| RaySettings::default(), |scene| match view {
+        inner.block.read().map_or_else(
+            |_| RaySettings::default(),
+            |scene| match view {
                 true => scene.view_ray_settings(),
                 false => scene.lighting_ray_settings(),
-            })
+            },
+        )
     }
 
     pub(crate) fn set_settings(&self, view: bool, settings: RaySettings) {

@@ -1,5 +1,5 @@
-use std::rc::Rc;
 use std::collections::{HashMap, HashSet};
+use std::rc::Rc;
 
 use block_editor_beui::BlockInfo;
 use block_editor_beui::BlockParent;
@@ -594,19 +594,24 @@ fn watch_labels(
     rows: Memo<Vec<DatabaseRow>>,
     row_labels: block_editor_beui::database::RowLabels,
 ) -> Memo<BlockLabels> {
-    let labels = watch_database_blocks(editor, database_id, BlockQuery::References, move |references| {
-        let types = editor.block_types();
-        let known: HashMap<Uuid, BlockLabel> = references
-            .into_iter()
-            .map(|reference| (reference.id, reference.label(types.as_ref())))
-            .collect();
-        rows.with(|rows| {
-            row_references(rows)
+    let labels = watch_database_blocks(
+        editor,
+        database_id,
+        BlockQuery::References,
+        move |references| {
+            let types = editor.block_types();
+            let known: HashMap<Uuid, BlockLabel> = references
                 .into_iter()
-                .filter_map(|reference| Some((reference, known.get(&reference)?.clone())))
-                .collect::<HashMap<Uuid, BlockLabel>>()
-        })
-    });
+                .map(|reference| (reference.id, reference.label(types.as_ref())))
+                .collect();
+            rows.with(|rows| {
+                row_references(rows)
+                    .into_iter()
+                    .filter_map(|reference| Some((reference, known.get(&reference)?.clone())))
+                    .collect::<HashMap<Uuid, BlockLabel>>()
+            })
+        },
+    );
     create_memo(move || BlockLabels {
         blocks: labels.get(),
         rows: row_labels.labels.get(),

@@ -197,7 +197,10 @@ impl Board {
                 target
                     .depth
                     .cmp(&other.depth)
-                    .then((other_rect.width() * other_rect.height()).total_cmp(&(rect.width() * rect.height())))
+                    .then(
+                        (other_rect.width() * other_rect.height())
+                            .total_cmp(&(rect.width() * rect.height())),
+                    )
                     .then(target.id.cmp(&other.id))
             })
             .map(|(rect, target)| (target.id, rect, Rc::clone(&target.over)))

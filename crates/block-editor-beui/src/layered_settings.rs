@@ -129,10 +129,7 @@ where
         let ready = create_memo(move || {
             let loaded = |block: Option<Uuid>| {
                 block.is_none_or(|block| {
-                    editor
-                        .content_of::<Document<R>>(block)
-                        .read(|_| ())
-                        .is_ok()
+                    editor.content_of::<Document<R>>(block).read(|_| ()).is_ok()
                 })
             };
             let layers = layers.get();

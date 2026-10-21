@@ -789,7 +789,11 @@ pub fn watch_inverses(
     create_memo(move || found.get())
 }
 
-fn settled<C>(editor: crate::Editor, block: Uuid, content: crate::ContentProjection<C>) -> Memo<bool>
+fn settled<C>(
+    editor: crate::Editor,
+    block: Uuid,
+    content: crate::ContentProjection<C>,
+) -> Memo<bool>
 where
     C: be_block::LiveEdit + Clone + Default,
 {
@@ -898,7 +902,13 @@ pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> Ro
                 .is_some_and(|(covered, _)| *covered == wanted)
         })
     });
-    wait_for(move || if loaded.get() { Ok(()) } else { Err(Pending::Loading) });
+    wait_for(move || {
+        if loaded.get() {
+            Ok(())
+        } else {
+            Err(Pending::Loading)
+        }
+    });
     RowLabels {
         unreachable,
         labels: create_memo(move || {

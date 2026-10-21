@@ -532,8 +532,15 @@ impl Editor {
             if !projection.is_alive() || projection.ready().is_ok() {
                 return Ok(());
             }
-            let viewable = found.read()?.first().is_some_and(|info| info.access.can_view());
-            if viewable { Err(Pending::Loading) } else { Ok(()) }
+            let viewable = found
+                .read()?
+                .first()
+                .is_some_and(|info| info.access.can_view());
+            if viewable {
+                Err(Pending::Loading)
+            } else {
+                Ok(())
+            }
         });
         projection
     }

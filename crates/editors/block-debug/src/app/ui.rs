@@ -18,7 +18,8 @@ pub fn BlockDebug(editor: Editor) -> NodeId {
     editor.block_types_known();
     let roots = create_memo(move || {
         let types = editor.block_types();
-        let info = listed.with(|listed| listed.as_ref().ok().and_then(|list| list.first().cloned()));
+        let info =
+            listed.with(|listed| listed.as_ref().ok().and_then(|list| list.first().cloned()));
         vec![
             entries::block(info.as_ref(), types.as_ref()),
             raw.with(|raw| entries::content(raw.as_ref(), types.as_ref())),
