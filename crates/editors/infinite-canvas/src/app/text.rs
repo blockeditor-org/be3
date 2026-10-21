@@ -79,7 +79,7 @@ pub(crate) fn text_style(entity: &CanvasEntity) -> CanvasTextStyle {
     }
 }
 
-fn rich_state(entity: &CanvasEntity) -> TextAreaState {
+pub(crate) fn rich_state(entity: &CanvasEntity) -> TextAreaState {
     let buffer = TextBuffer::rich(entity.text.bytes(), entity.text.seeds());
     TextAreaState::with_schema(Arc::new(buffer), Arc::new(Basic))
 }

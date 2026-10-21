@@ -3,27 +3,27 @@ use std::collections::BTreeMap;
 use std::rc::Rc;
 
 use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasShape, CanvasTextAlign, CanvasTextVerticalAlign, CanvasTextWeight,
+    CanvasEntity, CanvasPoint, CanvasShape, CanvasTextWeight,
 };
 use block_editor_beui::be_block::{BlockContent, ImageContent};
 use block_editor_beui::beui::painting::{Punches, painting, rasterize};
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::rich::{RichLayout, SpanKind, SpanStyle};
 use block_editor_beui::beui::styled::*;
-use block_editor_beui::beui::unstyled::ChoiceOption;
+use block_editor_beui::beui::unstyled::{ChoiceOption, SyntaxColors, TextAreaColors};
 use block_editor_beui::beui::{
-    Color32, Context, FontId, FreetypeFonts, Galley, Image, LineCap, LineJoin, NodeId, Painter,
-    Path, PathElement, Pos2, RawInput, Rect, Stroke, TextAlign, TextLayout, Vec2, line_height,
-    pos2,
+    Color32, Context, FontFamily, FontId, FreetypeFonts, Galley, Image, LineCap, LineJoin, NodeId,
+    Painter, Path, PathElement, Pos2, RawInput, Rect, Stroke, TextAlign, Vec2, pos2,
 };
 use block_editor_beui::{FileSaver, SavedFile};
 use uuid::Uuid;
 
 use crate::geometry::{TEXT_INSET, entity_bounds};
 
-use super::paint::{Camera, EntityPaint, Palette, label, resolve_color, with_opacity};
+use super::paint::{Camera, EntityPaint, Palette, resolve_color, with_opacity};
 use super::sketch::{Ink, Mark, Sketch};
 use super::state::CanvasState;
-use super::text::{font_px, text_box};
+use super::text::{font_px, prose, rich_state, text_box, text_region, text_style, writes};
 
 pub(crate) const PADDING: f32 = 16.0;
 pub(crate) const SCALES: [f32; 3] = [1.0, 2.0, 3.0];
@@ -420,18 +420,16 @@ fn draw(
     images: &BTreeMap<Uuid, Image>,
 ) {
     let opacity = entity.style.opacity.clamp(0.0, 1.0);
+    let ink = with_opacity(
+        resolve_color(entity.style.stroke_color, scene.palette.auto),
+        opacity,
+    );
     if entity.shape == CanvasShape::Text {
-        let color = with_opacity(
-            resolve_color(entity.style.stroke_color, scene.palette.auto),
-            opacity,
-        );
         let turned = painter.rotated(
             camera.at(entity.transform.center),
             entity.transform.rotation,
         );
-        for (at, galley) in text_lines(painter, entity, camera) {
-            turned.galley(at, galley, color);
-        }
+        paint_written(&turned, entity, ink, camera);
         return;
     }
     let embed = entity.block.and_then(|block| scene.embeds.get(&block));
@@ -464,12 +462,18 @@ fn draw(
         sketch: Rc::new(Sketch::of(entity).translated(Vec2::new(camera.origin.x, camera.origin.y))),
     }
     .draw(painter);
-    if let Some((at, galley)) = label(painter, entity, camera) {
-        let color = with_opacity(
-            resolve_color(entity.style.stroke_color, scene.palette.auto),
-            opacity,
-        );
-        painter.galley(at, galley, color);
+    paint_written(painter, entity, ink, camera);
+}
+
+fn paint_written(painter: &Painter, entity: &CanvasEntity, ink: Color32, camera: Camera) {
+    for (origin, layout) in written(painter, entity, ink, camera) {
+        layout.paint_runs(painter, origin, |run| {
+            (
+                run.style.color,
+                run.style.underline,
+                run.style.strikethrough,
+            )
+        });
     }
 }
 
@@ -484,48 +488,53 @@ fn entity_corner(
     )
 }
 
-fn text_lines(painter: &Painter, entity: &CanvasEntity, camera: Camera) -> Vec<(Pos2, Galley)> {
-    let text = match entity.text.is_empty() {
-        true => return Vec::new(),
-        false => entity.text.to_str_lossy(),
-    };
-    let style = entity.text_style;
+fn written(
+    painter: &Painter,
+    entity: &CanvasEntity,
+    ink: Color32,
+    camera: Camera,
+) -> Vec<(Vec2, RichLayout)> {
+    if entity.text.is_empty() || !writes(entity) {
+        return Vec::new();
+    }
     let px = font_px(entity, 1.0) * camera.scale;
-    let rect = camera.rect(crate::geometry::WorldRect::from_points(
-        entity_corner(entity, -0.5),
-        entity_corner(entity, 0.5),
-    ));
-    let inset = TEXT_INSET * camera.scale;
-    let inner = rect.shrink(inset);
-    let galley = painter.layout_text(
-        &text,
-        FontId::proportional(px).bold(style.weight == CanvasTextWeight::Bold),
-        TextLayout {
-            wrap_width: match style.wrap {
-                true => inner.width().max(1.0),
-                false => f32::INFINITY,
-            },
-            align: match style.alignment {
-                CanvasTextAlign::Left => TextAlign::Start,
-                CanvasTextAlign::Center => TextAlign::Center,
-                CanvasTextAlign::Right => TextAlign::End,
-            },
-            line_height: Some(line_height(px) * style.line_height.max(0.5)),
-            ..TextLayout::DEFAULT
-        },
-    );
-    let size = galley.size();
-    let x = match style.alignment {
-        CanvasTextAlign::Left => inner.left(),
-        CanvasTextAlign::Center => inner.center().x - size.x / 2.0,
-        CanvasTextAlign::Right => inner.right() - size.x,
+    let prose = prose(text_style(entity), px);
+    let region = text_region(entity);
+    let inner = camera
+        .rect(crate::geometry::WorldRect::from_points(
+            CanvasPoint::new(region.min.x, region.min.y),
+            CanvasPoint::new(region.max.x, region.max.y),
+        ))
+        .shrink(TEXT_INSET * camera.scale);
+    let colors = TextAreaColors {
+        syntax: SyntaxColors::uniform(ink),
+        ..TextAreaColors::DEFAULT
     };
-    let y = match style.vertical_alignment {
-        CanvasTextVerticalAlign::Top => inner.top(),
-        CanvasTextVerticalAlign::Middle => inner.center().y - size.y / 2.0,
-        CanvasTextVerticalAlign::Bottom => inner.bottom() - size.y,
+    let Some(lines) = rich_state(entity).lay_out_prose(
+        px,
+        prose,
+        "",
+        inner.width(),
+        &colors,
+        |pieces, options| Some(painter.rich_layout(pieces, options)),
+    ) else {
+        return Vec::new();
     };
-    vec![(pos2(x, y), galley)]
+    let height: f32 = lines.iter().map(|line| line.size.y).sum();
+    let mut top = match prose.vertical_align {
+        TextAlign::Start => inner.top(),
+        TextAlign::Center => inner.center().y - height / 2.0,
+        TextAlign::End => inner.bottom() - height,
+    };
+    lines
+        .into_iter()
+        .map(|mut line| {
+            line.align(inner.width(), prose.align, |x| x);
+            let origin = Vec2::new(inner.left(), top);
+            top += line.size.y;
+            (origin, line)
+        })
+        .collect()
 }
 
 pub(crate) fn svg(scene: &Scene, options: ExportOptions, images: &Images) -> String {
@@ -585,9 +594,7 @@ fn svg_entity(
     let world = Camera::item(Pos2::ZERO, 1.0);
     let turn = turn(entity);
     if entity.shape == CanvasShape::Text {
-        for (at, galley) in text_lines(painter, entity, world) {
-            svg_text(out, at, &galley, ink, &turn);
-        }
+        svg_written(out, painter, entity, ink, &turn);
         return;
     }
     if entity.shape.embeds_block() {
@@ -653,8 +660,90 @@ fn svg_entity(
             )),
         }
     }
-    if let Some((at, galley)) = label(painter, entity, world) {
-        svg_text(out, at, &galley, ink, "");
+    svg_written(out, painter, entity, ink, "");
+}
+
+fn svg_written(
+    out: &mut String,
+    painter: &Painter,
+    entity: &CanvasEntity,
+    ink: Color32,
+    turn: &str,
+) {
+    let lines = written(painter, entity, ink, Camera::item(Pos2::ZERO, 1.0));
+    if lines.is_empty() {
+        return;
+    }
+    let body = FontId::proportional(font_px(entity, 1.0))
+        .bold(text_style(entity).weight == CanvasTextWeight::Bold);
+    out.push_str(&format!(
+        "<text font-family=\"sans-serif\" font-size=\"{}\"{}{}{turn}>",
+        number(body.size),
+        weight_of(body.bold),
+        paint("fill", ink)
+    ));
+    for (origin, layout) in &lines {
+        for line in &layout.lines {
+            for run in &line.runs {
+                let Some(galley) = run.galley.as_ref().filter(|_| run.kind == SpanKind::Text)
+                else {
+                    continue;
+                };
+                let shown = galley.text().trim_end_matches(['\n', '\r']);
+                if shown.trim().is_empty() {
+                    continue;
+                }
+                out.push_str(&format!(
+                    "<tspan x=\"{}\" y=\"{}\"{}>{}</tspan>",
+                    number(origin.x + line.run_left(run)),
+                    number(origin.y + line.top + line.baseline),
+                    span_attributes(run.style, body, ink),
+                    escape(shown)
+                ));
+            }
+        }
+    }
+    out.push_str("</text>\n");
+}
+
+fn span_attributes(style: SpanStyle, body: FontId, ink: Color32) -> String {
+    let font = style.font;
+    let mut attributes = String::new();
+    if font.family == FontFamily::Monospace {
+        attributes.push_str(" font-family=\"monospace\"");
+    }
+    if font.size != body.size {
+        attributes.push_str(&format!(" font-size=\"{}\"", number(font.size)));
+    }
+    if font.bold != body.bold {
+        attributes.push_str(match font.bold {
+            true => " font-weight=\"bold\"",
+            false => " font-weight=\"normal\"",
+        });
+    }
+    if font.italic {
+        attributes.push_str(" font-style=\"italic\"");
+    }
+    let decorations: Vec<&str> = [
+        (style.underline, "underline"),
+        (style.strikethrough, "line-through"),
+    ]
+    .into_iter()
+    .filter_map(|(on, name)| on.then_some(name))
+    .collect();
+    if !decorations.is_empty() {
+        attributes.push_str(&format!(" text-decoration=\"{}\"", decorations.join(" ")));
+    }
+    if style.color != ink {
+        attributes.push_str(&paint("fill", style.color));
+    }
+    attributes
+}
+
+fn weight_of(bold: bool) -> &'static str {
+    match bold {
+        true => " font-weight=\"bold\"",
+        false => "",
     }
 }
 
@@ -674,13 +763,10 @@ fn turn(entity: &CanvasEntity) -> String {
 fn svg_text(out: &mut String, at: Pos2, galley: &Galley, color: Color32, turn: &str) {
     let text = galley.text();
     let font = galley.font();
-    let weight = match font.bold {
-        true => " font-weight=\"bold\"",
-        false => "",
-    };
     out.push_str(&format!(
-        "<text font-family=\"sans-serif\" font-size=\"{}\"{weight}{}{turn}>",
+        "<text font-family=\"sans-serif\" font-size=\"{}\"{}{}{turn}>",
         number(font.size),
+        weight_of(font.bold),
         paint("fill", color)
     ));
     for line in galley.lines() {

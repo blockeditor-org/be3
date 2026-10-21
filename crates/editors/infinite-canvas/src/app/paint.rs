@@ -6,8 +6,7 @@ use block_editor_beui::be_block::canvas::{
 };
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{
-    Color32, FontId, Galley, Image, LineCap, LineJoin, Painter, Pos2, Rect, Stroke, TextAlign,
-    TextLayout, Vec2, pos2,
+    Color32, FontId, Image, LineCap, LineJoin, Painter, Pos2, Rect, Stroke, Vec2, pos2,
 };
 
 use crate::geometry::*;
@@ -278,43 +277,6 @@ impl EntityPaint {
             color,
         );
     }
-}
-
-pub(crate) fn label(
-    painter: &Painter,
-    entity: &CanvasEntity,
-    camera: Camera,
-) -> Option<(Pos2, Galley)> {
-    if entity.text.is_empty()
-        || matches!(
-            entity.shape,
-            CanvasShape::Text | CanvasShape::Frame | CanvasShape::Editor
-        )
-    {
-        return None;
-    }
-    let font = (entity.style.text_size.px() * camera.scale).max(1.0);
-    let (center, width) = match entity.shape {
-        CanvasShape::Path | CanvasShape::Freehand => (
-            path_middle(&flattened(&entity.world_points())),
-            f32::INFINITY,
-        ),
-        _ => (
-            entity.transform.center,
-            ((entity.transform.size.x - TEXT_INSET * 2.0) * camera.scale).max(1.0),
-        ),
-    };
-    let galley = painter.layout_text(
-        &entity.text.to_str_lossy(),
-        FontId::proportional(font),
-        TextLayout {
-            align: TextAlign::Center,
-            ..TextLayout::wrapped(width)
-        },
-    );
-    let size = galley.size();
-    let at = camera.at(center);
-    Some((pos2(at.x - size.x / 2.0, at.y - size.y / 2.0), galley))
 }
 
 pub(crate) fn path_middle(line: &[CanvasPoint]) -> CanvasPoint {

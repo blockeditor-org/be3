@@ -1,18 +1,20 @@
 use super::*;
+use block_editor_beui::be_block::be_model::RichText;
 use block_editor_beui::be_block::canvas::{CanvasStrokeStyle, CanvasTextSize};
 use block_editor_beui::beui::{Key, Modifiers};
+use text_editor_core::schema::basic::{BOLD, ITALIC, STRIKETHROUGH, UNDERLINE, mark};
 
-const EXPECTED: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="262" height="136" viewBox="-52 -40 262 136">
-<rect x="-52" y="-40" width="262" height="136" fill="#0e1117"/>
+const EXPECTED: &str = r##"<svg xmlns="http://www.w3.org/2000/svg" width="288" height="136" viewBox="-52 -40 288 136">
+<rect x="-52" y="-40" width="288" height="136" fill="#0e1117"/>
 <path d="M-30 -20 L30 -20 L30 20 L-30 20 Z" fill="#fac850"/>
 <path d="M-30 -20 L30 -20 L30 20 L-30 20 Z" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
-<text font-family="sans-serif" font-size="16" fill="#1e1e1e"><tspan x="-19" y="5">A &amp; B</tspan></text>
+<text font-family="sans-serif" font-size="16" fill="#1e1e1e"><tspan x="-19.5" y="5">A &amp; </tspan><tspan x="8.5" y="5" text-decoration="line-through">B</tspan></text>
 <path d="M110 0 C110 11.05 96.57 20 80 20 C63.43 20 50 11.05 50 0 C50 -11.05 63.43 -20 80 -20 C96.57 -20 110 -11.05 110 0 Z" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
 <path d="M160 -20 L190 0 L160 20 L130 0 Z" fill="none" stroke="#1e1e1e" stroke-width="2" stroke-linejoin="round" stroke-linecap="round" stroke-dasharray="6 6"/>
 <path d="M-30 60 L30 60" fill="none" stroke="#e6ebf3" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
 <path d="M30 60 L22 56.4 M30 60 L22 63.6" fill="none" stroke="#e6ebf3" stroke-width="2" stroke-linejoin="round" stroke-linecap="round"/>
 <path d="M60 59.99 L64.61 60.54 L70.77 62.54 L77.7 64.85 L90 69.99 L90 70 L90 70.01 L77.07 66.74 L70.14 64.43 L64.01 62.33 L60 60.01 Z" fill="#e6ebf3"/>
-<text font-family="sans-serif" font-size="20" fill="#1e1e1e"><tspan x="134" y="66">Hi</tspan></text>
+<text font-family="sans-serif" font-size="20" fill="#1e1e1e"><tspan x="104" y="65.3" font-weight="bold">Hi</tspan><tspan x="128" y="65.3" font-style="italic" text-decoration="underline">there</tspan></text>
 </svg>
 "##;
 
@@ -57,7 +59,7 @@ fn copying_as_svg_writes_every_shape_kind() {
         blue: 80,
         alpha: 255,
     };
-    rectangle.text = "A & B".into();
+    rectangle.text = RichText::new("A & B", vec![mark(4..5, STRIKETHROUGH)]);
     rectangle.style.text_size = CanvasTextSize::Small;
     let ellipse = placed(2, CanvasShape::Ellipse, CanvasPoint::new(80.0, 0.0));
     let mut diamond = placed(3, CanvasShape::Diamond, CanvasPoint::new(160.0, 0.0));
@@ -74,7 +76,11 @@ fn copying_as_svg_writes_every_shape_kind() {
     freehand.shape = CanvasShape::Freehand;
     freehand.pressures = vec![0.5, 0.5];
     let mut text = placed(6, CanvasShape::Text, CanvasPoint::new(160.0, 60.0));
-    text.text = "Hi".into();
+    text.transform.size = CanvasPoint::new(120.0, 40.0);
+    text.text = RichText::new(
+        "Hi there",
+        vec![mark(0..2, BOLD), mark(3..8, ITALIC), mark(3..8, UNDERLINE)],
+    );
     let mut editor = editor(&[rectangle, ellipse, diamond, arrow, freehand, text]);
 
     editor.key_press_modifiers(
