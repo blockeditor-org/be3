@@ -360,7 +360,11 @@ scope that makes it: `wait_for(probe)` registers a `Fn() -> Ready<()>` and
 default before the first) that waits for it. A `Memo<Ready<T>>` handed to a
 `Prop<T>` is held that way, so `<Text string={name} />` takes it directly.
 Inside a memo nothing registers: a memo runs whenever it is read, so it would
-register again each time; make the source in a body or a binding instead. An
+register again each time; make the source in a body or a binding instead. A wait
+lasts as long as the scope that registered it, so a source a binding caches
+across its runs is made in a scope of its own, kept with the cached source,
+rather than in the binding's, which the next run drops. Once a boundary has
+revealed nothing registers with it any more. An
 inner `Loading` keeps what its own content waits for from the one around it.
 
 While the content is hidden its bindings, memos and the controls that build
