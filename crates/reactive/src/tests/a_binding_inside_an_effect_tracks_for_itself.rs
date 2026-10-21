@@ -22,6 +22,7 @@ fn a_binding_inside_an_effect_tracks_for_itself() {
         }
     });
     inner.set(1);
+    flush();
 
     assert_eq!(
         outer_runs.get(),
@@ -31,7 +32,9 @@ fn a_binding_inside_an_effect_tracks_for_itself() {
     assert_eq!(inner_runs.get(), 2);
 
     outer.set(1);
+    flush();
     inner.set(2);
+    flush();
     assert_eq!(outer_runs.get(), 2);
     assert_eq!(
         inner_runs.get(),

@@ -52,6 +52,7 @@ impl DomNode {
     }
 
     fn html(&self) -> String {
+        ::reactive::flush();
         let children: String = self.0.children.borrow().iter().map(DomNode::html).collect();
         let (id, tag) = (self.0.id, self.0.tag);
         format!("<{tag} id={id}>{}{children}</{tag}>", self.0.text.borrow())

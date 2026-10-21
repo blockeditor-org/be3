@@ -5,9 +5,7 @@ use std::rc::{Rc, Weak};
 
 use crate::arena::{self, Key};
 use crate::computation::{Computation, no_computation};
-use crate::runtime::{
-    Context, RUNTIME, batch, flush_within, leave_component_body, next_sequence,
-};
+use crate::runtime::{Context, RUNTIME, batch, flush_within, leave_component_body, next_sequence};
 
 pub(crate) struct Gate {
     parent: Option<Rc<Gate>>,

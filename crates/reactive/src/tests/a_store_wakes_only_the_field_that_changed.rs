@@ -28,9 +28,11 @@ fn a_store_wakes_only_the_field_that_changed() {
         width: 4,
         label: "right".to_owned(),
     });
+    flush();
     assert_eq!(*runs.borrow(), ["label right".to_owned()]);
     runs.borrow_mut().clear();
     settings.width.set(9);
+    flush();
     assert_eq!(*runs.borrow(), ["width 9".to_owned()]);
     assert_eq!(settings.get().label, "right");
 }

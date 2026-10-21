@@ -8,8 +8,8 @@ use std::{
 use be_block::be_model::{Document, Field, FieldRef, List, Model};
 use be_block::{LiveEdit, ObjectId, Root, Touched};
 use reactive::{
-    Get, KeyedStore, OwnedSignal, OwnedStored, ReadSignal, Set, Signal, Stored,
-    create_signal, on_cleanup,
+    Get, KeyedStore, OwnedSignal, OwnedStored, ReadSignal, Set, Signal, Stored, create_signal,
+    on_cleanup,
 };
 
 use crate::{EditorHost, host::ContentUpdate};

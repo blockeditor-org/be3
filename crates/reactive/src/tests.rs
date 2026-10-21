@@ -4,8 +4,7 @@ use std::rc::Rc;
 
 use crate::{
     Get, KeyedItems, OwnedKeyedStore, OwnedStored, RootScope, Scope, Set, Store, create_effect,
-    create_memo, create_selector, create_signal, on_cleanup, owner_scope, store,
-    flush, untrack,
+    create_memo, create_selector, create_signal, flush, on_cleanup, owner_scope, store, untrack,
 };
 
 mod a_binding_inside_an_effect_tracks_for_itself;

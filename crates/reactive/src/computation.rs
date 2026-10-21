@@ -3,7 +3,8 @@ use std::mem::ManuallyDrop;
 use std::rc::{Rc, Weak};
 
 use crate::runtime::{
-    Context, RUNTIME, Read, Reset, batch, current_zone, enqueue, leave_component_body, probe, settle,
+    Context, RUNTIME, Read, Reset, batch, current_zone, defer, enqueue, leave_component_body, probe,
+    settle,
 };
 use crate::scope::{Cleanup, Gate, Owner, current_owner};
 use crate::signal::Tracked;
@@ -147,7 +148,7 @@ impl Computation {
         if matches!(self.state.get(), State::Clean | State::Disposed) {
             return;
         }
-        batch(|| {
+        defer(|| {
             self.refreshing.set(true);
             let result = std::panic::catch_unwind(std::panic::AssertUnwindSafe(|| {
                 self.refresh_inner();

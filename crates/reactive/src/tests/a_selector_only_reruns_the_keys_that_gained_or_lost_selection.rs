@@ -22,11 +22,14 @@ fn a_selector_only_reruns_the_keys_that_gained_or_lost_selection() {
     );
     runs.borrow_mut().clear();
     selected.set(Some(2));
+    flush();
     assert_eq!(*runs.borrow(), [(0, false), (2, true)]);
     runs.borrow_mut().clear();
     selected.set(None);
+    flush();
     assert_eq!(*runs.borrow(), [(2, false)]);
     runs.borrow_mut().clear();
     selected.set(Some(3));
+    flush();
     assert_eq!(*runs.borrow(), [(3, true)]);
 }

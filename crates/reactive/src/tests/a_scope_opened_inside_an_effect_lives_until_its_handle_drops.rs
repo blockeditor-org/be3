@@ -32,6 +32,7 @@ fn a_scope_opened_inside_an_effect_lives_until_its_handle_drops() {
     });
 
     tick.set(1);
+    flush();
     assert_eq!(opened.borrow().len(), 2, "the effect ran twice");
     assert_eq!(
         cleanups.get(),

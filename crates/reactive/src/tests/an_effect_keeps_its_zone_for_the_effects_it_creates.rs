@@ -20,11 +20,13 @@ fn an_effect_keeps_its_zone_for_the_effects_it_creates() {
         });
     }
     outer.set(1);
+    flush();
     seen.borrow_mut().clear();
 
     {
         let _zone = enter_zone(2);
         inner.set(9);
+        flush();
     }
     assert!(seen.borrow().is_empty());
 

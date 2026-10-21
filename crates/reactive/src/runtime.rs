@@ -256,12 +256,15 @@ pub(crate) fn tracking() -> bool {
 }
 
 pub(crate) fn batch<T>(f: impl FnOnce() -> T) -> T {
-    let depth = RUNTIME.with(|runtime| runtime.depth.get());
-    let guard = Reset::set(|runtime| &runtime.depth, depth + 1);
-    let result = f();
-    drop(guard);
+    let result = defer(f);
     settle();
     result
+}
+
+pub(crate) fn defer<T>(f: impl FnOnce() -> T) -> T {
+    let depth = RUNTIME.with(|runtime| runtime.depth.get());
+    let _depth = Reset::set(|runtime| &runtime.depth, depth + 1);
+    f()
 }
 
 pub fn wake_with(wake: impl Fn() + 'static) {

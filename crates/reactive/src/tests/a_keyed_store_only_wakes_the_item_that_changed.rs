@@ -5,6 +5,7 @@ fn a_keyed_store_only_wakes_the_item_that_changed() {
     let scope = Scope::new();
     let store = OwnedKeyedStore::<u32, String>::new();
     store.reconcile_owned((0..4).map(|index| (index, format!("item {index}"))));
+    flush();
     let runs = Rc::new(RefCell::new(Vec::new()));
     scope.run(|| {
         for index in 0..4 {
@@ -22,5 +23,6 @@ fn a_keyed_store_only_wakes_the_item_that_changed() {
         let text = if index == 2 { "edited" } else { "item" };
         (index, format!("{text} {index}"))
     }));
+    flush();
     assert_eq!(*runs.borrow(), [(2, "edited 2".to_owned())]);
 }

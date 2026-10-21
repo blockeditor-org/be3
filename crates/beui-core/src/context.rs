@@ -85,6 +85,7 @@ struct Inner {
     unhurried: Cell<bool>,
     waker: RefCell<Option<Waker>>,
     in_frame: Cell<bool>,
+    woken: Cell<bool>,
     zones_woken_in_frame: RefCell<Vec<u64>>,
     seen: Cell<bool>,
     actions: RefCell<Vec<ActionGroup>>,
@@ -128,6 +129,18 @@ pub trait InputSimulation: Any {
     fn as_any(&self) -> &dyn Any;
 
     fn as_any_mut(&mut self) -> &mut dyn Any;
+}
+
+impl Inner {
+    fn wake(&self) {
+        if self.woken.replace(true) {
+            return;
+        }
+        let waker = self.waker.borrow().clone();
+        if let Some(waker) = waker {
+            waker.wake();
+        }
+    }
 }
 
 #[derive(Clone, Debug, PartialEq, Default)]
@@ -299,6 +312,7 @@ impl Context {
                 unhurried: Cell::new(false),
                 waker: RefCell::new(None),
                 in_frame: Cell::new(false),
+                woken: Cell::new(false),
                 zones_woken_in_frame: RefCell::new(Vec::new()),
                 seen: Cell::new(true),
                 actions: RefCell::new(Vec::new()),
@@ -512,6 +526,7 @@ impl Context {
 
     pub fn begin_frame(&self, raw: RawInput) {
         self.inner.in_frame.set(true);
+        self.inner.woken.set(false);
         let now = self.inner.clock.get().unwrap_or_else(Instant::now);
         self.inner.now.set(now);
         self.apply_pixels_per_point();
@@ -921,15 +936,10 @@ impl Context {
         *self.inner.waker.borrow_mut() = Some(waker);
         let inner = Rc::downgrade(&self.inner);
         ::reactive::wake_with(move || {
-            let Some(inner) = inner.upgrade() else {
-                return;
-            };
-            if inner.in_frame.get() {
-                return;
-            }
-            let waker = inner.waker.borrow().clone();
-            if let Some(waker) = waker {
-                waker.wake();
+            if let Some(inner) = inner.upgrade()
+                && !inner.in_frame.get()
+            {
+                inner.wake();
             }
         });
     }
@@ -944,10 +954,7 @@ impl Context {
                 inner.zones_woken_in_frame.borrow_mut().push(zone);
                 return;
             }
-            let waker = inner.waker.borrow().clone();
-            if let Some(waker) = waker {
-                waker.wake();
-            }
+            inner.wake();
         }
     }
 
