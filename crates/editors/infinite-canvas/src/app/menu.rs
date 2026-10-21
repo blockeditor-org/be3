@@ -8,6 +8,7 @@ use super::actions::CanvasActions;
 #[component]
 pub(crate) fn CanvasMenu(disabled: bool, children: Child) -> NodeId {
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");
+    let grid = actions.grid.clone();
     view! {
         <ContextMenu
             items={view! {
@@ -38,6 +39,24 @@ pub(crate) fn CanvasMenu(disabled: bool, children: Child) -> NodeId {
                 <MenuItem action={actions.forward} />
                 <MenuItem action={actions.backward} />
                 <MenuItem action={actions.back} />
+                <MenuItem label="Grid">
+                    <MenuItem action={grid.shown.clone()} checked={ticked(&grid.shown)} />
+                    <MenuItem
+                        label="Small"
+                        action={grid.small.clone()}
+                        checked={ticked(&grid.small)}
+                    />
+                    <MenuItem
+                        label="Medium"
+                        action={grid.medium.clone()}
+                        checked={ticked(&grid.medium)}
+                    />
+                    <MenuItem
+                        label="Large"
+                        action={grid.large.clone()}
+                        checked={ticked(&grid.large)}
+                    />
+                </MenuItem>
                 <MenuItem action={actions.select_all} />
                 <MenuItem action={actions.invert} />
             }}
@@ -47,4 +66,9 @@ pub(crate) fn CanvasMenu(disabled: bool, children: Child) -> NodeId {
             {children}
         </ContextMenu>
     }
+}
+
+fn ticked(action: &Action) -> Memo<Option<bool>> {
+    let checked = action.checked();
+    create_memo(move || checked.map(|checked| checked.get()))
 }

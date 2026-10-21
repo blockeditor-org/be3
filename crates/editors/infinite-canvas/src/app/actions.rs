@@ -11,6 +11,7 @@ use block_editor_beui::beui::icons::{
 use block_editor_beui::beui::reactive::*;
 use uuid::Uuid;
 
+use super::grid::{GridActions, grid_actions};
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
 use super::touch::TouchChoice;
 
@@ -55,6 +56,7 @@ pub(crate) struct CanvasActions {
     pub(crate) fit_all: Action,
     pub(crate) ignore_touch: Action,
     pub(crate) touch: TouchChoice,
+    pub(crate) grid: GridActions,
 }
 
 impl CanvasActions {
@@ -372,6 +374,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         .register();
     let touch = TouchChoice::new();
     let ignore_touch = touch.action();
+    let grid = grid_actions(state);
     CanvasActions {
         select,
         frame,
@@ -412,6 +415,7 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         fit_all,
         ignore_touch,
         touch,
+        grid,
     }
 }
 

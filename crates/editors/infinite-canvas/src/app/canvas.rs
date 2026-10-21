@@ -11,6 +11,7 @@ use uuid::Uuid;
 
 use crate::geometry::*;
 
+use super::grid::{GridLook, GridTile, GridTileItem};
 use super::menu::CanvasMenu;
 use super::overlay::{Backdrop, FrameBackdrop, Overlay};
 use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, path_middle, resolve_color};
@@ -46,6 +47,7 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                 )
             });
             let previewing = state.previewing();
+            let (grid, tiles) = grid_of(state, camera, shown);
             view! {
                 <CanvasMenu disabled={previewing}>
                     <Frame padding={inset}>
@@ -55,6 +57,9 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
                                 @test_id={"infinite-canvas.canvas"}
                             >
                                 <CanvasBackdrop state={state} camera={camera} stage={shown} />
+                                <ForEach keys={tiles}>|tile: GridTile|
+                                    <GridTileItem tile look={grid} />
+                                </ForEach>
                                 <ForEach keys={ids}>|id: Uuid| {
                                     let camera = camera;
                                     view! {
@@ -74,6 +79,25 @@ pub(crate) fn CanvasStage(state: CanvasState) -> NodeId {
             }
         }</PlacementBuilder>
     }
+}
+
+fn grid_of(
+    state: CanvasState,
+    camera: Memo<CanvasView>,
+    stage: Memo<Rect>,
+) -> (Memo<Option<GridLook>>, Memo<Vec<GridTile>>) {
+    let grid = state.grid();
+    let live = !state.previewing();
+    let theme = use_theme();
+    let look = create_memo(move || {
+        let spacing = grid.get().shown().filter(|_| live)?;
+        GridLook::new(spacing, camera.get().scale, theme.border.get())
+    });
+    let tiles = create_memo(move || match look.get() {
+        Some(look) => look.tiles(camera.get().rect_to_canvas(stage.get())),
+        None => Vec::new(),
+    });
+    (look, tiles)
 }
 
 #[component]

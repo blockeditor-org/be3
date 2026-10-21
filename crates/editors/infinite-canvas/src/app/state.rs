@@ -486,6 +486,20 @@ impl CanvasState {
         self.preview
     }
 
+    pub(crate) fn grid(&self) -> ReadSignal<block_editor_beui::be_block::canvas::CanvasGrid> {
+        self.cells.value().content.field(
+            block_editor_beui::be_block::be_model::ObjectId::ROOT,
+            block_editor_beui::be_block::canvas::Canvas::GRID,
+        )
+    }
+
+    pub(crate) fn set_grid(&self, grid: block_editor_beui::be_block::canvas::CanvasGrid) {
+        self.cells
+            .value()
+            .content
+            .operate(block_editor_beui::be_block::canvas::Canvas::set_grid(grid));
+    }
+
     pub(crate) fn block_id(&self) -> Uuid {
         self.editor.block_id()
     }

@@ -104,7 +104,8 @@ can change freely until step 8.
   label. Text and labels are edited live as rich text in place, through the
   shared document provider, and peers see the edits as they are typed.
 - An eraser.
-- A dot grid behind the canvas, which a viewer can turn off or space
+- A dot grid behind the canvas: a setting of the canvas, saved with it and
+  shared by everyone viewing it, that can be turned off or spaced
   differently.
 - No snapping: in a quick sketch nobody should have to worry about lines
   being perfectly straight or boxes perfectly aligned. This departs from

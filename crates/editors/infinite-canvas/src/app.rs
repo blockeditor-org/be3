@@ -12,6 +12,7 @@ pub(crate) mod actions;
 pub(crate) mod canvas;
 pub(crate) mod components;
 pub(crate) mod entities;
+pub(crate) mod grid;
 pub(crate) mod input;
 pub(crate) mod layers;
 pub(crate) mod menu;
