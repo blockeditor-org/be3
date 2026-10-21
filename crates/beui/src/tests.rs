@@ -1223,8 +1223,28 @@ impl Harness {
         self.inspector_center("inspector.simulation.touch_emulation")
     }
 
-    pub(crate) fn reduce_motion_toggle_center(&self) -> Pos2 {
-        self.inspector_center("inspector.simulation.reduce_motion")
+    pub(crate) fn choose_in_simulation(&mut self, control: &str, index: usize) {
+        let select = self
+            .inspector()
+            .find(&format!("inspector.simulation.{control}"));
+        let trigger = crate::unstyled::select_trigger(&self.inspector().document, select);
+        self.click_in_inspector(trigger);
+        self.frame(Vec::new());
+        let option =
+            crate::unstyled::select_option_button(&self.inspector().document, select, index);
+        self.click(self.node_center(option));
+        self.frame(Vec::new());
+    }
+
+    fn click_in_inspector(&mut self, node: NodeId) {
+        self.document
+            .tools_mut::<InspectorTools>()
+            .and_then(|tools| tools.inspector.as_deref_mut())
+            .expect("the inspector is closed")
+            .document
+            .reveal_node(node);
+        self.frame(Vec::new());
+        self.click(self.node_center(node));
     }
 
     pub(crate) fn mouse_toggle_center(&self) -> Pos2 {
@@ -1341,14 +1361,7 @@ impl Harness {
         self.click(tab);
         self.frame(Vec::new());
         let toggle = self.inspector().find("inspector.accessibility.enabled");
-        self.document
-            .tools_mut::<InspectorTools>()
-            .and_then(|tools| tools.inspector.as_deref_mut())
-            .expect("the inspector is closed")
-            .document
-            .reveal_node(toggle);
-        self.frame(Vec::new());
-        self.click(self.node_center(toggle));
+        self.click_in_inspector(toggle);
         self.toggle_inspector();
         self.frame(Vec::new());
     }
@@ -1413,20 +1426,6 @@ impl Harness {
         self.tab_node(4)
     }
 
-    pub(crate) fn pixel_ratio_option_center(&self, index: usize) -> Pos2 {
-        let option = self
-            .inspector()
-            .option_node("inspector.simulation.pixel_ratio", index);
-        self.node_center(option)
-    }
-
-    pub(crate) fn color_vision_option_center(&self, index: usize) -> Pos2 {
-        let option = self
-            .inspector()
-            .option_node("inspector.simulation.color_vision", index);
-        self.node_center(option)
-    }
-
     pub(crate) fn drag_simulation_slider(&mut self, control: &str, fraction: f32) {
         let track = self.inspector_rect(&format!("inspector.simulation.{control}"));
         let y = track.center().y;
@@ -1441,13 +1440,6 @@ impl Harness {
             .node_rect(inspector.find(test_id))
             .expect("the control was not laid out");
         rect.scaled(crate::inspector::scale(&self.context))
-    }
-
-    pub(crate) fn theme_option_center(&self, index: usize) -> Pos2 {
-        let option = self
-            .inspector()
-            .option_node("inspector.simulation.theme", index);
-        self.node_center(option)
     }
 
     pub(crate) fn performance_panel_visible(&self) -> bool {

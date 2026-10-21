@@ -35,7 +35,7 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
     harness.toggle_inspector();
     harness.click(harness.simulation_tab_center());
     harness.frame(vec![]);
-    harness.click(harness.theme_option_center(4));
+    harness.choose_in_simulation("theme", 4);
     let restyled = harness.frame(vec![]);
     assert_eq!(harness.document().theme(), Theme::EPAPER);
     assert_eq!(captions(&restyled, Theme::EPAPER), 1);
@@ -45,7 +45,7 @@ fn the_inspectors_theme_overrides_the_apps_until_it_is_cleared() {
         "the override is not the app's own preference"
     );
 
-    harness.click(harness.theme_option_center(0));
+    harness.choose_in_simulation("theme", 0);
     harness.frame(vec![]);
     assert_eq!(harness.document().theme(), Theme::LIGHT);
 }

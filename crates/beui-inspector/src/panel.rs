@@ -446,7 +446,7 @@ fn SimulationPanel(
     let ratio = create_signal(Some(selected));
     let developer = state.value().developer.get();
     let theme = create_signal(Some(override_index(&ThemeKind::ALL, developer.theme)));
-    let reduced = create_signal(developer.motion == Some(Motion::Instant));
+    let motion = create_signal(Some(override_index(&Motion::ALL, developer.motion)));
     view! {
         <Scroll>
             <Frame padding=BODY_PADDING>
@@ -467,21 +467,12 @@ fn SimulationPanel(
                         variant=ButtonVariant::Secondary
                         on_click={move || state.value().toggle_keyboard()}
                     />
-                    <Checkbox
-                        @test_id={"inspector.simulation.reduce_motion"}
-                        label="Reduce motion"
-                        checked={Binding::new(reduced, move |reduce: bool| {
-                            reduced.set(reduce);
-                            let developer = state.value().developer.get();
-                            let motion = reduce.then_some(Motion::Instant);
-                            state.value().override_preferences(PreferenceLayer { motion, ..developer });
-                        })}
-                    />
                     <Separator />
                     <List spacing=TIMING_SPACING>
                         <Text style=TextStyle::HEADING>"Device pixel ratio"</Text>
-                        <RadioGroup
+                        <Select
                             @test_id={"inspector.simulation.pixel_ratio"}
+                            label="Device pixel ratio"
                             options={view! {
                                 <ForEach keys={labels(&PIXEL_RATIOS)}>|label: &'static str|
                                     <ChoiceOption label />
@@ -503,8 +494,9 @@ fn SimulationPanel(
                     <Separator />
                     <List spacing=TIMING_SPACING>
                         <Text style=TextStyle::HEADING>"Theme"</Text>
-                        <RadioGroup
+                        <Select
                             @test_id={"inspector.simulation.theme"}
+                            label="Theme"
                             options={view! {
                                 <ChoiceOption label=NO_OVERRIDE />
                                 <ForEach keys={ThemeKind::ALL.to_vec()}>|kind: ThemeKind|
@@ -516,6 +508,25 @@ fn SimulationPanel(
                                 let chosen = overridden(&ThemeKind::ALL, index);
                                 let developer = state.value().developer.get();
                                 state.value().override_preferences(PreferenceLayer { theme: chosen, ..developer });
+                            })}
+                        />
+                    </List>
+                    <List spacing=TIMING_SPACING>
+                        <Text style=TextStyle::HEADING>"Motion"</Text>
+                        <Select
+                            @test_id={"inspector.simulation.motion"}
+                            label="Motion"
+                            options={view! {
+                                <ChoiceOption label=NO_OVERRIDE />
+                                <ForEach keys={Motion::ALL.to_vec()}>|motion: Motion|
+                                    <ChoiceOption label={motion.name()} />
+                                </ForEach>
+                            }}
+                            selected={Binding::new(motion, move |index: Option<usize>| {
+                                motion.set(index);
+                                let chosen = overridden(&Motion::ALL, index);
+                                let developer = state.value().developer.get();
+                                state.value().override_preferences(PreferenceLayer { motion: chosen, ..developer });
                             })}
                         />
                     </List>
@@ -644,8 +655,9 @@ fn FilterSection(state: Stored<State>) -> NodeId {
                 })}
             />
             <Text style=TextStyle::CAPTION>"Colour vision"</Text>
-            <RadioGroup
+            <Select
                 @test_id={"inspector.simulation.color_vision"}
+                label="Colour vision"
                 options={view! {
                     <ForEach keys={vision_labels}>|label: &'static str|
                         <ChoiceOption label />
