@@ -17,8 +17,8 @@ use block_editor_beui::be_block::canvas::{
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, PresenceKind, pick_free_color};
 use block_editor_beui::beui::icons::{
-    ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DIAMOND, ICON_DRAW, ICON_INK_ERASER,
-    ICON_LASSO_SELECT, ICON_NORTH_EAST, ICON_PANORAMA_FISH_EYE, ICON_RECTANGLE, ICON_SELECT,
+    ICON_ARROW_SELECTOR_TOOL, ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DIAMOND, ICON_DRAW,
+    ICON_INK_ERASER, ICON_LASSO_SELECT, ICON_NORTH_EAST, ICON_PANORAMA_FISH_EYE, ICON_RECTANGLE,
     ICON_TEXT_FIELDS,
 };
 use block_editor_beui::beui::reactive::*;
@@ -102,7 +102,7 @@ pub(crate) enum Tool {
 impl Tool {
     pub(crate) fn glyph(self) -> &'static str {
         match self {
-            Tool::Select => ICON_SELECT,
+            Tool::Select => ICON_ARROW_SELECTOR_TOOL,
             Tool::Lasso => ICON_LASSO_SELECT,
             Tool::Frame => ICON_CROP_FREE,
             Tool::Line => ICON_DIAGONAL_LINE,
