@@ -155,13 +155,15 @@ pub fn NumberInput(
         let typed = parse(&text.get_untracked())
             .filter(|_| keep)
             .map(|typed| typed.clamp(min, max));
-        let shown = value.get_untracked();
         match typed {
-            Some(typed) if typed != shown => {
+            Some(typed) => {
                 text.set(format_number(typed, decimals.get_untracked()));
-                value.set(typed);
+                value.update(|held| *held = typed);
             }
-            _ => text.set(format_number(shown, decimals.get_untracked())),
+            None => text.set(format_number(
+                value.get_untracked(),
+                decimals.get_untracked(),
+            )),
         }
         on_preview.call(None);
     };
