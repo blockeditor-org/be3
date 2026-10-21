@@ -784,7 +784,10 @@ fn HoverTooltip() -> NodeId {
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=8.0>
             <Tooltip label="Tooltips wrap anything that can be hovered or focused">
-                <Chip label="Hover me" />
+                <Chip label="Hover me" @test_id="demo.tooltip.long" />
+            </Tooltip>
+            <Tooltip label="Short">
+                <Chip label="Or me" @test_id="demo.tooltip.short" />
             </Tooltip>
         </List>
     }

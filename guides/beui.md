@@ -610,9 +610,14 @@ button), `.align(..)` overrides the list's `align` for that child, and
 its box within, padding, fill and outline on one retained node,
 each concern one prop. `width` and `height` take an `Extent`: an exact length
 (`Extent::px`, or a plain `f32`), a share of the space offered when it is
-bounded (`Extent::fraction`), and `.min(..)` and `.max(..)` bounds, so
-`Extent::at_most(320.0)` fills its room up to 320; a memo of `Option<f32>`
-hands an axis back to intrinsic measuring when it is `None`.
+bounded (`Extent::fraction`), and `.min(..)` and `.max(..)` bounds. A `max`
+caps the room the frame takes, not its content: like CSS `max-width` on a
+block, `Extent::at_most(320.0)` is as wide as the space it is offered, up to
+320, however little its content needs (a dialog, a settings column). A box as
+wide as its content up to a cap (a menu, a tooltip) is a list child sized
+`@sizing={ItemSize::Intrinsic.max(320.0)}`, in a horizontal `List` if it has
+no list around it; `ItemSize::Intrinsic.min(..)` gives it a floor. A memo of
+`Option<f32>` hands an axis back to intrinsic measuring when it is `None`.
 Nothing is hidden while it stays in the tree: what shows only some of the
 time goes in a `Show`, or a `ShowKeepAlive` when it should keep its state
 while it is gone, so it takes no room, no spacing, no focus and no place in
