@@ -137,6 +137,8 @@ pub struct Document {
     fonts_generation: u64,
     painting: Vec<(Rc<Display>, Vec2)>,
     pub paint_cache: RefCell<PaintCache>,
+    pub(crate) canvas_moves: Vec<NodeId>,
+    pub(crate) canvas_moves_from: u64,
     pub copied_text: Option<String>,
     pub copied_image: Option<Vec<u8>>,
     next_paint: Option<Instant>,
@@ -353,6 +355,8 @@ impl Document {
             fonts_generation: 0,
             painting: Vec::new(),
             paint_cache: RefCell::new(PaintCache::default()),
+            canvas_moves: Vec::new(),
+            canvas_moves_from: 0,
             copied_text: None,
             copied_image: None,
             next_paint: None,
@@ -2281,6 +2285,8 @@ impl Document {
             });
         }
         self.placing.clear();
+        self.canvas_moves_from += self.canvas_moves.len() as u64;
+        self.canvas_moves.clear();
         self.anchor_shift = 0.0;
         self.layout_revision = self.arena.layout_revision;
         self.layout_pass = self.layout_pass.wrapping_add(1);

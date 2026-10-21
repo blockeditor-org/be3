@@ -1,5 +1,7 @@
 use std::any::Any;
 
+use foldhash::{HashMap, HashSet};
+
 use crate::base::child_list::{ChildHost, ChildList, NodeChildren};
 use crate::document::Document;
 use crate::geometry::{Pos2, Rect, Vec2, pos2};
@@ -46,6 +48,119 @@ impl ChildHost for CanvasNode {
     fn children(&mut self) -> &mut ChildList<NodeId> {
         &mut self.items
     }
+
+    fn children_changed(&mut self) {
+        self.index.built = false;
+    }
+}
+
+const CELL: f32 = 256.0;
+const WIDEST: f32 = 16.0 * CELL;
+
+#[derive(Clone, Copy, PartialEq)]
+struct Cells {
+    min: (i32, i32),
+    max: (i32, i32),
+}
+
+impl Cells {
+    fn of(rect: Rect) -> Option<Self> {
+        let finite = [rect.min.x, rect.min.y, rect.max.x, rect.max.y]
+            .iter()
+            .all(|value| value.is_finite());
+        if !finite || rect.width() > WIDEST || rect.height() > WIDEST {
+            return None;
+        }
+        let cell = |value: f32| (value / CELL).floor() as i32;
+        Some(Self {
+            min: (cell(rect.min.x), cell(rect.min.y)),
+            max: (cell(rect.max.x), cell(rect.max.y)),
+        })
+    }
+
+    fn count(self) -> usize {
+        let across = (self.max.0 as i64 - self.min.0 as i64 + 1).max(0);
+        let down = (self.max.1 as i64 - self.min.1 as i64 + 1).max(0);
+        (across * down) as usize
+    }
+
+    fn each(self, mut visit: impl FnMut((i32, i32))) {
+        for y in self.min.1..=self.max.1 {
+            for x in self.min.0..=self.max.0 {
+                visit((x, y));
+            }
+        }
+    }
+}
+
+#[derive(Default)]
+struct ItemIndex {
+    built: bool,
+    read: u64,
+    order: HashMap<NodeId, usize>,
+    held: HashMap<NodeId, Option<Cells>>,
+    cells: HashMap<(i32, i32), Vec<NodeId>>,
+    large: Vec<NodeId>,
+}
+
+impl ItemIndex {
+    fn rebuild(&mut self, doc: &Document, items: &ChildList<NodeId>) {
+        *self = Self {
+            built: true,
+            ..Self::default()
+        };
+        for (at, item) in items.iter().enumerate() {
+            self.order.insert(*item, at);
+            self.insert(*item, doc.canvas_item_rect(NodeOf::assumed(*item)));
+        }
+    }
+
+    fn insert(&mut self, item: NodeId, rect: Rect) {
+        let cells = Cells::of(rect);
+        match cells {
+            Some(cells) => cells.each(|cell| self.cells.entry(cell).or_default().push(item)),
+            None => self.large.push(item),
+        }
+        self.held.insert(item, cells);
+    }
+
+    fn moved(&mut self, item: NodeId, rect: Rect) {
+        let Some(held) = self.held.get(&item).copied() else {
+            return;
+        };
+        let cells = Cells::of(rect);
+        if cells == held {
+            return;
+        }
+        match held {
+            Some(held) => held.each(|cell| {
+                if let Some(items) = self.cells.get_mut(&cell) {
+                    items.retain(|other| *other != item);
+                    if items.is_empty() {
+                        self.cells.remove(&cell);
+                    }
+                }
+            }),
+            None => self.large.retain(|other| *other != item),
+        }
+        self.insert(item, rect);
+    }
+
+    fn near(&self, seen: Rect) -> Option<Vec<NodeId>> {
+        let cells = Cells::of(seen).filter(|cells| cells.count() <= self.order.len())?;
+        let mut found: HashSet<NodeId> = self.large.iter().copied().collect();
+        cells.each(|cell| {
+            if let Some(items) = self.cells.get(&cell) {
+                found.extend(items.iter().copied());
+            }
+        });
+        let mut found: Vec<(usize, NodeId)> = found
+            .into_iter()
+            .filter_map(|item| Some((*self.order.get(&item)?, item)))
+            .collect();
+        found.sort_unstable_by_key(|(at, _)| *at);
+        Some(found.into_iter().map(|(_, item)| item).collect())
+    }
 }
 
 pub struct CanvasNode {
@@ -53,6 +168,8 @@ pub struct CanvasNode {
     raster: Option<f32>,
     size: Vec2,
     items: ChildList<NodeId>,
+    index: ItemIndex,
+    laid: Vec<NodeId>,
     host: Option<NodeId>,
     shift: Vec2,
     zoom: Zoom,
@@ -137,7 +254,29 @@ impl Element for CanvasNode {
         let scaled = doc.enter_zoomed_space(host, SCALED, painter, shift, zoom, rect, out);
         let visible = rect.translate(-shift);
         let seen = visible.scaled(zoom.scale.recip());
-        for item in self.items.iter() {
+        let unread = self
+            .index
+            .read
+            .checked_sub(doc.canvas_moves_from)
+            .and_then(|from| doc.canvas_moves.get(from as usize..));
+        match unread {
+            Some(moved) if self.index.built => {
+                for item in moved {
+                    if self.index.order.contains_key(item) && doc.arena.contains(*item) {
+                        let rect = doc.canvas_item_rect(NodeOf::assumed(*item));
+                        self.index.moved(*item, rect);
+                    }
+                }
+            }
+            _ => self.index.rebuild(doc, &self.items),
+        }
+        self.index.read = doc.canvas_moves_from + doc.canvas_moves.len() as u64;
+        let near = self
+            .index
+            .near(seen)
+            .unwrap_or_else(|| self.items.iter().copied().collect());
+        self.laid.clear();
+        for item in &near {
             let world = doc.canvas_item_rect(NodeOf::assumed(*item));
             let (painter, placed, shown) = match Self::slot(doc, NodeOf::assumed(*item)) {
                 SCALED => (&scaled, world, seen),
@@ -146,6 +285,7 @@ impl Element for CanvasNode {
             };
             if placed.intersects(shown) {
                 crate::layout::layout(doc, painter, *item, placed, out);
+                self.laid.push(*item);
             }
         }
     }
@@ -161,7 +301,7 @@ impl Element for CanvasNode {
             Rect::EVERYTHING,
         );
         let scaled = painter.zoomed(SpaceId::inside(host, SCALED), self.shift, self.zoom, rect);
-        for item in self.items.iter() {
+        for item in &self.laid {
             if rects.contains_key(item) {
                 let painter = match Self::slot(doc, NodeOf::assumed(*item)) {
                     SCALED => &scaled,
@@ -175,6 +315,10 @@ impl Element for CanvasNode {
 
     fn children(&self) -> Vec<NodeId> {
         self.items.nodes()
+    }
+
+    fn pointer_children(&self) -> Vec<NodeId> {
+        self.laid.clone()
     }
 
     fn remove_child(&mut self, child: NodeId) {
@@ -300,6 +444,8 @@ impl Document {
             raster: None,
             size: Vec2::ZERO,
             items: ChildList::default(),
+            index: ItemIndex::default(),
+            laid: Vec::new(),
             host: None,
             shift: Vec2::ZERO,
             zoom: Zoom::NONE,
@@ -354,6 +500,7 @@ impl Document {
     pub fn set_canvas_item_rect(&mut self, item: NodeOf<CanvasItemNode>, rect: Rect) {
         if self.arena.get_as::<CanvasItemNode>(item).rect != rect {
             self.arena.get_mut_as::<CanvasItemNode>(item).rect = rect;
+            self.canvas_moves.push(item.id());
         }
     }
 
