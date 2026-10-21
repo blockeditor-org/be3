@@ -17,6 +17,7 @@ fn turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas() {
             .canvas_touch
     };
 
+    editor.reveal(toggle);
     let at = editor.point_of(toggle);
     editor.finger(1, TouchPhase::Start, at);
     editor.run();
@@ -73,6 +74,7 @@ fn turning_touch_off_in_the_dock_keeps_fingers_off_the_canvas() {
         "the pen still selects"
     );
 
+    editor.reveal(toggle);
     let at = editor.point_of(toggle);
     editor.finger(1, TouchPhase::Start, at);
     editor.run();

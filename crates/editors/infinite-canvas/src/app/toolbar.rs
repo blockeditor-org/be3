@@ -74,12 +74,6 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 </List>
             }}
         >
-            <ToggleButton
-                icon_only=true
-                action={actions.ignore_touch.clone()}
-                @test_id={"infinite-canvas.dock.ignore-touch"}
-            />
-            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
             <ForEach keys={tool_keys}>|index: usize| {
                 let actions = tools.clone();
                 view! {
@@ -105,6 +99,12 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 disabled={redo_stuck}
                 @test_id={"infinite-canvas.dock.redo"}
                 on_click={redo}
+            />
+            <Frame width=BORDER_WIDTH height=DIVIDER_HEIGHT fill=ColorRole::Border />
+            <ToggleButton
+                icon_only=true
+                action={actions.ignore_touch.clone()}
+                @test_id={"infinite-canvas.dock.ignore-touch"}
             />
         </BottomDock>
     }
