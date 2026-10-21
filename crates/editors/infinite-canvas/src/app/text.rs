@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasEntityKind, CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign,
+    CanvasEntity, CanvasShape, CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign,
     CanvasTextWeight,
 };
 use block_editor_beui::beui::reactive::*;
@@ -19,8 +19,8 @@ use super::state::{CanvasState, TextEntry};
 
 const PLACEHOLDER_OPACITY: f32 = 0.4;
 
-pub(crate) fn font_px(text_style: CanvasTextStyle, scale: f32) -> f32 {
-    (text_style.font_size * scale).clamp(4.0, 256.0)
+pub(crate) fn font_px(entity: &CanvasEntity, scale: f32) -> f32 {
+    (entity.style.text_size.px() * scale).clamp(4.0, 256.0)
 }
 
 pub(crate) fn prose(text_style: CanvasTextStyle, font_px: f32) -> Prose {
@@ -43,28 +43,23 @@ pub(crate) fn prose(text_style: CanvasTextStyle, font_px: f32) -> Prose {
 }
 
 pub(crate) fn measure(entity: &CanvasEntity, scale: f32) -> Option<Vec2> {
-    let CanvasEntityKind::Text {
-        text,
-        text_style,
-        placeholder,
-    } = &entity.kind
-    else {
+    if entity.shape != CanvasShape::Text {
         return None;
-    };
-    let font_px = font_px(*text_style, scale);
+    }
+    let font_px = font_px(entity, scale);
     let wrap_width = (entity.transform.size.x - TEXT_INSET * 2.0) * scale;
     let measured = unstyled::measure_prose(
-        text,
-        placeholder,
+        &entity.text,
+        &entity.placeholder,
         font_px,
-        prose(*text_style, font_px),
+        prose(entity.text_style, font_px),
         wrap_width,
     )?;
     Some(Vec2::new(measured.x / scale, measured.y / scale))
 }
 
 pub(crate) fn shown_live(entity: &CanvasEntity) -> bool {
-    matches!(entity.kind, CanvasEntityKind::Text { .. }) && !entity.style.hidden
+    entity.shape == CanvasShape::Text && !entity.hidden
 }
 
 pub(crate) fn text_box(entity: &CanvasEntity) -> Rect {
@@ -81,6 +76,7 @@ struct Shown {
     text: String,
     placeholder: String,
     text_style: CanvasTextStyle,
+    size: f32,
     color: Color32,
     locked: bool,
 }
@@ -97,21 +93,16 @@ pub(crate) fn EntityText(
     let theme = use_theme();
     let scale = create_memo(move || camera.get().scale.max(f32::EPSILON));
     let shown = create_memo(move || {
-        let entity = entity.get()?;
-        let CanvasEntityKind::Text {
-            text,
-            text_style,
-            placeholder,
-        } = entity.kind
-        else {
-            return None;
-        };
+        let entity = entity
+            .get()
+            .filter(|entity| entity.shape == CanvasShape::Text)?;
         Some(Shown {
-            text,
-            placeholder,
-            text_style,
+            size: font_px(&entity, 1.0),
+            text: entity.text,
+            placeholder: entity.placeholder,
+            text_style: entity.text_style,
             color: with_opacity(
-                resolve_color(entity.style.foreground, theme.text.get()),
+                resolve_color(entity.style.stroke_color, theme.text.get()),
                 entity.style.opacity,
             ),
             locked: entity.locked,
@@ -135,7 +126,10 @@ pub(crate) fn EntityText(
             .get()
             .map_or(Color32::TRANSPARENT, |shown| shown.color)
     });
-    let font_size = create_memo(move || font_px(text_style.get(), scale.get()));
+    let font_size = create_memo(move || {
+        let size = shown.get().map_or(20.0, |shown| shown.size);
+        (size * scale.get()).clamp(4.0, 256.0)
+    });
     let disabled =
         create_memo(move || !editing.get() || shown.get().is_none_or(|shown| shown.locked));
     let padding = create_memo(move || {
@@ -186,23 +180,11 @@ pub(crate) fn EntityText(
         let Some(held) = entity.get_untracked() else {
             return;
         };
-        let CanvasEntityKind::Text {
-            text_style,
-            placeholder,
-            text,
-        } = held.kind.clone()
-        else {
-            return;
-        };
-        if text == typed {
+        if held.shape != CanvasShape::Text || held.text == typed {
             return;
         }
         let mut updated = held.clone();
-        updated.kind = CanvasEntityKind::Text {
-            text: typed,
-            text_style,
-            placeholder,
-        };
+        updated.text = typed;
         let updated = state.fit_text(updated);
         state.record_update(vec![held], vec![updated], true);
     };

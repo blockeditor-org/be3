@@ -1,6 +1,6 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTextAlign,
-    CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform, first_artboard,
+    CanvasArrowhead, CanvasEntity, CanvasPathPoint, CanvasPoint, CanvasShape, CanvasStyle,
+    CanvasTextAlign, CanvasTextStyle, CanvasTextVerticalAlign, CanvasTransform, first_frame,
 };
 use block_editor_beui::beui::{Pos2, Rect, Vec2, pos2};
 use block_editor_beui::block_ui::{
@@ -17,7 +17,7 @@ pub(crate) const HANDLE_REACH: f32 = HANDLE_RADIUS + 3.0;
 pub(crate) const TOUCH_HANDLE_REACH: f32 = 22.0;
 pub(crate) const ROTATE_OFFSET: f32 = 28.0;
 pub(crate) const IMPORT_CASCADE_OFFSET: f32 = 24.0;
-pub(crate) const ARTBOARD_LABEL_HEIGHT: f32 = 20.0;
+pub(crate) const FRAME_LABEL_HEIGHT: f32 = 20.0;
 
 #[derive(Clone, Copy, Debug, PartialEq)]
 pub(crate) struct WorldRect {
@@ -90,17 +90,11 @@ impl SelectionFrame {
     }
 
     pub(crate) fn point(self, local: CanvasPoint) -> CanvasPoint {
-        local_to_world(
-            CanvasTransform::new(self.center, self.size, self.rotation),
-            local,
-        )
+        CanvasTransform::new(self.center, self.size, self.rotation).to_world(local)
     }
 
     pub(crate) fn contains(self, point: CanvasPoint) -> bool {
-        let local = world_to_local(
-            CanvasTransform::new(self.center, self.size, self.rotation),
-            point,
-        );
+        let local = CanvasTransform::new(self.center, self.size, self.rotation).to_local(point);
         local.x.abs() <= 0.5 && local.y.abs() <= 0.5
     }
 
@@ -183,21 +177,29 @@ pub(crate) fn duplicate_entities(
         .collect()
 }
 
-pub(crate) fn entity_kind_label(kind: &CanvasEntityKind) -> &'static str {
-    match kind {
-        CanvasEntityKind::Line => "Line",
-        CanvasEntityKind::Rectangle => "Rectangle",
-        CanvasEntityKind::Text { .. } => "Text",
-        CanvasEntityKind::Pen { .. } => "Freehand",
-        CanvasEntityKind::Block { .. } => "Block preview",
-        CanvasEntityKind::DirectEditor { .. } => "Direct editor",
-        CanvasEntityKind::Artboard { .. } => "Artboard",
+pub(crate) fn entity_kind_label(entity: &CanvasEntity) -> &'static str {
+    match entity.shape {
+        CanvasShape::Rectangle => "Rectangle",
+        CanvasShape::Ellipse => "Ellipse",
+        CanvasShape::Diamond => "Diamond",
+        CanvasShape::Path => match entity.style.end_arrowhead != CanvasArrowhead::None
+            || entity.style.start_arrowhead != CanvasArrowhead::None
+        {
+            true => "Arrow",
+            false => "Line",
+        },
+        CanvasShape::Freehand => "Freehand",
+        CanvasShape::Text => "Text",
+        CanvasShape::Image => "Image",
+        CanvasShape::Block => "Block preview",
+        CanvasShape::Editor => "Direct editor",
+        CanvasShape::Frame => "Frame",
     }
 }
 
 pub(crate) fn embedded_region(entities: &[CanvasEntity]) -> WorldRect {
-    if let Some(artboard) = first_artboard(entities) {
-        return entity_bounds(artboard);
+    if let Some(frame) = first_frame(entities) {
+        return entity_bounds(frame);
     }
     let bounds = entities.iter().map(entity_bounds).reduce(WorldRect::union);
     let (center, size) = bounds.map_or_else(
@@ -215,20 +217,16 @@ pub(crate) fn embedded_region(entities: &[CanvasEntity]) -> WorldRect {
     }
 }
 
-pub(crate) fn artboard_label_hit(entity: &CanvasEntity, point: CanvasPoint, scale: f32) -> bool {
-    if !entity.is_artboard() {
+pub(crate) fn frame_label_hit(entity: &CanvasEntity, point: CanvasPoint, scale: f32) -> bool {
+    if !entity.is_frame() {
         return false;
     }
     let bounds = entity_bounds(entity);
-    let height = ARTBOARD_LABEL_HEIGHT / scale.max(f32::EPSILON);
+    let height = FRAME_LABEL_HEIGHT / scale.max(f32::EPSILON);
     point.x >= bounds.min.x
         && point.x <= bounds.max.x
         && point.y >= bounds.min.y - height
         && point.y <= bounds.min.y
-}
-
-pub(crate) fn midpoint(a: CanvasPoint, b: CanvasPoint) -> CanvasPoint {
-    CanvasPoint::new((a.x + b.x) * 0.5, (a.y + b.y) * 0.5)
 }
 
 pub(crate) fn distance(a: CanvasPoint, b: CanvasPoint) -> f32 {
@@ -240,48 +238,54 @@ pub(crate) fn rotate(point: CanvasPoint, angle: f32) -> CanvasPoint {
     CanvasPoint::new(point.x * cos - point.y * sin, point.x * sin + point.y * cos)
 }
 
-pub(crate) fn local_to_world(transform: CanvasTransform, local: CanvasPoint) -> CanvasPoint {
-    let scaled = CanvasPoint::new(local.x * transform.size.x, local.y * transform.size.y);
-    let rotated = rotate(scaled, transform.rotation);
-    CanvasPoint::new(
-        transform.center.x + rotated.x,
-        transform.center.y + rotated.y,
-    )
+pub(crate) fn path_ends(entity: &CanvasEntity) -> [CanvasPoint; 2] {
+    let world = entity.world_points();
+    match (world.first(), world.last()) {
+        (Some(first), Some(last)) => [first.at(), last.at()],
+        _ => [entity.transform.center; 2],
+    }
 }
 
-pub(crate) fn world_to_local(transform: CanvasTransform, world: CanvasPoint) -> CanvasPoint {
-    let relative = CanvasPoint::new(world.x - transform.center.x, world.y - transform.center.y);
-    let rotated = rotate(relative, -transform.rotation);
-    CanvasPoint::new(
-        rotated.x / transform.size.x.max(0.001),
-        rotated.y / transform.size.y.max(0.001),
-    )
-}
-
-pub(crate) fn line_ends(entity: &CanvasEntity) -> [CanvasPoint; 2] {
-    [
-        local_to_world(entity.transform, CanvasPoint::new(-0.5, 0.0)),
-        local_to_world(entity.transform, CanvasPoint::new(0.5, 0.0)),
-    ]
-}
-
-pub(crate) fn line_through(
-    mut entity: CanvasEntity,
-    start: CanvasPoint,
-    end: CanvasPoint,
-) -> CanvasEntity {
-    let delta = CanvasPoint::new(end.x - start.x, end.y - start.y);
-    let rotation = match delta.x == 0.0 && delta.y == 0.0 {
-        true => entity.transform.rotation,
-        false => delta.y.atan2(delta.x),
+pub(crate) fn with_end(mut entity: CanvasEntity, end: usize, at: CanvasPoint) -> CanvasEntity {
+    let mut world = entity.world_points();
+    let index = match end {
+        0 => 0,
+        _ => world.len().saturating_sub(1),
     };
-    entity.transform = CanvasTransform::new(
-        midpoint(start, end),
-        CanvasPoint::new(distance(start, end), entity.transform.size.y),
-        rotation,
-    );
+    if let Some(point) = world.get_mut(index) {
+        let shift = CanvasPoint::new(at.x - point.x, at.y - point.y);
+        *point = point.map(|held| CanvasPoint::new(held.x + shift.x, held.y + shift.y));
+    }
+    entity.set_world_points(world);
     entity
 }
+
+pub(crate) fn flattened(world: &[CanvasPathPoint]) -> Vec<CanvasPoint> {
+    let mut out: Vec<CanvasPoint> = world.first().map(|first| first.at()).into_iter().collect();
+    for pair in world.windows(2) {
+        let (from, to) = (pair[0], pair[1]);
+        if from.handle_out.is_none() && to.handle_in.is_none() {
+            out.push(to.at());
+            continue;
+        }
+        let a = from.at();
+        let b = from.handle_out.unwrap_or(a);
+        let d = to.at();
+        let c = to.handle_in.unwrap_or(d);
+        for step in 1..=CURVE_STEPS {
+            let t = step as f32 / CURVE_STEPS as f32;
+            let u = 1.0 - t;
+            let weights = [u * u * u, 3.0 * u * u * t, 3.0 * u * t * t, t * t * t];
+            out.push(CanvasPoint::new(
+                weights[0] * a.x + weights[1] * b.x + weights[2] * c.x + weights[3] * d.x,
+                weights[0] * a.y + weights[1] * b.y + weights[2] * c.y + weights[3] * d.y,
+            ));
+        }
+    }
+    out
+}
+
+const CURVE_STEPS: usize = 16;
 
 pub(crate) fn line_end_at(
     ends: [CanvasPoint; 2],
@@ -299,32 +303,28 @@ pub(crate) fn line_end_at(
 
 pub(crate) fn entity_corners(entity: &CanvasEntity) -> [CanvasPoint; 4] {
     [
-        local_to_world(entity.transform, CanvasPoint::new(-0.5, -0.5)),
-        local_to_world(entity.transform, CanvasPoint::new(0.5, -0.5)),
-        local_to_world(entity.transform, CanvasPoint::new(0.5, 0.5)),
-        local_to_world(entity.transform, CanvasPoint::new(-0.5, 0.5)),
+        entity.transform.to_world(CanvasPoint::new(-0.5, -0.5)),
+        entity.transform.to_world(CanvasPoint::new(0.5, -0.5)),
+        entity.transform.to_world(CanvasPoint::new(0.5, 0.5)),
+        entity.transform.to_world(CanvasPoint::new(-0.5, 0.5)),
     ]
 }
 
 pub(crate) fn entity_bounds(entity: &CanvasEntity) -> WorldRect {
-    match &entity.kind {
-        CanvasEntityKind::Line => {
-            let start = local_to_world(entity.transform, CanvasPoint::new(-0.5, 0.0));
-            let end = local_to_world(entity.transform, CanvasPoint::new(0.5, 0.0));
-            WorldRect::from_points(start, end)
-        }
-        CanvasEntityKind::Pen { points, .. } if !points.is_empty() => points
+    let points: Vec<CanvasPoint> = match entity.shape.has_points() && !entity.points.is_empty() {
+        true => entity
+            .world_points()
             .iter()
-            .map(|point| local_to_world(entity.transform, *point))
-            .map(|point| WorldRect::from_points(point, point))
-            .reduce(WorldRect::union)
-            .unwrap(),
-        _ => entity_corners(entity)
-            .into_iter()
-            .map(|point| WorldRect::from_points(point, point))
-            .reduce(WorldRect::union)
-            .unwrap(),
-    }
+            .flat_map(|point| [Some(point.at()), point.handle_in, point.handle_out])
+            .flatten()
+            .collect(),
+        false => entity_corners(entity).to_vec(),
+    };
+    points
+        .into_iter()
+        .map(|point| WorldRect::from_points(point, point))
+        .reduce(WorldRect::union)
+        .unwrap()
 }
 
 pub(crate) fn direct_editor_entity_size(intrinsic: Vec2, scale: f32) -> CanvasPoint {
@@ -339,7 +339,8 @@ pub(crate) fn direct_editor_to_preview(
     let content = direct_editor_layout(entity)?.content;
     let content_size = content.size();
     let mut preview = entity.clone();
-    preview.kind = CanvasEntityKind::Block { block_id };
+    preview.shape = CanvasShape::Block;
+    preview.block = Some(block_id);
     preview.transform.center = content.center();
     preview.transform.size =
         CanvasPoint::new(content_size.x.max(MIN_SIZE), content_size.y.max(MIN_SIZE));
@@ -358,7 +359,9 @@ pub(crate) fn preview_to_direct_editor(
         .min(content_size.y / intrinsic.y)
         .max(f32::EPSILON);
     let mut direct = entity.clone();
-    direct.kind = CanvasEntityKind::DirectEditor { block_id, scale };
+    direct.shape = CanvasShape::Editor;
+    direct.block = Some(block_id);
+    direct.scale = scale;
     direct.transform.center = CanvasPoint::new(
         content.center().x,
         content.center().y
@@ -371,9 +374,10 @@ pub(crate) fn preview_to_direct_editor(
 }
 
 pub(crate) fn direct_editor_layout(entity: &CanvasEntity) -> Option<DirectEditorLayout> {
-    let CanvasEntityKind::DirectEditor { scale, .. } = entity.kind else {
+    if entity.shape != CanvasShape::Editor {
         return None;
-    };
+    }
+    let scale = entity.scale;
     let bounds = entity_bounds(entity);
     let padding = EMBEDDED_EDITOR_PADDING * scale;
     let title_height = EMBEDDED_EDITOR_TITLE_HEIGHT * scale;
@@ -397,41 +401,73 @@ pub(crate) fn direct_editor_layout(entity: &CanvasEntity) -> Option<DirectEditor
 }
 
 pub(crate) fn hit_entity(entity: &CanvasEntity, point: CanvasPoint, radius: f32) -> bool {
-    match &entity.kind {
-        CanvasEntityKind::Line => {
-            let a = local_to_world(entity.transform, CanvasPoint::new(-0.5, 0.0));
-            let b = local_to_world(entity.transform, CanvasPoint::new(0.5, 0.0));
-            point_segment_distance(point, a, b) <= radius
+    let reach = radius + entity.style.stroke_width.max(0.0) * 0.5;
+    match entity.shape {
+        CanvasShape::Path | CanvasShape::Freehand => {
+            let line = flattened(&entity.world_points());
+            match line.as_slice() {
+                [] => false,
+                [dot] => distance(point, *dot) <= reach,
+                _ => line
+                    .windows(2)
+                    .any(|segment| point_segment_distance(point, segment[0], segment[1]) <= reach),
+            }
         }
-        CanvasEntityKind::Pen { points, .. } => match points.as_slice() {
-            [dot] => distance(point, local_to_world(entity.transform, *dot)) <= radius,
-            _ => points.windows(2).any(|segment| {
-                point_segment_distance(
-                    point,
-                    local_to_world(entity.transform, segment[0]),
-                    local_to_world(entity.transform, segment[1]),
-                ) <= radius
-            }),
-        },
-        CanvasEntityKind::Rectangle | CanvasEntityKind::Artboard { .. }
-            if entity.style.fill.is_none() || entity.is_artboard() =>
+        CanvasShape::Rectangle
+        | CanvasShape::Ellipse
+        | CanvasShape::Diamond
+        | CanvasShape::Frame
+            if entity.style.filled().is_none() || entity.is_frame() =>
         {
-            let local = world_to_local(entity.transform, point);
-            let hit_radius = radius + entity.style.line_width * 0.5;
-            let x_radius = hit_radius / entity.transform.size.x.max(MIN_SIZE);
-            let y_radius = hit_radius / entity.transform.size.y.max(MIN_SIZE);
-            let near_vertical_edge =
-                (local.x.abs() - 0.5).abs() <= x_radius && local.y.abs() <= 0.5 + y_radius;
-            let near_horizontal_edge =
-                (local.y.abs() - 0.5).abs() <= y_radius && local.x.abs() <= 0.5 + x_radius;
-            near_vertical_edge || near_horizontal_edge
+            let outline = outline_points(entity);
+            outline
+                .iter()
+                .zip(outline.iter().cycle().skip(1))
+                .any(|(a, b)| point_segment_distance(point, *a, *b) <= reach)
+        }
+        CanvasShape::Ellipse | CanvasShape::Diamond => {
+            let local = entity.transform.to_local(point);
+            let grown = CanvasPoint::new(
+                local.x * entity.transform.size.x / (entity.transform.size.x + radius * 2.0),
+                local.y * entity.transform.size.y / (entity.transform.size.y + radius * 2.0),
+            );
+            entity.shape.contains_local(grown)
         }
         _ => {
-            let local = world_to_local(entity.transform, point);
+            let local = entity.transform.to_local(point);
             local.x.abs() <= 0.5 + radius / entity.transform.size.x.max(MIN_SIZE)
                 && local.y.abs() <= 0.5 + radius / entity.transform.size.y.max(MIN_SIZE)
         }
     }
+}
+
+pub(crate) const ELLIPSE_STEPS: usize = 64;
+
+pub(crate) fn outline_points(entity: &CanvasEntity) -> Vec<CanvasPoint> {
+    let local: Vec<CanvasPoint> = match entity.shape {
+        CanvasShape::Ellipse => (0..ELLIPSE_STEPS)
+            .map(|step| {
+                let angle = step as f32 / ELLIPSE_STEPS as f32 * std::f32::consts::TAU;
+                CanvasPoint::new(angle.cos() * 0.5, angle.sin() * 0.5)
+            })
+            .collect(),
+        CanvasShape::Diamond => vec![
+            CanvasPoint::new(0.0, -0.5),
+            CanvasPoint::new(0.5, 0.0),
+            CanvasPoint::new(0.0, 0.5),
+            CanvasPoint::new(-0.5, 0.0),
+        ],
+        _ => vec![
+            CanvasPoint::new(-0.5, -0.5),
+            CanvasPoint::new(0.5, -0.5),
+            CanvasPoint::new(0.5, 0.5),
+            CanvasPoint::new(-0.5, 0.5),
+        ],
+    };
+    local
+        .into_iter()
+        .map(|point| entity.transform.to_world(point))
+        .collect()
 }
 
 pub(crate) fn point_segment_distance(point: CanvasPoint, a: CanvasPoint, b: CanvasPoint) -> f32 {
@@ -637,35 +673,6 @@ pub(crate) fn resize_entities_axis(
         .iter()
         .cloned()
         .map(|mut entity| {
-            if matches!(entity.kind, CanvasEntityKind::Line) {
-                let start = local_to_world(entity.transform, CanvasPoint::new(-0.5, 0.0));
-                let end = local_to_world(entity.transform, CanvasPoint::new(0.5, 0.0));
-                let resize_point = |point: CanvasPoint| {
-                    CanvasPoint::new(
-                        if handle.x == 0 && !preserve_aspect_ratio {
-                            point.x
-                        } else {
-                            resized.min.x
-                                + (point.x - bounds.min.x) / original_size.x.max(MIN_SIZE)
-                                    * resized_size.x
-                        },
-                        if handle.y == 0 && !preserve_aspect_ratio {
-                            point.y
-                        } else {
-                            resized.min.y
-                                + (point.y - bounds.min.y) / original_size.y.max(MIN_SIZE)
-                                    * resized_size.y
-                        },
-                    )
-                };
-                let start = resize_point(start);
-                let end = resize_point(end);
-                let delta = CanvasPoint::new(end.x - start.x, end.y - start.y);
-                entity.transform.center = midpoint(start, end);
-                entity.transform.size.x = distance(start, end).max(MIN_SIZE);
-                entity.transform.rotation = delta.y.atan2(delta.x);
-                return entity;
-            }
             let unit_x = (entity.transform.center.x - bounds.min.x) / original_size.x.max(MIN_SIZE);
             let unit_y = (entity.transform.center.y - bounds.min.y) / original_size.y.max(MIN_SIZE);
             entity.transform.center = CanvasPoint::new(
@@ -682,18 +689,15 @@ pub(crate) fn resize_entities_axis(
             );
             entity.transform.size.x = (entity.transform.size.x * scale_x).max(MIN_SIZE);
             entity.transform.size.y = (entity.transform.size.y * scale_y).max(MIN_SIZE);
-            if let CanvasEntityKind::DirectEditor { scale, .. } = &mut entity.kind
-                && scale_editors
-            {
-                let factor = if handle.x == 0 { scale_y } else { scale_x };
-                *scale = (*scale * factor).max(f32::EPSILON);
+            let factor = if handle.x == 0 { scale_y } else { scale_x };
+            if entity.shape == CanvasShape::Editor && scale_editors {
+                entity.scale = (entity.scale * factor).max(f32::EPSILON);
             }
-            if let CanvasEntityKind::Text { text_style, .. } = &mut entity.kind {
+            if entity.shape == CanvasShape::Text {
                 if scale_text {
-                    let factor = if handle.x == 0 { scale_y } else { scale_x };
-                    text_style.font_size = (text_style.font_size * factor).max(4.0);
+                    entity.style.text_size = entity.style.text_size.scaled(factor);
                 } else {
-                    text_style.wrap = true;
+                    entity.text_style.wrap = true;
                 }
             }
             entity
@@ -754,33 +758,23 @@ pub(crate) fn pressed_width(width: f32, pressure: f32) -> f32 {
 pub(crate) fn pen_entity(
     points: Vec<CanvasPoint>,
     pressures: Vec<f32>,
-    style: CanvasEntityStyle,
+    style: CanvasStyle,
 ) -> CanvasEntity {
-    let bounds = points
-        .iter()
-        .copied()
-        .map(|point| WorldRect::from_points(point, point))
-        .reduce(WorldRect::union)
-        .unwrap();
-    let center = bounds.center();
-    let size = CanvasPoint::new(bounds.size().x.max(MIN_SIZE), bounds.size().y.max(MIN_SIZE));
-    let points = points
-        .into_iter()
-        .map(|point| CanvasPoint::new((point.x - center.x) / size.x, (point.y - center.y) / size.y))
-        .collect();
-    CanvasEntity {
-        id: Uuid::new_v4(),
-        transform: CanvasTransform::new(center, size, 0.0),
-        kind: CanvasEntityKind::Pen { points, pressures },
-        style,
-        group_id: None,
-        locked: false,
-        components: Vec::new(),
-    }
+    let mut entity = CanvasEntity::new(CanvasShape::Freehand, CanvasTransform::default());
+    entity.style = CanvasStyle {
+        seed: entity.style.seed,
+        ..style
+    };
+    entity.set_world_points(points.into_iter().map(CanvasPathPoint::new).collect());
+    entity.pressures = pressures;
+    entity
 }
 
-pub(crate) fn text_box_size(text_style: &CanvasTextStyle, measured: Vec2) -> CanvasPoint {
-    let font_size = text_style.font_size.clamp(4.0, 256.0);
+pub(crate) fn text_box_size(
+    text_style: &CanvasTextStyle,
+    font_size: f32,
+    measured: Vec2,
+) -> CanvasPoint {
     CanvasPoint::new(
         (measured.x + 2.0 * TEXT_INSET).max(16.0),
         (measured.y + 2.0 * TEXT_INSET).max(font_size * text_style.line_height),

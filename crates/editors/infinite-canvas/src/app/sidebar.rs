@@ -1,6 +1,7 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasColor, CanvasEntity, CanvasEntityKind, CanvasLayerMove, CanvasTextAlign,
-    CanvasTextVerticalAlign, CanvasTextWeight,
+    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasFill, CanvasLayerMove, CanvasShape,
+    CanvasStrokeStyle, CanvasStyle, CanvasTextAlign, CanvasTextSize, CanvasTextVerticalAlign,
+    CanvasTextWeight,
 };
 use block_editor_beui::beui::Color32;
 use block_editor_beui::beui::NodeId;
@@ -97,7 +98,7 @@ fn Inspector(state: CanvasState) -> NodeId {
         state
             .selected_entities()
             .iter()
-            .any(|entity| !entity.is_artboard())
+            .any(|entity| !entity.is_frame())
     });
     view! {
         <List spacing=SPACING>
@@ -114,7 +115,7 @@ fn Inspector(state: CanvasState) -> NodeId {
                     </Show>
                     <TransformSection state={state} />
                     <ArrangeSection state={state} />
-                    <ArtboardSection state={state} />
+                    <FrameSection state={state} />
                     <BlockSection state={state} />
                     <CanvasComponents state={state} />
                 </List>
@@ -131,53 +132,50 @@ fn Inspector(state: CanvasState) -> NodeId {
 }
 
 #[component]
-fn ArtboardSection(state: CanvasState) -> NodeId {
+fn FrameSection(state: CanvasState) -> NodeId {
     let open = create_signal(true);
-    let artboard = create_memo(move || {
+    let frame = create_memo(move || {
         let selected = state.selected_entities();
         let [entity] = selected.as_slice() else {
             return None;
         };
-        entity.is_artboard().then(|| entity.clone())
+        entity.is_frame().then(|| entity.clone())
     });
-    let shown = create_memo(move || artboard.get().is_some());
-    let name = create_memo(move || match artboard.get().map(|entity| entity.kind) {
-        Some(CanvasEntityKind::Artboard { name }) => name,
-        _ => String::new(),
-    });
-    let locked = create_memo(move || artboard.get().is_none_or(|entity| entity.locked));
+    let shown = create_memo(move || frame.get().is_some());
+    let name = create_memo(move || frame.get().map(|entity| entity.text).unwrap_or_default());
+    let locked = create_memo(move || frame.get().is_none_or(|entity| entity.locked));
     let first = create_memo(move || {
-        artboard.get().is_some_and(|entity| {
+        frame.get().is_some_and(|entity| {
             state
-                .first_artboard()
+                .first_frame()
                 .is_some_and(|first| first.id == entity.id)
         })
     });
     let renamed = move |name: String| {
-        let Some(held) = artboard.get_untracked() else {
+        let Some(held) = frame.get_untracked() else {
             return;
         };
         let mut updated = held.clone();
-        updated.kind = CanvasEntityKind::Artboard { name };
+        updated.text = name;
         state.record_update(vec![held], vec![updated], true);
     };
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
-                <Accordion title="Artboard" open={open}>
+                <Accordion title="Frame" open={open}>
                     <List spacing=6.0>
                         <TextInput
                             label="Name"
                             value={Binding::new(name, renamed)}
                             disabled={locked}
-                            @test_id={"infinite-canvas.artboard.name"}
+                            @test_id={"infinite-canvas.frame.name"}
                         />
                         <Show condition={first}>
                             <Text style=TextStyle::CAPTION wrap=true>
-                                "The first artboard is what other editors show when they embed this canvas."
+                                "The first frame is what other editors show when they embed this canvas."
                             </Text>
                         </Show>
-                        <ArtboardBackground artboard={artboard} locked={locked} state={state} />
+                        <FrameBackground frame={frame} locked={locked} state={state} />
                     </List>
                 </Accordion>
             </Show>
@@ -207,12 +205,12 @@ const BACKGROUNDS: [(&str, CanvasColor); 2] = [
 ];
 
 #[component]
-fn ArtboardBackground(
+fn FrameBackground(
     state: CanvasState,
-    artboard: Memo<Option<CanvasEntity>>,
+    frame: Memo<Option<CanvasEntity>>,
     locked: Memo<bool>,
 ) -> NodeId {
-    let fill = create_memo(move || artboard.get().and_then(|entity| entity.style.fill));
+    let fill = create_memo(move || frame.get().and_then(|entity| entity.style.filled()));
     let theme = use_theme();
     let custom =
         create_memo(move || resolve_color(fill.get().unwrap_or_default(), theme.background.get()));
@@ -222,11 +220,11 @@ fn ArtboardBackground(
         None => CommonValue::None,
     });
     let set = move |fill: Option<CanvasColor>| {
-        let Some(held) = artboard.get_untracked().filter(|entity| !entity.locked) else {
+        let Some(held) = frame.get_untracked().filter(|entity| !entity.locked) else {
             return;
         };
         let mut updated = held.clone();
-        updated.style.fill = fill;
+        filled(&mut updated.style, fill);
         state.record_update(vec![held], vec![updated], true);
     };
     let typed = move |color: Color32| {
@@ -285,7 +283,7 @@ fn SelectionSummary(state: CanvasState) -> NodeId {
         match selected.as_slice() {
             [entity] => format!(
                 "{} selected{}",
-                entity_kind_label(&entity.kind),
+                entity_kind_label(entity),
                 match entity.locked {
                     true => " · Locked",
                     false => "",
@@ -453,17 +451,13 @@ fn BlockSection(state: CanvasState) -> NodeId {
         let [entity] = selected.as_slice() else {
             return None;
         };
-        matches!(
-            entity.kind,
-            CanvasEntityKind::Block { .. } | CanvasEntityKind::DirectEditor { .. }
-        )
-        .then(|| entity.clone())
+        matches!(entity.shape, CanvasShape::Block | CanvasShape::Editor).then(|| entity.clone())
     });
     let shown = create_memo(move || entity.get().is_some());
     let direct = create_memo(move || {
         entity
             .get()
-            .is_some_and(|entity| matches!(entity.kind, CanvasEntityKind::DirectEditor { .. }))
+            .is_some_and(|entity| entity.shape == CanvasShape::Editor)
     });
     let label = create_memo(move || match direct.get() {
         true => "Show preview only".to_owned(),
@@ -502,27 +496,21 @@ fn BlockSection(state: CanvasState) -> NodeId {
 fn EditorScale(state: CanvasState) -> NodeId {
     let entity = create_memo(move || state.selected_entities().pop());
     let scale = create_memo(move || match entity.get() {
-        Some(entity) => match entity.kind {
-            CanvasEntityKind::DirectEditor { scale, .. } => scale as f64 * 100.0,
-            _ => 100.0,
-        },
-        None => 100.0,
+        Some(entity) if entity.shape == CanvasShape::Editor => entity.scale as f64 * 100.0,
+        _ => 100.0,
     });
     let locked = create_memo(move || entity.get().is_none_or(|entity| entity.locked));
     let changed = move |value: f64| {
         let Some(held) = entity.get_untracked() else {
             return;
         };
-        let CanvasEntityKind::DirectEditor { block_id, scale } = held.kind else {
+        if held.shape != CanvasShape::Editor {
             return;
-        };
+        }
         let wanted = ((value / 100.0) as f32).clamp(0.1, 8.0);
-        let factor = wanted / scale.max(f32::EPSILON);
+        let factor = wanted / held.scale.max(f32::EPSILON);
         let mut updated = held.clone();
-        updated.kind = CanvasEntityKind::DirectEditor {
-            block_id,
-            scale: wanted,
-        };
+        updated.scale = wanted;
         updated.transform.size.x *= factor;
         updated.transform.size.y *= factor;
         state.record_update(vec![held], vec![updated], true);
@@ -677,15 +665,40 @@ pub(crate) fn styled_entities(state: CanvasState) -> Vec<CanvasEntity> {
     state
         .selected_entities()
         .into_iter()
-        .filter(|entity| {
-            !matches!(
-                entity.kind,
-                CanvasEntityKind::Block { .. }
-                    | CanvasEntityKind::DirectEditor { .. }
-                    | CanvasEntityKind::Artboard { .. }
-            )
-        })
+        .filter(colored)
         .collect()
+}
+
+fn colored(entity: &CanvasEntity) -> bool {
+    !entity.shape.embeds_block() && !entity.is_frame()
+}
+
+fn stroked(entity: &CanvasEntity) -> bool {
+    matches!(
+        entity.shape,
+        CanvasShape::Path
+            | CanvasShape::Rectangle
+            | CanvasShape::Ellipse
+            | CanvasShape::Diamond
+            | CanvasShape::Freehand
+    )
+}
+
+fn closed(entity: &CanvasEntity) -> bool {
+    matches!(
+        entity.shape,
+        CanvasShape::Rectangle | CanvasShape::Ellipse | CanvasShape::Diamond
+    )
+}
+
+fn filled(style: &mut CanvasStyle, fill: Option<CanvasColor>) {
+    match fill {
+        Some(color) => {
+            style.fill = CanvasFill::Solid;
+            style.fill_color = color;
+        }
+        None => style.fill = CanvasFill::None,
+    }
 }
 
 #[component]
@@ -694,7 +707,7 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
         common_value(
             styled_entities(state)
                 .iter()
-                .map(|entity| entity.style.foreground),
+                .map(|entity| entity.style.stroke_color),
         )
     });
     let shown = create_memo(move || !value.get().absent());
@@ -729,17 +742,7 @@ fn ForegroundRow(state: CanvasState) -> NodeId {
 
 pub(crate) fn set_foreground(state: CanvasState, color: CanvasColor) {
     state.remember_foreground(color);
-    state.update_selected(
-        |kind| {
-            !matches!(
-                kind,
-                CanvasEntityKind::Block { .. }
-                    | CanvasEntityKind::DirectEditor { .. }
-                    | CanvasEntityKind::Artboard { .. }
-            )
-        },
-        |style| style.foreground = color,
-    );
+    state.update_selected(colored, |style| style.stroke_color = color);
 }
 
 #[component]
@@ -749,32 +752,15 @@ fn LineWidthRow(state: CanvasState) -> NodeId {
             state
                 .selected_entities()
                 .iter()
-                .filter(|entity| {
-                    matches!(
-                        entity.kind,
-                        CanvasEntityKind::Line
-                            | CanvasEntityKind::Rectangle
-                            | CanvasEntityKind::Pen { .. }
-                    )
-                })
-                .map(|entity| entity.style.line_width),
+                .filter(|entity| stroked(entity))
+                .map(|entity| entity.style.stroke_width),
         )
     });
     let shown = create_memo(move || !value.get().absent());
     let mixed = create_memo(move || value.get().mixed());
     let width = create_memo(move || value.get().or(2.0));
     let changed = move |width: f32| {
-        state.update_selected(
-            |kind| {
-                matches!(
-                    kind,
-                    CanvasEntityKind::Line
-                        | CanvasEntityKind::Rectangle
-                        | CanvasEntityKind::Pen { .. }
-                )
-            },
-            |style| style.line_width = width,
-        );
+        state.update_selected(stroked, |style| style.stroke_width = width);
     };
     view! {
         <List spacing=0.0>
@@ -813,7 +799,7 @@ fn LineOptions(state: CanvasState) -> NodeId {
         state
             .selected_entities()
             .into_iter()
-            .filter(|entity| matches!(entity.kind, CanvasEntityKind::Line))
+            .filter(|entity| entity.shape == CanvasShape::Path)
             .collect::<Vec<_>>()
     });
     let shown = create_memo(move || !lines.with(Vec::is_empty));
@@ -823,21 +809,47 @@ fn LineOptions(state: CanvasState) -> NodeId {
                 .or(false)
         })
     };
-    let dashed = flag(lines, |entity| entity.style.dashed);
-    let start = flag(lines, |entity| entity.style.arrow_start);
-    let end = flag(lines, |entity| entity.style.arrow_end);
-    let set = |state: CanvasState,
-               apply: fn(&mut block_editor_beui::be_block::canvas::CanvasEntityStyle, bool),
-               value: bool| {
+    let dashed = flag(lines, |entity| {
+        entity.style.stroke_style == CanvasStrokeStyle::Dashed
+    });
+    let start = flag(lines, |entity| {
+        entity.style.start_arrowhead != CanvasArrowhead::None
+    });
+    let end = flag(lines, |entity| {
+        entity.style.end_arrowhead != CanvasArrowhead::None
+    });
+    let set = |state: CanvasState, apply: fn(&mut CanvasStyle, bool), value: bool| {
         state.update_selected(
-            |kind| matches!(kind, CanvasEntityKind::Line),
+            |entity| entity.shape == CanvasShape::Path,
             move |style| apply(style, value),
         );
     };
-    let dash = move |value: bool| set(state, |style, value| style.dashed = value, value);
-    let arrow_start =
-        move |value: bool| set(state, |style, value| style.arrow_start = value, value);
-    let arrow_end = move |value: bool| set(state, |style, value| style.arrow_end = value, value);
+    let dash = move |value: bool| {
+        set(
+            state,
+            |style, value| {
+                style.stroke_style = match value {
+                    true => CanvasStrokeStyle::Dashed,
+                    false => CanvasStrokeStyle::Solid,
+                }
+            },
+            value,
+        )
+    };
+    let arrow_start = move |value: bool| {
+        set(
+            state,
+            |style, value| style.start_arrowhead = arrowhead(value),
+            value,
+        )
+    };
+    let arrow_end = move |value: bool| {
+        set(
+            state,
+            |style, value| style.end_arrowhead = arrowhead(value),
+            value,
+        )
+    };
     view! {
         <List spacing=0.0>
             <Show condition={shown}>
@@ -871,7 +883,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
         state
             .selected_entities()
             .into_iter()
-            .filter(|entity| matches!(entity.kind, CanvasEntityKind::Rectangle))
+            .filter(closed)
             .collect::<Vec<_>>()
     });
     let shown = create_memo(move || !rectangles.with(Vec::is_empty));
@@ -879,7 +891,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
         common_value(rectangles.with(|rectangles| {
             rectangles
                 .iter()
-                .map(|entity| entity.style.fill)
+                .map(|entity| entity.style.filled())
                 .collect::<Vec<_>>()
         }))
     });
@@ -887,6 +899,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
         common_value(rectangles.with(|rectangles| {
             rectangles
                 .iter()
+                .filter(|entity| entity.shape == CanvasShape::Rectangle)
                 .map(|entity| entity.style.corner_radius)
                 .collect::<Vec<f32>>()
         }))
@@ -895,7 +908,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
     let corner = create_memo(move || radius.get().or(0.0));
     let rounded = move |value: f32| {
         state.update_selected(
-            |kind| matches!(kind, CanvasEntityKind::Rectangle),
+            |entity| entity.shape == CanvasShape::Rectangle,
             |style| style.corner_radius = value,
         );
     };
@@ -925,7 +938,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
             <Show condition={shown}>
                 <List spacing=6.0>
                     <Separator />
-                    <Text style=TextStyle::CAPTION>"Rectangle"</Text>
+                    <Text style=TextStyle::CAPTION>"Shape"</Text>
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0 wrap=true>
                         <ToggleButton
                             label="No fill"
@@ -974,10 +987,7 @@ fn RectangleOptions(state: CanvasState) -> NodeId {
 
 fn set_fill(state: CanvasState, fill: Option<CanvasColor>) {
     state.remember_fill(fill);
-    state.update_selected(
-        |kind| matches!(kind, CanvasEntityKind::Rectangle),
-        |style| style.fill = fill,
-    );
+    state.update_selected(closed, |style| filled(style, fill));
 }
 
 #[component]
@@ -1028,27 +1038,22 @@ fn TextOptions(state: CanvasState) -> NodeId {
         state
             .selected_entities()
             .iter()
-            .filter_map(|entity| match &entity.kind {
-                CanvasEntityKind::Text { text_style, .. } => Some(*text_style),
-                _ => None,
-            })
+            .filter(|entity| entity.shape == CanvasShape::Text)
+            .map(|entity| (entity.text_style, entity.style.text_size.px()))
             .collect::<Vec<_>>()
     });
     let shown = create_memo(move || !styles.with(Vec::is_empty));
     let font_size = create_memo(move || {
-        common_value(styles.with(|styles| {
-            styles
-                .iter()
-                .map(|style| style.font_size)
-                .collect::<Vec<f32>>()
-        }))
-        .or(18.0) as f64
+        common_value(
+            styles.with(|styles| styles.iter().map(|(_, size)| *size).collect::<Vec<f32>>()),
+        )
+        .or(CanvasTextSize::default().px()) as f64
     });
     let line_height = create_memo(move || {
         common_value(styles.with(|styles| {
             styles
                 .iter()
-                .map(|style| style.line_height)
+                .map(|(style, _)| style.line_height)
                 .collect::<Vec<f32>>()
         }))
         .or(1.2) as f64
@@ -1057,22 +1062,25 @@ fn TextOptions(state: CanvasState) -> NodeId {
         common_value(styles.with(|styles| {
             styles
                 .iter()
-                .map(|style| style.weight == CanvasTextWeight::Bold)
+                .map(|(style, _)| style.weight == CanvasTextWeight::Bold)
                 .collect::<Vec<bool>>()
         }))
         .or(false)
     });
     let wrap = create_memo(move || {
-        common_value(
-            styles.with(|styles| styles.iter().map(|style| style.wrap).collect::<Vec<bool>>()),
-        )
+        common_value(styles.with(|styles| {
+            styles
+                .iter()
+                .map(|(style, _)| style.wrap)
+                .collect::<Vec<bool>>()
+        }))
         .or(false)
     });
     let alignment = create_memo(move || {
         common_value(styles.with(|styles| {
             styles
                 .iter()
-                .map(|style| style.alignment)
+                .map(|(style, _)| style.alignment)
                 .collect::<Vec<CanvasTextAlign>>()
         }))
     });
@@ -1080,20 +1088,20 @@ fn TextOptions(state: CanvasState) -> NodeId {
         common_value(styles.with(|styles| {
             styles
                 .iter()
-                .map(|style| style.vertical_alignment)
+                .map(|(style, _)| style.vertical_alignment)
                 .collect::<Vec<CanvasTextVerticalAlign>>()
         }))
     });
     let sized = move |value: f64| {
         let size = (value as f32).clamp(4.0, 256.0);
-        state.update_selected_text(move |style| style.font_size = size);
+        state.update_selected_text(move |_, style| style.text_size = CanvasTextSize::Custom(size));
     };
     let spaced = move |value: f64| {
         let height = (value as f32).clamp(0.5, 4.0);
-        state.update_selected_text(move |style| style.line_height = height);
+        state.update_selected_text(move |style, _| style.line_height = height);
     };
     let weighted = move |bold: bool| {
-        state.update_selected_text(move |style| {
+        state.update_selected_text(move |style, _| {
             style.weight = match bold {
                 true => CanvasTextWeight::Bold,
                 false => CanvasTextWeight::Regular,
@@ -1101,7 +1109,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
         });
     };
     let wrapped = move |wrap: bool| {
-        state.update_selected_text(move |style| style.wrap = wrap);
+        state.update_selected_text(move |style, _| style.wrap = wrap);
     };
     view! {
         <List spacing=0.0>
@@ -1151,7 +1159,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                                 <ToggleButton
                                     label={label}
                                     pressed={Binding::new(pressed, move |_: bool| {
-                                        state.update_selected_text(move |style| {
+                                        state.update_selected_text(move |style, _| {
                                             style.alignment = wanted;
                                         });
                                     })}
@@ -1172,7 +1180,7 @@ fn TextOptions(state: CanvasState) -> NodeId {
                                 <ToggleButton
                                     label={label}
                                     pressed={Binding::new(pressed, move |_: bool| {
-                                        state.update_selected_text(move |style| {
+                                        state.update_selected_text(move |style, _| {
                                             style.vertical_alignment = wanted;
                                         });
                                     })}
@@ -1222,5 +1230,12 @@ fn ShortcutsSection() -> NodeId {
                 }</ForEach>
             </List>
         </Accordion>
+    }
+}
+
+fn arrowhead(shown: bool) -> CanvasArrowhead {
+    match shown {
+        true => CanvasArrowhead::Arrow,
+        false => CanvasArrowhead::None,
     }
 }

@@ -1,4 +1,4 @@
-use std::collections::{BTreeMap, HashSet};
+use std::collections::{BTreeMap, HashMap, HashSet};
 
 use be_model::{Anchor, BlockRef, Change, Document, Edit, List, Map, Model, ObjectId};
 use serde::{Deserialize, Serialize};
@@ -6,6 +6,8 @@ use uuid::Uuid;
 
 use crate::database::DatabaseValue;
 use crate::{ChildChange, Root};
+
+pub const BINDING_GAP: f32 = 4.0;
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
@@ -20,7 +22,8 @@ impl CanvasPoint {
     }
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
 pub struct CanvasTransform {
     pub center: CanvasPoint,
     pub size: CanvasPoint,
@@ -35,41 +38,124 @@ impl CanvasTransform {
             rotation,
         }
     }
+
+    pub fn to_world(self, local: CanvasPoint) -> CanvasPoint {
+        let scaled = CanvasPoint::new(local.x * self.size.x, local.y * self.size.y);
+        let turned = rotated(scaled, self.rotation);
+        CanvasPoint::new(self.center.x + turned.x, self.center.y + turned.y)
+    }
+
+    pub fn to_local(self, world: CanvasPoint) -> CanvasPoint {
+        let relative = CanvasPoint::new(world.x - self.center.x, world.y - self.center.y);
+        let turned = rotated(relative, -self.rotation);
+        CanvasPoint::new(
+            turned.x / self.size.x.max(0.001),
+            turned.y / self.size.y.max(0.001),
+        )
+    }
 }
 
-#[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
+fn rotated(point: CanvasPoint, angle: f32) -> CanvasPoint {
+    let (sin, cos) = angle.sin_cos();
+    CanvasPoint::new(point.x * cos - point.y * sin, point.x * sin + point.y * cos)
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub enum CanvasEntityKind {
-    Line,
+pub enum CanvasShape {
+    #[default]
     Rectangle,
-    Text {
-        #[serde(default)]
-        text: String,
-        #[serde(default)]
-        text_style: CanvasTextStyle,
-        #[serde(default)]
-        placeholder: String,
-    },
-    Pen {
-        #[serde(default)]
-        points: Vec<CanvasPoint>,
-        #[serde(default)]
-        pressures: Vec<f32>,
-    },
-    Block {
-        #[serde(with = "be_model::references::block_ref")]
-        block_id: Uuid,
-    },
-    DirectEditor {
-        #[serde(with = "be_model::references::block_ref")]
-        block_id: Uuid,
-        #[serde(default = "one")]
-        scale: f32,
-    },
-    Artboard {
-        #[serde(default)]
-        name: String,
-    },
+    Ellipse,
+    Diamond,
+    Path,
+    Freehand,
+    Text,
+    Image,
+    Block,
+    Editor,
+    Frame,
+}
+
+impl CanvasShape {
+    pub fn embeds_block(self) -> bool {
+        matches!(self, Self::Image | Self::Block | Self::Editor)
+    }
+
+    pub fn has_points(self) -> bool {
+        matches!(self, Self::Path | Self::Freehand)
+    }
+
+    pub fn bindable(self) -> bool {
+        matches!(
+            self,
+            Self::Rectangle
+                | Self::Ellipse
+                | Self::Diamond
+                | Self::Text
+                | Self::Image
+                | Self::Block
+                | Self::Editor
+        )
+    }
+
+    pub fn contains_local(self, local: CanvasPoint) -> bool {
+        match self {
+            Self::Ellipse => (local.x * 2.0).powi(2) + (local.y * 2.0).powi(2) <= 1.0,
+            Self::Diamond => local.x.abs() + local.y.abs() <= 0.5,
+            _ => local.x.abs() <= 0.5 && local.y.abs() <= 0.5,
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
+pub struct CanvasPathPoint {
+    pub x: f32,
+    pub y: f32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub handle_in: Option<CanvasPoint>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub handle_out: Option<CanvasPoint>,
+}
+
+impl CanvasPathPoint {
+    pub const fn new(at: CanvasPoint) -> Self {
+        Self {
+            x: at.x,
+            y: at.y,
+            handle_in: None,
+            handle_out: None,
+        }
+    }
+
+    pub const fn at(self) -> CanvasPoint {
+        CanvasPoint::new(self.x, self.y)
+    }
+
+    pub fn map(self, mut place: impl FnMut(CanvasPoint) -> CanvasPoint) -> Self {
+        let at = place(self.at());
+        Self {
+            x: at.x,
+            y: at.y,
+            handle_in: self.handle_in.map(&mut place),
+            handle_out: self.handle_out.map(&mut place),
+        }
+    }
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
+pub struct CanvasBinding {
+    pub entity: Uuid,
+    pub anchor: CanvasPoint,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasArrowhead {
+    #[default]
+    None,
+    Arrow,
 }
 
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
@@ -98,14 +184,41 @@ pub enum CanvasTextVerticalAlign {
     Bottom,
 }
 
-fn one() -> f32 {
-    1.0
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasTextSize {
+    Small,
+    #[default]
+    Medium,
+    Large,
+    ExtraLarge,
+    Custom(f32),
+}
+
+impl CanvasTextSize {
+    pub const TOKENS: [Self; 4] = [Self::Small, Self::Medium, Self::Large, Self::ExtraLarge];
+
+    pub fn px(self) -> f32 {
+        match self {
+            Self::Small => 16.0,
+            Self::Medium => 20.0,
+            Self::Large => 28.0,
+            Self::ExtraLarge => 36.0,
+            Self::Custom(px) => match px.is_finite() {
+                true => px.clamp(4.0, 256.0),
+                false => 20.0,
+            },
+        }
+    }
+
+    pub fn scaled(self, factor: f32) -> Self {
+        Self::Custom((self.px() * factor).max(4.0))
+    }
 }
 
 #[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
 #[serde(default)]
 pub struct CanvasTextStyle {
-    pub font_size: f32,
     pub weight: CanvasTextWeight,
     pub alignment: CanvasTextAlign,
     pub vertical_alignment: CanvasTextVerticalAlign,
@@ -116,7 +229,6 @@ pub struct CanvasTextStyle {
 impl Default for CanvasTextStyle {
     fn default() -> Self {
         Self {
-            font_size: 18.0,
             weight: CanvasTextWeight::Regular,
             alignment: CanvasTextAlign::Left,
             vertical_alignment: CanvasTextVerticalAlign::Top,
@@ -143,33 +255,73 @@ pub enum CanvasColor {
     },
 }
 
-#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
-#[serde(default)]
-pub struct CanvasEntityStyle {
-    pub foreground: CanvasColor,
-    pub line_width: f32,
-    pub dashed: bool,
-    pub fill: Option<CanvasColor>,
-    pub arrow_start: bool,
-    pub arrow_end: bool,
-    pub corner_radius: f32,
-    pub opacity: f32,
-    pub hidden: bool,
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasFill {
+    #[default]
+    None,
+    Hatched,
+    Solid,
 }
 
-impl Default for CanvasEntityStyle {
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasStrokeStyle {
+    #[default]
+    Solid,
+    Dashed,
+    Dotted,
+}
+
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasLook {
+    #[default]
+    Clean,
+    HandDrawn,
+}
+
+#[derive(Clone, Copy, Debug, Deserialize, PartialEq, Serialize)]
+#[serde(default)]
+pub struct CanvasStyle {
+    pub stroke_color: CanvasColor,
+    pub fill_color: CanvasColor,
+    pub fill: CanvasFill,
+    pub stroke_width: f32,
+    pub stroke_style: CanvasStrokeStyle,
+    pub look: CanvasLook,
+    pub roughness: f32,
+    pub opacity: f32,
+    pub text_size: CanvasTextSize,
+    pub corner_radius: f32,
+    pub start_arrowhead: CanvasArrowhead,
+    pub end_arrowhead: CanvasArrowhead,
+    pub seed: u32,
+}
+
+impl Default for CanvasStyle {
     fn default() -> Self {
         Self {
-            foreground: CanvasColor::Auto,
-            line_width: 2.0,
-            dashed: false,
-            fill: None,
-            arrow_start: false,
-            arrow_end: false,
-            corner_radius: 0.0,
+            stroke_color: CanvasColor::Auto,
+            fill_color: CanvasColor::Auto,
+            fill: CanvasFill::None,
+            stroke_width: 2.0,
+            stroke_style: CanvasStrokeStyle::Solid,
+            look: CanvasLook::Clean,
+            roughness: 1.0,
             opacity: 1.0,
-            hidden: false,
+            text_size: CanvasTextSize::Medium,
+            corner_radius: 0.0,
+            start_arrowhead: CanvasArrowhead::None,
+            end_arrowhead: CanvasArrowhead::None,
+            seed: 0,
         }
+    }
+}
+
+impl CanvasStyle {
+    pub fn filled(&self) -> Option<CanvasColor> {
+        (self.fill != CanvasFill::None).then_some(self.fill_color)
     }
 }
 
@@ -183,8 +335,17 @@ pub struct CanvasComponent {
 pub struct CanvasEntity {
     pub id: Uuid,
     pub transform: CanvasTransform,
-    pub kind: CanvasEntityKind,
-    pub style: CanvasEntityStyle,
+    pub shape: CanvasShape,
+    pub block: Option<Uuid>,
+    pub scale: f32,
+    pub points: Vec<CanvasPathPoint>,
+    pub pressures: Vec<f32>,
+    pub bindings: [Option<CanvasBinding>; 2],
+    pub text: String,
+    pub placeholder: String,
+    pub text_style: CanvasTextStyle,
+    pub style: CanvasStyle,
+    pub hidden: bool,
     pub group_id: Option<Uuid>,
     pub locked: bool,
     pub components: Vec<CanvasComponent>,
@@ -202,7 +363,7 @@ pub enum CanvasLayerMove {
 #[derive(Clone, Debug, Deserialize, PartialEq, Serialize)]
 pub enum InfiniteCanvasOperation {
     Add {
-        entity: CanvasEntity,
+        entity: Box<CanvasEntity>,
     },
     Update {
         entities: Vec<CanvasEntity>,
@@ -228,11 +389,33 @@ pub struct Canvas {
 #[derive(Clone, Debug, Default, Model, PartialEq)]
 #[model(kind = "canvas.entity")]
 pub struct Entity {
+    pub shape: Option<CanvasShape>,
     pub center: CanvasPoint,
     pub size: CanvasPoint,
     pub rotation: f32,
-    pub kind: Option<CanvasEntityKind>,
-    pub style: CanvasEntityStyle,
+    pub block: Option<BlockRef>,
+    pub scale: f32,
+    pub points: Vec<CanvasPathPoint>,
+    pub pressures: Vec<f32>,
+    pub start_binding: Option<CanvasBinding>,
+    pub end_binding: Option<CanvasBinding>,
+    pub text: String,
+    pub placeholder: String,
+    pub text_style: CanvasTextStyle,
+    pub stroke_color: CanvasColor,
+    pub fill_color: CanvasColor,
+    pub fill: CanvasFill,
+    pub stroke_width: f32,
+    pub stroke_style: CanvasStrokeStyle,
+    pub look: CanvasLook,
+    pub roughness: f32,
+    pub opacity: f32,
+    pub text_size: CanvasTextSize,
+    pub corner_radius: f32,
+    pub start_arrowhead: CanvasArrowhead,
+    pub end_arrowhead: CanvasArrowhead,
+    pub seed: u32,
+    pub hidden: bool,
     pub group_id: Option<Uuid>,
     pub locked: bool,
     pub components: List<Component>,
@@ -247,12 +430,35 @@ pub struct Component {
 
 impl Entity {
     fn of(entity: &CanvasEntity) -> Self {
+        let style = entity.style;
         Self {
+            shape: Some(entity.shape),
             center: entity.transform.center,
             size: entity.transform.size,
             rotation: entity.transform.rotation,
-            kind: Some(entity.kind.clone()),
-            style: entity.style,
+            block: entity.block.map(BlockRef),
+            scale: entity.scale,
+            points: entity.points.clone(),
+            pressures: entity.pressures.clone(),
+            start_binding: entity.bindings[0],
+            end_binding: entity.bindings[1],
+            text: entity.text.clone(),
+            placeholder: entity.placeholder.clone(),
+            text_style: entity.text_style,
+            stroke_color: style.stroke_color,
+            fill_color: style.fill_color,
+            fill: style.fill,
+            stroke_width: style.stroke_width,
+            stroke_style: style.stroke_style,
+            look: style.look,
+            roughness: style.roughness,
+            opacity: style.opacity,
+            text_size: style.text_size,
+            corner_radius: style.corner_radius,
+            start_arrowhead: style.start_arrowhead,
+            end_arrowhead: style.end_arrowhead,
+            seed: style.seed,
+            hidden: entity.hidden,
             group_id: entity.group_id,
             locked: entity.locked,
             components: entity.components.iter().map(Component::of).collect(),
@@ -263,8 +469,31 @@ impl Entity {
         Some(CanvasEntity {
             id: id.as_uuid(),
             transform: CanvasTransform::new(self.center, self.size, self.rotation),
-            kind: self.kind.clone()?,
-            style: self.style,
+            shape: self.shape?,
+            block: self.block.map(|block| block.0),
+            scale: self.scale,
+            points: self.points.clone(),
+            pressures: self.pressures.clone(),
+            bindings: [self.start_binding, self.end_binding],
+            text: self.text.clone(),
+            placeholder: self.placeholder.clone(),
+            text_style: self.text_style,
+            style: CanvasStyle {
+                stroke_color: self.stroke_color,
+                fill_color: self.fill_color,
+                fill: self.fill,
+                stroke_width: self.stroke_width,
+                stroke_style: self.stroke_style,
+                look: self.look,
+                roughness: self.roughness,
+                opacity: self.opacity,
+                text_size: self.text_size,
+                corner_radius: self.corner_radius,
+                start_arrowhead: self.start_arrowhead,
+                end_arrowhead: self.end_arrowhead,
+                seed: self.seed,
+            },
+            hidden: self.hidden,
             group_id: self.group_id,
             locked: self.locked,
             components: self
@@ -319,6 +548,16 @@ impl Canvas {
     }
 
     pub fn entities(&self) -> Vec<CanvasEntity> {
+        let unbound = self.unbound();
+        let by_id: HashMap<Uuid, &CanvasEntity> =
+            unbound.iter().map(|entity| (entity.id, entity)).collect();
+        unbound
+            .iter()
+            .map(|entity| entity.followed(|id| by_id.get(&id).copied()))
+            .collect()
+    }
+
+    fn unbound(&self) -> Vec<CanvasEntity> {
         self.entities
             .iter()
             .filter_map(|held| held.view(held.id))
@@ -342,25 +581,58 @@ impl Canvas {
                         ObjectId::from_uuid(entity.id),
                         ObjectId::ROOT,
                         Anchor::End,
-                        &Entity::of(&normalized_entity(entity.clone())),
+                        &Entity::of(&normalized_entity(entity.as_ref().clone())),
                     )
                     .into()
             }
-            InfiniteCanvasOperation::Update { entities } => entities
-                .iter()
-                .flat_map(|update| {
-                    let update = normalized_entity(update.clone());
-                    self.holding(update.id)
-                        .flat_map(|held| update_entity(held, &update))
-                        .collect::<Vec<_>>()
-                })
-                .collect(),
-            InfiniteCanvasOperation::Remove { ids } => self
-                .entities
-                .iter()
-                .filter(|held| ids.contains(&held.id.as_uuid()))
-                .map(|held| Change::remove(held.id))
-                .collect(),
+            InfiniteCanvasOperation::Update { entities } => {
+                let shown: HashMap<Uuid, CanvasEntity> = self
+                    .entities()
+                    .into_iter()
+                    .map(|entity| (entity.id, entity))
+                    .collect();
+                entities
+                    .iter()
+                    .flat_map(|update| {
+                        let update = normalized_entity(update.clone());
+                        self.holding(update.id)
+                            .flat_map(|held| match shown.get(&update.id) {
+                                Some(shown) => update_entity(held, shown, &update),
+                                None => Vec::new(),
+                            })
+                            .collect::<Vec<_>>()
+                    })
+                    .collect()
+            }
+            InfiniteCanvasOperation::Remove { ids } => {
+                let unbound = self.unbound();
+                let by_id: HashMap<Uuid, &CanvasEntity> =
+                    unbound.iter().map(|entity| (entity.id, entity)).collect();
+                let mut changes: Vec<Change> = self
+                    .entities
+                    .iter()
+                    .filter(|held| ids.contains(&held.id.as_uuid()))
+                    .map(|held| Change::remove(held.id))
+                    .collect();
+                for entity in &unbound {
+                    let bound_to_removed = |binding: &Option<CanvasBinding>| {
+                        binding.is_some_and(|binding| ids.contains(&binding.entity))
+                    };
+                    if ids.contains(&entity.id) || !entity.bindings.iter().any(bound_to_removed) {
+                        continue;
+                    }
+                    let mut kept = entity.followed(|id| by_id.get(&id).copied());
+                    for binding in &mut kept.bindings {
+                        if bound_to_removed(binding) {
+                            *binding = None;
+                        }
+                    }
+                    if let Some(held) = self.holding(entity.id).next() {
+                        changes.extend(update_entity(held, entity, &kept));
+                    }
+                }
+                Edit(changes)
+            }
             InfiniteCanvasOperation::Reorder { ids, movement } => {
                 let order: Vec<Uuid> = self.entities.iter().map(|held| held.id.as_uuid()).collect();
                 self.reorder_to(&reordered(&order, ids, *movement), ids)
@@ -409,42 +681,60 @@ impl Canvas {
     }
 
     fn child_entities(&self, old: Uuid) -> impl Iterator<Item = &be_model::Item<Entity>> {
-        self.entities.iter().filter(move |held| {
-            matches!(
-                held.kind,
-                Some(
-                    CanvasEntityKind::Block { block_id }
-                        | CanvasEntityKind::DirectEditor { block_id, .. }
-                ) if block_id == old
-            )
-        })
+        self.entities
+            .iter()
+            .filter(move |held| held.block == Some(BlockRef(old)))
     }
 }
 
-fn update_entity(held: &be_model::Item<Entity>, update: &CanvasEntity) -> Vec<Change> {
+fn update_entity(
+    held: &be_model::Item<Entity>,
+    shown: &CanvasEntity,
+    update: &CanvasEntity,
+) -> Vec<Change> {
     let id = held.id;
     let mut changes = Vec::new();
-    if held.center != update.transform.center {
-        changes.push(Entity::CENTER.set(id, &update.transform.center));
+    macro_rules! write {
+        ($field:ident, $shown:expr, $update:expr) => {
+            if $shown != $update {
+                changes.push(Entity::$field.set(id, &$update));
+            }
+        };
     }
-    if held.size != update.transform.size {
-        changes.push(Entity::SIZE.set(id, &update.transform.size));
-    }
-    if held.rotation != update.transform.rotation {
-        changes.push(Entity::ROTATION.set(id, &update.transform.rotation));
-    }
-    if held.kind.as_ref() != Some(&update.kind) {
-        changes.push(Entity::KIND.set(id, &Some(update.kind.clone())));
-    }
-    if held.style != update.style {
-        changes.push(Entity::STYLE.set(id, &update.style));
-    }
-    if held.group_id != update.group_id {
-        changes.push(Entity::GROUP_ID.set(id, &update.group_id));
-    }
-    if held.locked != update.locked {
-        changes.push(Entity::LOCKED.set(id, &update.locked));
-    }
+    write!(SHAPE, Some(shown.shape), Some(update.shape));
+    write!(CENTER, shown.transform.center, update.transform.center);
+    write!(SIZE, shown.transform.size, update.transform.size);
+    write!(
+        ROTATION,
+        shown.transform.rotation,
+        update.transform.rotation
+    );
+    write!(BLOCK, shown.block.map(BlockRef), update.block.map(BlockRef));
+    write!(SCALE, shown.scale, update.scale);
+    write!(POINTS, shown.points, update.points);
+    write!(PRESSURES, shown.pressures, update.pressures);
+    write!(START_BINDING, shown.bindings[0], update.bindings[0]);
+    write!(END_BINDING, shown.bindings[1], update.bindings[1]);
+    write!(TEXT, shown.text, update.text);
+    write!(PLACEHOLDER, shown.placeholder, update.placeholder);
+    write!(TEXT_STYLE, shown.text_style, update.text_style);
+    let (was, style) = (shown.style, update.style);
+    write!(STROKE_COLOR, was.stroke_color, style.stroke_color);
+    write!(FILL_COLOR, was.fill_color, style.fill_color);
+    write!(FILL, was.fill, style.fill);
+    write!(STROKE_WIDTH, was.stroke_width, style.stroke_width);
+    write!(STROKE_STYLE, was.stroke_style, style.stroke_style);
+    write!(LOOK, was.look, style.look);
+    write!(ROUGHNESS, was.roughness, style.roughness);
+    write!(OPACITY, was.opacity, style.opacity);
+    write!(TEXT_SIZE, was.text_size, style.text_size);
+    write!(CORNER_RADIUS, was.corner_radius, style.corner_radius);
+    write!(START_ARROWHEAD, was.start_arrowhead, style.start_arrowhead);
+    write!(END_ARROWHEAD, was.end_arrowhead, style.end_arrowhead);
+    write!(SEED, was.seed, style.seed);
+    write!(HIDDEN, shown.hidden, update.hidden);
+    write!(GROUP_ID, shown.group_id, update.group_id);
+    write!(LOCKED, shown.locked, update.locked);
     changes.extend(update_components(held, &update.components));
     changes
 }
@@ -572,17 +862,7 @@ impl Root for Canvas {
             ChildChange::Replace { old, new } => {
                 let mut changes = Vec::new();
                 for held in self.child_entities(old) {
-                    let kind = match held.kind.clone()? {
-                        CanvasEntityKind::Block { .. } => CanvasEntityKind::Block { block_id: new },
-                        CanvasEntityKind::DirectEditor { scale, .. } => {
-                            CanvasEntityKind::DirectEditor {
-                                block_id: new,
-                                scale,
-                            }
-                        }
-                        other => other,
-                    };
-                    changes.push(Entity::KIND.set(held.id, &Some(kind)));
+                    changes.push(Entity::BLOCK.set(held.id, &Some(BlockRef(new))));
                 }
                 for held in self.entities.iter() {
                     let existing = held
@@ -629,14 +909,14 @@ impl Root for Canvas {
 }
 
 pub fn normalized_entity(mut entity: CanvasEntity) -> CanvasEntity {
-    match &mut entity.kind {
-        CanvasEntityKind::DirectEditor { scale, .. } => {
+    match entity.shape {
+        CanvasShape::Editor => {
             entity.transform.rotation = 0.0;
-            if !scale.is_finite() || *scale <= 0.0 {
-                *scale = 1.0;
+            if !entity.scale.is_finite() || entity.scale <= 0.0 {
+                entity.scale = 1.0;
             }
         }
-        CanvasEntityKind::Artboard { .. } => {
+        CanvasShape::Frame => {
             entity.transform.rotation = 0.0;
             let size = &mut entity.transform.size;
             size.x = match size.x.is_finite() {
@@ -654,13 +934,148 @@ pub fn normalized_entity(mut entity: CanvasEntity) -> CanvasEntity {
 }
 
 impl CanvasEntity {
-    pub fn is_artboard(&self) -> bool {
-        matches!(self.kind, CanvasEntityKind::Artboard { .. })
+    pub fn new(shape: CanvasShape, transform: CanvasTransform) -> Self {
+        let id = Uuid::new_v4();
+        Self {
+            id,
+            transform,
+            shape,
+            block: None,
+            scale: 1.0,
+            points: Vec::new(),
+            pressures: Vec::new(),
+            bindings: [None, None],
+            text: String::new(),
+            placeholder: String::new(),
+            text_style: CanvasTextStyle::default(),
+            style: CanvasStyle {
+                seed: id.as_u128() as u32,
+                ..CanvasStyle::default()
+            },
+            hidden: false,
+            group_id: None,
+            locked: false,
+            components: Vec::new(),
+        }
+    }
+
+    pub fn path(world: &[CanvasPoint]) -> Self {
+        let mut path = Self::new(CanvasShape::Path, CanvasTransform::default());
+        path.set_world_points(world.iter().copied().map(CanvasPathPoint::new).collect());
+        path
+    }
+
+    pub fn is_frame(&self) -> bool {
+        self.shape == CanvasShape::Frame
+    }
+
+    pub fn world_points(&self) -> Vec<CanvasPathPoint> {
+        self.points
+            .iter()
+            .map(|point| point.map(|at| self.transform.to_world(at)))
+            .collect()
+    }
+
+    pub fn set_world_points(&mut self, world: Vec<CanvasPathPoint>) {
+        let rotation = self.transform.rotation;
+        let turned: Vec<CanvasPathPoint> = world
+            .iter()
+            .map(|point| point.map(|at| rotated(at, -rotation)))
+            .collect();
+        let mut low = CanvasPoint::new(f32::INFINITY, f32::INFINITY);
+        let mut high = CanvasPoint::new(f32::NEG_INFINITY, f32::NEG_INFINITY);
+        for point in &turned {
+            for at in [Some(point.at()), point.handle_in, point.handle_out]
+                .into_iter()
+                .flatten()
+            {
+                low = CanvasPoint::new(low.x.min(at.x), low.y.min(at.y));
+                high = CanvasPoint::new(high.x.max(at.x), high.y.max(at.y));
+            }
+        }
+        if !low.x.is_finite() {
+            self.points.clear();
+            return;
+        }
+        let middle = CanvasPoint::new((low.x + high.x) * 0.5, (low.y + high.y) * 0.5);
+        let size = CanvasPoint::new((high.x - low.x).max(1.0), (high.y - low.y).max(1.0));
+        self.transform = CanvasTransform::new(rotated(middle, rotation), size, rotation);
+        self.points = turned
+            .into_iter()
+            .map(|point| {
+                point.map(|at| {
+                    CanvasPoint::new((at.x - middle.x) / size.x, (at.y - middle.y) / size.y)
+                })
+            })
+            .collect();
+    }
+
+    pub fn followed<'a>(&self, target: impl Fn(Uuid) -> Option<&'a CanvasEntity>) -> Self {
+        let mut followed = self.clone();
+        followed.follow(|id| target(id).cloned());
+        followed
+    }
+
+    pub fn follow(&mut self, target: impl Fn(Uuid) -> Option<CanvasEntity>) {
+        if self.shape != CanvasShape::Path || self.points.len() < 2 {
+            return;
+        }
+        let targets = self.bindings.map(|binding| {
+            let binding = binding?;
+            let target = target(binding.entity)
+                .filter(|target| target.id != self.id && target.shape.bindable())?;
+            let anchor = target.transform.to_world(binding.anchor);
+            Some((target, anchor))
+        });
+        if targets.iter().all(Option::is_none) {
+            return;
+        }
+        let mut world = self.world_points();
+        let last = world.len() - 1;
+        let ends = [0, last];
+        let neighbours = [1, last - 1];
+        for end in 0..2 {
+            let Some((target, anchor)) = &targets[end] else {
+                continue;
+            };
+            let neighbour = match (world.len(), &targets[1 - end]) {
+                (2, Some((_, other))) => *other,
+                _ => world[neighbours[end]].at(),
+            };
+            let reached = target.outline_toward(neighbour, *anchor);
+            let point = &mut world[ends[end]];
+            let shift = CanvasPoint::new(reached.x - point.x, reached.y - point.y);
+            *point = point.map(|at| CanvasPoint::new(at.x + shift.x, at.y + shift.y));
+        }
+        self.set_world_points(world);
+    }
+
+    pub fn outline_toward(&self, from: CanvasPoint, to: CanvasPoint) -> CanvasPoint {
+        let inside = |world: CanvasPoint| self.shape.contains_local(self.transform.to_local(world));
+        if inside(from) || !inside(to) {
+            return to;
+        }
+        let (mut outside, mut within) = (from, to);
+        for _ in 0..24 {
+            let middle =
+                CanvasPoint::new((outside.x + within.x) * 0.5, (outside.y + within.y) * 0.5);
+            match inside(middle) {
+                true => within = middle,
+                false => outside = middle,
+            }
+        }
+        let delta = CanvasPoint::new(to.x - from.x, to.y - from.y);
+        let length = delta.x.hypot(delta.y).max(f32::EPSILON);
+        let gap = BINDING_GAP.min((from.x - outside.x).hypot(from.y - outside.y));
+        CanvasPoint::new(
+            outside.x - delta.x / length * gap,
+            outside.y - delta.y / length * gap,
+        )
     }
 }
 
-pub fn first_artboard(entities: &[CanvasEntity]) -> Option<&CanvasEntity> {
-    entities.iter().find(|entity| entity.is_artboard())
+pub fn first_frame(entities: &[CanvasEntity]) -> Option<&CanvasEntity> {
+    entities.iter().find(|entity| entity.is_frame())
 }
 
 pub type CanvasContent = Document<Canvas>;

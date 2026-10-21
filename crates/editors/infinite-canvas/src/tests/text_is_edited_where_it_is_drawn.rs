@@ -1,5 +1,4 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasTextStyle;
 use block_editor_beui::beui::{Key, pos2};
 
 #[test]
@@ -7,11 +6,8 @@ fn text_is_edited_where_it_is_drawn() {
     let mut label = entity(Uuid::from_u128(1));
     label.transform =
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(160.0, 40.0), 0.0);
-    label.kind = CanvasEntityKind::Text {
-        text: "Hello".to_owned(),
-        text_style: CanvasTextStyle::default(),
-        placeholder: String::new(),
-    };
+    label.shape = CanvasShape::Text;
+    label.text = "Hello".to_owned();
     let mut editor = editor(std::slice::from_ref(&label));
     let field = format!("infinite-canvas.text.{}", label.id);
     let resting = editor.rect_of(&field);
@@ -34,11 +30,9 @@ fn text_is_edited_where_it_is_drawn() {
     editor.text("?");
     editor.run();
 
-    let CanvasEntityKind::Text { text, .. } = &entities(&editor)[0].kind else {
-        panic!("the entity is still text");
-    };
     assert_eq!(
-        text, "Hello!",
+        entities(&editor)[0].text,
+        "Hello!",
         "typing lands at the caret, and Escape stops it"
     );
 }

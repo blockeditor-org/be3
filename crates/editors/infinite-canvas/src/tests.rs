@@ -3,8 +3,8 @@ use std::collections::{BTreeMap, HashSet};
 use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::canvas::Canvas;
 use block_editor_beui::be_block::canvas::{
-    CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
-    CanvasTransform, InfiniteCanvasOperation,
+    CanvasArrowhead, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill, CanvasPathPoint,
+    CanvasPoint, CanvasShape, CanvasTransform, InfiniteCanvasOperation,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::beui::Vec2;
@@ -22,17 +22,18 @@ mod a_dropped_slide_takes_its_own_size_rather_than_the_cards;
 mod a_finger_drags_a_transform_field_in_the_sheet;
 mod a_finger_just_outside_a_corner_resizes_the_selection;
 mod a_finger_on_the_pen_tool_draws_before_it_moves;
+mod a_frame_background_is_picked_in_the_sidebar;
 mod a_live_editor_works_in_place_and_a_pan_and_zoom_one_takes_the_frame_when_clicked;
 mod a_moved_entity_is_drawn_where_it_was_dropped;
 mod a_multiple_selection_outlines_each_selected_entity;
 mod a_narrow_canvas_opens_its_inspector_under_the_stage;
 mod a_phone_canvas_keeps_its_tools_in_a_dock_and_zoom_pill;
-mod a_preview_with_no_camera_fits_its_artboard;
+mod a_preview_with_no_camera_fits_its_frame;
 mod a_resize_handle_follows_the_drag_rather_than_jumping_to_the_pointer;
 mod a_second_finger_calls_off_the_shape_being_drawn;
 mod a_short_finger_stroke_keeps_every_point;
 mod a_typed_transform_value_is_one_edit;
-mod an_artboard_background_is_picked_in_the_sidebar;
+mod an_arrow_drawn_between_two_shapes_follows_them_when_they_move;
 mod an_image_still_loading_is_drawn_as_its_thumbhash;
 mod attaching_component_fills_only_missing_selected_entities;
 mod clicking_an_entity_selects_it_and_shows_its_handles;
@@ -40,9 +41,10 @@ mod dragging_a_transform_field_twice_keeps_the_first_drag;
 mod dragging_an_end_of_a_selected_line_moves_only_that_end;
 mod dragging_any_transform_field_moves_the_entity;
 mod dragging_one_entity_wakes_only_that_entity;
-mod dragging_with_the_artboard_tool_adds_an_artboard;
+mod dragging_with_the_frame_tool_adds_a_frame;
 mod dragging_with_the_rectangle_tool_adds_a_rectangle;
 mod drawing_with_a_finger_adds_a_rectangle;
+mod every_shape_is_drawn_in_the_clean_look;
 mod every_transform_field_previews_what_is_typed;
 mod panning_and_zooming_paints_no_entity_again;
 mod pasting_puts_the_objects_under_the_pointer;
@@ -58,53 +60,56 @@ mod text_sits_against_the_edges_it_is_aligned_to;
 mod the_actions_menu_deletes_the_selection;
 mod the_canvas_opens_with_the_select_tool_so_a_finger_box_selects;
 mod the_canvas_paints_the_entities_it_holds;
-mod the_intrinsic_size_follows_the_first_artboard;
+mod the_ellipse_and_diamond_tools_draw_their_shapes;
+mod the_intrinsic_size_follows_the_first_frame;
 mod the_layers_panel_selects_reorders_and_hides;
 mod the_palette_and_the_shortcuts_run_the_canvas_actions;
 mod the_pen_tool_draws_a_stylus_stroke_as_wide_as_it_is_pressed;
 mod the_pen_tool_keeps_every_coalesced_sample_and_draws_the_predicted_tail;
-mod the_preview_fills_the_artboard_with_its_background;
-mod the_preview_shows_the_first_artboard;
+mod the_preview_fills_the_frame_with_its_background;
+mod the_preview_shows_the_first_frame;
 mod the_transform_fields_edit_the_selected_entity;
 mod typed_text_grows_away_from_the_edges_it_is_aligned_to;
 mod typing_a_transform_value_and_pressing_escape_edits_nothing;
 
-fn entity(id: Uuid) -> CanvasEntity {
-    CanvasEntity {
-        id,
-        transform: CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(10.0, 10.0), 0.0),
-        kind: CanvasEntityKind::Rectangle,
-        style: CanvasEntityStyle::default(),
-        group_id: None,
-        locked: false,
-        components: Vec::new(),
-    }
+fn shaped(id: Uuid, shape: CanvasShape) -> CanvasEntity {
+    let mut entity = CanvasEntity::new(
+        shape,
+        CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(10.0, 10.0), 0.0),
+    );
+    entity.id = id;
+    entity.style.seed = id.as_u128() as u32;
+    entity
 }
 
-fn artboard(id: u128, center: CanvasPoint, size: CanvasPoint) -> CanvasEntity {
-    CanvasEntity {
-        id: Uuid::from_u128(id),
-        transform: CanvasTransform::new(center, size, 0.0),
-        kind: CanvasEntityKind::Artboard {
-            name: format!("Artboard {id}"),
-        },
-        style: CanvasEntityStyle::default(),
-        group_id: None,
-        locked: false,
-        components: Vec::new(),
-    }
+fn entity(id: Uuid) -> CanvasEntity {
+    shaped(id, CanvasShape::Rectangle)
+}
+
+fn path(id: Uuid, world: &[CanvasPoint]) -> CanvasEntity {
+    let mut path = shaped(id, CanvasShape::Path);
+    path.set_world_points(world.iter().copied().map(CanvasPathPoint::new).collect());
+    path
+}
+
+fn frame(id: u128, center: CanvasPoint, size: CanvasPoint) -> CanvasEntity {
+    let mut frame = shaped(Uuid::from_u128(id), CanvasShape::Frame);
+    frame.transform = CanvasTransform::new(center, size, 0.0);
+    frame.text = format!("Frame {id}");
+    frame
 }
 
 fn card() -> CanvasEntity {
     let mut card = entity(Uuid::from_u128(1));
     card.transform =
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(180.0, 120.0), 0.0);
-    card.style.fill = Some(block_editor_beui::be_block::canvas::CanvasColor::Rgba {
+    card.style.fill = CanvasFill::Solid;
+    card.style.fill_color = CanvasColor::Rgba {
         red: 60,
         green: 110,
         blue: 90,
         alpha: 255,
-    });
+    };
     card
 }
 

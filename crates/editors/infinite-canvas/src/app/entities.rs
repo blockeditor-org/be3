@@ -10,9 +10,11 @@ use uuid::Uuid;
 
 #[derive(Clone, Copy)]
 pub(crate) struct EntitySignals {
+    held: Memo<Option<CanvasEntity>>,
+    held_shown: Memo<Option<CanvasEntity>>,
     stored: Memo<Option<CanvasEntity>>,
     shown: Memo<Option<CanvasEntity>>,
-    artboard: Memo<bool>,
+    frame: Memo<bool>,
 }
 
 impl EntitySignals {
@@ -155,23 +157,44 @@ impl Entities {
         })
     }
 
-    pub(crate) fn first_artboard(&self) -> Option<CanvasEntity> {
+    pub(crate) fn first_frame(&self) -> Option<CanvasEntity> {
         self.ids.with(|ids| {
             ids.iter()
                 .map(|id| self.signals(*id))
-                .find(|signals| signals.artboard.get())
+                .find(|signals| signals.frame.get())
                 .and_then(|signals| signals.stored.get())
         })
     }
 
-    pub(crate) fn shown_artboards(&self) -> Vec<CanvasEntity> {
+    pub(crate) fn shown_frames(&self) -> Vec<CanvasEntity> {
         self.shown_ids.with(|ids| {
             ids.iter()
                 .map(|id| self.signals(*id))
-                .filter(|signals| signals.artboard.get())
+                .filter(|signals| signals.frame.get())
                 .filter_map(|signals| signals.shown.get())
                 .collect()
         })
+    }
+
+    fn followed(
+        &self,
+        mut entity: CanvasEntity,
+        target: fn(EntitySignals) -> Memo<Option<CanvasEntity>>,
+    ) -> CanvasEntity {
+        if entity.bindings.iter().any(Option::is_some) {
+            entity.follow(|id| target(self.pin(id)).get());
+        }
+        entity
+    }
+
+    fn pin(&self, id: Uuid) -> EntitySignals {
+        let signals = self.signals(id);
+        if let Some(slot) = self.slots.value().slots.borrow_mut().get_mut(&id) {
+            slot.watchers += 1;
+        }
+        let entities = *self;
+        on_cleanup(move || entities.unwatch(id));
+        signals
     }
 
     pub(crate) fn preview(&self, previews: Vec<CanvasEntity>) {
@@ -212,21 +235,31 @@ impl Entities {
             .child()
             .expect("the canvas outlives its entities");
         let content = slots.content;
+        let entities = *self;
         let (signals, preview) = untrack(|| {
             scope.run(|| {
                 let object = ObjectId::from_uuid(id);
-                let held = content.object::<Entity>(object);
+                let object_held = content.object::<Entity>(object);
                 let preview = create_signal(None::<CanvasEntity>);
-                let stored = create_memo(move || held.with(|entity| entity.as_ref()?.view(object)));
-                let shown = create_memo(move || preview.get().or_else(|| stored.get()));
-                let artboard = create_memo(move || {
-                    shown.with(|entity| entity.as_ref().is_some_and(CanvasEntity::is_artboard))
+                let held =
+                    create_memo(move || object_held.with(|entity| entity.as_ref()?.view(object)));
+                let held_shown = create_memo(move || preview.get().or_else(|| held.get()));
+                let stored = create_memo(move || {
+                    Some(entities.followed(held.get()?, |signals| signals.held))
+                });
+                let shown = create_memo(move || {
+                    Some(entities.followed(held_shown.get()?, |signals| signals.held_shown))
+                });
+                let frame = create_memo(move || {
+                    held_shown.with(|entity| entity.as_ref().is_some_and(CanvasEntity::is_frame))
                 });
                 (
                     EntitySignals {
+                        held,
+                        held_shown,
                         stored,
                         shown,
-                        artboard,
+                        frame,
                     },
                     preview,
                 )

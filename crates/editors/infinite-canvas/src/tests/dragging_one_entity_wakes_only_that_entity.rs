@@ -47,12 +47,13 @@ fn dragging_one_entity_wakes_only_that_entity() {
                 CanvasPoint::new(120.0, 80.0),
                 0.0,
             );
-            entity.style.fill = Some(CanvasColor::Rgba {
+            entity.style.fill = CanvasFill::Solid;
+            entity.style.fill_color = CanvasColor::Rgba {
                 red: 60,
                 green: 110,
                 blue: 90,
                 alpha: 255,
-            });
+            };
             entity
         })
         .collect();

@@ -23,7 +23,7 @@ pub(crate) fn SelectionTools(state: CanvasState) -> NodeId {
         common_value(
             styled_entities(state)
                 .iter()
-                .map(|entity| entity.style.foreground),
+                .map(|entity| entity.style.stroke_color),
         )
     });
     let actions = use_context::<CanvasActions>().expect("the canvas provides its actions");

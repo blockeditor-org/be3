@@ -1,18 +1,16 @@
 use crate::canvas::{
-    CanvasContent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasLayerMove, CanvasPoint,
-    CanvasTransform, InfiniteCanvasOperation,
+    CanvasContent, CanvasEntity, CanvasLayerMove, CanvasPoint, CanvasShape, CanvasTransform,
+    InfiniteCanvasOperation,
 };
 use uuid::Uuid;
 
 fn entity(id: Uuid) -> CanvasEntity {
     CanvasEntity {
         id,
-        transform: CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(1.0, 1.0), 0.0),
-        kind: CanvasEntityKind::Rectangle,
-        style: CanvasEntityStyle::default(),
-        group_id: None,
-        locked: false,
-        components: Vec::new(),
+        ..CanvasEntity::new(
+            CanvasShape::Rectangle,
+            CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(1.0, 1.0), 0.0),
+        )
     }
 }
 
@@ -27,7 +25,7 @@ fn canvas(ids: &[Uuid]) -> CanvasContent {
         run(
             &mut content,
             InfiniteCanvasOperation::Add {
-                entity: entity(*id),
+                entity: Box::new(entity(*id)),
             },
         );
     }
@@ -72,7 +70,9 @@ fn canvas_layers_reorder_and_keep_unlisted_slots() {
 
     run(
         &mut content,
-        InfiniteCanvasOperation::Add { entity: entity(a) },
+        InfiniteCanvasOperation::Add {
+            entity: Box::new(entity(a)),
+        },
     );
     run(
         &mut content,

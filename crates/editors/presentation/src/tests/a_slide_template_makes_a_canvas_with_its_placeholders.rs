@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::CanvasEntityKind;
+use block_editor_beui::be_block::canvas::CanvasShape;
 use block_editor_beui::be_block::{BlockContent, CanvasContent};
 use block_editor_beui::{BeuiApp, Creation, GraphCommand};
 
@@ -27,18 +27,16 @@ fn a_slide_template_makes_a_canvas_with_its_placeholders() {
     let entities = CanvasContent::decode(&content).unwrap().root().entities();
     let slide = entities
         .first()
-        .filter(|entity| entity.is_artboard())
-        .expect("the slide is an artboard beneath its placeholders");
+        .filter(|entity| entity.is_frame())
+        .expect("the slide is a frame beneath its placeholders");
     assert_eq!(
         (slide.transform.size.x, slide.transform.size.y),
         (960.0, 540.0)
     );
     let placeholders: Vec<_> = entities
         .into_iter()
-        .filter_map(|entity| match entity.kind {
-            CanvasEntityKind::Text { placeholder, .. } => Some(placeholder),
-            _ => None,
-        })
+        .filter(|entity| entity.shape == CanvasShape::Text)
+        .map(|entity| entity.placeholder)
         .collect();
     assert_eq!(placeholders, ["Title", "Subtitle"]);
 

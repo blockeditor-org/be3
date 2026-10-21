@@ -1,10 +1,9 @@
 use crate::Merge;
 use crate::canvas::{
-    CanvasColor, CanvasContent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
-    CanvasTransform, InfiniteCanvasOperation,
+    CanvasColor, CanvasContent, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
+    InfiniteCanvasOperation,
 };
 use be_commit::MergeResult;
-use uuid::Uuid;
 
 fn run(content: &CanvasContent, operation: InfiniteCanvasOperation) -> CanvasContent {
     let mut changed = content.clone();
@@ -15,19 +14,14 @@ fn run(content: &CanvasContent, operation: InfiniteCanvasOperation) -> CanvasCon
 
 #[test]
 fn canvases_merge_a_move_and_a_restyle_of_one_entity() {
-    let original = CanvasEntity {
-        id: Uuid::new_v4(),
-        transform: CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(10.0, 10.0), 0.0),
-        kind: CanvasEntityKind::Rectangle,
-        style: CanvasEntityStyle::default(),
-        group_id: None,
-        locked: false,
-        components: Vec::new(),
-    };
+    let original = CanvasEntity::new(
+        CanvasShape::Rectangle,
+        CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(10.0, 10.0), 0.0),
+    );
     let base = run(
         &CanvasContent::default(),
         InfiniteCanvasOperation::Add {
-            entity: original.clone(),
+            entity: Box::new(original.clone()),
         },
     );
     let mut moved = original.clone();
@@ -39,7 +33,7 @@ fn canvases_merge_a_move_and_a_restyle_of_one_entity() {
         },
     );
     let mut restyled = original;
-    restyled.style.foreground = CanvasColor::Rgba {
+    restyled.style.stroke_color = CanvasColor::Rgba {
         red: 255,
         green: 0,
         blue: 0,

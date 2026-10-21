@@ -3,8 +3,8 @@ use block_editor_beui::be_block::canvas::CanvasColor;
 use block_editor_beui::beui::Vec2;
 
 #[test]
-fn an_artboard_background_is_picked_in_the_sidebar() {
-    let board = artboard(3, CanvasPoint::default(), CanvasPoint::new(320.0, 200.0));
+fn a_frame_background_is_picked_in_the_sidebar() {
+    let board = frame(3, CanvasPoint::default(), CanvasPoint::new(320.0, 200.0));
     let id = board.id;
     let mut editor = open_sized(
         &Canvas::with_entities([board, card()]),
@@ -16,7 +16,7 @@ fn an_artboard_background_is_picked_in_the_sidebar() {
         entities(editor)
             .into_iter()
             .find(|entity| entity.id == id)
-            .and_then(|entity| entity.style.fill)
+            .and_then(|entity| entity.style.filled())
     };
 
     editor.click(&format!("infinite-canvas.layer.{id}"));
@@ -24,7 +24,7 @@ fn an_artboard_background_is_picked_in_the_sidebar() {
     assert_eq!(
         fill(&editor),
         None,
-        "an artboard follows the theme until one is picked"
+        "an frame follows the theme until one is picked"
     );
 
     editor.click("infinite-canvas.background.White");
@@ -38,7 +38,7 @@ fn an_artboard_background_is_picked_in_the_sidebar() {
             alpha: 255
         })
     );
-    editor.snapshot("an_artboard_background_is_picked_in_the_sidebar");
+    editor.snapshot("a_frame_background_is_picked_in_the_sidebar");
 
     editor.click("infinite-canvas.background.theme");
     editor.run();

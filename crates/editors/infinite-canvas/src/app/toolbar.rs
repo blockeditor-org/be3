@@ -1,8 +1,5 @@
 use block_editor_beui::beui::NodeId;
-use block_editor_beui::beui::icons::{
-    ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DRAW, ICON_RECTANGLE, ICON_REDO, ICON_SELECT,
-    ICON_TEXT_FIELDS, ICON_UNDO,
-};
+use block_editor_beui::beui::icons::{ICON_REDO, ICON_UNDO};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::theme::BORDER_WIDTH;
 use block_editor_beui::beui::styled::*;
@@ -13,16 +10,17 @@ use super::actions::CanvasActions;
 use super::selection_bar::SelectionTools;
 use super::state::{CanvasState, Tool};
 
-const TOOLS: [(Tool, &str, &str); 6] = [
-    (Tool::Select, ICON_SELECT, "Select"),
-    (Tool::Artboard, ICON_CROP_FREE, "Artboard"),
-    (Tool::Line, ICON_DIAGONAL_LINE, "Line"),
-    (Tool::Rectangle, ICON_RECTANGLE, "Rectangle"),
-    (Tool::Text, ICON_TEXT_FIELDS, "Text"),
-    (Tool::Pen, ICON_DRAW, "Pen"),
+const TOOLS: [(Tool, &str); 9] = [
+    (Tool::Select, "Select"),
+    (Tool::Pen, "Pen"),
+    (Tool::Rectangle, "Rectangle"),
+    (Tool::Ellipse, "Ellipse"),
+    (Tool::Diamond, "Diamond"),
+    (Tool::Arrow, "Arrow"),
+    (Tool::Line, "Line"),
+    (Tool::Text, "Text"),
+    (Tool::Frame, "Frame"),
 ];
-
-const DOCK_TOOLS: [usize; 6] = [0, 5, 2, 3, 4, 1];
 const PILL_MARGIN: f32 = 12.0;
 const PILL_RADIUS: f32 = 16.0;
 const PILL_PADDING: f32 = 4.0;
@@ -65,7 +63,7 @@ pub(crate) fn ToolDock(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
                 </List>
             }}
         >
-            <ForEach keys={DOCK_TOOLS.to_vec()}>|index: usize| {
+            <ForEach keys={(0..TOOLS.len()).collect::<Vec<usize>>()}>|index: usize| {
                 let actions = tools.clone();
                 view! {
                     <ToolChoice actions index />
@@ -144,11 +142,11 @@ pub(crate) fn ZoomPill(state: CanvasState, anchor: NodeRef, shown: Prop<bool>) -
 
 #[component]
 fn ToolChoice(actions: CanvasActions, index: usize) -> NodeId {
-    let (tool, glyph, label) = TOOLS[index];
+    let (tool, label) = TOOLS[index];
     view! {
         <ToggleButton
             label={label}
-            glyph={glyph.to_owned()}
+            glyph={tool.glyph().to_owned()}
             icon_only=true
             action={actions.tool(tool)}
             @test_id={format!("infinite-canvas.dock.tool.{label}")}

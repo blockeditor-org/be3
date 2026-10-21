@@ -1,5 +1,5 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasEntityKind, CanvasPoint, CanvasTextStyle, CanvasTransform,
+    CanvasArrowhead, CanvasEntity, CanvasPoint, CanvasShape, CanvasTransform,
 };
 use block_editor_beui::beui::{CursorIcon, Key, KeyPress, PointerPress};
 use block_editor_beui::reactive::{Get, untrack};
@@ -12,9 +12,9 @@ use super::state::{CanvasCommand, CanvasState, Gesture, TextEntry, Tool};
 impl CanvasState {
     pub(crate) fn cursor(&self) -> CursorIcon {
         match self.tool.get() {
-            Tool::Line | Tool::Rectangle | Tool::Pen | Tool::Artboard => CursorIcon::Crosshair,
             Tool::Text => CursorIcon::Text,
             Tool::Select => self.select_cursor(),
+            _ => CursorIcon::Crosshair,
         }
     }
 
@@ -22,8 +22,8 @@ impl CanvasState {
         let Some(world) = self.pointer.get() else {
             return CursorIcon::Default;
         };
-        if let Some(line) = self.selected_line() {
-            return match line_end_at(line_ends(&line), world, self.scale(), HANDLE_REACH) {
+        if let Some(path) = self.selected_path() {
+            return match line_end_at(path_ends(&path), world, self.scale(), HANDLE_REACH) {
                 Some(_) => CursorIcon::Crosshair,
                 None => CursorIcon::Default,
             };
@@ -62,8 +62,8 @@ impl CanvasState {
             .iter()
             .rev()
             .find_map(|entity| {
-                (matches!(entity.kind, CanvasEntityKind::DirectEditor { .. })
-                    && !entity.style.hidden
+                (entity.shape == CanvasShape::Editor
+                    && !entity.hidden
                     && !self.shows_preview(entity.id)
                     && direct_editor_layout(entity)
                         .is_some_and(|layout| layout.content.contains(world)))
@@ -101,7 +101,7 @@ impl CanvasState {
             let entities = self.entities.all_untracked();
             let entity = entities.iter().find(|entity| entity.id == id);
             if let Some(entity) = entity
-                && matches!(entity.kind, CanvasEntityKind::Text { .. })
+                && entity.shape == CanvasShape::Text
                 && !entity.locked
             {
                 self.select(id, false);
@@ -112,7 +112,13 @@ impl CanvasState {
         }
         match self.tool.get_untracked() {
             Tool::Select => self.press_select(press, world),
-            Tool::Line | Tool::Rectangle | Tool::Text | Tool::Artboard => {
+            Tool::Line
+            | Tool::Arrow
+            | Tool::Rectangle
+            | Tool::Ellipse
+            | Tool::Diamond
+            | Tool::Text
+            | Tool::Frame => {
                 self.begin_gesture(Some(Gesture::Create {
                     tool: self.tool.get_untracked(),
                     start: world,
@@ -130,15 +136,15 @@ impl CanvasState {
     }
 
     fn press_select(&self, press: PointerPress, world: CanvasPoint) {
-        if let Some(line) = self.selected_line() {
-            let ends = line_ends(&line);
+        if let Some(path) = self.selected_path() {
+            let ends = path_ends(&path);
             let reach = match press.touch {
                 true => TOUCH_HANDLE_REACH,
                 false => HANDLE_REACH,
             };
             if let Some(end) = line_end_at(ends, world, self.scale(), reach) {
                 self.begin_gesture(Some(Gesture::Endpoint {
-                    original: line,
+                    original: Box::new(path),
                     end,
                     current: ends[end],
                     grab: CanvasPoint::new(ends[end].x - world.x, ends[end].y - world.y),
@@ -148,7 +154,7 @@ impl CanvasState {
             }
         }
         let frame = selection_frame_of(self);
-        let has_unlocked = self.selection_has_unlocked() && self.selected_line().is_none();
+        let has_unlocked = self.selection_has_unlocked() && self.selected_path().is_none();
         let (resize, scale_editors) = self.selection_handles();
         let scale = self.scale();
         let reach = frame.map_or(HANDLE_REACH, |frame| {
@@ -205,7 +211,7 @@ impl CanvasState {
                 .iter()
                 .find(|entity| entity.id == id)
                 .expect("the hit entity is one of the canvas entities");
-            if let CanvasEntityKind::DirectEditor { .. } = entity.kind {
+            if entity.shape == CanvasShape::Editor {
                 let content = direct_editor_layout(entity)
                     .is_some_and(|layout| layout.content.contains(world));
                 if content && self.takes_frame(entity.id) {
@@ -216,7 +222,7 @@ impl CanvasState {
             }
             let retap = press.touch
                 && !entity.locked
-                && matches!(entity.kind, CanvasEntityKind::Text { .. })
+                && entity.shape == CanvasShape::Text
                 && self.selection.get_untracked().len() == 1
                 && self.selection.get_untracked().contains(&id);
             self.note_retap(retap.then_some((id, press.pos)));
@@ -279,7 +285,7 @@ impl CanvasState {
                 pointer,
                 from_center,
             } => {
-                if matches!(*tool, Tool::Rectangle | Tool::Artboard) {
+                if tool.draws_a_box() {
                     let delta = CanvasPoint::new(world.x - pointer.x, world.y - pointer.y);
                     if modifiers.ctrl {
                         start.x += delta.x;
@@ -291,7 +297,7 @@ impl CanvasState {
                     *pointer = world;
                     *from_center = modifiers.alt;
                 } else {
-                    *current = match *tool == Tool::Line && modifiers.shift {
+                    *current = match tool.draws_a_line() && modifiers.shift {
                         true => constrain_point_angle(*start, world, std::f32::consts::FRAC_PI_4),
                         false => world,
                     };
@@ -448,33 +454,35 @@ impl CanvasState {
     }
 
     pub(crate) fn add_at(&self, tool: Tool, center: CanvasPoint) {
-        let style = self.default_style();
+        let boxed = |shape: CanvasShape, size: CanvasPoint| {
+            CanvasEntity::new(shape, CanvasTransform::new(center, size, 0.0))
+        };
+        let line = || {
+            CanvasEntity::path(&[
+                CanvasPoint::new(center.x - 90.0, center.y),
+                CanvasPoint::new(center.x + 90.0, center.y),
+            ])
+        };
         let entity = match tool {
-            Tool::Rectangle => Some((CanvasPoint::new(180.0, 100.0), CanvasEntityKind::Rectangle)),
-            Tool::Line => Some((CanvasPoint::new(180.0, MIN_SIZE), CanvasEntityKind::Line)),
-            Tool::Text => Some((
-                CanvasPoint::new(180.0, 36.0),
-                CanvasEntityKind::Text {
-                    text: String::new(),
-                    text_style: CanvasTextStyle::default(),
-                    placeholder: "Text".into(),
-                },
-            )),
-            Tool::Select | Tool::Pen | Tool::Artboard => None,
+            Tool::Rectangle => boxed(CanvasShape::Rectangle, CanvasPoint::new(180.0, 100.0)),
+            Tool::Ellipse => boxed(CanvasShape::Ellipse, CanvasPoint::new(180.0, 100.0)),
+            Tool::Diamond => boxed(CanvasShape::Diamond, CanvasPoint::new(180.0, 100.0)),
+            Tool::Line | Tool::Arrow => line(),
+            Tool::Text => {
+                let mut text = boxed(CanvasShape::Text, CanvasPoint::new(180.0, 36.0));
+                text.placeholder = "Text".into();
+                text
+            }
+            Tool::Select | Tool::Pen | Tool::Frame => {
+                self.set_tool(tool);
+                return;
+            }
         };
-        let Some((size, kind)) = entity else {
-            self.set_tool(tool);
-            return;
-        };
-        self.add_entity(block_editor_beui::be_block::canvas::CanvasEntity {
-            id: Uuid::new_v4(),
-            transform: CanvasTransform::new(center, size, 0.0),
-            kind,
-            style,
-            group_id: None,
-            locked: false,
-            components: Vec::new(),
-        });
+        let mut entity = self.styled(entity);
+        if tool == Tool::Arrow {
+            entity.style.end_arrowhead = CanvasArrowhead::Arrow;
+        }
+        self.add_entity(entity);
         self.put_down_tool();
     }
 }

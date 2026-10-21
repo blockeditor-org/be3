@@ -8,11 +8,16 @@ use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::Edit;
 use block_editor_beui::be_block::ImageContent;
 use block_editor_beui::be_block::canvas::{
-    CanvasColor, CanvasComponent, CanvasEntity, CanvasEntityKind, CanvasEntityStyle,
-    CanvasLayerMove, CanvasPoint, CanvasTextStyle, CanvasTransform, InfiniteCanvasOperation,
+    CanvasArrowhead, CanvasBinding, CanvasColor, CanvasComponent, CanvasEntity, CanvasFill,
+    CanvasLayerMove, CanvasPoint, CanvasShape, CanvasStyle, CanvasTextStyle, CanvasTransform,
+    InfiniteCanvasOperation,
 };
 use block_editor_beui::be_block::database::DatabaseValue;
 use block_editor_beui::be_block::presence::{PresenceColor, pick_free_color};
+use block_editor_beui::beui::icons::{
+    ICON_CROP_FREE, ICON_DIAGONAL_LINE, ICON_DIAMOND, ICON_DRAW, ICON_NORTH_EAST,
+    ICON_PANORAMA_FISH_EYE, ICON_RECTANGLE, ICON_SELECT, ICON_TEXT_FIELDS,
+};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::{Pos2, Rect, Thumbhash, Vec2, pos2};
 use block_editor_beui::block_ui::BlockLabel;
@@ -78,11 +83,41 @@ pub(crate) fn common_value<T: Copy + PartialEq>(
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub(crate) enum Tool {
     Select,
-    Artboard,
+    Frame,
     Line,
+    Arrow,
     Rectangle,
+    Ellipse,
+    Diamond,
     Text,
     Pen,
+}
+
+impl Tool {
+    pub(crate) fn glyph(self) -> &'static str {
+        match self {
+            Tool::Select => ICON_SELECT,
+            Tool::Frame => ICON_CROP_FREE,
+            Tool::Line => ICON_DIAGONAL_LINE,
+            Tool::Arrow => ICON_NORTH_EAST,
+            Tool::Rectangle => ICON_RECTANGLE,
+            Tool::Ellipse => ICON_PANORAMA_FISH_EYE,
+            Tool::Diamond => ICON_DIAMOND,
+            Tool::Text => ICON_TEXT_FIELDS,
+            Tool::Pen => ICON_DRAW,
+        }
+    }
+
+    pub(crate) fn draws_a_box(self) -> bool {
+        matches!(
+            self,
+            Tool::Rectangle | Tool::Ellipse | Tool::Diamond | Tool::Frame
+        )
+    }
+
+    pub(crate) fn draws_a_line(self) -> bool {
+        matches!(self, Tool::Line | Tool::Arrow)
+    }
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -156,7 +191,7 @@ pub(crate) enum Gesture {
         scale_editors: bool,
     },
     Endpoint {
-        original: CanvasEntity,
+        original: Box<CanvasEntity>,
         end: usize,
         current: CanvasPoint,
         grab: CanvasPoint,
@@ -180,15 +215,17 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             ..
         } => {
             let delta = CanvasPoint::new(current.x - start.x, current.y - start.y);
-            originals
-                .iter()
-                .cloned()
-                .map(|mut entity| {
-                    entity.transform.center.x += delta.x;
-                    entity.transform.center.y += delta.y;
-                    entity
-                })
-                .collect()
+            unbound_from_the_rest(
+                originals
+                    .iter()
+                    .cloned()
+                    .map(|mut entity| {
+                        entity.transform.center.x += delta.x;
+                        entity.transform.center.y += delta.y;
+                        entity
+                    })
+                    .collect(),
+            )
         }
         Gesture::Resize {
             handle,
@@ -199,7 +236,7 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             scale_text,
             scale_editors,
             ..
-        } => resize_entities(
+        } => unbound_from_the_rest(resize_entities(
             *handle,
             *frame,
             *current,
@@ -207,14 +244,20 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             *preserve_aspect_ratio,
             *scale_text,
             *scale_editors,
-        ),
+        )),
         Gesture::Rotate {
             frame,
             start_angle,
             current,
             originals,
             snap_angle,
-        } => rotate_entities(*frame, *start_angle, *current, originals, *snap_angle),
+        } => unbound_from_the_rest(rotate_entities(
+            *frame,
+            *start_angle,
+            *current,
+            originals,
+            *snap_angle,
+        )),
         Gesture::Endpoint {
             original,
             end,
@@ -222,15 +265,29 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             snap,
             ..
         } => {
-            let mut ends = line_ends(original);
-            ends[*end] = match snap {
+            let ends = path_ends(original);
+            let at = match snap {
                 true => constrain_point_angle(ends[1 - end], *current, std::f32::consts::FRAC_PI_4),
                 false => *current,
             };
-            vec![line_through(original.clone(), ends[0], ends[1])]
+            let mut moved = with_end(original.as_ref().clone(), *end, at);
+            moved.bindings[*end] = None;
+            vec![moved]
         }
         Gesture::Create { .. } | Gesture::Pen { .. } | Gesture::SelectBox { .. } => Vec::new(),
     }
+}
+
+fn unbound_from_the_rest(mut entities: Vec<CanvasEntity>) -> Vec<CanvasEntity> {
+    let moved: HashSet<Uuid> = entities.iter().map(|entity| entity.id).collect();
+    for entity in &mut entities {
+        for binding in &mut entity.bindings {
+            if binding.is_some_and(|binding| !moved.contains(&binding.entity)) {
+                *binding = None;
+            }
+        }
+    }
+    entities
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -378,8 +435,8 @@ impl CanvasState {
             retapped: Cell::new(None),
             text_entry: Cell::new(None),
             surface: NodeRef::new(),
-            last_foreground: Cell::new(CanvasEntityStyle::default().foreground),
-            last_fill: Cell::new(CanvasEntityStyle::default().fill),
+            last_foreground: Cell::new(CanvasStyle::default().stroke_color),
+            last_fill: Cell::new(None),
             children: RefCell::new(HashMap::new()),
             placeholders: RefCell::new(HashMap::new()),
             confirmed_editor: Cell::new(None),
@@ -534,8 +591,8 @@ impl CanvasState {
     }
 
     pub(crate) fn resize_mode(&self, entity: &CanvasEntity) -> ResizeMode {
-        match entity.kind {
-            CanvasEntityKind::DirectEditor { .. } => self.peek_child(entity.id).resize,
+        match entity.shape {
+            CanvasShape::Editor => self.peek_child(entity.id).resize,
             _ => ResizeMode::Both,
         }
     }
@@ -587,9 +644,9 @@ pub(crate) fn camera_view(
 const FITTED_ROOM: Vec2 = Vec2::new(640.0, 480.0);
 
 fn fit_to_child(entity: &CanvasEntity, intrinsic: Vec2) -> Option<CanvasEntity> {
-    let CanvasEntityKind::DirectEditor { block_id, .. } = entity.kind else {
+    if entity.shape != CanvasShape::Editor {
         return None;
-    };
+    }
     if intrinsic.x <= 0.0 || intrinsic.y <= 0.0 {
         return None;
     }
@@ -601,7 +658,7 @@ fn fit_to_child(entity: &CanvasEntity, intrinsic: Vec2) -> Option<CanvasEntity> 
     let bounds = entity_bounds(entity);
     let size = direct_editor_entity_size(intrinsic, scale);
     let mut fitted = entity.clone();
-    fitted.kind = CanvasEntityKind::DirectEditor { block_id, scale };
+    fitted.scale = scale;
     fitted.transform.size = size;
     fitted.transform.center = CanvasPoint::new(bounds.center().x, bounds.min.y + size.y * 0.5);
     Some(fitted)
@@ -636,7 +693,9 @@ impl CanvasState {
             .set(entities.iter().map(|entity| entity.id).collect());
         let operations = entities
             .into_iter()
-            .map(|entity| InfiniteCanvasOperation::Add { entity })
+            .map(|entity| InfiniteCanvasOperation::Add {
+                entity: Box::new(entity),
+            })
             .collect::<Vec<_>>();
         self.operate_all(&operations);
     }
@@ -669,12 +728,25 @@ impl CanvasState {
         self.cells.value().grouped_edit.set(false);
     }
 
-    pub(crate) fn default_style(&self) -> CanvasEntityStyle {
-        CanvasEntityStyle {
-            foreground: self.cells.value().last_foreground.get(),
-            fill: self.cells.value().last_fill.get(),
-            ..CanvasEntityStyle::default()
+    pub(crate) fn default_style(&self) -> CanvasStyle {
+        let fill = self.cells.value().last_fill.get();
+        CanvasStyle {
+            stroke_color: self.cells.value().last_foreground.get(),
+            fill: match fill {
+                Some(_) => CanvasFill::Solid,
+                None => CanvasFill::None,
+            },
+            fill_color: fill.unwrap_or_default(),
+            ..CanvasStyle::default()
         }
+    }
+
+    pub(crate) fn styled(&self, mut entity: CanvasEntity) -> CanvasEntity {
+        entity.style = CanvasStyle {
+            seed: entity.style.seed,
+            ..self.default_style()
+        };
+        entity
     }
 
     pub(crate) fn remember_foreground(&self, color: CanvasColor) {
@@ -748,14 +820,14 @@ impl CanvasState {
     }
 
     pub(crate) fn fit_text(&self, mut entity: CanvasEntity) -> CanvasEntity {
-        let CanvasEntityKind::Text { text_style, .. } = &entity.kind else {
+        if entity.shape != CanvasShape::Text {
             return entity;
-        };
-        let text_style = *text_style;
+        }
+        let text_style = entity.text_style;
         let Some(measured) = super::text::measure(&entity, self.scale()) else {
             return entity;
         };
-        let mut size = text_box_size(&text_style, measured);
+        let mut size = text_box_size(&text_style, entity.style.text_size.px(), measured);
         if text_style.wrap {
             size = CanvasPoint::new(entity.transform.size.x, entity.transform.size.y.max(size.y));
         }
@@ -815,13 +887,13 @@ impl CanvasState {
         }
     }
 
-    pub(crate) fn first_artboard(&self) -> Option<CanvasEntity> {
-        self.entities.first_artboard()
+    pub(crate) fn first_frame(&self) -> Option<CanvasEntity> {
+        self.entities.first_frame()
     }
 
-    pub(crate) fn request_fit_artboard(&self) {
-        if let Some(artboard) = untrack(|| self.entities.first_artboard()) {
-            self.fit_into_view(entity_bounds(&artboard));
+    pub(crate) fn request_fit_frame(&self) {
+        if let Some(frame) = untrack(|| self.entities.first_frame()) {
+            self.fit_into_view(entity_bounds(&frame));
         }
     }
 
@@ -837,13 +909,32 @@ impl CanvasState {
             .collect()
     }
 
-    pub(crate) fn selected_line(&self) -> Option<CanvasEntity> {
+    pub(crate) fn selected_path(&self) -> Option<CanvasEntity> {
         match self.selected_entities().as_slice() {
-            [entity] if !entity.locked && matches!(entity.kind, CanvasEntityKind::Line) => {
-                Some(entity.clone())
-            }
+            [entity] if !entity.locked && entity.shape == CanvasShape::Path => Some(entity.clone()),
             _ => None,
         }
+    }
+
+    pub(crate) fn binding_at(&self, point: CanvasPoint, path: Uuid) -> Option<CanvasBinding> {
+        let radius = HIT_RADIUS / self.scale();
+        self.entities
+            .all_untracked()
+            .into_iter()
+            .rev()
+            .filter(|entity| entity.id != path && !entity.hidden && entity.shape.bindable())
+            .find(|entity| {
+                let local = entity.transform.to_local(point);
+                let grown = CanvasPoint::new(
+                    local.x * entity.transform.size.x / (entity.transform.size.x + radius * 2.0),
+                    local.y * entity.transform.size.y / (entity.transform.size.y + radius * 2.0),
+                );
+                entity.shape.contains_local(grown)
+            })
+            .map(|entity| CanvasBinding {
+                entity: entity.id,
+                anchor: entity.transform.to_local(point),
+            })
     }
 
     pub(crate) fn selection_has_unlocked(&self) -> bool {
@@ -901,17 +992,17 @@ impl CanvasState {
         let scale = self.scale();
         let radius = HIT_RADIUS / scale;
         let entities = self.entities.all_untracked();
-        let (artboards, drawn): (Vec<_>, Vec<_>) = entities
+        let (frames, drawn): (Vec<_>, Vec<_>) = entities
             .iter()
-            .filter(|entity| !entity.style.hidden)
-            .partition(|entity| entity.is_artboard());
+            .filter(|entity| !entity.hidden)
+            .partition(|entity| entity.is_frame());
         drawn
             .into_iter()
             .rev()
             .find(|entity| hit_entity(entity, point, radius))
             .or_else(|| {
-                artboards.into_iter().rev().find(|entity| {
-                    artboard_label_hit(entity, point, scale) || hit_entity(entity, point, radius)
+                frames.into_iter().rev().find(|entity| {
+                    frame_label_hit(entity, point, scale) || hit_entity(entity, point, radius)
                 })
             })
             .map(|entity| entity.id)
@@ -919,15 +1010,21 @@ impl CanvasState {
 
     pub(crate) fn add_entity(&self, entity: CanvasEntity) {
         let id = entity.id;
-        let text = matches!(&entity.kind, CanvasEntityKind::Text { .. });
+        let text = entity.shape == CanvasShape::Text;
         let select_after_add = !matches!(
-            &entity.kind,
-            CanvasEntityKind::Line | CanvasEntityKind::Rectangle | CanvasEntityKind::Pen { .. }
+            entity.shape,
+            CanvasShape::Path
+                | CanvasShape::Rectangle
+                | CanvasShape::Ellipse
+                | CanvasShape::Diamond
+                | CanvasShape::Freehand
         );
         if text {
             self.edit_text(Some(id));
         }
-        self.record(InfiniteCanvasOperation::Add { entity });
+        self.record(InfiniteCanvasOperation::Add {
+            entity: Box::new(entity),
+        });
         let mut selection = HashSet::new();
         if select_after_add {
             selection.insert(id);
@@ -968,7 +1065,7 @@ impl CanvasState {
             return;
         };
         let mut updated = held.clone();
-        updated.style.hidden = hidden;
+        updated.hidden = hidden;
         self.record_update(vec![held], vec![updated], false);
     }
 
@@ -1411,13 +1508,13 @@ impl CanvasState {
 
     pub(crate) fn update_selected(
         &self,
-        compatible: impl Fn(&CanvasEntityKind) -> bool,
-        mut update: impl FnMut(&mut CanvasEntityStyle),
+        compatible: impl Fn(&CanvasEntity) -> bool,
+        mut update: impl FnMut(&mut CanvasStyle),
     ) {
         let before = self
             .selected_entities()
             .into_iter()
-            .filter(|entity| compatible(&entity.kind))
+            .filter(|entity| compatible(entity))
             .collect::<Vec<_>>();
         let after = before
             .iter()
@@ -1430,20 +1527,20 @@ impl CanvasState {
         self.record_update(before, after, true);
     }
 
-    pub(crate) fn update_selected_text(&self, mut update: impl FnMut(&mut CanvasTextStyle)) {
+    pub(crate) fn update_selected_text(
+        &self,
+        mut update: impl FnMut(&mut CanvasTextStyle, &mut CanvasStyle),
+    ) {
         let before = self
             .selected_entities()
             .into_iter()
-            .filter(|entity| matches!(entity.kind, CanvasEntityKind::Text { .. }))
+            .filter(|entity| entity.shape == CanvasShape::Text)
             .collect::<Vec<_>>();
         let after = before
             .iter()
             .cloned()
             .map(|mut entity| {
-                let CanvasEntityKind::Text { text_style, .. } = &mut entity.kind else {
-                    unreachable!("only text entities were kept");
-                };
-                update(text_style);
+                update(&mut entity.text_style, &mut entity.style);
                 entity
             })
             .collect();
@@ -1455,20 +1552,10 @@ impl CanvasState {
             .entities
             .all_untracked()
             .into_iter()
-            .filter_map(|entity| {
-                let kind = match entity.kind {
-                    CanvasEntityKind::Block { block_id } if block_id == old => {
-                        CanvasEntityKind::Block { block_id: new }
-                    }
-                    CanvasEntityKind::DirectEditor { block_id, scale } if block_id == old => {
-                        CanvasEntityKind::DirectEditor {
-                            block_id: new,
-                            scale,
-                        }
-                    }
-                    _ => return None,
-                };
-                Some(CanvasEntity { kind, ..entity })
+            .filter(|entity| entity.shape.embeds_block() && entity.block == Some(old))
+            .map(|entity| CanvasEntity {
+                block: Some(new),
+                ..entity
             })
             .collect::<Vec<_>>();
         if replaced.is_empty() {
@@ -1593,19 +1680,17 @@ impl CanvasState {
 
     pub(crate) fn selection_defaults_to_proportional(&self) -> bool {
         self.selected_unlocked().iter().any(|entity| {
-            matches!(
-                entity.kind,
-                CanvasEntityKind::Block { .. } | CanvasEntityKind::DirectEditor { .. }
-            ) && self
-                .peek_child(entity.id)
-                .capabilities
-                .preserve_aspect_ratio
+            entity.shape.embeds_block()
+                && self
+                    .peek_child(entity.id)
+                    .capabilities
+                    .preserve_aspect_ratio
         })
     }
 
     pub(crate) fn selection_forces_proportional(&self) -> bool {
         self.selected_unlocked().iter().any(|entity| {
-            matches!(entity.kind, CanvasEntityKind::DirectEditor { .. })
+            entity.shape == CanvasShape::Editor
                 && self
                     .peek_child(entity.id)
                     .capabilities
@@ -1616,12 +1701,12 @@ impl CanvasState {
     pub(crate) fn selection_allows_rotation(&self) -> bool {
         self.selected_unlocked()
             .iter()
-            .all(|entity| match entity.kind {
-                CanvasEntityKind::DirectEditor { .. } => {
+            .all(|entity| match entity.shape {
+                CanvasShape::Editor => {
                     let state = self.peek_child(entity.id);
                     !state.placed || state.capabilities.rotation
                 }
-                CanvasEntityKind::Artboard { .. } | CanvasEntityKind::Text { .. } => false,
+                CanvasShape::Frame | CanvasShape::Text => false,
                 _ => true,
             })
     }
@@ -1655,20 +1740,11 @@ impl CanvasState {
 
     pub(crate) fn add_direct_editor(&self, block_id: Uuid, center: CanvasPoint) {
         let size = direct_editor_entity_size(Vec2::new(180.0, 100.0), 1.0);
-        let entity_id = Uuid::new_v4();
-        let transform = CanvasTransform::new(center, size, 0.0);
         let entity = CanvasEntity {
-            id: entity_id,
-            transform,
-            kind: CanvasEntityKind::DirectEditor {
-                block_id,
-                scale: 1.0,
-            },
-            style: CanvasEntityStyle::default(),
-            group_id: None,
-            locked: false,
-            components: Vec::new(),
+            block: Some(block_id),
+            ..CanvasEntity::new(CanvasShape::Editor, CanvasTransform::new(center, size, 0.0))
         };
+        let entity_id = entity.id;
         self.cells.value().placeholders.borrow_mut().insert(
             entity_id,
             Placeholder {
@@ -1677,7 +1753,9 @@ impl CanvasState {
             },
         );
         self.selection.set(HashSet::from([entity_id]));
-        self.record(InfiniteCanvasOperation::Add { entity });
+        self.record(InfiniteCanvasOperation::Add {
+            entity: Box::new(entity),
+        });
     }
 
     pub(crate) fn add_imported_image(&self, image: ImageContent, center: CanvasPoint) {
@@ -1690,14 +1768,17 @@ impl CanvasState {
         let [entity] = selected.as_slice() else {
             return;
         };
-        let updated = match entity.kind {
-            CanvasEntityKind::DirectEditor { block_id, .. } => {
+        let Some(block_id) = entity.block else {
+            return;
+        };
+        let updated = match entity.shape {
+            CanvasShape::Editor => {
                 if self.focused_editor.get_untracked() == Some(entity.id) {
                     self.focus_editor(None);
                 }
                 direct_editor_to_preview(entity, block_id)
             }
-            CanvasEntityKind::Block { block_id } => self
+            CanvasShape::Block => self
                 .peek_child(entity.id)
                 .intrinsic_size
                 .map(|intrinsic| preview_to_direct_editor(entity, block_id, intrinsic)),
@@ -1713,18 +1794,20 @@ impl CanvasState {
         let [entity] = selected.as_slice() else {
             return;
         };
-        match entity.kind {
-            CanvasEntityKind::DirectEditor { block_id, .. } => {
+        match (entity.shape, entity.block) {
+            (CanvasShape::Editor, Some(block_id)) => {
                 if self.interaction(entity.id) == Some(InteractionMode::Playback) {
                     self.open_referenced_block(block_id);
                 } else {
                     self.focus_editor(Some(entity.id));
                 }
             }
-            CanvasEntityKind::Text { .. } if !entity.locked => {
+            (CanvasShape::Text, _) if !entity.locked => {
                 self.edit_text_at(entity.id, TextEntry::All);
             }
-            CanvasEntityKind::Block { block_id } => self.open_referenced_block(block_id),
+            (CanvasShape::Block | CanvasShape::Image, Some(block_id)) => {
+                self.open_referenced_block(block_id)
+            }
             _ => {}
         }
     }
@@ -1746,10 +1829,7 @@ impl CanvasState {
                 ..
             } => {
                 if let Some(entity) = self.created_entity(tool, start, current, from_center) {
-                    let done = matches!(
-                        entity.kind,
-                        CanvasEntityKind::Text { .. } | CanvasEntityKind::Artboard { .. }
-                    );
+                    let done = matches!(entity.shape, CanvasShape::Text | CanvasShape::Frame);
                     self.add_entity(entity);
                     if done {
                         self.put_down_tool();
@@ -1780,7 +1860,7 @@ impl CanvasState {
                     let hits = entities
                         .iter()
                         .filter(|entity| {
-                            !entity.style.hidden && box_rect.contains_rect(entity_bounds(entity))
+                            !entity.hidden && box_rect.contains_rect(entity_bounds(entity))
                         })
                         .map(|entity| entity.id)
                         .collect::<Vec<_>>();
@@ -1795,7 +1875,9 @@ impl CanvasState {
             } => {
                 let additions = preview_entities(&gesture);
                 for entity in additions {
-                    self.operate(&InfiniteCanvasOperation::Add { entity });
+                    self.operate(&InfiniteCanvasOperation::Add {
+                        entity: Box::new(entity),
+                    });
                 }
             }
             Gesture::Move {
@@ -1810,9 +1892,15 @@ impl CanvasState {
                     self.record_update(originals.clone(), updates, false);
                 }
             }
-            Gesture::Endpoint { ref original, .. } => {
-                let updates = preview_entities(&gesture);
-                self.record_update(vec![original.clone()], updates, false);
+            Gesture::Endpoint {
+                ref original, end, ..
+            } => {
+                let mut updates = preview_entities(&gesture);
+                for path in &mut updates {
+                    let at = path_ends(path)[end];
+                    path.bindings[end] = self.binding_at(at, path.id);
+                }
+                self.record_update(vec![original.as_ref().clone()], updates, false);
             }
         }
     }
@@ -1824,43 +1912,32 @@ impl CanvasState {
         current: CanvasPoint,
         from_center: bool,
     ) -> Option<CanvasEntity> {
-        let style = self.default_style();
+        let boxed = |shape: CanvasShape| {
+            let bounds = gesture_rect(start, current, from_center);
+            self.styled(CanvasEntity::new(
+                shape,
+                CanvasTransform::new(
+                    bounds.center(),
+                    CanvasPoint::new(bounds.size().x.max(MIN_SIZE), bounds.size().y.max(MIN_SIZE)),
+                    0.0,
+                ),
+            ))
+        };
         match tool {
-            Tool::Line if distance(start, current) >= MIN_SIZE => {
-                let delta = CanvasPoint::new(current.x - start.x, current.y - start.y);
-                Some(CanvasEntity {
-                    id: Uuid::new_v4(),
-                    transform: CanvasTransform::new(
-                        midpoint(start, current),
-                        CanvasPoint::new(distance(start, current), 1.0),
-                        delta.y.atan2(delta.x),
-                    ),
-                    kind: CanvasEntityKind::Line,
-                    style,
-                    group_id: None,
-                    locked: false,
-                    components: Vec::new(),
-                })
+            Tool::Line | Tool::Arrow if distance(start, current) >= MIN_SIZE => {
+                let mut path = self.styled(CanvasEntity::path(&[start, current]));
+                if tool == Tool::Arrow {
+                    path.style.end_arrowhead = CanvasArrowhead::Arrow;
+                }
+                path.bindings = [
+                    self.binding_at(start, path.id),
+                    self.binding_at(current, path.id),
+                ];
+                Some(path)
             }
-            Tool::Rectangle => {
-                let bounds = gesture_rect(start, current, from_center);
-                Some(CanvasEntity {
-                    id: Uuid::new_v4(),
-                    transform: CanvasTransform::new(
-                        bounds.center(),
-                        CanvasPoint::new(
-                            bounds.size().x.max(MIN_SIZE),
-                            bounds.size().y.max(MIN_SIZE),
-                        ),
-                        0.0,
-                    ),
-                    kind: CanvasEntityKind::Rectangle,
-                    style,
-                    group_id: None,
-                    locked: false,
-                    components: Vec::new(),
-                })
-            }
+            Tool::Rectangle => Some(boxed(CanvasShape::Rectangle)),
+            Tool::Ellipse => Some(boxed(CanvasShape::Ellipse)),
+            Tool::Diamond => Some(boxed(CanvasShape::Diamond)),
             Tool::Text => {
                 let bounds = WorldRect::from_points(start, current);
                 let dragged = distance(start, current) >= MIN_SIZE;
@@ -1868,28 +1945,18 @@ impl CanvasState {
                     true => CanvasPoint::new(bounds.size().x.max(60.0), bounds.size().y.max(32.0)),
                     false => CanvasPoint::new(180.0, 36.0),
                 };
-                Some(CanvasEntity {
-                    id: Uuid::new_v4(),
-                    transform: CanvasTransform::new(
-                        if dragged { bounds.center() } else { start },
-                        size,
-                        0.0,
-                    ),
-                    kind: CanvasEntityKind::Text {
-                        text: String::new(),
-                        text_style: CanvasTextStyle {
-                            wrap: dragged,
-                            ..CanvasTextStyle::default()
-                        },
-                        placeholder: "Text".into(),
-                    },
-                    style,
-                    group_id: None,
-                    locked: false,
-                    components: Vec::new(),
-                })
+                let mut text = self.styled(CanvasEntity::new(
+                    CanvasShape::Text,
+                    CanvasTransform::new(if dragged { bounds.center() } else { start }, size, 0.0),
+                ));
+                text.placeholder = "Text".into();
+                text.text_style = CanvasTextStyle {
+                    wrap: dragged,
+                    ..CanvasTextStyle::default()
+                };
+                Some(text)
             }
-            Tool::Artboard => {
+            Tool::Frame => {
                 let bounds = gesture_rect(start, current, from_center);
                 if bounds.size().x < MIN_SIZE || bounds.size().y < MIN_SIZE {
                     return None;
@@ -1898,21 +1965,16 @@ impl CanvasState {
                     .entities
                     .all_untracked()
                     .iter()
-                    .filter(|entity| entity.is_artboard())
+                    .filter(|entity| entity.is_frame())
                     .count();
-                Some(CanvasEntity {
-                    id: Uuid::new_v4(),
-                    transform: CanvasTransform::new(bounds.center(), bounds.size(), 0.0),
-                    kind: CanvasEntityKind::Artboard {
-                        name: format!("Artboard {}", count + 1),
-                    },
-                    style: CanvasEntityStyle::default(),
-                    group_id: None,
-                    locked: false,
-                    components: Vec::new(),
-                })
+                let mut frame = CanvasEntity::new(
+                    CanvasShape::Frame,
+                    CanvasTransform::new(bounds.center(), bounds.size(), 0.0),
+                );
+                frame.text = format!("Frame {}", count + 1);
+                Some(frame)
             }
-            Tool::Line | Tool::Select | Tool::Pen => None,
+            Tool::Line | Tool::Arrow | Tool::Select | Tool::Pen => None,
         }
     }
 }
@@ -1960,7 +2022,7 @@ impl CanvasState {
             let Some(size) = resized.get() else {
                 return;
             };
-            untrack(|| state.resize_first_artboard(size));
+            untrack(|| state.resize_first_frame(size));
         });
         let state = self;
         let revealed = self.editor.revealed();
@@ -2104,18 +2166,18 @@ impl CanvasState {
         }
     }
 
-    fn resize_first_artboard(&self, size: Vec2) {
-        let Some(artboard) = untrack(|| self.entities.first_artboard()) else {
+    fn resize_first_frame(&self, size: Vec2) {
+        let Some(frame) = untrack(|| self.entities.first_frame()) else {
             return;
         };
         let wanted = CanvasPoint::new(size.x.max(MIN_SIZE), size.y.max(MIN_SIZE));
-        let held = artboard.transform.size;
+        let held = frame.transform.size;
         if (wanted.x - held.x).abs() < 0.01 && (wanted.y - held.y).abs() < 0.01 {
             return;
         }
-        let mut resized = artboard.clone();
+        let mut resized = frame.clone();
         resized.transform.size = wanted;
-        self.record_update(vec![artboard], vec![resized], false);
+        self.record_update(vec![frame], vec![resized], false);
     }
 
     fn reveal_peer(&self, client_id: u64) {
@@ -2158,9 +2220,10 @@ impl CanvasState {
         let mut before = Vec::new();
         let mut after = Vec::new();
         for entity in self.entities.all_untracked() {
-            let CanvasEntityKind::DirectEditor { scale, .. } = entity.kind else {
+            if entity.shape != CanvasShape::Editor {
                 continue;
-            };
+            }
+            let scale = entity.scale;
             let child = self.peek_child(entity.id);
             if !child.placed {
                 continue;
@@ -2255,9 +2318,10 @@ impl CanvasState {
     }
 
     pub(crate) fn assigned_intrinsic(&self, entity: &CanvasEntity) -> Option<Vec2> {
-        let CanvasEntityKind::DirectEditor { scale, .. } = entity.kind else {
+        if entity.shape != CanvasShape::Editor {
             return None;
-        };
+        }
+        let scale = entity.scale;
         if self.peek_child(entity.id).resize != ResizeMode::Both || self.is_placeholder(entity) {
             return None;
         }

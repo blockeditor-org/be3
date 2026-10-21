@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
+use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasPoint, CanvasShape};
 use std::cell::RefCell;
 
 use block_editor_beui::beui::reactive::*;
@@ -12,8 +12,8 @@ use uuid::Uuid;
 use crate::geometry::*;
 
 use super::menu::CanvasMenu;
-use super::overlay::{Artboard, Backdrop, Overlay};
-use super::paint::{Camera, EntityPaint, Palette, resolve_color};
+use super::overlay::{Backdrop, FrameBackdrop, Overlay};
+use super::paint::{Camera, EntityPaint, Palette, arrowhead_size, path_middle, resolve_color};
 use super::state::CanvasState;
 use super::text::{EntityText, shown_live, text_box};
 
@@ -132,8 +132,8 @@ fn CanvasOverlay(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect>
             outlines: super::state::selected_outlines(&selected, &selection),
             frame: super::state::selection_frame(&selected, &selection),
             line: state
-                .selected_line()
-                .and_then(|line| Some(line_ends(&state.entities.shown(line.id)?))),
+                .selected_path()
+                .and_then(|path| Some(path_ends(&state.entities.shown(path.id)?))),
             resize: state.selection_handles().0,
             rotatable: state.selection_has_unlocked() && state.selection_allows_rotation(),
             presence: state.presence.get(),
@@ -166,21 +166,18 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
     let draw = create_signal::<Draw>(Rc::new(|_, _| {}));
     let shown = RefCell::new(None::<Backdrop>);
     create_effect(move || {
-        let artboards = state
+        let frames = state
             .entities
-            .shown_artboards()
+            .shown_frames()
             .into_iter()
-            .filter(|entity| !entity.style.hidden)
-            .filter_map(|entity| match &entity.kind {
-                CanvasEntityKind::Artboard { name } => Some(Artboard {
-                    bounds: entity_bounds(&entity),
-                    name: name.clone(),
-                    fill: resolve_color(
-                        entity.style.fill.unwrap_or_default(),
-                        theme.background.get(),
-                    ),
-                }),
-                _ => None,
+            .filter(|entity| !entity.hidden)
+            .map(|entity| FrameBackdrop {
+                bounds: entity_bounds(&entity),
+                name: entity.text.clone(),
+                fill: resolve_color(
+                    entity.style.filled().unwrap_or_default(),
+                    theme.background.get(),
+                ),
             })
             .collect();
         let backdrop = Backdrop {
@@ -188,7 +185,7 @@ fn CanvasBackdrop(state: CanvasState, camera: Memo<CanvasView>, stage: Memo<Rect
             stage: stage.get(),
             label: theme.text_muted.get(),
             chrome: !state.previewing(),
-            artboards,
+            frames,
         };
         if shown.borrow().as_ref() == Some(&backdrop) {
             return;
@@ -287,7 +284,7 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
     let entity = entity_of(state, id);
     let bounds = create_memo(move || entity.get().map(content_bounds).unwrap_or(Rect::ZERO));
     let target = create_memo(move || {
-        let entity = entity.get().filter(|entity| !entity.style.hidden)?;
+        let entity = entity.get().filter(|entity| !entity.hidden)?;
         let id = reference_of(&entity)?;
         let block_type = state.block_type_of(id)?;
         Some(ChildTarget::new(id, block_type))
@@ -300,8 +297,8 @@ fn EntityEmbed(state: CanvasState, id: Uuid) -> CanvasItem {
             .map_or(1.0, |entity| entity.style.opacity.clamp(0.0, 1.0))
     });
     let mode = create_memo(move || match entity.get() {
-        Some(entity) => match entity.kind {
-            CanvasEntityKind::DirectEditor { .. } => match state.focused_editor.get() == Some(id) {
+        Some(entity) => match entity.shape {
+            CanvasShape::Editor => match state.focused_editor.get() == Some(id) {
                 true => ChildMode::Active,
                 false => match (state.shows_preview(id), state.works_in_place(id)) {
                     (true, _) => ChildMode::Preview,
@@ -368,8 +365,8 @@ fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {
 }
 
 fn content_bounds(entity: CanvasEntity) -> Rect {
-    match entity.kind {
-        CanvasEntityKind::Block { .. } => {
+    match entity.shape {
+        CanvasShape::Block | CanvasShape::Image => {
             let size = Vec2::new(
                 entity.transform.size.x.max(MIN_SIZE),
                 entity.transform.size.y.max(MIN_SIZE),
@@ -385,7 +382,7 @@ fn content_bounds(entity: CanvasEntity) -> Rect {
                 ),
             )
         }
-        CanvasEntityKind::DirectEditor { .. } => direct_editor_layout(&entity)
+        CanvasShape::Editor => direct_editor_layout(&entity)
             .map(|layout| layout.content.rect())
             .unwrap_or(Rect::ZERO),
         _ => Rect::ZERO,
@@ -393,23 +390,41 @@ fn content_bounds(entity: CanvasEntity) -> Rect {
 }
 
 fn reference_of(entity: &CanvasEntity) -> Option<Uuid> {
-    match entity.kind {
-        CanvasEntityKind::Block { block_id } | CanvasEntityKind::DirectEditor { block_id, .. } => {
-            Some(block_id)
-        }
-        _ => None,
-    }
+    entity.block.filter(|_| entity.shape.embeds_block())
 }
 
 fn item_bounds(entity: &CanvasEntity) -> Rect {
     let bounds = entity_bounds(entity);
-    let widest = match entity.kind {
-        CanvasEntityKind::Pen { .. } => MOST_PRESSED_WIDTH,
-        _ => 1.0,
+    let stroke = entity.style.stroke_width.max(0.0);
+    let margin = ITEM_MARGIN
+        + match entity.shape {
+            CanvasShape::Freehand => stroke * MOST_PRESSED_WIDTH,
+            CanvasShape::Path => stroke.max(arrowhead_size(stroke) * 0.5),
+            _ => stroke,
+        };
+    let bounds = match entity.text.is_empty() || !entity.shape.has_points() {
+        true => bounds,
+        false => bounds.union(path_label_reach(entity)),
     };
-    let margin = entity.style.line_width.max(0.0) * widest + ITEM_MARGIN;
     Rect::from_min_max(
         pos2(bounds.min.x - margin, bounds.min.y - margin),
         pos2(bounds.max.x + margin, bounds.max.y + margin),
+    )
+}
+
+fn path_label_reach(entity: &CanvasEntity) -> WorldRect {
+    let px = entity.style.text_size.px();
+    let lines = entity.text.lines().count().max(1) as f32;
+    let widest = entity
+        .text
+        .lines()
+        .map(|line| line.chars().count())
+        .max()
+        .unwrap_or(0) as f32;
+    let half = CanvasPoint::new(widest * px * 0.35 + px, lines * px * 0.75 + px);
+    let center = path_middle(&flattened(&entity.world_points()));
+    WorldRect::from_points(
+        CanvasPoint::new(center.x - half.x, center.y - half.y),
+        CanvasPoint::new(center.x + half.x, center.y + half.y),
     )
 }

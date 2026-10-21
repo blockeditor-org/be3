@@ -1,5 +1,5 @@
 use super::*;
-use block_editor_beui::be_block::canvas::{CanvasColor, CanvasTextStyle};
+use block_editor_beui::be_block::canvas::CanvasColor;
 use block_editor_beui::beui::{Rect, pos2};
 
 const COLUMNS: usize = 8;
@@ -14,18 +14,17 @@ fn grid(count: usize) -> Vec<CanvasEntity> {
                 CanvasPoint::new(60.0, 40.0),
                 0.0,
             );
-            shape.style.fill = Some(CanvasColor::Rgba {
+            shape.style.fill = CanvasFill::Solid;
+            shape.style.fill_color = CanvasColor::Rgba {
                 red: 40,
                 green: 90 + (column * 15) as u8,
                 blue: 160,
                 alpha: 255,
-            });
+            };
             if index % 5 == 0 && index < 6 {
-                shape.kind = CanvasEntityKind::Text {
-                    text: format!("T{index}"),
-                    text_style: CanvasTextStyle::default(),
-                    placeholder: "Text".to_owned(),
-                };
+                shape.shape = CanvasShape::Text;
+                shape.text = format!("T{index}");
+                shape.placeholder = "Text".to_owned();
             }
             shape
         })

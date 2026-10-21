@@ -1,8 +1,11 @@
 use block_editor_beui::be_block::canvas::{
-    CanvasColor, CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint,
+    CanvasArrowhead, CanvasColor, CanvasEntity, CanvasPoint, CanvasShape, CanvasStrokeStyle,
+    CanvasStyle,
 };
 use block_editor_beui::beui::reactive::*;
-use block_editor_beui::beui::{Color32, FontId, Image, Painter, Pos2, Rect, Vec2, pos2};
+use block_editor_beui::beui::{
+    Color32, FontId, Image, Painter, Pos2, Rect, TextAlign, TextLayout, Vec2, pos2,
+};
 
 use crate::geometry::*;
 
@@ -101,40 +104,35 @@ impl PartialEq for EntityPaint {
 
 impl EntityPaint {
     pub(crate) fn draw(&self, painter: &Painter) {
-        if self.entity.style.hidden {
+        if self.entity.hidden {
             return;
         }
-        let opacity = self.entity.style.opacity.clamp(0.0, 1.0);
-        let color = with_opacity(
-            resolve_color(self.entity.style.foreground, self.palette.auto),
-            opacity,
-        );
-        let width = (self.entity.style.line_width.max(0.0) * self.camera.scale).max(0.1);
-        match &self.entity.kind {
-            CanvasEntityKind::Line => self.draw_line(painter, color, width),
-            CanvasEntityKind::Rectangle => self.draw_rectangle(painter, color, width, opacity),
-            CanvasEntityKind::Text { .. } => {}
-            CanvasEntityKind::Pen { points, pressures } => {
-                self.draw_pen(painter, color, width, points, pressures)
+        let style = self.entity.style;
+        let opacity = style.opacity.clamp(0.0, 1.0);
+        let color = with_opacity(resolve_color(style.stroke_color, self.palette.auto), opacity);
+        let width = (style.stroke_width.max(0.0) * self.camera.scale).max(0.1);
+        match self.entity.shape {
+            CanvasShape::Rectangle => self.draw_rectangle(painter, color, width, opacity),
+            CanvasShape::Ellipse | CanvasShape::Diamond => {
+                self.draw_outline(painter, color, width, opacity)
             }
-            CanvasEntityKind::Block { .. } => self.draw_block(painter, color, opacity),
-            CanvasEntityKind::DirectEditor { scale, .. } => {
-                self.draw_direct_editor(painter, color, opacity, *scale)
+            CanvasShape::Path => self.draw_path(painter, color, width),
+            CanvasShape::Freehand => self.draw_pen(painter, color, width),
+            CanvasShape::Text | CanvasShape::Frame => {}
+            CanvasShape::Image => {
+                let painter = self.turned(painter);
+                self.fill_uncovered(&painter, self.box_rect(), opacity);
             }
-            CanvasEntityKind::Artboard { .. } => {}
+            CanvasShape::Block => self.draw_block(painter, color, opacity),
+            CanvasShape::Editor => self.draw_direct_editor(painter, color, opacity),
         }
+        self.draw_label(painter, color);
     }
 
     fn at(&self, point: CanvasPoint) -> Pos2 {
         self.camera.at(point)
     }
 
-    fn local(&self, x: f32, y: f32) -> Pos2 {
-        self.at(local_to_world(
-            self.entity.transform,
-            CanvasPoint::new(x, y),
-        ))
-    }
 
     fn box_rect(&self) -> Rect {
         let center = self.at(self.entity.transform.center);
@@ -155,11 +153,14 @@ impl EntityPaint {
         )
     }
 
-    fn draw_line(&self, painter: &Painter, color: Color32, width: f32) {
-        styled_line(
+    fn draw_path(&self, painter: &Painter, color: Color32, width: f32) {
+        let line: Vec<Pos2> = flattened(&self.entity.world_points())
+            .into_iter()
+            .map(|point| self.at(point))
+            .collect();
+        styled_polyline(
             painter,
-            self.local(-0.5, 0.0),
-            self.local(0.5, 0.0),
+            &line,
             width,
             color,
             self.entity.style,
@@ -167,30 +168,87 @@ impl EntityPaint {
         );
     }
 
+    fn draw_outline(&self, painter: &Painter, color: Color32, width: f32, opacity: f32) {
+        let outline: Vec<Pos2> = outline_points(&self.entity)
+            .into_iter()
+            .map(|point| self.at(point))
+            .collect();
+        if let Some(fill) = self.entity.style.filled() {
+            fill_polygon(
+                painter,
+                &outline,
+                with_opacity(resolve_color(fill, self.palette.auto), opacity),
+            );
+        }
+        let mut closed = outline.clone();
+        closed.extend(outline.first().copied());
+        stroke_polyline(painter, &closed, width, color, self.entity.style.stroke_style);
+    }
+
+    fn draw_label(&self, painter: &Painter, color: Color32) {
+        let entity = &self.entity;
+        if entity.text.is_empty()
+            || matches!(
+                entity.shape,
+                CanvasShape::Text | CanvasShape::Frame | CanvasShape::Editor
+            )
+        {
+            return;
+        }
+        let font = (entity.style.text_size.px() * self.camera.scale).max(1.0);
+        let (center, width) = match entity.shape {
+            CanvasShape::Path | CanvasShape::Freehand => {
+                (path_middle(&flattened(&entity.world_points())), f32::INFINITY)
+            }
+            _ => (
+                entity.transform.center,
+                ((entity.transform.size.x - TEXT_INSET * 2.0) * self.camera.scale).max(1.0),
+            ),
+        };
+        let galley = painter.layout_text(
+            &entity.text,
+            FontId::proportional(font),
+            TextLayout {
+                align: TextAlign::Center,
+                ..TextLayout::wrapped(width)
+            },
+        );
+        let size = galley.size();
+        let at = self.at(center);
+        painter.galley(pos2(at.x - size.x / 2.0, at.y - size.y / 2.0), galley, color);
+    }
+
     fn draw_rectangle(&self, painter: &Painter, color: Color32, width: f32, opacity: f32) {
         let painter = self.turned(painter);
         let rect = self.box_rect();
         let radius = (self.entity.style.corner_radius * self.camera.scale).max(0.0);
-        if let Some(fill) = self.entity.style.fill {
+        if let Some(fill) = self.entity.style.filled() {
             let fill = with_opacity(resolve_color(fill, self.palette.auto), opacity);
             painter.rect_filled(rect, radius, fill);
         }
-        painter.rect_stroke(rect, radius, width, color);
+        match self.entity.style.stroke_style {
+            CanvasStrokeStyle::Solid => painter.rect_stroke(rect, radius, width, color),
+            stroke_style => {
+                let corners = [
+                    rect.left_top(),
+                    rect.right_top(),
+                    rect.right_bottom(),
+                    rect.left_bottom(),
+                    rect.left_top(),
+                ];
+                stroke_polyline(&painter, &corners, width, color, stroke_style);
+            }
+        }
     }
 
-    fn draw_pen(
-        &self,
-        painter: &Painter,
-        color: Color32,
-        width: f32,
-        points: &[CanvasPoint],
-        pressures: &[f32],
-    ) {
-        let points: Vec<Pos2> = points
+    fn draw_pen(&self, painter: &Painter, color: Color32, width: f32) {
+        let points: Vec<Pos2> = self
+            .entity
+            .world_points()
             .iter()
-            .map(|point| self.at(local_to_world(self.entity.transform, *point)))
+            .map(|point| self.at(point.at()))
             .collect();
-        stroke(painter, &points, width, pressures, color);
+        stroke(painter, &points, width, &self.entity.pressures, color);
     }
 
     fn fill_uncovered(&self, painter: &Painter, rect: Rect, opacity: f32) {
@@ -244,7 +302,8 @@ impl EntityPaint {
         );
     }
 
-    fn draw_direct_editor(&self, painter: &Painter, color: Color32, opacity: f32, scale: f32) {
+    fn draw_direct_editor(&self, painter: &Painter, color: Color32, opacity: f32) {
+        let scale = self.entity.scale;
         let Some(layout) = direct_editor_layout(&self.entity) else {
             return;
         };
@@ -291,75 +350,147 @@ impl EntityPaint {
     }
 }
 
-pub(crate) fn styled_line(
+pub(crate) fn path_middle(line: &[CanvasPoint]) -> CanvasPoint {
+    let lengths: Vec<f32> = line.windows(2).map(|pair| distance(pair[0], pair[1])).collect();
+    let mut left = lengths.iter().sum::<f32>() / 2.0;
+    for (pair, length) in line.windows(2).zip(&lengths) {
+        if left <= *length {
+            let t = left / length.max(f32::EPSILON);
+            return CanvasPoint::new(
+                pair[0].x + (pair[1].x - pair[0].x) * t,
+                pair[0].y + (pair[1].y - pair[0].y) * t,
+            );
+        }
+        left -= length;
+    }
+    line.first().copied().unwrap_or_default()
+}
+
+pub(crate) fn arrowhead_size(stroke_width: f32) -> f32 {
+    (stroke_width * 4.0).max(8.0)
+}
+
+pub(crate) fn styled_polyline(
     painter: &Painter,
-    start: Pos2,
-    end: Pos2,
+    line: &[Pos2],
     width: f32,
     color: Color32,
-    style: CanvasEntityStyle,
+    style: CanvasStyle,
     zoom: f32,
 ) {
-    let delta = Vec2::new(end.x - start.x, end.y - start.y);
-    let length = delta.length();
-    if length <= f32::EPSILON {
-        return;
+    let mut shaft = line.to_vec();
+    let size = arrowhead_size(style.stroke_width) * zoom;
+    let mut heads = Vec::new();
+    for (head, end) in [(style.start_arrowhead, false), (style.end_arrowhead, true)] {
+        if head == CanvasArrowhead::None || shaft.len() < 2 {
+            continue;
+        }
+        let (tip, before) = match end {
+            true => (shaft[shaft.len() - 1], shaft[shaft.len() - 2]),
+            false => (shaft[0], shaft[1]),
+        };
+        let delta = Vec2::new(before.x - tip.x, before.y - tip.y);
+        let length = delta.length();
+        if length <= f32::EPSILON {
+            continue;
+        }
+        let inward = Vec2::new(delta.x / length, delta.y / length);
+        let arrow = size.min(length * 0.4);
+        let inset = pos2(tip.x + inward.x * arrow * 0.75, tip.y + inward.y * arrow * 0.75);
+        match end {
+            true => *shaft.last_mut().unwrap() = inset,
+            false => shaft[0] = inset,
+        }
+        heads.push((tip, inward, arrow));
     }
-    let direction = Vec2::new(delta.x / length, delta.y / length);
-    let arrow = ((style.line_width * 4.0).max(8.0) * zoom).min(length * 0.4);
-    let inset = arrow * 0.75;
-    let along = |from: Pos2, amount: f32| {
-        pos2(from.x + direction.x * amount, from.y + direction.y * amount)
-    };
-    let shaft_start = match style.arrow_start {
-        true => along(start, inset),
-        false => start,
-    };
-    let shaft_end = match style.arrow_end {
-        true => along(end, -inset),
-        false => end,
-    };
-    match style.dashed {
-        true => dashed_line(painter, shaft_start, shaft_end, width, color),
-        false => painter.line(shaft_start, shaft_end, width, color),
-    }
-    if style.arrow_start {
-        arrowhead(painter, start, direction, arrow, width, color);
-    }
-    if style.arrow_end {
-        arrowhead(
-            painter,
-            end,
-            Vec2::new(-direction.x, -direction.y),
-            arrow,
-            width,
-            color,
-        );
+    stroke_polyline(painter, &shaft, width, color, style.stroke_style);
+    for (tip, inward, arrow) in heads {
+        arrowhead(painter, tip, inward, arrow, width, color);
     }
 }
 
-fn dashed_line(painter: &Painter, start: Pos2, end: Pos2, width: f32, color: Color32) {
-    let delta = Vec2::new(end.x - start.x, end.y - start.y);
-    let length = delta.length();
-    if length <= f32::EPSILON {
-        return;
-    }
-    let direction = Vec2::new(delta.x / length, delta.y / length);
-    let dash = (width * 3.0).max(2.0);
-    let gap = (width * 2.0).max(2.0);
-    let mut travelled = 0.0;
-    while travelled < length {
-        let to = (travelled + dash).min(length);
-        painter.line(
+pub(crate) fn stroke_polyline(
+    painter: &Painter,
+    line: &[Pos2],
+    width: f32,
+    color: Color32,
+    style: CanvasStrokeStyle,
+) {
+    let (dash, gap) = match style {
+        CanvasStrokeStyle::Solid => {
+            for pair in line.windows(2) {
+                painter.line(pair[0], pair[1], width, color);
+            }
+            for joint in line.iter().skip(1).take(line.len().saturating_sub(2)) {
+                painter.rect_filled(
+                    Rect::from_center_size(*joint, Vec2::splat(width)),
+                    width / 2.0,
+                    color,
+                );
+            }
+            return;
+        }
+        CanvasStrokeStyle::Dashed => ((width * 3.0).max(2.0), (width * 2.0).max(2.0)),
+        CanvasStrokeStyle::Dotted => (0.0, (width * 2.0).max(2.0)),
+    };
+    let period = dash + gap;
+    let mut offset = 0.0;
+    for pair in line.windows(2) {
+        let (start, end) = (pair[0], pair[1]);
+        let delta = Vec2::new(end.x - start.x, end.y - start.y);
+        let length = delta.length();
+        if length <= f32::EPSILON {
+            continue;
+        }
+        let along = |amount: f32| {
             pos2(
-                start.x + direction.x * travelled,
-                start.y + direction.y * travelled,
-            ),
-            pos2(start.x + direction.x * to, start.y + direction.y * to),
-            width,
-            color,
-        );
-        travelled = to + gap;
+                start.x + delta.x / length * amount,
+                start.y + delta.y / length * amount,
+            )
+        };
+        let mut at = (period - offset).rem_euclid(period);
+        if offset > 0.0 && offset < dash {
+            painter.line(along(0.0), along((dash - offset).min(length)), width, color);
+        }
+        while at < length {
+            match style {
+                CanvasStrokeStyle::Dotted => painter.rect_filled(
+                    Rect::from_center_size(along(at), Vec2::splat(width)),
+                    width / 2.0,
+                    color,
+                ),
+                _ => painter.line(along(at), along((at + dash).min(length)), width, color),
+            }
+            at += period;
+        }
+        offset = (offset + length).rem_euclid(period);
+    }
+}
+
+fn fill_polygon(painter: &Painter, outline: &[Pos2], color: Color32) {
+    let Some(top) = outline.iter().map(|point| point.y).reduce(f32::min) else {
+        return;
+    };
+    let bottom = outline.iter().map(|point| point.y).fold(top, f32::max);
+    let mut y = top + 0.5;
+    while y < bottom {
+        let mut crossings: Vec<f32> = outline
+            .iter()
+            .zip(outline.iter().cycle().skip(1))
+            .filter(|(a, b)| (a.y <= y) != (b.y <= y))
+            .map(|(a, b)| a.x + (y - a.y) / (b.y - a.y) * (b.x - a.x))
+            .collect();
+        crossings.sort_by(f32::total_cmp);
+        for pair in crossings.chunks(2) {
+            if let [left, right] = pair {
+                painter.rect_filled(
+                    Rect::from_min_max(pos2(*left, y - 0.5), pos2(*right, y + 0.5)),
+                    0.0,
+                    color,
+                );
+            }
+        }
+        y += 1.0;
     }
 }
 

@@ -28,11 +28,9 @@ fn the_pen_tool_keeps_every_coalesced_sample_and_draws_the_predicted_tail() {
     editor.run();
 
     let entities = entities(&editor);
-    let CanvasEntityKind::Pen { points, .. } = &entities[0].kind else {
-        panic!("the stroke is a pen entity");
-    };
+    assert_eq!(entities[0].shape, CanvasShape::Freehand);
     assert_eq!(
-        points.len(),
+        entities[0].points.len(),
         10,
         "every sample delivered in one frame is a point, and the prediction is not kept"
     );

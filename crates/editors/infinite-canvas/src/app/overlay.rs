@@ -13,11 +13,11 @@ const HINT: &str = "Scroll or use two fingers to move around  ·  Pick a tool to
 const HINT_MARGIN: f32 = 16.0;
 const SELECT_BOX_FILL: Color32 = Color32::from_rgba_unmultiplied(66, 153, 225, 28);
 const BADGE_SIDE: f32 = 22.0;
-const OUTSIDE_ARTBOARDS: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 56);
-const ARTBOARD_LABEL_SIZE: f32 = 12.0;
+const OUTSIDE_FRAMES: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 56);
+const FRAME_LABEL_SIZE: f32 = 12.0;
 
 #[derive(Clone, PartialEq)]
-pub(crate) struct Artboard {
+pub(crate) struct FrameBackdrop {
     pub(crate) bounds: WorldRect,
     pub(crate) name: String,
     pub(crate) fill: Color32,
@@ -29,35 +29,35 @@ pub(crate) struct Backdrop {
     pub(crate) stage: Rect,
     pub(crate) label: Color32,
     pub(crate) chrome: bool,
-    pub(crate) artboards: Vec<Artboard>,
+    pub(crate) frames: Vec<FrameBackdrop>,
 }
 
 impl Backdrop {
     pub(crate) fn draw(&self, painter: &Painter) {
-        if self.artboards.is_empty() {
+        if self.frames.is_empty() {
             return;
         }
         if self.chrome {
-            painter.rect_filled(self.stage, 0.0, OUTSIDE_ARTBOARDS);
+            painter.rect_filled(self.stage, 0.0, OUTSIDE_FRAMES);
         }
-        for artboard in &self.artboards {
-            painter.rect_filled(self.camera.rect(artboard.bounds), 0.0, artboard.fill);
+        for frame in &self.frames {
+            painter.rect_filled(self.camera.rect(frame.bounds), 0.0, frame.fill);
         }
         if !self.chrome {
             return;
         }
-        for artboard in &self.artboards {
-            let rect = self.camera.rect(artboard.bounds);
+        for frame in &self.frames {
+            let rect = self.camera.rect(frame.bounds);
             let galley = painter.layout(
-                &artboard.name,
-                FontId::proportional(ARTBOARD_LABEL_SIZE),
+                &frame.name,
+                FontId::proportional(FRAME_LABEL_SIZE),
                 f32::INFINITY,
             );
             let height = galley.size().y;
             painter.galley(
                 pos2(
                     rect.left(),
-                    rect.top() - height - (ARTBOARD_LABEL_HEIGHT - height) / 2.0,
+                    rect.top() - height - (FRAME_LABEL_HEIGHT - height) / 2.0,
                 ),
                 galley,
                 self.label,
@@ -133,15 +133,13 @@ impl Overlay {
                 from_center,
                 ..
             }) => match tool {
-                Tool::Line => {
+                Tool::Line | Tool::Arrow => {
                     painter.line(self.camera.at(*start), self.camera.at(*current), 2.0, color)
                 }
-                Tool::Rectangle | Tool::Text | Tool::Artboard => {
+                Tool::Rectangle | Tool::Ellipse | Tool::Diamond | Tool::Text | Tool::Frame => {
                     let bounds = match tool {
-                        Tool::Rectangle | Tool::Artboard => {
-                            gesture_rect(*start, *current, *from_center)
-                        }
-                        _ => WorldRect::from_points(*start, *current),
+                        Tool::Text => WorldRect::from_points(*start, *current),
+                        _ => gesture_rect(*start, *current, *from_center),
                     };
                     painter.rect_stroke(self.camera.rect(bounds), 0.0, 2.0, color);
                 }
@@ -230,14 +228,10 @@ impl Overlay {
     }
 
     fn draw_badge(&self, painter: &Painter) {
-        let glyph = match self.tool {
-            Tool::Select => return,
-            Tool::Line => block_editor_beui::beui::icons::ICON_DIAGONAL_LINE,
-            Tool::Rectangle => block_editor_beui::beui::icons::ICON_RECTANGLE,
-            Tool::Text => block_editor_beui::beui::icons::ICON_TEXT_FIELDS,
-            Tool::Pen => block_editor_beui::beui::icons::ICON_DRAW,
-            Tool::Artboard => block_editor_beui::beui::icons::ICON_CROP_FREE,
-        };
+        if self.tool == Tool::Select {
+            return;
+        }
+        let glyph = self.tool.glyph();
         let Some(pointer) = self.pointer else {
             return;
         };

@@ -1,4 +1,4 @@
-use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasEntityKind};
+use block_editor_beui::be_block::canvas::{CanvasEntity, CanvasShape};
 use block_editor_beui::beui::icons::{ICON_VISIBILITY, ICON_VISIBILITY_OFF};
 use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
@@ -47,7 +47,7 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
             .unwrap_or_default()
     });
     let selected = create_memo(move || state.selection.get().contains(&id));
-    let hidden = create_memo(move || entity.get().is_some_and(|entity| entity.style.hidden));
+    let hidden = create_memo(move || entity.get().is_some_and(|entity| entity.hidden));
     let glyph = create_memo(move || match hidden.get() {
         true => ICON_VISIBILITY_OFF.to_owned(),
         false => ICON_VISIBILITY.to_owned(),
@@ -127,20 +127,18 @@ fn LayerGhost(label: block_editor_beui::beui::reactive::Memo<String>) -> NodeId 
 }
 
 fn layer_label(state: &CanvasState, entity: &CanvasEntity) -> String {
-    match &entity.kind {
-        CanvasEntityKind::Text {
-            text, placeholder, ..
-        } => match text.lines().next().filter(|line| !line.trim().is_empty()) {
-            Some(line) => line.to_owned(),
-            None => placeholder.clone(),
-        },
-        CanvasEntityKind::Artboard { name } => name.clone(),
-        CanvasEntityKind::Block { block_id } | CanvasEntityKind::DirectEditor { block_id, .. } => {
-            state
-                .label_of(*block_id)
-                .map(|label| label.name)
-                .unwrap_or_else(|| entity_kind_label(&entity.kind).to_owned())
-        }
-        kind => entity_kind_label(kind).to_owned(),
+    let written = entity
+        .text
+        .lines()
+        .next()
+        .filter(|line| !line.trim().is_empty());
+    match (entity.shape, written, entity.block) {
+        (_, Some(line), _) => line.to_owned(),
+        (CanvasShape::Text, None, _) => entity.placeholder.clone(),
+        (shape, None, Some(block)) if shape.embeds_block() => state
+            .label_of(block)
+            .map(|label| label.name)
+            .unwrap_or_else(|| entity_kind_label(entity).to_owned()),
+        _ => entity_kind_label(entity).to_owned(),
     }
 }

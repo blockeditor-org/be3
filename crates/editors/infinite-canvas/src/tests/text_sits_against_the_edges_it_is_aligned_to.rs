@@ -28,15 +28,13 @@ fn text_sits_against_the_edges_it_is_aligned_to() {
             let mut label = entity(Uuid::from_u128((row * 3 + column + 1) as u128));
             label.transform = backing.transform;
             labels.push(backing);
-            label.kind = CanvasEntityKind::Text {
-                text: "Aligned".to_owned(),
-                text_style: CanvasTextStyle {
-                    alignment,
-                    vertical_alignment,
-                    wrap: true,
-                    ..CanvasTextStyle::default()
-                },
-                placeholder: String::new(),
+            label.shape = CanvasShape::Text;
+            label.text = "Aligned".to_owned();
+            label.text_style = CanvasTextStyle {
+                alignment,
+                vertical_alignment,
+                wrap: true,
+                ..CanvasTextStyle::default()
             };
             labels.push(label);
         }

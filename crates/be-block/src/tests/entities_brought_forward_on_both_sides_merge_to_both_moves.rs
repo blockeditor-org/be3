@@ -9,7 +9,7 @@ fn entities_brought_forward_on_both_sides_merge_to_both_moves() {
         base = canvas_run(
             &base,
             InfiniteCanvasOperation::Add {
-                entity: entity.clone(),
+                entity: Box::new(entity.clone()),
             },
         );
     }

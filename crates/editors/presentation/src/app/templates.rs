@@ -1,11 +1,10 @@
 use block_editor_beui::be_block::CanvasContent;
 use block_editor_beui::be_block::canvas::Canvas;
 use block_editor_beui::be_block::canvas::{
-    CanvasEntity, CanvasEntityKind, CanvasEntityStyle, CanvasPoint, CanvasTextAlign,
-    CanvasTextStyle, CanvasTextVerticalAlign, CanvasTextWeight, CanvasTransform,
+    CanvasEntity, CanvasPoint, CanvasShape, CanvasTextAlign, CanvasTextSize, CanvasTextStyle,
+    CanvasTextVerticalAlign, CanvasTextWeight, CanvasTransform,
 };
 use block_editor_beui::beui::{Vec2, vec2};
-use uuid::Uuid;
 
 const DEFAULT_SLIDE_SIZE: Vec2 = vec2(960.0, 540.0);
 
@@ -36,21 +35,14 @@ fn template_text_entity(
     center: CanvasPoint,
     size: CanvasPoint,
     placeholder: &str,
+    font_size: f32,
     text_style: CanvasTextStyle,
 ) -> CanvasEntity {
-    CanvasEntity {
-        id: Uuid::new_v4(),
-        transform: CanvasTransform::new(center, size, 0.0),
-        kind: CanvasEntityKind::Text {
-            text: String::new(),
-            text_style,
-            placeholder: placeholder.into(),
-        },
-        style: CanvasEntityStyle::default(),
-        group_id: None,
-        locked: false,
-        components: Vec::new(),
-    }
+    let mut entity = CanvasEntity::new(CanvasShape::Text, CanvasTransform::new(center, size, 0.0));
+    entity.placeholder = placeholder.into();
+    entity.text_style = text_style;
+    entity.style.text_size = CanvasTextSize::Custom(font_size);
+    entity
 }
 
 fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
@@ -61,8 +53,8 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
                 CanvasPoint::new(0.0, -40.0),
                 CanvasPoint::new(820.0, 110.0),
                 "Title",
+                TITLE_FONT_SIZE,
                 CanvasTextStyle {
-                    font_size: TITLE_FONT_SIZE,
                     weight: CanvasTextWeight::Bold,
                     alignment: CanvasTextAlign::Center,
                     vertical_alignment: CanvasTextVerticalAlign::Middle,
@@ -74,8 +66,8 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
                 CanvasPoint::new(0.0, 70.0),
                 CanvasPoint::new(700.0, 60.0),
                 "Subtitle",
+                SUBTITLE_FONT_SIZE,
                 CanvasTextStyle {
-                    font_size: SUBTITLE_FONT_SIZE,
                     weight: CanvasTextWeight::Regular,
                     alignment: CanvasTextAlign::Center,
                     vertical_alignment: CanvasTextVerticalAlign::Middle,
@@ -89,8 +81,8 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
                 CanvasPoint::new(0.0, -220.0),
                 CanvasPoint::new(860.0, 80.0),
                 "Header",
+                HEADER_FONT_SIZE,
                 CanvasTextStyle {
-                    font_size: HEADER_FONT_SIZE,
                     weight: CanvasTextWeight::Bold,
                     alignment: CanvasTextAlign::Left,
                     vertical_alignment: CanvasTextVerticalAlign::Middle,
@@ -102,8 +94,8 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
                 CanvasPoint::new(0.0, 40.0),
                 CanvasPoint::new(860.0, 380.0),
                 "Body",
+                BODY_FONT_SIZE,
                 CanvasTextStyle {
-                    font_size: BODY_FONT_SIZE,
                     weight: CanvasTextWeight::Regular,
                     alignment: CanvasTextAlign::Left,
                     vertical_alignment: CanvasTextVerticalAlign::Top,
@@ -115,26 +107,21 @@ fn template_entities(template: SlideTemplate) -> Vec<CanvasEntity> {
     }
 }
 
-fn slide_artboard() -> CanvasEntity {
-    CanvasEntity {
-        id: Uuid::new_v4(),
-        transform: CanvasTransform::new(
+fn slide_frame() -> CanvasEntity {
+    let mut frame = CanvasEntity::new(
+        CanvasShape::Frame,
+        CanvasTransform::new(
             CanvasPoint::default(),
             CanvasPoint::new(DEFAULT_SLIDE_SIZE.x, DEFAULT_SLIDE_SIZE.y),
             0.0,
         ),
-        kind: CanvasEntityKind::Artboard {
-            name: "Slide".into(),
-        },
-        style: CanvasEntityStyle::default(),
-        group_id: None,
-        locked: false,
-        components: Vec::new(),
-    }
+    );
+    frame.text = "Slide".into();
+    frame
 }
 
 pub fn build_template_canvas(template: SlideTemplate) -> CanvasContent {
     CanvasContent::new(&Canvas::with_entities(
-        std::iter::once(slide_artboard()).chain(template_entities(template)),
+        std::iter::once(slide_frame()).chain(template_entities(template)),
     ))
 }

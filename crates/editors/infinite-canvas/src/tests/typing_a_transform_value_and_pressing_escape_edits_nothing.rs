@@ -7,12 +7,13 @@ fn typing_a_transform_value_and_pressing_escape_edits_nothing() {
     let mut rectangle = entity(Uuid::from_u128(1));
     rectangle.transform =
         CanvasTransform::new(CanvasPoint::default(), CanvasPoint::new(120.0, 80.0), 0.0);
-    rectangle.style.fill = Some(CanvasColor::Rgba {
+    rectangle.style.fill = CanvasFill::Solid;
+    rectangle.style.fill_color = CanvasColor::Rgba {
         red: 60,
         green: 110,
         blue: 90,
         alpha: 255,
-    });
+    };
     let drawn = format!("infinite-canvas.entity.{}", rectangle.id);
     let mut editor = editor(std::slice::from_ref(&rectangle));
 

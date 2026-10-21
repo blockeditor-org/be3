@@ -19,7 +19,7 @@ fn drawing_with_a_finger_adds_a_rectangle() {
 
     let entities = entities(&editor);
     assert_eq!(entities.len(), 1, "the drag adds one entity");
-    assert_eq!(entities[0].kind, CanvasEntityKind::Rectangle);
+    assert_eq!(entities[0].shape, CanvasShape::Rectangle);
     assert!(
         entities[0].transform.size.y > entities[0].transform.size.x * 2.0,
         "a mostly vertical drag is drawn, not taken for a scroll"

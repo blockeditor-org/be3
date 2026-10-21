@@ -33,9 +33,8 @@ fn the_pen_tool_draws_a_stylus_stroke_as_wide_as_it_is_pressed() {
 
     let entities = entities(&editor);
     assert_eq!(entities.len(), 1, "the stroke adds one entity");
-    let CanvasEntityKind::Pen { points, pressures } = &entities[0].kind else {
-        panic!("the stroke is a pen entity");
-    };
+    assert_eq!(entities[0].shape, CanvasShape::Freehand);
+    let (points, pressures) = (&entities[0].points, &entities[0].pressures);
     assert_eq!(points.len(), 11, "every move of the pen is a point");
     assert_eq!(
         pressures.len(),

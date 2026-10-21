@@ -4,10 +4,8 @@ use super::*;
 fn resizing_an_editor_that_cannot_resize_scales_it() {
     let block_id = Uuid::new_v4();
     let mut editor = entity(Uuid::new_v4());
-    editor.kind = CanvasEntityKind::DirectEditor {
-        block_id,
-        scale: 1.0,
-    };
+    editor.shape = CanvasShape::Editor;
+    editor.block = Some(block_id);
     editor.transform = CanvasTransform::new(
         CanvasPoint::new(50.0, 50.0),
         CanvasPoint::new(100.0, 100.0),
@@ -34,14 +32,10 @@ fn resizing_an_editor_that_cannot_resize_scales_it() {
         false,
     );
 
-    let CanvasEntityKind::DirectEditor { scale, .. } = scaled[0].kind else {
-        panic!("the entity is no longer a direct editor");
-    };
-    assert!((scale - 2.0).abs() < 0.001);
+    assert_eq!(scaled[0].shape, CanvasShape::Editor);
+    assert!((scaled[0].scale - 2.0).abs() < 0.001);
     assert!((scaled[0].transform.size.x - 200.0).abs() < 0.001);
-    let CanvasEntityKind::DirectEditor { scale, .. } = resized[0].kind else {
-        panic!("the entity is no longer a direct editor");
-    };
-    assert!((scale - 1.0).abs() < 0.001);
+    assert_eq!(resized[0].shape, CanvasShape::Editor);
+    assert!((resized[0].scale - 1.0).abs() < 0.001);
     assert!((resized[0].transform.size.x - 200.0).abs() < 0.001);
 }

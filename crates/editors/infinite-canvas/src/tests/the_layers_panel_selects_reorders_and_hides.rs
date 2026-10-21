@@ -55,7 +55,7 @@ fn the_layers_panel_selects_reorders_and_hides() {
     editor.run();
     let hidden: Vec<_> = entities(&editor)
         .into_iter()
-        .filter(|entity| entity.style.hidden)
+        .filter(|entity| entity.hidden)
         .map(|entity| entity.id)
         .collect();
     assert_eq!(hidden, vec![front], "the eye hides just its layer");
