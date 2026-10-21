@@ -281,23 +281,22 @@ fn ToolbarFrame(shown: Prop<bool>, fit: Prop<bool>, children: Child) -> NodeId {
                     </Frame>
                 </Show>
                 <Show condition={narrow}>
-                    <Frame padding={Sides::vertical(BAND_PADDING_VERTICAL)}>
-                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                            <Scroll
-                                @sizing=ItemSize::Percent(100.0)
-                                direction=Direction::Horizontal
+                    <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                        <Scroll @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal>
+                            <Frame
+                                padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
                             >
-                                <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
-                                    <Portal node={scrolled} />
-                                </Frame>
-                            </Scroll>
-                            <Show condition={offers}>
-                                <Frame padding={Sides::horizontal(BAND_PADDING_HORIZONTAL)}>
-                                    <SheetToggle />
-                                </Frame>
-                            </Show>
-                        </List>
-                    </Frame>
+                                <Portal node={scrolled} />
+                            </Frame>
+                        </Scroll>
+                        <Show condition={offers}>
+                            <Frame
+                                padding={Sides::symmetric(BAND_PADDING_HORIZONTAL, BAND_PADDING_VERTICAL)}
+                            >
+                                <SheetToggle />
+                            </Frame>
+                        </Show>
+                    </List>
                 </Show>
                 <Separator />
             </List>

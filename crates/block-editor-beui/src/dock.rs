@@ -29,7 +29,6 @@ pub fn BottomDock(
                         fill=ColorRole::SurfaceRaised
                         border={Border::DEFAULT}
                         radius={Radius::custom(DOCK_RADIUS)}
-                        padding=DOCK_PADDING
                         @test_id={name}
                     >
                         <List direction=Direction::Horizontal spacing=0.0>
@@ -37,13 +36,16 @@ pub fn BottomDock(
                                 @sizing={ItemSize::Intrinsic.shrink(1.0)}
                                 direction=Direction::Horizontal
                                 fit=true
+                                tab_stop=false
                             >
-                                <List
-                                    direction=Direction::Horizontal
-                                    align=Align::Center
-                                    spacing=DOCK_SPACING
-                                    children={children}
-                                />
+                                <Frame padding=DOCK_PADDING>
+                                    <List
+                                        direction=Direction::Horizontal
+                                        align=Align::Center
+                                        spacing=DOCK_SPACING
+                                        children={children}
+                                    />
+                                </Frame>
                             </Scroll>
                         </List>
                     </Frame>

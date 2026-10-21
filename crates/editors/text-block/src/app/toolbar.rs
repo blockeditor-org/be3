@@ -186,30 +186,28 @@ pub(crate) fn FormatBar(state: State, formats: Vec<Action>) -> NodeId {
                 <Frame fill=ColorRole::Surface>
                     <List spacing=0.0>
                         <Separator />
-                        <Frame padding={Sides::vertical(FORMAT_PADDING)}>
-                            <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
-                                <Scroll
-                                    @sizing=ItemSize::Percent(100.0)
-                                    direction=Direction::Horizontal
-                                >
-                                    <Frame padding={Sides::horizontal(FORMAT_PADDING)}>
-                                        <List spacing=0.0>
-                                            <Show condition={markdown} then={controls} />
-                                        </List>
-                                    </Frame>
-                                </Scroll>
-                                <Show condition={keyboard}>
-                                    <Frame padding={Sides::horizontal(FORMAT_PADDING)}>
-                                        <IconButton
-                                            glyph=ICON_KEYBOARD_HIDE
-                                            label="Done"
-                                            @test_id={"text.format.done"}
-                                            on_click={|| with_document(|document| document.update_focus(None))}
-                                        />
-                                    </Frame>
-                                </Show>
-                            </List>
-                        </Frame>
+                        <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
+                            <Scroll
+                                @sizing=ItemSize::Percent(100.0)
+                                direction=Direction::Horizontal
+                            >
+                                <Frame padding=FORMAT_PADDING>
+                                    <List spacing=0.0>
+                                        <Show condition={markdown} then={controls} />
+                                    </List>
+                                </Frame>
+                            </Scroll>
+                            <Show condition={keyboard}>
+                                <Frame padding=FORMAT_PADDING>
+                                    <IconButton
+                                        glyph=ICON_KEYBOARD_HIDE
+                                        label="Done"
+                                        @test_id={"text.format.done"}
+                                        on_click={|| with_document(|document| document.update_focus(None))}
+                                    />
+                                </Frame>
+                            </Show>
+                        </List>
                     </List>
                 </Frame>
             </Interactive>
