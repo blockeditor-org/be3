@@ -68,7 +68,7 @@ pub(crate) struct PanDrag {
 
 #[derive(Clone, Copy)]
 struct Steering {
-    pressed: Option<PointerEvent>,
+    pressed: Option<(PointerEvent, Pos2)>,
     panning: Option<PointerEvent>,
     rect: Rect,
 }
@@ -104,19 +104,19 @@ impl Steering {
             }
             match event.phase {
                 PointerPhase::Down(PointerButton::Primary) if self.pressed.is_none() => {
-                    self.pressed = Some(event);
+                    self.pressed = Some((event, event.pos));
                 }
                 PointerPhase::Move
                     if self
                         .pressed
-                        .is_some_and(|pressed| pressed.pointer == event.pointer) =>
+                        .is_some_and(|(pressed, _)| pressed.pointer == event.pointer) =>
                 {
-                    self.pressed = Some(event);
+                    self.pressed = self.pressed.map(|(pressed, _)| (pressed, event.pos));
                 }
                 PointerPhase::Up(_) | PointerPhase::Cancel | PointerPhase::Gone
                     if self
                         .pressed
-                        .is_some_and(|pressed| pressed.pointer == event.pointer) =>
+                        .is_some_and(|(pressed, _)| pressed.pointer == event.pointer) =>
                 {
                     self.pressed = None;
                 }
@@ -127,15 +127,19 @@ impl Steering {
         ForwardedInput { events, ..input }
     }
 
-    fn take_over(&mut self) -> Option<ForwardedInput> {
-        let pressed = self.pressed.take()?;
-        self.panning = Some(pressed);
-        let cancel = match pressed.pointer {
+    fn take_over(&mut self, pan: Callback<Vec2>) -> Option<ForwardedInput> {
+        let (pressed, at) = self.pressed.take()?;
+        if at != pressed.pos {
+            pan.call(at - pressed.pos);
+        }
+        let held = PointerEvent { pos: at, ..pressed };
+        self.panning = Some(held);
+        let cancel = match held.pointer {
             PointerId::Mouse => Forwarded::Left,
             _ => Forwarded::Pointer {
                 event: PointerEvent {
                     phase: PointerPhase::Cancel,
-                    ..pressed
+                    ..held
                 },
                 over: None,
             },
@@ -146,7 +150,7 @@ impl Steering {
             hovered: false,
             focused: true,
             pointer: None,
-            modifiers: pressed.modifiers,
+            modifiers: held.modifiers,
         })
     }
 }
@@ -438,7 +442,7 @@ pub(crate) fn PluginRegion(
             }
             untrack(|| {
                 let mut steered = steering.get();
-                let cancel = steered.take_over();
+                let cancel = steered.take_over(pan_drag.pan);
                 steering.set(steered);
                 if let Some(cancel) = cancel {
                     plugin_host::forward_region(&plugin_id.value(), instance, region, &cancel);
@@ -706,3 +710,6 @@ fn RegionChildren(
         </Canvas>
     }
 }
+
+#[cfg(test)]
+mod tests;
