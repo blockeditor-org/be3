@@ -3910,6 +3910,7 @@ dependencies = [
  "beui",
  "block-editor-beui",
  "block-ui-test",
+ "image",
  "serde",
  "serde_json",
  "uuid",

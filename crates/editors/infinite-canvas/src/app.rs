@@ -12,6 +12,7 @@ pub(crate) mod actions;
 pub(crate) mod canvas;
 pub(crate) mod components;
 pub(crate) mod entities;
+pub(crate) mod export;
 pub(crate) mod grid;
 pub(crate) mod input;
 pub(crate) mod layers;
@@ -29,6 +30,7 @@ pub(crate) mod touch;
 
 use actions::canvas_actions;
 use canvas::CanvasStage;
+use export::ExportDialog;
 use sidebar::CanvasSidebar;
 use state::CanvasState;
 use toolbar::{ImportError, ToolDock, ZoomPill};
@@ -82,11 +84,13 @@ fn CanvasEditor(editor: Editor) -> NodeId {
     action_scope(&scope);
     let actions = canvas_actions(state);
     let touch = actions.touch;
+    let exporter = actions.exporter;
     provide_context(actions);
     view! {
         <List @node_ref=&scope spacing=0.0>
             <TouchSetting editor choice={touch} />
             <ImportError state={state} />
+            <ExportDialog exporter />
             <List @sizing=ItemSize::Percent(100.0) direction=Direction::Horizontal spacing=0.0>
                 <CanvasStage @sizing=ItemSize::Percent(100.0) @node_ref={&content} state={state} />
                 <CanvasSidebar state={state} shown={inspected} />

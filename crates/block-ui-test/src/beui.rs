@@ -849,6 +849,20 @@ impl<A: BeuiApp> BeuiTest<A> {
         std::mem::take(&mut self.sent)
     }
 
+    pub fn take_copied_text(&mut self) -> Vec<String> {
+        self.take_where(|message| match message {
+            EditorMessage::CopyText { text, .. } => Some(text.clone()),
+            _ => None,
+        })
+    }
+
+    pub fn take_copied_images(&mut self) -> Vec<Vec<u8>> {
+        self.take_where(|message| match message {
+            EditorMessage::CopyImage { png, .. } => Some(png.clone()),
+            _ => None,
+        })
+    }
+
     fn take_where<T>(&mut self, pick: impl Fn(&EditorMessage) -> Option<T>) -> Vec<T> {
         let mut taken = Vec::new();
         self.sent.retain(|message| match pick(message) {

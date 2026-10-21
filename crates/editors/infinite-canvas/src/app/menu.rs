@@ -26,6 +26,12 @@ pub(crate) fn CanvasMenu(disabled: bool, children: Child) -> NodeId {
                 <MenuItem action={actions.cut} />
                 <MenuItem action={actions.copy} />
                 <MenuItem action={actions.paste} />
+                <MenuItem label="Export">
+                    <MenuItem action={actions.copy_png} />
+                    <MenuItem action={actions.copy_svg} />
+                    <MenuItem action={actions.export_png} />
+                    <MenuItem action={actions.export_svg} />
+                </MenuItem>
                 <MenuItem action={actions.duplicate} />
                 <MenuItem
                     action={actions.delete}

@@ -3,14 +3,16 @@ use block_editor_beui::beui::Key;
 use block_editor_beui::beui::icons::{
     ICON_ARROW_DOWNWARD, ICON_ARROW_UPWARD, ICON_CONTENT_COPY, ICON_CONTENT_CUT,
     ICON_CONTENT_PASTE, ICON_DATA_OBJECT, ICON_DELETE, ICON_DESELECT, ICON_DIAGONAL_LINE,
-    ICON_EDIT, ICON_FILTER_CENTER_FOCUS, ICON_FIT_SCREEN, ICON_FLIP_TO_BACK, ICON_FLIP_TO_FRONT,
-    ICON_GESTURE, ICON_GROUP_WORK, ICON_IMAGE, ICON_LIBRARY_ADD, ICON_LOCK, ICON_LOCK_OPEN,
-    ICON_OPEN_IN_NEW, ICON_POLYLINE, ICON_RECTANGLE, ICON_SELECT_ALL, ICON_SWAP_HORIZ,
-    ICON_TEXT_FIELDS, ICON_WORKSPACES, ICON_ZOOM_IN, ICON_ZOOM_OUT,
+    ICON_DOWNLOAD, ICON_EDIT, ICON_FILTER_CENTER_FOCUS, ICON_FIT_SCREEN, ICON_FLIP_TO_BACK,
+    ICON_FLIP_TO_FRONT, ICON_GESTURE, ICON_GROUP_WORK, ICON_IMAGE, ICON_LIBRARY_ADD, ICON_LOCK,
+    ICON_LOCK_OPEN, ICON_OPEN_IN_NEW, ICON_POLYLINE, ICON_RECTANGLE, ICON_SELECT_ALL,
+    ICON_SWAP_HORIZ, ICON_TEXT_FIELDS, ICON_WORKSPACES, ICON_ZOOM_IN, ICON_ZOOM_OUT,
 };
 use block_editor_beui::beui::reactive::*;
+use block_editor_beui::beui::styled::use_theme;
 use uuid::Uuid;
 
+use super::export::{ExportFormat, ExportTo, Exporter};
 use super::grid::{GridActions, grid_actions};
 use super::state::{CanvasCommand, CanvasState, Tool, ZOOM_STEP};
 use super::touch::TouchChoice;
@@ -40,6 +42,11 @@ pub(crate) struct CanvasActions {
     pub(crate) cut: Action,
     pub(crate) copy: Action,
     pub(crate) paste: Action,
+    pub(crate) copy_png: Action,
+    pub(crate) copy_svg: Action,
+    pub(crate) export_png: Action,
+    pub(crate) export_svg: Action,
+    pub(crate) exporter: Exporter,
     pub(crate) duplicate: Action,
     pub(crate) delete: Action,
     pub(crate) group: Action,
@@ -156,6 +163,52 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
     .enabled(free)
     .in_menu()
     .register();
+    let theme = use_theme();
+    let exporter = Exporter::new(
+        state,
+        create_memo(move || super::canvas::palette(&theme)),
+        create_memo(move || theme.background.get()),
+    );
+    let drawn = when(|state| state.entities.ids().with(|ids| !ids.is_empty()));
+    let export =
+        |id: &str, label: &'static str, glyph: &str, format: ExportFormat, to: ExportTo| {
+            Action::new(id, label, move || match to {
+                ExportTo::Clipboard => exporter.run(format, to),
+                ExportTo::File => exporter.ask(format),
+            })
+            .glyph(glyph)
+            .enabled(drawn)
+            .in_menu()
+            .register()
+        };
+    let copy_png = export(
+        "canvas.copy-png",
+        "Copy as PNG",
+        ICON_IMAGE,
+        ExportFormat::Png,
+        ExportTo::Clipboard,
+    );
+    let copy_svg = export(
+        "canvas.copy-svg",
+        "Copy as SVG",
+        ICON_POLYLINE,
+        ExportFormat::Svg,
+        ExportTo::Clipboard,
+    );
+    let export_png = export(
+        "canvas.export-png",
+        "Export as PNG…",
+        ICON_DOWNLOAD,
+        ExportFormat::Png,
+        ExportTo::File,
+    );
+    let export_svg = export(
+        "canvas.export-svg",
+        "Export as SVG…",
+        ICON_DOWNLOAD,
+        ExportFormat::Svg,
+        ExportTo::File,
+    );
     let duplicate = command(
         "canvas.duplicate",
         "Duplicate",
@@ -433,6 +486,11 @@ pub(crate) fn canvas_actions(state: CanvasState) -> CanvasActions {
         cut,
         copy,
         paste,
+        copy_png,
+        copy_svg,
+        export_png,
+        export_svg,
+        exporter,
         duplicate,
         delete,
         group,

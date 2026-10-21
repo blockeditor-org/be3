@@ -434,7 +434,7 @@ fn entity_of(state: CanvasState, id: Uuid) -> Memo<Option<CanvasEntity>> {
     state.entities.watch(id).shown()
 }
 
-fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {
+pub(crate) fn palette(theme: &block_editor_beui::beui::styled::ThemeStore) -> Palette {
     Palette {
         auto: theme.text.get(),
         surface: theme.surface_raised.get(),
@@ -472,7 +472,7 @@ fn reference_of(entity: &CanvasEntity) -> Option<Uuid> {
     entity.block.filter(|_| entity.shape.embeds_block())
 }
 
-fn item_bounds(entity: &CanvasEntity) -> Rect {
+pub(crate) fn item_bounds(entity: &CanvasEntity) -> Rect {
     let bounds = entity_bounds(entity);
     let stroke = entity.style.stroke_width.max(0.0);
     let margin = ITEM_MARGIN

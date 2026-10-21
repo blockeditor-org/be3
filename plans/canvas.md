@@ -54,9 +54,14 @@ part of the style is its own field, so concurrent restyles merge.
 
 Shapes, lines and arrows have a clean look and a hand-drawn one: `rough.rs`
 ports rough.js, seeded by the shape's stored `seed`, and `app/sketch.rs` turns
-an entity into the paths it draws (hand-drawn strokes, hatched and hand-drawn
+an entity into the paths it draws in either look (strokes, solid and hatched
 fills, freehand outlines), kept per entity until its geometry or style
-changes. A freehand stroke is filled as a perfect-freehand outline
+changes. Export (`app/export.rs`) reads the same sketches: Copy as PNG / SVG
+and Export as PNG / SVG… take the selection, a selected frame (clipped to it),
+or the whole canvas. SVG writes each sketch's paths, text as SVG text and
+images embedded; PNG paints the entities into an offscreen beui context and
+rasterizes that painting on the CPU (`paint_format::rasterize`), since a
+plugin cannot read pixels back from the GPU. A freehand stroke is filled as a perfect-freehand outline
 (`freehand.rs`) that follows its pressures, or simulates them from speed when
 it has none; the stroke being drawn uses the same outline.
 
