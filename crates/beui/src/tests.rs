@@ -72,6 +72,10 @@ mod a_disabled_checkbox_ignores_clicks_and_keeps_its_state;
 mod a_disabled_select_does_not_open_when_its_trigger_is_clicked;
 mod a_disabled_text_input_ignores_typing_and_reads_as_dimmed;
 mod a_disposed_animation_cancels_without_completion;
+mod a_dock_card_anchored_at_a_control_flips_above_it_near_the_bottom;
+mod a_dock_card_anchored_at_a_control_follows_its_pane_when_it_resizes;
+mod a_dock_card_anchored_at_a_control_points_at_it_without_dimming_its_tab;
+mod a_dock_card_anchored_at_a_control_shifts_to_stay_inside_the_window;
 mod a_dock_card_closes_on_a_press_on_its_tab_when_asked;
 mod a_dock_card_reaches_past_its_pane_and_holds_only_its_tab;
 mod a_dock_card_stays_inside_a_small_window;
@@ -2542,6 +2546,7 @@ struct CardDock {
     built: Signal<u32>,
     attended: ReadSignal<Vec<u64>>,
     open: Signal<bool>,
+    anchor: Signal<Option<Rect>>,
 }
 
 #[component]
@@ -2576,10 +2581,55 @@ fn PressPanel(owner: u64, pressed: Signal<Vec<u64>>) -> NodeId {
 }
 
 fn card_dock(dismiss_on_outside_press: bool) -> CardDock {
+    dock_with_card(dismiss_on_outside_press, true)
+}
+
+fn anchored_card_dock(dismiss_on_outside_press: bool) -> CardDock {
+    dock_with_card(dismiss_on_outside_press, false)
+}
+
+fn open_anchored(
+    harness: &mut Harness,
+    (anchor, open): (Signal<Option<Rect>>, Signal<bool>),
+    place: impl Fn(Rect) -> Rect,
+) -> Rect {
+    harness.frame(Vec::new());
+    let panel = harness.rect(harness.find("content.1"));
+    let rect = place(panel);
+    anchor.set(Some(rect));
+    open.set(true);
+    harness.frame(Vec::new());
+    harness.frame(Vec::new());
+    rect
+}
+
+fn beak(output: &crate::FrameOutput) -> Option<Pos2> {
+    output.shapes().into_iter().find_map(|shape| match shape {
+        crate::painter::Shape::Rect { rotation, .. }
+            if (rotation.angle - std::f32::consts::FRAC_PI_4).abs() < 1e-3 =>
+        {
+            Some(rotation.pivot)
+        }
+        _ => None,
+    })
+}
+
+fn dims(output: &crate::FrameOutput, panel: Rect) -> bool {
+    output.shapes().into_iter().any(|shape| match shape {
+        crate::painter::Shape::Rect { rect, color, .. } => {
+            let [red, green, blue, alpha] = color.to_array();
+            rect.contains_rect(panel) && red == 0 && green == 0 && blue == 0 && alpha > 0
+        }
+        _ => false,
+    })
+}
+
+fn dock_with_card(dismiss_on_outside_press: bool, open_now: bool) -> CardDock {
     let pressed = create_signal(Vec::new());
     let built = create_signal(0);
     let attended = create_signal(Vec::new());
-    let open = create_signal(true);
+    let open = create_signal(open_now);
+    let anchor = create_signal(None::<Rect>);
     let layout = unstyled::DockingLayout::new();
     let document = build(move || {
         let cards = crate::reactive::create_memo(move || match open.get() {
@@ -2616,6 +2666,7 @@ fn card_dock(dismiss_on_outside_press: bool) -> CardDock {
                         title="Card"
                         size=CARD_SIZE
                         presentation=unstyled::DockDialogPresentation::Card
+                        anchor
                         dismiss_on_outside_press
                         on_close={move || open.set(false)}
                     >
@@ -2632,5 +2683,6 @@ fn card_dock(dismiss_on_outside_press: bool) -> CardDock {
         built,
         attended: attended.read_only(),
         open,
+        anchor,
     }
 }

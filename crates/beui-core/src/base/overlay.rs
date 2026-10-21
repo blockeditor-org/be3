@@ -2,10 +2,10 @@ use std::any::Any;
 use std::rc::Rc;
 
 use crate::color::Color32;
-use crate::geometry::{Pos2, Rect, Vec2, pos2};
+use crate::geometry::{Pos2, Rect, Vec2, pos2, vec2};
 use crate::painter::Painter;
 
-use crate::base::frame::FrameNode;
+use crate::base::frame::{FrameNode, PointerSide, Pointing};
 use crate::callback::{Callback, NodeRef};
 use crate::document::Document;
 use crate::layer::{Dismiss, LayerLevel, LayerPolicy};
@@ -16,6 +16,40 @@ pub enum OverlayAnchor {
     Node(NodeRef),
     Point(Pos2),
     Rect(Rect),
+    Pinned { node: NodeRef, rect: Rect },
+}
+
+#[derive(Clone, Copy, PartialEq, Debug)]
+struct Pin {
+    from_end: [bool; 2],
+    offset: Vec2,
+    size: Vec2,
+}
+
+impl Pin {
+    fn new(rect: Rect, within: Rect) -> Self {
+        let from_end = [
+            rect.center().x > within.center().x,
+            rect.center().y > within.center().y,
+        ];
+        let edge = pos2(
+            if from_end[0] { within.max.x } else { within.min.x },
+            if from_end[1] { within.max.y } else { within.min.y },
+        );
+        Self {
+            from_end,
+            offset: rect.min - edge,
+            size: rect.size(),
+        }
+    }
+
+    fn place(self, within: Rect) -> Rect {
+        let edge = pos2(
+            if self.from_end[0] { within.max.x } else { within.min.x },
+            if self.from_end[1] { within.max.y } else { within.min.y },
+        );
+        Rect::from_min_size(edge + self.offset, self.size)
+    }
 }
 
 impl beui_tree::reactive::IntoProp<OverlayAnchor> for &NodeRef {
@@ -53,6 +87,7 @@ pub enum Placement {
     InsideBottomEnd,
     CenterOn,
     HangFrom(u16),
+    Popover { gap: u16, margin: u16 },
 }
 
 pub struct OverlayNode {
@@ -62,6 +97,8 @@ pub struct OverlayNode {
     pub(crate) open: bool,
     pub(crate) anchor: OverlayAnchor,
     anchored: Option<Rect>,
+    pinned: Option<Pin>,
+    pointer: Option<NodeRef>,
     placement: Placement,
     pub(crate) policy: LayerPolicy,
     pub(crate) level: LayerLevel,
@@ -80,6 +117,8 @@ impl OverlayNode {
             open: false,
             anchor,
             anchored: None,
+            pinned: None,
+            pointer: None,
             placement,
             policy: LayerPolicy::BlocksAll,
             level: LayerLevel::Normal,
@@ -100,9 +139,17 @@ impl OverlayNode {
 
     pub(crate) fn anchor_node(&self) -> Option<NodeId> {
         match &self.anchor {
-            OverlayAnchor::Node(node) => node.try_get(),
+            OverlayAnchor::Node(node) | OverlayAnchor::Pinned { node, .. } => node.try_get(),
             OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => None,
         }
+    }
+
+    fn pinned_rect(&mut self, rect: Rect, within: Option<Rect>) -> Rect {
+        let Some(within) = within else {
+            return rect;
+        };
+        let pin = *self.pinned.get_or_insert_with(|| Pin::new(rect, within));
+        pin.place(within)
     }
 
     fn area(&self, doc: &Document, viewport: Rect, anchored: Option<Rect>) -> Rect {
@@ -115,7 +162,7 @@ impl OverlayNode {
         let screen = match (self.placement, &self.anchor) {
             (Placement::Fill | Placement::At | Placement::Around, _) => None,
             (Placement::Center | Placement::FillScreen, _) => opened(),
-            (_, OverlayAnchor::Node(_)) => {
+            (_, OverlayAnchor::Node(_) | OverlayAnchor::Pinned { .. }) => {
                 anchored.map_or_else(opened, |rect| doc.screen_under(rect))
             }
             (_, OverlayAnchor::Point(pos)) => doc.screen_at(*pos),
@@ -186,6 +233,16 @@ fn resolve_rect(
             .min(room.bottom() - size.y)
             .max(room.top());
         return Rect::from_min_size(pos2(x, y), size);
+    }
+    if let Placement::Popover { gap, margin } = placement {
+        let gap = f32::from(gap);
+        let centre = anchor_rect.center().x;
+        let reach = Rect::from_min_max(
+            pos2(centre - content_size.x / 2.0, anchor_rect.top() - gap),
+            pos2(centre + content_size.x / 2.0, anchor_rect.bottom() + gap),
+        );
+        let room = viewport.shrink(f32::from(margin));
+        return resolve_rect(room, reach, Placement::BelowStart, content_size);
     }
     if let Placement::Fill | Placement::FillScreen = placement {
         return viewport;
@@ -264,7 +321,8 @@ fn resolve_rect(
         | Placement::InsideBottom
         | Placement::InsideBottomEnd
         | Placement::CenterOn
-        | Placement::HangFrom(_) => {
+        | Placement::HangFrom(_)
+        | Placement::Popover { .. } => {
             unreachable!("a centred or pinned overlay is placed above")
         }
     };
@@ -296,9 +354,14 @@ impl OverlayNode {
         let viewport = doc.viewport_rect();
         let anchored = self.anchor_node().and_then(|id| out.get(&id));
         self.anchored = anchored;
-        let area = self.area(doc, viewport, anchored);
+        let target = match self.anchor.clone() {
+            OverlayAnchor::Pinned { rect, .. } => Some(self.pinned_rect(rect, anchored)),
+            OverlayAnchor::Node(_) | OverlayAnchor::Point(_) | OverlayAnchor::Rect(_) => anchored,
+        };
+        let area = self.area(doc, viewport, target);
         let anchor_rect = match &self.anchor {
             OverlayAnchor::Node(_) => anchored.unwrap_or(area),
+            OverlayAnchor::Pinned { .. } => target.unwrap_or(area),
             OverlayAnchor::Point(pos) => Rect::from_min_size(*pos, Vec2::ZERO),
             OverlayAnchor::Rect(rect) => *rect,
         };
@@ -316,6 +379,9 @@ impl OverlayNode {
                 let top = (anchor_rect.top() + f32::from(gap)).clamp(room.top(), room.bottom());
                 Vec2::new(room.width(), room.bottom() - top).max(Vec2::ZERO)
             }
+            (false, Placement::Popover { margin, .. }) => {
+                area.shrink(f32::from(margin)).size().max(Vec2::ZERO)
+            }
             (false, _) => area.size(),
         };
         let measured = crate::layout::measure(doc, painter, content, available);
@@ -325,12 +391,75 @@ impl OverlayNode {
         };
         let rect = resolve_rect(area, anchor_rect, self.placement, content_size);
         crate::layout::layout(doc, painter, content, rect, out);
+        self.stand_off(doc, painter, content, rect, anchor_rect, out);
+        self.point_at(doc, anchor_rect, out);
         if self.policy == LayerPolicy::BlocksParent
             && self.dims
             && let Some(blocked) = anchored
         {
             crate::layout::layout(doc, painter, self.scrim.id(), blocked, out);
         }
+    }
+
+    fn pointer_frame(&self, doc: &Document) -> Option<NodeOf<FrameNode>> {
+        self.pointer
+            .as_ref()
+            .and_then(NodeRef::try_get)
+            .and_then(|id| doc.arena.kind_of::<FrameNode>(id))
+    }
+
+    fn stand_off(
+        &self,
+        doc: &mut Document,
+        painter: &Painter,
+        content: NodeId,
+        rect: Rect,
+        anchor: Rect,
+        out: &Rects,
+    ) {
+        if !matches!(self.placement, Placement::Popover { .. }) {
+            return;
+        }
+        let Some(frame) = self
+            .pointer_frame(doc)
+            .and_then(|frame| out.get(&frame.id()))
+        else {
+            return;
+        };
+        let shift = match (rect.top() >= anchor.bottom(), rect.bottom() <= anchor.top()) {
+            (true, _) => rect.top() - frame.top(),
+            (false, true) => rect.bottom() - frame.bottom(),
+            (false, false) => 0.0,
+        };
+        if shift != 0.0 {
+            crate::layout::layout(doc, painter, content, rect.translate(vec2(0.0, shift)), out);
+        }
+    }
+
+    fn point_at(&self, doc: &mut Document, anchor: Rect, out: &Rects) {
+        let Some(frame) = self.pointer_frame(doc) else {
+            return;
+        };
+        let pointing = out.get(&frame.id()).and_then(|rect| {
+            if !matches!(self.placement, Placement::Popover { .. }) {
+                return None;
+            }
+            let (lowest, highest) = doc.arena.get_as::<FrameNode>(frame).pointer_room(rect);
+            let centre = anchor.center().x;
+            if centre < lowest || centre > highest {
+                return None;
+            }
+            let side = match (rect.top() >= anchor.bottom(), rect.bottom() <= anchor.top()) {
+                (true, _) => PointerSide::Top,
+                (false, true) => PointerSide::Bottom,
+                (false, false) => return None,
+            };
+            Some(Pointing {
+                side,
+                at: centre - rect.left(),
+            })
+        });
+        doc.set_frame_pointing(frame, pointing);
     }
 
     pub(crate) fn scrim_covers(&self) -> bool {
@@ -419,6 +548,10 @@ impl Element for OverlayNode {
                 "anchor",
                 match &self.anchor {
                     OverlayAnchor::Node(_) => "node".to_owned(),
+                    OverlayAnchor::Pinned { rect, .. } => format!(
+                        "pinned to a node from {}, {} to {}, {}",
+                        rect.min.x, rect.min.y, rect.max.x, rect.max.y
+                    ),
                     OverlayAnchor::Point(point) => format!("{}, {}", point.x, point.y),
                     OverlayAnchor::Rect(rect) => format!(
                         "{}, {} to {}, {}",
@@ -490,7 +623,17 @@ impl Document {
     }
 
     pub fn set_overlay_anchor(&mut self, overlay: NodeOf<OverlayNode>, anchor: OverlayAnchor) {
-        self.arena.get_mut_as::<OverlayNode>(overlay).anchor = anchor;
+        if self.arena.get_as::<OverlayNode>(overlay).anchor != anchor {
+            let node = self.arena.get_mut_as::<OverlayNode>(overlay);
+            node.anchor = anchor;
+            node.pinned = None;
+        }
+    }
+
+    pub fn set_overlay_pointer(&mut self, overlay: NodeOf<OverlayNode>, pointer: Option<NodeRef>) {
+        if self.arena.get_as::<OverlayNode>(overlay).pointer != pointer {
+            self.arena.get_mut_as::<OverlayNode>(overlay).pointer = pointer;
+        }
     }
 
     pub fn set_overlay_scrim(&mut self, overlay: NodeOf<OverlayNode>, color: Color32) {

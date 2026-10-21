@@ -155,6 +155,7 @@ pub fn DockDialog<K>(
     #[prop(default = false)] modal: Prop<bool>,
     #[prop(default = DockDialogPresentation::Window)] presentation: DockDialogPresentation,
     #[prop(default = false)] dismiss_on_outside_press: Prop<bool>,
+    #[prop(default = None)] anchor: Prop<Option<Rect>>,
     on_close: Option<ClickCallback>,
     #[prop(children)] content: RenderFn<()>,
 ) -> DockNode<K>
@@ -173,6 +174,7 @@ where
                 size: create_memo(move || size.get()),
                 modal: create_memo(move || card || modal.get()),
                 dismiss_on_outside_press: create_memo(move || dismiss_on_outside_press.get()),
+                anchor: create_memo(move || anchor.get().filter(|_| card)),
                 on_close,
                 content,
             },
@@ -739,6 +741,7 @@ pub fn Docking<K>(
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
     #[prop(default = Color32::TRANSPARENT)] dialog_scrim: Color32,
     #[prop(default = 0)] dialog_margin: u16,
+    #[prop(default = 0)] dialog_gap: u16,
     children: Children<DockNode<K>>,
 ) -> NodeId
 where
@@ -853,6 +856,7 @@ where
                 dialog_sheet,
                 dialog_scrim,
                 dialog_margin,
+                dialog_gap,
             }}
         />
     }

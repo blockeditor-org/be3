@@ -419,6 +419,7 @@ struct State {
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
     dialog_scrim: Color32,
     dialog_margin: u16,
+    dialog_gap: u16,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_bodies: Stored<RefCell<HashMap<TabId, NodeRef>>>,
     dialog_focus: Signal<Option<TabId>>,
@@ -1201,6 +1202,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialog_sheet: Option<RenderFn<DockSheetHandle>>,
     pub(crate) dialog_scrim: Color32,
     pub(crate) dialog_margin: u16,
+    pub(crate) dialog_gap: u16,
 }
 
 #[component]
@@ -1239,6 +1241,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
         dialog_sheet,
         dialog_scrim,
         dialog_margin,
+        dialog_gap,
     } = config;
     view! {
         <PlacementBuilder>|dock_rect: ReadSignal<Rect>| {
@@ -1279,6 +1282,7 @@ pub(crate) fn Dock(config: DockConfig) -> NodeId {
                 dialog_sheet,
                 dialog_scrim,
                 dialog_margin,
+                dialog_gap,
                 dialog_frames: store(RefCell::default()),
                 dialog_bodies: store(RefCell::default()),
                 dialog_focus,

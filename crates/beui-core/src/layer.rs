@@ -712,7 +712,11 @@ impl Document {
             .overlay
             .filter(|overlay| self.arena.get_as::<OverlayNode>(*overlay).scrim_covers())
             .and_then(|overlay| self.node_rect(self.overlay_scrim(overlay)));
-        let covers = match (layer.policy, scrim) {
+        let blocked = layer
+            .hangs_from
+            .filter(|_| layer.policy == LayerPolicy::BlocksParent)
+            .and_then(|node| self.node_rect(node));
+        let covers = match (layer.policy, scrim.or(blocked)) {
             (LayerPolicy::BlocksAll, Some(scrim)) => vec![scrim.union(content)],
             (_, Some(scrim)) => vec![scrim, content],
             (_, None) => vec![content],

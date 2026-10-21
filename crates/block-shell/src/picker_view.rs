@@ -7,7 +7,7 @@ use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::unstyled::{
     self, ButtonHandle, DockDialog, DockDialogPresentation, DockNode, MenuThen, TabId, TreeItem,
 };
-use block_editor_beui::beui::{NodeId, OverlayAnchor, Placement, Pos2, TextAlign, Vec2};
+use block_editor_beui::beui::{Color32, NodeId, OverlayAnchor, Placement, Pos2, TextAlign, Vec2};
 use block_editor_beui::block_ui::TemplateEntry;
 use block_editor_beui::{
     BlockParent, ChildMode, ChildState, CreationProgress, Subregion, SubregionContent, label_glyph,
@@ -70,6 +70,7 @@ pub fn PickerDialog(workspace: Workspace, pick: u64, tab: TabId) -> DockNode<Tab
             .pick(pick)
             .is_some_and(|held| held.creating.is_none())
     });
+    let anchor = workspace.pick_anchor(pick).and_then(|anchor| anchor.rect);
     view! {
         <DockDialog
             id={picker_tab(pick)}
@@ -77,6 +78,7 @@ pub fn PickerDialog(workspace: Workspace, pick: u64, tab: TabId) -> DockNode<Tab
             title="Add block"
             size=SURFACE_SIZE
             presentation=DockDialogPresentation::Card
+            anchor
             dismiss_on_outside_press={choosing}
             on_close={move || close_surface(workspace, pick)}
         >
@@ -719,7 +721,7 @@ fn ChoiceFace(
     } = handle;
     let fill = create_memo(move || match hovered.get() || focused.get() {
         true => theme.hover.get(),
-        false => theme.background.get(),
+        false => Color32::TRANSPARENT,
     });
     let color = create_memo(move || match enabled.get() {
         true => TextColor::Default,

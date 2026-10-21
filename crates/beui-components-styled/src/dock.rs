@@ -1,7 +1,7 @@
 mod stack;
 mod switch;
 
-use crate::frame::{Border, ColorRole, Frame, Radius, focus_border};
+use crate::frame::{Border, ColorRole, Elevation, Frame, Radius, focus_border};
 use crate::sheet::ModalSheet;
 use beui_macros::{component, view};
 
@@ -10,7 +10,7 @@ use crate::context_menu::menu_style;
 use crate::icon_button::{IconButton, IconButtonSize};
 use crate::menu_button::IconMenuButton;
 use crate::text::{Icon, Text, TextColor, TextSize};
-use crate::theme::use_theme;
+use crate::theme::{FLOATING_SHADOW_DROP, FLOATING_SHADOW_SPREAD, POINTER_REACH, use_theme};
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
@@ -55,13 +55,14 @@ const AWAY_SPACING: f32 = 12.0;
 const AWAY_PADDING: f32 = 24.0;
 const PREVIEW_ALPHA: u8 = 235;
 const WAITING_DOT: f32 = 6.0;
-const CARD_SHADOW: [Color32; 3] = [
-    Color32::from_rgba_unmultiplied(0, 0, 0, 16),
-    Color32::from_rgba_unmultiplied(0, 0, 0, 28),
-    Color32::from_rgba_unmultiplied(0, 0, 0, 44),
-];
-const CARD_SHADOW_WIDTH: f32 = 3.0;
-const CARD_MARGIN: u16 = (crate::dialog::MARGIN - 3.0 * CARD_SHADOW_WIDTH) as u16;
+const CARD_SHADOW_ROOM: Sides = Sides {
+    left: FLOATING_SHADOW_SPREAD,
+    top: f32::max(FLOATING_SHADOW_SPREAD - FLOATING_SHADOW_DROP, POINTER_REACH),
+    right: FLOATING_SHADOW_SPREAD,
+    bottom: FLOATING_SHADOW_SPREAD + FLOATING_SHADOW_DROP,
+};
+const CARD_MARGIN: u16 = (crate::dialog::MARGIN - CARD_SHADOW_ROOM.top) as u16;
+const CARD_GAP: u16 = (POINTER_REACH + 2.0) as u16;
 
 #[component]
 pub fn Docking<K>(
@@ -121,6 +122,7 @@ where
             }}
             dialog_scrim={crate::dialog::SCRIM}
             dialog_margin=CARD_MARGIN
+            dialog_gap=CARD_GAP
             tab={move |handle: DockTabHandle| view! {
                 <DockTabFace handle />
             }}
@@ -381,43 +383,27 @@ fn dialog_outline(focused: Memo<bool>, attention: ReadSignal<bool>) -> Memo<Opti
     create_memo(move || Some(Border::new(ColorRole::Custom(color.get())).width(CHROME_BORDER)))
 }
 
-fn card_radius(outset: f32) -> Radius {
-    Radius::custom(Radius::Lg.px() + outset)
-}
-
 #[component]
 fn DockCardFace(handle: DockDialogHandle) -> NodeId {
     let DockDialogHandle {
         focused,
         attention,
+        pointer,
         body,
         ..
     } = handle;
     view! {
-        <Frame
-            fill={ColorRole::Custom(CARD_SHADOW[0])}
-            radius={card_radius(3.0 * CARD_SHADOW_WIDTH)}
-            padding=CARD_SHADOW_WIDTH
-        >
+        <Frame padding=CARD_SHADOW_ROOM>
             <Frame
-                fill={ColorRole::Custom(CARD_SHADOW[1])}
-                radius={card_radius(2.0 * CARD_SHADOW_WIDTH)}
-                padding=CARD_SHADOW_WIDTH
+                @node_ref=&pointer
+                fill=ColorRole::SurfaceRaised
+                border={dialog_outline(focused, attention)}
+                radius=Radius::Lg
+                elevation=Elevation::Floating
+                pointer=true
+                padding=CHROME_BORDER
             >
-                <Frame
-                    fill={ColorRole::Custom(CARD_SHADOW[2])}
-                    radius={card_radius(CARD_SHADOW_WIDTH)}
-                    padding=CARD_SHADOW_WIDTH
-                >
-                    <Frame
-                        fill=ColorRole::SurfaceRaised
-                        border={dialog_outline(focused, attention)}
-                        radius=Radius::Lg
-                        padding=CHROME_BORDER
-                    >
-                        {body}
-                    </Frame>
-                </Frame>
+                {body}
             </Frame>
         </Frame>
     }

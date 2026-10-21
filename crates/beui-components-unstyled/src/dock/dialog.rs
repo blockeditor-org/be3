@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use beui_core::base::overlay::{OverlayAnchor, Placement};
 use beui_core::color::Color32;
-use beui_core::geometry::Vec2;
+use beui_core::geometry::{Rect, Vec2};
 use beui_core::input::PointerPress;
 use beui_core::layer::{Dismiss, LayerPolicy};
 use beui_core::node::NodeId;
@@ -30,6 +30,7 @@ pub(crate) struct DialogParts {
     pub(crate) size: Memo<Vec2>,
     pub(crate) modal: Memo<bool>,
     pub(crate) dismiss_on_outside_press: Memo<bool>,
+    pub(crate) anchor: Memo<Option<Rect>>,
     pub(crate) on_close: Option<ClickCallback>,
     pub(crate) content: RenderFn<()>,
 }
@@ -45,6 +46,7 @@ pub struct DockDialogHandle {
     pub attention: ReadSignal<bool>,
     pub closable: bool,
     pub close: ClickCallback,
+    pub pointer: NodeRef,
     pub body: NodeId,
 }
 
@@ -235,6 +237,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         size,
         modal,
         dismiss_on_outside_press,
+        anchor: asked_from,
         on_close,
         content,
     } = parts;
@@ -330,6 +333,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         }
     });
     let held = create_memo(move || (!stacked.get()).then_some(body));
+    let pointer = NodeRef::new();
     let face = dock.dialog_chrome.call(DockDialogHandle {
         tab,
         presentation,
@@ -341,6 +345,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         attention: attention.read_only(),
         closable: on_close.is_some(),
         close,
+        pointer,
         body: view! {
             <Portal node={held} />
         },
@@ -361,21 +366,35 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         dock.focus_into_dialog();
         dock.call_attention();
     };
-    let placement = match card {
-        true => Placement::HangFrom(dock.dialog_margin),
-        false => Placement::CenterOn,
-    };
-    let scrim = match card {
-        true => dock.dialog_scrim,
-        false => Color32::TRANSPARENT,
-    };
+    let (margin, gap, dims) = (dock.dialog_margin, dock.dialog_gap, dock.dialog_scrim);
+    let placed = create_memo(move || match (card, asked_from.get()) {
+        (true, Some(rect)) => (
+            OverlayAnchor::Pinned { node: anchor, rect },
+            Placement::Popover { gap, margin },
+            Color32::TRANSPARENT,
+        ),
+        (true, None) => (
+            OverlayAnchor::Node(anchor),
+            Placement::HangFrom(margin),
+            dims,
+        ),
+        (false, _) => (
+            OverlayAnchor::Node(anchor),
+            Placement::CenterOn,
+            Color32::TRANSPARENT,
+        ),
+    });
+    let at = create_memo(move || placed.get().0);
+    let placement = create_memo(move || placed.get().1);
+    let scrim = create_memo(move || placed.get().2);
     let overlay = NodeRef::new();
     let view = view! {
         <List spacing=0.0>
             <Overlay
                 @node_ref=&overlay
-                anchor={OverlayAnchor::Node(anchor)}
+                anchor={at}
                 placement
+                pointer
                 scrim
                 policy
                 traps_focus=false

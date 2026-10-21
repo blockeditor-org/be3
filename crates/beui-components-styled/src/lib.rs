@@ -83,7 +83,7 @@ pub use dialog::Dialog;
 pub use dock::Docking;
 pub use dock::{CHROME_BORDER, DOCK_INSET, WINDOW_CHROME};
 pub use focus_ring::FocusRing;
-pub use frame::{Border, ColorRole, Frame, Radius, focus_border};
+pub use frame::{Border, ColorRole, Elevation, Frame, Radius, focus_border};
 pub use fullscreen::Fullscreen;
 pub use icon_button::{IconButton, IconButtonSize};
 pub use keep_changes::{KEEP_CHANGES_TIMEOUT, KeepChanges};
