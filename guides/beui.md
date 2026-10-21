@@ -1879,8 +1879,10 @@ its preview sits above the finger instead of under it.
 A `DropTarget` is registered by the rectangle its content was laid out at. The
 target under the pointer that accepts the payload takes the drop - `accepts`
 filters by value, and a target of another payload type never sees the drag at
-all - and when targets nest, the innermost one wins, so a slot inside a column
-inside a sidebar can each take a drop of its own. Its `DropHandle` carries
+all - and of the targets under the pointer the one painted last wins: the
+innermost in the document tree, or the one in the higher layer, whatever order
+they were built in, so a slot inside a column inside a sidebar can each take a
+drop of its own. Only the part of a target that is on screen counts. Its `DropHandle` carries
 `carrying`, true for every target that would accept what is being dragged, and
 `over`, true for the one that would take it now; `on_over` reports the payload
 and the pointer as it moves, which is how a target that works out where inside

@@ -10,7 +10,7 @@ use block_editor_beui::beui::reactive::*;
 use block_editor_beui::beui::styled::*;
 use block_editor_beui::beui::{NodeId, TextAlign};
 use block_editor_beui::root_settings::is_own_settings;
-use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor, Loaded};
+use block_editor_beui::{BlockParent, BlockQuery, ContentProjection, Editor};
 use uuid::Uuid;
 
 use super::devices::DevicesTable;
@@ -60,57 +60,58 @@ pub fn SettingsView(editor: Editor) -> NodeId {
     let own = create_memo(move || is_own_settings(&editor, block));
     let others = create_memo(move || !own.get());
     let blocked = blocked(editor, settings, own);
-    let loaded =
-        editor.loaded::<SettingsContent>(&[BlockQuery::Roots, BlockQuery::Children(block)]);
+    let blocks = editor.blocks();
+    let _graph = store((
+        blocks.watch(BlockQuery::Roots),
+        blocks.watch(BlockQuery::Children(block)),
+    ));
     let shown = shown_block(editor);
     let devices = create_signal(false);
     let here = create_memo(move || !devices.get());
     let away = create_memo(move || devices.get());
     view! {
-        <Loaded loaded={loaded}>
-            <Frame fill=ColorRole::Background>
-                <Scroll>
-                    <Frame padding=PADDING>
-                        <List spacing=SECTION_SPACING>
-                            <Show condition={others}>
-                                <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
-                            </Show>
-                            <Show condition={here}>
-                                <Section
-                                    title="This device"
-                                    caption="A change applies on every device, unless you keep it on this one."
-                                >
-                                    <List spacing=ROW_SPACING>
-                                        <Kinds
-                                            editor={editor}
-                                            layer={settings}
-                                            blocked={blocked}
-                                            shown={shown}
-                                        />
-                                        <SettingRow
-                                            label="Devices and profiles"
-                                            detail="What each device keeps for itself"
-                                            glyph={ICON_DEVICES.to_owned()}
-                                            @test_id={"settings.devices"}
-                                            on_click={move || devices.set(true)}
-                                        />
-                                    </List>
-                                </Section>
-                            </Show>
-                            <Show condition={away}>
-                                <DevicesAndProfiles
-                                    editor={editor}
-                                    settings={settings}
-                                    blocked={blocked}
-                                    shown={shown}
-                                    on_back={move || devices.set(false)}
-                                />
-                            </Show>
-                        </List>
-                    </Frame>
-                </Scroll>
-            </Frame>
-        </Loaded>
+        <Frame fill=ColorRole::Background>
+            <Scroll>
+                <Frame padding=PADDING>
+                    <List spacing=SECTION_SPACING>
+                        <Show condition={others}>
+                            <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
+                        </Show>
+                        <Show condition={here}>
+                            <Section
+                                title="This device"
+                                caption="A change applies on every device, unless you keep it on this one."
+                            >
+                                <List spacing=ROW_SPACING>
+                                    <Kinds
+                                        editor={editor}
+                                        layer={settings}
+                                        blocked={blocked}
+                                        shown={shown}
+                                    />
+                                    <SettingRow
+                                        label="Devices and profiles"
+                                        detail="What each device keeps for itself"
+                                        glyph={ICON_DEVICES.to_owned()}
+                                        @test_id={"settings.devices"}
+                                        on_click={move || devices.set(true)}
+                                    />
+                                </List>
+                            </Section>
+                        </Show>
+                        <Show condition={away}>
+                            <DevicesAndProfiles
+                                editor={editor}
+                                settings={settings}
+                                blocked={blocked}
+                                shown={shown}
+                                on_back={move || devices.set(false)}
+                            />
+                        </Show>
+                    </List>
+                </Frame>
+            </Scroll>
+        </Frame>
     }
 }
 
@@ -208,11 +209,12 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     let profile = editor.block_content::<SettingsProfileContent>();
     let block = editor.block_id();
     let listed = editor.blocks().watch(BlockQuery::Block(block));
+    let _roots = store(editor.blocks().watch(BlockQuery::Roots));
     let parent = create_memo(move || {
         listed
             .read()
-            .into_iter()
-            .next()
+            .ok()
+            .and_then(|list| list.into_iter().next())
             .and_then(|info| info.parent?.block())
     });
     let own = create_memo(move || {
@@ -222,9 +224,6 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
     });
     let others = create_memo(move || !own.get());
     let setup = DeviceSetup::new(editor, profile, parent);
-    let held = profile_loaded(editor, profile, parent);
-    let set_up_ready = setup.ready();
-    let loaded = create_memo(move || held.get() && set_up_ready.get());
     let blocked = blocked(editor, profile, own);
     let client = editor.host().client_id();
     let used = create_memo(move || {
@@ -232,7 +231,9 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
             editor
                 .content_of::<SettingsContent>(parent)
                 .read(|settings| settings.root().profile(client))
-        }) == Some(Some(block))
+                .ok()
+                .flatten()
+        }) == Some(block)
     });
     let unused = create_memo(move || !used.get() && !blocked.get());
     let shown = shown_block(editor);
@@ -246,60 +247,53 @@ pub fn SettingsProfileView(editor: Editor) -> NodeId {
         false => "Not used on this device".to_owned(),
     });
     view! {
-        <Loaded loaded={loaded}>
-            <SettingsPage>
-                <Show condition={others}>
-                    <Frame padding={Sides::horizontal(NOTICE_INSET)}>
-                        <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
-                    </Frame>
-                </Show>
-                <Show condition={setting_up}>
-                    <SetUpHeading />
-                </Show>
-                <DeviceSection setup={setup} blocked={blocked} />
-                <Show condition={differs}>
-                    <DifferencesSection setup={setup} blocked={blocked} />
-                </Show>
-                <Show condition={setting_up}>
-                    <SetUpDone on_done={move || finished.set(true)} />
-                </Show>
-                <Show condition={browsing}>
-                    <SettingsSection
-                        title="Settings profile"
-                        description="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
-                    >
-                        <SettingsRow label={status}>
-                            <Show condition={unused}>
-                                <Button
-                                    label="Use on this device"
-                                    variant=ButtonVariant::Primary
-                                    @test_id={"settings-profile.use"}
-                                    on_click={move || {
-                                        if let Some(settings) = parent.get_untracked() {
-                                            editor
-                                                .content_of::<SettingsContent>(settings)
-                                                .operate(Settings::add_profile(client, block));
-                                        }
-                                    }}
-                                />
-                            </Show>
-                        </SettingsRow>
-                    </SettingsSection>
-                </Show>
-                <Show condition={browsing}>
-                    <SettingsSection title="In this profile">
-                        <Frame padding=CARD_PADDING>
-                            <Kinds
-                                editor={editor}
-                                layer={profile}
-                                blocked={blocked}
-                                shown={shown}
+        <SettingsPage>
+            <Show condition={others}>
+                <Frame padding={Sides::horizontal(NOTICE_INSET)}>
+                    <Text style=TextStyle::CAPTION string=NOT_OURS wrap=true />
+                </Frame>
+            </Show>
+            <Show condition={setting_up}>
+                <SetUpHeading />
+            </Show>
+            <DeviceSection setup={setup} blocked={blocked} />
+            <Show condition={differs}>
+                <DifferencesSection setup={setup} blocked={blocked} />
+            </Show>
+            <Show condition={setting_up}>
+                <SetUpDone on_done={move || finished.set(true)} />
+            </Show>
+            <Show condition={browsing}>
+                <SettingsSection
+                    title="Settings profile"
+                    description="What is set here replaces the settings for every device, on the devices that use this profile. What is not set follows them."
+                >
+                    <SettingsRow label={status}>
+                        <Show condition={unused}>
+                            <Button
+                                label="Use on this device"
+                                variant=ButtonVariant::Primary
+                                @test_id={"settings-profile.use"}
+                                on_click={move || {
+                                    if let Some(settings) = parent.get_untracked() {
+                                        editor
+                                            .content_of::<SettingsContent>(settings)
+                                            .operate(Settings::add_profile(client, block));
+                                    }
+                                }}
                             />
-                        </Frame>
-                    </SettingsSection>
-                </Show>
-            </SettingsPage>
-        </Loaded>
+                        </Show>
+                    </SettingsRow>
+                </SettingsSection>
+            </Show>
+            <Show condition={browsing}>
+                <SettingsSection title="In this profile">
+                    <Frame padding=CARD_PADDING>
+                        <Kinds editor={editor} layer={profile} blocked={blocked} shown={shown} />
+                    </Frame>
+                </SettingsSection>
+            </Show>
+        </SettingsPage>
     }
 }
 
@@ -432,22 +426,4 @@ fn opener<C: Layer, K: BlockContent + Default>(
         host.open_block(id, K::CONTENT_TYPE);
     };
     (open, resolved)
-}
-
-fn profile_loaded(
-    editor: Editor,
-    profile: ContentProjection<SettingsProfileContent>,
-    parent: Memo<Option<Uuid>>,
-) -> Memo<bool> {
-    let content = profile.loaded();
-    let blocks = editor.blocks();
-    let listed = blocks.watch(BlockQuery::Block(editor.block_id()));
-    let roots = blocks.watch(BlockQuery::Roots);
-    let settings = editor.related_content::<SettingsContent>(parent).settled();
-    create_memo(move || {
-        content.get()
-            && listed.is_loaded()
-            && roots.is_loaded()
-            && (parent.get().is_none() || settings.get())
-    })
 }

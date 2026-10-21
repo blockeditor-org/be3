@@ -25,10 +25,19 @@ use super::workspace::{PanelStatus, PhoneSheet, Workspace};
 const PANEL_PADDING: f32 = 14.0;
 const PANEL_SPACING: f32 = 6.0;
 
-#[derive(Clone, Default, PartialEq)]
+#[derive(Clone, PartialEq)]
 pub(crate) struct Refs {
-    pub(crate) loaded: bool,
+    pub(crate) state: Ready<()>,
     pub(crate) list: Vec<BlockInfo>,
+}
+
+impl Default for Refs {
+    fn default() -> Self {
+        Self {
+            state: Err(Pending::Loading),
+            list: Vec::new(),
+        }
+    }
 }
 
 #[derive(Clone, PartialEq)]
@@ -83,9 +92,15 @@ impl Watched {
 }
 
 fn refs(list: Option<&BlockList>) -> Refs {
-    list.map_or_else(Refs::default, |list| Refs {
-        loaded: list.is_loaded(),
-        list: list.read(),
+    list.map_or_else(Refs::default, |list| match list.read() {
+        Ok(list) => Refs {
+            state: Ok(()),
+            list,
+        },
+        Err(pending) => Refs {
+            state: Err(pending),
+            list: Vec::new(),
+        },
     })
 }
 

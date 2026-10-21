@@ -148,7 +148,7 @@ fn SlotRow(
         }) else {
             return;
         };
-        if let Some(edit) = hotbar.read(|hotbar| hotbar.root().unpin(compiled)) {
+        if let Ok(edit) = hotbar.read(|hotbar| hotbar.root().unpin(compiled)) {
             hotbar.operate(edit);
         }
     };

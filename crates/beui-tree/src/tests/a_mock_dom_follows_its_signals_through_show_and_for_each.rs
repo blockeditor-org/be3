@@ -26,13 +26,13 @@ fn a_mock_dom_follows_its_signals_through_show_and_for_each() {
 
     assert_eq!(
         page.html(),
-        "<div id=2><h1 id=0>Groceries</h1><ul id=1><li id=3>milk</li><li id=4>eggs</li></ul></div>"
+        "<div id=4><h1 id=0>Groceries</h1><ul id=1><li id=2>milk</li><li id=3>eggs</li></ul></div>"
     );
 
     items.set(vec!["eggs".to_string(), "bread".to_string()]);
     assert_eq!(
         page.html(),
-        "<div id=2><h1 id=0>Groceries</h1><ul id=1><li id=4>eggs</li><li id=5>bread</li></ul></div>",
+        "<div id=4><h1 id=0>Groceries</h1><ul id=1><li id=3>eggs</li><li id=5>bread</li></ul></div>",
         "a key that stays keeps the element built for it, and only a new key builds one"
     );
 
@@ -40,14 +40,14 @@ fn a_mock_dom_follows_its_signals_through_show_and_for_each() {
     title.set("Pantry".to_string());
     assert_eq!(
         page.html(),
-        "<div id=2><h1 id=0>Pantry</h1><p id=6>nothing to buy</p><ul id=1></ul></div>",
+        "<div id=4><h1 id=0>Pantry</h1><p id=6>nothing to buy</p><ul id=1></ul></div>",
         "a changed text updates its element in place, and a `Show` fills its place among its siblings"
     );
 
     items.set(vec!["eggs".to_string()]);
     assert_eq!(
         page.html(),
-        "<div id=2><h1 id=0>Pantry</h1><ul id=1><li id=7>eggs</li></ul></div>",
+        "<div id=4><h1 id=0>Pantry</h1><ul id=1><li id=7>eggs</li></ul></div>",
         "a key that left and came back is built again, and nothing else is"
     );
 }

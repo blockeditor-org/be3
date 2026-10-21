@@ -38,13 +38,6 @@ theme = "@android:style/Theme.DeviceDefault.NoActionBar.Fullscreen"
 config_changes = "orientation|keyboardHidden|screenSize|screenLayout"
 exported = true
 
-[features]
-# The embedded browser needs a large dependency tree, so it is not on by
-# default. buck2, which is what builds the app, always turns it on.
-default = []
-web-view = ["dep:wry"]
-full = ["web-view"]
-
 [dependencies]
 # The block stack. The app is a peer of it on every platform: be-client's socket
 # and executor come from its own transport/.
@@ -95,7 +88,6 @@ rodio = "0.20"
 # Desktop only: Android has no embedded browser, and the browser sandbox has
 # none either.
 [target.'cfg(all(not(target_os = "android"), not(target_arch = "wasm32")))'.dependencies]
-wry = { version = "0.55.1", optional = true }
 
 # The plugin side of the protocol, for the tests that check the host only sends
 # a plugin's session messages it accepts. Nothing in the app links it.

@@ -22,12 +22,19 @@ const CELL_EDITOR_HEIGHT: f32 = 40.0;
 
 #[component]
 pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
+    view! {
+        <Frame fill=ColorRole::Background>
+            <Loaded label="Loading the database">
+                <ViewEditor editor={editor} />
+            </Loaded>
+        </Frame>
+    }
+}
+
+#[component]
+fn ViewEditor(editor: Editor) -> NodeId {
     let data = ViewData::new(editor);
     create_effect(move || {
-        if !data.loaded.get() {
-            editor.set_intrinsic_size(None);
-            return;
-        }
         let size = match data.kind.get() {
             DatabaseViewKind::Spreadsheet => Some(spreadsheet_size(data)),
             DatabaseViewKind::Kanban | DatabaseViewKind::Scatter | DatabaseViewKind::List => None,
@@ -35,50 +42,50 @@ pub fn DatabaseViewEditor(editor: Editor) -> NodeId {
         editor.set_intrinsic_size(size);
     });
 
-    let loaded = data.loaded;
-    let spreadsheet =
-        create_memo(move || loaded.get() && data.kind.get() == DatabaseViewKind::Spreadsheet);
+    let spreadsheet = create_memo(move || data.kind.get() == DatabaseViewKind::Spreadsheet);
     let chrome = editor.chrome_shown();
     let narrow = narrow_chrome();
     let header_shown = create_memo(move || {
         let covered = narrow.get()
             && data.kind.get() != DatabaseViewKind::Spreadsheet
             && data.selected_row().is_some();
-        loaded.get() && chrome.get() && !covered
+        chrome.get() && !covered
     });
     let content = NodeRef::new();
     editor.content(&content);
     view! {
-        <Frame fill=ColorRole::Background>
-            <List spacing=0.0>
-                <Show condition={spreadsheet}>
-                    <Toolbar shown={chrome}>
-                        <CellEditor @sizing=ItemSize::Percent(100.0) data={data} />
-                    </Toolbar>
-                </Show>
-                <Show condition={header_shown}>
-                    <ViewHeader data={data} />
-                </Show>
-                <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
-                    <Loaded loaded={loaded} label="Loading the database">
-                        <Content data={data} panels=true />
-                    </Loaded>
-                </Frame>
-            </List>
-        </Frame>
+        <List spacing=0.0>
+            <Show condition={spreadsheet}>
+                <Toolbar shown={chrome}>
+                    <CellEditor @sizing=ItemSize::Percent(100.0) data={data} />
+                </Toolbar>
+            </Show>
+            <Show condition={header_shown}>
+                <ViewHeader data={data} />
+            </Show>
+            <Frame @sizing=ItemSize::Percent(100.0) @node_ref={&content}>
+                <Content data={data} panels=true />
+            </Frame>
+        </List>
     }
 }
 
 #[component]
 pub fn DatabaseViewPreview(editor: Editor) -> NodeId {
-    let data = ViewData::new(editor);
-    let loaded = data.loaded;
     view! {
         <Frame fill=ColorRole::Background>
-            <Loaded loaded={loaded} label="Loading the database">
-                <Content data={data} panels=false />
+            <Loaded label="Loading the database">
+                <PreviewContent editor={editor} />
             </Loaded>
         </Frame>
+    }
+}
+
+#[component]
+fn PreviewContent(editor: Editor) -> NodeId {
+    let data = ViewData::new(editor);
+    view! {
+        <Content data={data} panels=false />
     }
 }
 

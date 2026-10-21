@@ -16,9 +16,8 @@ pub struct CalendarApp;
 
 impl block_editor_beui::BeuiApp for CalendarApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::CalendarContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <CalendarEditor editor={editor} />
             </Loaded>
         }

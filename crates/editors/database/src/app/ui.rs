@@ -17,9 +17,7 @@ const CHROME_HEIGHT: f32 = 90.0;
 #[component]
 pub fn DatabaseEditor(editor: Editor) -> NodeId {
     let database = editor.block_content::<DatabaseContent>();
-    let views = watch_views(editor);
-    let loaded = views.loaded;
-    let rows = views.rows;
+    let rows = watch_views(editor);
     let reference = database.project(|database| database.root().schema);
     let schema = create_memo(move || reference.get());
 
@@ -28,8 +26,7 @@ pub fn DatabaseEditor(editor: Editor) -> NodeId {
         editor.set_intrinsic_size(Some(Vec2::new(INTRINSIC_WIDTH, height)));
     });
 
-    let empty = create_memo(move || rows.with(Vec::is_empty));
-    let none_yet = create_memo(move || empty.get() && loaded.get());
+    let none_yet = create_memo(move || rows.with(Vec::is_empty));
     let read_only = editor.read_only();
     let block_id = editor.block_id();
     let new_view = move || {
@@ -107,7 +104,7 @@ fn SchemaPanel(editor: Editor, schema: Memo<Option<Uuid>>) -> NodeId {
     view! {
         <List spacing=0.0>
             <Show condition={missing}>
-                <Text style=TextStyle::CAPTION string="Loading the schema…" />
+                <Text style=TextStyle::CAPTION string="This database has no schema." />
             </Show>
             <ChildBlock
                 @sizing=ItemSize::Percent(100.0)
@@ -119,23 +116,17 @@ fn SchemaPanel(editor: Editor, schema: Memo<Option<Uuid>>) -> NodeId {
     }
 }
 
-struct Views {
-    rows: Memo<Vec<BlockInfo>>,
-    loaded: Memo<bool>,
-}
-
-fn watch_views(editor: Editor) -> Views {
+fn watch_views(editor: Editor) -> Memo<Vec<BlockInfo>> {
     let references = editor
         .blocks()
         .watch(BlockQuery::Backrefs(editor.block_id()));
     let references = store(references);
-    let loaded = create_memo(move || references.with(BlockList::is_loaded));
-    let rows = create_memo(move || {
-        references
-            .with(BlockList::read)
-            .into_iter()
-            .filter(|reference| reference.block_type == DatabaseViewContent::CONTENT_TYPE)
-            .collect()
-    });
-    Views { rows, loaded }
+    hold(create_memo(move || {
+        references.with(BlockList::read).map(|references| {
+            references
+                .into_iter()
+                .filter(|reference| reference.block_type == DatabaseViewContent::CONTENT_TYPE)
+                .collect()
+        })
+    }))
 }

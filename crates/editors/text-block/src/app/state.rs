@@ -44,7 +44,6 @@ pub(crate) struct State {
     pub import_error: Signal<Option<String>>,
     pub presence_revision: Signal<u64>,
     pub peers: ReadSignal<Vec<(u64, TextCursor)>>,
-    pub loaded: Signal<bool>,
     inner: Stored<Inner>,
 }
 
@@ -81,7 +80,6 @@ impl State {
         let presence_revision = create_signal(0);
         let focused_embed = create_signal(None);
         let embed_sizes = create_signal(HashMap::new());
-        let loaded = create_signal(false);
         let state = Self {
             organization_id: editor.host().organization_id(),
             link_base: editor.host_value::<LinkBase>(),
@@ -97,7 +95,6 @@ impl State {
             hex_insert_mode,
             import_error,
             presence_revision,
-            loaded,
             inner: store(Inner {
                 client,
                 content,
@@ -119,7 +116,7 @@ impl State {
             let Some(inner) = state.inner.try_value() else {
                 return;
             };
-            inner.content.revision();
+            let _ = inner.content.revision();
             untrack(|| state.pump());
         });
         state
@@ -150,7 +147,7 @@ impl State {
             Some(History::Redo) => self.host().redo(self.block_id),
             None => {}
         }
-        if inner.content.revision().is_none() {
+        if inner.content.revision().is_err() {
             return;
         }
         let projected = inner.content.take_projected();
@@ -174,7 +171,7 @@ impl State {
             }
         }
         if whole {
-            inner.content.read(|content| inner.document.adopt(content));
+            let _ = inner.content.read(|content| inner.document.adopt(content));
         }
         if inner.document.take_external_edit() {
             self.text.external_edit();
@@ -182,7 +179,6 @@ impl State {
             self.text.sync();
         }
         if first {
-            self.loaded.set(true);
             let start = self.text.with_core(|core| core.position(0));
             self.text.execute(EditorCommand::SetSelection {
                 anchor: start,

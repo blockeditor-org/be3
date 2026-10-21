@@ -321,14 +321,6 @@ impl beui::App for Shell {
         self.app.input.boot(&self.app.app_state);
         self.app.display.boot(&self.app.app_state);
         display::boot(&self.app.app_state);
-        #[cfg(all(
-            feature = "web-view",
-            not(target_os = "android"),
-            not(target_arch = "wasm32")
-        ))]
-        if let Some(window) = setup.get::<std::sync::Arc<dyn beui::winit::window::Window>>() {
-            plugin_host::install_web_view(window.clone());
-        }
     }
 
     fn renderer_replaced(&mut self, setup: &beui::Setup) {

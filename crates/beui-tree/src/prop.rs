@@ -1,4 +1,6 @@
-use reactive::{Get, Memo, ReadSignal, Signal, Stored, check_tracked_read, store, untrack};
+use reactive::{
+    Get, Memo, ReadSignal, Ready, Signal, Stored, check_tracked_read, hold, store, untrack,
+};
 
 pub enum Prop<T> {
     Static(T),
@@ -146,6 +148,12 @@ impl<T: Clone + 'static> IntoProp<T> for Signal<T> {
 impl<T: Clone + PartialEq + 'static> IntoProp<T> for Memo<T> {
     fn into_prop(self) -> Prop<T> {
         Prop::Dynamic(Getter::of_memo(self))
+    }
+}
+
+impl<T: Clone + PartialEq + Default + 'static> IntoProp<T> for Memo<Ready<T>> {
+    fn into_prop(self) -> Prop<T> {
+        Prop::Dynamic(Getter::of_memo(hold(self)))
     }
 }
 

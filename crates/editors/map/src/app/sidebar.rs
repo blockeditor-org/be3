@@ -338,7 +338,7 @@ fn PointDetails(state: MapState, selected: Memo<Option<Uuid>>) -> NodeId {
     let label = create_memo(move || point_name(&state, point.get()));
     let block = create_memo(move || {
         let point = point.get()?;
-        let label = state.label_of(point.block_id)?;
+        let label = state.label_of(point.block_id).ok()?;
         Some(ChildTarget::new(point.block_id, label.block_type))
     });
     let openable = create_memo(move || block.get().is_none());
@@ -483,11 +483,5 @@ fn preset_role(name: &str) -> Prop<Node> {
 }
 
 fn point_name(state: &MapState, point: Option<MapPoint>) -> String {
-    let Some(point) = point else {
-        return String::new();
-    };
-    match state.label_of(point.block_id) {
-        Some(label) => label.name,
-        None => "Loading…".to_owned(),
-    }
+    point.map_or_else(String::new, |point| state.name_of(point.block_id))
 }

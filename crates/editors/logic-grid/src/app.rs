@@ -547,24 +547,24 @@ pub(super) enum GridStore {
 }
 
 impl GridStore {
-    fn revision(&self) -> Option<u64> {
+    fn revision(&self) -> Ready<u64> {
         match self {
             Self::Live { content, .. } => content.revision(),
             #[cfg(test)]
-            Self::Local { revision, .. } => Some(*revision),
+            Self::Local { revision, .. } => Ok(*revision),
         }
     }
 
-    fn read<T>(&self, read: impl FnOnce(&LogicGridContent) -> T) -> Option<T> {
+    fn read<T>(&self, read: impl FnOnce(&LogicGridContent) -> T) -> Ready<T> {
         match self {
             Self::Live { content, .. } => content.read(read),
             #[cfg(test)]
-            Self::Local { content, .. } => Some(read(content)),
+            Self::Local { content, .. } => Ok(read(content)),
         }
     }
 
     fn operate(&mut self, operations: &[LogicGridOperation]) {
-        let Some(edit) = self.read(|content| content.root().edit_for_all(operations)) else {
+        let Ok(edit) = self.read(|content| content.root().edit_for_all(operations)) else {
             return;
         };
         if edit.0.is_empty() {
@@ -719,13 +719,13 @@ impl LogicGridEditor {
 
     fn sync(&mut self, live: bool, client_id: Uuid) -> bool {
         let refreshed = live && self.refresh_compiled();
-        let Some(revision) = self.store.revision() else {
+        let Ok(revision) = self.store.revision() else {
             return false;
         };
         if self.observed_revision == Some(revision) {
             return self.sync_hotbar(live, client_id) || refreshed;
         }
-        let Some((grid, challenge, called)) = self.store.read(|content| {
+        let Ok((grid, challenge, called)) = self.store.read(|content| {
             let root = content.root();
             (root.grid(), root.challenge, root.called_blocks())
         }) else {
@@ -777,14 +777,17 @@ impl LogicGridEditor {
         let mut changed = false;
         let mut called = Vec::new();
         for source in self.compiled.values_mut() {
-            let revision = source.content.revision();
-            if revision.is_none() || revision == source.revision {
+            let Ok(revision) = source.content.revision() else {
+                continue;
+            };
+            if source.revision == Some(revision) {
                 continue;
             }
-            source.revision = revision;
+            source.revision = Some(revision);
             source.program = source
                 .content
                 .read(|content| content.field(ObjectId::ROOT, CompiledLogicDocument::COMPILED))
+                .ok()
                 .flatten();
             called.extend(
                 source

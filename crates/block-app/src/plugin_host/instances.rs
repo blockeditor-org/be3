@@ -7,7 +7,7 @@ use block_plugin_api::{
     DataListing, EditorInstanceId, EditorMessage, EditorRegion, FetchResult, FilePick, FileSave,
     FrameReport, FrameSpec, HostPanel, HostReply, HostRequest, Message, Monitor, Occluder,
     PerformanceMeasurement, RegenerationOutcome, RegionSize, ScreenId, ScreenLayout, ScreenRequest,
-    ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewId,
+    ScreenSet, Size, Stopped, ViewChange, WatchedContent, WebViewCommand, WebViewEvent, WebViewId,
 };
 use block_plugin_api::{DescribedAction, WindowRequests};
 use std::{
@@ -28,7 +28,6 @@ use crate::{
     editors::plugin::discovery,
     host, performance,
     platform::{SavedFile, http, save_file},
-    plugin_host::web_view::WebViewHost,
 };
 
 thread_local! {
@@ -142,7 +141,7 @@ struct Instance {
     presenting: bool,
     reported_presenting: bool,
     host_values: Watched,
-    web_views: HashMap<WebViewId, WebViewHost>,
+    unshown_web_views: Vec<WebViewId>,
     presence_visible: Option<bool>,
     replacements: HashMap<(Uuid, Uuid), Replacement>,
     next_replacement: u64,
@@ -152,7 +151,8 @@ struct Instance {
     watched: HashMap<Uuid, ContentLink>,
     shown: std::collections::HashSet<(Uuid, Uuid)>,
     block_queries: Vec<block_plugin_api::BlockQuery>,
-    sent_blocks: HashMap<block_plugin_api::BlockQuery, Vec<block_plugin_api::BlockInfo>>,
+    sent_blocks:
+        HashMap<block_plugin_api::BlockQuery, Result<Vec<block_plugin_api::BlockInfo>, String>>,
     blocks_seen: Option<u64>,
     version_sent: Option<u64>,
     stale: bool,
@@ -322,7 +322,7 @@ impl Instance {
             presenting: false,
             reported_presenting: false,
             host_values: Watched::default(),
-            web_views: HashMap::new(),
+            unshown_web_views: Vec::new(),
             presence_visible: None,
             replacements: HashMap::new(),
             next_replacement: 0,
@@ -390,18 +390,29 @@ impl Instance {
         self.blocks_seen = Some(revision);
         let mut messages = Vec::new();
         for query in &self.block_queries {
-            if !crate::be::ready(super::graph::query_of(*query)) {
+            let graph_query = super::graph::query_of(*query);
+            let answer = match crate::be::ready(graph_query) {
+                true => Ok(super::graph::answer(*query)),
+                false => match crate::be::failure(graph_query) {
+                    Some(error) => Err(error),
+                    None => continue,
+                },
+            };
+            if self.sent_blocks.get(query) == Some(&answer) {
                 continue;
             }
-            let blocks = super::graph::answer(*query);
-            if self.sent_blocks.get(query) == Some(&blocks) {
-                continue;
-            }
-            self.sent_blocks.insert(*query, blocks.clone());
-            messages.push(Message::Editor(EditorMessage::Blocks {
-                instance,
-                query: *query,
-                blocks,
+            self.sent_blocks.insert(*query, answer.clone());
+            messages.push(Message::Editor(match answer {
+                Ok(blocks) => EditorMessage::Blocks {
+                    instance,
+                    query: *query,
+                    blocks,
+                },
+                Err(error) => EditorMessage::BlocksFailed {
+                    instance,
+                    query: *query,
+                    error,
+                },
             }));
         }
         messages
@@ -525,7 +536,6 @@ impl Instance {
 pub(super) struct Placement {
     pub(super) rect: Rect,
     pub(super) clip: Rect,
-    pub(super) pass: u64,
 }
 
 pub(super) struct Described<'a> {
@@ -2155,54 +2165,15 @@ impl Instances {
             .is_some_and(|screen| std::mem::take(&mut screen.focus_requested))
     }
 
-    pub(super) fn drive_web_views(&mut self, pass: u64) -> Vec<Message> {
+    pub(super) fn drive_web_views(&mut self) -> Vec<Message> {
         let mut messages = Vec::new();
         for (instance, entry) in &mut self.entries {
-            if entry.web_views.is_empty() {
-                continue;
-            }
-            let mut rects = HashMap::new();
-            for screen in entry.screens.values() {
-                let Some(placement) = screen.placement else {
-                    continue;
-                };
-                let live =
-                    screen.mounted > 0 || (placement.pass == pass && screen.last_seen == pass);
-                if !live {
-                    continue;
-                }
-                let origin = placement.rect.min.to_vec2();
-                let stretch = vec2(
-                    ratio(placement.rect.width(), screen.request.metrics.logical_width),
-                    ratio(
-                        placement.rect.height(),
-                        screen.request.metrics.logical_height,
-                    ),
-                );
-                for child in &screen.children.children {
-                    let ChildContent::WebView(web_view) = child.content else {
-                        continue;
-                    };
-                    if child.rect.is_empty() {
-                        continue;
-                    }
-                    let clip = host_rect(child.clip, origin, stretch).intersect(placement.clip);
-                    rects.insert(
-                        web_view,
-                        host_rect(child.rect, origin, stretch).intersect(clip),
-                    );
-                }
-            }
-            for (web_view, view) in &mut entry.web_views {
-                let mut events = Vec::new();
-                view.drive(rects.get(web_view).copied(), &mut events);
-                for event in events {
-                    messages.push(Message::Editor(EditorMessage::WebViewEvent {
-                        instance: *instance,
-                        web_view: *web_view,
-                        event,
-                    }));
-                }
+            for web_view in entry.unshown_web_views.drain(..) {
+                messages.push(Message::Editor(EditorMessage::WebViewEvent {
+                    instance: *instance,
+                    web_view,
+                    event: WebViewEvent::Failed("This app can't show web pages yet.".to_owned()),
+                }));
             }
         }
         messages
@@ -3013,11 +2984,9 @@ impl Instances {
                 let Some(entry) = self.entries.get_mut(&instance) else {
                     return false;
                 };
-                entry
-                    .web_views
-                    .entry(web_view)
-                    .or_default()
-                    .command(command);
+                if let WebViewCommand::Open(_) = command {
+                    entry.unshown_web_views.push(web_view);
+                }
                 true
             }
             EditorMessage::CreationReady { instance, ready } => {

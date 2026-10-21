@@ -125,7 +125,7 @@ impl Tools {
         if !self.editable() {
             return;
         }
-        if let Some(edit) = self
+        if let Ok(edit) = self
             .cells
             .value()
             .block
@@ -217,13 +217,13 @@ pub(crate) fn artwork_of(
     block: &ArtBlock,
     held: &RefCell<Option<(u64, Rc<Artwork>)>>,
 ) -> Option<Rc<Artwork>> {
-    let revision = block.revision()?;
+    let revision = block.revision().ok()?;
     if let Some((seen, art)) = &*held.borrow()
         && *seen == revision
     {
         return Some(Rc::clone(art));
     }
-    let art = Rc::new(block.read(|content| content.root().artwork())?);
+    let art = Rc::new(block.read(|content| content.root().artwork()).ok()?);
     held.replace(Some((revision, Rc::clone(&art))));
     Some(art)
 }

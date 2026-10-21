@@ -28,9 +28,8 @@ pub struct PaintReviewApp;
 
 impl block_editor_beui::BeuiApp for PaintReviewApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::PaintReviewContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <PaintReviewEditor editor={editor} source=Source::Branch />
             </Loaded>
         }

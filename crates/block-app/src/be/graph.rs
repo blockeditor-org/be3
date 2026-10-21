@@ -50,12 +50,13 @@ pub(crate) enum Owner {
     Editor(u64),
 }
 
-#[derive(Clone, Copy, Debug, Default, Eq, PartialEq)]
+#[derive(Clone, Debug, Default, Eq, PartialEq)]
 enum Fetch {
     #[default]
     Wanted,
     Fetching,
     Loaded,
+    Failed(String),
 }
 
 #[derive(Clone, Debug, Default)]
@@ -186,6 +187,13 @@ impl Graph {
         }
     }
 
+    #[cfg(test)]
+    pub(crate) fn listings_of(&self, query: Query) -> HashSet<Listing> {
+        let mut listings = HashSet::new();
+        self.listings_for(query, &mut listings);
+        listings
+    }
+
     pub(crate) fn take_wanted(&mut self) -> Vec<Listing> {
         let mut found = Vec::new();
         for (listing, listed) in &mut self.listings {
@@ -231,9 +239,17 @@ impl Graph {
         self.refresh_listings();
     }
 
+    pub(crate) fn failed(&mut self, listing: Listing, error: String) {
+        let Some(listed) = self.listings.get_mut(&listing) else {
+            return;
+        };
+        listed.fetch = Fetch::Failed(error);
+        self.revision += 1;
+    }
+
     pub(crate) fn relist(&mut self, listing: Listing) {
         if let Some(listed) = self.listings.get_mut(&listing)
-            && listed.fetch == Fetch::Loaded
+            && matches!(listed.fetch, Fetch::Loaded | Fetch::Failed(_))
         {
             listed.fetch = Fetch::Wanted;
         }
@@ -271,10 +287,24 @@ impl Graph {
         })
     }
 
+    pub(crate) fn failure(&self, query: Query) -> Option<String> {
+        let mut needed = HashSet::new();
+        self.listings_for(query, &mut needed);
+        needed.iter().find_map(|listing| {
+            if matches!(listing, Listing::Block(block) if self.nodes.contains_key(block)) {
+                return None;
+            }
+            match &self.listings.get(listing)?.fetch {
+                Fetch::Failed(error) => Some(error.clone()),
+                _ => None,
+            }
+        })
+    }
+
     pub(crate) fn fetching(&self) -> bool {
         self.listings
             .values()
-            .any(|listed| listed.fetch != Fetch::Loaded)
+            .any(|listed| matches!(listed.fetch, Fetch::Wanted | Fetch::Fetching))
     }
 
     pub(crate) fn covers(&self, block: Uuid) -> bool {

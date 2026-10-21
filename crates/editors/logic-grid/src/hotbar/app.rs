@@ -11,9 +11,8 @@ pub struct HotbarApp;
 
 impl block_editor_beui::BeuiApp for HotbarApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::HotbarContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <HotbarView editor={editor} />
             </Loaded>
         }

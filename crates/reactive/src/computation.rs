@@ -46,6 +46,7 @@ pub(crate) struct Computation<F: ?Sized = dyn FnMut() -> bool> {
     pub(crate) queued: Cell<bool>,
     pub(crate) queued_at: Cell<u64>,
     runs: Cell<(u64, u32)>,
+    binding: Cell<bool>,
     pub(crate) zone: u64,
     gate: Option<Rc<Gate>>,
     callback: RefCell<Slot<F>>,
@@ -74,6 +75,7 @@ impl Computation {
             queued: Cell::new(false),
             queued_at: Cell::new(0),
             runs: Cell::new((0, 0)),
+            binding: Cell::new(false),
             zone: current_zone(),
             gate: owner.gate.borrow().clone(),
             callback: RefCell::new(Slot {
@@ -201,7 +203,10 @@ impl Computation {
         let memo_depth = RUNTIME.with(|runtime| runtime.memo_depth.get());
         let _memo_guard = Reset::set(
             |runtime| &runtime.memo_depth,
-            memo_depth + usize::from(self.source.is_some()),
+            match self.source {
+                Some(_) => memo_depth + 1,
+                None => 0,
+            },
         );
         self.state.set(State::Clean);
         let result = {
@@ -241,7 +246,11 @@ impl Computation {
         if self.source.is_some() {
             return None;
         }
-        Gate::closed_since(self.gate.as_ref()?, self.queued_at.get())
+        Gate::closed_since(
+            self.gate.as_ref()?,
+            self.queued_at.get(),
+            self.binding.get(),
+        )
     }
 
     fn is_spent(&self) -> bool {
@@ -329,6 +338,7 @@ pub fn create_binding(mut binding: impl FnMut() + 'static) {
         binding();
         false
     });
+    computation.binding.set(true);
     computation.watch(probed.read, probed.owner);
 }
 

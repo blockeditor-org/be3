@@ -44,6 +44,7 @@ fn calendar_block(editor: Editor) -> Memo<Option<Uuid>> {
                     .and_then(|state| state.refs.first().copied())
                     .filter(|id| !id.is_nil())
             })
+            .ok()
             .flatten()
         })
     });
@@ -53,16 +54,15 @@ fn calendar_block(editor: Editor) -> Memo<Option<Uuid>> {
         stored.get().filter(|id| {
             created.get() == Some(*id)
                 || children.with(|children| {
-                    children
-                        .as_ref()
-                        .is_none_or(|children| children.iter().any(|child| child.id == *id))
+                    children.as_ref().map_or(true, |children| {
+                        children.iter().any(|child| child.id == *id)
+                    })
                 })
         })
     });
-    let loaded = editor.view_content().map(|view| view.loaded());
     let editable = editor.editable();
     create_effect(move || {
-        let ready = loaded.as_ref().is_some_and(|loaded| loaded.get());
+        let ready = view.as_ref().is_some_and(|view| view.ready().is_ok());
         if !ready || !editable.get() || held.get().is_some() {
             return;
         }

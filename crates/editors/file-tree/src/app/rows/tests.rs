@@ -5,6 +5,7 @@ use block_editor_beui::block_ui::{BlockCatalog, BlockTypeEntry, ChildEdits};
 
 use super::*;
 
+mod a_listing_says_loading_only_after_a_grace_and_shows_a_failure;
 mod access_marker_marks_limited_access;
 mod deleting_needs_a_container_that_can_delete_children;
 mod unlinking_needs_a_container_that_can_replace_a_child;

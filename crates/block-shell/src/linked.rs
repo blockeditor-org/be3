@@ -28,7 +28,7 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
         info.with(|info| {
             info.as_ref().is_some_and(|info| {
                 info.access.can_view()
-                    && info.backrefs.loaded
+                    && info.backrefs.state.is_ok()
                     && backrefs.with(|places| places.list.len() > 1)
                     && info.parent.is_some()
             })
@@ -134,7 +134,7 @@ pub(crate) fn LinkedBar(workspace: Workspace, info: ReadSignal<Option<Info>>) ->
 
 fn places(backrefs: &Refs) -> Refs {
     Refs {
-        loaded: backrefs.loaded,
+        state: backrefs.state.clone(),
         list: backrefs
             .list
             .iter()

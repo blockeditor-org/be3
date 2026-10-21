@@ -78,7 +78,7 @@ impl Pages {
             }
             shown.page_size = Some(facts.page_size_pts);
         }
-        let Some(revision) = block.revision() else {
+        let Ok(revision) = block.revision() else {
             return;
         };
         pane.ensure(
@@ -90,7 +90,7 @@ impl Pages {
             viewport.pixels_per_point,
             waker,
             performance,
-            || block.read(|pdf| pdf.data().to_vec()),
+            || block.read(|pdf| pdf.data().to_vec()).ok(),
         );
         shown.tiles = pane.tiles();
         shown.page = self.page.get_untracked();

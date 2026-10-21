@@ -52,6 +52,16 @@ fn a_list_waits_for_the_rows_its_relations_name() {
         DatabaseContent::CONTENT_TYPE,
         BlockParent::Root,
     ));
+    harness.store().add_block(BlockInfo::new(
+        database,
+        DatabaseContent::CONTENT_TYPE,
+        BlockParent::Root,
+    ));
+    harness.store().add_block(BlockInfo::new(
+        schema,
+        DatabaseSchemaContent::CONTENT_TYPE,
+        BlockParent::Block(database),
+    ));
     harness.hold(None, shown);
     harness.hold(Some(database), rows);
     harness.hold(Some(schema), fields);

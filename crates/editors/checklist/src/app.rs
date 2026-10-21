@@ -13,9 +13,8 @@ pub struct ChecklistApp;
 
 impl block_editor_beui::BeuiApp for ChecklistApp {
     fn view(editor: Editor) -> NodeId {
-        let loaded = editor.loaded::<block_editor_beui::be_block::ChecklistContent>(&[]);
         view! {
-            <Loaded loaded={loaded}>
+            <Loaded>
                 <Checklist editor={editor} />
             </Loaded>
         }

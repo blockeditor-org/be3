@@ -13,9 +13,8 @@ struct CountingApp;
 
 fn count(editor: crate::Editor) -> beui::NodeId {
     let content = editor.block_content::<PresentationContent>();
-    let loaded = content.loaded();
     let slides = content.project(|deck| deck.root().slides.len());
-    let seen = beui::reactive::create_memo(move || loaded.get().then(|| slides.get()));
+    let seen = beui::reactive::create_memo(move || content.ready().ok().map(|()| slides.get()));
     SEEN.with(|held| held.borrow_mut().push(seen));
     Frame().build()
 }

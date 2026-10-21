@@ -1,3 +1,4 @@
+use block_editor_beui::beui::reactive::{Pending, Ready};
 use block_editor_beui::{AccessGrant, AccessLevel, AccessListing};
 use uuid::Uuid;
 
@@ -45,7 +46,7 @@ pub(crate) struct Share {
     pub(crate) block: Uuid,
     pub(crate) request: Option<u64>,
     pub(crate) grants: Vec<AccessGrant>,
-    pub(crate) loaded: bool,
+    pub(crate) members: Ready<()>,
     pub(crate) error: Option<String>,
     pub(crate) query: String,
     pub(crate) pending: Vec<Person>,
@@ -60,7 +61,7 @@ impl Share {
             block,
             request: Some(request),
             grants: Vec::new(),
-            loaded: false,
+            members: Err(Pending::Loading),
             error: None,
             query: String::new(),
             pending: Vec::new(),
@@ -75,14 +76,16 @@ impl Share {
         match listing {
             AccessListing::Listed(grants) => {
                 self.grants = grants;
-                self.loaded = true;
+                self.members = Ok(());
             }
-            AccessListing::Failed(error) => self.error = Some(error),
+            AccessListing::Failed(error) => self.members = Err(Pending::Failed(error)),
         }
     }
 
-    pub(crate) fn loading(&self) -> bool {
-        !self.loaded && self.error.is_none()
+    pub(crate) fn relisting(&mut self) {
+        if self.members.is_err() {
+            self.members = Err(Pending::Loading);
+        }
     }
 
     pub(crate) fn act(
