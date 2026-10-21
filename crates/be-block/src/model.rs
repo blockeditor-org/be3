@@ -9,6 +9,11 @@ pub trait Root: Model + Send + Sync + 'static {
 
     const FROZEN: bool = false;
 
+    fn undoable(change: &Change) -> bool {
+        let _ = change;
+        true
+    }
+
     fn name(&self) -> Option<String> {
         None
     }
@@ -148,7 +153,21 @@ impl<R: Root> Undo for Document<R> {
     type Step = Step;
 
     fn step(&self, operation: &Self::Op) -> Option<Self::Step> {
-        Document::step(self, operation)
+        if operation.0.iter().all(R::undoable) {
+            return Document::step(self, operation);
+        }
+        let kept = Edit(
+            operation
+                .0
+                .iter()
+                .filter(|change| R::undoable(change))
+                .cloned()
+                .collect(),
+        );
+        match kept.0.is_empty() {
+            true => None,
+            false => Document::step(self, &kept),
+        }
     }
 
     fn absorb(previous: &mut Self::Step, next: Self::Step) -> Result<(), Self::Step> {

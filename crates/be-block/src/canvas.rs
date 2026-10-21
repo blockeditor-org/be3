@@ -238,6 +238,18 @@ impl Default for CanvasTextStyle {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Hash, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum CanvasProfile {
+    #[default]
+    Prototyping,
+    Vector,
+}
+
+impl CanvasProfile {
+    pub const ALL: [Self; 2] = [Self::Prototyping, Self::Vector];
+}
+
 #[derive(Clone, Copy, Debug, Default, Deserialize, PartialEq, Eq, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub enum CanvasColor {
@@ -419,6 +431,7 @@ impl CanvasGrid {
 pub struct Canvas {
     pub entities: List<Entity>,
     pub grid: CanvasGrid,
+    pub profile: CanvasProfile,
 }
 
 #[derive(Clone, Debug, Default, Model, PartialEq)]
@@ -584,6 +597,14 @@ impl Canvas {
                     }),
             ),
             grid: CanvasGrid::default(),
+            profile: CanvasProfile::default(),
+        }
+    }
+
+    pub fn set_profile(&self, profile: CanvasProfile) -> Edit {
+        match self.profile == profile {
+            true => Edit::default(),
+            false => Self::PROFILE.set(ObjectId::ROOT, &profile).into(),
         }
     }
 
@@ -875,6 +896,14 @@ fn exactly_ordered(order: &[Uuid], ids: &[Uuid]) -> Vec<Uuid> {
 
 impl Root for Canvas {
     const CONTENT_TYPE: Uuid = Uuid::from_u128(0x696e_6669_6e69_7465_2d63_616e_7661_7301);
+
+    fn undoable(change: &Change) -> bool {
+        !matches!(
+            change,
+            Change::Set { object, field, .. }
+                if *object == ObjectId::ROOT && *field == Self::PROFILE.index()
+        )
+    }
 
     fn child_edit(&self, change: ChildChange) -> Option<Edit> {
         match change {
