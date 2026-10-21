@@ -855,7 +855,7 @@ impl CanvasState {
         if let Ok(edit) = self.cells.value().content.read(|canvas| {
             operations
                 .iter()
-                .flat_map(|operation| canvas.root().edit_for(operation).0)
+                .flat_map(|operation| Canvas::edit_in(canvas, operation).0)
                 .collect::<Edit>()
         }) && !edit.0.is_empty()
         {

@@ -681,6 +681,45 @@ impl Canvas {
             .filter(move |held| held.id == ObjectId::from_uuid(id))
     }
 
+    pub fn edit_in(content: &CanvasContent, operation: &InfiniteCanvasOperation) -> Edit {
+        let unbound = |id: Uuid| {
+            let object = ObjectId::from_uuid(id);
+            content.read::<Entity>(object)?.view(object)
+        };
+        match operation {
+            InfiniteCanvasOperation::Add { entity } => {
+                if entity.id.is_nil() || content.tree().contains(ObjectId::from_uuid(entity.id)) {
+                    return Edit::default();
+                }
+                Self::ENTITIES
+                    .insert_as(
+                        ObjectId::from_uuid(entity.id),
+                        ObjectId::ROOT,
+                        Anchor::End,
+                        &Entity::of(&normalized_entity(entity.as_ref().clone())),
+                    )
+                    .into()
+            }
+            InfiniteCanvasOperation::Update { entities } => entities
+                .iter()
+                .flat_map(|update| {
+                    let update = normalized_entity(update.clone());
+                    let object = ObjectId::from_uuid(update.id);
+                    let Some(value) = content.read::<Entity>(object) else {
+                        return Vec::new();
+                    };
+                    let held = be_model::Item { id: object, value };
+                    let Some(mut shown) = held.view(object) else {
+                        return Vec::new();
+                    };
+                    shown.follow(unbound);
+                    update_entity(&held, &shown, &update)
+                })
+                .collect(),
+            operation => content.root().edit_for(operation),
+        }
+    }
+
     pub fn edit_for(&self, operation: &InfiniteCanvasOperation) -> Edit {
         match operation {
             InfiniteCanvasOperation::Add { entity } => {
