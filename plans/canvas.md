@@ -61,10 +61,11 @@ an entity into the paths it draws in either look (strokes, solid and hatched
 fills, freehand outlines), kept per entity until its geometry or style
 changes. Export (`app/export.rs`) reads the same sketches: Copy as PNG / SVG
 and Export as PNG / SVG… take the selection, a selected frame (clipped to it),
-or the whole canvas. SVG writes each sketch's paths, text as SVG text and
-images embedded; PNG paints the entities into an offscreen beui context and
+or the whole canvas. SVG writes each sketch's paths, text and labels as SVG text with a
+`<tspan>` per formatted run, and images embedded; PNG paints the entities into an offscreen beui context and
 rasterizes that painting on the CPU (`paint_format::rasterize`), since a
-plugin cannot read pixels back from the GPU. A freehand stroke is filled as a perfect-freehand outline
+plugin cannot read pixels back from the GPU. Both lay text out as the
+canvas's text area does (`TextAreaState::lay_out_prose`). A freehand stroke is filled as a perfect-freehand outline
 (`freehand.rs`) that follows its pressures, or simulates them from speed when
 it has none; the stroke being drawn uses the same outline.
 
@@ -73,7 +74,12 @@ it as `CanvasDraft` presence (`src/presence.rs`) under the id the entity will
 get, a stroke split into parts of 32 points across the kind's slots so each
 frame resends only the part that grew. The drawer keeps it up until the
 entity exists and its next gesture starts; a peer stops drawing a draft as
-soon as an entity with its id arrives, and never draws that one again.
+soon as an entity with its id arrives, and never draws that one again. A
+move, resize, rotation or bend of shapes that exist is drafted as
+`CanvasDraft::Change` until it is written. A peer shows a drafted shape or
+change as a preview of that entity, so it is drawn with its label exactly as
+the drawer sees it. Peers also see each other's carets and selections in a
+text or label, whether or not they edit it themselves.
 
 What holds it back:
 

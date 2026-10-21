@@ -1608,6 +1608,12 @@ asks the host to undo or redo, applies the edits others made to the field in
 place, and takes in the whole field otherwise, which is a no-op when nothing
 in it changed. Undo is the host's (`Document::step`), so it leaves other
 people's typing and formatting alone.
+A caret in a live text travels as presence through
+`block_editor_beui::SharedCaret` (its anchor and focus as `Position`s, which
+every copy of the field resolves to the same place): `SharedCaret::of(area)`
+reads it, and `remote_carets(area, carets)` turns peers' carets into the
+`remote_cursors` a `TextArea` draws. The text editor's `TextCursor` and the
+canvas's `CanvasCursor::caret` (which also names the entity) both carry one.
 
 Dynamic artifacts reach content from the artifact session through the
 host: `EditorHost::content_of` gives a regeneration a projection of its source,
