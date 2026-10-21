@@ -200,7 +200,7 @@ fn ChannelLabel(content: Prop<String>) -> NodeId {
 
 #[component]
 fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
-    let ColorAreaHandle { color, focused, .. } = handle;
+    let ColorAreaHandle { color, state, .. } = handle;
     let hue = create_memo(move || color.get().hue);
     let plane = create_memo(move || plane_image(hue.get()));
     let place = create_memo(move || {
@@ -231,7 +231,7 @@ fn PlaneFace(handle: ColorAreaHandle) -> NodeId {
         }) as Draw
     });
     view! {
-        <FocusRing focused radius={Radius::custom(Radius::Md.px() + 2.0)} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused={Prop::dynamic(move || state.get().focused)} radius={Radius::custom(Radius::Md.px() + 2.0)} offset=FOCUS_RING_OFFSET>
             <Frame height=AREA_HEIGHT>
                 <Drawing draw />
             </Frame>
@@ -248,7 +248,7 @@ enum Strip {
 #[component]
 fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
     let SliderHandle {
-        fraction, focused, ..
+        fraction, state, ..
     } = handle;
     let knob = create_memo({
         let strip = strip.clone();
@@ -289,7 +289,7 @@ fn StripFace(handle: SliderHandle, strip: Strip) -> NodeId {
         }) as Draw
     });
     view! {
-        <FocusRing focused radius={Radius::custom(10.0)} offset=FOCUS_RING_OFFSET>
+        <FocusRing focused={Prop::dynamic(move || state.get().focused)} radius={Radius::custom(10.0)} offset=FOCUS_RING_OFFSET>
             <Frame height=SLIDER_HEIGHT>
                 <Drawing draw />
             </Frame>
@@ -321,13 +321,11 @@ pub fn ColorSwatch(color: Prop<Color32>, width: f32, height: f32) -> NodeId {
 fn SwatchFace(handle: SwatchHandle) -> NodeId {
     let SwatchHandle {
         color,
-        option: ChoiceOptionHandle {
-            selected, focused, ..
-        },
+        option: ChoiceOptionHandle { state, .. },
     } = handle;
     let theme = use_theme();
-    let keyboard = focus_ring(focused);
-    let ring = create_memo(move || selected.get() || keyboard.get());
+    let keyboard = focus_ring(Prop::dynamic(move || state.get().focused));
+    let ring = create_memo(move || state.get().selected || keyboard.get());
     let ring_color = create_memo(move || match keyboard.get() {
         true => theme.accent.get(),
         false => theme.text.get(),

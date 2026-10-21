@@ -8,13 +8,18 @@ use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ToggleState {
+    pub checked: bool,
+    pub mixed: bool,
+    pub hovered: bool,
+    pub active: bool,
+    pub focused: bool,
+    pub disabled: bool,
+}
+
 pub struct ToggleHandle {
-    pub checked: Binding<bool>,
-    pub mixed: Memo<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
-    pub disabled: Memo<bool>,
+    pub state: Memo<ToggleState>,
     pub label: Memo<String>,
     pub glyph: Memo<String>,
     pub tooltip: Memo<String>,
@@ -46,12 +51,20 @@ pub fn Toggle(
     let label = create_memo(move || label.get());
     let glyph = create_memo(move || glyph.get());
     let tooltip = create_memo(move || tooltip.get());
-    let hovered = create_signal(false);
-    let active = create_signal(false);
-    let focused = create_signal(false);
-    let key_active = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let disabled = create_memo(move || disabled.get());
     let mixed = create_memo(move || mixed.get());
+    let state = create_memo(move || {
+        let interaction = interaction.get();
+        ToggleState {
+            checked: checked.get(),
+            mixed: mixed.get(),
+            hovered: interaction.hovered,
+            active: interaction.active,
+            focused: interaction.focused,
+            disabled: disabled.get(),
+        }
+    });
 
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     component_accessibility(create_memo(move || {
@@ -73,12 +86,7 @@ pub fn Toggle(
 
     let content_node = content.map(|build| {
         build.call(ToggleHandle {
-            checked,
-            mixed,
-            hovered: hovered.read_only(),
-            active: active.read_only(),
-            focused: focused.read_only(),
-            disabled,
+            state,
             label,
             glyph,
             tooltip,
@@ -110,14 +118,10 @@ pub fn Toggle(
             tab_stop
             press_focus
             capture_presses
-            on_focus_change={focused}
-            on_activate_change={key_active}
             on_activate={key_toggle}
             cursor
-            key_active
             on_click={toggle_checked}
-            on_hover_change={hovered}
-            on_active_change={active}
+            on_state_change={interaction}
             children={content_node}
         />
     }

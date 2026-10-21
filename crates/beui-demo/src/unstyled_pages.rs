@@ -66,11 +66,11 @@ pub(crate) fn PressingPage() -> NodeId {
 fn PressCounter() -> NodeId {
     let theme = use_theme();
     let presses = create_signal(0u32);
-    let hovered = create_signal(false);
-    let active = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let fill = create_memo(move || {
         let theme = theme.get();
-        match (active.get(), hovered.get()) {
+        let interaction = interaction.get();
+        match (interaction.active, interaction.hovered) {
             (true, _) => theme.pressed,
             (false, true) => theme.hover,
             (false, false) => theme.surface_raised,
@@ -81,8 +81,7 @@ fn PressCounter() -> NodeId {
         <List direction=Direction::Horizontal spacing=0.0>
             <unstyled::Pressable
                 on_click={move || presses.update(|count| *count += 1)}
-                on_hover_change={hovered}
-                on_active_change={active}
+                on_state_change={interaction}
             >
                 <Frame
                     fill={ColorRole::custom(fill)}
@@ -117,16 +116,13 @@ fn PillButton() -> NodeId {
 #[sample]
 #[component]
 fn PillFace(handle: ButtonHandle, label: &'static str) -> NodeId {
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
-        ..
-    } = handle;
+    let ButtonHandle { state, .. } = handle;
     let theme = use_theme();
+    let focused = Prop::dynamic(move || state.get().focused);
     let fill = create_memo(move || {
         let theme = theme.get();
-        match (active.get(), hovered.get()) {
+        let state = state.get();
+        match (state.active, state.hovered) {
             (true, _) => theme.accent_active,
             (false, true) => theme.accent_hover,
             (false, false) => theme.accent,
@@ -159,14 +155,11 @@ fn SquareCheckbox() -> NodeId {
 #[sample]
 #[component]
 fn SquareCheckboxFace(handle: ToggleHandle, label: &'static str) -> NodeId {
-    let ToggleHandle {
-        checked,
-        hovered,
-        focused,
-        ..
-    } = handle;
+    let ToggleHandle { state, .. } = handle;
     let theme = use_theme();
-    let border = create_memo(move || match hovered.get() {
+    let focused = Prop::dynamic(move || state.get().focused);
+    let checked = create_memo(move || state.get().checked);
+    let border = create_memo(move || match state.get().hovered {
         true => theme.accent.get(),
         false => theme.text_muted.get(),
     });
@@ -257,7 +250,7 @@ fn VolumeMeter() -> NodeId {
 #[component]
 fn MeterFace(handle: SliderHandle) -> NodeId {
     let SliderHandle {
-        fraction, focused, ..
+        fraction, state, ..
     } = handle;
     let filled = create_memo(move || ItemSize::Percent(fraction.get() * 100.0));
     let rest = create_memo(move || ItemSize::Percent((1.0 - fraction.get()) * 100.0));
@@ -266,7 +259,7 @@ fn MeterFace(handle: SliderHandle) -> NodeId {
             height=METER_HEIGHT
             fill=ColorRole::Track
             radius=Radius::Md
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0).offset(2.0))}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::new(ColorRole::Accent).width(2.0).offset(2.0))}
         >
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame
@@ -342,14 +335,9 @@ fn ProseInput() -> NodeId {
 #[sample]
 #[component]
 fn UnderlinedField(handle: TextInputHandle) -> NodeId {
-    let TextInputHandle {
-        field,
-        hovered,
-        focused,
-        ..
-    } = handle;
+    let TextInputHandle { field, state, .. } = handle;
     let theme = use_theme();
-    let line = create_memo(move || match focused.get() || hovered.get() {
+    let line = create_memo(move || match state.get().focused || state.get().hovered {
         true => theme.accent.get(),
         false => theme.border.get(),
     });
@@ -429,23 +417,18 @@ fn SegmentedControl() -> NodeId {
 #[sample]
 #[component]
 fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
-    let ChoiceOptionHandle {
-        label,
-        selected,
-        hovered,
-        focused,
-        ..
-    } = handle;
+    let ChoiceOptionHandle { label, state, .. } = handle;
     let theme = use_theme();
     let fill = create_memo(move || {
         let theme = theme.get();
-        match (selected.get(), hovered.get()) {
+        let state = state.get();
+        match (state.selected, state.hovered) {
             (true, _) => theme.accent,
             (false, true) => theme.hover,
             (false, false) => Color32::TRANSPARENT,
         }
     });
-    let ink = create_memo(move || match selected.get() {
+    let ink = create_memo(move || match state.get().selected {
         true => TextColor::OnAccent,
         false => TextColor::Default,
     });
@@ -453,7 +436,7 @@ fn SegmentFace(handle: ChoiceOptionHandle) -> NodeId {
         <Frame
             fill={ColorRole::custom(fill)}
             radius={Radius::custom(PILL_RADIUS)}
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::new(ColorRole::Accent).width(2.0))}
             padding={Sides::symmetric(14.0, 6.0)}
         >
             <Text string={label} color={ink} />
@@ -491,15 +474,11 @@ fn SizeRadios() -> NodeId {
 #[sample]
 #[component]
 fn RadioFace(handle: ChoiceOptionHandle) -> NodeId {
-    let ChoiceOptionHandle {
-        label,
-        selected,
-        focused,
-        ..
-    } = handle;
+    let ChoiceOptionHandle { label, state, .. } = handle;
+    let selected = create_memo(move || state.get().selected);
     view! {
         <Frame
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::new(ColorRole::Accent).width(2.0))}
             radius=Radius::Md
             padding=4.0
         >
@@ -535,12 +514,12 @@ fn DetailsDisclosure() -> NodeId {
             spacing=8.0
             open=false
             header={move |handle: DisclosureHandle| {
-                let DisclosureHandle { open, hovered, .. } = handle;
+                let DisclosureHandle { open, state } = handle;
                 let title = create_memo(move || match open.get() {
                     true => "Hide the details".to_owned(),
                     false => "Show the details".to_owned(),
                 });
-                let ink = create_memo(move || match hovered.get() {
+                let ink = create_memo(move || match state.get().hovered {
                     true => TextColor::Custom(theme.accent_hover.get()),
                     false => TextColor::Accent,
                 });
@@ -765,14 +744,9 @@ fn RunSplit() -> NodeId {
 #[sample]
 #[component]
 fn MenuRow(handle: MenuRowHandle) -> NodeId {
-    let MenuRowHandle {
-        label,
-        hovered,
-        focused,
-        ..
-    } = handle;
+    let MenuRowHandle { label, state, .. } = handle;
     let theme = use_theme();
-    let fill = create_memo(move || match hovered.get() || focused.get() {
+    let fill = create_memo(move || match state.get().hovered || state.get().focused {
         true => theme.hover.get(),
         false => Color32::TRANSPARENT,
     });
@@ -826,8 +800,8 @@ fn FruitBin(bin: usize, bins: Signal<Vec<usize>>) -> NodeId {
         <unstyled::DropTarget
             on_drop={move |(fruit, _): (usize, DragPoint)| bins.update(|bins| bins[fruit] = bin)}
         >|handle: DropHandle| {
-            let DropHandle { over, .. } = handle;
-            let edge = create_memo(move || match over.get() {
+            let DropHandle { state, .. } = handle;
+            let edge = create_memo(move || match state.get().over {
                 true => theme.accent.get(),
                 false => theme.border.get(),
             });
@@ -943,13 +917,12 @@ fn ThinThumb(bar: ScrollbarHandle, visibility: ReadSignal<f32>) -> NodeId {
     let ScrollbarHandle {
         position,
         direction,
-        hovered,
-        dragging,
-        ..
+        state,
     } = bar;
     let theme = use_theme();
     let color = create_memo(move || {
-        let color = match hovered.get() || dragging.get() {
+        let state = state.get();
+        let color = match state.hovered || state.dragging {
             true => theme.scroll_thumb_hover.get(),
             false => theme.scroll_thumb.get(),
         };
@@ -994,13 +967,12 @@ fn OpenableFiles() -> NodeId {
 #[sample]
 #[component]
 fn FileRowFace(handle: ButtonHandle, selected: Memo<bool>, name: &'static str) -> NodeId {
-    let ButtonHandle {
-        hovered, focused, ..
-    } = handle;
+    let ButtonHandle { state, .. } = handle;
     let theme = use_theme();
+    let focused = Prop::dynamic(move || state.get().focused);
     let fill = create_memo(move || {
         let theme = theme.get();
-        match (selected.get(), hovered.get()) {
+        match (selected.get(), state.get().hovered) {
             (true, _) => theme.accent_soft,
             (false, true) => theme.hover,
             (false, false) => Color32::TRANSPARENT,
@@ -1047,17 +1019,12 @@ fn ScrubbedNumber() -> NodeId {
 #[sample]
 #[component]
 fn NumberFace(handle: NumberFaceHandle) -> NodeId {
-    let NumberFaceHandle {
-        text,
-        hovered,
-        active,
-        focused,
-        ..
-    } = handle;
+    let NumberFaceHandle { text, state } = handle;
     let theme = use_theme();
     let fill = create_memo(move || {
         let theme = theme.get();
-        match (active.get(), hovered.get()) {
+        let state = state.get();
+        match (state.active, state.hovered) {
             (true, _) => theme.pressed,
             (false, true) => theme.hover,
             (false, false) => theme.surface_raised,
@@ -1067,7 +1034,7 @@ fn NumberFace(handle: NumberFaceHandle) -> NodeId {
         <Frame
             fill={ColorRole::custom(fill)}
             radius=Radius::Md
-            border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::new(ColorRole::Accent).width(2.0))}
             padding={Sides::symmetric(FACE_PADDING_HORIZONTAL, FACE_PADDING_VERTICAL)}
         >
             <Text string={text} align=TextAlign::Center />
@@ -1179,11 +1146,12 @@ fn PadFace(handle: ColorAreaHandle) -> NodeId {
 fn SwatchDot(handle: SwatchHandle) -> NodeId {
     let SwatchHandle {
         color,
-        option: ChoiceOptionHandle {
-            selected, focused, ..
-        },
+        option: ChoiceOptionHandle { state, .. },
     } = handle;
-    let ring = create_memo(move || selected.get() || focused.get());
+    let ring = create_memo(move || {
+        let state = state.get();
+        state.selected || state.focused
+    });
     view! {
         <Frame
             width=DOT_SIZE
@@ -1270,10 +1238,7 @@ fn FolderTree() -> NodeId {
 fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
     let TreeRowHandle {
         item,
-        selected,
-        marked,
-        focused,
-        hovered,
+        state,
         toggle,
         target,
         ..
@@ -1283,7 +1248,8 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
     let label = create_memo(move || item.get().label);
     let fill = create_memo(move || {
         let theme = theme.get();
-        match (selected.get(), marked.get(), hovered.get()) {
+        let state = state.get();
+        match (state.selected, state.marked, state.hovered) {
             (true, _, _) => theme.accent_soft,
             (false, true, _) => theme.surface_raised,
             (false, false, true) => theme.hover,
@@ -1310,7 +1276,7 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
                 @sizing=ItemSize::Percent(100.0)
                 fill={ColorRole::custom(fill)}
                 radius=Radius::Md
-                border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}
+                border={focus_border(Prop::dynamic(move || state.get().focused), Border::new(ColorRole::Accent).width(2.0))}
                 padding={Sides::symmetric(6.0, 3.0)}
             >
                 <unstyled::TreeRowArea target>
@@ -1324,16 +1290,12 @@ fn FolderRow(handle: TreeRowHandle<usize>) -> NodeId {
 #[sample]
 #[component]
 fn ToolbarKey(handle: ButtonHandle) -> NodeId {
-    let ButtonHandle {
-        hovered,
-        active,
-        label,
-        ..
-    } = handle;
+    let ButtonHandle { state, label, .. } = handle;
     let theme = use_theme();
     let fill = create_memo(move || {
         let theme = theme.get();
-        match (active.get(), hovered.get()) {
+        let state = state.get();
+        match (state.active, state.hovered) {
             (true, _) => theme.pressed,
             (false, true) => theme.hover,
             (false, false) => Color32::TRANSPARENT,
@@ -1420,9 +1382,7 @@ fn PlainNote() -> NodeId {
 #[component]
 fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
     let CompletionRowHandle {
-        completion,
-        highlighted,
-        ..
+        completion, state, ..
     } = handle;
     let theme = use_theme();
     let label = create_memo(move || {
@@ -1431,7 +1391,7 @@ fn CompletionRow(handle: CompletionRowHandle) -> NodeId {
             .map(|item| format!("{} {}", item.insert, item.label))
             .unwrap_or_default()
     });
-    let fill = create_memo(move || match highlighted.get() {
+    let fill = create_memo(move || match state.get().highlighted {
         true => theme.hover.get(),
         false => Color32::TRANSPARENT,
     });
@@ -1587,18 +1547,13 @@ fn DeadlinePicker() -> NodeId {
 #[sample]
 #[component]
 fn DateSegmentFace(handle: DateSegmentHandle) -> NodeId {
-    let DateSegmentHandle {
-        text,
-        placeholder,
-        focused,
-        ..
-    } = handle;
+    let DateSegmentHandle { text, state, .. } = handle;
     let theme = use_theme();
-    let fill = create_memo(move || match focused.get() {
+    let fill = create_memo(move || match state.get().focused {
         true => theme.accent_soft.get(),
         false => Color32::TRANSPARENT,
     });
-    let ink = create_memo(move || match placeholder.get() {
+    let ink = create_memo(move || match state.get().placeholder {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
@@ -1619,11 +1574,10 @@ fn DateBox(handle: DateTimeBoxHandle) -> NodeId {
     let DateTimeBoxHandle {
         field,
         trigger,
-        focused,
-        ..
+        state,
     } = handle;
     let theme = use_theme();
-    let line = create_memo(move || match focused.get() {
+    let line = create_memo(move || match state.get().focused {
         true => theme.accent.get(),
         false => theme.border.get(),
     });

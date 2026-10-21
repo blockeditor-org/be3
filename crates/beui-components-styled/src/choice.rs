@@ -23,21 +23,23 @@ const MARK_RADIUS: f32 = 9.0;
 pub(super) fn OptionFace(kind: Kind, handle: ChoiceOptionHandle) -> NodeId {
     let ChoiceOptionHandle {
         label,
-        selected,
-        hovered,
-        focused,
+        state,
         ..
     } = handle;
     let theme = use_theme();
+    let selected = create_memo(move || state.get().selected);
     let label_color = create_memo(move || match selected.get() {
         true => TextColor::Default,
         false => TextColor::Muted,
     });
-    let fill_color = create_memo(move || background(&theme, selected.get(), hovered.get()));
+    let fill_color = create_memo(move || {
+        let state = state.get();
+        background(&theme, state.selected, state.hovered)
+    });
     view! {
         <Frame
             fill={ColorRole::custom(fill_color)}
-            border={focus_border(focused, Border::FOCUS.offset(1.0))}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS.offset(1.0))}
             radius=Radius::Md
             padding={Sides::symmetric(14.0, 6.0)}
         >

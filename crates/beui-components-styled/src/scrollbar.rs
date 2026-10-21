@@ -61,18 +61,17 @@ fn ScrollbarTrack(handle: ScrollbarHandle, visibility: Prop<f32>) -> NodeId {
     let ScrollbarHandle {
         position,
         direction,
-        hovered,
-        dragging,
-        engaged,
+        state,
     } = handle;
     let theme = use_theme();
 
     let color = create_memo(move || {
-        thumb_color(&theme, position.get(), hovered.get(), dragging.get())
+        let state = state.get();
+        thumb_color(&theme, position.get(), state.hovered, state.dragging)
             .scale_alpha(visibility.get())
     });
     let track = create_memo(move || {
-        track_color(&theme, position.get(), engaged.get()).scale_alpha(visibility.get())
+        track_color(&theme, position.get(), state.get().engaged).scale_alpha(visibility.get())
     });
     let right = outer_side_inset(&direction, Direction::Vertical);
     let bottom = outer_side_inset(&direction, Direction::Horizontal);

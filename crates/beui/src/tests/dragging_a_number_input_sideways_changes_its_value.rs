@@ -41,5 +41,5 @@ fn dragging_a_number_input_sideways_changes_its_value() {
     );
     let field = number_input_field(harness.document(), input)
         .expect("a click without a drag must open the field");
-    assert!(unstyled::text_input_focused(harness.document(), field).get());
+    assert!(unstyled::text_input_focused(harness.document(), field));
 }

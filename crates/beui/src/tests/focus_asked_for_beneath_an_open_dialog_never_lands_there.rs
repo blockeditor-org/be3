@@ -14,7 +14,7 @@ fn focus_asked_for_beneath_an_open_dialog_never_lands_there() {
                 <Interactive
                     @node_ref=&outside
                     focusable=true
-                    on_focus_change={move |focused: bool| changes.update(|changes| changes.push(focused))}
+                    on_state_change={InteractionState::watch(|state| state.focused, move |focused: bool| changes.update(|changes| changes.push(focused)))}
                 >
                     <Frame />
                 </Interactive>

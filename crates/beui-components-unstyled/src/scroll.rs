@@ -585,7 +585,20 @@ fn Scrolling(
         }),
     };
 
-    let focused = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
+    let left = InteractionState::watch(
+        |state| state.hovered,
+        move |inside: bool| {
+            if !inside && near.get_untracked() {
+                near.set(false);
+            }
+        },
+    );
+    let on_state_change = Callback::new(move |next: InteractionState| {
+        interaction.set(next);
+        left.call(next);
+    });
+    let focused = Prop::dynamic(move || interaction.get().focused);
     let across = across(&direction);
     let axis = create_memo(move || Some(direction.get()));
     let catcher = NodeRef::new();
@@ -605,7 +618,7 @@ fn Scrolling(
                 <Interactive
                     focusable=true
                     tab_stop
-                    on_focus_change={focused}
+                    on_state_change
                     on_key={move |press: KeyPress| motion.value().key(press)}
                     scroll_axis={axis}
                     @node_ref=&catcher
@@ -619,11 +632,6 @@ fn Scrolling(
                             && near_edge(direction.get_untracked(), press, bar_width);
                         if near.get_untracked() != at_edge {
                             near.set(at_edge);
-                        }
-                    }}
-                    on_hover_change={move |inside: bool| {
-                        if !inside && near.get_untracked() {
-                            near.set(false);
                         }
                     }}
                     on_scroll={move |gesture: ScrollGesture| motion.value().wheel(gesture)}

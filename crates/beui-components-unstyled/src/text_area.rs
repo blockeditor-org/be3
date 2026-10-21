@@ -47,7 +47,7 @@ use rows::{
 use state::{AreaGeometry, Grab};
 
 pub use colors::{SyntaxColors, TextAreaColors};
-pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle};
+pub use completion::{Completer, Completion, CompletionMenu, CompletionRowHandle, CompletionRowState};
 pub use emoji::{emoji_completer, search_emoji};
 pub use rows::{Prose, TextWidget, VOID_SIZE, VoidSize};
 pub use state::{TextAreaLayout, TextAreaState};
@@ -1026,8 +1026,7 @@ struct Field {
     keyboard_on_focus: bool,
     ime_cursor: Memo<Option<ImeCursor>>,
     ime_text: Memo<Option<ImeText>>,
-    on_focus_change: Callback<bool>,
-    on_hover_change: Callback<bool>,
+    on_state_change: Callback<InteractionState>,
     pastes_images: bool,
     on_image_paste: Callback<PickedFile>,
 }
@@ -1064,8 +1063,7 @@ pub fn TextArea(
     on_widget_press: Callback<usize, bool>,
     on_toolbar: Callback<Option<Rect>>,
     on_submit: ClickCallback,
-    on_focus_change: Callback<bool>,
-    on_hover_change: Callback<bool>,
+    on_state_change: Callback<InteractionState>,
     #[prop(default = false)] pastes_images: bool,
     on_image_paste: Callback<PickedFile>,
 ) -> NodeId {
@@ -1398,8 +1396,7 @@ pub fn TextArea(
                     keyboard_on_focus,
                     ime_cursor,
                     ime_text,
-                    on_focus_change,
-                    on_hover_change,
+                    on_state_change,
                     pastes_images,
                     on_image_paste,
                 };
@@ -1486,8 +1483,7 @@ fn Editing(field: Field) -> NodeId {
         keyboard_on_focus,
         ime_cursor,
         ime_text,
-        on_focus_change,
-        on_hover_change,
+        on_state_change,
         pastes_images,
         on_image_paste,
     } = field;
@@ -1499,6 +1495,16 @@ fn Editing(field: Field) -> NodeId {
     component_accessibility(described);
     let single_line = cx.single_line;
     let disabled = cx.disabled;
+    let focus = InteractionState::watch(
+        |state| state.focused,
+        move |is_focused: bool| {
+            focused.set(is_focused);
+            if !is_focused {
+                blur(&cx);
+            }
+        },
+    );
+    let pressed = InteractionState::watch(|state| state.pressed, move |active: bool| release(&cx, active));
     view! {
         <Interactive
             focusable=true
@@ -1508,12 +1514,10 @@ fn Editing(field: Field) -> NodeId {
             keyboard_on_focus
             ime_cursor
             ime_text
-            on_focus_change={move |is_focused: bool| {
-                focused.set(is_focused);
-                if !is_focused {
-                    blur(&cx);
-                }
-                on_focus_change.call(is_focused);
+            on_state_change={move |next: InteractionState| {
+                focus.call(next);
+                pressed.call(next);
+                on_state_change.call(next);
             }}
             on_text={move |typed: String| insert_text(&cx, &typed)}
             pastes
@@ -1537,8 +1541,6 @@ fn Editing(field: Field) -> NodeId {
             on_click_at={move |event: PointerPress| tap(&cx, event)}
             on_secondary_press={move |event: PointerPress| hold(&cx, event)}
             on_drag={move |event: PointerPress| extend(&cx, event)}
-            on_active_change={move |active: bool| release(&cx, active)}
-            on_hover_change={on_hover_change}
             on_hover_move={move |event: PointerPress| {
                 pointer_cursor.set(hover_cursor(&cx, event.pos));
             }}

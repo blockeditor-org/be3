@@ -443,10 +443,8 @@ fn handlers(node: &InteractiveNode) -> Vec<&'static str> {
             !node.on_scroll.is_empty() || node.scroll_axis.is_some(),
         ),
         ("zoom", !node.on_zoom.is_empty()),
-        (
-            "hover",
-            !node.on_hover_change.is_empty() || !node.on_hover_move.is_empty(),
-        ),
+        ("hover", !node.on_hover_move.is_empty()),
+        ("state", !node.on_state_change.is_empty()),
         ("forwarded input", node.forwards()),
         ("focus", node.focus.is_some()),
         (

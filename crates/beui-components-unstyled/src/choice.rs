@@ -21,13 +21,18 @@ pub enum ChoiceKind {
     Listbox,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ChoiceOptionState {
+    pub selected: bool,
+    pub hovered: bool,
+    pub active: bool,
+    pub focused: bool,
+}
+
 pub struct ChoiceOptionHandle {
     pub index: usize,
     pub label: Prop<String>,
-    pub selected: Memo<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
+    pub state: Memo<ChoiceOptionState>,
 }
 
 pub struct ChoiceOption {
@@ -138,10 +143,15 @@ pub fn Choice(
                     option.call(ChoiceOptionHandle {
                         index,
                         label: label.into_prop(),
-                        selected: is_selected,
-                        hovered: button.hovered,
-                        active: button.active,
-                        focused: button.focused,
+                        state: create_memo(move || {
+                            let button = button.state.get();
+                            ChoiceOptionState {
+                                selected: is_selected.get(),
+                                hovered: button.hovered,
+                                active: button.active,
+                                focused: button.focused,
+                            }
+                        }),
                     })
                 }</unstyled::Button>
             }

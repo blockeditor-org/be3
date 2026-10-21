@@ -15,12 +15,17 @@ use beui_view::reactive::*;
 
 const MINIMUM_THUMB: f32 = 0.08;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ScrollbarState {
+    pub hovered: bool,
+    pub dragging: bool,
+    pub engaged: bool,
+}
+
 pub struct ScrollbarHandle {
     pub position: Memo<ScrollPosition>,
     pub direction: Prop<Direction>,
-    pub hovered: ReadSignal<bool>,
-    pub dragging: ReadSignal<bool>,
-    pub engaged: Memo<bool>,
+    pub state: Memo<ScrollbarState>,
 }
 
 pub fn thumb_length(position: ScrollPosition) -> f32 {
@@ -128,22 +133,44 @@ pub fn Scrollbar(
 ) -> NodeId {
     let position = create_memo(move || position.get());
     let hovered = create_signal(false);
-    let over_bar = create_signal(false);
     let dragging = create_signal(false);
-    let held = create_signal(false);
-    let engaged = create_memo(move || over_bar.get() || held.get());
+    let interaction = create_signal(InteractionState::default());
+    let engaged = create_memo(move || {
+        let interaction = interaction.get();
+        interaction.hovered || interaction.pressed
+    });
     create_effect(move || on_engage.call(engaged.get()));
+    let state = create_memo(move || ScrollbarState {
+        hovered: hovered.get(),
+        dragging: dragging.get(),
+        engaged: engaged.get(),
+    });
     let grab = Rc::new(Cell::new(None::<f32>));
 
     let content_node = content.call(ScrollbarHandle {
         position,
         direction,
-        hovered: hovered.read_only(),
-        dragging: dragging.read_only(),
-        engaged,
+        state,
     });
 
     let (pressed_grab, dragged_grab, active_grab) = (grab.clone(), grab.clone(), grab);
+    let left = InteractionState::watch(
+        |state| state.hovered,
+        move |inside: bool| {
+            if !inside {
+                hovered.set(false);
+            }
+        },
+    );
+    let held = InteractionState::watch(
+        |state| state.pressed,
+        move |active: bool| {
+            dragging.set(active && active_grab.get().is_some());
+            if !active {
+                active_grab.set(None);
+            }
+        },
+    );
     view! {
         <Interactive
             on_press={move |press: PointerPress| {
@@ -178,21 +205,13 @@ pub fn Scrollbar(
                 let at = along(&direction, press);
                 hovered.set(position.max_offset() > 0.0 && over_thumb(position, at));
             }}
-            on_hover_change={move |inside: bool| {
-                over_bar.set(inside);
-                if !inside {
-                    hovered.set(false);
-                }
+            on_state_change={move |next: InteractionState| {
+                interaction.set(next);
+                left.call(next);
+                held.call(next);
             }}
             hit_at={move |_: Pos2| {
                 shown.get_untracked() && position.get_untracked().max_offset() > 0.0
-            }}
-            on_active_change={move |active: bool| {
-                held.set(active);
-                dragging.set(active && active_grab.get().is_some());
-                if !active {
-                    active_grab.set(None);
-                }
             }}
             children={content_node}
         />

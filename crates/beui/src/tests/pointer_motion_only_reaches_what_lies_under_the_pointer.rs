@@ -12,7 +12,7 @@ fn pointer_motion_only_reaches_what_lies_under_the_pointer() {
             <List spacing=0.0>
                 <Interactive
                     @node_ref=&top
-                    on_hover_change={move |hovered: bool| hovers.update(|hovers| hovers.push(hovered))}
+                    on_state_change={InteractionState::watch(|state| state.hovered, move |hovered: bool| hovers.update(|hovers| hovers.push(hovered)))}
                 >
                     <Frame height=100.0 />
                 </Interactive>

@@ -47,17 +47,16 @@ pub fn Slider(
 #[component]
 fn SliderTrack(handle: SliderHandle) -> NodeId {
     let SliderHandle {
-        fraction,
-        dragging,
-        focused,
-        disabled,
-        ..
+        fraction, state, ..
     } = handle;
     let theme = use_theme();
     let filled_percent = create_memo(move || filled_size(fraction.get()));
     let rest_percent = create_memo(move || rest_size(fraction.get()));
-    let knob_color = create_memo(move || knob_fill_color(&theme, dragging.get(), disabled.get()));
-    let filled_color = create_memo(move || match disabled.get() {
+    let knob_color = create_memo(move || {
+        let state = state.get();
+        knob_fill_color(&theme, state.dragging, state.disabled)
+    });
+    let filled_color = create_memo(move || match state.get().disabled {
         true => theme.track.get(),
         false => theme.accent.get(),
     });
@@ -65,7 +64,7 @@ fn SliderTrack(handle: SliderHandle) -> NodeId {
     view! {
         <Frame
             height=HEIGHT
-            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS.offset(FOCUS_RING_OFFSET))}
             radius=Radius::Md
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>

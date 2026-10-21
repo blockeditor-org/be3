@@ -461,33 +461,30 @@ pub(crate) fn InteractionPage() -> NodeId {
 #[component]
 fn InteractiveCard() -> NodeId {
     let theme = use_theme();
-    let hovered = create_signal(false);
-    let active = create_signal(false);
-    let focused = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let log = create_signal("Hover, press, or Tab to it and type".to_owned());
     let fill = create_memo(move || {
         let theme = theme.get();
-        match (active.get(), hovered.get()) {
+        let interaction = interaction.get();
+        match (interaction.active, interaction.hovered) {
             (true, _) => theme.pressed,
             (false, true) => theme.hover,
             (false, false) => theme.surface_raised,
         }
     });
+    let focused = create_memo(move || interaction.get().focused);
     let state = create_memo(move || {
+        let interaction = interaction.get();
         format!(
             "hovered: {}, active: {}, focused: {}",
-            hovered.get(),
-            active.get(),
-            focused.get()
+            interaction.hovered, interaction.active, interaction.focused
         )
     });
     view! {
         <List spacing=SECTION_SPACING>
             <Interactive
                 focusable=true
-                on_hover_change={hovered}
-                on_active_change={active}
-                on_focus_change={focused}
+                on_state_change={interaction}
                 on_click={move || log.set("Clicked".to_owned())}
                 on_key={move |press: KeyPress| {
                     if press.pressed {

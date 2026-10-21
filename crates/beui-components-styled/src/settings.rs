@@ -259,24 +259,18 @@ pub fn SettingsLink(
 
 #[component]
 fn SettingsLinkFace(handle: unstyled::ButtonHandle, description: Memo<String>) -> NodeId {
-    let unstyled::ButtonHandle {
-        hovered,
-        active,
-        focused,
-        disabled,
-        label,
-        ..
-    } = handle;
+    let unstyled::ButtonHandle { state, label, .. } = handle;
+    let focused = Prop::dynamic(move || state.get().focused);
     let theme = use_theme();
     let fill = create_memo(
-        move || match (disabled.get(), active.get(), hovered.get()) {
+        move || match (state.get().disabled, state.get().active, state.get().hovered) {
             (true, _, _) => Color32::TRANSPARENT,
             (false, true, _) => theme.pressed.get(),
             (false, false, true) => theme.hover.get(),
             (false, false, false) => Color32::TRANSPARENT,
         },
     );
-    let text_color = create_memo(move || match disabled.get() {
+    let text_color = create_memo(move || match state.get().disabled {
         true => TextColor::Muted,
         false => TextColor::Default,
     });

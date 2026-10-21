@@ -22,7 +22,7 @@ fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {
             },
         ]
     });
-    let after_focus = unstyled::button_focused(&document, after);
+    let after_focus = unstyled::button_state(&document, after);
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.type_text("bl");
@@ -31,7 +31,7 @@ fn listbox_typeahead_matches_prefixes_and_cycles_repeated_letters() {
         Some(2)
     );
     harness.key(Key::Tab, Modifiers::NONE);
-    assert!(after_focus.get());
+    assert!(after_focus.get().focused);
     harness.key(Key::Tab, Modifiers::SHIFT);
     harness.type_text("b");
     assert_eq!(

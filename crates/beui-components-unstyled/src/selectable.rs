@@ -526,11 +526,11 @@ pub fn Selectable(
             on_drag={move |event: PointerPress| drag(state, event)}
             on_click_at={move |event: PointerPress| tap(state, on_toolbar, event)}
             on_secondary_press={move |event: PointerPress| long_press(state, on_toolbar, event)}
-            on_active_change={move |active: bool| {
-                if !active && state.0.value().grab.take().is_some() {
+            on_state_change={InteractionState::watch(|state| state.pressed, move |pressed: bool| {
+                if !pressed && state.0.value().grab.take().is_some() {
                     with_document(|document| show_toolbar(state, document, on_toolbar));
                 }
-            }}
+            })}
         >
             {children}
         </Interactive>

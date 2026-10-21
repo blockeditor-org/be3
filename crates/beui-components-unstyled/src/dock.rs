@@ -44,7 +44,7 @@ use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 use dialog::{DialogParts, DockDialogs};
-pub use dialog::{DockDialogHandle, DockDialogPresentation, DockSheetHandle};
+pub use dialog::{DockDialogHandle, DockDialogPresentation, DockDialogState, DockSheetHandle};
 pub use docking::{
     DockDialog, DockEntry, DockGroup, DockKey, DockNode, DockPane, DockSplit, DockTab, DockWindow,
     Docking, DockingLayout, DockingSnapshot, OwnedDockingLayout,
@@ -93,15 +93,20 @@ pub struct DockTabHandle {
     pub icon: Memo<String>,
     pub picture: Memo<Option<Image>>,
     pub tabs: Memo<Vec<TabId>>,
-    pub has_next: Memo<bool>,
-    pub selected: Memo<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
-    pub dragged: Memo<bool>,
-    pub closable: Memo<bool>,
-    pub waiting: Memo<bool>,
+    pub state: Memo<DockTabState>,
     pub close: ClickCallback,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DockTabState {
+    pub has_next: bool,
+    pub selected: bool,
+    pub hovered: bool,
+    pub active: bool,
+    pub focused: bool,
+    pub dragged: bool,
+    pub closable: bool,
+    pub waiting: bool,
 }
 
 #[derive(Clone, Copy, Debug, PartialEq)]
@@ -126,21 +131,42 @@ pub struct DockChromeHandle {
 pub struct DockBarHandle {
     pub floating: bool,
     pub vertical: bool,
-    pub focused: Memo<bool>,
     pub grip: NodeId,
     pub tabs: Option<NodeId>,
     pub title: Memo<String>,
-    pub vacant: Memo<bool>,
-    pub closable: Memo<bool>,
+    pub state: Memo<DockBarState>,
     pub menu: Memo<Vec<Action>>,
     pub close: ClickCallback,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DockBarState {
+    pub focused: bool,
+    pub vacant: bool,
+    pub closable: bool,
+}
+
 pub struct DockSplitterHandle {
     pub direction: Direction,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
+    pub state: Memo<DockSplitterState>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DockSplitterState {
+    pub hovered: bool,
+    pub active: bool,
+    pub focused: bool,
+}
+
+fn splitter_state(interaction: Signal<InteractionState>) -> Memo<DockSplitterState> {
+    create_memo(move || {
+        let interaction = interaction.get();
+        DockSplitterState {
+            hovered: interaction.hovered,
+            active: interaction.pressed,
+            focused: interaction.focused,
+        }
+    })
 }
 
 pub struct DockGripHandle {
@@ -152,14 +178,19 @@ pub struct DockGripHandle {
 pub struct DockStackHandle {
     pub title: Memo<String>,
     pub icon: Memo<String>,
-    pub backward: Memo<bool>,
+    pub state: Memo<DockStackState>,
     pub actions: Memo<Option<NodeId>>,
     pub menu: Memo<Vec<Action>>,
     pub back: ClickCallback,
     pub others: Memo<usize>,
-    pub switchable: Memo<bool>,
     pub switch_label: Memo<String>,
     pub open_switcher: ClickCallback,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DockStackState {
+    pub backward: bool,
+    pub switchable: bool,
 }
 
 pub struct DockSwitcherHandle {
@@ -441,10 +472,14 @@ impl State {
         self.title.call(tab)
     }
 
-    fn all_closable(&self, contents: Memo<Vec<TabId>>) -> Memo<bool> {
+    fn bar_state(&self, focused: Memo<bool>, contents: Memo<Vec<TabId>>) -> Memo<DockBarState> {
         let closable = self.closable;
         create_memo(move || {
-            contents.with(|tabs| !tabs.is_empty() && tabs.iter().all(|tab| closable.call(*tab)))
+            contents.with(|tabs| DockBarState {
+                focused: focused.get(),
+                vacant: tabs.is_empty(),
+                closable: !tabs.is_empty() && tabs.iter().all(|tab| closable.call(*tab)),
+            })
         })
     }
 
@@ -1555,9 +1590,12 @@ fn stack_handle(
                 .count()
         })
     });
-    let switchable = create_memo(move || {
+    let state = create_memo(move || {
         let shown = shown.get();
-        tabs.with(|tabs| tabs.iter().any(|tab| Some(*tab) != shown))
+        DockStackState {
+            backward: backward.get(),
+            switchable: tabs.with(|tabs| tabs.iter().any(|tab| Some(*tab) != shown)),
+        }
     });
     let switch_label = create_memo(move || match others.get() {
         1 => "1 other open tab".to_owned(),
@@ -1566,12 +1604,11 @@ fn stack_handle(
     DockStackHandle {
         title,
         icon,
-        backward,
+        state,
         actions: slot,
         menu,
         back: ClickCallback::new(move || dock.go_back()),
         others,
-        switchable,
         switch_label,
         open_switcher: ClickCallback::new(move || switching.set(true)),
     }
@@ -1870,7 +1907,6 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                 .collect::<Vec<_>>()
         })
     });
-    let vacant = create_memo(move || contents.with(Vec::is_empty));
     let sidebar_width = create_memo(move || state.with(|state| state.sidebar_width(leaf)));
     let close = ClickCallback::new(move || dock.close_leaf(leaf));
     let menu = dock.leaf_menu(Some(leaf));
@@ -1902,7 +1938,6 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                     let bar = (!hoisted).then(|| DockBarHandle {
                         floating,
                         vertical,
-                        focused,
                         grip: view! {
                             <DockPaneGrip dock={dock} leaf vertical focused={focused} />
                         },
@@ -1910,8 +1945,7 @@ fn DockPanelView(dock: State, tree: Tree, leaf: LeafId, hoisted: bool) -> NodeId
                             <DockTabBar dock={dock} leaf vertical />
                         }),
                         title: create_memo(String::new),
-                        vacant,
-                        closable: dock.all_closable(contents),
+                        state: dock.bar_state(focused, contents),
                         menu,
                         close,
                     });
@@ -2110,10 +2144,7 @@ fn DockTabView(
 ) -> NodeId {
     let ChoiceOptionHandle {
         index,
-        selected,
-        hovered,
-        active,
-        focused,
+        state: option,
         ..
     } = handle;
     let state = dock.state;
@@ -2130,12 +2161,7 @@ fn DockTabView(
                 .is_some_and(|index| index + 1 < entries.len())
         })
     });
-    let dragged = create_memo(move || {
-        dock.drag.with(|drag| {
-            drag.as_ref()
-                .is_some_and(|drag| drag.dragged == DockDragged::Entry(entry))
-        })
-    });
+    let drag = dock.drag;
     let close = ClickCallback::new(move || dock.close_entry(entry));
     let float = ClickCallback::new(move || dock.float_entry(entry));
     let group = ClickCallback::new(move || {
@@ -2186,7 +2212,22 @@ fn DockTabView(
     let closable = create_memo(move || {
         !pinned && tabs.with(|tabs| tabs.iter().all(|tab| dock.closable.call(*tab)))
     });
-    let waiting = create_memo(move || tabs.with(|tabs| dock.waiting(tabs)));
+    let tab_state = create_memo(move || {
+        let option = option.get();
+        DockTabState {
+            has_next: has_next.get(),
+            selected: option.selected,
+            hovered: option.hovered,
+            active: option.active,
+            focused: option.focused,
+            dragged: drag.with(|drag| {
+                drag.as_ref()
+                    .is_some_and(|drag| drag.dragged == DockDragged::Entry(entry))
+            }),
+            closable: closable.get(),
+            waiting: tabs.with(|tabs| dock.waiting(tabs)),
+        }
+    });
     let face = dock.tab.call(DockTabHandle {
         entry,
         leaf,
@@ -2198,14 +2239,7 @@ fn DockTabView(
         icon,
         picture,
         tabs,
-        has_next,
-        selected,
-        hovered,
-        active,
-        focused,
-        dragged,
-        closable,
-        waiting,
+        state: tab_state,
         close,
     });
     let menu = dock.menu;
@@ -2366,9 +2400,7 @@ fn GripMenu(menu: MenuStyle, vertical: bool, toggle: ClickCallback, children: Ch
 
 #[component]
 fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
-    let hovered = create_signal(false);
-    let active = create_signal(false);
-    let focused = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let state = dock.state;
     let direction = state
         .with_untracked(|state| state.split_direction(split))
@@ -2383,9 +2415,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
     }));
     let face = dock.splitter.call(DockSplitterHandle {
         direction,
-        hovered: hovered.read_only(),
-        active: active.read_only(),
-        focused: focused.read_only(),
+        state: splitter_state(interaction),
     });
     let held: Rc<Cell<Option<(f32, Pos2)>>> = Rc::new(Cell::new(None));
     let grabbed = held.clone();
@@ -2398,7 +2428,7 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
         <Interactive
             capture_presses=true
             focusable=true
-            on_focus_change={focused}
+            on_state_change={interaction}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
                     return false;
@@ -2419,8 +2449,6 @@ fn DockSplitterView(dock: State, tree: Tree, split: SplitId) -> NodeId {
                 Direction::Vertical => CursorIcon::ResizeVertical,
             }}
             touch_drag_axis={Some(direction)}
-            on_hover_change={hovered}
-            on_active_change={active}
             on_press={move |press: PointerPress| {
                 grabbed.set(Some((start(), press.pos)));
             }}
@@ -2466,9 +2494,7 @@ fn reachable_origin(rect: Rect, bounds: Vec2, bar: f32) -> Pos2 {
 
 #[component]
 fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
-    let hovered = create_signal(false);
-    let active = create_signal(false);
-    let focused = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let state = dock.state;
     let width = create_memo(move || state.with(|state| state.sidebar_width(leaf)));
     component_accessibility(create_memo(move || {
@@ -2479,16 +2505,14 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
     }));
     let face = dock.splitter.call(DockSplitterHandle {
         direction: Direction::Horizontal,
-        hovered: hovered.read_only(),
-        active: active.read_only(),
-        focused: focused.read_only(),
+        state: splitter_state(interaction),
     });
     let held: Rc<Cell<Option<(f32, Pos2)>>> = Rc::new(Cell::new(None));
     let grabbed = held.clone();
     view! {
         <Interactive
             focusable=true
-            on_focus_change={focused}
+            on_state_change={interaction}
             on_key={move |press: KeyPress| {
                 if !press.pressed {
                     return false;
@@ -2504,8 +2528,6 @@ fn DockSidebarSplitter(dock: State, leaf: LeafId) -> NodeId {
             }}
             cursor=CursorIcon::ResizeHorizontal
             capture_presses=true
-            on_hover_change={hovered}
-            on_active_change={active}
             on_press={move |press: PointerPress| {
                 grabbed.set(Some((width.get_untracked(), press.pos)));
             }}
@@ -2611,7 +2633,6 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
             .unwrap_or_default()
     });
     let contents = create_memo(move || state.with(|state| state.surface_tabs(surface)));
-    let vacant = create_memo(move || contents.with(Vec::is_empty));
     let close = ClickCallback::new(move || {
         for tab in dock.state.get_untracked().surface_tabs(surface) {
             dock.close_tab(tab);
@@ -2709,13 +2730,13 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                 );
                                             });
                                         }}
-                                        on_active_change={move |active: bool| {
-                                            if active {
+                                        on_state_change={InteractionState::watch(|state| state.pressed, move |pressed: bool| {
+                                            if pressed {
                                                 return;
                                             }
                                             band.value().borrow_mut().release(beui_core::timer::now());
                                             bounce.start();
-                                        }}
+                                        })}
                                     >
                                         <List spacing=0.0>
                                             <Dynamic value={vertical}>|vertical: bool| {
@@ -2768,12 +2789,10 @@ fn DockWindowView(dock: State, surface: SurfaceId) -> NodeId {
                                                     bar: Some(DockBarHandle {
                                                         floating: true,
                                                         vertical,
-                                                        focused,
                                                         grip,
                                                         tabs,
                                                         title,
-                                                        vacant,
-                                                        closable: dock.all_closable(contents),
+                                                        state: dock.bar_state(focused, contents),
                                                         menu,
                                                         close,
                                                     }),

@@ -94,7 +94,7 @@ fn LayerRow(state: CanvasState, id: Uuid) -> NodeId {
                 <Frame
                     fill={ColorRole::custom(fill)}
                     radius={Radius::custom(ROW_RADIUS)}
-                    border={create_memo(move || handle.over.get().then_some(Border::new(ColorRole::Accent).width(1.0)))}
+                    border={create_memo(move || handle.state.get().over.then_some(Border::new(ColorRole::Accent).width(1.0)))}
                 >
                     <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
                         <IconButton

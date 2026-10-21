@@ -1,12 +1,12 @@
 use super::*;
 use crate::primitives::*;
 use crate::reactive::*;
-use crate::unstyled::ButtonHandle;
+use crate::unstyled::{ButtonHandle, ButtonState};
 
 #[derive(Clone, Copy)]
 struct Held {
     shown: Signal<bool>,
-    hovered: Option<ReadSignal<bool>>,
+    button: Option<Memo<ButtonState>>,
 }
 
 #[test]
@@ -18,7 +18,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
         held.update(|held| {
             *held = Some(Held {
                 shown,
-                hovered: None,
+                button: None,
             })
         });
         view! {
@@ -30,7 +30,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
                     >|handle: ButtonHandle| {
                         held.update(|held| {
                             if let Some(held) = held {
-                                held.hovered = Some(handle.hovered);
+                                held.button = Some(handle.state);
                             }
                         });
                         view! {
@@ -48,13 +48,13 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
         .find_test_id("hidden.button")
         .expect("the button");
     let at = harness.center(button);
-    let hovered = held
+    let button = held
         .get_untracked()
-        .and_then(|held| held.hovered)
+        .and_then(|held| held.button)
         .expect("the button reported its hover");
 
     harness.frame(vec![Event::PointerMoved(at)]);
-    assert!(hovered.get(), "the pointer hovers the button");
+    assert!(button.get().hovered, "the pointer hovers the button");
 
     let hide = |harness: &mut Harness, shown: bool| {
         let set = held
@@ -69,7 +69,7 @@ fn a_button_hidden_while_hovered_is_not_hovered_when_it_comes_back() {
     hide(&mut harness, true);
 
     assert!(
-        !hovered.get(),
+        !button.get().hovered,
         "the button left the screen under the pointer, so it comes back unhovered"
     );
 }

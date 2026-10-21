@@ -68,19 +68,18 @@ pub fn SplitButton(
 #[component]
 fn MainFace(handle: ButtonHandle, variant: ButtonVariant) -> NodeId {
     let ButtonHandle {
-        hovered,
-        active,
-        focused,
-        disabled,
+        state,
         label,
         glyph,
         ..
     } = handle;
     let theme = use_theme();
     let fill = create_memo(move || {
-        half_fill(&theme, variant, disabled.get(), hovered.get(), active.get())
+        let state = state.get();
+        half_fill(&theme, variant, state.disabled, state.hovered, state.active)
     });
-    let ink = create_memo(move || variant.label(disabled.get()));
+    let ink = create_memo(move || variant.label(state.get().disabled));
+    let focused = Prop::dynamic(move || state.get().focused);
     let has_glyph = create_memo(move || !glyph.get().is_empty());
     view! {
         <HalfFace fill focused side=Side::Leading padding=LABEL_PADDING_HORIZONTAL>
@@ -101,27 +100,22 @@ fn ArrowFace(handle: MenuButtonHandle, variant: ButtonVariant) -> NodeId {
     let MenuButtonHandle {
         open,
         button:
-            ButtonHandle {
-                hovered,
-                active,
-                focused,
-                disabled,
-                label,
-                ..
-            },
+            ButtonHandle { state, label, .. },
     } = handle;
     let theme = use_theme();
     let fill = create_memo(move || {
+        let state = state.get();
         half_fill(
             &theme,
             variant,
-            disabled.get(),
-            hovered.get(),
-            active.get() || open.get(),
+            state.disabled,
+            state.hovered,
+            state.active || open.get(),
         )
     });
-    let ink = create_memo(move || variant.label(disabled.get()));
-    let divider = create_memo(move || divider_color(&theme, variant, disabled.get()));
+    let ink = create_memo(move || variant.label(state.get().disabled));
+    let divider = create_memo(move || divider_color(&theme, variant, state.get().disabled));
+    let focused = Prop::dynamic(move || state.get().focused);
     view! {
         <List direction=Direction::Horizontal spacing=0.0>
             <Frame padding={Sides::vertical(DIVIDER_INSET)}>
@@ -158,7 +152,7 @@ impl Side {
 #[component]
 fn HalfFace(
     fill: Memo<Color32>,
-    focused: ReadSignal<bool>,
+    focused: Prop<bool>,
     side: Side,
     padding: f32,
     children: beui_view::reactive::Child,

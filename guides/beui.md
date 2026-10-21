@@ -188,7 +188,7 @@ view! {
 A callback prop (`Callback<V, R>` or `ClickCallback`) takes either a closure or
 a callback the component already has, so a wrapper passes its own callback
 straight on rather than wrapping it in a closure that calls it. A `Callback<T>`
-also takes a `Signal<T>`, which it sets: `on_hover_change={hovered}`.
+also takes a `Signal<T>`, which it sets: `on_state_change={interaction}`.
 
 State a control both shows and changes (`checked`, `value`, `open`,
 `selected`) is one `Binding<T>` prop rather than a value and an `on_change`:
@@ -981,8 +981,8 @@ The bar answers the pointer itself. `unstyled::Scrollbar` owns that: it takes
 the position, the direction and an `on_scroll_to`, hit-tests the press against
 the thumb it would paint, drags the thumb with the pointer, pages by a viewport
 towards a press on the track either side of it, and hands its content a
-`ScrollbarHandle` of `hovered` and `dragging` so the styled bar can paint those
-states. `thumb_start` and `thumb_length` are the same fractions both layers
+`ScrollbarHandle` whose `state` memo holds `hovered`, `dragging` and `engaged`
+so the styled bar can paint those states. `thumb_start` and `thumb_length` are the same fractions both layers
 work in, so what is painted and what is pressed cannot drift apart.
 `ScrollbarThumb` paints the thumb at those fractions of its rect rather than
 laying it out, so a scroll's new position reaches its bar without laying
@@ -1434,8 +1434,8 @@ reaches for. Everything left of a row's highlight - the indent and the chevron
 - is one button of its own, tooltipped and labelled for a screen reader, so a
 finger anywhere left of the name expands the row without opening it, and
 pressing the highlighted row beside it selects. The content builder gets a
-`TreeRowFace` carrying the row's `key`, `item`, `selected`, `focused` and
-`hovered`. Given `menu`, which answers a key with a `TreeMenu` (its items and
+`TreeRowFace` carrying the row's `key`, `item` and a `state` memo of its
+`TreeRowState` (selected, marked, focused, hovered, active, editing). Given `menu`, which answers a key with a `TreeMenu` (its items and
 `on_select`, as a `ContextMenu` takes them) or `None`, every row with one shows
 a "…" button at its end, on a desktop too, and the same menu opens from it, a
 right click or a long press: a dropdown under a mouse and a sheet under a finger.
@@ -1785,7 +1785,7 @@ cannot move into the panel (Tab skips it, and focusing it lands in the
 dialog); and while the parent's tab is focused the focus goes to its innermost
 modal dialog. Escape or back with the focus in a dialog closes it through
 `on_close`. While a tab has a modal dialog hanging from it (or from one of its
-dialogs), its label shows a dot (`DockTabHandle::waiting`, styled
+dialogs), its label shows a dot (`DockTabState::waiting`, styled
 `dock.tab.<tab>.waiting`): the tab is waiting on a choice, which matters most
 once another tab is shown in its place and hides the dialog.
 
@@ -1848,7 +1848,7 @@ view! {
         <CardFace card_id dragging={handle.dragging} />
     </Draggable>
     <DropTarget on_drop={move |(card, _): (CardId, DragPoint)| move_card(card, column)}>|handle: DropHandle|
-        <ColumnFace column over={handle.over} />
+        <ColumnFace column state={handle.state} />
     </DropTarget>
 }
 ```
@@ -1879,8 +1879,8 @@ A `DropTarget` is registered by the rectangle its content was laid out at. The
 target under the pointer that accepts the payload takes the drop - `accepts`
 filters by value, and a target of another payload type never sees the drag at
 all - and when targets nest, the innermost one wins, so a slot inside a column
-inside a sidebar can each take a drop of its own. Its `DropHandle` carries
-`carrying`, true for every target that would accept what is being dragged, and
+inside a sidebar can each take a drop of its own. Its `DropHandle`'s `state`
+(a `DropState`) carries `carrying`, true for every target that would accept what is being dragged, and
 `over`, true for the one that would take it now; `on_over` reports the payload
 and the pointer as it moves, which is how a target that works out where inside
 itself the drop lands - the dock's tab bars and split zones, a timeline's
@@ -2778,6 +2778,19 @@ one given none leaves the cursor to the catchers around it, so a catcher
 that only listens - for a secondary press, a wheel - does not undo the
 I-beam of the text field it wraps.
 
+A catcher reports its interaction through one `on_state_change`, called with
+an `InteractionState` only when one of its flags changes: `hovered`,
+`pressed` (a pointer holds it), `active` (pressed, or the activation key held
+while it has the focus), `focused` and `panning`. A catcher with an
+`on_state_change` holds the presses that reach it, as one that tracks being
+pressed must. Hand it a `Signal<InteractionState>` and give the content one
+`state: Memo<FooState>` of the component's flags, built from that signal and
+the component's own values (`ToggleState { checked, mixed, hovered, active,
+focused, disabled }` in `unstyled::Toggle`), rather than a signal per flag:
+a face reading `state.get().hovered` in its own memo stops there when another
+flag changes. Logic that wants the edge of one flag, such as a commit on blur,
+wraps its callback in `InteractionState::watch(|state| state.focused, ...)`.
+
 A catcher takes the wheel with `on_scroll` and a touch drag with
 `on_scroll_drag`, and `scroll_axis` names the axis it takes them along, so a
 vertical wheel over a horizontal strip passes through to whatever is around it
@@ -2820,7 +2833,7 @@ claimant. A second finger, a long press and a lost window focus cancel the
 press the same way.
 
 Hover is the path under the mouse, worked out again every frame, so a catcher
-hears `on_hover_change` when it joins or leaves the path whether the pointer
+hears `on_state_change` with `hovered` changed when it joins or leaves the path whether the pointer
 moved or the layout did. The cursor is the innermost armed catcher's, else the
 innermost hovered one's. A wheel turn goes to the innermost catcher on the path
 under where the pointer was when it turned that takes it along its axis, unless
@@ -2866,7 +2879,7 @@ pub fn Checkbox(label: Prop<String>, checked: Binding<bool>) -> NodeId {
 ```
 
 The face component derives colors and visibility with memos over
-`handle.checked`, `handle.hovered`, `handle.active`, and `handle.focused`, reads
+`handle.state` (`checked`, `hovered`, `active`, `focused`, `disabled`), reads
 its text from `handle.label`, then
 composes `Frame` and `Text`. Keyboard and pointer handling stay in the unstyled
 control. `styled/checkbox.rs` is a short, complete example of the pair.

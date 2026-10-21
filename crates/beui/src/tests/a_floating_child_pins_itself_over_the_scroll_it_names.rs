@@ -20,12 +20,12 @@ fn a_floating_child_pins_itself_over_the_scroll_it_names() {
                 <Scroll @node_ref=&scroll @sizing=ItemSize::Percent(100.0)>
                     <ForEach keys={(0..20).collect::<Vec<i64>>()}>|row: i64|
                         <Interactive
-                            on_hover_change={move |next: bool| {
+                            on_state_change={InteractionState::watch(|state| state.hovered, move |next: bool| {
                                 over.update(|count| match next {
                                     true => *count += 1,
                                     false => *count -= 1,
                                 });
-                            }}
+                            })}
                         >
                             <Button on_click={move || rows.update(|rows| *rows += 1)}>
                                 <Text string={format!("row {row}")} />

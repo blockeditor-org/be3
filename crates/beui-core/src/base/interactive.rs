@@ -10,9 +10,37 @@ use crate::input::{
 };
 use crate::painter::Painter;
 
+use std::cell::Cell;
+
 use crate::callback::{Callback, ClickCallback};
+use beui_tree::callback::IntoCallback;
 use crate::document::Document;
 use crate::node::{Element, NodeId, NodeOf, Rects};
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct InteractionState {
+    pub hovered: bool,
+    pub pressed: bool,
+    pub active: bool,
+    pub focused: bool,
+    pub panning: bool,
+}
+
+impl InteractionState {
+    pub fn watch<T: Copy + PartialEq + Default + 'static>(
+        pick: fn(&InteractionState) -> T,
+        on_change: impl IntoCallback<T, ()>,
+    ) -> Callback<InteractionState> {
+        let on_change = on_change.into_callback();
+        let last = Cell::new(T::default());
+        Callback::new(move |state: InteractionState| {
+            let next = pick(&state);
+            if last.replace(next) != next {
+                on_change.call(next);
+            }
+        })
+    }
+}
 
 pub struct InteractiveNode {
     pub child: Option<NodeId>,
@@ -26,16 +54,12 @@ pub struct InteractiveNode {
     pub touch_drag_axis: Option<Direction>,
     pub claims_touch: bool,
     pub key_active: bool,
-    pub armed: bool,
-    pub hovered: bool,
+    pub state: InteractionState,
     pub hover_pos: Option<Pos2>,
-    pub active: bool,
-    pub pan_active: bool,
     pub on_click: ClickCallback,
     pub on_click_at: Callback<PointerPress>,
-    pub on_hover_change: Callback<bool>,
+    pub on_state_change: Callback<InteractionState>,
     pub on_hover_move: Callback<PointerPress>,
-    pub on_active_change: Callback<bool>,
     pub on_cancel: ClickCallback,
     pub on_middle_click: ClickCallback,
     pub on_press: Callback<PointerPress>,
@@ -43,7 +67,6 @@ pub struct InteractiveNode {
     pub on_secondary_drag: Callback<SecondaryDrag>,
     pub on_drag: Callback<PointerPress>,
     pub on_pan_drag: Callback<Vec2>,
-    pub on_pan_active_change: Callback<bool>,
     pub on_scroll: Callback<ScrollGesture>,
     pub on_scroll_drag: Callback<DragGesture>,
     pub on_autoscroll: Callback<AutoscrollGesture>,
@@ -78,16 +101,12 @@ impl InteractiveNode {
             touch_drag_axis: None,
             claims_touch: true,
             key_active: false,
-            armed: false,
-            hovered: false,
+            state: InteractionState::default(),
             hover_pos: None,
-            active: false,
-            pan_active: false,
             on_click: ClickCallback::empty(),
             on_click_at: Callback::empty(),
-            on_hover_change: Callback::empty(),
+            on_state_change: Callback::empty(),
             on_hover_move: Callback::empty(),
-            on_active_change: Callback::empty(),
             on_cancel: ClickCallback::empty(),
             on_middle_click: ClickCallback::empty(),
             on_press: Callback::empty(),
@@ -95,7 +114,6 @@ impl InteractiveNode {
             on_secondary_drag: Callback::empty(),
             on_drag: Callback::empty(),
             on_pan_drag: Callback::empty(),
-            on_pan_active_change: Callback::empty(),
             on_scroll: Callback::empty(),
             on_scroll_drag: Callback::empty(),
             on_autoscroll: Callback::empty(),
@@ -147,7 +165,7 @@ impl InteractiveNode {
         self.takes_presses()
             || !self.on_drag.is_empty()
             || !self.on_cancel.is_empty()
-            || !self.on_active_change.is_empty()
+            || !self.on_state_change.is_empty()
             || !self.capture_at.is_empty()
             || !self.claim_at.is_empty()
             || self.claim_modifiers.is_some()
@@ -197,22 +215,18 @@ impl InteractiveNode {
         }
     }
 
-    pub fn is_active(&self) -> bool {
-        self.armed || self.key_active
-    }
-
-    pub(crate) fn arm(&mut self, armed: bool) -> Option<(Callback<bool>, bool)> {
-        self.armed = armed;
-        self.report_active()
-    }
-
-    fn report_active(&mut self) -> Option<(Callback<bool>, bool)> {
-        let active = self.is_active();
-        if active == self.active {
+    pub(crate) fn change(
+        &mut self,
+        change: impl FnOnce(&mut InteractionState),
+    ) -> Option<(Callback<InteractionState>, InteractionState)> {
+        let mut state = self.state;
+        change(&mut state);
+        state.active = state.pressed || self.key_active;
+        if state == self.state {
             return None;
         }
-        self.active = active;
-        Some((self.on_active_change, active))
+        self.state = state;
+        Some((self.on_state_change, state))
     }
 }
 
@@ -315,9 +329,8 @@ impl Element for InteractiveNode {
             (self.on_secondary_drag.is_empty(), "secondary drag"),
             (self.on_middle_click.is_empty(), "middle click"),
             (self.on_cancel.is_empty(), "cancel"),
-            (self.on_hover_change.is_empty(), "hover"),
+            (self.on_state_change.is_empty(), "state"),
             (self.on_hover_move.is_empty(), "hover move"),
-            (self.on_active_change.is_empty(), "active"),
             (self.on_drag.is_empty(), "drag"),
             (self.on_pan_drag.is_empty(), "pan"),
             (self.on_scroll.is_empty(), "scroll"),
@@ -330,11 +343,12 @@ impl Element for InteractiveNode {
         .filter_map(|(empty, name)| (!empty).then_some(name))
         .collect();
         let states: Vec<&str> = [
-            (self.hovered, "hovered"),
-            (self.active, "active"),
-            (self.armed, "armed"),
+            (self.state.hovered, "hovered"),
+            (self.state.active, "active"),
+            (self.state.pressed, "pressed"),
             (self.key_active, "key active"),
-            (self.pan_active, "panning"),
+            (self.state.focused, "focused"),
+            (self.state.panning, "panning"),
         ]
         .into_iter()
         .filter_map(|(on, name)| on.then_some(name))
@@ -580,18 +594,31 @@ impl Document {
         }
     }
 
-    pub fn set_interactive_key_active(&mut self, id: NodeOf<InteractiveNode>, key_active: bool) {
-        if !self.contains(id) || self.arena.get_as::<InteractiveNode>(id).key_active == key_active {
+    pub(crate) fn change_interaction(
+        &mut self,
+        id: NodeId,
+        change: impl FnOnce(&mut InteractiveNode) -> Option<(Callback<InteractionState>, InteractionState)>,
+    ) {
+        if !self.arena.contains(id) {
             return;
         }
-        let interactive = self.arena.touch_mut_as::<InteractiveNode>(id);
-        interactive.key_active = key_active;
-        let active = interactive.is_active();
-        if active == interactive.active {
+        let Some(node) = self
+            .arena
+            .state_mut(id)
+            .as_any_mut()
+            .downcast_mut::<InteractiveNode>()
+        else {
             return;
+        };
+        if let Some((on_state_change, state)) = change(node) {
+            on_state_change.call(state);
         }
-        interactive.active = active;
-        let on_active_change = interactive.on_active_change;
-        on_active_change.call(active);
+    }
+
+    pub(crate) fn set_interactive_key_active(&mut self, id: NodeId, key_active: bool) {
+        self.change_interaction(id, |node| {
+            node.key_active = key_active;
+            node.change(|_| {})
+        });
     }
 }

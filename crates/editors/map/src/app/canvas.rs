@@ -213,11 +213,11 @@ fn MapSurface(state: MapState, children: Option<Child>) -> NodeId {
             cursor=CursorIcon::Default
             on_press={move |press: PointerPress| state.press(press.pos)}
             on_drag={move |press: PointerPress| state.drag(press.pos)}
-            on_active_change={move |active: bool| {
+            on_state_change={InteractionState::watch(|state| state.pressed, move |active: bool| {
                 if !active {
                     state.release();
                 }
-            }}
+            })}
             on_pan_drag={move |delta: Vec2| state.pan(delta)}
             children={children}
         />

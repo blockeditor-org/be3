@@ -9,7 +9,7 @@ use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 
 use crate as unstyled;
-use crate::button::ButtonHandle;
+use crate::button::{ButtonHandle, ButtonState};
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 use std::cell::RefCell;
@@ -41,16 +41,21 @@ pub struct MenuRowHandle {
     pub glyph: Prop<String>,
     pub detail: Prop<String>,
     pub checked: Prop<Option<bool>>,
-    pub disabled: Prop<bool>,
-    pub danger: Prop<bool>,
-    pub separated: Prop<bool>,
-    pub has_submenu: Prop<bool>,
     pub depth: Prop<Option<usize>>,
     pub expanded: Prop<Option<bool>>,
     pub toggle: ClickCallback,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
+    pub state: Memo<MenuRowState>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct MenuRowState {
+    pub disabled: bool,
+    pub danger: bool,
+    pub separated: bool,
+    pub has_submenu: bool,
+    pub hovered: bool,
+    pub active: bool,
+    pub focused: bool,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -350,11 +355,14 @@ pub(crate) fn MenuList(
                 @node_ref={&state.root}
                 tab_stop={root_tab_stop}
                 focused={focused.memo(Focus::Root)}
-                on_focus_change={move |has_focus: bool| {
-                    if !has_focus && focus.get_untracked() == Focus::Root {
-                        focus.set(Focus::Away);
-                    }
-                }}
+                on_state_change={InteractionState::watch(
+                    |interaction| interaction.focused,
+                    move |has_focus: bool| {
+                        if !has_focus && focus.get_untracked() == Focus::Root {
+                            focus.set(Focus::Away);
+                        }
+                    },
+                )}
                 on_key={move |press: KeyPress| key(state, Focus::Root, press)}
             />
             <Frame visible={showing_own}>
@@ -409,10 +417,6 @@ fn MenuPage(state: State, row: RenderFn<MenuRowHandle>, panel: RenderFn<Child>) 
     }
 }
 
-fn quiet() -> ReadSignal<bool> {
-    create_signal(false).read_only()
-}
-
 #[component]
 fn MenuBackRow(
     state: State,
@@ -422,14 +426,21 @@ fn MenuBackRow(
     row: RenderFn<MenuRowHandle>,
 ) -> NodeId {
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, Focus::Back, handle.hovered);
-        row.call(MenuRowHandle {
-            kind: MenuRowKind::Back,
-            hovered: handle.hovered,
-            active: handle.active,
-            focused: handle.focused,
-            ..quiet_handle(MenuRowKind::Back, title.into_prop())
-        })
+        watch_hover(state, Focus::Back, handle.state);
+        let row_state = create_memo(move || {
+            let button = handle.state.get();
+            MenuRowState {
+                hovered: button.hovered,
+                active: button.active,
+                focused: button.focused,
+                ..MenuRowState::default()
+            }
+        });
+        row.call(quiet_handle(
+            MenuRowKind::Back,
+            title.into_prop(),
+            row_state,
+        ))
     };
     let built = view! {
         <unstyled::Button
@@ -450,7 +461,7 @@ fn MenuBackRow(
     built
 }
 
-fn quiet_handle(kind: MenuRowKind, label: Prop<String>) -> MenuRowHandle {
+fn quiet_handle(kind: MenuRowKind, label: Prop<String>, state: Memo<MenuRowState>) -> MenuRowHandle {
     MenuRowHandle {
         kind,
         label,
@@ -458,21 +469,22 @@ fn quiet_handle(kind: MenuRowKind, label: Prop<String>) -> MenuRowHandle {
         glyph: Prop::Static(String::new()),
         detail: Prop::Static(String::new()),
         checked: Prop::Static(None),
-        disabled: Prop::Static(false),
-        danger: Prop::Static(false),
-        separated: Prop::Static(false),
-        has_submenu: Prop::Static(false),
         depth: Prop::Static(None),
         expanded: Prop::Static(None),
         toggle: ClickCallback::default(),
-        hovered: quiet(),
-        active: quiet(),
-        focused: quiet(),
+        state,
     }
 }
 
-fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) -> MenuRowHandle {
+fn item_handle(
+    kind: MenuRowKind,
+    item: &Rc<MenuItem>,
+    handle: &ButtonHandle,
+    has_submenu: Option<Memo<bool>>,
+) -> MenuRowHandle {
     let toggled = item.clone();
+    let (disabled, danger, separated) = (item.disabled, item.danger, item.separated);
+    let button = handle.state;
     MenuRowHandle {
         kind,
         label: item.label.into_prop(),
@@ -480,16 +492,21 @@ fn item_handle(kind: MenuRowKind, item: &Rc<MenuItem>, handle: &ButtonHandle) ->
         glyph: item.glyph.into_prop(),
         detail: item.detail.into_prop(),
         checked: item.checked.into_prop(),
-        disabled: item.disabled.into_prop(),
-        danger: item.danger.into_prop(),
-        separated: item.separated.into_prop(),
-        has_submenu: Prop::Static(false),
         depth: item.depth.into_prop(),
         expanded: item.expanded.into_prop(),
         toggle: ClickCallback::new(move || toggled.toggle()),
-        hovered: handle.hovered,
-        active: handle.active,
-        focused: handle.focused,
+        state: create_memo(move || {
+            let button = button.get();
+            MenuRowState {
+                disabled: disabled.get(),
+                danger: danger.get(),
+                separated: separated.get(),
+                has_submenu: has_submenu.is_some_and(|has_submenu| has_submenu.get()),
+                hovered: button.hovered,
+                active: button.active,
+                focused: button.focused,
+            }
+        }),
     }
 }
 
@@ -517,10 +534,16 @@ fn row_accessibility(item: &Rc<MenuItem>) -> Memo<Node> {
 #[component]
 fn MenuCaptionRow(state: State, index: usize, row: RenderFn<MenuRowHandle>) -> NodeId {
     let item = state.rows.value().borrow()[index].item.clone();
-    row.call(MenuRowHandle {
-        separated: item.separated.into_prop(),
-        ..quiet_handle(MenuRowKind::Caption, item.label.into_prop())
-    })
+    let separated = item.separated;
+    let row_state = create_memo(move || MenuRowState {
+        separated: separated.get(),
+        ..MenuRowState::default()
+    });
+    row.call(quiet_handle(
+        MenuRowKind::Caption,
+        item.label.into_prop(),
+        row_state,
+    ))
 }
 
 #[component]
@@ -551,7 +574,11 @@ fn MenuGridRow(
     let built = view! {
         <List spacing=ROW_SPACING>
             <Show condition={separated}>
-                {row.call(quiet_handle(MenuRowKind::Separator, Prop::Static(String::new())))}
+                {row.call(quiet_handle(
+                    MenuRowKind::Separator,
+                    Prop::Static(String::new()),
+                    create_memo(MenuRowState::default),
+                ))}
             </Show>
             <Grid
                 columns={vec![Track::Fraction(1.0); columns]}
@@ -587,8 +614,8 @@ fn MenuTile(
     let test_id = item.test_id.clone();
     let face = item.clone();
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, at, handle.hovered);
-        row.call(item_handle(MenuRowKind::Tile, &face, &handle))
+        watch_hover(state, at, handle.state);
+        row.call(item_handle(MenuRowKind::Tile, &face, &handle, None))
     };
     let chosen = item.clone();
     let built = view! {
@@ -642,11 +669,13 @@ fn MenuRow(
     let cascade = create_memo(move || cascades && has_children.get());
     let face = item.clone();
     let content = move |handle: ButtonHandle| {
-        watch_hover(state, at, handle.hovered);
-        row.call(MenuRowHandle {
-            has_submenu: has_children.into_prop(),
-            ..item_handle(MenuRowKind::Row, &face, &handle)
-        })
+        watch_hover(state, at, handle.state);
+        row.call(item_handle(
+            MenuRowKind::Row,
+            &face,
+            &handle,
+            Some(has_children),
+        ))
     };
     let accessibility = row_accessibility(&item);
     let chosen = item.clone();
@@ -724,14 +753,14 @@ fn choose(state: State, path: Vec<usize>, item: &MenuItem) {
     }
 }
 
-fn watch_hover(state: State, at: Focus, hovered: ReadSignal<bool>) {
+fn watch_hover(state: State, at: Focus, button: Memo<ButtonState>) {
     let mut was_hovered = false;
     create_effect(move || {
-        let hovering = hovered.get();
+        let hovering = button.with(|button| button.hovered);
         match (was_hovered, hovering) {
-            (_, true) => hover(state, at),
+            (false, true) => hover(state, at),
             (true, false) => leave(state, at),
-            (false, false) => {}
+            (true, true) | (false, false) => {}
         }
         was_hovered = hovering;
     });

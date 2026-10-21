@@ -146,7 +146,7 @@ pub(crate) fn ArtworkCanvas(
                     height,
                 ));
             };
-            let on_hover_change = move |inside: bool| {
+            let left = move |inside: bool| {
                 if !inside {
                     hovered.set(None);
                 }
@@ -179,7 +179,7 @@ pub(crate) fn ArtworkCanvas(
                         on_click_at={on_click_at}
                         on_secondary_press={on_secondary}
                         on_hover_move={on_hover_move}
-                        on_hover_change={on_hover_change}
+                        on_state_change={InteractionState::watch(|state| state.hovered, left)}
                     >
                         <List spacing=0.0>
                             <Artwork

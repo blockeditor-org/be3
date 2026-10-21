@@ -185,10 +185,10 @@ fn SlotDrop(session: Session, target: Memo<Vec<usize>>, folder: bool, children: 
     };
     view! {
         <DropTarget accepts={accepts} on_drop={dropped}>|handle: DropHandle| {
-            let DropHandle { over, .. } = handle;
+            let DropHandle { state, .. } = handle;
             view! {
                 <Frame
-                    border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0).offset(2.0)))}
+                    border={create_memo(move || state.get().over.then_some(Border::new(ColorRole::Accent).width(2.0).offset(2.0)))}
                     radius=Radius::Sm
                 >
                     {children}
@@ -309,7 +309,7 @@ fn HotbarSlotButton(session: Session, path: Vec<usize>) -> NodeId {
                 on_select={chose}
             >
                 <Tooltip label={label}>
-                    <Interactive focusable=true on_activate={clicked} on_hover_change={hovered}>
+                    <Interactive focusable=true on_activate={clicked} on_state_change={InteractionState::watch(|state| state.hovered, hovered)}>
                         <Draggable
                             @test_id={element_test_id}
                             payload={payload}

@@ -37,20 +37,23 @@ pub fn Tooltip(
         shown.set(true);
         None
     });
-    let hover = move |hovered: bool| match hovered {
-        true => dwell.restart(delay),
-        false => {
-            dwell.stop();
-            shown.set(false);
-        }
-    };
+    let hover = InteractionState::watch(
+        |state| state.hovered,
+        move |hovered: bool| match hovered {
+            true => dwell.restart(delay),
+            false => {
+                dwell.stop();
+                shown.set(false);
+            }
+        },
+    );
     let press = move |_: PointerPress| {
         dwell.stop();
         shown.set(false);
     };
 
     view! {
-        <Interactive on_hover_change={hover} on_press={press}>
+        <Interactive on_state_change={hover} on_press={press}>
             <List @node_ref=&anchor spacing=0.0>
                 {children}
                 <Overlay

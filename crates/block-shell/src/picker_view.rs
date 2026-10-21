@@ -705,10 +705,9 @@ fn ChoiceFace(
     enabled: Memo<bool>,
 ) -> NodeId {
     let theme = use_theme();
-    let ButtonHandle {
-        hovered, focused, ..
-    } = handle;
-    let fill = create_memo(move || match hovered.get() || focused.get() {
+    let ButtonHandle { state, .. } = handle;
+    let focused = Prop::dynamic(move || state.get().focused);
+    let fill = create_memo(move || match state.get().hovered || state.get().focused {
         true => theme.hover.get(),
         false => theme.background.get(),
     });

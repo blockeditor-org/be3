@@ -88,21 +88,20 @@ pub fn ButtonFace(
     #[prop(default = false)] icon_only: Prop<bool>,
 ) -> NodeId {
     let unstyled::ButtonHandle {
-        hovered,
-        active,
-        focused,
-        disabled,
+        state,
         label,
         glyph,
         ..
     } = handle;
     let theme = use_theme();
     let fill_color = create_memo(move || {
+        let state = state.get();
         variant
             .get()
-            .fill(&theme, disabled.get(), hovered.get(), active.get())
+            .fill(&theme, state.disabled, state.hovered, state.active)
     });
-    let label_color = create_memo(move || variant.get().label(disabled.get()));
+    let label_color = create_memo(move || variant.get().label(state.get().disabled));
+    let focused = Prop::dynamic(move || state.get().focused);
     let border =
         create_memo(move || (variant.get() == ButtonVariant::Secondary).then_some(Border::DEFAULT));
     let has_glyph = create_memo(move || !glyph.get().is_empty());

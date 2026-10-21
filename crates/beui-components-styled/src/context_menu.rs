@@ -199,29 +199,30 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
         glyph,
         detail,
         checked,
-        disabled,
-        danger,
-        separated,
-        has_submenu,
         depth,
         expanded,
         toggle,
-        hovered,
-        focused,
+        state,
         ..
     } = handle;
     let theme = use_theme();
-    let disabled = create_memo(move || disabled.get());
-    let danger = create_memo(move || danger.get());
-    let color = create_memo(move || match (disabled.get(), danger.get()) {
-        (true, _) => TextColor::Muted,
-        (false, true) => TextColor::Danger,
-        (false, false) => TextColor::Default,
+    let color = create_memo(move || {
+        let state = state.get();
+        match (state.disabled, state.danger) {
+            (true, _) => TextColor::Muted,
+            (false, true) => TextColor::Danger,
+            (false, false) => TextColor::Default,
+        }
     });
-    let icon_color = create_memo(move || match (disabled.get(), danger.get()) {
-        (false, true) => TextColor::Danger,
-        _ => TextColor::Muted,
+    let icon_color = create_memo(move || {
+        let state = state.get();
+        match (state.disabled, state.danger) {
+            (false, true) => TextColor::Danger,
+            _ => TextColor::Muted,
+        }
     });
+    let separated = create_memo(move || state.get().separated);
+    let has_submenu = create_memo(move || state.get().has_submenu);
     let glyph = create_memo(move || match kind {
         MenuRowKind::Back => ICON_CHEVRON_LEFT.to_owned(),
         _ => glyph.get(),
@@ -232,7 +233,10 @@ fn MenuRowFace(handle: MenuRowHandle) -> NodeId {
     let detail = create_memo(move || detail.get());
     let has_detail = create_memo(move || !detail.get().is_empty());
     let chevron_color = TextColor::Muted;
-    let fill_color = create_memo(move || row_background(&theme, focused.get(), hovered.get()));
+    let fill_color = create_memo(move || {
+        let state = state.get();
+        row_background(&theme, state.focused, state.hovered)
+    });
     view! {
         <List spacing=MENU_PADDING>
             <Show condition={separated}>
@@ -336,9 +340,8 @@ pub(crate) fn MenuTreeLead(
 
 #[component]
 fn MenuCaptionFace(handle: MenuRowHandle, padding: f32, spacing: f32) -> NodeId {
-    let MenuRowHandle {
-        label, separated, ..
-    } = handle;
+    let MenuRowHandle { label, state, .. } = handle;
+    let separated = create_memo(move || state.get().separated);
     view! {
         <List spacing>
             <Show condition={separated}>
@@ -363,18 +366,18 @@ fn MenuTileFace(handle: MenuRowHandle, padding: Sides) -> NodeId {
     let MenuRowHandle {
         label,
         glyph,
-        disabled,
-        hovered,
-        focused,
+        state,
         ..
     } = handle;
     let theme = use_theme();
-    let disabled = create_memo(move || disabled.get());
-    let color = create_memo(move || match disabled.get() {
+    let color = create_memo(move || match state.get().disabled {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
-    let fill_color = create_memo(move || row_background(&theme, focused.get(), hovered.get()));
+    let fill_color = create_memo(move || {
+        let state = state.get();
+        row_background(&theme, state.focused, state.hovered)
+    });
     view! {
         <Frame fill={ColorRole::custom(fill_color)} radius=Radius::Md padding>
             <List align=Align::Center spacing=TILE_SPACING>
@@ -420,17 +423,12 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
         glyph,
         detail,
         checked,
-        disabled,
-        danger,
-        separated,
-        has_submenu,
         depth,
         expanded,
         toggle,
-        hovered,
-        active,
-        focused,
+        state,
     } = handle;
+    let separated = create_memo(move || state.get().separated);
     let glyph = match kind {
         MenuRowKind::Back => Prop::Static(ICON_CHEVRON_LEFT.to_owned()),
         _ => glyph,
@@ -441,16 +439,16 @@ fn MenuSheetRowFace(handle: MenuRowHandle) -> NodeId {
                 <Separator />
             </Show>
             <ActionRowFace
-                hovered
-                active
-                focused
+                hovered={Prop::dynamic(move || state.get().hovered)}
+                active={Prop::dynamic(move || state.get().active)}
+                focused={Prop::dynamic(move || state.get().focused)}
                 label
                 lead
                 glyph
                 detail
-                disabled
-                danger
-                submenu={has_submenu}
+                disabled={Prop::dynamic(move || state.get().disabled)}
+                danger={Prop::dynamic(move || state.get().danger)}
+                submenu={Prop::dynamic(move || state.get().has_submenu)}
                 checked
                 depth
                 expanded

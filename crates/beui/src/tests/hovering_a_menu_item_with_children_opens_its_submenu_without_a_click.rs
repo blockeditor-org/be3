@@ -45,5 +45,5 @@ fn hovering_a_menu_item_with_children_opens_its_submenu_without_a_click() {
     let email_button = unstyled::menu_list_row_button(harness.document(), submenu, 0);
 
     assert!(harness.document().node_rect(email_button).is_some());
-    assert!(unstyled::button_focused(harness.document(), email_button).get());
+    assert!(unstyled::button_state(harness.document(), email_button).get().focused);
 }

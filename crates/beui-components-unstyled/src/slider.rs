@@ -53,12 +53,17 @@ impl SliderScale {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SliderState {
+    pub dragging: bool,
+    pub focused: bool,
+    pub disabled: bool,
+}
+
 pub struct SliderHandle {
     pub value: Binding<f32>,
     pub fraction: Memo<f32>,
-    pub dragging: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
-    pub disabled: Memo<bool>,
+    pub state: Memo<SliderState>,
 }
 
 #[component]
@@ -72,14 +77,20 @@ pub fn Slider(
     #[prop(default = false)] disabled: Prop<bool>,
     #[prop(children)] content: Option<Render<SliderHandle>>,
     on_drag_change: Callback<bool>,
-    on_focus_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let current = create_memo(move || value.get().clamp(min, max));
     let fraction = create_memo(move || scale.fraction_of(current.get(), min, max));
-    let dragging = create_signal(false);
-    let focused = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let disabled = create_memo(move || disabled.get());
+    let state = create_memo(move || {
+        let interaction = interaction.get();
+        SliderState {
+            dragging: interaction.pressed,
+            focused: interaction.focused,
+            disabled: disabled.get(),
+        }
+    });
 
     let accessibility = crate::labelled_node(Role::Slider, accessibility, label);
     component_accessibility(create_memo(move || {
@@ -101,9 +112,7 @@ pub fn Slider(
         build.call(SliderHandle {
             value,
             fraction,
-            dragging: dragging.read_only(),
-            focused: focused.read_only(),
-            disabled,
+            state,
         })
     });
 
@@ -144,13 +153,14 @@ pub fn Slider(
     set_component_state(value);
 
     let tab_stop = create_memo(move || !disabled.get());
+    let drag = InteractionState::watch(|state| state.pressed, on_drag_change);
     view! {
         <Interactive
             focusable=true
             tab_stop={tab_stop}
-            on_focus_change={move |next: bool| {
-                focused.set(next);
-                on_focus_change.call(next);
+            on_state_change={move |next: InteractionState| {
+                interaction.set(next);
+                drag.call(next);
             }}
             on_step={move |delta: f32| {
                 let value = current.get_untracked();
@@ -177,10 +187,6 @@ pub fn Slider(
             on_press={grabbed}
             on_drag={move |press: PointerPress| {
                 set_value(scale.value_at(dragged_to(press), min, max))
-            }}
-            on_active_change={move |next: bool| {
-                dragging.set(next);
-                on_drag_change.call(next);
             }}
             children={content_node}
         />

@@ -14,7 +14,7 @@ fn a_dock_tab_made_fullscreen_from_inside_covers_only_the_area_it_names() {
             view! {
                 <List spacing=0.0>
                     <Frame height=40.0>
-                        <Interactive @test_id="bar" on_hover_change={hovered} />
+                        <Interactive @test_id="bar" on_state_change={InteractionState::watch(|state| state.hovered, hovered)} />
                     </Frame>
                     <styled::Docking @sizing=ItemSize::Percent(100.0) layout>
                         <DockPane id="tabs">

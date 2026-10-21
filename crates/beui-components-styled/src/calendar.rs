@@ -73,19 +73,18 @@ fn CalendarHeader(handle: CalendarHeaderHandle) -> NodeId {
         next,
         show_months,
         show_years,
-        can_previous,
-        can_next,
+        state,
         previous_label,
         next_label,
-        months_open,
-        years_open,
         month_toggle,
         year_toggle,
         ..
     } = handle;
-    let no_previous = create_memo(move || !can_previous.get());
-    let no_next = create_memo(move || !can_next.get());
-    let month_shown = create_memo(move || !years_open.get());
+    let no_previous = create_memo(move || !state.get().can_previous);
+    let no_next = create_memo(move || !state.get().can_next);
+    let month_shown = create_memo(move || !state.get().years_open);
+    let months_open = create_memo(move || state.get().months_open);
+    let years_open = create_memo(move || state.get().years_open);
     view! {
         <List direction=Direction::Horizontal align=Align::Center spacing=4.0>
             <IconButton
@@ -167,13 +166,7 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
     let CalendarCellHandle {
         kind,
         label,
-        selected,
-        marked,
-        outside,
-        disabled,
-        hovered,
-        active,
-        focused,
+        state,
     } = handle;
     let height = match kind {
         CalendarMode::Days => DAY_SIZE,
@@ -182,16 +175,24 @@ fn CellFace(handle: CalendarCellHandle) -> NodeId {
     };
     let theme = use_theme();
     let fill = create_memo(move || {
+        let state = state.get();
         cell_fill(
             &theme,
-            selected.get(),
-            disabled.get(),
-            hovered.get(),
-            active.get(),
+            state.selected,
+            state.disabled,
+            state.hovered,
+            state.active,
         )
     });
-    let ink = create_memo(move || cell_ink(selected.get(), disabled.get(), outside.get()));
-    let ring = create_memo(move || marked.get() && !selected.get());
+    let ink = create_memo(move || {
+        let state = state.get();
+        cell_ink(state.selected, state.disabled, state.outside)
+    });
+    let ring = create_memo(move || {
+        let state = state.get();
+        state.marked && !state.selected
+    });
+    let focused = Prop::dynamic(move || state.get().focused);
     view! {
         <FocusRing focused radius={Radius::custom(Radius::Md.px() + 2.0)} offset=FOCUS_RING_OFFSET>
             <Frame

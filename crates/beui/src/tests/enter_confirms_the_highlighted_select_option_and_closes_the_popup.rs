@@ -35,5 +35,5 @@ fn enter_confirms_the_highlighted_select_option_and_closes_the_popup() {
     assert_eq!(styled::select_selected(harness.document(), select), Some(0));
     assert!(!styled::select_open(harness.document(), select));
     assert_eq!(changes.get_untracked().as_slice(), &[Some(0)]);
-    assert!(unstyled::button_focused(harness.document(), trigger).get());
+    assert!(unstyled::button_state(harness.document(), trigger).get().focused);
 }

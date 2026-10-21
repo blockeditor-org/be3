@@ -28,9 +28,9 @@ fn empty_choices_and_invalid_selection_do_not_break_tab_navigation() {
     });
     assert_eq!(styled::tabs_selected(&document, tabs), 1);
     assert_eq!(styled::listbox_selected(&document, empty), None);
-    let after_focus = unstyled::button_focused(&document, after);
+    let after_focus = unstyled::button_state(&document, after);
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::NONE);
-    assert!(after_focus.get());
+    assert!(after_focus.get().focused);
 }

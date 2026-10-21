@@ -23,9 +23,14 @@ pub struct CommandRowHandle {
     pub label: Prop<String>,
     pub glyph: String,
     pub shortcut: Option<String>,
-    pub disabled: Memo<bool>,
-    pub highlighted: Memo<bool>,
-    pub hovered: ReadSignal<bool>,
+    pub state: Memo<CommandRowState>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CommandRowState {
+    pub disabled: bool,
+    pub highlighted: bool,
+    pub hovered: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -170,20 +175,24 @@ fn CommandRow(
             press_focus=false
             on_click={move || confirm(state, key)}
         >|handle: ButtonHandle| {
-            let hovered = handle.hovered;
             let hovering = move || {
-                if hovered.get() && find(state, key).is_some_and(|action| action.is_enabled()) {
+                if handle.state.with(|button| button.hovered)
+                    && find(state, key).is_some_and(|action| action.is_enabled())
+                {
                     state.highlighted.set(Some(key));
                 }
             };
             create_effect(hovering);
+            let highlighted = highlight.memo(Some(key));
             row.call(CommandRowHandle {
                 label: label.clone(),
                 glyph: glyph.clone(),
                 shortcut: shortcut.clone(),
-                disabled,
-                highlighted: highlight.memo(Some(key)),
-                hovered: handle.hovered,
+                state: create_memo(move || CommandRowState {
+                    disabled: disabled.get(),
+                    highlighted: highlighted.get(),
+                    hovered: handle.state.with(|button| button.hovered),
+                }),
             })
         }</unstyled::Button>
     }

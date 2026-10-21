@@ -42,7 +42,7 @@ fn tapping_inside_a_touch_selection_shows_a_toolbar_that_copies_it() {
     }]);
 
     assert_eq!(output.copied_text.as_deref().map(str::trim), Some("Hello"));
-    assert!(unstyled::text_input_focused(harness.document(), input).get_untracked());
+    assert!(unstyled::text_input_focused(harness.document(), input));
     assert_eq!(
         unstyled::text_input_selection(harness.document(), input).first(),
         Some(&(0..5))

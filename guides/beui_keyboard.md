@@ -126,7 +126,7 @@ report Super as `logo`, except on macOS, where Command acts as Ctrl and Super
 is never reported. `Key` also has the volume, mic mute, brightness and media
 transport keys, mapped wherever the platform reports them.
 
-Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. A focused node that is hidden (a closed overlay, a frame made invisible, a portal or parent that stops holding it) or removed loses the focus, and its `on_focus_change` hears `false`. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
+Tab and Shift+Tab traverse visible controls in tree order and wrap within the document. Hidden panels and collapsed content are excluded. A focused node that is hidden (a closed overlay, a frame made invisible, a portal or parent that stops holding it) or removed loses the focus, and its `on_state_change` hears `focused` turn `false`. Changing a selection programmatically updates the group's Tab stop and moves focus with the selection when the group already contains focus. Programmatic changes do not pull focus from other controls. Empty groups have no Tab stop, and invalid selection updates are ignored.
 
 ## Actions and the command palette
 

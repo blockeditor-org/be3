@@ -406,11 +406,11 @@ pub(crate) fn HexView(state: State) -> NodeId {
                             cursor=CursorIcon::Text
                             on_press={move |event: PointerPress| hex_press(cx, event)}
                             on_drag={move |event: PointerPress| hex_drag(cx, event)}
-                            on_active_change={move |active: bool| {
+                            on_state_change={InteractionState::watch(|state| state.pressed, move |active: bool| {
                                 if !active {
                                     state.inner().hex_selection_anchor.set(None);
                                 }
-                            }}
+                            })}
                         >
                             <Frame width=width height=height>
                                 <Drawing draw={draw} />

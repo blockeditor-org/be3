@@ -876,7 +876,7 @@ fn EntityPanel(session: Session, row: Memo<Option<EntityRow>>, entity: DebugEnti
         }
     };
     view! {
-        <Interactive on_hover_change={hovered}>
+        <Interactive on_state_change={InteractionState::watch(|state| state.hovered, hovered)}>
             <Accordion title={title} open={open}>
                 <Rows rows={details} />
             </Accordion>
@@ -1017,7 +1017,7 @@ fn GraphCanvas(
         }
     };
     view! {
-        <Interactive on_hover_move={over} on_hover_change={left}>
+        <Interactive on_hover_move={over} on_state_change={InteractionState::watch(|state| state.hovered, left)}>
             <Frame width=width height=height>
                 <Drawing draw={draw} />
             </Frame>

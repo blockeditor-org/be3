@@ -400,11 +400,11 @@ pub(crate) fn PluginRegion(
                         hit_at={takes}
                         claim_at={claims}
                         on_press_outside={pressed_outside}
-                        on_focus_change={move |focused: bool| {
+                        on_state_change={InteractionState::watch(|state| state.focused, move |focused: bool| {
                             if focused {
                                 on_focus.call(());
                             }
-                        }}
+                        })}
                     >
                         <Embed slot={slot} punch=false @node_ref={&anchor}>
                             <Drawing draw={base} />

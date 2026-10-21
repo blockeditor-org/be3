@@ -2,16 +2,14 @@ use accesskit::{Node, Role};
 use beui_macros::{component, view};
 
 use crate as unstyled;
-use crate::button::ButtonHandle;
+use crate::button::{ButtonHandle, ButtonState};
 use beui_core::document::Document;
 use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
 pub struct DisclosureHandle {
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
+    pub state: Memo<ButtonState>,
     pub open: Binding<bool>,
 }
 
@@ -43,9 +41,7 @@ pub fn Disclosure(
                 }}
             >|handle: ButtonHandle| {
                 header.call(DisclosureHandle {
-                    hovered: handle.hovered,
-                    active: handle.active,
-                    focused: handle.focused,
+                    state: handle.state,
                     open,
                 })
             }</unstyled::Button>

@@ -105,14 +105,20 @@ fn CanvasSurface(state: CanvasState, children: Option<Child>) -> NodeId {
                 let at = state.world_at(press.pos);
                 state.hover(Some(at));
             }}
-            on_hover_change={move |over: bool| {
-                if !over {
-                    state.hover(None);
-                }
-            }}
-            on_active_change={move |active: bool| {
-                if !active {
-                    state.release();
+            on_state_change={{
+                let left = InteractionState::watch(|state| state.hovered, move |over: bool| {
+                    if !over {
+                        state.hover(None);
+                    }
+                });
+                let released = InteractionState::watch(|state| state.pressed, move |active: bool| {
+                    if !active {
+                        state.release();
+                    }
+                });
+                move |next: InteractionState| {
+                    left.call(next);
+                    released.call(next);
                 }
             }}
             children={children}

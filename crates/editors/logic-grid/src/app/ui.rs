@@ -195,7 +195,7 @@ fn GridCanvas(session: Session) -> NodeId {
                 last.value().set(Some(world));
                 session.pointer.set(Some(world));
             };
-            let on_active_change = move |active: bool| {
+            let released = InteractionState::watch(|state| state.pressed, move |active: bool| {
                 if active {
                     return;
                 }
@@ -205,7 +205,7 @@ fn GridCanvas(session: Session) -> NodeId {
                 if session.read_untracked(|model| model.gesture.is_some()) {
                     session.update(|model| model.release(world));
                 }
-            };
+            });
             let on_secondary = move |press: PointerPress| {
                 let world = at(press);
                 session.edit(|model| model.delete_wire_at(world));
@@ -213,10 +213,14 @@ fn GridCanvas(session: Session) -> NodeId {
             let on_hover_move = move |press: PointerPress| {
                 session.pointer.set(Some(at(press)));
             };
-            let on_hover_change = move |hovered: bool| {
+            let left = InteractionState::watch(|state| state.hovered, move |hovered: bool| {
                 if !hovered && last.value().get().is_none() {
                     session.pointer.set(None);
                 }
+            });
+            let on_state_change = move |next: InteractionState| {
+                released.call(next);
+                left.call(next);
             };
 
             let content = NodeRef::new();
@@ -228,10 +232,9 @@ fn GridCanvas(session: Session) -> NodeId {
                         @test_id={"logic-grid.canvas"}
                         on_press={on_press}
                         on_drag={on_drag}
-                        on_active_change={on_active_change}
                         on_secondary_press={on_secondary}
                         on_hover_move={on_hover_move}
-                        on_hover_change={on_hover_change}
+                        on_state_change={on_state_change}
                     >
                         <Canvas>
                             <CanvasItem x=0.0 y=0.0 width={width} height={height}>

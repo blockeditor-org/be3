@@ -54,7 +54,7 @@ fn a_page_item_opens_its_page_on_a_click_not_a_hover_and_left_arrow_goes_back() 
         .expect("clicking a page item opens its page");
     assert!(harness.document().node_rect(move_to).is_none());
     let count = unstyled::menu_list_row_button(harness.document(), page, 0);
-    assert!(unstyled::button_focused(harness.document(), count).get());
+    assert!(unstyled::button_state(harness.document(), count).get().focused);
 
     harness.key(Key::Enter, Modifiers::NONE);
     harness.frame(Vec::new());
@@ -69,7 +69,7 @@ fn a_page_item_opens_its_page_on_a_click_not_a_hover_and_left_arrow_goes_back() 
     harness.frame(Vec::new());
     assert!(unstyled::menu_list_page(harness.document(), content).is_none());
     assert!(
-        unstyled::button_focused(harness.document(), move_to).get(),
+        unstyled::button_state(harness.document(), move_to).get().focused,
         "going back lands on the item that opened the page"
     );
 }

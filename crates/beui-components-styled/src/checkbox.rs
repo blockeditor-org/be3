@@ -38,28 +38,24 @@ pub fn Checkbox(
 
 #[component]
 fn CheckboxFace(handle: ToggleHandle) -> NodeId {
-    let ToggleHandle {
-        checked,
-        hovered,
-        focused,
-        disabled,
-        label,
-        ..
-    } = handle;
+    let ToggleHandle { state, label, .. } = handle;
     let theme = use_theme();
-    let fill_color =
-        create_memo(move || box_fill(&theme, disabled.get(), checked.get(), hovered.get()));
+    let fill_color = create_memo(move || {
+        let state = state.get();
+        box_fill(&theme, state.disabled, state.checked, state.hovered)
+    });
+    let checked = create_memo(move || state.get().checked);
     let border_visible = create_memo(move || !checked.get());
     let box_border = theme.border;
     let mark_color = theme.on_accent;
     let labeled = create_memo(move || !label.get().is_empty());
-    let label_color = create_memo(move || match disabled.get() {
+    let label_color = create_memo(move || match state.get().disabled {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
 
     view! {
-        <FocusRing focused offset=FOCUS_RING_OFFSET>
+        <FocusRing focused={Prop::dynamic(move || state.get().focused)} offset=FOCUS_RING_OFFSET>
             <List direction=Direction::Horizontal align=Align::Center spacing=SPACING>
                 <Frame
                     width=BOX_SIZE

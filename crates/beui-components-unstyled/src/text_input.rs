@@ -35,12 +35,17 @@ use beui_view::reactive::*;
 const PLACEHOLDER_COLOR: Color32 = Color32::from_gray(140);
 const SELECTION_COLOR: Color32 = Color32::from_rgba_unmultiplied(120, 160, 255, 90);
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TextInputState {
+    pub hovered: bool,
+    pub focused: bool,
+    pub disabled: bool,
+    pub empty: bool,
+}
+
 pub struct TextInputHandle {
     pub field: Child,
-    pub hovered: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
-    pub disabled: Memo<bool>,
-    pub empty: Memo<bool>,
+    pub state: Memo<TextInputState>,
     pub clear: ClickCallback,
 }
 
@@ -77,7 +82,7 @@ struct Input {
     state: TextAreaState,
     area: NodeRef,
     menu: NodeRef,
-    focused: ReadSignal<bool>,
+    interaction: Signal<InteractionState>,
 }
 
 #[component]
@@ -94,7 +99,6 @@ pub fn TextInput(
     #[prop(default = String::new())] label: Prop<String>,
     #[prop(default = TextInputStyle::default())] style: TextInputStyle,
     on_submit: Callback<String>,
-    on_hover_change: Callback<bool>,
     on_focus_change: Callback<bool>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
@@ -111,8 +115,7 @@ pub fn TextInput(
     } = style;
     let initial = value.get_untracked();
     let state = plain_text(&initial);
-    let hovered = create_signal(false);
-    let is_focused = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let disabled = create_memo(move || disabled.get());
     let masked = create_memo(move || password.get());
     let (area, menu_node) = (NodeRef::new(), NodeRef::new());
@@ -120,7 +123,7 @@ pub fn TextInput(
         state,
         area,
         menu: menu_node,
-        focused: is_focused.read_only(),
+        interaction,
     });
 
     create_effect(move || {
@@ -130,9 +133,15 @@ pub fn TextInput(
         }
     });
     let edited = state.content();
-    let empty = create_memo(move || {
+    let input_state = create_memo(move || {
         edited.get();
-        text_of(state).is_empty()
+        let interaction = interaction.get();
+        TextInputState {
+            hovered: interaction.hovered,
+            focused: interaction.focused,
+            disabled: disabled.get(),
+            empty: text_of(state).is_empty(),
+        }
     });
     let clear = ClickCallback::new(move || {
         state.execute(EditorCommand::ReplaceWholeFile(b""));
@@ -190,10 +199,7 @@ pub fn TextInput(
                 match content {
                     Some(build) => build.call(TextInputHandle {
                         field,
-                        hovered: hovered.read_only(),
-                        focused: is_focused.read_only(),
-                        disabled,
-                        empty,
+                        state: input_state,
                         clear,
                     }),
                     None => field,
@@ -216,6 +222,19 @@ pub fn TextInput(
         true => ClickCallback::empty(),
         false => ClickCallback::new(move || on_submit.call(text_of(state))),
     };
+    let focus = InteractionState::watch(
+        |interaction| interaction.focused,
+        move |focused: bool| {
+            if focused && select_on_focus.get_untracked() {
+                state.execute(EditorCommand::SelectAll);
+            }
+            on_focus_change.call(focused);
+        },
+    );
+    let on_state_change = Callback::new(move |next: InteractionState| {
+        interaction.set(next);
+        focus.call(next);
+    });
     let area_node = view! {
         <TextArea
             @node_ref=&area
@@ -234,17 +253,7 @@ pub fn TextInput(
             accessibility
             on_toolbar={open_menu}
             on_submit={submit}
-            on_focus_change={move |focused: bool| {
-                if focused && select_on_focus.get_untracked() {
-                    state.execute(EditorCommand::SelectAll);
-                }
-                is_focused.set(focused);
-                on_focus_change.call(focused);
-            }}
-            on_hover_change={move |is_hovered: bool| {
-                hovered.set(is_hovered);
-                on_hover_change.call(is_hovered);
-            }}
+            on_state_change={on_state_change}
             frame={move |field: Child| surround(field, true)}
         />
     };
@@ -305,8 +314,8 @@ pub fn text_input_value(document: &Document, input_node: NodeId) -> String {
     text_of(input(document, input_node).state)
 }
 
-pub fn text_input_focused(document: &Document, input_node: NodeId) -> ReadSignal<bool> {
-    input(document, input_node).focused
+pub fn text_input_focused(document: &Document, input_node: NodeId) -> bool {
+    input(document, input_node).interaction.get_untracked().focused
 }
 
 pub fn text_input_caret(document: &Document, input_node: NodeId) -> usize {

@@ -93,7 +93,7 @@ pub fn WindowView(
                         @node_ref={&catcher}
                         focusable=true
                         @test_id={format!("wayland.window.{}", id.0)}
-                        on_focus_change={move |focused: bool| windows.focus(id, focused)}
+                        on_state_change={InteractionState::watch(|state| state.focused, move |focused: bool| windows.focus(id, focused))}
                         cursor
                         on_forward={move |input: ForwardedInput| windows.forward(id, input)}
                         inhibits_shortcuts={inhibits}

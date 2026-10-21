@@ -285,7 +285,7 @@ fn EmojiTab(
             tab_stop=false
             on_click={on_click}
             content={move |button: unstyled::ButtonHandle| {
-                let fill = create_memo(move || match (selected.get(), button.hovered.get()) {
+                let fill = create_memo(move || match (selected.get(), button.state.get().hovered) {
                     (true, _) => ColorRole::AccentSoft,
                     (false, true) => ColorRole::Hover,
                     (false, false) => ColorRole::None,
@@ -311,7 +311,7 @@ fn EmojiKey(emoji: &'static str, keyboard: KeyboardHandle) -> NodeId {
             tab_stop=false
             on_click={move || keyboard.type_text(emoji)}
             content={move |button: unstyled::ButtonHandle| {
-                let fill = create_memo(move || match button.active.get() {
+                let fill = create_memo(move || match button.state.get().active {
                     true => ColorRole::Pressed,
                     false => ColorRole::None,
                 });
@@ -341,7 +341,7 @@ fn PanelKey(keyboard: KeyboardHandle, value: Value) -> NodeId {
             tab_stop=false
             on_click={move || keyboard.tap(value)}
             content={move |button: unstyled::ButtonHandle| {
-                let fill = create_memo(move || match button.active.get() {
+                let fill = create_memo(move || match button.state.get().active {
                     true => ColorRole::Pressed,
                     false => ColorRole::Surface,
                 });

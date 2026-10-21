@@ -22,7 +22,7 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
                     <Frame height=40.0>
                         <Interactive
                             @test_id="bar"
-                            on_hover_change={move |on: bool| bar.update(|bar| bar.hovered = on)}
+                            on_state_change={InteractionState::watch(|state| state.hovered, move |on: bool| bar.update(|bar| bar.hovered = on))}
                             on_scroll={move |scroll: ScrollGesture| {
                                 bar.update(|bar| bar.scrolled += scroll.delta);
                             }}
@@ -40,9 +40,9 @@ fn a_fullscreen_dock_tab_covers_everything_and_returns_to_its_pane() {
                                     view! {
                                         <Interactive
                                             @test_id="content.2"
-                                            on_hover_change={move |on: bool| {
+                                            on_state_change={InteractionState::watch(|state| state.hovered, move |on: bool| {
                                                 tab.update(|tab| tab.hovered = on);
-                                            }}
+                                            })}
                                             on_scroll={move |scroll: ScrollGesture| {
                                                 tab.update(|tab| tab.scrolled += scroll.delta);
                                             }}

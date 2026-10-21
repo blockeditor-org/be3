@@ -36,22 +36,19 @@ pub fn ListRow(
 
 #[component]
 fn ListRowFace(handle: ButtonHandle, selected: Prop<bool>, children: Child) -> NodeId {
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
-        disabled,
-        ..
-    } = handle;
+    let ButtonHandle { state, .. } = handle;
     let theme = use_theme();
-    let fill_color = create_memo(move || match disabled.get() {
-        true => Color32::TRANSPARENT,
-        false => background(&theme, selected.get(), hovered.get(), active.get()),
+    let fill_color = create_memo(move || {
+        let state = state.get();
+        match state.disabled {
+            true => Color32::TRANSPARENT,
+            false => background(&theme, selected.get(), state.hovered, state.active),
+        }
     });
     view! {
         <Frame
             fill={ColorRole::custom(fill_color)}
-            border={focus_border(focused, Border::FOCUS)}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS)}
             radius=Radius::Md
             padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >

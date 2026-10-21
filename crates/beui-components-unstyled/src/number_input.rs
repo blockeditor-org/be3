@@ -34,12 +34,17 @@ impl NumberDrag {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct NumberFaceState {
+    pub hovered: bool,
+    pub active: bool,
+    pub focused: bool,
+    pub disabled: bool,
+}
+
 pub struct NumberFaceHandle {
     pub text: ReadSignal<String>,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
-    pub disabled: Memo<bool>,
+    pub state: Memo<NumberFaceState>,
 }
 
 pub struct NumberFieldHandle {
@@ -74,9 +79,7 @@ pub fn NumberInput(
     ));
     let editing = create_signal(false);
     let refocus = create_signal(false);
-    let hovered = create_signal(false);
-    let active = create_signal(false);
-    let focused = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     create_effect(move || {
         let next = value.get();
         let held = text.get_untracked();
@@ -189,20 +192,32 @@ pub fn NumberInput(
             true
         },
     );
-    let button_focus = move |has_focus: bool| {
-        focused.set(has_focus);
-        if !has_focus {
-            refocus.set(false);
+    let button_focus = InteractionState::watch(
+        |state| state.focused,
+        move |has_focus: bool| {
+            if !has_focus {
+                refocus.set(false);
+            }
+        },
+    );
+    let on_state_change = Callback::new(move |next: InteractionState| {
+        interaction.set(next);
+        button_focus.call(next);
+    });
+    let state = create_memo(move || {
+        let interaction = interaction.get();
+        NumberFaceState {
+            hovered: interaction.hovered,
+            active: interaction.pressed,
+            focused: interaction.focused,
+            disabled: off.get(),
         }
-    };
+    });
     let tab_stop = off.into_prop().map(|off: bool| !off);
 
     let face = face.call(NumberFaceHandle {
         text: text.read_only(),
-        hovered: hovered.read_only(),
-        active: active.read_only(),
-        focused: focused.read_only(),
-        disabled: off,
+        state,
     });
     let field = field.call(NumberFieldHandle {
         text: Binding::new(text, edited),
@@ -222,15 +237,13 @@ pub fn NumberInput(
                     focusable=true
                     tab_stop
                     focused={refocus}
-                    on_focus_change={button_focus}
                     on_activate={open}
                     cursor={cursor}
                     capture_presses=true
                     on_press={pressed}
                     on_drag={dragged}
                     on_click={clicked}
-                    on_hover_change={hovered}
-                    on_active_change={active}
+                    on_state_change
                     children={Some(face)}
                 />
             </ShowKeepAlive>

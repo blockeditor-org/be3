@@ -13,12 +13,17 @@ use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DateTimeBoxState {
+    pub focused: bool,
+    pub hovered: bool,
+    pub disabled: bool,
+}
+
 pub struct DateTimeBoxHandle {
     pub field: Child,
     pub trigger: Option<Child>,
-    pub focused: ReadSignal<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub disabled: Memo<bool>,
+    pub state: Memo<DateTimeBoxState>,
 }
 
 pub struct DateTimeTriggerHandle {
@@ -243,9 +248,14 @@ fn FieldBox(
         frame,
     } = field;
     let within = create_signal(false);
-    let hovered = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
+    let state = create_memo(move || DateTimeBoxState {
+        focused: within.get(),
+        hovered: interaction.with(|interaction| interaction.hovered),
+        disabled: disabled.get(),
+    });
     view! {
-        <Interactive on_hover_change={hovered}>
+        <Interactive on_state_change={interaction}>
             {frame.call(DateTimeBoxHandle {
                 field: view! {
                     <Interactive
@@ -271,9 +281,7 @@ fn FieldBox(
                     </Interactive>
                 },
                 trigger,
-                focused: within.read_only(),
-                hovered: hovered.read_only(),
-                disabled,
+                state,
             })}
         </Interactive>
     }

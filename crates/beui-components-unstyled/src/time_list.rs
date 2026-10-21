@@ -17,13 +17,18 @@ const MORNING: u32 = 9 * 60;
 const LEAD_ROWS: usize = 2;
 const PAGE_ROWS: usize = 4;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TimeOptionState {
+    pub selected: bool,
+    pub hovered: bool,
+    pub active: bool,
+    pub focused: bool,
+}
+
 pub struct TimeOptionHandle {
     pub time: Time,
     pub label: String,
-    pub selected: Memo<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
+    pub state: Memo<TimeOptionState>,
 }
 
 #[derive(Clone, Copy)]
@@ -201,10 +206,15 @@ fn TimeOption(
             face.call(TimeOptionHandle {
                 time,
                 label,
-                selected,
-                hovered: button.hovered,
-                active: button.active,
-                focused: button.focused,
+                state: create_memo(move || {
+                    let button = button.state.get();
+                    TimeOptionState {
+                        selected: selected.get(),
+                        hovered: button.hovered,
+                        active: button.active,
+                        focused: button.focused,
+                    }
+                }),
             })
         }</unstyled::Button>
     }

@@ -14,6 +14,7 @@ use crate::theme::use_theme;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     DockAwayHandle, DockBarHandle, DockChromeHandle, DockDialogHandle, DockDialogPresentation,
+    DockDialogState, DockTabState,
     DockDragged, DockGripHandle, DockKey, DockMode, DockNode, DockPreviewHandle, DockSheetHandle,
     DockSplitterHandle, DockStackHandle, DockSwitchHandle, DockSwitcherHandle, DockTabHandle,
     DockingLayout, Entry, MenuItem, Picture,
@@ -184,13 +185,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
         title,
         icon,
         picture,
-        selected,
-        hovered,
-        active,
-        focused,
-        dragged,
-        closable,
-        waiting,
+        state,
         close,
         vertical,
         ..
@@ -202,13 +197,7 @@ fn DockTabFace(handle: DockTabHandle) -> NodeId {
             picture
             grouped={matches!(entry, Entry::Group(_))}
             vertical
-            selected
-            hovered
-            active
-            focused
-            dragged
-            closable
-            waiting
+            state
             waiting_test_id={waiting_test_id(entry)}
             close_test_id={close_test_id(entry)}
             close={close}
@@ -223,33 +212,29 @@ fn DockTabChrome(
     picture: Memo<Option<Image>>,
     grouped: bool,
     vertical: bool,
-    selected: Memo<bool>,
-    hovered: ReadSignal<bool>,
-    active: ReadSignal<bool>,
-    focused: ReadSignal<bool>,
-    dragged: Memo<bool>,
-    closable: Memo<bool>,
-    waiting: Memo<bool>,
+    state: Memo<DockTabState>,
     waiting_test_id: String,
     close_test_id: String,
     close: ClickCallback,
 ) -> NodeId {
     let theme = use_theme();
-    let fill =
-        create_memo(
-            move || match (selected.get(), hovered.get() || active.get(), dragged.get()) {
-                (_, _, true) => theme.accent_soft.get(),
-                (true, _, false) => theme.background.get(),
-                (false, true, false) => theme.hover.get(),
-                (false, false, false) => theme.surface.get(),
-            },
-        );
-    let label = create_memo(move || match selected.get() {
+    let fill = create_memo(move || {
+        let state = state.get();
+        match (state.selected, state.hovered || state.active, state.dragged) {
+            (_, _, true) => theme.accent_soft.get(),
+            (true, _, false) => theme.background.get(),
+            (false, true, false) => theme.hover.get(),
+            (false, false, false) => theme.surface.get(),
+        }
+    });
+    let label = create_memo(move || match state.get().selected {
         true => TextColor::Default,
         false => TextColor::Muted,
     });
     let shows_picture = create_memo(move || !grouped && picture.with(Option::is_some));
     let pictured = create_memo(move || !grouped && !shows_picture.get() && !icon.get().is_empty());
+    let waiting = Prop::dynamic(move || state.get().waiting);
+    let closable = Prop::dynamic(move || state.get().closable);
     let title_size = match vertical {
         true => ItemSize::Percent(100.0),
         false => ItemSize::Intrinsic,
@@ -260,7 +245,7 @@ fn DockTabChrome(
             radius=Radius::Md
             height=TAB_HEIGHT
             padding={Sides::horizontal(TAB_PADDING_HORIZONTAL)}
-            border={focus_border(focused, Border::FOCUS)}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS)}
         >
             <List direction=Direction::Horizontal align=Align::Center spacing=TAB_SPACING>
                 <Show condition={grouped}>
@@ -366,17 +351,17 @@ fn DockDialogSheet(handle: DockSheetHandle) -> NodeId {
     }
 }
 
-fn dialog_outline_color(focused: Memo<bool>, attention: ReadSignal<bool>) -> Memo<Color32> {
+fn dialog_outline_color(state: Memo<DockDialogState>) -> Memo<Color32> {
     let theme = use_theme();
-    create_memo(move || match (attention.get(), focused.get()) {
+    create_memo(move || match state.with(|state| (state.attention, state.focused)) {
         (true, _) => theme.danger.get(),
         (false, true) => theme.accent.get(),
         (false, false) => theme.border.get(),
     })
 }
 
-fn dialog_outline(focused: Memo<bool>, attention: ReadSignal<bool>) -> Memo<Option<Border>> {
-    let color = dialog_outline_color(focused, attention);
+fn dialog_outline(state: Memo<DockDialogState>) -> Memo<Option<Border>> {
+    let color = dialog_outline_color(state);
     create_memo(move || Some(Border::new(ColorRole::Custom(color.get())).width(CHROME_BORDER)))
 }
 
@@ -392,12 +377,7 @@ fn sheet_radius(outset: f32) -> Radius {
 
 #[component]
 fn DockSheetFace(handle: DockDialogHandle) -> NodeId {
-    let DockDialogHandle {
-        focused,
-        attention,
-        body,
-        ..
-    } = handle;
+    let DockDialogHandle { state, body, .. } = handle;
     let ring = Sides::new(
         SHEET_SHADOW_WIDTH,
         0.0,
@@ -405,7 +385,7 @@ fn DockSheetFace(handle: DockDialogHandle) -> NodeId {
         SHEET_SHADOW_WIDTH,
     );
     let edge = Sides::new(CHROME_BORDER, 0.0, CHROME_BORDER, CHROME_BORDER);
-    let outline = dialog_outline_color(focused, attention);
+    let outline = dialog_outline_color(state);
     view! {
         <Frame
             fill={ColorRole::Custom(SHEET_SHADOW[0])}
@@ -442,8 +422,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
         title,
         icon,
         size,
-        focused,
-        attention,
+        state,
         closable,
         close,
         body,
@@ -455,7 +434,7 @@ fn DockWindowFace(handle: DockDialogHandle) -> NodeId {
         <Frame
             width=width
             fill=ColorRole::Background
-            border={dialog_outline(focused, attention)}
+            border={dialog_outline(state)}
             radius=Radius::Lg
             padding=CHROME_BORDER
         >
@@ -498,12 +477,13 @@ fn DockBarFace(handle: DockBarHandle) -> NodeId {
         grip,
         tabs,
         title,
-        vacant,
-        closable,
+        state,
         menu,
         close,
         ..
     } = handle;
+    let vacant = create_memo(move || state.get().vacant);
+    let closable = create_memo(move || state.get().closable);
     let close = move || close.call();
     match vertical {
         true => view! {
@@ -665,20 +645,18 @@ fn DockGrip(handle: DockGripHandle) -> NodeId {
 
 #[component]
 fn DockSplitterFace(handle: DockSplitterHandle) -> NodeId {
-    let DockSplitterHandle {
-        hovered,
-        active,
-        focused,
-        ..
-    } = handle;
+    let DockSplitterHandle { state, .. } = handle;
     let theme = use_theme();
-    let fill = create_memo(move || match (active.get(), hovered.get()) {
+    let fill = create_memo(move || match state.with(|state| (state.active, state.hovered)) {
         (true, _) => theme.accent.get(),
         (false, true) => theme.border.get(),
         (false, false) => theme.background.get(),
     });
     view! {
-        <Frame fill={ColorRole::custom(fill)} border={focus_border(focused, Border::FOCUS)} />
+        <Frame
+            fill={ColorRole::custom(fill)}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS)}
+        />
     }
 }
 

@@ -45,10 +45,7 @@ pub fn ToggleButton(
 #[component]
 fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
     let ToggleHandle {
-        checked,
-        hovered,
-        focused,
-        disabled,
+        state,
         label,
         glyph,
         ..
@@ -60,14 +57,17 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
         true => Sides::symmetric(8.0, 8.0),
         false => Sides::symmetric(14.0, 8.0),
     });
-    let text_color = create_memo(move || match disabled.get() {
+    let text_color = create_memo(move || match state.get().disabled {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
-    let fill_color = create_memo(move || fill_for(&theme, checked.get(), hovered.get()));
+    let fill_color = create_memo(move || {
+        let state = state.get();
+        fill_for(&theme, state.checked, state.hovered)
+    });
     let border_color = create_memo(move || {
         let theme = theme.get();
-        if checked.get() {
+        if state.get().checked {
             theme.accent
         } else {
             theme.border
@@ -75,7 +75,7 @@ fn ToggleButtonFace(handle: ToggleHandle, icon_only: Memo<bool>) -> NodeId {
     });
 
     view! {
-        <FocusRing focused offset=3.0>
+        <FocusRing focused={Prop::dynamic(move || state.get().focused)} offset=3.0>
             <Frame
                 fill={ColorRole::custom(fill_color)}
                 border={create_memo(move || Some(Border::new(ColorRole::Custom(border_color.get())).width(1.0)))}

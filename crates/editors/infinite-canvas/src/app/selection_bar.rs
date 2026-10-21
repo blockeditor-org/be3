@@ -100,7 +100,7 @@ pub(crate) fn Swatch(
             on_click={move || on_pick.call(color)}
         >|handle: ButtonHandle| {
             let ringed = create_memo(move || {
-                chosen.get() || handle.focused.get() || handle.hovered.get()
+                chosen.get() || handle.state.get().focused || handle.state.get().hovered
             });
             let ring = create_memo(move || match chosen.get() {
                 true => theme.accent.get(),

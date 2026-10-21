@@ -1,5 +1,4 @@
 use std::cell::Cell;
-use std::rc::Rc;
 
 use crate::reactive::{
     Callback, Child, ClickCallback, Get, Prop, create_binding, create_effect, on_cleanup,
@@ -15,7 +14,7 @@ use beui_core::input::{
 use beui_core::node::NodeId;
 
 use beui_core::base::focus::ImeCursor;
-use beui_core::base::interactive::InteractiveNode;
+use beui_core::base::interactive::{InteractionState, InteractiveNode};
 use beui_core::interact::forward::ForwardedInput;
 use beui_macros::component;
 
@@ -31,8 +30,6 @@ pub fn Interactive(
     #[prop(default = true)] ime_keyboard: Prop<bool>,
     #[prop(default = None)] ime_cursor: Prop<Option<ImeCursor>>,
     #[prop(default = None)] ime_text: Prop<Option<ImeText>>,
-    on_focus_change: Callback<bool>,
-    on_activate_change: Callback<bool>,
     on_activate: ClickCallback,
     on_step: Callback<f32>,
     on_text: Callback<String>,
@@ -43,7 +40,6 @@ pub fn Interactive(
     on_key: Callback<KeyPress, bool>,
     on_motion: Callback<Vec2>,
     cursor: Option<Prop<CursorIcon>>,
-    #[prop(default = false)] key_active: Prop<bool>,
     #[prop(default = false)] capture_presses: Prop<bool>,
     #[prop(default = false)] repeat_drag: Prop<bool>,
     #[prop(default = false)] touch_drags: Prop<bool>,
@@ -52,9 +48,8 @@ pub fn Interactive(
     #[prop(default = None)] scroll_axis: Prop<Option<Direction>>,
     on_click: ClickCallback,
     on_click_at: Callback<PointerPress>,
-    on_hover_change: Callback<bool>,
+    on_state_change: Callback<InteractionState>,
     on_hover_move: Callback<PointerPress>,
-    on_active_change: Callback<bool>,
     on_cancel: ClickCallback,
     on_middle_click: ClickCallback,
     on_press: Callback<PointerPress>,
@@ -62,7 +57,6 @@ pub fn Interactive(
     on_secondary_drag: Callback<SecondaryDrag>,
     on_drag: Callback<PointerPress>,
     on_pan_drag: Callback<Vec2>,
-    on_pan_active_change: Callback<bool>,
     on_scroll: Callback<ScrollGesture>,
     on_scroll_drag: Callback<DragGesture>,
     on_autoscroll: Callback<AutoscrollGesture>,
@@ -79,9 +73,7 @@ pub fn Interactive(
 ) -> NodeId {
     assert!(
         focusable
-            || (on_focus_change.is_empty()
-                && on_activate_change.is_empty()
-                && on_activate.is_empty()
+            || (on_activate.is_empty()
                 && on_step.is_empty()
                 && on_text.is_empty()
                 && on_paste.is_empty()
@@ -90,30 +82,11 @@ pub fn Interactive(
                 && on_motion.is_empty()),
         "an Interactive handed focus callbacks has to be focusable"
     );
-    let on_focus_change = match on_focus_change.is_empty() {
-        true => on_focus_change,
-        false => {
-            let held = Rc::new(Cell::new(false));
-            let holding = Rc::clone(&held);
-            on_cleanup(move || {
-                let live = beui_core::current::try_with_document(|_| ()).is_some();
-                if held.get() && live {
-                    on_focus_change.call(false);
-                }
-            });
-            Callback::new(move |focused: bool| {
-                holding.set(focused);
-                on_focus_change.call(focused);
-            })
-        }
-    };
     let interactive = with_document(|document| {
         let interactive = document.create_interactive(focusable);
         let node = document.arena.touch_mut_as::<InteractiveNode>(interactive);
         if let Some(focus) = node.focus.as_mut() {
             focus.keyboard_on_focus = keyboard_on_focus;
-            focus.on_focus_change = on_focus_change;
-            focus.on_activate_change = on_activate_change;
             focus.on_activate = on_activate;
             focus.on_step = on_step;
             if takes_text {
@@ -126,9 +99,8 @@ pub fn Interactive(
         }
         node.on_click = on_click;
         node.on_click_at = on_click_at;
-        node.on_hover_change = on_hover_change;
+        node.on_state_change = on_state_change;
         node.on_hover_move = on_hover_move;
-        node.on_active_change = on_active_change;
         node.on_cancel = on_cancel;
         node.on_middle_click = on_middle_click;
         node.on_press = on_press;
@@ -136,7 +108,6 @@ pub fn Interactive(
         node.on_secondary_drag = on_secondary_drag;
         node.on_drag = on_drag;
         node.on_pan_drag = on_pan_drag;
-        node.on_pan_active_change = on_pan_active_change;
         node.on_scroll = on_scroll;
         node.on_scroll_drag = on_scroll_drag;
         node.on_autoscroll = on_autoscroll;
@@ -152,6 +123,22 @@ pub fn Interactive(
         }
         interactive
     });
+    if focusable && !on_state_change.is_empty() {
+        on_cleanup(move || {
+            let held = beui_core::current::try_with_document(|document| {
+                document
+                    .contains(interactive)
+                    .then(|| document.arena.get_as::<InteractiveNode>(interactive).state)
+            })
+            .flatten();
+            if let Some(state) = held.filter(|state| state.focused) {
+                on_state_change.call(InteractionState {
+                    focused: false,
+                    ..state
+                });
+            }
+        });
+    }
     if focusable {
         create_binding(move || {
             let (tab_stop, ime) = (tab_stop.get(), ime.get());
@@ -199,11 +186,7 @@ pub fn Interactive(
             (capture_presses.get(), repeat_drag.get(), touch_drags.get());
         let pressing = press_focus.get();
         let (axis, claims, scroll) = (touch_drag_axis.get(), claims_touch.get(), scroll_axis.get());
-        let (active, inhibits, claimed) = (
-            key_active.get(),
-            inhibits_shortcuts.get(),
-            claim_modifiers.get(),
-        );
+        let (inhibits, claimed) = (inhibits_shortcuts.get(), claim_modifiers.get());
         with_document(|document| {
             document.set_interactive_capture_presses(interactive, capture);
             document.set_interactive_press_focus(interactive, pressing);
@@ -212,7 +195,6 @@ pub fn Interactive(
             document.set_interactive_touch_drag_axis(interactive, axis);
             document.set_interactive_claims_touch(interactive, claims);
             document.set_interactive_scroll_axis(interactive, scroll);
-            document.set_interactive_key_active(interactive, active);
             document.set_interactive_inhibits_shortcuts(interactive, inhibits);
             document.set_interactive_claim_modifiers(interactive, claimed);
         })

@@ -35,7 +35,7 @@ fn moving_off_a_context_menu_item_clears_its_highlight() {
     let copy = unstyled::menu_list_row_button(harness.document(), content, 0);
     let copy_pos = harness.center(copy);
     harness.frame(vec![Event::PointerMoved(copy_pos)]);
-    assert!(unstyled::button_focused(harness.document(), copy).get());
+    assert!(unstyled::button_state(harness.document(), copy).get().focused);
 
     let rect = harness
         .document()
@@ -48,7 +48,7 @@ fn moving_off_a_context_menu_item_clears_its_highlight() {
     harness.frame(Vec::new());
 
     assert!(
-        !unstyled::button_focused(harness.document(), copy).get(),
+        !unstyled::button_state(harness.document(), copy).get().focused,
         "the row the pointer left is no longer highlighted"
     );
 
@@ -56,7 +56,7 @@ fn moving_off_a_context_menu_item_clears_its_highlight() {
     harness.frame(Vec::new());
 
     assert!(
-        unstyled::button_focused(harness.document(), copy).get(),
+        unstyled::button_state(harness.document(), copy).get().focused,
         "the keyboard still walks the menu from its top"
     );
 }

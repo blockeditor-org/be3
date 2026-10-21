@@ -8,20 +8,20 @@ use beui_core::node::NodeId;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ButtonState {
+    pub hovered: bool,
+    pub active: bool,
+    pub focused: bool,
+    pub disabled: bool,
+}
+
 #[derive(Clone, Copy)]
 pub struct ButtonHandle {
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
-    pub disabled: Memo<bool>,
+    pub state: Memo<ButtonState>,
     pub label: Memo<String>,
     pub glyph: Memo<String>,
     pub tooltip: Memo<String>,
-}
-
-struct State {
-    active: ReadSignal<bool>,
-    focused: ReadSignal<bool>,
 }
 
 #[component]
@@ -46,10 +46,7 @@ pub fn Button(
 ) -> NodeId {
     let focus_request = focused;
     let takes_text = !on_text.is_empty();
-    let hovered = create_signal(false);
-    let active = create_signal(false);
-    let focused = create_signal(false);
-    let key_active = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let label = action_label(action.as_ref(), label);
     let glyph = action_glyph(action.as_ref(), glyph);
     let tooltip = action_tooltip(action.as_ref(), label.clone());
@@ -58,6 +55,15 @@ pub fn Button(
     let label = create_memo(move || label.get());
     let glyph = create_memo(move || glyph.get());
     let tooltip = create_memo(move || tooltip.get());
+    let state = create_memo(move || {
+        let interaction = interaction.get();
+        ButtonState {
+            hovered: interaction.hovered,
+            active: interaction.active,
+            focused: interaction.focused,
+            disabled: disabled.get(),
+        }
+    });
     let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(role)));
     component_accessibility(create_memo(move || {
         let mut node = accessibility.get();
@@ -74,10 +80,7 @@ pub fn Button(
 
     let content_node = content.map(|build| {
         build.call(ButtonHandle {
-            hovered: hovered.read_only(),
-            active: active.read_only(),
-            focused: focused.read_only(),
-            disabled,
+            state,
             label,
             glyph,
             tooltip,
@@ -102,10 +105,17 @@ pub fn Button(
     };
     let tab_stop = Prop::dynamic(move || tab_stop.get() && !disabled.get());
 
-    set_component_state(State {
-        active: active.read_only(),
-        focused: focused.read_only(),
-    });
+    set_component_state(state);
+    let on_state_change = match on_focus_change.is_empty() {
+        true => Callback::from(interaction),
+        false => {
+            let focus = InteractionState::watch(|state| state.focused, on_focus_change);
+            Callback::new(move |next: InteractionState| {
+                interaction.set(next);
+                focus.call(next);
+            })
+        }
+    };
 
     view! {
         <Interactive
@@ -116,29 +126,18 @@ pub fn Button(
             on_key={on_key}
             on_text={on_text}
             takes_text
-            on_focus_change={move |has_focus: bool| {
-                focused.set(has_focus);
-                on_focus_change.call(has_focus);
-            }}
-            on_activate_change={key_active}
             on_activate={key_click}
             cursor=CursorIcon::PointingHand
             capture_presses
-            key_active
             on_click={click}
             on_click_at={click_at}
             on_press={on_press}
-            on_hover_change={hovered}
-            on_active_change={active}
+            on_state_change
             children={content_node}
         />
     }
 }
 
-pub fn button_active(document: &Document, button: NodeId) -> ReadSignal<bool> {
-    document.component_state::<State>(button).active
-}
-
-pub fn button_focused(document: &Document, button: NodeId) -> ReadSignal<bool> {
-    document.component_state::<State>(button).focused
+pub fn button_state(document: &Document, button: NodeId) -> Memo<ButtonState> {
+    *document.component_state::<Memo<ButtonState>>(button)
 }

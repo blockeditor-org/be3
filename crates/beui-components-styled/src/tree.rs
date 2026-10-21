@@ -13,7 +13,7 @@ use crate::tooltip::Tooltip;
 use beui_components_unstyled as unstyled;
 use beui_components_unstyled::{
     ButtonHandle, Edge, MenuItem, TextInputHandle, TreeItem, TreeRevealHandle, TreeRowEdit,
-    TreeRowHandle, TreeToggleHandle,
+    TreeRowHandle, TreeRowState, TreeToggleHandle,
 };
 use beui_core::color::Color32;
 use beui_core::document::Document;
@@ -78,9 +78,7 @@ impl ChildValue for TreeMenu {}
 pub struct TreeRowFace<K> {
     pub key: K,
     pub item: Memo<TreeItem>,
-    pub selected: Memo<bool>,
-    pub focused: ReadSignal<bool>,
-    pub hovered: ReadSignal<bool>,
+    pub state: Memo<TreeRowState>,
 }
 
 #[component]
@@ -214,14 +212,9 @@ where
     let TreeRowHandle {
         key,
         item,
-        selected,
-        marked,
-        focused,
-        hovered,
-        active,
+        state,
         toggle,
         target,
-        editing,
         edit,
         ..
     } = handle;
@@ -229,22 +222,17 @@ where
     let density = use_density();
     let sized = create_memo(move || metrics(density.get()));
     let height = create_memo(move || Extent::px(sized.get().row));
-    let fill = create_memo(move || background(&theme, selected.get(), hovered.get(), active.get()));
+    let fill = create_memo(move || background(&theme, state.get()));
     let highlight = create_memo({
         let key = key.clone();
         move || outline.call(key.clone())
     });
     let outline_color = create_memo(move || highlight.get().unwrap_or_else(|| theme.accent.get()));
-    let ring = focus_ring(focused);
+    let ring = focus_ring(Prop::dynamic(move || state.get().focused));
     let outlined = create_memo(move || highlight.get().is_some() || ring.get());
     let menu = menu.call(key.clone());
-    let face = TreeRowFace {
-        key,
-        item,
-        selected,
-        focused,
-        hovered,
-    };
+    let face = TreeRowFace { key, item, state };
+    let editing = create_memo(move || state.get().editing);
     let shown = create_memo(move || !editing.get());
     let renaming = edit_id(&named);
     let body = match menu {
@@ -305,7 +293,7 @@ where
             <List direction=Direction::Horizontal align=Align::Center spacing=0.0>
                 <Chevron
                     item={item}
-                    marked={marked}
+                    row={state}
                     toggle={toggle}
                     sized={sized}
                     named={chevron_id(&named)}
@@ -380,20 +368,15 @@ fn RowMenuButton(named: String, sized: Memo<Metrics>, on_open: Callback<Pos2>) -
 
 #[component]
 fn RowMenuFace(handle: ButtonHandle, sized: Memo<Metrics>) -> NodeId {
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
-        label,
-        ..
-    } = handle;
+    let ButtonHandle { state, label, .. } = handle;
+    let focused = Prop::dynamic(move || state.get().focused);
     let theme = use_theme();
-    let fill = create_memo(move || match (active.get(), hovered.get()) {
+    let fill = create_memo(move || match (state.get().active, state.get().hovered) {
         (true, _) => theme.pressed.get(),
         (false, true) => theme.hover.get(),
         (false, false) => Color32::TRANSPARENT,
     });
-    let color = create_memo(move || match hovered.get() || active.get() {
+    let color = create_memo(move || match state.get().hovered || state.get().active {
         true => TextColor::Default,
         false => TextColor::Muted,
     });
@@ -419,7 +402,7 @@ fn RowMenuFace(handle: ButtonHandle, sized: Memo<Metrics>) -> NodeId {
 #[component]
 fn Chevron(
     item: Memo<TreeItem>,
-    marked: Memo<bool>,
+    row: Memo<TreeRowState>,
     toggle: ClickCallback,
     sized: Memo<Metrics>,
     named: String,
@@ -436,7 +419,7 @@ fn Chevron(
                     toggle={toggle}
                     button_test_id=named
                 >|handle: TreeToggleHandle|
-                    <ChevronFace handle item marked={marked} sized={sized} />
+                    <ChevronFace handle item row={row} sized={sized} />
                 </unstyled::TreeToggle>
             </List>
         </Frame>
@@ -447,30 +430,25 @@ fn Chevron(
 fn ChevronFace(
     handle: TreeToggleHandle,
     item: Memo<TreeItem>,
-    marked: Memo<bool>,
+    row: Memo<TreeRowState>,
     sized: Memo<Metrics>,
 ) -> NodeId {
     let TreeToggleHandle {
         button:
-            ButtonHandle {
-                hovered,
-                active,
-                focused,
-                label,
-                ..
-            },
+            ButtonHandle { state, label, .. },
         expanded,
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(move || match (active.get(), marked.get(), hovered.get()) {
+    let marked = create_memo(move || row.get().marked);
+    let fill = create_memo(move || match (state.get().active, marked.get(), state.get().hovered) {
         (true, _, _) => theme.pressed.get(),
         (false, true, _) => theme.accent_soft.get(),
         (false, false, true) => theme.hover.get(),
         (false, false, false) => Color32::TRANSPARENT,
     });
-    let ring = focus_ring(focused);
+    let ring = focus_ring(Prop::dynamic(move || state.get().focused));
     let outlined = create_memo(move || marked.get() || ring.get());
-    let color = create_memo(move || match marked.get() || hovered.get() {
+    let color = create_memo(move || match marked.get() || state.get().hovered {
         true => TextColor::Default,
         false => TextColor::Muted,
     });
@@ -531,8 +509,8 @@ fn chevron_id(named: &str) -> String {
     }
 }
 
-fn background(theme: &ThemeStore, selected: bool, hovered: bool, active: bool) -> Color32 {
-    match (selected, hovered, active) {
+fn background(theme: &ThemeStore, state: TreeRowState) -> Color32 {
+    match (state.selected, state.hovered, state.active) {
         (_, _, true) => theme.pressed.get(),
         (true, _, _) => theme.accent_soft.get(),
         (false, true, _) => theme.hover.get(),

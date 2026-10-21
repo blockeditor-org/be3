@@ -40,11 +40,16 @@ impl Completer {
     }
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CompletionRowState {
+    pub highlighted: bool,
+    pub hovered: bool,
+}
+
 pub struct CompletionRowHandle {
     pub index: usize,
     pub completion: Memo<Option<Completion>>,
-    pub highlighted: Memo<bool>,
-    pub hovered: ReadSignal<bool>,
+    pub state: Memo<CompletionRowState>,
 }
 
 #[derive(Clone, Copy)]
@@ -107,24 +112,32 @@ fn CompletionRow(cx: Context, index: usize, row: RenderFn<CompletionRowHandle>) 
     let items = cx.completions;
     let completion = create_memo(move || items.get().get(index).cloned());
     let highlighted = cx.highlighted;
-    let highlighted = create_memo(move || highlighted.get() == index);
-    let hovered = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
+    let state = create_memo(move || CompletionRowState {
+        highlighted: highlighted.get() == index,
+        hovered: interaction.get().hovered,
+    });
     let content = row.call(CompletionRowHandle {
         index,
         completion,
-        highlighted,
-        hovered: hovered.read_only(),
+        state,
     });
+    let hover = InteractionState::watch(
+        |state| state.hovered,
+        move |inside: bool| {
+            if inside {
+                cx.highlighted.set(index);
+            }
+        },
+    );
     view! {
         <Interactive
             @test_id={format!("text.completion.{index}")}
             cursor=CursorIcon::PointingHand
             on_click={move || cx.complete(index)}
-            on_hover_change={move |inside: bool| {
-                hovered.set(inside);
-                if inside {
-                    cx.highlighted.set(index);
-                }
+            on_state_change={move |next: InteractionState| {
+                interaction.set(next);
+                hover.call(next);
             }}
             children={Some(content)}
         />

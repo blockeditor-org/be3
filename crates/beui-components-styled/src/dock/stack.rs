@@ -42,12 +42,11 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
     let DockStackHandle {
         title,
         icon,
-        backward,
+        state,
         actions,
         menu,
         back,
         others,
-        switchable,
         switch_label,
         open_switcher,
     } = handle;
@@ -56,7 +55,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
         <List spacing=0.0>
             <Frame fill=ColorRole::Surface padding=BAR_PADDING>
                 <List direction=Direction::Horizontal align=Align::Center spacing=BAR_SPACING>
-                    <Show condition={backward}>
+                    <Show condition={Prop::dynamic(move || state.get().backward)}>
                         <IconButton
                             @test_id={"dock.back"}
                             glyph=ICON_ARROW_BACK
@@ -89,7 +88,7 @@ pub(crate) fn DockStackBar(handle: DockStackHandle) -> NodeId {
                     </Frame>
                     <Portal node={actions} />
                     <DockMenu menu size=IconButtonSize::Regular />
-                    <Show condition={switchable}>
+                    <Show condition={Prop::dynamic(move || state.get().switchable)}>
                         <DockTabCount
                             count={others}
                             label={switch_label}
@@ -113,8 +112,8 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
             label
             on_click={on_click}
         >|handle: unstyled::ButtonHandle| {
-            let unstyled::ButtonHandle { hovered, focused, .. } = handle;
-            let fill = create_memo(move || match hovered.get() {
+            let unstyled::ButtonHandle { state, .. } = handle;
+            let fill = create_memo(move || match state.get().hovered {
                 true => theme.hover.get(),
                 false => Color32::TRANSPARENT,
             });
@@ -124,7 +123,7 @@ fn DockTabCount(count: Memo<usize>, label: Memo<String>, on_click: ClickCallback
                     height=COUNT_TARGET
                     fill={ColorRole::custom(fill)}
                     radius={Radius::custom(COUNT_TARGET_RADIUS)}
-                    border={focus_border(focused, Border::FOCUS)}
+                    border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS)}
                     align=Align::Center
                 >
                     <Frame

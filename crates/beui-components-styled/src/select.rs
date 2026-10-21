@@ -68,11 +68,7 @@ fn SelectTrigger(
     width: Prop<Extent>,
 ) -> NodeId {
     let SelectTriggerHandle {
-        label,
-        hovered,
-        focused,
-        disabled,
-        ..
+        label, state, ..
     } = handle;
     let theme = use_theme();
     let empty = create_memo(move || label.with(Option::is_none));
@@ -82,24 +78,26 @@ fn SelectTrigger(
             placeholder => placeholder,
         })
     });
-    let border =
-        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
-    let fill = create_memo(move || match disabled.get() {
+    let border = create_memo(move || {
+        let state = state.get();
+        field_border(&theme, state.disabled, state.focused, state.hovered)
+    });
+    let fill = create_memo(move || match state.get().disabled {
         true => theme.surface.get(),
         false => theme.surface_raised.get(),
     });
-    let text_color = create_memo(move || match disabled.get() || empty.get() {
+    let text_color = create_memo(move || match state.get().disabled || empty.get() {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
-    let arrow_color = create_memo(move || match disabled.get() {
+    let arrow_color = create_memo(move || match state.get().disabled {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
     view! {
         <Frame
             width={width}
-            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS.offset(FOCUS_RING_OFFSET))}
             radius=Radius::Md
         >
             <Frame
@@ -128,14 +126,12 @@ fn SelectTrigger(
 
 #[component]
 fn SearchField(handle: TextInputHandle) -> NodeId {
-    let TextInputHandle {
-        field,
-        hovered,
-        focused,
-        ..
-    } = handle;
+    let TextInputHandle { field, state, .. } = handle;
     let theme = use_theme();
-    let border = create_memo(move || field_border(&theme, false, focused.get(), hovered.get()));
+    let border = create_memo(move || {
+        let state = state.get();
+        field_border(&theme, false, state.focused, state.hovered)
+    });
     view! {
         <Frame
             height=HEIGHT
@@ -151,14 +147,13 @@ fn SearchField(handle: TextInputHandle) -> NodeId {
 #[component]
 fn SelectOption(handle: SelectOptionHandle) -> NodeId {
     let SelectOptionHandle {
-        label,
-        highlighted,
-        hovered,
-        ..
+        label, state, ..
     } = handle;
     let theme = use_theme();
-    let fill_color =
-        create_memo(move || option_background(&theme, highlighted.get(), hovered.get()));
+    let fill_color = create_memo(move || {
+        let state = state.get();
+        option_background(&theme, state.highlighted, state.hovered)
+    });
     view! {
         <Frame
             fill={ColorRole::custom(fill_color)}

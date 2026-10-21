@@ -13,7 +13,7 @@ fn Control(id: u64, heard: Heard) -> NodeId {
         <Interactive
             focusable=true
             @test_id={format!("control.{id}")}
-            on_focus_change={move |focused: bool| heard.borrow_mut().push((id, focused))}
+            on_state_change={InteractionState::watch(|state| state.focused, move |focused: bool| heard.borrow_mut().push((id, focused)))}
         >
             <Frame width=80.0 height=30.0 />
         </Interactive>

@@ -42,28 +42,24 @@ pub fn Switch(
 
 #[component]
 fn SwitchTrack(handle: ToggleHandle) -> NodeId {
-    let ToggleHandle {
-        checked,
-        mixed,
-        hovered,
-        focused,
-        disabled,
-        ..
-    } = handle;
+    let ToggleHandle { state, .. } = handle;
     let theme = use_theme();
-    let knob_align =
-        create_memo(move || Align2::new(knob_align(checked.get(), mixed.get()), Align::Center));
+    let knob_align = create_memo(move || {
+        let state = state.get();
+        Align2::new(knob_align(state.checked, state.mixed), Align::Center)
+    });
     let track_color = create_memo(move || {
+        let state = state.get();
         track_fill(
             &theme,
-            disabled.get(),
-            checked.get() && !mixed.get(),
-            hovered.get(),
+            state.disabled,
+            state.checked && !state.mixed,
+            state.hovered,
         )
     });
 
     view! {
-        <FocusRing focused offset=FOCUS_RING_OFFSET>
+        <FocusRing focused={Prop::dynamic(move || state.get().focused)} offset=FOCUS_RING_OFFSET>
             <Frame
                 width=WIDTH
                 height=HEIGHT

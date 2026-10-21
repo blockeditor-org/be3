@@ -74,13 +74,7 @@ pub fn NumberInput(
 
 #[component]
 fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String>) -> NodeId {
-    let NumberFaceHandle {
-        text,
-        hovered,
-        active,
-        focused,
-        disabled,
-    } = handle;
+    let NumberFaceHandle { text, state } = handle;
     let theme = use_theme();
     let placeholder = create_memo(move || placeholder.get());
     let string = create_memo(move || {
@@ -92,13 +86,14 @@ fn NumberFace(handle: NumberFaceHandle, shown: NodeRef, placeholder: Prop<String
     });
     let color = create_memo(move || match text.get().is_empty() {
         true => TextColor::Muted,
-        false => ButtonVariant::Secondary.label(disabled.get()),
+        false => ButtonVariant::Secondary.label(state.get().disabled),
     });
     let fill = create_memo(move || {
-        ButtonVariant::Secondary.fill(&theme, disabled.get(), hovered.get(), active.get())
+        let state = state.get();
+        ButtonVariant::Secondary.fill(&theme, state.disabled, state.hovered, state.active)
     });
     view! {
-        <FocusRing focused offset=FOCUS_RING_OFFSET>
+        <FocusRing focused={Prop::dynamic(move || state.get().focused)} offset=FOCUS_RING_OFFSET>
             <Frame
                 height=HEIGHT
                 fill={ColorRole::custom(fill)}

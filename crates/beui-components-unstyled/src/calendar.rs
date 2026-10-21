@@ -29,6 +29,14 @@ pub enum CalendarMode {
     Years,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CalendarHeaderState {
+    pub can_previous: bool,
+    pub can_next: bool,
+    pub months_open: bool,
+    pub years_open: bool,
+}
+
 pub struct CalendarHeaderHandle {
     pub month: Memo<Date>,
     pub label: Memo<String>,
@@ -39,26 +47,28 @@ pub struct CalendarHeaderHandle {
     pub next: Callback<()>,
     pub show_months: Callback<()>,
     pub show_years: Callback<()>,
-    pub can_previous: Memo<bool>,
-    pub can_next: Memo<bool>,
+    pub state: Memo<CalendarHeaderState>,
     pub previous_label: Memo<String>,
     pub next_label: Memo<String>,
-    pub months_open: Memo<bool>,
-    pub years_open: Memo<bool>,
     pub month_toggle: Memo<Node>,
     pub year_toggle: Memo<Node>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct CalendarCellState {
+    pub selected: bool,
+    pub marked: bool,
+    pub outside: bool,
+    pub disabled: bool,
+    pub hovered: bool,
+    pub active: bool,
+    pub focused: bool,
 }
 
 pub struct CalendarCellHandle {
     pub kind: CalendarMode,
     pub label: Memo<String>,
-    pub selected: Memo<bool>,
-    pub marked: Memo<bool>,
-    pub outside: Memo<bool>,
-    pub disabled: Memo<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
+    pub state: Memo<CalendarCellState>,
 }
 
 #[derive(Clone, Copy)]
@@ -146,22 +156,22 @@ pub fn Calendar(
         CalendarMode::Years => years_label(first_year.get()),
         CalendarMode::Days | CalendarMode::Months => shown_month.get().year.to_string(),
     });
-    let can_previous = create_memo(move || {
+    let can_previous = move || {
         let edge = match state.mode.get() {
             CalendarMode::Days => shown_month.get().add_days(-1),
             CalendarMode::Months => Date::new(shown_month.get().year - 1, 12, 31),
             CalendarMode::Years => Date::new(first_year.get() - 1, 12, 31),
         };
         edge.year >= Date::MIN_YEAR && state.min.get().is_none_or(|min| edge >= min)
-    });
-    let can_next = create_memo(move || {
+    };
+    let can_next = move || {
         let edge = match state.mode.get() {
             CalendarMode::Days => shown_month.get().last_of_month().add_days(1),
             CalendarMode::Months => Date::new(shown_month.get().year + 1, 1, 1),
             CalendarMode::Years => Date::new(first_year.get() + YEARS_PER_PAGE, 1, 1),
         };
         edge.year <= Date::MAX_YEAR && state.max.get().is_none_or(|max| edge <= max)
-    });
+    };
     let unit = create_memo(move || match mode.get() {
         CalendarMode::Days => "month",
         CalendarMode::Months => "year",
@@ -169,10 +179,16 @@ pub fn Calendar(
     });
     let previous_label = create_memo(move || format!("Previous {}", unit.get()));
     let next_label = create_memo(move || format!("Next {}", unit.get()));
-    let months_open = create_memo(move || mode.get() == CalendarMode::Months);
-    let years_open = create_memo(move || mode.get() == CalendarMode::Years);
-    let month_toggle = toggle_accessibility(month_label, "choose a month", months_open);
-    let year_toggle = toggle_accessibility(year_label, "choose a year", years_open);
+    let header_state = create_memo(move || CalendarHeaderState {
+        can_previous: can_previous(),
+        can_next: can_next(),
+        months_open: mode.get() == CalendarMode::Months,
+        years_open: mode.get() == CalendarMode::Years,
+    });
+    let month_toggle =
+        toggle_accessibility(month_label, "choose a month", header_state, |s| s.months_open);
+    let year_toggle =
+        toggle_accessibility(year_label, "choose a year", header_state, |s| s.years_open);
     let header_node = header.call(CalendarHeaderHandle {
         month: shown_month,
         label,
@@ -183,12 +199,9 @@ pub fn Calendar(
         next: Callback::new(move |()| page(state, 1)),
         show_months: Callback::new(move |()| show_mode(state, CalendarMode::Months)),
         show_years: Callback::new(move |()| show_mode(state, CalendarMode::Years)),
-        can_previous,
-        can_next,
+        state: header_state,
         previous_label,
         next_label,
-        months_open,
-        years_open,
         month_toggle,
         year_toggle,
     });
@@ -324,13 +337,7 @@ fn CalendarYear(
             face.call(CalendarCellHandle {
                 kind: CalendarMode::Years,
                 label: create_memo(move || year.get().to_string()),
-                selected,
-                marked: current,
-                outside: create_memo(|| false),
-                disabled,
-                hovered: button.hovered,
-                active: button.active,
-                focused: button.focused,
+                state: cell_state(button, selected, current, None),
             })
         }</unstyled::Button>
     }
@@ -436,13 +443,7 @@ fn CalendarDay(
             face.call(CalendarCellHandle {
                 kind: CalendarMode::Days,
                 label: create_memo(move || date.get().day.to_string()),
-                selected,
-                marked: today,
-                outside,
-                disabled,
-                hovered: button.hovered,
-                active: button.active,
-                focused: button.focused,
+                state: cell_state(button, selected, today, Some(outside)),
             })
         }</unstyled::Button>
     }
@@ -520,27 +521,47 @@ fn CalendarMonth(state: State, number: u8, face: RenderFn<CalendarCellHandle>) -
             face.call(CalendarCellHandle {
                 kind: CalendarMode::Months,
                 label: create_memo(move || month.get().month_name()[..3].to_owned()),
-                selected,
-                marked: current,
-                outside: create_memo(|| false),
-                disabled,
-                hovered: button.hovered,
-                active: button.active,
-                focused: button.focused,
+                state: cell_state(button, selected, current, None),
             })
         }</unstyled::Button>
     }
 }
 
-fn toggle_accessibility(label: Memo<String>, choose: &'static str, open: Memo<bool>) -> Memo<Node> {
+fn toggle_accessibility(
+    label: Memo<String>,
+    choose: &'static str,
+    state: Memo<CalendarHeaderState>,
+    pick: fn(&CalendarHeaderState) -> bool,
+) -> Memo<Node> {
     create_memo(move || {
+        let open = state.with(pick);
         let mut node = Node::new(Role::Button);
-        node.set_label(match open.get() {
+        node.set_label(match open {
             true => format!("{}, back to the days", label.get()),
             false => format!("{}, {choose}", label.get()),
         });
-        node.set_expanded(open.get());
+        node.set_expanded(open);
         node
+    })
+}
+
+fn cell_state(
+    button: ButtonHandle,
+    selected: Memo<bool>,
+    marked: Memo<bool>,
+    outside: Option<Memo<bool>>,
+) -> Memo<CalendarCellState> {
+    create_memo(move || {
+        let button = button.state.get();
+        CalendarCellState {
+            selected: selected.get(),
+            marked: marked.get(),
+            outside: outside.is_some_and(|outside| outside.get()),
+            disabled: button.disabled,
+            hovered: button.hovered,
+            active: button.active,
+            focused: button.focused,
+        }
     })
 }
 

@@ -96,26 +96,28 @@ fn TextInputFrame(
 ) -> NodeId {
     let TextInputHandle {
         field,
-        hovered,
-        focused,
-        disabled,
-        empty,
+        state,
         clear,
     } = handle;
-    let clearable = create_memo(move || clearable.get() && !empty.get());
+    let clearable = create_memo(move || clearable.get() && !state.get().empty);
     let theme = use_theme();
     let marked = create_memo(move || !glyph.get().is_empty());
-    let raised = create_memo(move || !plain.get() || focused.get() || hovered.get());
-    let border =
-        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
-    let fill = create_memo(move || match (raised.get(), disabled.get()) {
+    let raised = create_memo(move || {
+        let state = state.get();
+        !plain.get() || state.focused || state.hovered
+    });
+    let border = create_memo(move || {
+        let state = state.get();
+        field_border(&theme, state.disabled, state.focused, state.hovered)
+    });
+    let fill = create_memo(move || match (raised.get(), state.get().disabled) {
         (false, _) => Color32::TRANSPARENT,
         (true, true) => theme.surface.get(),
         (true, false) => theme.surface_raised.get(),
     });
     view! {
         <Frame
-            border={create_memo(move || focused.get().then_some(Border::FOCUS.offset(FOCUS_RING_OFFSET)))}
+            border={create_memo(move || state.get().focused.then_some(Border::FOCUS.offset(FOCUS_RING_OFFSET)))}
             radius=Radius::Md
         >
             <Frame

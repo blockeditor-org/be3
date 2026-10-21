@@ -13,14 +13,14 @@ fn enter_activates_the_focused_button() {
             />
         }]
     });
-    let active = unstyled::button_active(&document, button);
+    let active = unstyled::button_state(&document, button);
     let mut harness = Harness::new(document);
 
     harness.key(Key::Tab, Modifiers::NONE);
     harness.frame(vec![key_event(Key::Enter, true, Modifiers::NONE)]);
-    assert!(active.get());
+    assert!(active.get().active);
 
     harness.frame(vec![key_event(Key::Enter, false, Modifiers::NONE)]);
-    assert!(!active.get());
+    assert!(!active.get().active);
     assert_eq!(clicks.get_untracked(), 1);
 }

@@ -416,7 +416,7 @@ fn TreeRow(
     face: TreeRowFace<RowKey>,
 ) -> NodeId {
     let named = format!("{}.add", row_test_id(&face.key));
-    let (hovered, row_focused) = (face.hovered, face.focused);
+    let face_state = face.state;
     let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
     let add_label = create_memo(move || format!("Add to {}", label.get()));
     let glyph = create_memo(move || row.get().map(|row| row.glyph).unwrap_or_default());
@@ -497,8 +497,7 @@ fn TreeRow(
             </Show>
             <Show condition={can_add}>
                 <AddChild
-                    hovered={hovered}
-                    row_focused={row_focused}
+                    row={face_state}
                     label={add_label}
                     named={named.clone()}
                     on_click={add_child}
@@ -516,7 +515,7 @@ fn SectionRow(
     face: TreeRowFace<RowKey>,
 ) -> NodeId {
     let named = format!("{}.add", row_test_id(&face.key));
-    let (hovered, row_focused) = (face.hovered, face.focused);
+    let face_state = face.state;
     let label = create_memo(move || row.get().map(|row| row.label).unwrap_or_default());
     let add_label = create_memo(move || format!("Add to {}", label.get()));
     let glyph = create_memo(move || row.get().map(|row| row.glyph).unwrap_or_default());
@@ -546,8 +545,7 @@ fn SectionRow(
             </List>
             <Show condition={can_add}>
                 <AddChild
-                    hovered={hovered}
-                    row_focused={row_focused}
+                    row={face_state}
                     label={add_label}
                     named={named.clone()}
                     on_click={add_child}
@@ -719,15 +717,14 @@ pub(crate) fn ExportAs(
 
 #[component]
 fn AddChild(
-    hovered: ReadSignal<bool>,
-    row_focused: ReadSignal<bool>,
+    row: Memo<unstyled::TreeRowState>,
     label: Memo<String>,
     named: String,
     on_click: block_editor_beui::beui::reactive::ClickCallback,
 ) -> NodeId {
     let focused = create_signal(false);
-    let reachable = create_memo(move || row_focused.get() || focused.get());
-    let shown = create_memo(move || hovered.get() || reachable.get());
+    let reachable = create_memo(move || row.get().focused || focused.get());
+    let shown = create_memo(move || row.get().hovered || reachable.get());
     let accessibility = create_memo(move || {
         let mut node = AccessNode::new(Role::Button);
         node.set_label(label.get());
@@ -754,19 +751,15 @@ fn AddChild(
 
 #[component]
 fn AddChildFace(handle: ButtonHandle, shown: Memo<bool>, label: Memo<String>) -> NodeId {
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
-        ..
-    } = handle;
+    let ButtonHandle { state, .. } = handle;
+    let focused = Prop::dynamic(move || state.get().focused);
     let theme = use_theme();
-    let color = create_memo(move || match (shown.get(), hovered.get() || active.get()) {
+    let color = create_memo(move || match (shown.get(), state.get().hovered || state.get().active) {
         (false, _) => TextColor::Custom(Color32::TRANSPARENT),
         (true, true) => TextColor::Default,
         (true, false) => TextColor::Muted,
     });
-    let fill = create_memo(move || match active.get() {
+    let fill = create_memo(move || match state.get().active {
         true => theme.pressed.get(),
         false => Color32::TRANSPARENT,
     });

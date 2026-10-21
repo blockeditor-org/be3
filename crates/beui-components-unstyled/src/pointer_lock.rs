@@ -9,8 +9,13 @@ use beui_view::reactive::*;
 
 pub struct PointerLockHandle {
     pub locked: Binding<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
+    pub state: Memo<PointerLockState>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PointerLockState {
+    pub hovered: bool,
+    pub focused: bool,
 }
 
 #[component]
@@ -23,8 +28,14 @@ pub fn PointerLock(
     #[prop(children)] content: Option<Render<PointerLockHandle>>,
 ) -> NodeId {
     let current = locked;
-    let hovered = create_signal(false);
-    let focused = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
+    let state = create_memo(move || {
+        let interaction = interaction.get();
+        PointerLockState {
+            hovered: interaction.hovered,
+            focused: interaction.focused,
+        }
+    });
 
     let attached = with_document(|document| document.watch_context());
     create_effect(move || {
@@ -40,12 +51,18 @@ pub fn PointerLock(
 
     let engage = move || change(true);
     let release = move || change(false);
-    let blurred = move |next: bool| {
-        focused.set(next);
-        if !next {
-            release();
-        }
-    };
+    let blurred = InteractionState::watch(
+        |state| state.focused,
+        move |focused: bool| {
+            if !focused {
+                release();
+            }
+        },
+    );
+    let on_state_change = Callback::new(move |next: InteractionState| {
+        interaction.set(next);
+        blurred.call(next);
+    });
     let key = move |press: KeyPress| {
         if current.get_untracked() && press.key == Key::Escape {
             if press.pressed {
@@ -59,21 +76,19 @@ pub fn PointerLock(
     let content_node = content.map(|build| {
         build.call(PointerLockHandle {
             locked: current,
-            hovered: hovered.read_only(),
-            focused: focused.read_only(),
+            state,
         })
     });
 
     view! {
         <Interactive
             focusable=true
-            on_focus_change={blurred}
+            on_state_change
             on_activate={engage}
             on_key={key}
             on_motion={move |motion: Vec2| on_motion.call(motion)}
             cursor={cursor}
             on_click={engage}
-            on_hover_change={hovered}
             children={content_node}
         />
     }

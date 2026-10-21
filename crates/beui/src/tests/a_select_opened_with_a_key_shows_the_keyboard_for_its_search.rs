@@ -24,7 +24,7 @@ fn a_select_opened_with_a_key_shows_the_keyboard_for_its_search() {
     harness.key(Key::Escape, Modifiers::NONE);
     harness.frame(Vec::new());
     assert!(!unstyled::select_open(harness.document(), select));
-    assert!(unstyled::button_focused(harness.document(), trigger).get());
+    assert!(unstyled::button_state(harness.document(), trigger).get().focused);
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     let area = harness.frame(Vec::new()).window.ime;

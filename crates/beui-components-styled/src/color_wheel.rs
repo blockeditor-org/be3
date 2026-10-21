@@ -159,7 +159,7 @@ pub fn OklchColorWheel(
 
 #[component]
 fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
-    let ColorWheelHandle { point, focused, .. } = handle;
+    let ColorWheelHandle { point, state } = handle;
     let drawn = Drawn::default();
     let draw = Prop::dynamic(move || {
         let point = point.get();
@@ -210,7 +210,7 @@ fn WheelFace(handle: ColorWheelHandle, model: Model) -> NodeId {
     let ring_radius = (WHEEL_SIZE / 2.0).floor() + 2.0;
     view! {
         <Frame
-            border={focus_border(focused, Border::FOCUS.offset(FOCUS_RING_OFFSET))}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS.offset(FOCUS_RING_OFFSET))}
             radius={Radius::custom(ring_radius)}
         >
             <Frame width=WHEEL_SIZE height=WHEEL_SIZE>

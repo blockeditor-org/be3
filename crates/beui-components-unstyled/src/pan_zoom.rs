@@ -68,8 +68,13 @@ impl PanZoomView {
 pub struct PanZoomHandle {
     pub view: Memo<Option<CanvasView>>,
     pub scale: Memo<f32>,
-    pub panning: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
+    pub state: Memo<PanZoomState>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct PanZoomState {
+    pub panning: bool,
+    pub focused: bool,
 }
 
 #[derive(Clone, Copy)]
@@ -146,7 +151,7 @@ pub fn PanZoom(
     view! {
         <PlacementBuilder>|rect: ReadSignal<Rect>| {
             let current = view;
-            let panning = create_signal(false);
+            let interaction = create_signal(InteractionState::default());
 
             let camera = Camera {
                 view: current,
@@ -158,8 +163,14 @@ pub fn PanZoom(
             let accessibility = accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::ScrollView)));
             component_accessibility(create_memo(move || accessibility.get()));
 
-            let focused = create_signal(false);
-            let cursor = create_memo(move || if panning.get() {
+            let state = create_memo(move || {
+                let interaction = interaction.get();
+                PanZoomState {
+                    panning: interaction.panning,
+                    focused: interaction.focused,
+                }
+            });
+            let cursor = create_memo(move || if state.get().panning {
                 CursorIcon::Grabbing
             } else {
                 CursorIcon::Default
@@ -167,8 +178,7 @@ pub fn PanZoom(
             let content_node = content.call(PanZoomHandle {
                 view: create_memo(move || Some(current.get().canvas(rect.get()))),
                 scale: create_memo(move || current.get().scale),
-                panning: panning.read_only(),
-                focused: focused.read_only(),
+                state,
             });
 
             set_component_state(current);
@@ -176,7 +186,7 @@ pub fn PanZoom(
             view! {
                 <Interactive
                     focusable=true
-                    on_focus_change={focused}
+                    on_state_change={interaction}
                     on_key={move |press: KeyPress| camera.key(press)}
                     cursor={cursor}
                     on_scroll={move |gesture: ScrollGesture| {
@@ -189,7 +199,6 @@ pub fn PanZoom(
                     }}
                     on_zoom={move |gesture: ZoomGesture| camera.zoom(gesture.factor, gesture.pos)}
                     on_pan_drag={move |delta: Vec2| camera.pan(delta)}
-                    on_pan_active_change={panning}
                     children={Some(content_node)}
                 />
             }

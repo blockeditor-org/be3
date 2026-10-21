@@ -25,7 +25,7 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
             },
         ]
     });
-    let after_focus = unstyled::button_focused(&document, after);
+    let after_focus = unstyled::button_state(&document, after);
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     assert_eq!(
@@ -42,5 +42,5 @@ fn radio_groups_select_with_space_and_arrows_without_leaving_the_group() {
     harness.key(Key::ArrowDown, Modifiers::NONE);
     assert_eq!(changes.get_untracked(), vec![Some(0), Some(2), Some(0)]);
     harness.key(Key::Tab, Modifiers::NONE);
-    assert!(after_focus.get());
+    assert!(after_focus.get().focused);
 }

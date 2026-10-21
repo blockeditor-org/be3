@@ -37,5 +37,5 @@ fn dragging_the_end_handle_of_a_double_tapped_word_extends_the_selection() {
         unstyled::text_input_selection(harness.document(), input).first(),
         Some(&(0..11))
     );
-    assert!(unstyled::text_input_focused(harness.document(), input).get_untracked());
+    assert!(unstyled::text_input_focused(harness.document(), input));
 }

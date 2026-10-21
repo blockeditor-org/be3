@@ -168,12 +168,17 @@ enum Part {
     Triangle,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ColorWheelState {
+    pub dragging: bool,
+    pub hovered: bool,
+    pub focused: bool,
+    pub disabled: bool,
+}
+
 pub struct ColorWheelHandle {
     pub point: Binding<WheelPoint>,
-    pub dragging: ReadSignal<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
-    pub disabled: Memo<bool>,
+    pub state: Memo<ColorWheelState>,
 }
 
 #[component]
@@ -189,10 +194,17 @@ pub fn ColorWheel(
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let point = value;
-    let dragging = create_signal(false);
-    let hovered = create_signal(false);
-    let has_focus = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let disabled = create_memo(move || disabled.get());
+    let state = create_memo(move || {
+        let interaction = interaction.get();
+        ColorWheelState {
+            dragging: interaction.pressed,
+            hovered: interaction.hovered,
+            focused: interaction.focused,
+            disabled: disabled.get(),
+        }
+    });
     set_component_state(point);
 
     match accessibility {
@@ -283,11 +295,12 @@ pub fn ColorWheel(
     };
     let pointer = create_signal(None::<PointerPress>);
     let cursor = create_memo(move || {
-        if dragging.get() {
+        let interaction = interaction.get();
+        if interaction.pressed {
             return CursorIcon::Grabbing;
         }
         let _ = point.get();
-        let over = hovered.get()
+        let over = interaction.hovered
             && pointer
                 .get()
                 .is_some_and(|press| over_thumb(press).is_some());
@@ -298,18 +311,19 @@ pub fn ColorWheel(
     });
     let content_node = content.call(ColorWheelHandle {
         point,
-        dragging: dragging.read_only(),
-        hovered: hovered.read_only(),
-        focused: has_focus.read_only(),
-        disabled,
+        state,
     });
     let tab_stop = create_memo(move || !disabled.get());
+    let drag = InteractionState::watch(|state| state.pressed, on_drag_change);
     view! {
         <Interactive
             focusable=true
             tab_stop
             focused
-            on_focus_change={has_focus}
+            on_state_change={move |next: InteractionState| {
+                interaction.set(next);
+                drag.call(next);
+            }}
             on_step={move |delta: f32| {
                 let point = point.get_untracked();
                 set(WheelPoint::new(point.hue + delta * HUE_STEP, point.saturation, point.value));
@@ -339,14 +353,9 @@ pub fn ColorWheel(
             }}
             cursor
             touch_drags=true
-            on_hover_change={hovered}
             on_hover_move={move |press: PointerPress| pointer.set(Some(press))}
             on_press={grabbed}
             on_drag={move |press: PointerPress| set(dragged_to(press))}
-            on_active_change={move |active: bool| {
-                dragging.set(active);
-                on_drag_change.call(active);
-            }}
             children={content_node}
         />
     }

@@ -97,13 +97,18 @@ pub struct DateDraft {
     pub day: Option<u8>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DateSegmentState {
+    pub placeholder: bool,
+    pub hovered: bool,
+    pub focused: bool,
+    pub disabled: bool,
+}
+
 pub struct DateSegmentHandle {
     pub segment: DateSegment,
     pub text: Memo<String>,
-    pub placeholder: Memo<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
-    pub disabled: Memo<bool>,
+    pub state: Memo<DateSegmentState>,
 }
 
 type Values = [Option<i32>; 6];
@@ -250,8 +255,7 @@ fn SegmentView(
     literal: RenderFn<String>,
     face: RenderFn<DateSegmentHandle>,
 ) -> NodeId {
-    let hovered = create_signal(false);
-    let is_focused = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let focused = create_memo(move || state.focus.get() == Some(segment));
     let tab_stop = create_memo(move || !state.disabled.get());
     let value = create_memo(move || state.values.get()[segment.index()]);
@@ -266,7 +270,15 @@ fn SegmentView(
             |value| format_segment(segment, value),
         ),
     });
-    let placeholder = create_memo(move || typed.get().is_none() && value.get().is_none());
+    let segment_state = create_memo(move || {
+        let interaction = interaction.get();
+        DateSegmentState {
+            placeholder: typed.with(Option::is_none) && value.get().is_none(),
+            hovered: interaction.hovered,
+            focused: interaction.focused,
+            disabled: state.disabled.get(),
+        }
+    });
     component_accessibility(create_memo(move || {
         let mut node = Node::new(Role::SpinButton);
         node.set_label(segment.label());
@@ -289,27 +301,27 @@ fn SegmentView(
     let content = face.call(DateSegmentHandle {
         segment,
         text,
-        placeholder,
-        hovered: hovered.read_only(),
-        focused: is_focused.read_only(),
-        disabled: state.disabled,
+        state: segment_state,
     });
+    let focus_change = InteractionState::watch(
+        |interaction| interaction.focused,
+        move |has_focus: bool| segment_focus(state, segment, has_focus),
+    );
     let shown = !prefix.is_empty();
     view! {
         <Interactive
             focusable=true
             tab_stop
             focused
-            ime={is_focused}
-            on_focus_change={move |has_focus: bool| {
-                is_focused.set(has_focus);
-                segment_focus(state, segment, has_focus);
+            ime={Prop::dynamic(move || segment_state.with(|state| state.focused))}
+            on_state_change={move |next: InteractionState| {
+                interaction.set(next);
+                focus_change.call(next);
             }}
             on_step={move |delta: f32| step(state, segment, delta.round() as i32)}
             on_key={move |press: KeyPress| segment_key(state, segment, press)}
             on_text={move |typed: String| type_text(state, segment, &typed)}
             cursor=CursorIcon::Text
-            on_hover_change={hovered}
         >
             <List direction=Direction::Horizontal spacing=0.0>
                 <Show condition=shown>|| { literal.call(prefix.clone()) }</Show>

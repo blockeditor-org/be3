@@ -47,14 +47,12 @@ fn EmojiPanel(children: Child) -> NodeId {
 #[component]
 fn EmojiRow(handle: CompletionRowHandle) -> NodeId {
     let CompletionRowHandle {
-        completion,
-        highlighted,
-        ..
+        completion, state, ..
     } = handle;
     let theme = use_theme();
     let emoji = create_memo(move || completion.get().map(|item| item.insert).unwrap_or_default());
     let label = create_memo(move || completion.get().map(|item| item.label).unwrap_or_default());
-    let fill = create_memo(move || match highlighted.get() {
+    let fill = create_memo(move || match state.get().highlighted {
         true => theme.accent_soft.get(),
         false => Color32::TRANSPARENT,
     });

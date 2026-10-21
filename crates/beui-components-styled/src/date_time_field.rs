@@ -99,19 +99,19 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
     let DateTimeBoxHandle {
         field,
         trigger,
-        focused,
-        hovered,
-        disabled,
+        state,
     } = handle;
     let theme = use_theme();
-    let border =
-        create_memo(move || field_border(&theme, disabled.get(), focused.get(), hovered.get()));
-    let fill = create_memo(move || match disabled.get() {
+    let border = create_memo(move || {
+        let state = state.get();
+        field_border(&theme, state.disabled, state.focused, state.hovered)
+    });
+    let fill = create_memo(move || match state.get().disabled {
         true => theme.surface.get(),
         false => theme.surface_raised.get(),
     });
     let outer = trigger.is_some();
-    let keyboard = focus_ring(focused);
+    let keyboard = focus_ring(Prop::dynamic(move || state.get().focused));
     let ring = create_memo(move || outer && keyboard.get());
     view! {
         <Frame
@@ -138,22 +138,21 @@ fn FieldBox(handle: DateTimeBoxHandle) -> NodeId {
 fn SegmentFace(handle: DateSegmentHandle) -> NodeId {
     let DateSegmentHandle {
         text,
-        placeholder,
-        focused,
-        disabled,
+        state,
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(move || match focused.get() {
+    let fill = create_memo(move || match state.get().focused {
         true => theme.accent_soft.get(),
         false => Color32::TRANSPARENT,
     });
-    let ink = create_memo(
-        move || match (disabled.get(), placeholder.get(), focused.get()) {
+    let ink = create_memo(move || {
+        let state = state.get();
+        match (state.disabled, state.placeholder, state.focused) {
             (true, _, _) | (false, true, false) => TextColor::Muted,
             _ => TextColor::Default,
-        },
-    );
+        }
+    });
     view! {
         <Frame height={Extent::fraction(1.0)} align={Align2::vertical(Align::Center)}>
             <Frame
@@ -180,28 +179,21 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
         popover:
             PopoverTriggerHandle {
                 open,
-                button:
-                    ButtonHandle {
-                        hovered,
-                        active,
-                        focused,
-                        disabled,
-                        ..
-                    },
+                button: ButtonHandle { state, .. },
             },
         label,
     } = handle;
     let theme = use_theme();
-    let fill =
-        create_memo(
-            move || match (disabled.get(), active.get() || open.get(), hovered.get()) {
-                (true, _, _) => Color32::TRANSPARENT,
-                (false, true, _) => theme.pressed.get(),
-                (false, false, true) => theme.hover.get(),
-                (false, false, false) => Color32::TRANSPARENT,
-            },
-        );
-    let ink = create_memo(move || match disabled.get() {
+    let fill = create_memo(move || {
+        let state = state.get();
+        match (state.disabled, state.active || open.get(), state.hovered) {
+            (true, _, _) => Color32::TRANSPARENT,
+            (false, true, _) => theme.pressed.get(),
+            (false, false, true) => theme.hover.get(),
+            (false, false, false) => Color32::TRANSPARENT,
+        }
+    });
+    let ink = create_memo(move || match state.get().disabled {
         true => TextColor::Muted,
         false => TextColor::Default,
     });
@@ -211,7 +203,7 @@ fn PickerTrigger(handle: DateTimeTriggerHandle, parts: DateTimeParts) -> NodeId 
     };
     view! {
         <Tooltip label disabled={open}>
-            <FocusRing focused offset=1.0>
+            <FocusRing focused={Prop::dynamic(move || state.get().focused)} offset=1.0>
                 <Frame
                     fill={ColorRole::custom(fill)}
                     radius={Radius::custom(SEGMENT_RADIUS)}
@@ -443,22 +435,20 @@ fn TimePane(
 fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
     let TimeOptionHandle {
         label,
-        selected,
-        hovered,
-        active,
-        focused,
+        state,
         ..
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(
-        move || match (selected.get(), active.get(), hovered.get()) {
+    let fill = create_memo(move || {
+        let state = state.get();
+        match (state.selected, state.active, state.hovered) {
             (true, _, _) => theme.accent.get(),
             (false, true, _) => theme.pressed.get(),
             (false, false, true) => theme.hover.get(),
             (false, false, false) => Color32::TRANSPARENT,
-        },
-    );
-    let ink = create_memo(move || match selected.get() {
+        }
+    });
+    let ink = create_memo(move || match state.get().selected {
         true => TextColor::OnAccent,
         false => TextColor::Default,
     });
@@ -467,7 +457,7 @@ fn TimeOptionFace(handle: TimeOptionHandle, centred: bool) -> NodeId {
             height=TIME_ROW_HEIGHT
             fill={ColorRole::custom(fill)}
             radius=Radius::Md
-            border={focus_border(focused, Border::FOCUS.offset(-1.0))}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS.offset(-1.0))}
             padding={Sides::horizontal(10.0)}
         >
             <Text

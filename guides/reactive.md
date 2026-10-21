@@ -662,10 +662,10 @@ view! { <ToggleButton pressed={Binding::new(selected, move |_| state.tool.set(to
 
 To react to a change, derive from the signal (a memo, or an effect for side
 effects outside the graph) instead of asking the component for a callback.
-Callbacks that only report what happened (`on_hover_change`, `on_focus_change`,
+Callbacks that only report what happened (`on_state_change`, `on_focus_change`,
 `on_drag_change`, `on_preview`) stay callbacks, and take a signal as well as a
-closure: `on_hover_change={hovered}` rather than
-`on_hover_change={move |next| hovered.set(next)}`.
+closure: `on_state_change={interaction}` rather than
+`on_state_change={move |next| interaction.set(next)}`.
 
 A component hands its binding to the content it renders as it is: a handle
 field typed `Binding<T>` reads the state and could write it too. A binding is

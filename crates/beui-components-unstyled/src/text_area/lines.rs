@@ -790,7 +790,8 @@ fn InlineCheckbox(cx: Context, item: Memo<Option<InlineItem>>) -> NodeId {
 
 #[component]
 fn CheckboxBox(cx: Context, handle: ToggleHandle) -> NodeId {
-    let checked = handle.checked;
+    let state = handle.state;
+    let checked = create_memo(move || state.get().checked);
     let fill = create_memo(move || match checked.get() {
         true => cx.colors.get().widget,
         false => Color32::TRANSPARENT,

@@ -40,12 +40,17 @@ pub struct DockDialogHandle {
     pub title: Memo<String>,
     pub icon: Memo<String>,
     pub size: Memo<Vec2>,
-    pub modal: Memo<bool>,
-    pub focused: Memo<bool>,
-    pub attention: ReadSignal<bool>,
+    pub state: Memo<DockDialogState>,
     pub closable: bool,
     pub close: ClickCallback,
     pub body: NodeId,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DockDialogState {
+    pub modal: bool,
+    pub focused: bool,
+    pub attention: bool,
 }
 
 pub struct DockSheetHandle {
@@ -328,15 +333,18 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         }
     });
     let held = create_memo(move || (!stacked.get()).then_some(body));
+    let state = create_memo(move || DockDialogState {
+        modal: modal.get(),
+        focused: focused.get(),
+        attention: attention.get(),
+    });
     let face = dock.dialog_chrome.call(DockDialogHandle {
         tab,
         presentation,
         title,
         icon,
         size,
-        modal,
-        focused,
-        attention: attention.read_only(),
+        state,
         closable: on_close.is_some(),
         close,
         body: view! {

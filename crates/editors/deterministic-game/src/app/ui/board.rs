@@ -231,7 +231,7 @@ pub(crate) fn Stage(
             },
         }
     };
-    let on_active_change = move |active: bool| {
+    let released = move |active: bool| {
         if active {
             return;
         }
@@ -323,7 +323,7 @@ pub(crate) fn Stage(
             on_press={on_press}
             on_drag={on_drag}
             on_click_at={on_click_at}
-            on_active_change={on_active_change}
+            on_state_change={InteractionState::watch(|state| state.pressed, released)}
             on_secondary_drag={on_secondary_drag}
         >
             <Layers>

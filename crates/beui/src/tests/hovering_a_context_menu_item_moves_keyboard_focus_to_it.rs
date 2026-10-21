@@ -39,10 +39,10 @@ fn hovering_a_context_menu_item_moves_keyboard_focus_to_it() {
     let paste_pos = harness.center(paste);
     harness.frame(vec![Event::PointerMoved(paste_pos)]);
 
-    assert!(unstyled::button_focused(harness.document(), paste).get());
+    assert!(unstyled::button_state(harness.document(), paste).get().focused);
 
     harness.key(Key::ArrowDown, Modifiers::NONE);
     harness.frame(Vec::new());
 
-    assert!(unstyled::button_focused(harness.document(), delete).get());
+    assert!(unstyled::button_state(harness.document(), delete).get().focused);
 }

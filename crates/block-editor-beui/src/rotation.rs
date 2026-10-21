@@ -135,12 +135,12 @@ fn RotationTile(
             disabled={read_only}
             on_click={move || on_pick.call(rotation)}
         >|handle: ButtonHandle| {
-            let fill = create_memo(move || match (picked.get(), handle.hovered.get()) {
+            let fill = create_memo(move || match (picked.get(), handle.state.get().hovered) {
                 (true, _) => ColorRole::AccentSoft,
                 (false, true) => ColorRole::Hover,
                 (false, false) => ColorRole::None,
             });
-            let border = create_memo(move || match picked.get() || handle.focused.get() {
+            let border = create_memo(move || match picked.get() || handle.state.get().focused {
                 true => Some(Border::new(ColorRole::Accent).width(2.0)),
                 false => Some(Border::DEFAULT),
             });

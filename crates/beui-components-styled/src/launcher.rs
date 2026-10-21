@@ -372,9 +372,9 @@ fn LauncherRow(state: State, items: Prop<Rc<Vec<LauncherItem>>>, row: Row) -> No
             press_focus=false
             on_click={move || state.activate(click_row.clone())}
         >|handle: ButtonHandle| {
-            let hovered = handle.hovered;
+            let button = handle.state;
             create_effect(move || {
-                if hovered.get() {
+                if button.get().hovered {
                     state.highlighted.set(Some(hover_row.clone()));
                 }
             });

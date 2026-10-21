@@ -39,7 +39,7 @@ fn a_selection_handle_takes_a_tap_before_the_button_it_covers() {
     harness.frame(Vec::new());
 
     assert_eq!(clicks.get_untracked(), 0);
-    assert!(unstyled::text_input_focused(harness.document(), input).get_untracked());
+    assert!(unstyled::text_input_focused(harness.document(), input));
     assert_eq!(
         unstyled::text_input_selection(harness.document(), input).first(),
         Some(&(0..5))

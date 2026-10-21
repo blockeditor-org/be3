@@ -85,11 +85,11 @@ pub(crate) fn Artwork(state: RayState) -> NodeId {
                     on_press={on_press}
                     on_drag={on_drag}
                     on_hover_move={on_hover_move}
-                    on_active_change={move |active: bool| {
+                    on_state_change={InteractionState::watch(|state| state.pressed, move |active: bool| {
                         if !active {
                             state.release();
                         }
-                    }}
+                    })}
                 >
                     <Frame fill=ColorRole::Background>
                         <List spacing=0.0>

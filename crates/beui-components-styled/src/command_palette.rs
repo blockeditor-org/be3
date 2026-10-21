@@ -84,19 +84,18 @@ fn PaletteRow(handle: CommandRowHandle) -> NodeId {
         label,
         glyph,
         shortcut,
-        disabled,
-        highlighted,
-        hovered,
+        state,
     } = handle;
     let theme = use_theme();
-    let fill = create_memo(
-        move || match (disabled.get(), highlighted.get(), hovered.get()) {
+    let fill = create_memo(move || {
+        let state = state.get();
+        match (state.disabled, state.highlighted, state.hovered) {
             (true, _, _) | (false, false, false) => Color32::TRANSPARENT,
             (false, true, _) => theme.accent_soft.get(),
             (false, false, true) => theme.surface.get(),
-        },
-    );
-    let text_color = create_memo(move || match disabled.get() {
+        }
+    });
+    let text_color = create_memo(move || match state.get().disabled {
         true => TextColor::Muted,
         false => TextColor::Default,
     });

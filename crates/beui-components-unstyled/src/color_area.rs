@@ -15,14 +15,19 @@ use beui_view::reactive::*;
 const STEP: f32 = 0.01;
 const PAGE: f32 = 0.1;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct ColorAreaState {
+    pub dragging: bool,
+    pub hovered: bool,
+    pub focused: bool,
+    pub disabled: bool,
+}
+
 pub struct ColorAreaHandle {
     pub color: Binding<Hsva>,
     pub x: Memo<f32>,
     pub y: Memo<f32>,
-    pub dragging: ReadSignal<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
-    pub disabled: Memo<bool>,
+    pub state: Memo<ColorAreaState>,
 }
 
 #[component]
@@ -36,10 +41,17 @@ pub fn ColorArea(
     on_drag_change: Callback<bool>,
 ) -> NodeId {
     let color = value;
-    let dragging = create_signal(false);
-    let hovered = create_signal(false);
-    let has_focus = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let disabled = create_memo(move || disabled.get());
+    let state = create_memo(move || {
+        let interaction = interaction.get();
+        ColorAreaState {
+            dragging: interaction.pressed,
+            hovered: interaction.hovered,
+            focused: interaction.focused,
+            disabled: disabled.get(),
+        }
+    });
     let x = create_memo(move || color.get().saturation);
     let y = create_memo(move || 1.0 - color.get().value);
     set_component_state(color);
@@ -99,10 +111,11 @@ pub fn ColorArea(
     };
     let pointer = create_signal(None::<PointerPress>);
     let cursor = create_memo(move || {
-        if dragging.get() {
+        let interaction = interaction.get();
+        if interaction.pressed {
             return CursorIcon::Grabbing;
         }
-        let over = hovered.get()
+        let over = interaction.hovered
             && pointer.get().is_some_and(|press| {
                 let centre = thumb_centre(press.size, color.get());
                 thumb > 0.0 && (centre - press.local).length() <= thumb / 2.0
@@ -116,18 +129,19 @@ pub fn ColorArea(
         color,
         x,
         y,
-        dragging: dragging.read_only(),
-        hovered: hovered.read_only(),
-        focused: has_focus.read_only(),
-        disabled,
+        state,
     });
     let tab_stop = create_memo(move || !disabled.get());
+    let drag = InteractionState::watch(|state| state.pressed, on_drag_change);
     view! {
         <Interactive
             focusable=true
             tab_stop
             focused
-            on_focus_change={has_focus}
+            on_state_change={move |next: InteractionState| {
+                interaction.set(next);
+                drag.call(next);
+            }}
             on_step={move |delta: f32| {
                 let color = color.get_untracked();
                 set(color.saturation + delta * STEP, color.value);
@@ -157,16 +171,11 @@ pub fn ColorArea(
             }}
             cursor
             touch_drags=true
-            on_hover_change={hovered}
             on_hover_move={move |press: PointerPress| pointer.set(Some(press))}
             on_press={grabbed}
             on_drag={move |press: PointerPress| {
                 let (x, y) = dragged_to(press);
                 set(x, 1.0 - y)
-            }}
-            on_active_change={move |active: bool| {
-                dragging.set(active);
-                on_drag_change.call(active);
             }}
             children={content_node}
         />

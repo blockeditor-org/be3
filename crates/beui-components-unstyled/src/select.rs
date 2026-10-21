@@ -13,27 +13,37 @@ use beui_macros::{component, view};
 use beui_view::components::overlay::Overlay;
 use beui_view::primitives::*;
 use beui_view::reactive::*;
-use std::cell::RefCell;
+use std::cell::{Cell, RefCell};
 
 use accesskit::{Node, Role};
 
 const OPTIONS_MAX_HEIGHT: f32 = 240.0;
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SelectTriggerState {
+    pub hovered: bool,
+    pub active: bool,
+    pub focused: bool,
+    pub disabled: bool,
+}
+
 pub struct SelectTriggerHandle {
     pub selected: Binding<Option<usize>>,
     pub label: Memo<Option<String>>,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
-    pub disabled: Memo<bool>,
+    pub state: Memo<SelectTriggerState>,
+}
+
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct SelectOptionState {
+    pub highlighted: bool,
+    pub hovered: bool,
+    pub focused: bool,
 }
 
 pub struct SelectOptionHandle {
     pub index: usize,
     pub label: Prop<String>,
-    pub highlighted: Memo<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub focused: ReadSignal<bool>,
+    pub state: Memo<SelectOptionState>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash)]
@@ -137,10 +147,15 @@ pub fn Select(
         trigger_view.call(SelectTriggerHandle {
             selected,
             label,
-            hovered: handle.hovered,
-            active: handle.active,
-            focused: handle.focused,
-            disabled,
+            state: create_memo(move || {
+                let button = handle.state.get();
+                SelectTriggerState {
+                    hovered: button.hovered,
+                    active: button.active,
+                    focused: button.focused,
+                    disabled: button.disabled,
+                }
+            }),
         })
     };
 
@@ -254,18 +269,27 @@ fn SelectRow(
                 tab_stop=false
                 on_click={move || confirm(state, index)}
             >|button: ButtonHandle| {
-                let hovered = button.hovered;
+                let highlighted = highlight.memo(Some(index));
+                let row_state = create_memo(move || {
+                    let button = button.state.get();
+                    SelectOptionState {
+                        highlighted: highlighted.get(),
+                        hovered: button.hovered,
+                        focused: button.focused,
+                    }
+                });
+                let was_hovered = Cell::new(false);
                 create_effect(move || {
-                    if hovered.get() {
+                    let hovered = row_state.with(|row| row.hovered);
+                    if hovered && !was_hovered.replace(hovered) {
                         state.highlighted.set(Some(index));
                     }
+                    was_hovered.set(hovered);
                 });
                 option.call(SelectOptionHandle {
                     index,
                     label: label.into_prop(),
-                    highlighted: highlight.memo(Some(index)),
-                    hovered: button.hovered,
-                    focused: button.focused,
+                    state: row_state,
                 })
             }</unstyled::Button>
         </Frame>

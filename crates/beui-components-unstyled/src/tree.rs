@@ -28,18 +28,23 @@ pub struct TreeItem {
     pub expanded: bool,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct TreeRowState {
+    pub selected: bool,
+    pub marked: bool,
+    pub focused: bool,
+    pub hovered: bool,
+    pub active: bool,
+    pub editing: bool,
+}
+
 pub struct TreeRowHandle<K> {
     pub key: K,
     pub item: Memo<TreeItem>,
-    pub selected: Memo<bool>,
-    pub marked: Memo<bool>,
-    pub focused: ReadSignal<bool>,
-    pub hovered: ReadSignal<bool>,
-    pub active: ReadSignal<bool>,
+    pub state: Memo<TreeRowState>,
     pub select: ClickCallback,
     pub toggle: ClickCallback,
     pub target: TreeRowTarget,
-    pub editing: Memo<bool>,
     pub edit: TreeRowEdit,
 }
 
@@ -61,8 +66,7 @@ pub struct TreeRowTarget {
     open: ClickCallback,
     drag_start: ClickCallback,
     hover: Callback<bool>,
-    hovered: Signal<bool>,
-    active: Signal<bool>,
+    interaction: Signal<InteractionState>,
 }
 
 pub struct TreeRevealHandle {
@@ -253,15 +257,13 @@ where
     });
     let drag_key = row_key.clone();
     let drag_start = ClickCallback::new(move || on_drag_start.call(drag_key.clone()));
-    let hovered = create_signal(false);
-    let active = create_signal(false);
+    let interaction = create_signal(InteractionState::default());
     let target = TreeRowTarget {
         select: chosen,
         open: opened,
         drag_start,
         hover,
-        hovered,
-        active,
+        interaction,
     };
     let edit = TreeRowEdit {
         item,
@@ -271,6 +273,17 @@ where
         }),
     };
     let has_focus = create_signal(false);
+    let row_state = create_memo(move || {
+        let interaction = interaction.get();
+        TreeRowState {
+            selected: selected.get(),
+            marked: marked.get(),
+            focused: has_focus.get(),
+            hovered: interaction.hovered,
+            active: interaction.pressed,
+            editing: editing.get(),
+        }
+    });
     let built = NodeRef::new();
     nodes.value().borrow_mut().insert(nodes_key, built);
     on_cleanup(move || {
@@ -282,10 +295,10 @@ where
             focusable=true
             tab_stop={tab_stop.memo(Some(row_key.clone()))}
             focused={focused.memo(Some(row_key))}
-            on_focus_change={move |focused: bool| {
+            on_state_change={InteractionState::watch(|interaction| interaction.focused, move |focused: bool| {
                 has_focus.set(focused);
                 track_focus(state, &blur_key, focused);
-            }}
+            })}
             on_activate={chosen}
             on_key={move |event: KeyPress| key_press(state, &press_key, event)}
             on_text={move |text: String| typeahead(state, &typed_key, &text)}
@@ -293,15 +306,10 @@ where
             {row.call(TreeRowHandle {
                 key: content_key,
                 item,
-                selected,
-                marked,
-                focused: has_focus.read_only(),
-                hovered: hovered.read_only(),
-                active: active.read_only(),
+                state: row_state,
                 select: chosen,
                 toggle: expand,
                 target,
-                editing,
                 edit,
             })}
         </Interactive>
@@ -360,8 +368,7 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
         open,
         drag_start,
         hover,
-        hovered,
-        active,
+        interaction,
     } = target;
     let gesture: Stored<Cell<Option<(Pos2, bool)>>> = store(Cell::default());
     let pressed = move |press: PointerPress| {
@@ -380,11 +387,19 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
         gesture.with(|gesture| gesture.set(Some((origin, true))));
         drag_start.call();
     };
-    let settled = move |down: bool| {
-        active.set(down);
-        if !down {
-            gesture.with(|gesture| gesture.set(None));
-        }
+    let settled = InteractionState::watch(
+        |state| state.pressed,
+        move |down: bool| {
+            if !down {
+                gesture.with(|gesture| gesture.set(None));
+            }
+        },
+    );
+    let hovering = InteractionState::watch(|state| state.hovered, hover);
+    let changed = move |next: InteractionState| {
+        interaction.set(next);
+        settled.call(next);
+        hovering.call(next);
     };
     let chose = move || {
         if gesture.with(Cell::get).is_none_or(|(_, started)| !started) {
@@ -397,11 +412,7 @@ pub fn TreeRowArea(target: TreeRowTarget, children: Child) -> NodeId {
             on_press={pressed}
             on_drag={dragged}
             on_click={chose}
-            on_active_change={settled}
-            on_hover_change={move |over: bool| {
-                hovered.set(over);
-                hover.call(over);
-            }}
+            on_state_change={changed}
         >
             {children}
         </Interactive>

@@ -12,13 +12,10 @@ pub fn Pressable(
     children: Option<Child>,
     #[prop(default = true)] enabled: Prop<bool>,
     on_click: ClickCallback,
-    on_focus_change: Callback<bool>,
-    on_hover_change: Callback<bool>,
-    on_active_change: Callback<bool>,
+    on_state_change: Callback<InteractionState>,
     accessibility: Option<Prop<Node>>,
 ) -> NodeId {
     let enabled = create_memo(move || enabled.get());
-    let key_active = create_signal(false);
     component_accessibility(accessibility.unwrap_or_else(|| Prop::Static(Node::new(Role::Button))));
     let click = move || {
         if enabled.get_untracked() {
@@ -30,14 +27,10 @@ pub fn Pressable(
         <Interactive
             focusable=true
             tab_stop={enabled}
-            on_focus_change={on_focus_change}
-            on_activate_change={key_active}
             on_activate={click}
             cursor=CursorIcon::PointingHand
-            key_active
             on_click={click}
-            on_hover_change={on_hover_change}
-            on_active_change={on_active_change}
+            on_state_change={on_state_change}
             children={children}
         />
     }

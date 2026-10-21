@@ -11,7 +11,7 @@ fn a_mouse_away_from_a_held_finger_still_moves_the_pointer() {
         view! {
             <List direction=Direction::Horizontal spacing=0.0>
                 <Frame width=200.0 height=200.0 />
-                <Interactive @node_ref=&target on_hover_change={hovered}>
+                <Interactive @node_ref=&target on_state_change={InteractionState::watch(|state| state.hovered, hovered)}>
                     <Frame width=200.0 height=200.0 />
                 </Interactive>
             </List>

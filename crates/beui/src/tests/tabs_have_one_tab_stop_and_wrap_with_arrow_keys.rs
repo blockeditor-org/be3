@@ -24,7 +24,7 @@ fn tabs_have_one_tab_stop_and_wrap_with_arrow_keys() {
             },
         ]
     });
-    let after_focus = unstyled::button_focused(&document, after);
+    let after_focus = unstyled::button_state(&document, after);
     let mut harness = Harness::new(document);
     harness.key(Key::Tab, Modifiers::NONE);
     harness.key(Key::Tab, Modifiers::NONE);
@@ -39,7 +39,7 @@ fn tabs_have_one_tab_stop_and_wrap_with_arrow_keys() {
     harness.key(Key::Home, Modifiers::NONE);
     assert_eq!(styled::tabs_selected(harness.document(), tabs), 0);
     harness.key(Key::Tab, Modifiers::NONE);
-    assert!(after_focus.get());
+    assert!(after_focus.get().focused);
     harness.key(Key::Tab, Modifiers::SHIFT);
     harness.key(Key::ArrowLeft, Modifiers::NONE);
     assert_eq!(styled::tabs_selected(harness.document(), tabs), 2);

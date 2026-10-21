@@ -372,9 +372,7 @@ fn over(rects: &Rects, id: NodeId, pos: Pos2) -> bool {
 }
 
 fn arm(doc: &mut Document, id: NodeId, armed: bool) {
-    if let Some((on_active_change, active)) = node_mut(doc, id).and_then(|node| node.arm(armed)) {
-        on_active_change.call(active);
-    }
+    doc.change_interaction(id, |node| node.change(|state| state.pressed = armed));
 }
 
 fn find(doc: &Document, pointer: PointerId, button: Option<PointerButton>) -> Option<usize> {
@@ -566,13 +564,13 @@ fn press(doc: &mut Document, frame: &Frame, session: &mut Session, claimant: Opt
     let focused = doc.focused_node();
     doc.set_focus_visible(false);
     for owner in session.owners.clone().into_iter().rev() {
-        let change = node_mut(doc, owner).and_then(|node| node.arm(true));
+        let change = node_mut(doc, owner).and_then(|node| node.change(|state| state.pressed = true));
         let pressed = rect_of(doc, frame.rects, owner).zip(interactive(doc, owner));
         if let Some((rect, node)) = pressed {
             node.on_press.clone().call(session.press(rect, pos));
         }
-        if let Some((on_active_change, active)) = change {
-            on_active_change.call(active);
+        if let Some((on_state_change, state)) = change {
+            on_state_change.call(state);
         }
     }
     session.pressed_focus = focused;
@@ -676,14 +674,7 @@ fn middle(
 }
 
 fn set_pan(doc: &mut Document, id: NodeId, active: bool) {
-    let Some(node) = node_mut(doc, id) else {
-        return;
-    };
-    if node.pan_active == active {
-        return;
-    }
-    node.pan_active = active;
-    node.on_pan_active_change.clone().call(active);
+    doc.change_interaction(id, |node| node.change(|state| state.panning = active));
 }
 
 fn moved(doc: &mut Document, frame: &Frame, event: PointerEvent) {
@@ -822,7 +813,7 @@ fn decide(doc: &mut Document, session: &mut Session, axis: Direction) {
 
 fn cancel_owner(doc: &mut Document, owner: NodeId) {
     if let Some(node) = interactive(doc, owner)
-        && node.armed
+        && node.state.pressed
     {
         node.on_cancel.clone().call();
     }
@@ -1435,23 +1426,14 @@ fn hover(doc: &mut Document, frame: &Frame, pointer: Option<Pos2>) {
             continue;
         };
         node.hover_pos = None;
-        if node.hovered {
-            node.hovered = false;
-            node.on_hover_change.clone().call(false);
-        }
+        doc.change_interaction(id, |node| node.change(|state| state.hovered = false));
     }
     if let Some(pos) = pointer {
         for id in path.iter().rev() {
             let Some(rect) = frame.rects.get(id) else {
                 continue;
             };
-            let Some(node) = node_mut(doc, *id) else {
-                continue;
-            };
-            if !node.hovered {
-                node.hovered = true;
-                node.on_hover_change.clone().call(true);
-            }
+            doc.change_interaction(*id, |node| node.change(|state| state.hovered = true));
             let Some(node) = node_mut(doc, *id) else {
                 continue;
             };

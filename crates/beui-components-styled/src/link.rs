@@ -29,19 +29,12 @@ pub fn Link(
 
 #[component]
 fn LinkFace(handle: unstyled::ButtonHandle, size: Prop<TextSize>) -> NodeId {
-    let unstyled::ButtonHandle {
-        hovered,
-        active,
-        focused,
-        disabled,
-        label,
-        glyph,
-        ..
-    } = handle;
+    let unstyled::ButtonHandle { state, label, glyph, .. } = handle;
+    let focused = Prop::dynamic(move || state.get().focused);
     let theme = use_theme();
     let color =
-        create_memo(move || text_color(&theme, disabled.get(), hovered.get(), active.get()));
-    let underlined = create_memo(move || hovered.get() || focused.get());
+        create_memo(move || text_color(&theme, state.get().disabled, state.get().hovered, state.get().active));
+    let underlined = create_memo(move || state.get().hovered || state.get().focused);
     view! {
         <FocusRing focused radius={Radius::custom(FOCUS_RING_RADIUS)} offset=FOCUS_RING_OFFSET>
             <Text size color underline={underlined}>

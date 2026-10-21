@@ -36,21 +36,16 @@ pub fn Accordion(title: Prop<String>, open: Binding<bool>, children: Child) -> N
 
 #[component]
 fn AccordionHeader(handle: DisclosureHandle, title: Memo<String>) -> NodeId {
-    let DisclosureHandle {
-        hovered,
-        open,
-        focused,
-        ..
-    } = handle;
+    let DisclosureHandle { state, open } = handle;
     let theme = use_theme();
-    let header_color = create_memo(move || header_fill(&theme, hovered.get()));
+    let header_color = create_memo(move || header_fill(&theme, state.get().hovered));
     let marker_glyph = create_memo(move || glyph(open.get()).to_owned());
     let marker_color = TextColor::Muted;
     let title_color = TextColor::Default;
     view! {
         <Frame
             fill={ColorRole::custom(header_color)}
-            border={focus_border(focused, Border::FOCUS.offset(2.0))}
+            border={focus_border(Prop::dynamic(move || state.get().focused), Border::FOCUS.offset(2.0))}
             radius=Radius::Md
             padding={Sides::symmetric(PADDING_HORIZONTAL, PADDING_VERTICAL)}
         >

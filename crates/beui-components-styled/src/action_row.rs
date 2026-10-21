@@ -34,14 +34,15 @@ pub fn ActionRow(
             on_click={on_click}
         >|handle: unstyled::ButtonHandle| {
             let unstyled::ButtonHandle {
-                hovered,
-                active,
-                focused,
-                disabled,
+                state,
                 label,
                 glyph,
                 ..
             } = handle;
+            let hovered = Prop::dynamic(move || state.get().hovered);
+            let active = Prop::dynamic(move || state.get().active);
+            let focused = Prop::dynamic(move || state.get().focused);
+            let disabled = Prop::dynamic(move || state.get().disabled);
             view! {
                 <ActionRowFace hovered active focused label glyph detail disabled danger />
             }
@@ -51,9 +52,9 @@ pub fn ActionRow(
 
 #[component]
 pub(crate) fn ActionRowFace(
-    hovered: ReadSignal<bool>,
-    active: ReadSignal<bool>,
-    focused: ReadSignal<bool>,
+    hovered: Prop<bool>,
+    active: Prop<bool>,
+    focused: Prop<bool>,
     label: Prop<String>,
     #[prop(default = String::new())] lead: Prop<String>,
     glyph: Prop<String>,

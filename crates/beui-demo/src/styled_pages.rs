@@ -679,7 +679,7 @@ fn FocusedTile() -> NodeId {
                     on_click={move || opened.set("Opened the album".to_owned())}
                 >|handle: beui::unstyled::ButtonHandle|
                     <FocusRing
-                        focused={handle.focused}
+                        focused={Prop::dynamic(move || handle.state.get().focused)}
                         radius={Radius::custom(Radius::Lg.px() + 3.0)}
                         offset=3.0
                     >
@@ -2776,9 +2776,8 @@ fn ScrollRowFace(
     timings: ReadSignal<bool>,
     compact: ReadSignal<bool>,
 ) -> NodeId {
-    let unstyled::ButtonHandle {
-        hovered, focused, ..
-    } = handle;
+    let unstyled::ButtonHandle { state, .. } = handle;
+    let focused = Prop::dynamic(move || state.get().focused);
     let vertical = create_memo(move || match compact.get() {
         true => COMPACT_ROW_PADDING_VERTICAL,
         false => ROW_PADDING_VERTICAL,
@@ -2792,7 +2791,7 @@ fn ScrollRowFace(
     });
     let fill_color = create_memo(move || {
         let theme = theme.get();
-        match (selected.get(), hovered.get()) {
+        match (selected.get(), state.get().hovered) {
             (true, _) => theme.accent_soft,
             (false, true) => theme.hover,
             (false, false) => Color32::TRANSPARENT,
@@ -3457,9 +3456,9 @@ fn scale_in(view: &mut PanZoomView) {
 fn CanvasStage(#[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomView>) -> NodeId {
     view! {
         <PanZoom view>|handle: PanZoomHandle| {
-            let PanZoomHandle { view, scale, focused, .. } = handle;
+            let PanZoomHandle { view, scale, state } = handle;
             view! {
-                <CanvasBoard view scale focused />
+                <CanvasBoard view scale state />
             }
         }</PanZoom>
     }
@@ -3470,9 +3469,10 @@ fn CanvasStage(#[prop(default = PanZoomView::IDENTITY)] view: Binding<PanZoomVie
 fn CanvasBoard(
     view: Memo<Option<CanvasView>>,
     scale: Memo<f32>,
-    focused: ReadSignal<bool>,
+    state: Memo<PanZoomState>,
 ) -> NodeId {
     let [first, second, third, fourth] = STAGE_CARDS;
+    let focused = Prop::dynamic(move || state.get().focused);
     view! {
         <Frame
             border={focus_border(focused, Border::new(ColorRole::Accent).width(2.0))}

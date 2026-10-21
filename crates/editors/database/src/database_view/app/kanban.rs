@@ -181,12 +181,12 @@ fn OpenColumn(data: Data, group: Memo<Option<Group>>, key: GroupKey) -> NodeId {
     };
     view! {
         <DropTarget on_drop={dropped}>|handle: DropHandle| {
-            let DropHandle { over, .. } = handle;
+            let DropHandle { state, .. } = handle;
             view! {
                 <Frame
                     width=COLUMN_WIDTH
                     fill=ColorRole::Surface
-                    border={create_memo(move || over.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
+                    border={create_memo(move || state.get().over.then_some(Border::new(ColorRole::Accent).width(2.0)))}
                     radius=Radius::Lg
                     padding={Sides::horizontal(8.0).bottom(8.0)}
                 >

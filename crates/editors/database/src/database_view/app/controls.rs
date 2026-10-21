@@ -13,16 +13,11 @@ pub const MARK_SIZE: f32 = MARK.icon_px();
 #[component]
 pub fn ControlFace(handle: ButtonHandle, children: Child) -> NodeId {
     let theme = use_theme();
-    let ButtonHandle {
-        hovered,
-        active,
-        focused,
-        ..
-    } = handle;
+    let ButtonHandle { state, .. } = handle;
     let fill = create_memo(move || {
-        if active.get() {
+        if state.get().active {
             theme.pressed.get()
-        } else if hovered.get() {
+        } else if state.get().hovered {
             theme.hover.get()
         } else {
             block_editor_beui::beui::Color32::TRANSPARENT
@@ -31,7 +26,7 @@ pub fn ControlFace(handle: ButtonHandle, children: Child) -> NodeId {
     view! {
         <Frame
             fill={ColorRole::custom(fill)}
-            border={create_memo(move || focused.get().then_some(Border::new(ColorRole::Accent).width(2.0)))}
+            border={create_memo(move || state.get().focused.then_some(Border::new(ColorRole::Accent).width(2.0)))}
             radius=Radius::Md
             padding={Sides::symmetric(8.0, 5.0)}
         >

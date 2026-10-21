@@ -1057,7 +1057,7 @@ pub fn Sheet(
                                         on_press={move |press: PointerPress| motion.value().handle_press(press)}
                                         on_drag={move |press: PointerPress| motion.value().handle_drag(press)}
                                         on_cancel={move || motion.value().handle_cancel()}
-                                        on_active_change={move |active: bool| motion.value().handle_active(active)}
+                                        on_state_change={InteractionState::watch(|state| state.pressed, move |pressed: bool| motion.value().handle_active(pressed))}
                                         children={Some(grip)}
                                     />
                                     <Fade edges @sizing={ItemSize::Intrinsic.shrink(1.0)}>

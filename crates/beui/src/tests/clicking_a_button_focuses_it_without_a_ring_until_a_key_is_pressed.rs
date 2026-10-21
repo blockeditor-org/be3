@@ -14,8 +14,8 @@ fn clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed() {
             },
         ]
     });
-    let first_focused = unstyled::button_focused(&document, first);
-    let second_focused = unstyled::button_focused(&document, second);
+    let first_focused = unstyled::button_state(&document, first);
+    let second_focused = unstyled::button_state(&document, second);
     let mut harness = Harness::new(document);
     let rings = |output: &crate::FrameOutput| {
         output.shapes().iter().filter(|shape| matches!(shape,
@@ -27,16 +27,16 @@ fn clicking_a_button_focuses_it_without_a_ring_until_a_key_is_pressed() {
     let center = harness.center(first);
     harness.click(center);
     let clicked = harness.frame(vec![]);
-    assert!(first_focused.get());
+    assert!(first_focused.get().focused);
     assert_eq!(rings(&clicked), rings(&initial));
 
     let tabbed = harness.frame(vec![key_event(Key::Tab, true, Modifiers::NONE)]);
-    assert!(second_focused.get());
+    assert!(second_focused.get().focused);
     assert!(rings(&tabbed) > rings(&initial));
 
     let center = harness.center(first);
     harness.click(center);
     let clicked_again = harness.frame(vec![]);
-    assert!(first_focused.get());
+    assert!(first_focused.get().focused);
     assert_eq!(rings(&clicked_again), rings(&initial));
 }

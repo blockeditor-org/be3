@@ -25,10 +25,15 @@ pub struct DragHandle {
     pub dragging: Memo<bool>,
 }
 
+#[derive(Clone, Copy, Debug, Default, PartialEq, Eq)]
+pub struct DropState {
+    pub carrying: bool,
+    pub over: bool,
+}
+
 #[derive(Clone, Copy)]
 pub struct DropHandle {
-    pub carrying: Memo<bool>,
-    pub over: Memo<bool>,
+    pub state: Memo<DropState>,
     pub pointer: ReadSignal<Option<DragPoint>>,
 }
 
@@ -102,8 +107,8 @@ where
             on_click.call();
         }
     };
-    let released = move |active: bool| {
-        if active {
+    let released = move |pressed: bool| {
+        if pressed {
             return;
         }
         pressed_at.set(None);
@@ -148,7 +153,7 @@ where
             on_press={pressed}
             on_drag={dragged}
             on_click_at={clicked}
-            on_active_change={released}
+            on_state_change={InteractionState::watch(|state| state.pressed, released)}
         >
             <List spacing=0.0>
                 {face}
@@ -218,11 +223,12 @@ where
         }),
     });
     on_cleanup(move || board.unregister(id));
-    let carrying = create_memo(move || carrying.get());
-    let over = create_memo(move || pointer.with(Option::is_some));
+    let state = create_memo(move || DropState {
+        carrying: carrying.get(),
+        over: pointer.with(Option::is_some),
+    });
     let face = content.call(DropHandle {
-        carrying,
-        over,
+        state,
         pointer: pointer.read_only(),
     });
     view! {

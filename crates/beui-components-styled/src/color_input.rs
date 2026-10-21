@@ -77,8 +77,9 @@ fn SwatchTrigger(
 ) -> NodeId {
     let PopoverTriggerHandle {
         open,
-        button: ButtonHandle { focused, .. },
+        button: ButtonHandle { state, .. },
     } = handle;
+    let focused = Prop::dynamic(move || state.get().focused);
     view! {
         <Tooltip label disabled={open}>
             <FocusRing

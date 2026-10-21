@@ -34,8 +34,6 @@ pub struct Focus {
     pub ime_keyboard: bool,
     pub ime_cursor: Option<ImeCursor>,
     pub ime_text: Option<ImeText>,
-    pub on_focus_change: Callback<bool>,
-    pub on_activate_change: Callback<bool>,
     pub on_activate: ClickCallback,
     pub on_step: Callback<f32>,
     pub on_text: Callback<String>,
@@ -62,8 +60,6 @@ impl Focus {
             ime_keyboard: true,
             ime_cursor: None,
             ime_text: None,
-            on_focus_change: Callback::empty(),
-            on_activate_change: Callback::empty(),
             on_activate: ClickCallback::empty(),
             on_step: Callback::empty(),
             on_text: Callback::empty(),
@@ -343,9 +339,7 @@ impl Document {
 
     pub(crate) fn activates(&self, node: NodeId) -> bool {
         self.contains(node)
-            && focus_of(self.arena.get(node)).is_some_and(|focus| {
-                !focus.on_activate.is_empty() || !focus.on_activate_change.is_empty()
-            })
+            && focus_of(self.arena.get(node)).is_some_and(|focus| !focus.on_activate.is_empty())
     }
 
     pub(crate) fn steps(&self, node: NodeId) -> bool {
@@ -730,7 +724,7 @@ impl Document {
     }
 
     fn call_focusable_activate(&mut self, id: NodeId, pressed: bool, activate: bool) {
-        self.call_focusable_handler(id, pressed, |node| &node.on_activate_change);
+        self.set_interactive_key_active(id, pressed);
         if !activate || !self.contains(id) {
             return;
         }
@@ -745,7 +739,7 @@ impl Document {
             return;
         }
         self.arena.touch_mut(id);
-        self.call_focusable_handler(id, focused, |node| &node.on_focus_change);
+        self.change_interaction(id, |node| node.change(|state| state.focused = focused));
     }
 
     fn call_focusable_handler<V: 'static>(
