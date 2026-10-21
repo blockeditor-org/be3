@@ -233,6 +233,7 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
         } => {
             let delta = CanvasPoint::new(current.x - start.x, current.y - start.y);
             unbound_from_the_rest(
+                originals,
                 originals
                     .iter()
                     .cloned()
@@ -253,28 +254,28 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
             scale_text,
             scale_editors,
             ..
-        } => unbound_from_the_rest(resize_entities(
-            *handle,
-            *frame,
-            *current,
+        } => unbound_from_the_rest(
             originals,
-            *preserve_aspect_ratio,
-            *scale_text,
-            *scale_editors,
-        )),
+            resize_entities(
+                *handle,
+                *frame,
+                *current,
+                originals,
+                *preserve_aspect_ratio,
+                *scale_text,
+                *scale_editors,
+            ),
+        ),
         Gesture::Rotate {
             frame,
             start_angle,
             current,
             originals,
             snap_angle,
-        } => unbound_from_the_rest(rotate_entities(
-            *frame,
-            *start_angle,
-            *current,
+        } => unbound_from_the_rest(
             originals,
-            *snap_angle,
-        )),
+            rotate_entities(*frame, *start_angle, *current, originals, *snap_angle),
+        ),
         Gesture::Endpoint {
             original,
             end,
@@ -295,7 +296,13 @@ pub(crate) fn preview_entities(gesture: &Gesture) -> Vec<CanvasEntity> {
     }
 }
 
-fn unbound_from_the_rest(mut entities: Vec<CanvasEntity>) -> Vec<CanvasEntity> {
+fn unbound_from_the_rest(
+    originals: &[CanvasEntity],
+    mut entities: Vec<CanvasEntity>,
+) -> Vec<CanvasEntity> {
+    if entities.as_slice() == originals {
+        return entities;
+    }
     let moved: HashSet<Uuid> = entities.iter().map(|entity| entity.id).collect();
     for entity in &mut entities {
         for binding in &mut entity.bindings {
