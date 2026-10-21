@@ -30,11 +30,11 @@ pub(crate) struct RevisionHistory {
     loading: Signal<bool>,
     busy: Signal<bool>,
     confirm: Signal<bool>,
-    state: Stored<Pending>,
+    state: Stored<Requests>,
 }
 
 #[derive(Default)]
-struct Pending {
+struct Requests {
     generation: Cell<u64>,
     latest_list: Cell<u64>,
     lists: RefCell<Vec<(u64, u64)>>,
@@ -62,7 +62,7 @@ impl RevisionHistory {
             loading,
             busy,
             confirm,
-            state: store(Pending::default()),
+            state: store(Requests::default()),
         };
         let changed = editor.pushed(Pushed::Histories);
         let previous = Cell::new(None);

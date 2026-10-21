@@ -858,7 +858,6 @@ type RowTitles = Vec<(RowRef, String)>;
 #[derive(Clone, Copy)]
 pub struct RowLabels {
     pub labels: Memo<BTreeMap<RowRef, String>>,
-    pub loaded: Memo<bool>,
     pub unreachable: Memo<std::collections::BTreeSet<Uuid>>,
 }
 
@@ -910,7 +909,6 @@ pub fn watch_row_labels(editor: crate::Editor, databases: Memo<Vec<Uuid>>) -> Ro
                     .unwrap_or_default()
             })
         }),
-        loaded,
     }
 }
 
