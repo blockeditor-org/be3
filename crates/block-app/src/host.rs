@@ -70,6 +70,7 @@ struct Host {
     now: Duration,
     pass: u64,
     seen: bool,
+    clock_stopped: bool,
     pixels_per_point: f32,
     screen_scale: f32,
     preferences: block_plugin_api::Preferences,
@@ -85,6 +86,7 @@ impl Default for Host {
             now: Duration::ZERO,
             pass: 0,
             seen: true,
+            clock_stopped: false,
             pixels_per_point: 1.0,
             screen_scale: 1.0,
             preferences: block_plugin_api::Preferences::default(),
@@ -102,6 +104,7 @@ fn with<R>(act: impl FnOnce(&mut Host) -> R) -> R {
 struct Frame {
     now: Option<Instant>,
     seen: bool,
+    clock_stopped: bool,
     preferences: block_plugin_api::Preferences,
     pixels_per_point: f32,
     screen_scale: f32,
@@ -112,6 +115,7 @@ impl Default for Frame {
         Self {
             now: None,
             seen: true,
+            clock_stopped: false,
             preferences: block_plugin_api::Preferences::default(),
             pixels_per_point: 1.0,
             screen_scale: 1.0,
@@ -137,6 +141,7 @@ pub(crate) fn begin(context: &beui::Context) {
     let mut frame = Frame {
         now: Some(context.now()),
         seen: context.seen(),
+        clock_stopped: context.clock_stopped(),
         ..Frame::default()
     };
     frame.preferences = context.preferences();
@@ -157,6 +162,7 @@ fn start(frame: Frame) {
         host.preferences = frame.preferences;
         host.pass += 1;
         host.seen = frame.seen;
+        host.clock_stopped = frame.clock_stopped;
         if let Some(now) = frame.now {
             let started = *host.started.get_or_insert(now);
             host.now = now.saturating_duration_since(started);
@@ -209,6 +215,10 @@ pub(crate) fn pass() -> u64 {
 
 pub(crate) fn seen() -> bool {
     with(|host| host.seen)
+}
+
+pub(crate) fn clock_stopped() -> bool {
+    with(|host| host.clock_stopped)
 }
 
 pub(crate) fn now() -> Duration {

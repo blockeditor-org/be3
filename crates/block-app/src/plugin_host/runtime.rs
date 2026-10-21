@@ -32,6 +32,7 @@ const HOST_NAME: &str = "BE3";
 const UNIT: Rect = Rect::from_min_max(Pos2::ZERO, pos2(1.0, 1.0));
 const FRAME_TIMEOUT: Duration = Duration::from_secs(1);
 const FRAME_BUDGET: Duration = Duration::from_millis(8);
+const STOPPED_CLOCK_FRAME_BUDGET: Duration = Duration::from_secs(10);
 pub(crate) const PACING: &str = "Frame pacing";
 const REMEMBERED_PRESENTS: usize = 16;
 const SURFACE: SurfaceSpec = SurfaceSpec {
@@ -1129,7 +1130,10 @@ pub(crate) fn settle() {
         let mut host = host.borrow_mut();
         let deadline = match host.deadline {
             Some((at, deadline)) if at == pass => deadline,
-            _ => Deadline::after(FRAME_BUDGET),
+            _ => Deadline::after(match host::clock_stopped() {
+                true => STOPPED_CLOCK_FRAME_BUDGET,
+                false => FRAME_BUDGET,
+            }),
         };
         host.deadline = Some((pass, deadline));
         let asked: Vec<String> = host

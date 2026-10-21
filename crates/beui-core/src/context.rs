@@ -510,6 +510,10 @@ impl Context {
         self.inner.clock.set(None);
     }
 
+    pub fn clock_stopped(&self) -> bool {
+        self.inner.clock.get().is_some()
+    }
+
     pub fn set_clock(&self, now: Instant) {
         self.inner.clock.set(Some(now));
         self.inner.now.set(now);
