@@ -1,5 +1,6 @@
-use crate::dialog::{DialogActions, DialogSurface, SCRIM};
+use crate::dialog::{DialogActions, DialogSurface};
 use crate::frame::Frame;
+use crate::theme::use_theme;
 use beui_core::layer::Dismiss;
 use std::time::{Duration, Instant};
 
@@ -86,12 +87,14 @@ pub fn KeepChanges(
     let width = create_memo(move || Some(bounds.get().width()));
     let height = create_memo(move || Some(bounds.get().height()));
     let title = create_memo(move || title.get());
+    let theme = use_theme();
+    let scrim = create_memo(move || theme.scrim.get());
     view! {
         <Overlay
             anchor={anchor}
             open={open}
             placement=Placement::At
-            scrim=SCRIM
+            scrim={scrim}
             on_dismiss={move |_: Dismiss| revert()}
             content={move || view! {
                 <Frame width=width height=height>

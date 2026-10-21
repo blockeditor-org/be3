@@ -417,7 +417,7 @@ struct State {
     dialog: Func<TabId, Option<DialogParts>>,
     dialog_chrome: RenderFn<DockDialogHandle>,
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    dialog_scrim: Color32,
+    dialog_scrim: Memo<Color32>,
     dialog_margin: u16,
     dialog_gap: u16,
     dialog_frames: Stored<RefCell<HashMap<TabId, NodeRef>>>,
@@ -1200,7 +1200,7 @@ pub(crate) struct DockConfig {
     pub(crate) dialog: Func<TabId, Option<DialogParts>>,
     pub(crate) dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     pub(crate) dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    pub(crate) dialog_scrim: Color32,
+    pub(crate) dialog_scrim: Memo<Color32>,
     pub(crate) dialog_margin: u16,
     pub(crate) dialog_gap: u16,
 }

@@ -82,6 +82,7 @@ where
     });
     let theme = use_theme();
     let backdrop = theme.background;
+    let dialog_scrim = create_memo(move || theme.scrim.get());
     let fill = create_memo(move || match mode.get() {
         DockMode::Tiled => Color32::TRANSPARENT,
         DockMode::Stacked => theme.background.get(),
@@ -120,7 +121,7 @@ where
             dialog_sheet={move |handle: DockSheetHandle| view! {
                 <DockDialogSheet handle />
             }}
-            dialog_scrim={crate::dialog::SCRIM}
+            dialog_scrim={dialog_scrim}
             dialog_margin=CARD_MARGIN
             dialog_gap=CARD_GAP
             tab={move |handle: DockTabHandle| view! {

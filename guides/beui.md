@@ -3105,7 +3105,9 @@ rather than designed: labels on a zoomable canvas, a terminal, a game board.
 `Theme::OLED` (dark on pure black, so OLED screens leave most pixels off),
 `Theme::LIGHT`, and `Theme::EPAPER`, one for each `ThemeKind`; `Theme::of(kind)` picks one,
 and a theme's `kind` says which it is, for code that must tell them apart without comparing
-colors. Styled components that no provider covers use the document's theme, the one its
+colors. What dims the app under an overlay is a theme colour too: `scrim` under a dialog,
+sheet or dock dialog, `scrim_soft` under the command palette and launcher, which leave
+the app readable, and `scrim_strong` under `Fullscreen`. Styled components that no provider covers use the document's theme, the one its
 preferences choose (Preferences, above); `theme()` from the `styled::DocumentTheme` trait reads
 it, for example to pick an app's clear color.
 

@@ -3,18 +3,16 @@ use beui_macros::{component, view};
 
 use beui_components_unstyled::BackSlide;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
 use beui_core::node::NodeId;
 use beui_view::components::overlay::Overlay;
 use beui_view::reactive::*;
 
-const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 230);
-
 #[component]
 pub fn Fullscreen(open: Prop<bool>, on_dismiss: ClickCallback, children: Child) -> NodeId {
     let presence = create_signal(1.0_f32);
-    let scrim = create_memo(move || SCRIM.scale_alpha(presence.get()));
+    let theme = crate::theme::use_theme();
+    let scrim = create_memo(move || theme.scrim_strong.get().scale_alpha(presence.get()));
     view! {
         <Overlay
             anchor=OverlayAnchor::Point(Pos2::ZERO)

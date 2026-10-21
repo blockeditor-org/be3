@@ -739,7 +739,7 @@ pub fn Docking<K>(
     switch: Option<RenderFn<DockSwitchHandle>>,
     dialog_chrome: Option<RenderFn<DockDialogHandle>>,
     dialog_sheet: Option<RenderFn<DockSheetHandle>>,
-    #[prop(default = Color32::TRANSPARENT)] dialog_scrim: Color32,
+    #[prop(default = Color32::TRANSPARENT)] dialog_scrim: Prop<Color32>,
     #[prop(default = 0)] dialog_margin: u16,
     #[prop(default = 0)] dialog_gap: u16,
     children: Children<DockNode<K>>,
@@ -854,7 +854,7 @@ where
                 dialog,
                 dialog_chrome,
                 dialog_sheet,
-                dialog_scrim,
+                dialog_scrim: create_memo(move || dialog_scrim.get()),
                 dialog_margin,
                 dialog_gap,
             }}

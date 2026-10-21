@@ -376,7 +376,7 @@ fn DockDialogView(dock: State, tab: TabId, parent: TabId) -> NodeId {
         (true, None) => (
             OverlayAnchor::Node(anchor),
             Placement::HangFrom(margin),
-            dims,
+            dims.get(),
         ),
         (false, _) => (
             OverlayAnchor::Node(anchor),

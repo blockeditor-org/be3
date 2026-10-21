@@ -9,7 +9,6 @@ use crate::text::{Text, TextStyle};
 use beui_components_unstyled::BackSlide;
 use beui_core::base::ItemSize;
 use beui_core::base::overlay::{OverlayAnchor, Placement};
-use beui_core::color::Color32;
 use beui_core::geometry::Pos2;
 use beui_core::input::Key;
 use beui_core::keys::{KeyAt, KeyPhase};
@@ -22,7 +21,6 @@ pub(crate) const PADDING_HORIZONTAL: f32 = 20.0;
 pub(crate) const PADDING_VERTICAL: f32 = 18.0;
 pub(crate) const SPACING: f32 = 12.0;
 pub(crate) const MARGIN: f32 = 12.0;
-pub(crate) const SCRIM: Color32 = Color32::from_rgba_unmultiplied(0, 0, 0, 150);
 const ACTION_SPACING: f32 = 8.0;
 
 #[component]
@@ -41,7 +39,8 @@ pub fn Dialog(
     #[prop(children)] content: Render<(), Children<ListChild>>,
 ) -> NodeId {
     let presence = create_signal(1.0_f32);
-    let scrim = create_memo(move || SCRIM.scale_alpha(presence.get()));
+    let theme = crate::theme::use_theme();
+    let scrim = create_memo(move || theme.scrim.get().scale_alpha(presence.get()));
     let actions = DialogActions {
         id: create_memo(move || id.get()),
         confirm: create_memo(move || confirm.get()),

@@ -1241,7 +1241,7 @@ pub fn ModalSheet(
     #[prop(default = SHEET_STOPS.to_vec())] stops: Vec<f32>,
     #[prop(default = false)] fit: bool,
     #[prop(default = 0.0)] fade: f32,
-    #[prop(default = Color32::TRANSPARENT)] scrim: Color32,
+    #[prop(default = Color32::TRANSPARENT)] scrim: Prop<Color32>,
     grip: Render<SheetGripHandle>,
     panel: Render<Child>,
     on_close: ClickCallback,
@@ -1255,7 +1255,7 @@ pub fn ModalSheet(
         }
     });
     let shown = create_memo(move || open.get() || !gone.get());
-    let faded = create_memo(move || scrim.scale_alpha(presence.get()));
+    let faded = create_memo(move || scrim.get().scale_alpha(presence.get()));
     view! {
         <Overlay
             anchor=OverlayAnchor::Point(Pos2::ZERO)
