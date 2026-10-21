@@ -82,7 +82,7 @@ pub struct Document {
     pub(crate) focus_into: Option<(NodeId, u64)>,
     pub back_handlers: Vec<NodeOf<crate::base::back::BackNode>>,
     pub(crate) back_gesture: Option<crate::layer::DismissTarget>,
-    timers: RefCell<crate::timer::Timers>,
+    timers: Rc<RefCell<crate::timer::Timers>>,
     scale: ::reactive::OwnedSignal<f32>,
     attached: ::reactive::OwnedSignal<u64>,
     focus_visible: ::reactive::OwnedSignal<bool>,
@@ -301,7 +301,7 @@ impl Document {
             focus_into: None,
             back_handlers: Vec::new(),
             back_gesture: None,
-            timers: RefCell::new(Vec::new()),
+            timers: Rc::default(),
             scale: ::reactive::OwnedSignal::new(1.0),
             attached: ::reactive::OwnedSignal::new(0),
             focus_visible: ::reactive::OwnedSignal::new(false),
@@ -471,8 +471,8 @@ impl Document {
         }
     }
 
-    pub fn register_timer(&self, timer: Weak<crate::timer::TimerState>) {
-        self.timers.borrow_mut().push(timer);
+    pub fn timers(&self) -> Rc<RefCell<crate::timer::Timers>> {
+        Rc::clone(&self.timers)
     }
 
     pub fn watch_context(&self) -> ::reactive::ReadSignal<u64> {
@@ -629,7 +629,11 @@ impl Document {
         }
         let now = self.now;
         let mut timers = self.timers.borrow_mut();
-        timers.retain(|timer| timer.strong_count() > 0);
+        timers.retain(|timer| {
+            timer
+                .upgrade()
+                .is_some_and(|timer| timer.due().is_some() || timer.unlist())
+        });
         let due: Vec<_> = timers
             .iter()
             .filter_map(Weak::upgrade)
