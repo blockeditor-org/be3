@@ -254,6 +254,7 @@ direction:
 
 | Crate | Owns |
 | --- | --- |
+| `ui-types` | the vocabulary beui shares with the plugin protocol, which depends on nothing but serde: `Key`, `Modifiers`, `KeyChord`, `PointerButton`, the touch, pen and back phases, `ImeEvent`, `CursorIcon`, `Pasted` and `PickedFile` |
 | `beui-tree` | what makes a tree of components, whatever it is made of: `#[component]` and `view!`'s runtime, `Prop`, child slots (`Children`, `Run`, `SlotChild`, `SlotHost`) and `Show`, `ShowKeepAlive`, `Dynamic`, `Keyed` and `ForEach` |
 | `beui-core` | `Document` and `Context`, the retained nodes and their layout, input and its dispatch, accessibility, paint output and damage, the font and image interfaces, the icon codepoints, the `App` contract, and the `Runner` every adapter drives it through |
 | `beui-font-freetype` | `FreetypeFonts`: FreeType and HarfBuzz shaping and rasterizing, and the fonts beui compiles in |
@@ -305,7 +306,7 @@ hooks the higher crates fill in:
   `beui_core::touch_cursor` as an image at any scale (winit's custom cursor,
   the DRM sprite), an SVG (the web's CSS `url(...)` cursor) and a painter
   call (the mouse simulation's cursor). A plugin region passes it to its host
-  as the protocol's `CursorIcon::Touch`, and a platform with no custom cursors
+  unchanged (the protocol's `CursorIcon` is beui's, from `ui-types`), and a platform with no custom cursors
   falls back to `CursorIcon::Touch.name()`, a crosshair. The runner hands it to `Platform::show_window` with the state it
   showed before, only when they differ, so an adapter compares just the
   fields it uses; a new field is one more field there and in the adapters

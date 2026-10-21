@@ -4676,7 +4676,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                 ],
@@ -4691,7 +4690,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                 ],
@@ -4706,7 +4704,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                 ],
@@ -4721,7 +4718,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                 ],
@@ -4736,7 +4732,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                 ],
@@ -4751,7 +4746,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui-renderer-wgpu:beui-renderer-wgpu",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -4766,7 +4760,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                 ],
@@ -4781,7 +4774,6 @@ crates = {
                 "binaries": {},
                 "deps": [
                     "//crates/beui-core:beui-core",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/block-editor-plugin:block-editor-plugin",
                     "//crates/block-plugin-api:block-plugin-api",
                 ],
@@ -5428,6 +5420,7 @@ crates = {
                     "//crates/geometry:geometry",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:raw-window-handle-0.6.2",
@@ -5446,6 +5439,7 @@ crates = {
                     "//crates/geometry:geometry",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:raw-window-handle-0.6.2",
@@ -5464,6 +5458,7 @@ crates = {
                     "//crates/geometry:geometry",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:raw-window-handle-0.6.2",
@@ -5482,6 +5477,7 @@ crates = {
                     "//crates/geometry:geometry",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:raw-window-handle-0.6.2",
@@ -5500,6 +5496,7 @@ crates = {
                     "//crates/geometry:geometry",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:raw-window-handle-0.6.2",
@@ -5518,6 +5515,7 @@ crates = {
                     "//crates/geometry:geometry",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:raw-window-handle-0.6.2",
@@ -5536,6 +5534,7 @@ crates = {
                     "//crates/geometry:geometry",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:raw-window-handle-0.6.2",
@@ -5554,6 +5553,7 @@ crates = {
                     "//crates/geometry:geometry",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:raw-window-handle-0.6.2",
@@ -5572,6 +5572,7 @@ crates = {
                     "//crates/geometry:geometry",
                     "//crates/paint-format:paint-format",
                     "//crates/reactive:reactive",
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:foldhash-0.2.0",
                     "//third-party/rust:raw-window-handle-0.6.2",
@@ -6544,120 +6545,6 @@ crates = {
         "profile_flags": [],
         "version": "0.1.0",
     },
-    "crates/beui-plugin-input": {
-        "binaries": [],
-        "edition": "2024",
-        "examples": [],
-        "library": {
-            "crate": "beui_plugin_input",
-            "crate_root": "src/lib.rs",
-            "proc_macro": False,
-        },
-        "name": "beui-plugin-input",
-        "platforms": {
-            "android-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-plugin-api:block-plugin-api",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-plugin-api:block-plugin-api",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "linux-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-plugin-api:block-plugin-api",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-plugin-api:block-plugin-api",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "macos-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-plugin-api:block-plugin-api",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "wasi": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-plugin-api:block-plugin-api",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "wasi-guest": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-plugin-api:block-plugin-api",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-arm64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-plugin-api:block-plugin-api",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-            "windows-x86_64": {
-                "binaries": {},
-                "deps": [
-                    "//crates/beui:beui",
-                    "//crates/block-plugin-api:block-plugin-api",
-                ],
-                "examples": {},
-                "features": [],
-                "test_deps": [],
-                "test_features": [],
-            },
-        },
-        "profile_flags": [],
-        "version": "0.1.0",
-    },
     "crates/beui-renderer-dom": {
         "binaries": [],
         "edition": "2024",
@@ -7243,7 +7130,6 @@ crates = {
                         "//crates/be-server:be-server",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
-                        "//crates/beui-plugin-input:beui-plugin-input",
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
@@ -7279,7 +7165,6 @@ crates = {
                     "//crates/be-server:be-server",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
@@ -7328,7 +7213,6 @@ crates = {
                         "//crates/be-vcs:be-vcs",
                         "//crates/be-wayland:be-wayland",
                         "//crates/beui-adapter-drm:beui-adapter-drm",
-                        "//crates/beui-plugin-input:beui-plugin-input",
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
@@ -7372,7 +7256,6 @@ crates = {
                     "//crates/be-vcs:be-vcs",
                     "//crates/be-wayland:be-wayland",
                     "//crates/beui-adapter-drm:beui-adapter-drm",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
@@ -7425,7 +7308,6 @@ crates = {
                         "//crates/be-vcs:be-vcs",
                         "//crates/be-wayland:be-wayland",
                         "//crates/beui-adapter-drm:beui-adapter-drm",
-                        "//crates/beui-plugin-input:beui-plugin-input",
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
@@ -7469,7 +7351,6 @@ crates = {
                     "//crates/be-vcs:be-vcs",
                     "//crates/be-wayland:be-wayland",
                     "//crates/beui-adapter-drm:beui-adapter-drm",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
@@ -7519,7 +7400,6 @@ crates = {
                         "//crates/be-server:be-server",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
-                        "//crates/beui-plugin-input:beui-plugin-input",
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
@@ -7554,7 +7434,6 @@ crates = {
                     "//crates/be-server:be-server",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
@@ -7598,7 +7477,6 @@ crates = {
                         "//crates/be-server:be-server",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
-                        "//crates/beui-plugin-input:beui-plugin-input",
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
@@ -7633,7 +7511,6 @@ crates = {
                     "//crates/be-server:be-server",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
@@ -7676,7 +7553,6 @@ crates = {
                     "//crates/be-protocol:be-protocol",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/build-id:build-id",
@@ -7712,7 +7588,6 @@ crates = {
                         "//crates/be-server:be-server",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
-                        "//crates/beui-plugin-input:beui-plugin-input",
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
@@ -7746,7 +7621,6 @@ crates = {
                     "//crates/be-server:be-server",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
@@ -7789,7 +7663,6 @@ crates = {
                         "//crates/be-server:be-server",
                         "//crates/be-store:be-store",
                         "//crates/be-vcs:be-vcs",
-                        "//crates/beui-plugin-input:beui-plugin-input",
                         "//crates/beui:beui",
                         "//crates/block-plugin-api:block-plugin-api",
                         "//crates/block-wasm-host:block-wasm-host",
@@ -7823,7 +7696,6 @@ crates = {
                     "//crates/be-server:be-server",
                     "//crates/be-store:be-store",
                     "//crates/be-vcs:be-vcs",
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-plugin-api:block-plugin-api",
                     "//crates/block-wasm-host:block-wasm-host",
@@ -8549,6 +8421,7 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
@@ -8564,6 +8437,7 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
@@ -8579,6 +8453,7 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
@@ -8594,6 +8469,7 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
@@ -8609,6 +8485,7 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
@@ -8624,6 +8501,7 @@ crates = {
             "wasi": {
                 "binaries": {},
                 "deps": [
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
@@ -8639,6 +8517,7 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
@@ -8654,6 +8533,7 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
@@ -8669,6 +8549,7 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
+                    "//crates/ui-types:ui-types",
                     "//third-party/rust:accesskit-0.24.1",
                     "//third-party/rust:bincode-1.3.3",
                     "//third-party/rust:serde-1.0.228",
@@ -9049,7 +8930,6 @@ crates = {
             "android-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -9064,7 +8944,6 @@ crates = {
             "linux-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -9079,7 +8958,6 @@ crates = {
             "linux-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -9094,7 +8972,6 @@ crates = {
             "macos-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -9109,7 +8986,6 @@ crates = {
             "macos-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -9124,7 +9000,6 @@ crates = {
             "wasi-guest": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -9139,7 +9014,6 @@ crates = {
             "windows-arm64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -9154,7 +9028,6 @@ crates = {
             "windows-x86_64": {
                 "binaries": {},
                 "deps": [
-                    "//crates/beui-plugin-input:beui-plugin-input",
                     "//crates/beui:beui",
                     "//crates/block-editor-beui:block-editor-beui",
                     "//crates/block-plugin-api:block-plugin-api",
@@ -14677,6 +14550,120 @@ crates = {
                     "//third-party/rust:tree-sitter-rust-0.24.2",
                     "//third-party/rust:tree-sitter-zig-1.1.2",
                     "//third-party/rust:unicode-segmentation-1.13.3",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+        },
+        "profile_flags": [],
+        "version": "0.1.0",
+    },
+    "crates/ui-types": {
+        "binaries": [],
+        "edition": "2024",
+        "examples": [],
+        "library": {
+            "crate": "ui_types",
+            "crate_root": "src/lib.rs",
+            "proc_macro": False,
+        },
+        "name": "ui-types",
+        "platforms": {
+            "android-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "linux-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "macos-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "wasi-guest": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-arm64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
+                ],
+                "examples": {},
+                "features": [],
+                "test_deps": [],
+                "test_features": [],
+            },
+            "windows-x86_64": {
+                "binaries": {},
+                "deps": [
+                    "//third-party/rust:serde-1.0.228",
+                    "//third-party/rust:serde_bytes-0.11.19",
                 ],
                 "examples": {},
                 "features": [],

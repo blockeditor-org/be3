@@ -1117,11 +1117,7 @@ impl<A: BeuiApp> BeuiTest<A> {
     }
 
     pub fn intercepted_keys(&self) -> Vec<KeyChord> {
-        self.window
-            .intercepted_keys
-            .iter()
-            .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
-            .collect()
+        self.window.intercepted_keys.clone()
     }
 
     pub fn app_key(&mut self, modifiers: Modifiers, key: Key) -> bool {

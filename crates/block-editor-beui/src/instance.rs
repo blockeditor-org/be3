@@ -480,12 +480,7 @@ impl<A: BeuiApp> Instance for BeuiInstance<A> {
             .claims
             .into_iter()
             .map(|(held, rect)| block_editor_plugin::Claim {
-                modifiers: block_plugin_api::Modifiers {
-                    alt: held.alt,
-                    control: held.ctrl,
-                    shift: held.shift,
-                    logo: held.logo,
-                },
+                modifiers: held,
                 rect: to_region(rect),
             })
             .collect();

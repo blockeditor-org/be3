@@ -10,10 +10,10 @@ fn clipboard_messages_round_trip() {
             screen: ScreenId(1),
             events: vec![
                 InputEvent::Paste(Pasted::Text("pasted".into())),
-                InputEvent::Paste(Pasted::Image {
+                InputEvent::Paste(Pasted::Image(PickedFile {
                     name: "Pasted Image.png".into(),
                     data: vec![1, 2, 3],
-                }),
+                })),
             ],
         }),
     ];

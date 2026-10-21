@@ -2133,25 +2133,18 @@ fn placed_view(
                     .claims
                     .iter()
                     .map(|claim| {
-                        let held = beui::Modifiers {
-                            alt: claim.modifiers.alt,
-                            ctrl: claim.modifiers.control,
-                            shift: claim.modifiers.shift,
-                            logo: claim.modifiers.logo,
-                        };
                         let at = Rect::from_min_size(
                             pos2(claim.rect.x, claim.rect.y) + rect.min.to_vec2(),
                             vec2(claim.rect.width, claim.rect.height),
                         );
-                        (held, at.intersect(visible))
+                        (claim.modifiers, at.intersect(visible))
                     })
                     .collect()
             })
             .unwrap_or_default();
         let intercepted_keys = window
             .iter()
-            .flat_map(|window| &window.intercepted_keys)
-            .filter_map(|chord| beui_plugin_input::beui_chord(*chord))
+            .flat_map(|window| window.intercepted_keys.iter().copied())
             .collect();
         let base: Vec<Rect> = match floating_rects.is_empty() {
             true => vec![visible],
@@ -2196,13 +2189,7 @@ fn placed_view(
             keyboard_toggles: window.map_or(0, |window| window.keyboard_toggles),
             intercepted_keys,
             pastes: window
-                .map(|window| {
-                    window
-                        .pastes
-                        .iter()
-                        .map(|kind| beui_plugin_input::beui_paste_kind(*kind))
-                        .collect()
-                })
+                .map(|window| window.pastes.clone())
                 .unwrap_or_default(),
         }
     }
