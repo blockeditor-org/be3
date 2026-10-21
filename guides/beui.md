@@ -671,9 +671,11 @@ its one child faded out toward each edge over the widths its `edges` name. `Shif
 lays its child out moved `by` a vector without moving the space it takes, and
 paints nothing while the child is off the screen, which is how a sheet slides in. `Turn`
 paints its child turned clockwise by `quarter_turns` about the middle of its box, which
-takes the child's size with width and height swapped for an odd number of turns; pointer
+takes the child's size with width and height swapped for an odd number of turns, and
+further by `angle` radians, which leaves the box as it is; clips inside it grow to the
+upright bounds of what they clip, so nothing turned is cut off. Pointer
 input and the accessibility tree still see the child unturned, so it is for pictures, such
-as a preview of a turned screen, not for controls. `VirtualList` is an ordinary box that stands for
+as a preview of a turned screen or a canvas's turned text, not for controls. `VirtualList` is an ordinary box that stands for
 one item per key, each of an estimated `item_size`, and builds only the ones its slice of
 the viewport reaches (see [Long lists](#long-lists)).
 `Scroll` takes a `direction`, so the same tag is a

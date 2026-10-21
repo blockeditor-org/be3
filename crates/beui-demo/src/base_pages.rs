@@ -588,6 +588,7 @@ fn NudgedTile() -> NodeId {
 fn TurnedLabel() -> NodeId {
     let theme = use_theme();
     let quarters = create_signal(1u8);
+    let angle = create_signal(0.0f32);
     let face = theme.surface_raised;
     let ink = theme.text;
     view! {
@@ -599,7 +600,14 @@ fn TurnedLabel() -> NodeId {
                     <Text color={ink}>"Turn"</Text>
                 </Frame>
             </Interactive>
-            <Turn quarter_turns={quarters}>
+            <Interactive
+                on_click={move || angle.update(|angle| *angle = (*angle + 0.25) % std::f32::consts::FRAC_PI_2)}
+            >
+                <Frame fill=face radius={Radius::Md.px()} padding={Sides::symmetric(16.0, 10.0)}>
+                    <Text color={ink}>"Tilt"</Text>
+                </Frame>
+            </Interactive>
+            <Turn quarter_turns={quarters} angle={angle}>
                 <Frame
                     fill={theme.accent}
                     radius={Radius::Md.px()}

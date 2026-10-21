@@ -385,7 +385,7 @@ impl Painter {
     pub fn zoomed(&self, space: SpaceId, by: Vec2, zoom: Zoom, clip: Rect) -> Self {
         self.grouped(Group::Scroll {
             space,
-            viewport: self.state.clip.intersect(clip),
+            viewport: self.state.clip.intersect(self.state.rotation.bounds(clip)),
             offset: by,
             scale: zoom.scale,
             raster: zoom.raster,
@@ -443,7 +443,7 @@ impl Painter {
     pub fn with_clip_rect(&self, clip: Rect) -> Self {
         match clip == Rect::EVERYTHING {
             true => self.with(self.state),
-            false => self.grouped(Group::Clip(clip)),
+            false => self.grouped(Group::Clip(self.state.rotation.bounds(clip))),
         }
     }
 
